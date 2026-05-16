@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Awaitable, Callable, Optional, Protocol
 
@@ -52,6 +52,13 @@ from . import router
 logger = logging.getLogger(__name__)
 
 DEFAULT_POLL_INTERVAL_SECONDS: float = 30.0
+
+# Per-position consecutive None-price tick counter. A None result on a single
+# tick may be a transient Gamma outage (tenacity already retries network errors
+# 3x internally). Only declare MARKET_EXPIRED after this many consecutive ticks
+# of None so a brief API hiccup cannot close an active position incorrectly.
+_EXPIRED_TICK_THRESHOLD: int = 3
+_price_fail_counts: dict[object, int] = {}  # position.id (UUID) -> consecutive None ticks
 
 
 class StrategyExitEvaluator(Protocol):
@@ -115,6 +122,22 @@ class ExitDecision:
     should_exit: bool
     reason: Optional[str]
     current_price: float
+
+
+@dataclass(frozen=True)
+class RunResult:
+    """Counts from one full pass of ``run_once``.
+
+    submitted — TP/SL/force/strategy close attempts dispatched to the CLOB.
+    expired   — positions closed as MARKET_EXPIRED (no CLOB order; wallet credited).
+    held      — positions evaluated, price refreshed, no exit triggered.
+    errors    — per-position exceptions caught by the batch error net.
+    """
+
+    submitted: int = 0
+    expired: int = 0
+    held: int = 0
+    errors: int = 0
 
 
 def _return_pct(*, side: str, entry_price: float, current_price: float) -> float:
@@ -298,45 +321,157 @@ async def _act_on_decision(
         )
 
 
+async def _close_expired_position(position: OpenPositionForExit) -> bool:
+    """Close a position because its market is no longer live on Gamma.
+
+    Called when ``_fetch_live_price`` returns None after one retry (Phase A),
+    or when the position is on a market already marked resolved in the local DB
+    but not yet processed by the redemption pipeline (Phase B).
+
+    Atomic transaction in ``registry.close_as_expired``:
+      status='closed', exit_reason='market_expired', pnl_usdc=0.0,
+      wallets.balance_usdc += size_usdc, ledger INSERT type='trade_close'.
+
+    Returns True iff the position was closed. Returns False if the position
+    was already closed by another path (idempotent).
+    """
+    logger.warning(
+        "Position %s: market %s not found on Gamma after retries — closing as MARKET_EXPIRED",
+        position.id, position.market_id,
+    )
+    try:
+        closed = await registry.close_as_expired(
+            position.id, position.user_id, position.size_usdc
+        )
+        if not closed:
+            logger.info(
+                "close_as_expired: position %s already closed (idempotent skip)",
+                position.id,
+            )
+            return False
+        await audit.write(
+            actor_role="bot", action="exit_watcher_market_expired",
+            user_id=position.user_id,
+            payload={
+                "position_id": str(position.id),
+                "market_id": position.market_id,
+                "size_usdc": position.size_usdc,
+                "mode": position.mode,
+            },
+        )
+        await monitoring_alerts.alert_user_market_expired(
+            telegram_user_id=position.telegram_user_id,
+            market_id=position.market_id,
+            market_question=position.market_question,
+            side=position.side,
+            size_usdc=position.size_usdc,
+            mode=position.mode,
+        )
+        return True
+    except Exception as exc:
+        logger.error(
+            "exit_watcher._close_expired_position position=%s error=%s",
+            position.id, exc, exc_info=True,
+        )
+        return False
+
+
 async def run_once(
     *,
     strategy_evaluator: StrategyExitEvaluator = default_strategy_evaluator,
     close_submitter: Optional[order_module.CloseSubmitter] = None,
-) -> int:
-    """One full pass over every open position. Returns the number of close
-    attempts submitted (success + failure both count — they are visible in
-    audit.log).
+) -> RunResult:
+    """One full pass over every open position. Returns a ``RunResult`` with counts.
 
-    The scheduler calls this on each ``EXIT_WATCH_INTERVAL`` tick.
+    Two-phase sweep:
+
+    Phase A — normal positions (``m.resolved = FALSE`` in local DB):
+      1. Fetch live price from Gamma.
+      2. If None, retry once (cache miss means a fresh HTTP call each time).
+      3. If still None → increment per-position fail counter; skip close.
+      4. Only close as MARKET_EXPIRED when fail counter >= _EXPIRED_TICK_THRESHOLD
+         (3 consecutive ticks ≈ 90 seconds), guarding against transient API outages.
+      5. Successful price fetch resets the counter for that position.
+
+    Phase B — positions on resolved markets where the position is on the losing
+      side (``m.resolved=TRUE AND m.winning_side != p.side``) or the market has no
+      declared winner (``m.winning_side IS NULL``). Winning positions are excluded —
+      they collect terminal-value payoff via the redemption pipeline.
+
     Per-position errors are caught and logged so a single bad row never
     poisons the rest of the batch.
     """
-    positions = await registry.list_open_for_exit()
     submitted = 0
+    expired = 0
+    held = 0
+    errors = 0
+
+    # Phase A: normal positions — market not yet resolved in local DB.
+    positions = await registry.list_open_for_exit()
     for p in positions:
         try:
-            # Skip live price fetch for force-close positions: the exit reason is
-            # already determined (FORCE_CLOSE has highest priority in evaluate);
-            # fetching price first would gate an urgent close behind Gamma API
-            # retry/backoff under outage conditions.
+            # Skip live price fetch for force-close: FORCE_CLOSE has highest
+            # priority in evaluate(); fetching first would gate an urgent
+            # unwind behind Gamma API retry/backoff during outages.
             live_price = (
                 None if p.force_close_intent
                 else await _fetch_live_price(p.market_id, p.side)
             )
+            # Retry once on None for non-force-close positions. The Gamma
+            # cache is populated only on a successful fetch, so a None
+            # result is never cached — the retry always makes a fresh call.
+            if live_price is None and not p.force_close_intent:
+                live_price = await _fetch_live_price(p.market_id, p.side)
+                if live_price is None:
+                    # Increment the consecutive-None counter for this position.
+                    # Only close after _EXPIRED_TICK_THRESHOLD consecutive ticks
+                    # to avoid incorrectly expiring positions during a transient
+                    # Gamma outage (tenacity already retries network errors 3x).
+                    fail_count = _price_fail_counts.get(p.id, 0) + 1
+                    _price_fail_counts[p.id] = fail_count
+                    if fail_count >= _EXPIRED_TICK_THRESHOLD:
+                        if await _close_expired_position(p):
+                            expired += 1
+                            _price_fail_counts.pop(p.id, None)
+                    continue
+                else:
+                    _price_fail_counts.pop(p.id, None)  # price recovered, reset
+            elif not p.force_close_intent:
+                _price_fail_counts.pop(p.id, None)  # healthy price on first fetch, reset
             decision = await evaluate(p, strategy_evaluator, live_price=live_price)
             if decision.should_exit:
                 submitted += 1
+            else:
+                held += 1
             await _act_on_decision(
                 p, decision, close_submitter=close_submitter,
             )
         except Exception as exc:
-            # Per-position failure must not halt the batch. Log at ERROR so
-            # the failure is observable; do NOT silently swallow.
             logger.error(
                 "exit_watcher: position %s evaluation failed: %s",
                 p.id, exc, exc_info=True,
             )
-    return submitted
+            errors += 1
+
+    # Phase B: positions on resolved markets — invisible to Phase A's query.
+    resolved_positions = await registry.list_open_on_resolved_markets()
+    for p in resolved_positions:
+        try:
+            if await _close_expired_position(p):
+                expired += 1
+        except Exception as exc:
+            logger.error(
+                "exit_watcher: resolved-market position %s close failed: %s",
+                p.id, exc, exc_info=True,
+            )
+            errors += 1
+
+    if expired > 0:
+        logger.info(
+            "exit_watcher.run_once: submitted=%d expired=%d held=%d errors=%d",
+            submitted, expired, held, errors,
+        )
+    return RunResult(submitted=submitted, expired=expired, held=held, errors=errors)
 
 
 async def run_forever(

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import html
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 import asyncio
@@ -357,16 +357,20 @@ async def _process_candidate(user: dict, cand) -> None:
 
 # ---------------- Exit watcher ----------------
 
-async def check_exits() -> None:
-    """Drive the exit-watcher worker for one tick.
+async def check_exits() -> dict:
+    """Drive the exit-watcher worker for one tick. Returns RunResult as dict.
 
-    Priority chain (force_close_intent > tp_hit > sl_hit > strategy_exit >
-    hold), TP/SL snapshot enforcement, retry-once-on-CLOB-error, and the
-    per-position close_failure_count tracking all live in
-    ``domain.execution.exit_watcher``. This wrapper exists so APScheduler's
-    job table keeps its long-standing ``check_exits`` entry point.
+    The dict is captured by the APScheduler listener via ``event.retval`` and
+    written to ``job_runs.metadata`` so operators can inspect per-tick counts
+    (submitted/expired/held/errors) directly from the DB.
     """
-    await exit_watcher.run_once()
+    result = await exit_watcher.run_once()
+    return {
+        "submitted": result.submitted,
+        "expired": result.expired,
+        "held": result.held,
+        "errors": result.errors,
+    }
 
 
 # ---------------- Order lifecycle ----------------
@@ -518,9 +522,14 @@ def _job_tracker_listener(event) -> None:
     # create_task'd record_job_event reads it. This closes the race
     # Codex flagged on PR #874 (job_tracker.py:34).
     started_at = job_tracker.pop_job_start(event.job_id)
+    # Capture structured return value from jobs that return dicts.
+    # check_exits() returns RunResult-as-dict (submitted/expired/held/errors)
+    # which is stored in job_runs.metadata for operator dashboards.
+    retval = getattr(event, "retval", None) if success else None
+    metadata = retval if isinstance(retval, dict) else None
     coro = job_tracker.record_job_event(
         job_id=event.job_id, success=success, error=err,
-        started_at=started_at,
+        started_at=started_at, metadata=metadata,
     )
     try:
         loop = asyncio.get_running_loop()
@@ -543,13 +552,16 @@ def setup_scheduler() -> AsyncIOScheduler:
     sched.add_job(watch_deposits, "interval", seconds=s.DEPOSIT_WATCH_INTERVAL,
                   id="deposit_watch", max_instances=1, coalesce=True)
     sched.add_job(run_signal_scan, "interval", seconds=s.SIGNAL_SCAN_INTERVAL,
-                  id="signal_scan", max_instances=1, coalesce=True)
+                  id="signal_scan", max_instances=1, coalesce=True,
+                  next_run_time=datetime.now(timezone.utc))
     sched.add_job(sf_scan_job.run_once, "interval", seconds=s.SIGNAL_SCAN_INTERVAL,
-                  id="signal_following_scan", max_instances=1, coalesce=True)
+                  id="signal_following_scan", max_instances=1, coalesce=True,
+                  next_run_time=datetime.now(timezone.utc))
     sched.add_job(market_signal_scanner.run_job, "interval",
                   seconds=s.MARKET_SIGNAL_SCAN_INTERVAL,
                   id=market_signal_scanner.JOB_ID, max_instances=1, coalesce=True,
-                  replace_existing=True)
+                  replace_existing=True,
+                  next_run_time=datetime.now(timezone.utc))
     sched.add_job(market_sync.run_job, "interval",
                   seconds=1800,
                   id=market_sync.JOB_ID, max_instances=1, coalesce=True)
