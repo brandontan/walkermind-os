@@ -50,8 +50,14 @@ async def _menu_nav_cb(update, ctx) -> None:
     q = update.callback_query
     if q is None:
         return
-    await q.answer()
     sub = (q.data or "").split(":", 1)[-1]
+    if sub == "portfolio":
+        # show_portfolio calls q.answer() itself — dispatch before the global
+        # pre-answer below to avoid double-ACK (BadRequest from Telegram).
+        from .handlers.positions import show_portfolio
+        await show_portfolio(update, ctx)
+        return
+    await q.answer()
     if sub == "dashboard":
         await show_dashboard_for_cb(update, ctx)
     elif sub == "autotrade":

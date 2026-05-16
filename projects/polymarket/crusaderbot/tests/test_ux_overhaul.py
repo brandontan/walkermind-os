@@ -50,13 +50,13 @@ from projects.polymarket.crusaderbot.bot.keyboards import main_menu
 
 
 def test_main_menu_button_count():
-    # No-strategy state: 4 buttons (Configure Strategy, Portfolio, Settings, Emergency)
+    # V5 AUTOBOT: fixed 5-button grid regardless of bot state
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 4
-    # Running state: 4 buttons (Active Monitor, Portfolio, Settings, Emergency)
+    assert len(all_buttons) == 5
+    # Running state: also 5 buttons (fixed layout)
     kb2 = main_menu(strategy_key="signal_sniper", auto_on=True)
-    assert len([btn for row in kb2.keyboard for btn in row]) == 4
+    assert len([btn for row in kb2.keyboard for btn in row]) == 5
 
 
 def test_main_menu_has_settings_not_wallet():
@@ -66,25 +66,24 @@ def test_main_menu_has_settings_not_wallet():
     assert "💰 Wallet" not in labels
 
 
-def test_main_menu_has_emergency_not_help():
-    # MVP UX: Emergency replaces Stop Bot; Help removed
+def test_main_menu_has_help_not_emergency():
+    # V5 AUTOBOT: ❓ Help added; Emergency moved to inline only
     kb = main_menu()
     labels = [btn.text for row in kb.keyboard for btn in row]
-    assert "🚨 Emergency" in labels
-    assert "❓ Help" not in labels
+    assert "❓ Help" in labels
+    assert "🚨 Emergency" not in labels
     assert "🛑 Stop Bot" not in labels
 
 
-def test_main_menu_mvp_layout():
-    # Running state: row0=[Active Monitor], row1=[Portfolio, Settings], row2=[Emergency]
+def test_main_menu_v5_layout():
+    # V5: fixed 2-col grid — [Dashboard|Portfolio] / [Auto Mode|Settings] / [Help]
     kb = main_menu(strategy_key="signal_sniper", auto_on=True)
-    row0 = [btn.text for btn in kb.keyboard[0]]
-    row1 = [btn.text for btn in kb.keyboard[1]]
+    row0 = {btn.text for btn in kb.keyboard[0]}
+    row1 = {btn.text for btn in kb.keyboard[1]}
     row2 = [btn.text for btn in kb.keyboard[2]]
-    assert row0 == ["📊 Active Monitor"]
-    assert "💼 Portfolio" in row1
-    assert "⚙️ Settings" in row1
-    assert "🚨 Emergency" in row2
+    assert row0 == {"📊 Dashboard", "💼 Portfolio"}
+    assert row1 == {"🤖 Auto Mode", "⚙️ Settings"}
+    assert row2 == ["❓ Help"]
 
 
 # ---------------------------------------------------------------------------

@@ -26,7 +26,8 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from ..handlers import (
-    dashboard, emergency,
+    dashboard,
+    onboarding,
     positions,
     presets, settings as settings_handler,
 )
@@ -35,15 +36,16 @@ HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
 
 
 MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
-    # Bot running state
-    "📊 Active Monitor":     dashboard.dashboard,
+    # V5 AUTOBOT fixed menu
+    "📊 Dashboard":          dashboard.dashboard,
     "💼 Portfolio":          positions.show_portfolio,
-    # Strategy set, bot OFF state
-    "🚀 Start Autobot":      presets.show_preset_picker,
-    # No strategy state
-    "⚙️ Configure Strategy": presets.show_preset_picker,
-    # Secondary nav (shared across all states)
+    "🤖 Auto Mode":          presets.show_preset_picker,
     "⚙️ Settings":           settings_handler.settings_hub_root,
+    "❓ Help":               onboarding.help_handler,
+    # Backward-compat aliases (old state-driven labels)
+    "📊 Active Monitor":     dashboard.dashboard,
+    "🚀 Start Autobot":      presets.show_preset_picker,
+    "⚙️ Configure Strategy": presets.show_preset_picker,
 }
 
 

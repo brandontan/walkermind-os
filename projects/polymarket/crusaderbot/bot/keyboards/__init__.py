@@ -26,12 +26,12 @@ def nav_row(back_data: str = "dashboard:main") -> list[InlineKeyboardButton]:
 
 
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
-    """Fixed 5-button persistent nav keyboard shown on every dashboard render."""
+    """V5 AUTOBOT fixed 5-button persistent nav keyboard."""
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("📊 Dashboard"),   KeyboardButton("🤖 Auto-Trade")],
-            [KeyboardButton("💰 Wallet"),      KeyboardButton("📈 My Trades")],
-            [KeyboardButton("🚨 Emergency")],
+            [KeyboardButton("📊 Dashboard"),  KeyboardButton("💼 Portfolio")],
+            [KeyboardButton("🤖 Auto Mode"),  KeyboardButton("⚙️ Settings")],
+            [KeyboardButton("❓ Help")],
         ],
         resize_keyboard=True,
         one_time_keyboard=False,
@@ -40,30 +40,16 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
 
 
 def main_menu(strategy_key: str | None = None, auto_on: bool = False) -> ReplyKeyboardMarkup:
-    """State-driven persistent nav keyboard.
+    """V5 AUTOBOT fixed 5-button 2-column persistent nav.
 
-    No strategy configured  → single CTA to configure, then secondary nav.
-    Strategy set, bot OFF   → single CTA to start, then secondary nav.
-    Bot running             → Active Monitor CTA, Portfolio + Settings, Emergency.
+    strategy_key and auto_on are kept for backward-compat with existing callers
+    but are no longer used to vary the layout.
     """
-    if auto_on:
-        rows = [
-            [KeyboardButton("📊 Active Monitor")],
-            [KeyboardButton("💼 Portfolio"),      KeyboardButton("⚙️ Settings")],
-            [KeyboardButton("🚨 Emergency")],
-        ]
-    elif strategy_key:
-        rows = [
-            [KeyboardButton("🚀 Start Autobot")],
-            [KeyboardButton("💼 Portfolio"),      KeyboardButton("⚙️ Settings")],
-            [KeyboardButton("🚨 Emergency")],
-        ]
-    else:
-        rows = [
-            [KeyboardButton("⚙️ Configure Strategy")],
-            [KeyboardButton("💼 Portfolio"),      KeyboardButton("⚙️ Settings")],
-            [KeyboardButton("🚨 Emergency")],
-        ]
+    rows = [
+        [KeyboardButton("📊 Dashboard"),  KeyboardButton("💼 Portfolio")],
+        [KeyboardButton("🤖 Auto Mode"),  KeyboardButton("⚙️ Settings")],
+        [KeyboardButton("❓ Help")],
+    ]
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
 
@@ -343,14 +329,20 @@ def deposit_prompt_kb() -> InlineKeyboardMarkup:
 def p5_dashboard_kb(has_preset: bool = False) -> InlineKeyboardMarkup:
     if not has_preset:
         return InlineKeyboardMarkup([
-            [InlineKeyboardButton("🤖 Get Started", callback_data="menu:autotrade")],
+            [
+                InlineKeyboardButton("🤖 Auto Mode",  callback_data="menu:autotrade"),
+                InlineKeyboardButton("💼 Portfolio",  callback_data="menu:portfolio"),
+            ],
         ])
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🤖 Edit Preset", callback_data="menu:autotrade"),
-            InlineKeyboardButton("📈 My Trades",   callback_data="menu:trades"),
+            InlineKeyboardButton("🤖 Auto Mode",  callback_data="menu:autotrade"),
+            InlineKeyboardButton("💼 Portfolio",  callback_data="menu:portfolio"),
         ],
-        [InlineKeyboardButton("💰 Wallet",         callback_data="menu:wallet")],
+        [
+            InlineKeyboardButton("⚙️ Settings",  callback_data="menu:settings"),
+            InlineKeyboardButton("💰 Wallet",    callback_data="menu:wallet"),
+        ],
     ])
 
 

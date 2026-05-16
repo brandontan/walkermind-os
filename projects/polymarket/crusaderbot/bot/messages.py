@@ -203,8 +203,10 @@ def health_alert_text(
 
 # ── Screen 01 — Welcome ────────────────────────────────────────────────────────
 
+BRAND = "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>"
+
 WELCOME_TEXT = (
-    "<b>🛡️ Welcome to CrusaderBot</b>\n"
+    "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
     "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     "Your autonomous Polymarket trading copilot.\n\n"
     "Here's how it works:\n"
@@ -283,30 +285,30 @@ def dashboard_text(
     preset_name: str,
     risk_emoji: str,
     risk_label: str,
+    pulse_line: str = "📡 Scanning Polymarket liquidity...",
 ) -> str:
     status_emoji = "🟢" if autotrade_on else "⚫"
     status_label = "RUNNING" if autotrade_on else "OFF"
-    preset_display = f"{html.escape(preset_emoji)} {html.escape(preset_name)}" if preset_key else "Not configured"
 
     return (
-        "<b>📊 CrusaderBot Dashboard</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{pulse_line}\n\n"
         "<b>💼 Portfolio</b>\n"
-        f"├─ Balance:        {_fmt(balance)}\n"
-        f"├─ Positions:      {_fmt(positions_value)}\n"
-        f"├─ Total Equity:   {_fmt(total_equity)}\n"
-        f"└─ Winning: {wins} | Losing: {losses}\n\n"
+        f"├─ Balance:   <code>{_fmt(balance)}</code>\n"
+        f"├─ Exposure:  <code>{_fmt(positions_value)}</code>\n"
+        f"├─ Equity:    <code>{_fmt(total_equity)}</code>\n"
+        f"└─ W/L: {wins}W / {losses}L\n\n"
         "<b>💰 Profit &amp; Loss</b>\n"
-        f"├─ Today:    {_signed(pnl_today)} ({_pct(pnl_today_pct)}%)\n"
-        f"├─ 7 Day:    {_signed(pnl_7d)} ({_pct(pnl_7d_pct)}%)\n"
-        f"├─ 30 Day:   {_signed(pnl_30d)} ({_pct(pnl_30d_pct)}%)\n"
-        f"└─ All-Time: {_signed(pnl_alltime)}\n\n"
+        f"├─ Today:    <code>{_signed(pnl_today)}</code> ({_pct(pnl_today_pct)}%)\n"
+        f"├─ 7 Day:    <code>{_signed(pnl_7d)}</code> ({_pct(pnl_7d_pct)}%)\n"
+        f"├─ 30 Day:   <code>{_signed(pnl_30d)}</code> ({_pct(pnl_30d_pct)}%)\n"
+        f"└─ All-Time: <code>{_signed(pnl_alltime)}</code>\n\n"
         "<b>📈 Trading Stats</b>\n"
-        f"├─ Total Trades:   {total_trades}\n"
-        f"├─ Win Rate:       {float(win_rate):.1f}% ({wins}W / {losses}L)\n"
-        f"├─ Total Volume:   {_fmt(total_volume)}\n"
-        f"└─ Markets Traded: {markets_count}\n\n"
-        "<b>🤖 Auto-Trade</b>\n"
+        f"├─ Trades:   {total_trades} ({float(win_rate):.1f}% WR)\n"
+        f"├─ Volume:   <code>{_fmt(total_volume)}</code>\n"
+        f"└─ Markets:  {markets_count}\n\n"
+        "<b>🤖 Auto Mode</b>\n"
         f"├─ Status: {status_emoji} {status_label}\n"
         f"├─ Preset: {html.escape(preset_emoji)} {html.escape(preset_name) if preset_key else 'Not configured'}\n"
         f"├─ Risk:   {html.escape(risk_emoji)} {html.escape(risk_label)}\n"

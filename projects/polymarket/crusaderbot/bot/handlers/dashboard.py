@@ -90,6 +90,38 @@ async def _fetch_stats(user_id) -> dict:
     }
 
 
+async def _fetch_last_trade_action(user_id) -> str:
+    """Return a pulse line describing the most recent trade action, or scanning fallback."""
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT
+                    p.status,
+                    m.question AS market_question,
+                    CASE WHEN p.status = 'open'
+                         THEN p.created_at
+                         ELSE p.closed_at
+                    END AS action_time
+                FROM positions p
+                LEFT JOIN markets m ON m.id = p.market_id
+                WHERE p.user_id = $1
+                ORDER BY action_time DESC NULLS LAST
+                LIMIT 1
+                """,
+                user_id,
+            )
+        if row is None:
+            return "📡 Scanning Polymarket liquidity..."
+        q = html.escape((row["market_question"] or "")[:35])
+        if row["status"] == "open":
+            return f"📈 Last: Bought — {q}"
+        return f"📉 Last: Closed — {q}"
+    except Exception:
+        return "📡 Scanning Polymarket liquidity..."
+
+
 def _preset_display(preset_key: str | None) -> tuple[str, str, str, str]:
     """Return (emoji, name, risk_emoji, risk_label) for a preset key."""
     from ..presets import PRESET_CONFIG
@@ -106,6 +138,7 @@ async def _build_dashboard_message(user: dict) -> tuple[str, bool]:
     bal = await get_balance(user["id"])
     pnl_today = await daily_pnl(user["id"])
     st = await _fetch_stats(user["id"])
+    pulse_line = await _fetch_last_trade_action(user["id"])
 
     preset_key = st["active_preset"]
     p_emoji, p_name, r_emoji, r_label = _preset_display(preset_key)
@@ -153,6 +186,7 @@ async def _build_dashboard_message(user: dict) -> tuple[str, bool]:
         preset_name=p_name,
         risk_emoji=r_emoji,
         risk_label=r_label,
+        pulse_line=pulse_line,
     )
     return text, bool(preset_key)
 
