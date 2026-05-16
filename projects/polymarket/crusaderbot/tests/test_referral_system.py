@@ -24,7 +24,7 @@ Coverage:
 
     notifier
       * notify_tp_hit — reply_markup forwarded to notifications.send
-      * notify_sl_hit — sends without reply_markup (default None)
+      * notify_sl_hit — sends with default My Trades/Dashboard keyboard when no reply_markup passed
       * notify_manual_close — reply_markup forwarded to notifications.send
 
 No live DB, no live Telegram. All external calls patched.
@@ -358,6 +358,7 @@ async def test_notify_tp_hit_with_reply_markup():
 @pytest.mark.asyncio
 async def test_notify_sl_hit_no_reply_markup():
     from projects.polymarket.crusaderbot.services.trade_notifications import TradeNotifier
+    from telegram import InlineKeyboardMarkup
 
     notifier = TradeNotifier()
     with _patch_send() as mock_send:
@@ -371,7 +372,7 @@ async def test_notify_sl_hit_no_reply_markup():
         )
 
     mock_send.assert_called_once()
-    assert mock_send.call_args.kwargs.get("reply_markup") is None
+    assert isinstance(mock_send.call_args.kwargs.get("reply_markup"), InlineKeyboardMarkup)
 
 
 @pytest.mark.asyncio

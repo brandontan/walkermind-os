@@ -295,7 +295,7 @@ def test_schedule_alert_does_not_block_on_slow_send():
         ):
             t0 = asyncio.get_event_loop().time()
             task = monitoring_alerts.schedule_alert(
-                monitoring_alerts.alert_startup(restart_detected=True),
+                monitoring_alerts.alert_dependency_unreachable("test", "probe"),
             )
             elapsed = asyncio.get_event_loop().time() - t0
             assert task is not None
@@ -328,7 +328,7 @@ def test_schedule_alert_returns_none_without_running_loop():
         return_value=fake_settings,
     ):
         task = monitoring_alerts.schedule_alert(
-            monitoring_alerts.alert_startup(restart_detected=True),
+            monitoring_alerts.alert_dependency_unreachable("test", "probe"),
         )
     assert task is None
 

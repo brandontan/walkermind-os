@@ -116,7 +116,7 @@ def test_init_pool_passes_statement_cache_size_zero():
     # Defence-in-depth: the rest of the pool contract must remain intact.
     assert kwargs.get("min_size") == 1
     assert kwargs.get("max_size") == 5
-    assert kwargs.get("command_timeout") == 30
+    assert kwargs.get("command_timeout") == 10
     assert kwargs.get("dsn") == "postgresql://example/db"
 
 
