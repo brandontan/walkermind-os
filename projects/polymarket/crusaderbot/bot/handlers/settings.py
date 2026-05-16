@@ -59,20 +59,22 @@ def _hub_text(mode: str, tier: int, risk_profile: str = "balanced") -> str:
         "aggressive": "🚀 Aggressive",
     }.get(risk_profile, risk_profile.title())
     return (
-        "⚙️ Settings\n\n"
-        "Trading\n"
-        f"├ Mode: {mode_label}\n"
-        f"└ Risk: {risk_display}\n\n"
-        "Account\n"
-        "└ Notifications: ON"
+        "<b>⚙️ Settings</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "<b>Trading</b>\n"
+        f"├─ Mode: {mode_label}\n"
+        f"└─ Risk: {risk_display}\n\n"
+        "<b>Account</b>\n"
+        "└─ Notifications: 🟢 ON"
     )
 
 
 def _tp_step_text(current_tp: float | None) -> str:
     current_str = f"+{current_tp * 100:.0f}%" if current_tp is not None else "not set"
     return (
-        "📊 <b>Take Profit</b>\n"
-        f"Current: {current_str}\n\n"
+        "<b>📊 Take Profit</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"Current: <code>{current_str}</code>\n\n"
         "Select your take-profit target:"
     )
 
@@ -80,8 +82,9 @@ def _tp_step_text(current_tp: float | None) -> str:
 def _sl_step_text(current_sl: float | None) -> str:
     current_str = f"-{current_sl * 100:.0f}%" if current_sl is not None else "not set"
     return (
-        "📊 <b>Stop Loss</b>\n"
-        f"Current: {current_str}\n\n"
+        "<b>📊 Stop Loss</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"Current: <code>{current_str}</code>\n\n"
         "Select your stop-loss threshold:"
     )
 
@@ -89,10 +92,13 @@ def _sl_step_text(current_sl: float | None) -> str:
 def _capital_text(balance: float, mode: str) -> str:
     mode_label = "💸 Live" if mode == "live" else "📙 Paper"
     return (
-        "💰 Capital Allocation Per Trade\n"
-        "\n"
-        f"├ Balance: ${balance:.2f} ({mode_label})\n"
-        "└ ⚠ Max 95% — full allocation forbidden."
+        "<b>💰 Capital Allocation</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "<pre>"
+        f"Balance  ${balance:.2f} ({mode_label})\n"
+        "Max      95% per trade"
+        "</pre>\n\n"
+        "⚠️ Full allocation (100%) is forbidden."
     )
 
 
@@ -113,11 +119,11 @@ async def _render_hub(update: Update, user: dict) -> None:
     kb = settings_hub_kb(is_admin=_is_admin(user))
     if update.callback_query is not None:
         await update.callback_query.message.reply_text(
-            text, reply_markup=kb,
+            text, parse_mode=ParseMode.HTML, reply_markup=kb,
         )
     elif update.message is not None:
         await update.message.reply_text(
-            text, reply_markup=kb,
+            text, parse_mode=ParseMode.HTML, reply_markup=kb,
         )
 
 
@@ -171,7 +177,10 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         except Exception:  # noqa: BLE001
             ref_link = "(unavailable)"
         await q.message.reply_text(
-            f"🎁 Referrals\n\nYour referral link:\n{ref_link}",
+            "<b>🎁 Referrals</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"Your referral link:\n<code>{ref_link}</code>",
+            parse_mode=ParseMode.HTML,
             reply_markup=settings_hub_kb(),
         )
         return
@@ -195,10 +204,13 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         except Exception:  # noqa: BLE001
             job_summary = "└ Jobs: nominal"
         await q.message.reply_text(
-            f"🏥 Health\n\n"
+            f"<b>🏥 Health</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"🟢 Bot: Online\n"
             f"🕐 Time: {now}\n\n"
-            f"Recent jobs:\n{job_summary}",
+            "<b>Recent jobs</b>\n"
+            f"{job_summary}",
+            parse_mode=ParseMode.HTML,
             reply_markup=settings_hub_kb(),
         )
         return
@@ -249,6 +261,7 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         mode = s.get("trading_mode", "paper")
         await q.message.reply_text(
             _capital_text(bal, mode),
+            parse_mode=ParseMode.HTML,
             reply_markup=capital_preset_kb(bal, mode),
         )
         return
@@ -257,18 +270,16 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         s = await get_settings_for(user["id"])
         current_risk = s.get("risk_profile", "balanced")
         await q.message.reply_text(
-            "⚖️ Risk Profile\n"
-            "\n"
-            "Choose your risk level:\n"
-            "\n"
-            "📡 Conservative\n"
-            "Safer, smaller exposure\n"
-            "\n"
-            "⚡ Balanced\n"
-            "Recommended for most users\n"
-            "\n"
-            "🚀 Aggressive\n"
+            "<b>⚖️ Risk Profile</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Choose your risk level:\n\n"
+            "📡 <b>Conservative</b>\n"
+            "Safer, smaller exposure\n\n"
+            "⚡ <b>Balanced</b>\n"
+            "Recommended for most users\n\n"
+            "🚀 <b>Aggressive</b>\n"
             "Higher exposure",
+            parse_mode=ParseMode.HTML,
             reply_markup=mvp_risk_kb(current_risk),
         )
         return
@@ -289,7 +300,11 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
             ],
         ])
         await q.message.reply_text(
-            f"🔔 Notifications\n\nStatus: {status}\n\nYou receive alerts for opened/closed trades and daily P&L summaries.",
+            f"<b>🔔 Notifications</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"Status: {status}\n\n"
+            "You receive alerts for opened/closed trades\nand daily P&L summaries.",
+            parse_mode=ParseMode.HTML,
             reply_markup=kb,
         )
         return

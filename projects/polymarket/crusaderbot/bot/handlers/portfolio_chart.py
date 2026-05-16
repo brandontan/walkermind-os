@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 _FALLBACK_MSG = (
     "\U0001f4ca <b>PORTFOLIO CHART</b>\n"
-    "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     "No balance history yet. Make a deposit or complete a paper trade to see your chart."
 )
 

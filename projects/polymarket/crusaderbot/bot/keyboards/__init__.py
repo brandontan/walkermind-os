@@ -385,6 +385,7 @@ def preset_active_kb() -> InlineKeyboardMarkup:
             InlineKeyboardButton("⏸ Pause",  callback_data="p5:active:pause"),
             InlineKeyboardButton("🛑 Stop",  callback_data="p5:active:stop"),
         ],
+        [InlineKeyboardButton("🏠 Home", callback_data="menu:dashboard")],
     ])
 
 
