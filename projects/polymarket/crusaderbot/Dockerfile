@@ -5,7 +5,7 @@ COPY webtrader/frontend/package.json webtrader/frontend/package-lock.json ./
 RUN npm ci
 COPY webtrader/frontend/ ./
 # Bot username injected at build time; defaults to CrusaderBot
-ARG VITE_BOT_USERNAME=CrusaderBot
+ARG VITE_BOT_USERNAME=CrusaderPolybot
 ENV VITE_BOT_USERNAME=$VITE_BOT_USERNAME
 RUN npm run build
 # Output: /build/dist/
