@@ -161,11 +161,7 @@ async def lifespan(_: FastAPI):
         if _notif_suppressed:
             log.info("startup notification suppressed (duplicate within 60s)")
         else:
-            try:
-                await set_cache(_STARTUP_DEDUP_KEY, "1", ttl=_STARTUP_DEDUP_TTL)
-            except Exception as exc:
-                log.warning("startup dedup cache set failed: %s", exc)
-            await notifications.send(
+            _delivered = await notifications.send(
                 settings.OPERATOR_CHAT_ID,
                 f"🟢 CrusaderBot up\nenv: {settings.APP_ENV}\n"
                 f"mode: {'webhook' if use_webhook else 'polling'}\n"
@@ -175,6 +171,11 @@ async def lifespan(_: FastAPI):
                 f"{'✅ activation guards OPEN — live trading enabled' if all_guards_ready else '🔒 activation guards LOCKED — all trades route to paper'}",
                 parse_mode=None,
             )
+            if _delivered:
+                try:
+                    await set_cache(_STARTUP_DEDUP_KEY, "1", ttl=_STARTUP_DEDUP_TTL)
+                except Exception as exc:
+                    log.warning("startup dedup cache set failed: %s", exc)
 
     # --- observability: startup alert + dependency probe ---
     # Fly.io starts a fresh machine on every deploy or VM restart, so a boot

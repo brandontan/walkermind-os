@@ -26,6 +26,7 @@ export function AuthPage() {
               margin: "0 auto 16px",
               display: "block",
             }}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
           <h1 className="text-3xl font-bold text-primary tracking-tight">
             Crusader<span className="text-amber">Bot</span>
