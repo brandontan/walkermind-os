@@ -1,6 +1,6 @@
 # WARP•FORGE Report — deploy-test-report
 
-**Date:** 2026-05-16  
+**Date:** 2026-05-16 15:30  
 **Branch:** claude/crusaderbot-polymarket-update-kC5kL (system-designated)  
 **Tier:** STANDARD  
 **Claim Level:** NARROW INTEGRATION  
@@ -11,7 +11,7 @@
 
 ## 1. What Was Built
 
-No code was written. This is a deploy + test + report task against the merged state of PR #1055 + PR #1056 on main.
+No code was written. This is a deploy + test + report task against current main HEAD at task start — which includes PR #1055 (Phase 5 UX Rebuild, MERGED), PR #1056 (MERGED), and PHASE5-FIX-R1 code (PR open, code present in repo). The test suite and UX analysis reflect this full combined state.
 
 Three sub-tasks executed:
 
