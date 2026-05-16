@@ -1,7 +1,8 @@
-Last Updated : 2026-05-16 18:45
-Status       : bot-polish-beta MERGED PR #1068 (WARP/CRUSADERBOT-BOT-POLISH-BETA, MAJOR). P0 pool fix + notif scope suppression + trade inline keyboards + admin /help scope + schema fix. Production PAPER ONLY.
+Last Updated : 2026-05-16 20:06
+Status       : webtrader-v3-and-bot-polish PR #1069 open (WARP/webtrader-v3-and-bot-polish, MAJOR). Tactical Terminal v3.2 ported to all 6 webtrader pages + Advanced Mode toggle + bot template foundation (EMOJI/DIV/_table + 5 new alert templates) + command consolidation + new nav:/act:/cfg: callback namespace. Supersedes WARP/CRUSADERBOT-WEBTRADER-REDESIGN. Production PAPER ONLY.
 
 [COMPLETED]
+- webtrader-v3-and-bot-polish PR #1069 open (2026-05-16). Tactical Terminal v3.2 atomic delivery — frontend: 15 new shared components (TopBar/Ticker/HeroCard/StatCard/StatsGrid/Terminal/PositionCard/EmptyState/Toggle/FilterTabs/WalletCard/AddressCard/SettingsGroup/AdvancedGate + StrategyCard rewrite), UiMode context with localStorage persist, scanline+grain+ambient atmosphere, clip-path HUD geometry, 6 pages rewritten; bot: messages.py EMOJI/DIV/_table + 5 new alert templates (signal/position_open/position_close/daily_summary/health), keyboards/_common.py shared row helpers (home_back_row/confirm_cancel_row/pagination_row), dispatcher.py drops 4 aliases (/pnl /close /scan /mode) + adds _nav_cb for nav:* prefix, keyboards/presets.py + settings.py 2-col mobile cleanup; tests 1400 pass 0 fail; npm build 62 modules clean; ruff clean. Supersedes WARP/CRUSADERBOT-WEBTRADER-REDESIGN. MAJOR, FULL RUNTIME INTEGRATION.
 - bot-polish-beta MERGED PR #1068 (2026-05-16). P0: fly.toml immediate deploy strategy + asyncpg max_inactive_connection_lifetime=60s + trades.py/share_card.py market_question→JOIN markets. Area 1: alert_user_market/close_failed user notifs suppressed in exit_watcher; alert_startup dead code + os import deleted from alerts.py; test_health.py refs updated. Area 2: trade notif inline keyboards (notify_entry/tp/sl/manual/emergency) + deposit KB in scheduler.py + dashboard switched to main_menu() state-driven. Area 3: /help admin-scoped; weekly_insights active-only filter; hourly_report JOIN bug fixed (t.user_id=u.id). MAJOR, FULL RUNTIME INTEGRATION.
 - startup-logo-fix PR open (2026-05-16). 60s Redis dedup on startup notification; duplicate alert_startup call removed; logo img added to DashboardPage topbar (32px) and AuthPage (80px); public/ dir created. Logo PNG binary pending. STANDARD, NARROW INTEGRATION.
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
@@ -38,9 +39,10 @@ Status       : bot-polish-beta MERGED PR #1068 (WARP/CRUSADERBOT-BOT-POLISH-BETA
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for webtrader-v3-and-bot-polish (MAJOR) before merge. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-v3-and-bot-polish.md. Tier: MAJOR. PR #1069.
+- WARP🔹CMD close PR `WARP/CRUSADERBOT-WEBTRADER-REDESIGN` after PR #1069 merges (superseded).
 - WARP🔹CMD review required for startup-logo-fix (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/startup-logo-fix.md. Tier: STANDARD. Deliver crusaderbot-logo.png binary to webtrader/frontend/public/ before merge.
 - Apply migration 030 to production. Then deploy main to Fly.io — trading-unblock fix is live on main (MERGED PR #1065).
-- WARP🔹CMD review required for webtrader-redesign (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-redesign.md. Tier: STANDARD.
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 
 [KNOWN ISSUES]
