@@ -315,7 +315,14 @@ async def run_once(
     submitted = 0
     for p in positions:
         try:
-            live_price = await _fetch_live_price(p.market_id, p.side)
+            # Skip live price fetch for force-close positions: the exit reason is
+            # already determined (FORCE_CLOSE has highest priority in evaluate);
+            # fetching price first would gate an urgent close behind Gamma API
+            # retry/backoff under outage conditions.
+            live_price = (
+                None if p.force_close_intent
+                else await _fetch_live_price(p.market_id, p.side)
+            )
             decision = await evaluate(p, strategy_evaluator, live_price=live_price)
             if decision.should_exit:
                 submitted += 1

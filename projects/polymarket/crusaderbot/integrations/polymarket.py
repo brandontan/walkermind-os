@@ -1,6 +1,7 @@
 """Polymarket Gamma + CLOB clients (cached, retry-wrapped) + on-chain CTF redemption."""
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, Optional
 
@@ -135,6 +136,14 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
             return None
         await set_cache(cache_key, data, ttl=30)
         outcomes = data.get("outcomePrices") or data.get("outcome_prices") or []
+
+    # Gamma API returns outcomePrices as a JSON-encoded string
+    # (e.g. '["0.565", "0.435"]') rather than a parsed list.
+    if isinstance(outcomes, str):
+        try:
+            outcomes = json.loads(outcomes)
+        except Exception:
+            outcomes = []
 
     idx = 0 if side == "yes" else 1
     try:
