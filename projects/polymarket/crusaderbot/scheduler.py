@@ -118,7 +118,6 @@ async def watch_deposits() -> None:
     persisted (or non-credited because the address belongs to no user).
     """
     pool = get_pool()
-    settings = get_settings()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT user_id, deposit_address FROM wallets",

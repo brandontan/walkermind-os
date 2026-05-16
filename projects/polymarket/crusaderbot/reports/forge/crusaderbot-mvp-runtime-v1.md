@@ -5,7 +5,7 @@
 **Validation Tier:** MAJOR
 **Claim Level:** FULL RUNTIME INTEGRATION
 **Validation Target:** Tier gate removal from all paper-mode paths; admin panel cleanup
-**Not in Scope:** `api/admin.py` REST status counts (monitoring-only); `user_tiers` table; `assert_live_guards`; live risk gate (`access_tier < 4` in gate.py); activation guard flags
+**Not in Scope:** `api/admin.py` REST status counts (monitoring-only); `user_tiers` table; `assert_live_guards`; live risk gate (`_passes_live_guards` requires `access_tier >= 4`, step-3 block `access_tier < 3` — both in gate.py); activation guard flags
 
 ---
 
