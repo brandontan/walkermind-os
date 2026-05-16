@@ -39,6 +39,7 @@ from decimal import Decimal
 from typing import Awaitable, Callable, Optional, Protocol
 
 from ... import audit
+from ...integrations.polymarket import get_live_market_price
 from ...monitoring import alerts as monitoring_alerts
 from ..positions import registry
 from ..positions.registry import (
@@ -72,6 +73,41 @@ async def default_strategy_evaluator(position: OpenPositionForExit) -> bool:
     return False
 
 
+async def _fetch_live_price(market_id: str, side: str) -> Optional[float]:
+    """Fetch the live Polymarket price for this position's side.
+
+    Error-isolated wrapper around ``get_live_market_price``. Returns None when
+    the API is unreachable or returns an unparseable response — the caller in
+    ``evaluate`` falls back to ``position.current_price()`` (which returns
+    ``entry_price`` when market columns are stale), keeping ret_pct == 0 and
+    preventing spurious TP/SL triggers on missing data.
+    """
+    try:
+        return await get_live_market_price(market_id, side)
+    except Exception as exc:
+        logger.warning(
+            "exit_watcher._fetch_live_price market=%s side=%s error=%s",
+            market_id, side, exc,
+        )
+        return None
+
+
+def _compute_pnl_usdc(
+    side: str,
+    entry_price: float,
+    current_price: float,
+    size_usdc: float,
+) -> float:
+    """Unrealised P&L in USDC using the same per-side formula as ``_return_pct``.
+
+    Returns 0.0 on degenerate inputs (size_usdc <= 0).
+    """
+    if size_usdc <= 0.0:
+        return 0.0
+    ret = _return_pct(side=side, entry_price=entry_price, current_price=current_price)
+    return round(ret * size_usdc, 6)
+
+
 @dataclass(frozen=True)
 class ExitDecision:
     """The result of ``evaluate``: either an exit reason + price, or hold."""
@@ -102,19 +138,25 @@ def _return_pct(*, side: str, entry_price: float, current_price: float) -> float
 async def evaluate(
     position: OpenPositionForExit,
     strategy_evaluator: StrategyExitEvaluator = default_strategy_evaluator,
+    live_price: Optional[float] = None,
 ) -> ExitDecision:
     """Decide whether to close ``position`` this tick.
 
     Pure-ish: only awaits the strategy hook. Reads no DB, takes no locks,
     sends no orders. The watcher consumes the decision and orchestrates
     the actual close (or hold) in ``_act_on_decision``.
+
+    ``live_price`` is a freshly-fetched Polymarket price passed in by
+    ``run_once``; when provided it overrides ``position.current_price()`` so
+    TP/SL evaluations use real mark-to-market data instead of the stale
+    ``markets.yes_price``/``no_price`` columns (which may lag or be NULL).
     """
     if position.market_resolved:
         # Resolved markets settle through the redemption pipeline, not CLOB.
-        return ExitDecision(should_exit=False, reason=None,
-                            current_price=position.current_price())
+        cur = live_price if live_price is not None else position.current_price()
+        return ExitDecision(should_exit=False, reason=None, current_price=cur)
 
-    cur = position.current_price()
+    cur = live_price if live_price is not None else position.current_price()
 
     # 1. force_close_intent — highest priority. The Pause+Close-All Telegram
     #    flow sets this marker so the watcher unwinds on the next tick
@@ -174,7 +216,15 @@ async def _act_on_decision(
 ) -> None:
     """Execute the watcher's decision: close+alert, or refresh current_price."""
     if not decision.should_exit:
-        await registry.update_current_price(position.id, decision.current_price, position.user_id)
+        pnl = _compute_pnl_usdc(
+            position.side,
+            position.entry_price,
+            decision.current_price,
+            position.size_usdc,
+        )
+        await registry.update_current_price(
+            position.id, decision.current_price, position.user_id, pnl_usdc=pnl
+        )
         return
 
     reason = decision.reason or ExitReason.STRATEGY_EXIT.value
@@ -265,7 +315,15 @@ async def run_once(
     submitted = 0
     for p in positions:
         try:
-            decision = await evaluate(p, strategy_evaluator)
+            # Skip live price fetch for force-close positions: the exit reason is
+            # already determined (FORCE_CLOSE has highest priority in evaluate);
+            # fetching price first would gate an urgent close behind Gamma API
+            # retry/backoff under outage conditions.
+            live_price = (
+                None if p.force_close_intent
+                else await _fetch_live_price(p.market_id, p.side)
+            )
+            decision = await evaluate(p, strategy_evaluator, live_price=live_price)
             if decision.should_exit:
                 submitted += 1
             await _act_on_decision(

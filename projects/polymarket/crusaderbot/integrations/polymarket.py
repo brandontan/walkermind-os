@@ -1,6 +1,7 @@
 """Polymarket Gamma + CLOB clients (cached, retry-wrapped) + on-chain CTF redemption."""
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, Optional
 
@@ -104,6 +105,64 @@ async def get_market_by_slug(slug: str) -> Optional[dict]:
         return result
     except Exception as exc:
         logger.warning("get_market_by_slug %s failed: %s", slug, exc)
+        return None
+
+
+async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
+    """Fetch live mid-price for one side of a binary market from Gamma API.
+
+    Cache key is ``lp:{market_id}`` (not per-side) so two positions on the
+    same market in a single exit_watcher batch share one HTTP round-trip.
+    ``outcomePrices[0]`` = YES price, ``outcomePrices[1]`` = NO price.
+
+    Returns None on any error — callers must fall back to ``entry_price``.
+    TTL is 30 s to align with the exit_watcher 30 s tick interval.
+    """
+    cache_key = f"lp:{market_id}"
+    if hit := await get_cache(cache_key):
+        outcomes = hit.get("outcomePrices") or hit.get("outcome_prices") or []
+    else:
+        try:
+            data = await _get_json(f"{GAMMA}/markets/{market_id}", timeout=5.0)
+        except Exception as exc:
+            logger.warning(
+                "get_live_market_price fetch failed market=%s: %s", market_id, exc
+            )
+            return None
+        if not isinstance(data, dict):
+            logger.warning(
+                "get_live_market_price unexpected response type market=%s", market_id
+            )
+            return None
+        await set_cache(cache_key, data, ttl=30)
+        outcomes = data.get("outcomePrices") or data.get("outcome_prices") or []
+
+    # Gamma API returns outcomePrices as a JSON-encoded string
+    # (e.g. '["0.565", "0.435"]') rather than a parsed list.
+    if isinstance(outcomes, str):
+        try:
+            outcomes = json.loads(outcomes)
+        except Exception:
+            outcomes = []
+
+    idx = 0 if side == "yes" else 1
+    try:
+        raw = outcomes[idx]
+        if raw is None:
+            return None
+        price = float(raw)
+        if not (0.0 <= price <= 1.0):
+            logger.warning(
+                "get_live_market_price out-of-range price=%.4f market=%s side=%s",
+                price, market_id, side,
+            )
+            return None
+        return price
+    except (IndexError, TypeError, ValueError) as exc:
+        logger.warning(
+            "get_live_market_price parse error market=%s side=%s: %s",
+            market_id, side, exc,
+        )
         return None
 
 

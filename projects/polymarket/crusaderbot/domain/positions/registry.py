@@ -22,7 +22,7 @@ from __future__ import annotations
 import enum
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from uuid import UUID
 
 from ...database import get_pool
@@ -189,18 +189,35 @@ async def mark_force_close_intent_for_user(user_id: UUID) -> int:
     return int(marked or 0)
 
 
-async def update_current_price(position_id: UUID, price: float, user_id: UUID) -> None:
-    """Refresh ``current_price`` on a held position (no exit triggered).
+async def update_current_price(
+    position_id: UUID,
+    price: float,
+    user_id: UUID,
+    pnl_usdc: Optional[float] = None,
+) -> None:
+    """Refresh ``current_price`` (and optionally ``pnl_usdc``) on a held position.
 
     The watcher calls this every tick on positions that did not breach TP or
     SL, so the dashboard reflects mark-to-market without waiting for a close.
+    ``pnl_usdc`` is the unrealised P&L computed from the live price; passing
+    None leaves the existing column value intact (backward-compatible with any
+    caller that does not supply it).
     """
     pool = get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE positions SET current_price = $1 WHERE id = $2 AND user_id = $3",
-            price, position_id, user_id,
-        )
+        if pnl_usdc is not None:
+            await conn.execute(
+                "UPDATE positions "
+                "   SET current_price = $1, pnl_usdc = $2 "
+                " WHERE id = $3 AND user_id = $4",
+                price, pnl_usdc, position_id, user_id,
+            )
+        else:
+            await conn.execute(
+                "UPDATE positions SET current_price = $1 "
+                "WHERE id = $2 AND user_id = $3",
+                price, position_id, user_id,
+            )
 
 
 async def record_close_failure(position_id: UUID, user_id: UUID) -> int:

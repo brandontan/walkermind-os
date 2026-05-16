@@ -22,13 +22,20 @@ export function WalletPage() {
   if (!wallet) return <div className="p-4 text-muted text-sm">Loading…</div>;
 
   function truncateHash(note: string): string {
+    const suppressed = new Set(["yes", "no", "true", "false"]);
+    if (suppressed.has(note.toLowerCase())) return "";
     if (!note.startsWith("0x") || note.length <= 14) return note;
     return `${note.slice(0, 6)}…${note.slice(-4)}`;
   }
 
   function formatDate(iso: string): string {
     const d = new Date(iso);
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return d.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
 
   return (
@@ -70,7 +77,7 @@ export function WalletPage() {
               <div key={i} className="flex items-start justify-between gap-2 py-2 border-b border-border/50 last:border-0 min-w-0">
                 <div className="min-w-0 flex-1">
                   <p className="text-primary text-sm capitalize truncate">{entry.type.replace("_", " ")}</p>
-                  {entry.note && (
+                  {entry.note && truncateHash(entry.note) && (
                     <p className="font-mono text-xs text-muted truncate">{truncateHash(entry.note)}</p>
                   )}
                 </div>

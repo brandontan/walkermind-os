@@ -376,11 +376,19 @@ def _patch_registry(
     positions: list[OpenPositionForExit],
     record_failure_returns: int = 1,
 ):
-    """Patch registry calls: list, record_close_failure, reset, update_price."""
+    """Patch registry calls: list, record_close_failure, reset, update_price.
+
+    Also patches ``exit_watcher._fetch_live_price`` to return ``None``
+    immediately so run_once tests stay hermetic — no network calls to the
+    Gamma API, no retry backoff delays. With live_price=None the watcher
+    falls back to position.current_price() exactly as before the live-fetch
+    change, keeping all existing position-level assertions valid.
+    """
     record_failure = AsyncMock(return_value=record_failure_returns)
     reset_failure = AsyncMock(return_value=None)
     update_price = AsyncMock(return_value=None)
     list_open = AsyncMock(return_value=positions)
+    fetch_live_price_noop = AsyncMock(return_value=None)
     return (
         record_failure, reset_failure, update_price, list_open,
         [
@@ -388,9 +396,8 @@ def _patch_registry(
             patch.object(registry, "record_close_failure", record_failure),
             patch.object(registry, "reset_close_failure", reset_failure),
             patch.object(registry, "update_current_price", update_price),
-            # Mirror the names exit_watcher imports under (it imports the
-            # registry module bound name, so registry.* patching above is
-            # sufficient — exit_watcher.registry is the same object).
+            # Prevent live HTTP calls to Gamma API in hermetic test runs.
+            patch.object(exit_watcher, "_fetch_live_price", fetch_live_price_noop),
         ],
     )
 
@@ -600,7 +607,9 @@ def test_run_once_hold_updates_current_price_only():
             p_.stop()
     assert n == 0
     assert submit_calls == []
-    update_price.assert_awaited_once_with(pos.id, pytest.approx(0.40), pos.user_id)
+    update_price.assert_awaited_once_with(
+        pos.id, pytest.approx(0.40), pos.user_id, pnl_usdc=pytest.approx(0.0)
+    )
     assert captured.tp_hit == captured.sl_hit == []
 
 

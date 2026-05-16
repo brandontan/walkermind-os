@@ -150,6 +150,26 @@ async def _load_stale_queued_row(
     return dict(row) if row else None
 
 
+async def _has_open_position_for_market(user_id: UUID, market_id: str) -> bool:
+    """Return True when the user already holds an open position on this market.
+
+    Runs before the risk gate so it short-circuits without creating a risk_log
+    entry or idempotency_key record. Closes the race window between two
+    concurrent scan ticks that both pass gate step 10 (orders-table dedup)
+    before either has committed its position row — positions is the
+    authoritative source because it is committed in the same atomic transaction
+    as the order row.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT 1 FROM positions "
+            " WHERE user_id = $1 AND market_id = $2 AND status = 'open'",
+            user_id, market_id,
+        )
+    return row is not None
+
+
 async def _insert_execution_queue(
     *,
     user_id: UUID,
@@ -416,6 +436,20 @@ async def _process_candidate(
         if already:
             log.info("scan_outcome", outcome="skipped_dedup")
             return
+
+    # 1b. Open-position market dedup — skip if user already holds an open
+    #     position on this market_id. Closes the race window between concurrent
+    #     ticks that both clear gate step 10 (orders-table dedup) before either
+    #     has committed its position row. Crash-recovery resumes above this
+    #     check so stale 'queued' rows are not blocked.
+    try:
+        if await _has_open_position_for_market(user_id, cand.market_id):
+            log.info("scan_outcome", outcome="skipped_open_position_exists",
+                     market_id=cand.market_id)
+            return
+    except Exception as exc:
+        log.warning("open_position_market_check_failed", error=str(exc))
+        # On DB error fall through — gate step 10 remains the safety net.
 
     # 2. Market lookup.
     market = await _load_market(cand.market_id)

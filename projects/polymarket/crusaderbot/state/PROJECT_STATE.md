@@ -1,5 +1,5 @@
-Last Updated : 2026-05-16 13:27
-Status       : WebTrader browser dashboard MERGED to main (PR #1058). Backend (SSE/JWT/router), frontend (React/Vite/Tailwind, 6 pages, 7 components), migration 029, multi-stage Dockerfile. WARP•SENTINEL audit required before production deploy. Production PAPER ONLY.
+Last Updated : 2026-05-16 18:00
+Status       : Auto-trade runtime fix PR open (WARP/CRUSADERBOT-AUTOTRADE-RUNTIME). Live price fetch wired into exit_watcher; pnl_usdc now computed and persisted on every tick; signal_scan open-position guard added; WebTrader badges fixed. WARP•SENTINEL MAJOR audit required before merge. Production PAPER ONLY.
 
 [COMPLETED]
 - WARP/CRUSADERBOT-WEBTRADER MERGED PR #1058 (2026-05-16). WebTrader browser dashboard: migration 029 (portfolio_snapshots, system_alerts, NOTIFY triggers), FastAPI SSE backend (asyncpg LISTEN/NOTIFY fan-out), JWT auth (Telegram Login Widget), React/Vite/Tailwind SPA (6 pages, 7 components), multi-stage Dockerfile. MAJOR, NARROW INTEGRATION.
@@ -16,9 +16,11 @@ Status       : WebTrader browser dashboard MERGED to main (PR #1058). Backend (S
 - Premium UX v4 (Hybrid Luxury) — PR #1026 merged. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- WARP/CRUSADERBOT-AUTOTRADE-RUNTIME PR open. exit_watcher live price fetch + pnl_usdc + signal_scan open-position guard + WebTrader badge fixes. MAJOR, FULL RUNTIME INTEGRATION. WARP•SENTINEL required before merge.
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
+- 5 open positions stuck at entry_price — will self-resolve once live price fix deploys and TP/SL fires.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
@@ -34,6 +36,7 @@ Status       : WebTrader browser dashboard MERGED to main (PR #1058). Backend (S
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for autotrade-runtime-fix (MAJOR) before merge. Source: projects/polymarket/crusaderbot/reports/forge/autotrade-runtime-fix.md. Tier: MAJOR.
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 - WARP🔹CMD manual deploy required: fly CLI not available in cloud environment. Apply migration 027+028+029 first, set WEBTRADER_JWT_SECRET secret, then fly deploy from local machine. Report: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 - Apply migration 028 (preset_activated_at) to production before deploying Phase 5 code to Fly.io.
@@ -41,6 +44,7 @@ Status       : WebTrader browser dashboard MERGED to main (PR #1058). Backend (S
 - Run live Telegram smoke test (walk3r69 / @CrusaderBot) after manual deploy.
 
 [KNOWN ISSUES]
+- 5 open positions stuck at entry_price pending autotrade-runtime-fix deploy; positions will self-close via TP/SL once live price feed is active. No manual action required before SENTINEL.
 - fly CLI not installed in cloud execution environment — deploy step requires WARP🔹CMD manual execution from fly CLI machine.
 - migration 027 (notifications_on) must be applied to production before deploying PR #1049 + PR #1055 code on Fly.io.
 - pnl_insights.py, copy_trade.py, portfolio_chart.py still contain ━━━ — out-of-scope for crusaderbot-mvp-runtime-ux; separate cleanup lane required.
