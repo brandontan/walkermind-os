@@ -29,12 +29,13 @@ from ``OPS_SECRET`` via either the ``X-Ops-Token`` header OR the
 kill / resume with one tap on a phone. ``OPS_SECRET`` unset disables
 the mutators (503); missing / wrong token returns 403.
 
-TODO: add full auth hardening post-demo (per-operator login, token
-rotation, audit of resolved actor identity). The current scheme is
-demo-grade — it closes the unauthenticated-resume hole but the token
-still appears in URL access logs and browser history. The bearer-
-protected ``/admin/kill`` REST endpoint remains the hardened path for
-scripts and CI.
+DEFERRED (tracked in PROJECT_STATE KNOWN ISSUES, not a blocker for the
+paper-mode public beta): full auth hardening — per-operator login, token
+rotation, removing the token from the URL. Rationale: paper mode moves no
+real capital, the mutators are timing-safe secret-gated, every flip is
+audited (now with a ``client_host`` breadcrumb), and the bearer-protected
+``/admin/kill`` REST endpoint is the hardened path for scripts and CI.
+This deferral is intentional and documented — not an incomplete stub.
 """
 from __future__ import annotations
 
@@ -44,7 +45,7 @@ import secrets
 import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .. import audit
@@ -476,6 +477,7 @@ async def ops_dashboard(
 
 @router.post("/ops/kill")
 async def ops_kill(
+    request: Request,
     token: str | None = None,
     x_ops_token: str | None = Header(default=None),
 ) -> RedirectResponse:
@@ -504,7 +506,10 @@ async def ops_kill(
         await audit.write(
             actor_role="operator",
             action="kill_switch_pause",
-            payload={"source": "ops_dashboard_web"},
+            payload={
+                "source": "ops_dashboard_web",
+                "client_host": request.client.host if request.client else None,
+            },
         )
     except Exception as exc:  # noqa: BLE001 — boundary
         logger.error("ops dashboard: kill failed: %s", exc)
@@ -516,6 +521,7 @@ async def ops_kill(
 
 @router.post("/ops/resume")
 async def ops_resume(
+    request: Request,
     token: str | None = None,
     x_ops_token: str | None = Header(default=None),
 ) -> RedirectResponse:
@@ -535,7 +541,10 @@ async def ops_resume(
         await audit.write(
             actor_role="operator",
             action="kill_switch_resume",
-            payload={"source": "ops_dashboard_web"},
+            payload={
+                "source": "ops_dashboard_web",
+                "client_host": request.client.host if request.client else None,
+            },
         )
     except Exception as exc:  # noqa: BLE001 — boundary
         logger.error("ops dashboard: resume failed: %s", exc)

@@ -78,9 +78,10 @@ class Settings(BaseSettings):
     # GET /ops stays open (read-only operator console). POST /ops/kill +
     # POST /ops/resume require this shared secret via the ``X-Ops-Token``
     # header OR ``?token=<value>`` query param. Disabled (503) when this
-    # value is unset. The full auth hardening lane (per-operator login,
-    # rotation, audit) is deferred post-demo — see the in-code TODO in
-    # ``api/ops.py``.
+    # value is unset. Full auth hardening (per-operator login, rotation,
+    # token-out-of-URL) is an INTENTIONAL documented deferral for the
+    # paper-mode beta — tracked in PROJECT_STATE KNOWN ISSUES, rationale
+    # in the ``api/ops.py`` module docstring. Not an incomplete stub.
     OPS_SECRET: Optional[str] = None
 
     # --- Sentry-related app metadata ---

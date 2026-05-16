@@ -552,3 +552,64 @@ def test_kill_switch_state_returns_na_on_error(monkeypatch):
 
     monkeypatch.setattr(api_ops.kill_switch, "is_active", _boom)
     assert _run(api_ops._kill_switch_state()) == "N/A"
+
+
+# ---------------------------------------------------------------------------
+# audit-actor breadcrumb (client_host)
+# ---------------------------------------------------------------------------
+
+
+def test_ops_kill_audit_payload_includes_client_host(monkeypatch):
+    _patch_route_io(monkeypatch)
+    monkeypatch.setattr(
+        api_ops.kill_switch, "set_active",
+        AsyncMock(return_value={"active": True}),
+    )
+    audit_write = AsyncMock()
+    monkeypatch.setattr(api_ops.audit, "write", audit_write)
+
+    client = TestClient(_build_app())
+    r = client.post(
+        "/ops/kill", headers={"X-Ops-Token": OPS_TOKEN},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    payload = audit_write.await_args.kwargs["payload"]
+    assert "client_host" in payload
+    assert payload["source"] == "ops_dashboard_web"
+
+
+def test_ops_resume_audit_payload_includes_client_host(monkeypatch):
+    _patch_route_io(monkeypatch)
+    monkeypatch.setattr(
+        api_ops.kill_switch, "set_active",
+        AsyncMock(return_value={"active": False}),
+    )
+    audit_write = AsyncMock()
+    monkeypatch.setattr(api_ops.audit, "write", audit_write)
+
+    client = TestClient(_build_app())
+    r = client.post(
+        "/ops/resume", headers={"X-Ops-Token": OPS_TOKEN},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    payload = audit_write.await_args.kwargs["payload"]
+    assert "client_host" in payload
+
+
+def test_ops_kill_503_when_secret_unset(monkeypatch):
+    _patch_route_io(monkeypatch, settings=_settings(ops_secret=None))
+    client = TestClient(_build_app())
+    r = client.post("/ops/kill", follow_redirects=False)
+    assert r.status_code == 503
+
+
+def test_ops_kill_403_on_bad_token(monkeypatch):
+    _patch_route_io(monkeypatch)
+    client = TestClient(_build_app())
+    r = client.post(
+        "/ops/kill", headers={"X-Ops-Token": "wrong"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 403
