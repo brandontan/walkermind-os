@@ -1,10 +1,13 @@
 """User CRUD helpers used across handlers + scheduler."""
 from __future__ import annotations
 
+import logging
 from typing import Optional
 from uuid import UUID
 
 from .database import get_pool
+
+logger = logging.getLogger(__name__)
 
 
 async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
@@ -47,11 +50,55 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
         try:
             await create_wallet_for_user(row["id"])
         except Exception:
-            import logging
-            logging.getLogger(__name__).exception(
+            logger.exception(
                 "wallet creation failed for new user user_id=%s", row["id"]
             )
+        try:
+            await seed_paper_capital(row["id"])
+        except Exception:
+            logger.exception(
+                "paper seed failed for new user user_id=%s", row["id"]
+            )
     return dict(row)
+
+
+async def seed_paper_capital(user_id: UUID) -> bool:
+    """Atomically credit $1,000 paper USDC if wallet exists at zero balance
+    AND no prior seed-ledger entry exists. Idempotent — safe to retry.
+
+    Returns True if a credit happened, False if no-op (already seeded or
+    wallet missing).
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            bal = await conn.fetchval(
+                "SELECT balance_usdc FROM wallets WHERE user_id=$1 FOR UPDATE",
+                user_id,
+            )
+            if bal is None:
+                return False  # wallet not yet created; caller can retry
+            if float(bal) != 0:
+                return False  # already has funds — never overwrite
+            already = await conn.fetchval(
+                "SELECT 1 FROM ledger WHERE user_id=$1 AND type='deposit' "
+                "AND note='Paper wallet — initial $1,000 credit' LIMIT 1",
+                user_id,
+            )
+            if already:
+                return False
+            await conn.execute(
+                "UPDATE wallets SET balance_usdc=1000 "
+                "WHERE user_id=$1 AND balance_usdc=0",
+                user_id,
+            )
+            await conn.execute(
+                "INSERT INTO ledger (user_id, type, amount_usdc, note) "
+                "VALUES ($1, 'deposit', 1000, "
+                "'Paper wallet — initial $1,000 credit')",
+                user_id,
+            )
+            return True
 
 
 async def get_user_by_telegram_id(telegram_user_id: int) -> Optional[dict]:

@@ -1,5 +1,5 @@
-Last Updated : 2026-05-16 20:12
-Status       : webtrader-v3-and-bot-polish MERGED PR #1069 (WARP/webtrader-v3-and-bot-polish, MAJOR). Tactical Terminal v3.2 ported to all 6 webtrader pages + Advanced Mode toggle + bot template foundation (EMOJI/DIV/_table + 5 new alert templates) + command consolidation + new nav:/act:/cfg: callback namespace. WARP🔹CMD CONDITIONAL verdict captured at reports/sentinel/webtrader-v3-and-bot-polish.md. Production PAPER ONLY.
+Last Updated : 2026-05-16 21:13
+Status       : runtime-autotrade-fix PR open (WARP/CRUSADERBOT-RUNTIME-AUTOTRADE-FIX, STANDARD). Atomic $1K paper seed on new user creation + MIN_LIQUIDITY raised $1K→$10K + exit_watcher _market_actually_expired() gate. 10 new tests green. Production PAPER ONLY.
 
 [COMPLETED]
 - webtrader-v3-and-bot-polish MERGED PR #1069 (2026-05-16). Tactical Terminal v3.2 atomic delivery — frontend: 15 new shared components (TopBar/Ticker/HeroCard/StatCard/StatsGrid/Terminal/PositionCard/EmptyState/Toggle/FilterTabs/WalletCard/AddressCard/SettingsGroup/AdvancedGate + StrategyCard rewrite), UiMode context with localStorage persist, scanline+grain+ambient atmosphere, clip-path HUD geometry, 6 pages rewritten; bot: messages.py EMOJI/DIV/_table + 5 new alert templates (signal/position_open/position_close/daily_summary/health), keyboards/_common.py shared row helpers (home_back_row/confirm_cancel_row/pagination_row), dispatcher.py drops 4 aliases (/pnl /close /scan /mode) + adds _nav_cb for nav:* prefix, keyboards/presets.py + settings.py 2-col mobile cleanup; tests 1400 pass 0 fail; npm build 62 modules clean; ruff clean. Supersedes WARP/CRUSADERBOT-WEBTRADER-REDESIGN. MAJOR, FULL RUNTIME INTEGRATION.
@@ -19,6 +19,7 @@ Status       : webtrader-v3-and-bot-polish MERGED PR #1069 (WARP/webtrader-v3-an
 - V5 "AUTOBOT" UI Overhaul MERGED PR #1045. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- runtime-autotrade-fix PR open (WARP/CRUSADERBOT-RUNTIME-AUTOTRADE-FIX). Awaiting WARP🔹CMD merge decision (STANDARD tier). Report: projects/polymarket/crusaderbot/reports/forge/runtime-autotrade-fix.md.
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
@@ -39,6 +40,7 @@ Status       : webtrader-v3-and-bot-polish MERGED PR #1069 (WARP/webtrader-v3-an
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for runtime-autotrade-fix (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/runtime-autotrade-fix.md. Tier: STANDARD. Post-merge: /start fresh account → verify Balance: $1,000; auto-trade enabled → confirm no false market_expired within 5 min.
 - WARP/full-callback-prefix-migration (MEDIUM, F-02+F-03). Rewrite remaining 8 keyboard modules to use _common.py helpers + nav:/act:/cfg: namespace; drop legacy patterns from bot/dispatcher.py once all senders migrate. Linear tracking item filed under team CrusaderBot.
 - WARP/bot-alert-dedup-audit + WARP/bot-onboarding-state-canonical follow-up lanes — deferred from PR #1069 by design.
 - WARP🔹CMD review required for startup-logo-fix (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/startup-logo-fix.md. Tier: STANDARD. Deliver crusaderbot-logo.png binary to webtrader/frontend/public/ before merge.
@@ -46,6 +48,7 @@ Status       : webtrader-v3-and-bot-polish MERGED PR #1069 (WARP/webtrader-v3-an
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 
 [KNOWN ISSUES]
+- New users before runtime-autotrade-fix deploy still receive $0 balance — two affected users (qwneer8, Maver1ch69) already backfilled via SQL; fix ships with this PR.
 - Fly.io deploy blocked until migration 030 (job_runs metadata JSONB) applied to production — trading-unblock MERGED PR #1065, live on main.
 - crusaderbot-logo.png binary not yet in repo — WebTrader logo img references will render broken until PNG committed to webtrader/frontend/public/ by WARP🔹CMD.
 - 5 positions stuck open — trading-unblock MERGED PR #1065. Will auto-close as MARKET_EXPIRED within 1 exit_watch tick (60s) after migration 030 applied and Fly.io deploy completes.

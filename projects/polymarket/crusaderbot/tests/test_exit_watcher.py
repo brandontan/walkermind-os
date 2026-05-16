@@ -774,6 +774,8 @@ def test_run_once_none_price_after_retry_closes_as_expired():
         # Pre-seed counter to threshold - 1 so this tick crosses the threshold.
         patch.dict(exit_watcher._price_fail_counts,
                    {pos.id: exit_watcher._EXPIRED_TICK_THRESHOLD - 1}),
+        # Market IS actually resolved — guard passes and close proceeds.
+        patch.object(exit_watcher, "_market_actually_expired", AsyncMock(return_value=True)),
         _patch_audit_noop(),
         patch.object(monitoring_alerts, "alert_user_market_expired", _mock_expired_alert),
     ]
@@ -827,3 +829,121 @@ def test_run_once_market_expired_on_resolved_market():
     close_expired.assert_awaited_once_with(pos.id, pos.user_id, pos.size_usdc)
     # User alert suppressed — exit_watcher logs to logger.info instead.
     assert len(captured_expired) == 0
+
+
+# ---------------------------------------------------------------------------
+# _market_actually_expired guard tests (runtime-autotrade-fix)
+# ---------------------------------------------------------------------------
+
+
+def _make_pool_for_market(*, resolved: bool, resolution_at=None):
+    """Return a fake asyncpg pool returning a market row with given resolved/end_date."""
+    from unittest.mock import MagicMock
+    row = {"resolved": resolved, "resolution_at": resolution_at}
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(return_value=row)
+    pool = MagicMock()
+    acq = MagicMock()
+    acq.__aenter__ = AsyncMock(return_value=conn)
+    acq.__aexit__ = AsyncMock(return_value=False)
+    pool.acquire = MagicMock(return_value=acq)
+    return pool
+
+
+def test_none_price_on_unresolved_market_does_not_close():
+    """Phase A: 3 None ticks, DB resolved=False → position stays open, no close call."""
+    pos = _make_position()
+    fetch_none = AsyncMock(return_value=None)
+    close_expired = AsyncMock(return_value=True)
+    list_open = AsyncMock(return_value=[pos])
+    list_open_resolved = AsyncMock(return_value=[])
+    pool = _make_pool_for_market(resolved=False)
+
+    patches = [
+        patch.object(registry, "list_open_for_exit", list_open),
+        patch.object(registry, "list_open_on_resolved_markets", list_open_resolved),
+        patch.object(registry, "close_as_expired", close_expired),
+        patch.object(exit_watcher, "_fetch_live_price", fetch_none),
+        # Pre-seed counter to threshold - 1 so this tick crosses the threshold.
+        patch.dict(exit_watcher._price_fail_counts,
+                   {pos.id: exit_watcher._EXPIRED_TICK_THRESHOLD - 1}),
+        patch.object(exit_watcher, "get_pool", return_value=pool),
+        _patch_audit_noop(),
+    ]
+    for p_ in patches:
+        p_.start()
+    try:
+        result = _run(exit_watcher.run_once())
+        # Counter pinned at threshold, not grown beyond it (checked inside patch scope).
+        assert exit_watcher._price_fail_counts.get(pos.id) == exit_watcher._EXPIRED_TICK_THRESHOLD
+    finally:
+        for p_ in patches:
+            p_.stop()
+
+    assert result.expired == 0, "Must not close when market is still live"
+    close_expired.assert_not_awaited()
+
+
+def test_none_price_on_resolved_market_closes():
+    """Phase A: 3 None ticks, DB resolved=True → position closes as market_expired."""
+    pos = _make_position()
+    fetch_none = AsyncMock(return_value=None)
+    close_expired = AsyncMock(return_value=True)
+    list_open = AsyncMock(return_value=[pos])
+    list_open_resolved = AsyncMock(return_value=[])
+    pool = _make_pool_for_market(resolved=True)
+
+    patches = [
+        patch.object(registry, "list_open_for_exit", list_open),
+        patch.object(registry, "list_open_on_resolved_markets", list_open_resolved),
+        patch.object(registry, "close_as_expired", close_expired),
+        patch.object(exit_watcher, "_fetch_live_price", fetch_none),
+        patch.dict(exit_watcher._price_fail_counts,
+                   {pos.id: exit_watcher._EXPIRED_TICK_THRESHOLD - 1}),
+        patch.object(exit_watcher, "get_pool", return_value=pool),
+        _patch_audit_noop(),
+    ]
+    for p_ in patches:
+        p_.start()
+    try:
+        result = _run(exit_watcher.run_once())
+    finally:
+        for p_ in patches:
+            p_.stop()
+
+    assert result.expired == 1
+    close_expired.assert_awaited_once()
+
+
+def test_none_price_on_past_end_date_closes():
+    """Phase A: 3 None ticks, resolved=False but resolution_at in the past → closes."""
+    from datetime import datetime, timedelta, timezone as tz
+    past = datetime.now(tz.utc) - timedelta(days=1)
+
+    pos = _make_position()
+    fetch_none = AsyncMock(return_value=None)
+    close_expired = AsyncMock(return_value=True)
+    list_open = AsyncMock(return_value=[pos])
+    list_open_resolved = AsyncMock(return_value=[])
+    pool = _make_pool_for_market(resolved=False, resolution_at=past)
+
+    patches = [
+        patch.object(registry, "list_open_for_exit", list_open),
+        patch.object(registry, "list_open_on_resolved_markets", list_open_resolved),
+        patch.object(registry, "close_as_expired", close_expired),
+        patch.object(exit_watcher, "_fetch_live_price", fetch_none),
+        patch.dict(exit_watcher._price_fail_counts,
+                   {pos.id: exit_watcher._EXPIRED_TICK_THRESHOLD - 1}),
+        patch.object(exit_watcher, "get_pool", return_value=pool),
+        _patch_audit_noop(),
+    ]
+    for p_ in patches:
+        p_.start()
+    try:
+        result = _run(exit_watcher.run_once())
+    finally:
+        for p_ in patches:
+            p_.stop()
+
+    assert result.expired == 1
+    close_expired.assert_awaited_once()
