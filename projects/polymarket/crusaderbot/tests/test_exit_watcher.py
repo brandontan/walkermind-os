@@ -503,7 +503,7 @@ def test_run_once_force_close_intent_executes_immediately():
 
 def test_run_once_close_failure_increments_counter_and_alerts():
     """Close fails twice (initial + 1 retry) -> failure_count++,
-    user alerted, operator alerted at threshold."""
+    user alert suppressed (logger.info only), operator alerted at threshold."""
     captured = _Captured()
     pos = _make_position(yes_price=0.99, applied_tp_pct=0.10,
                          close_failure_count=1)
@@ -538,8 +538,8 @@ def test_run_once_close_failure_increments_counter_and_alerts():
             p_.stop()
 
     record_failure.assert_awaited_once_with(pos.id, pos.user_id)
-    assert len(captured.close_failed_user) == 1
-    assert captured.close_failed_user[0]["telegram_user_id"] == pos.telegram_user_id
+    # User alert suppressed — exit_watcher logs to logger.info instead.
+    assert len(captured.close_failed_user) == 0
     # Operator alert dispatched because failure_count(=2) crossed threshold.
     assert len(captured.close_failed_op) == 1
     assert captured.close_failed_op[0]["failure_count"] == 2
@@ -550,9 +550,9 @@ def test_run_once_close_failure_increments_counter_and_alerts():
 
 def test_run_once_live_close_failure_records_without_retry():
     """End-to-end watcher run: a live close that fails must NOT retry, but
-    must still increment failure_count, alert the user, and alert the
-    operator at threshold — proving the no-retry-on-live policy does not
-    silence the failure path.
+    must still increment failure_count, suppress user alert (logger.info only),
+    and alert the operator at threshold — proving the no-retry-on-live policy
+    does not silence the failure path.
     """
     captured = _Captured()
     pos = _make_position(yes_price=0.99, applied_tp_pct=0.10,
@@ -591,7 +591,8 @@ def test_run_once_live_close_failure_records_without_retry():
         "live mode submit must be attempted exactly once — no retry"
     )
     record_failure.assert_awaited_once_with(pos.id, pos.user_id)
-    assert len(captured.close_failed_user) == 1
+    # User alert suppressed — exit_watcher logs to logger.info instead.
+    assert len(captured.close_failed_user) == 0
     assert len(captured.close_failed_op) == 1
     assert captured.close_failed_op[0]["mode"] == "live"
 
@@ -669,9 +670,9 @@ def test_run_once_per_position_failure_does_not_poison_batch():
             p_.stop()
     # The good position closed even though the bad one repeatedly failed.
     assert good.id in submitted
-    # Bad position recorded a failure and alerted the user.
+    # Bad position recorded a failure; user alert suppressed (logger.info only).
     record_failure.assert_awaited()
-    assert len(captured.close_failed_user) >= 1
+    assert len(captured.close_failed_user) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -790,8 +791,8 @@ def test_run_once_none_price_after_retry_closes_as_expired():
     # Two fetch attempts within this tick: initial + one retry before declaring expired.
     assert fetch_none.await_count == 2
     close_expired.assert_awaited_once_with(pos.id, pos.user_id, pos.size_usdc)
-    assert len(captured_expired) == 1
-    assert captured_expired[0]["market_id"] == pos.market_id
+    # User alert suppressed — exit_watcher logs to logger.info instead.
+    assert len(captured_expired) == 0
 
 
 def test_run_once_market_expired_on_resolved_market():
@@ -824,4 +825,5 @@ def test_run_once_market_expired_on_resolved_market():
     assert result.expired == 1
     assert result.submitted == 0
     close_expired.assert_awaited_once_with(pos.id, pos.user_id, pos.size_usdc)
-    assert len(captured_expired) == 1
+    # User alert suppressed — exit_watcher logs to logger.info instead.
+    assert len(captured_expired) == 0
