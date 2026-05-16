@@ -1,5 +1,5 @@
-Last Updated : 2026-05-15 23:59
-Status       : crusaderbot-ux-bugfix complete. 5 UX bugs fixed: reply_markup dead-ends, Active Monitor view, startup spam, /resetonboard admin command, curly-quote audit. STANDARD, NARROW INTEGRATION. Production PAPER ONLY.
+Last Updated : 2026-05-15 17:00
+Status       : Phase 5 UX Rebuild PR open. 6 screens rebuilt: Welcome/Onboarding, Dashboard, Auto-Trade Preset Picker+Confirmation+Status, My Trades, Wallet, Emergency. group=-1 nav fix applied. MAJOR, NARROW INTEGRATION. Production PAPER ONLY.
 
 [COMPLETED]
 - crusaderbot-ux-bugfix complete (2026-05-15). 5 UX bugs: autotrade_toggle_cb dashboard refresh, trades nav_row, insights_kb nav, Active Monitor dedicated view, startup /tmp lock cooldown, /resetonboard admin command, curly-quote audit (zero hits). ruff+compileall clean. STANDARD, NARROW INTEGRATION.
@@ -30,8 +30,8 @@ Status       : CrusaderBot MVP Runtime + Telegram UX Redesign MERGED PR #1049 (1
 - Fast Track Week 2 Track F -- Live Opt-In Gate MERGED PR #970 (2026-05-12). /enable_live 3-step gate, mode_change_events audit log, auto-fallback monitor; activation guards remain OFF.
 
 [IN PROGRESS]
+- WARP/CRUSADERBOT-PHASE5-UX-REBUILD PR open — awaiting WARP•SENTINEL validation (Tier MAJOR) and WARP🔹CMD review.
 - Closed beta observation / paper-mode runtime monitoring active.
-- WARP/CRUSADERBOT-UX-PATCH-1 PR open — awaiting WARP🔹CMD review and merge.
 
 [IN PROGRESS]
 - Observation / runtime monitoring remains active in paper mode.
@@ -49,12 +49,10 @@ Status       : CrusaderBot MVP Runtime + Telegram UX Redesign MERGED PR #1049 (1
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required: crusaderbot-ux-bugfix (STANDARD, no SENTINEL required). Report: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ux-bugfix.md.
-- WARP🔹CMD review required: WARP/crusaderbot-operator-hotfix PR #1053 (MINOR, no SENTINEL required). Report: projects/polymarket/crusaderbot/reports/forge/crusaderbot-operator-hotfix.md.
-- WARP🔹CMD review required: WARP/CRUSADERBOT-MVP-CLEANUP PR (STANDARD, no SENTINEL required). Report: projects/polymarket/crusaderbot/reports/forge/mvp-cleanup.md.
-- WARP🔹CMD decision: mode_select_kb() + paper_complete_kb() — delete with tests or retain (flagged in PR).
-- WARP🔹CMD decision: tier gate wiring — wire require_access_tier() to handlers or remove tier middleware (Lane D audit in PR description).
+- WARP•SENTINEL validation required for crusaderbot-phase5-ux-rebuild before merge. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-phase5-ux-rebuild.md. Tier: MAJOR.
+- Apply migration 028 (preset_activated_at) to production before deploying Phase 5 code to Fly.io.
 - Apply migration 027 (notifications_on) to production before deploying to Fly.io.
+- WARP🔹CMD review required: crusaderbot-ux-bugfix (STANDARD). Report: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ux-bugfix.md.
 - Deploy merged changes to Fly.io production (PAPER ONLY — activation guards remain OFF).
 
 [KNOWN ISSUES]
