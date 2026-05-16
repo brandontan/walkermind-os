@@ -190,9 +190,9 @@ async def task_pnl_summary(task_id: UUID, user_id: UUID) -> dict[str, float | in
               FROM positions p
               JOIN orders o ON o.id = p.order_id
              WHERE o.user_id = $1
-               AND o.idempotency_key LIKE 'copy_' || $2 || '_%'
+               AND o.idempotency_key LIKE $2 ESCAPE '\\'
             """,
-            user_id, str(task_id),
+            user_id, "copy\\_" + str(task_id) + "\\_%",
         )
     realized = float(row["realized_pnl"])
     unrealized = float(row["unrealized_pnl"])
