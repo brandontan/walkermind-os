@@ -139,7 +139,7 @@ bot. In a chat with **@BotFather**:
 
 ```
 /setdomain
-@CrusaderBot
+@CrusaderPolybot
 crusaderbot.fly.dev
 ```
 

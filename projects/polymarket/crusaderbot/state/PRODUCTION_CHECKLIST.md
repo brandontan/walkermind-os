@@ -45,7 +45,7 @@ Each item lists how to verify it is done.
   `fly secrets list --app crusaderbot | grep OPS_SECRET`
 - [ ] `FLY_API_TOKEN` added as GitHub Actions repo secret (CD auth)
   GitHub → Settings → Secrets and variables → Actions
-- [ ] BotFather `/setdomain @CrusaderBot crusaderbot.fly.dev`
+- [ ] BotFather `/setdomain @CrusaderPolybot crusaderbot.fly.dev`
   WebTrader auth page → Telegram Login button completes
 - [ ] crusaderbot-logo.png delivered to
   `webtrader/frontend/public/crusaderbot-logo.png` (recommended 256×256
