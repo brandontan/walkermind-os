@@ -9,13 +9,13 @@ from .database import get_pool
 
 async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
     pool = get_pool()
+    _is_new_user = False
     async with pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
                 "SELECT * FROM users WHERE telegram_user_id=$1", telegram_user_id,
             )
             if row is None:
-                # New user — create with access_tier=2 (active by default, no allowlist)
                 row = await conn.fetchrow(
                     "INSERT INTO users (telegram_user_id, username, access_tier) "
                     "VALUES ($1, $2, 2) RETURNING *",
@@ -26,14 +26,8 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
                     "ON CONFLICT (user_id) DO NOTHING",
                     row["id"],
                 )
-                # Ensure wallet row exists (Concierge will seed the $1,000 balance)
-                await conn.execute(
-                    "INSERT INTO wallets (user_id) VALUES ($1) "
-                    "ON CONFLICT (user_id) DO NOTHING",
-                    row["id"],
-                )
+                _is_new_user = True
             else:
-                # Existing user — silently upgrade legacy tier-1 users to tier-2
                 if row["access_tier"] < 2:
                     await conn.execute(
                         "UPDATE users SET access_tier=2 WHERE id=$1", row["id"],
@@ -43,10 +37,20 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
                         "UPDATE users SET username=$1 WHERE id=$2",
                         username, row["id"],
                     )
-                # Re-fetch to pick up any updates
                 row = await conn.fetchrow(
                     "SELECT * FROM users WHERE id=$1", row["id"],
                 )
+    # Must run AFTER transaction commits — vault.py uses its own connection.
+    # ON CONFLICT DO NOTHING in create_wallet_for_user makes this safe on retries.
+    if _is_new_user:
+        from .wallet.vault import create_wallet_for_user
+        try:
+            await create_wallet_for_user(row["id"])
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception(
+                "wallet creation failed for new user user_id=%s", row["id"]
+            )
     return dict(row)
 
 
