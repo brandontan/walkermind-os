@@ -10,8 +10,15 @@ from fastapi import FastAPI, Header, HTTPException, Request, Response
 from telegram import Update
 from telegram.ext import Application
 
+from pathlib import Path
+
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
+
 from . import notifications
 from .api import admin as api_admin, health as api_health, ops as api_ops
+from .webtrader.backend import sse as webtrader_sse
+from .webtrader.backend.router import router as web_router
 from .bot.dispatcher import register as register_handlers
 from .cache import close_cache, init_cache
 from .config import get_settings, validate_required_env
@@ -58,10 +65,11 @@ async def lifespan(_: FastAPI):
         settings.CAPITAL_MODE_CONFIRMED,
     )
 
-    await init_pool()
+    pool = await init_pool()
     await run_migrations()
     await init_cache()
     bootstrap_default_strategies()
+    await webtrader_sse.start_listener(settings.DATABASE_URL, pool)
 
     use_webhook = bool(settings.TELEGRAM_WEBHOOK_URL)
 
@@ -212,6 +220,7 @@ async def lifespan(_: FastAPI):
                 await bot_app.shutdown()
         except Exception as exc:
             log.warning("bot shutdown error: %s", exc)
+        await webtrader_sse.stop_listener()
         await close_cache()
         await close_pool()
 
@@ -221,11 +230,19 @@ app.add_middleware(RequestLogMiddleware)
 app.include_router(api_health.router)
 app.include_router(api_admin.router)
 app.include_router(api_ops.router)
+app.include_router(web_router, prefix="/api/web")
+
+# Serve the React frontend from /dashboard (static files from the Docker build)
+_frontend_dist = Path(__file__).parent / "webtrader" / "frontend" / "dist"
+if _frontend_dist.exists():
+    app.mount("/dashboard", StaticFiles(directory=str(_frontend_dist), html=True), name="webtrader")
+else:
+    log.warning("WebTrader dist not found at %s — /dashboard will not serve the UI", _frontend_dist)
 
 
 @app.get("/")
 async def root():
-    return {"service": "crusaderbot", "status": "running"}
+    return RedirectResponse("/dashboard", status_code=302)
 
 
 @app.post("/telegram/webhook")
