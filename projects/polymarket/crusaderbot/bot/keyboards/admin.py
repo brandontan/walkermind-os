@@ -4,6 +4,7 @@ from __future__ import annotations
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from . import grid_rows
+from ._common import confirm_cancel_row
 
 
 def ops_dashboard_keyboard(kill_active: bool) -> InlineKeyboardMarkup:
@@ -24,7 +25,8 @@ def ops_dashboard_keyboard(kill_active: bool) -> InlineKeyboardMarkup:
 
 def killswitch_confirm_keyboard(action: str) -> InlineKeyboardMarkup:
     """Yes/No confirm for destructive killswitch actions (lock)."""
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅ Confirm", callback_data=f"ops:confirm:{action}"),
-        InlineKeyboardButton("❌ Cancel",  callback_data="ops:cancel"),
-    ]])
+    return InlineKeyboardMarkup([
+        confirm_cancel_row(
+            f"ops:confirm:{action}", "ops:cancel", "✅ Confirm", "❌ Cancel",
+        ),
+    ])

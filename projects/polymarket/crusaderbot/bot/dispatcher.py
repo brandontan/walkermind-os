@@ -133,7 +133,8 @@ async def _text_router(update, ctx) -> None:
 def register(app: Application) -> None:
     # ── group=-1: primary nav — fires BEFORE ConversationHandlers ────────────────
     app.add_handler(CallbackQueryHandler(_menu_nav_cb, pattern=r"^menu:"), group=-1)
-    # Tactical Terminal polish — nav:* prefix for new keyboards (home/back/refresh/noop).
+    # nav:* prefix — all keyboard modules now use _common.py helpers (home_row /
+    # home_back_row / confirm_cancel_row) which emit nav:home / nav:back / nav:noop.
     app.add_handler(CallbackQueryHandler(_nav_cb, pattern=r"^nav:"), group=-1)
     # Persistent keyboard text buttons — interrupt any ConversationHandler state
     app.add_handler(MessageHandler(

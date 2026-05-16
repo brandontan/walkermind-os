@@ -416,15 +416,17 @@ def test_fmt_date_none():
 def test_market_card_kb_layout():
     kb = market_card_kb("will-x-happen")
     rows = kb.inline_keyboard
-    assert len(rows) == 2
+    assert len(rows) == 3
     assert len(rows[0]) == 2
     assert len(rows[1]) == 2
+    assert len(rows[2]) == 1  # Home row added by _common.home_row
     buttons = [btn for row in rows for btn in row]
     labels = [btn.text for btn in buttons]
     assert "Buy YES" in labels
     assert "Buy NO" in labels
     assert "Set Alert" in labels
     assert "Details" in labels
+    assert "🏠 Home" in labels
 
 
 # ---------------------------------------------------------------------------
