@@ -35,10 +35,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Awaitable, Callable, Optional, Protocol
 
 from ... import audit
+from ...database import get_pool
 from ...integrations.polymarket import get_live_market_price
 from ...monitoring import alerts as monitoring_alerts
 from ..positions import registry
@@ -323,6 +325,27 @@ async def _act_on_decision(
         )
 
 
+async def _market_actually_expired(market_id: str) -> bool:
+    """Return True only when the market is verifiably resolved or past its
+    end date. Used to gate MARKET_EXPIRED classification when live-price
+    fetch returns None to avoid mis-classifying illiquid-orderbook outages.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT resolved, end_date_iso FROM markets WHERE id=$1",
+            market_id,
+        )
+    if row is None:
+        return False  # unknown market — let the unknown-market path handle it elsewhere
+    if row["resolved"]:
+        return True
+    end = row["end_date_iso"]
+    if end is not None and end < datetime.now(timezone.utc):
+        return True
+    return False
+
+
 async def _close_expired_position(position: OpenPositionForExit) -> bool:
     """Close a position because its market is no longer live on Gamma.
 
@@ -434,9 +457,21 @@ async def run_once(
                     fail_count = _price_fail_counts.get(p.id, 0) + 1
                     _price_fail_counts[p.id] = fail_count
                     if fail_count >= _EXPIRED_TICK_THRESHOLD:
-                        if await _close_expired_position(p):
-                            expired += 1
-                            _price_fail_counts.pop(p.id, None)
+                        if await _market_actually_expired(p.market_id):
+                            if await _close_expired_position(p):
+                                expired += 1
+                                _price_fail_counts.pop(p.id, None)
+                        else:
+                            # Stale price on a still-live market — likely illiquid orderbook.
+                            # Log once per fail-threshold crossing for ops visibility; keep
+                            # the counter pinned at the threshold so we recheck each tick
+                            # without unbounded growth.
+                            logger.warning(
+                                "exit_watcher: position %s market %s has None price for %d ticks "
+                                "but DB shows not-resolved — treating as stale, not expired",
+                                p.id, p.market_id, fail_count,
+                            )
+                            _price_fail_counts[p.id] = _EXPIRED_TICK_THRESHOLD
                     continue
                 else:
                     _price_fail_counts.pop(p.id, None)  # price recovered, reset
