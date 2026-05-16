@@ -18,8 +18,35 @@ function AppShell() {
   useSSE(user?.token ?? null, {});
 
   return (
-    <div className="min-h-screen bg-bg text-primary font-sans flex justify-center">
-      <div className="w-full max-w-mobile relative">
+    <div className="min-h-screen bg-bg text-primary font-sans flex justify-center overflow-hidden">
+      {/* Ambient background gradients — fixed, pointer-events-none */}
+      <div
+        className="fixed inset-0 pointer-events-none"
+        style={{ zIndex: 0 }}
+        aria-hidden="true"
+      >
+        <div
+          className="absolute"
+          style={{
+            width: "500px",
+            height: "500px",
+            top: "-120px",
+            left: "-120px",
+            background: "radial-gradient(ellipse at center, rgba(245,200,66,0.05) 0%, transparent 70%)",
+          }}
+        />
+        <div
+          className="absolute"
+          style={{
+            width: "500px",
+            height: "500px",
+            bottom: "-120px",
+            right: "-120px",
+            background: "radial-gradient(ellipse at center, rgba(77,158,255,0.05) 0%, transparent 70%)",
+          }}
+        />
+      </div>
+      <div className="w-full max-w-mobile relative" style={{ zIndex: 1 }}>
         <Routes>
           <Route path="/" element={<Navigate to={user ? "/dashboard" : "/auth"} replace />} />
           <Route path="/auth" element={<AuthPage />} />
