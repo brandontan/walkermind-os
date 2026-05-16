@@ -1,8 +1,8 @@
-Last Updated : 2026-05-16 23:59
-Status       : bot-polish-beta PR open (WARP/CRUSADERBOT-BOT-POLISH-BETA, MAJOR). P0 pool fix + notif scope suppression + trade inline keyboards + admin /help scope + schema fix. WARP•SENTINEL validation required before merge. Production PAPER ONLY.
+Last Updated : 2026-05-16 18:45
+Status       : bot-polish-beta MERGED PR #1068 (WARP/CRUSADERBOT-BOT-POLISH-BETA, MAJOR). P0 pool fix + notif scope suppression + trade inline keyboards + admin /help scope + schema fix. Production PAPER ONLY.
 
 [COMPLETED]
-- bot-polish-beta PR open (2026-05-16). P0: fly.toml immediate deploy strategy + asyncpg max_inactive_connection_lifetime=60s + trades.py/share_card.py market_question→JOIN markets. Area 1: alert_user_market/close_failed user notifs suppressed in exit_watcher; alert_startup dead code + os import deleted from alerts.py; test_health.py refs updated. Area 2: trade notif inline keyboards (notify_entry/tp/sl/manual/emergency) + deposit KB in scheduler.py + dashboard switched to main_menu() state-driven. Area 3: /help admin-scoped; weekly_insights active-only filter; hourly_report JOIN bug fixed (t.user_id=u.id). MAJOR, FULL RUNTIME INTEGRATION.
+- bot-polish-beta MERGED PR #1068 (2026-05-16). P0: fly.toml immediate deploy strategy + asyncpg max_inactive_connection_lifetime=60s + trades.py/share_card.py market_question→JOIN markets. Area 1: alert_user_market/close_failed user notifs suppressed in exit_watcher; alert_startup dead code + os import deleted from alerts.py; test_health.py refs updated. Area 2: trade notif inline keyboards (notify_entry/tp/sl/manual/emergency) + deposit KB in scheduler.py + dashboard switched to main_menu() state-driven. Area 3: /help admin-scoped; weekly_insights active-only filter; hourly_report JOIN bug fixed (t.user_id=u.id). MAJOR, FULL RUNTIME INTEGRATION.
 - startup-logo-fix PR open (2026-05-16). 60s Redis dedup on startup notification; duplicate alert_startup call removed; logo img added to DashboardPage topbar (32px) and AuthPage (80px); public/ dir created. Logo PNG binary pending. STANDARD, NARROW INTEGRATION.
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-AUTOTRADE-RUNTIME MERGED PR #1061 (2026-05-16). exit_watcher live Gamma price fetch + pnl_usdc persistence + signal_scan open-position dedup guard + WebTrader YES/NO badges and date+time display. MAJOR, FULL RUNTIME INTEGRATION.
@@ -38,14 +38,13 @@ Status       : bot-polish-beta PR open (WARP/CRUSADERBOT-BOT-POLISH-BETA, MAJOR)
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for bot-polish-beta (MAJOR) before merge. Source: projects/polymarket/crusaderbot/reports/forge/bot-polish-beta.md. Tier: MAJOR.
 - WARP🔹CMD review required for startup-logo-fix (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/startup-logo-fix.md. Tier: STANDARD. Deliver crusaderbot-logo.png binary to webtrader/frontend/public/ before merge.
 - Apply migration 030 to production. Then deploy main to Fly.io — trading-unblock fix is live on main (MERGED PR #1065).
 - WARP🔹CMD review required for webtrader-redesign (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-redesign.md. Tier: STANDARD.
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 
 [KNOWN ISSUES]
-- bot-polish-beta awaiting WARP•SENTINEL validation before merge; Fly.io deploy blocked until PR #1065 migration 030 applied first.
+- Fly.io deploy blocked until migration 030 (job_runs metadata JSONB) applied to production — trading-unblock MERGED PR #1065, live on main.
 - crusaderbot-logo.png binary not yet in repo — WebTrader logo img references will render broken until PNG committed to webtrader/frontend/public/ by WARP🔹CMD.
 - 5 positions stuck open — trading-unblock MERGED PR #1065. Will auto-close as MARKET_EXPIRED within 1 exit_watch tick (60s) after migration 030 applied and Fly.io deploy completes.
 - fly CLI not installed in cloud execution environment — deploy step requires WARP🔹CMD manual execution from fly CLI machine.
