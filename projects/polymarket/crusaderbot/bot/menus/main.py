@@ -26,7 +26,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from ..handlers import (
-    dashboard, emergency,
+    dashboard,
     onboarding,
     positions,
     presets, settings as settings_handler,
