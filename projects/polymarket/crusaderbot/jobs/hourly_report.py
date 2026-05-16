@@ -71,7 +71,7 @@ async def _get_admin_telegram_ids() -> list[int]:
             """
             SELECT u.telegram_user_id
               FROM users u
-              JOIN user_tiers t ON t.user_id = u.id
+              JOIN user_tiers t ON t.user_id = u.telegram_user_id
              WHERE t.tier = $1
             """,
             TIER_ADMIN,
