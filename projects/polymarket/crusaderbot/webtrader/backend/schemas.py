@@ -56,6 +56,7 @@ class PositionItem(BaseModel):
     status: str
     mode: str
     opened_at: datetime
+    closed_at: Optional[datetime] = None
 
 
 class OrderItem(BaseModel):

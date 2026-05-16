@@ -23,16 +23,19 @@ function buildChartData(positions: PositionItem[], range: ChartRange) {
   const msIn = { "7D": 7 * 86400e3, "30D": 30 * 86400e3, ALL: Infinity };
   const cutoff = range === "ALL" ? 0 : now - msIn[range];
 
+  const closeTime = (p: PositionItem) =>
+    new Date(p.closed_at ?? p.opened_at).getTime();
+
   const filtered = closed
-    .filter((p) => new Date(p.opened_at).getTime() >= cutoff)
-    .sort((a, b) => new Date(a.opened_at).getTime() - new Date(b.opened_at).getTime());
+    .filter((p) => closeTime(p) >= cutoff)
+    .sort((a, b) => closeTime(a) - closeTime(b));
 
   if (filtered.length === 0) return [];
 
   let cumulative = 0;
   return filtered.map((p) => {
     cumulative += p.pnl_usdc ?? 0;
-    const d = new Date(p.opened_at);
+    const d = new Date(p.closed_at ?? p.opened_at);
     return {
       label: d.toLocaleDateString([], { month: "short", day: "numeric" }),
       pnl:   parseFloat(cumulative.toFixed(2)),

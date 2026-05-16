@@ -70,6 +70,7 @@ export interface PositionItem {
   status: string;
   mode: string;
   opened_at: string;
+  closed_at: string | null;
 }
 
 export interface AutoTradeState {

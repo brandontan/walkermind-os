@@ -12,11 +12,17 @@ const RISK_BADGE: Record<string, { label: string; color: string }> = {
   aggressive: { label: "HIGH RISK", color: "text-red   bg-red/10   border-red/20"   },
 };
 
+const PRESET_RISK: Record<string, string> = {
+  signal_sniper: "safe",
+  whale_mirror:  "balanced",
+  hybrid:        "balanced",
+  full_auto:     "balanced",
+  value_hunter:  "aggressive",
+};
+
 function presetRisk(preset: string | null): string {
   if (!preset) return "balanced";
-  if (preset.includes("signal") || preset.includes("safe")) return "safe";
-  if (preset.includes("full") || preset.includes("value") || preset.includes("aggressive")) return "aggressive";
-  return "balanced";
+  return PRESET_RISK[preset] ?? "balanced";
 }
 
 export function DashboardPage() {
