@@ -469,6 +469,15 @@ class TradeNotifier:
         reply_markup: Optional[InlineKeyboardMarkup] = None,
     ) -> None:
         """Send text to user. Catches all failures — runtime must not be interrupted."""
+        from ...users import notifications_enabled_by_telegram_id
+
+        if not await notifications_enabled_by_telegram_id(telegram_user_id):
+            logging.getLogger(__name__).info(
+                "trade_notification.suppressed notification_event=%s "
+                "telegram_user_id=%s reason=user_opted_out",
+                event.value, telegram_user_id,
+            )
+            return
         try:
             await notifications.send(telegram_user_id, text, reply_markup=reply_markup)
         except Exception as exc:  # noqa: BLE001 — must not propagate

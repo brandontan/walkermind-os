@@ -6,7 +6,9 @@ Sub-surfaces (all via settings:* callbacks):
   settings:tpsl        → TP/SL 2-step preset flow
   settings:capital     → Capital allocation preset flow
   settings:risk        → Risk profile picker
-  settings:notifications → stub (not in scope)
+  settings:notifications → notif on/off toggle (settings:notif_on/_off →
+                           user_settings.notifications_on; enforced on the
+                           per-user trade + daily-summary send path)
   settings:mode        → Paper/Live mode picker
   settings:hub         → re-render hub
   settings:back        → send main_menu reply keyboard

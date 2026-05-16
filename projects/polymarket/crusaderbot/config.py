@@ -78,9 +78,10 @@ class Settings(BaseSettings):
     # GET /ops stays open (read-only operator console). POST /ops/kill +
     # POST /ops/resume require this shared secret via the ``X-Ops-Token``
     # header OR ``?token=<value>`` query param. Disabled (503) when this
-    # value is unset. The full auth hardening lane (per-operator login,
-    # rotation, audit) is deferred post-demo — see the in-code TODO in
-    # ``api/ops.py``.
+    # value is unset. Full auth hardening (per-operator login, rotation,
+    # token-out-of-URL) is an INTENTIONAL documented deferral for the
+    # paper-mode beta — tracked in PROJECT_STATE KNOWN ISSUES, rationale
+    # in the ``api/ops.py`` module docstring. Not an incomplete stub.
     OPS_SECRET: Optional[str] = None
 
     # --- Sentry-related app metadata ---
@@ -137,10 +138,12 @@ class Settings(BaseSettings):
     MASTER_WALLET_PRIVATE_KEY: Optional[str] = None
 
     # --- Activation guards ---
-    # Per user revision: live engine is fully built and reachable.
-    # Default for every NEW USER/TRADE is still paper. Live requires
-    # ALL guards true + Tier 4 user approval.
-    ENABLE_LIVE_TRADING: bool = True
+    # Paper-safe default: False. A live order is only ever reachable when an
+    # operator EXPLICITLY overrides this via env (fly.toml / .env) AND every
+    # other guard below is true AND the user is Tier 4. Defaulting False means
+    # a dev/test/local boot WITHOUT fly.toml can never silently arm live
+    # trading. Production behaviour is unchanged — fly.toml forces this false.
+    ENABLE_LIVE_TRADING: bool = False
     EXECUTION_PATH_VALIDATED: bool = False
     CAPITAL_MODE_CONFIRMED: bool = False
     # Set to True ONLY after WARP•SENTINEL validates the risk assertion layer

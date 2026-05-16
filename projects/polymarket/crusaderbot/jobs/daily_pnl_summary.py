@@ -31,6 +31,7 @@ from uuid import UUID
 
 from .. import notifications
 from ..database import get_pool
+from ..users import user_notifications_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -284,6 +285,9 @@ async def run_once() -> dict:
         tg_id = u["telegram_user_id"]
         try:
             if not await is_summary_enabled(user_id):
+                skipped_disabled += 1
+                continue
+            if not await user_notifications_enabled(user_id):
                 skipped_disabled += 1
                 continue
             if tg_id is None:

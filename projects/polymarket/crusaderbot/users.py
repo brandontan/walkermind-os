@@ -185,6 +185,49 @@ async def get_settings_for(user_id: UUID) -> dict:
     return dict(row)
 
 
+async def user_notifications_enabled(user_id: UUID) -> bool:
+    """Return whether the user wants per-user trade / summary alerts.
+
+    Fail-open: any DB error, missing row, or missing column → True. A
+    closed beta must never go silent because of an infra blip or an
+    un-applied migration. Operator + health alerts are NEVER gated by this.
+    """
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT notifications_on FROM user_settings WHERE user_id=$1",
+                user_id,
+            )
+    except Exception as exc:  # noqa: BLE001 — fail-open, never block the send
+        logger.warning("notifications_on read failed user=%s err=%s", user_id, exc)
+        return True
+    if row is None or row["notifications_on"] is None:
+        return True
+    return bool(row["notifications_on"])
+
+
+async def notifications_enabled_by_telegram_id(telegram_user_id: int) -> bool:
+    """telegram-id-keyed variant — single JOIN, fail-open (see above)."""
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT s.notifications_on "
+                "FROM users u JOIN user_settings s ON s.user_id = u.id "
+                "WHERE u.telegram_user_id=$1",
+                telegram_user_id,
+            )
+    except Exception as exc:  # noqa: BLE001 — fail-open
+        logger.warning(
+            "notifications_on read failed tg_id=%s err=%s", telegram_user_id, exc
+        )
+        return True
+    if row is None or row["notifications_on"] is None:
+        return True
+    return bool(row["notifications_on"])
+
+
 async def set_onboarding_complete(user_id: UUID, complete: bool = True) -> None:
     pool = get_pool()
     async with pool.acquire() as conn:

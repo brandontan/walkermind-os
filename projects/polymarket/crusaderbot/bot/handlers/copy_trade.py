@@ -341,12 +341,11 @@ async def copy_trade_callback(
             )
         return
 
-    # -- copy this wallet (Phase 5F wizard placeholder) --
-    if action.startswith("copy:"):
-        await q.answer(
-            "Setup wizard coming in Phase 5F. Stay tuned! 🚀", show_alert=True,
-        )
-        return
+    # NOTE: `copytrade:copy:` and `copytrade:edit:` are intentionally NOT
+    # handled here — they are entry_points on the Phase 5F wizard
+    # ConversationHandler (build_wizard_handler), registered before this
+    # general handler so the wizard always wins. See test
+    # test_copytrade_copy_routes_to_wizard.
 
     # -- pause / resume task --
     if action.startswith("pause:"):
@@ -359,13 +358,6 @@ async def copy_trade_callback(
         await q.answer(f"Task {label}")
         # Re-render dashboard
         await menu_copytrade_handler(update, ctx)
-        return
-
-    # -- edit task (Phase 5F wizard placeholder) --
-    if action.startswith("edit:"):
-        await q.answer(
-            "Edit wizard coming in Phase 5F. Stay tuned! 🚀", show_alert=True,
-        )
         return
 
     # -- legacy: remove from copy_targets --
@@ -1399,20 +1391,62 @@ async def edit_delete_cancel(
 async def edit_pnl(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE,
 ) -> int:
-    """Show per-task P&L summary (stub — execution engine not built yet)."""
+    """Show realized + unrealized P&L for one copy task."""
     q = update.callback_query
     if q is None:
         return COPY_EDIT
     await q.answer()
     parts = (q.data or "").split(":")  # wizard:epnl:{task_id}
-    task_id_str = parts[2] if len(parts) >= 3 else "?"
-    if q.message:
-        await q.message.reply_text(
+    task_id_str = parts[2] if len(parts) >= 3 else ""
+
+    user, ok = await _resolve_user(update)
+    if not ok or user is None:
+        return ConversationHandler.END
+
+    try:
+        task_uuid = UUID(task_id_str)
+    except ValueError:
+        await q.answer("Task not found.", show_alert=True)
+        return COPY_EDIT
+
+    try:
+        s = await repo.task_pnl_summary(task_uuid, user["id"])
+    except Exception:
+        logger.exception("edit_pnl: task_pnl_summary failed")
+        if q.message:
+            await q.message.reply_text(
+                "📊 <b>Task P&amp;L</b>\n" + "━" * 24 + "\n\n"
+                "<i>P&amp;L is temporarily unavailable. Try again shortly.</i>",
+                parse_mode=ParseMode.HTML,
+            )
+        return COPY_EDIT
+
+    total_trades = s["open_count"] + s["closed_count"]
+    if total_trades == 0:
+        text = (
             "📊 <b>Task P&amp;L</b>\n" + "━" * 24 + "\n\n"
-            "<i>P&amp;L tracking will be available once the copy execution engine is live.</i>\n\n"
-            "🎲 Mode: Paper",
-            parse_mode=ParseMode.HTML,
+            "<i>No copied trades yet for this task.</i>\n\n"
+            "🎲 Mode: Paper"
         )
+    else:
+        marks = "" if s["open_count"] == 0 else "  <i>(marks pending live)</i>"
+        wins = s["win_count"]
+        losses = s["loss_count"]
+        decided = wins + losses
+        winrate = f"{wins / decided * 100:.0f}%" if decided else "—"
+        text = (
+            "📊 <b>Task P&amp;L</b>\n" + "━" * 24 + "\n\n"
+            f"📈 Total P&amp;L: <code>${s['total_pnl']:+.2f}</code>\n"
+            f"✅ Realized: <code>${s['realized_pnl']:+.2f}</code>\n"
+            f"⏳ Unrealized: <code>${s['unrealized_pnl']:+.2f}</code>{marks}\n"
+            f"💰 Invested: <code>${s['total_invested']:.2f}</code>\n\n"
+            f"🔓 Open: {s['open_count']}  🔒 Closed: {s['closed_count']}\n"
+            f"🏆 Win rate: {winrate}  (W{wins} / L{losses})\n\n"
+            "🎲 Mode: Paper"
+        )
+
+    if q.message:
+        await q.message.reply_text(text, parse_mode=ParseMode.HTML)
     return COPY_EDIT
 
 
