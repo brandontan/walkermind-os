@@ -1,7 +1,8 @@
-Last Updated : 2026-05-17 00:00
-Status       : telegram-ux-v5-overhaul PR open (WARP/telegram-ux-v5-overhaul, STANDARD). V5 AUTOBOT branding + 5-button fixed menu + pulse dashboard + code-wrapped financials. Production PAPER ONLY.
+Last Updated : 2026-05-17 01:00
+Status       : telegram-ux-v5-overhaul MERGED PR #1074. V5 AUTOBOT branding live on main. Production PAPER ONLY.
 
 [COMPLETED]
+- telegram-ux-v5-overhaul MERGED PR #1074 (2026-05-17). V5 AUTOBOT branding: 🏛️ CRUSADER|AUTOBOT headers across dashboard/onboarding/presets/wizard; dynamic pulse line (last trade action or scanning fallback); <code>-wrapped financial figures; 5-button fixed 2-col main menu; p5_dashboard_kb 2-col inline; dispatcher portfolio double-ACK fix; 4 CI fixes (ruff F401 + test_ux_overhaul + test_preset_system); ruff clean. STANDARD, NARROW INTEGRATION.
 - webtrader-v3-and-bot-polish MERGED PR #1069 (2026-05-16). Tactical Terminal v3.2 atomic delivery — frontend: 15 new shared components (TopBar/Ticker/HeroCard/StatCard/StatsGrid/Terminal/PositionCard/EmptyState/Toggle/FilterTabs/WalletCard/AddressCard/SettingsGroup/AdvancedGate + StrategyCard rewrite), UiMode context with localStorage persist, scanline+grain+ambient atmosphere, clip-path HUD geometry, 6 pages rewritten; bot: messages.py EMOJI/DIV/_table + 5 new alert templates (signal/position_open/position_close/daily_summary/health), keyboards/_common.py shared row helpers (home_back_row/confirm_cancel_row/pagination_row), dispatcher.py drops 4 aliases (/pnl /close /scan /mode) + adds _nav_cb for nav:* prefix, keyboards/presets.py + settings.py 2-col mobile cleanup; tests 1400 pass 0 fail; npm build 62 modules clean; ruff clean. Supersedes WARP/CRUSADERBOT-WEBTRADER-REDESIGN. MAJOR, FULL RUNTIME INTEGRATION.
 - bot-polish-beta MERGED PR #1068 (2026-05-16). P0: fly.toml immediate deploy strategy + asyncpg max_inactive_connection_lifetime=60s + trades.py/share_card.py market_question→JOIN markets. Area 1: alert_user_market/close_failed user notifs suppressed in exit_watcher; alert_startup dead code + os import deleted from alerts.py; test_health.py refs updated. Area 2: trade notif inline keyboards (notify_entry/tp/sl/manual/emergency) + deposit KB in scheduler.py + dashboard switched to main_menu() state-driven. Area 3: /help admin-scoped; weekly_insights active-only filter; hourly_report JOIN bug fixed (t.user_id=u.id). MAJOR, FULL RUNTIME INTEGRATION.
 - startup-logo-fix PR open (2026-05-16). 60s Redis dedup on startup notification; duplicate alert_startup call removed; logo img added to DashboardPage topbar (32px) and AuthPage (80px); public/ dir created. Logo PNG binary pending. STANDARD, NARROW INTEGRATION.
@@ -19,7 +20,6 @@ Status       : telegram-ux-v5-overhaul PR open (WARP/telegram-ux-v5-overhaul, ST
 - V5 "AUTOBOT" UI Overhaul MERGED PR #1045. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- telegram-ux-v5-overhaul PR open (WARP/telegram-ux-v5-overhaul). Awaiting WARP🔹CMD review (STANDARD tier). Report: projects/polymarket/crusaderbot/reports/forge/telegram-ux-v5-overhaul.md.
 - tg-ux-polish PR open (WARP/CRUSADERBOT-TG-UX-POLISH). Awaiting WARP🔹CMD review (MINOR tier). Report: projects/polymarket/crusaderbot/reports/forge/tg-ux-polish.md.
 - runtime-autotrade-fix PR open (WARP/CRUSADERBOT-RUNTIME-AUTOTRADE-FIX). Awaiting WARP🔹CMD merge decision (STANDARD tier). Report: projects/polymarket/crusaderbot/reports/forge/runtime-autotrade-fix.md.
 - Closed beta observation / paper-mode runtime monitoring active.
@@ -42,13 +42,12 @@ Status       : telegram-ux-v5-overhaul PR open (WARP/telegram-ux-v5-overhaul, ST
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for telegram-ux-v5-overhaul (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/telegram-ux-v5-overhaul.md. Tier: STANDARD.
+- Fly.io deploy: merge of PR #1074 (telegram-ux-v5-overhaul) + PR #1065 (trading-unblock) are both on main. Apply migration 030, then fly deploy.
 - WARP🔹CMD review required for tg-ux-polish (MINOR). Source: projects/polymarket/crusaderbot/reports/forge/tg-ux-polish.md. Tier: MINOR. Verify: /settings renders bold header + separator; /autotrade active status shows [🏠 Home]; all bubbles consistent width on mobile.
 - WARP🔹CMD review required for runtime-autotrade-fix (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/runtime-autotrade-fix.md. Tier: STANDARD. Post-merge: /start fresh account → verify Balance: $1,000; auto-trade enabled → confirm no false market_expired within 5 min.
 - WARP/full-callback-prefix-migration (MEDIUM, F-02+F-03). Rewrite remaining 8 keyboard modules to use _common.py helpers + nav:/act:/cfg: namespace; drop legacy patterns from bot/dispatcher.py once all senders migrate. Linear tracking item filed under team CrusaderBot.
 - WARP/bot-alert-dedup-audit + WARP/bot-onboarding-state-canonical follow-up lanes — deferred from PR #1069 by design.
 - WARP🔹CMD review required for startup-logo-fix (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/startup-logo-fix.md. Tier: STANDARD. Deliver crusaderbot-logo.png binary to webtrader/frontend/public/ before merge.
-- Apply migration 030 to production. Then deploy main to Fly.io — trading-unblock fix is live on main (MERGED PR #1065).
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 
 [KNOWN ISSUES]
