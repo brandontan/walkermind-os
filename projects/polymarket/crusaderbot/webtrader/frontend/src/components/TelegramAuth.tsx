@@ -7,7 +7,7 @@ declare global {
   }
 }
 
-const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME ?? "CrusaderBot";
+const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME ?? "CrusaderPolybot";
 
 export function TelegramAuth() {
   const ref = useRef<HTMLDivElement>(null);
