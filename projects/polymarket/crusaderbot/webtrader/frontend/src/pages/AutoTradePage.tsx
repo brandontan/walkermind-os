@@ -5,33 +5,40 @@ import { makeApi, type AutoTradeState, type CustomizeParams } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 
+// Preset keys match domain/preset/presets.py — display names adapted to spec
 const PRESETS = [
   {
-    preset_key: "safe_conservative",
-    name: "Safe Conservative",
-    description: "Low risk, steady accumulation. Best for capital preservation.",
-    risk: "safe" as const,
-    tp_pct: 10,
-    sl_pct: 5,
+    preset_key:  "signal_sniper",
+    emoji:       "🎯",
+    name:        "Safe Scout",
+    description: "Low frequency signal trading. Best for capital preservation.",
+    risk:        "safe" as const,
+    tp_pct:      15,
+    sl_pct:      8,
     capital_pct: 20,
+    freq:        "Low",
   },
   {
-    preset_key: "balanced_growth",
-    name: "Balanced Growth",
-    description: "Moderate risk with consistent returns.",
-    risk: "balanced" as const,
-    tp_pct: 20,
-    sl_pct: 10,
-    capital_pct: 40,
+    preset_key:  "full_auto",
+    emoji:       "⚡",
+    name:        "Full Auto",
+    description: "All strategies active. Balanced exposure and steady returns.",
+    risk:        "balanced" as const,
+    tp_pct:      20,
+    sl_pct:      15,
+    capital_pct: 80,
+    freq:        "Med",
   },
   {
-    preset_key: "aggressive_alpha",
-    name: "Aggressive Alpha",
-    description: "High risk, high reward. Maximum position sizing.",
-    risk: "aggressive" as const,
-    tp_pct: 35,
-    sl_pct: 20,
-    capital_pct: 70,
+    preset_key:  "value_hunter",
+    emoji:       "🔥",
+    name:        "Aggressive",
+    description: "Mispriced market edge model. High reward, requires patience.",
+    risk:        "aggressive" as const,
+    tp_pct:      25,
+    sl_pct:      12,
+    capital_pct: 100,
+    freq:        "High",
   },
 ];
 
@@ -76,35 +83,48 @@ export function AutoTradePage() {
 
   if (!state) return <div className="p-4 text-muted text-sm">Loading…</div>;
 
+  const activePreset = PRESETS.find((p) => p.preset_key === state.active_preset);
+
   return (
-    <div className="pb-24 px-4">
+    <div className="pb-28 px-4 animate-page-in">
       <div className="flex items-center justify-between pt-6 pb-4">
         <h1 className="text-xl font-bold text-primary">Auto Trade</h1>
       </div>
 
-      {/* Status bar */}
-      <div className="bg-card border border-border rounded-xl p-4 mb-4 flex items-center justify-between">
-        <div>
-          <p className="text-primary font-medium text-sm">
-            {state.active_preset?.replace("_", " ") ?? "No preset selected"}
-          </p>
-          <p className="text-muted text-xs mt-0.5">{state.risk_profile} risk</p>
+      {/* Active strategy status card */}
+      <div className="bg-surface border border-border rounded-2xl p-5 mb-5">
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <p className="text-primary font-semibold text-base">
+              {activePreset
+                ? `${activePreset.emoji} ${activePreset.name}`
+                : (state.active_preset ?? "No preset selected")}
+            </p>
+            <p className="text-muted text-xs mt-0.5 capitalize">{state.risk_profile} risk</p>
+          </div>
+          <button
+            onClick={handleToggle}
+            disabled={loading}
+            className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+              state.auto_trade_on
+                ? "bg-green/10 text-green border border-green/30 hover:bg-green/20"
+                : "bg-muted/10 text-muted border border-border hover:border-gold hover:text-gold"
+            }`}
+          >
+            {state.auto_trade_on ? "Pause" : "Resume"}
+          </button>
         </div>
-        <button
-          onClick={handleToggle}
-          disabled={loading}
-          className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
-            state.auto_trade_on
-              ? "bg-green/10 text-green border border-green/30 hover:bg-green/20"
-              : "bg-muted/10 text-muted border border-border hover:border-amber hover:text-amber"
-          }`}
-        >
-          {state.auto_trade_on ? "Pause" : "Resume"}
-        </button>
+        {state.tp_pct > 0 && (
+          <div className="flex gap-4 text-xs text-muted mt-3">
+            <span>TP <span className="text-green font-medium font-mono">{(state.tp_pct * 100).toFixed(0)}%</span></span>
+            <span>SL <span className="text-red font-medium font-mono">{(state.sl_pct * 100).toFixed(0)}%</span></span>
+            <span>Cap <span className="text-primary font-medium font-mono">{(state.capital_alloc_pct * 100).toFixed(0)}%</span></span>
+          </div>
+        )}
       </div>
 
-      {/* Strategy cards */}
-      <div className="flex flex-col gap-3 mb-4">
+      {/* Strategy selector cards */}
+      <div className="flex flex-col gap-3 mb-5">
         {PRESETS.map((p) => (
           <StrategyCard
             key={p.preset_key}
@@ -118,7 +138,7 @@ export function AutoTradePage() {
       {/* Customize */}
       <button
         onClick={() => setDrawerOpen(true)}
-        className="w-full py-3 rounded-xl border border-border text-muted text-sm font-medium hover:border-amber hover:text-amber transition-colors"
+        className="w-full py-3 rounded-xl border border-border text-muted text-sm font-medium hover:border-gold hover:text-gold transition-colors"
       >
         ⚙ Customize Active Strategy
       </button>

@@ -1,8 +1,9 @@
-Last Updated : 2026-05-16 14:58
-Status       : WARP/CRUSADERBOT-AUTOTRADE-RUNTIME MERGED PR #1061 (2026-05-16). exit_watcher live Gamma price fetch wired; pnl_usdc computed and persisted on every tick; signal_scan open-position guard active; WebTrader YES/NO badges and date+time display fixed. Fly.io manual deploy pending. Production PAPER ONLY.
+Last Updated : 2026-05-16 22:30
+Status       : WebTrader frontend premium redesign PR open (WARP/CRUSADERBOT-WEBTRADER-REDESIGN, STANDARD). WARP/CRUSADERBOT-AUTOTRADE-RUNTIME MERGED PR #1061. Fly.io manual deploy pending. Production PAPER ONLY.
 
 [COMPLETED]
 - WARP/CRUSADERBOT-AUTOTRADE-RUNTIME MERGED PR #1061 (2026-05-16). exit_watcher live Gamma price fetch + pnl_usdc persistence + signal_scan open-position dedup guard + WebTrader YES/NO badges and date+time display. MAJOR, FULL RUNTIME INTEGRATION.
+- WARP/CRUSADERBOT-WEBTRADER-REDESIGN PR open (2026-05-16). WebTrader premium frontend redesign: Syne + JetBrains Mono fonts, new dark palette (#080A0F bg, gold #F5C842 accent), 5 pages + 5 components reskinned, Recharts PnL chart, ambient gradients, fadeSlideUp transitions. npm build clean. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-WEBTRADER MERGED PR #1058 (2026-05-16). WebTrader browser dashboard: migration 029 (portfolio_snapshots, system_alerts, NOTIFY triggers), FastAPI SSE backend (asyncpg LISTEN/NOTIFY fan-out), JWT auth (Telegram Login Widget), React/Vite/Tailwind SPA (6 pages, 7 components), multi-stage Dockerfile. MAJOR, NARROW INTEGRATION.
 - deploy-test-report complete (2026-05-16). Test suite 1398 pass, 1 skip. UX 6 screens static analysis: all pass. fly CLI not available — deploy not executed. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-PHASE5-FIX-R1 PR open (2026-05-16). 3 UX bugs: COPY CODE removed from dashboard/autotrade/trades screens; persistent 5-button ReplyKeyboard (main_menu_keyboard); My Trades show_trades DB error hardened with try/except + group=-1 handler. 119 tests green. STANDARD, NARROW INTEGRATION.
@@ -33,6 +34,7 @@ Status       : WARP/CRUSADERBOT-AUTOTRADE-RUNTIME MERGED PR #1061 (2026-05-16). 
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for webtrader-redesign (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-redesign.md. Tier: STANDARD.
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 - WARP🔹CMD manual deploy required: fly CLI not available in cloud environment. Apply migration 027+028+029 first, set WEBTRADER_JWT_SECRET secret, then fly deploy from local machine. Report: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 - Apply migration 028 (preset_activated_at) to production before deploying Phase 5 code to Fly.io.

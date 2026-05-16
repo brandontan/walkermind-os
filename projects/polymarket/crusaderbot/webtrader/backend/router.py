@@ -131,7 +131,7 @@ async def get_positions(
         rows = await conn.fetch(
             f"""SELECT p.id, p.market_id, m.question AS market_question,
                        p.side, p.size_usdc, p.entry_price, p.current_price,
-                       p.pnl_usdc, p.status, p.mode, p.opened_at
+                       p.pnl_usdc, p.status, p.mode, p.opened_at, p.closed_at
                 FROM positions p
                 LEFT JOIN markets m ON m.id = p.market_id
                 {where}
@@ -153,6 +153,7 @@ async def get_positions(
             status=r["status"],
             mode=r["mode"],
             opened_at=r["opened_at"],
+            closed_at=r["closed_at"],
         )
         for r in rows
     ]

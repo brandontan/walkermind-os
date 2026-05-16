@@ -5,21 +5,30 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        bg: "#0E0E12",
-        card: "#16161C",
-        border: "#2A2A35",
+        bg:      "#080A0F",
+        surface: "#0D1117",
+        card:    "#131920",
+        border:  "#1A2332",
+        gold:    "#F5C842",
+        green:   "#00D68F",
+        red:     "#FF4D6A",
+        blue:    "#4D9EFF",
         primary: "#F0F0F5",
-        muted: "#6B6B80",
-        amber: "#F5A623",
-        green: "#22C55E",
-        yellow: "#EAB308",
-        red: "#EF4444",
+        muted:   "#6B7280",
+        // backward-compat aliases
+        amber:   "#F5C842",
+        yellow:  "#F5C842",
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
+        sans: ["Syne", "sans-serif"],
+        mono: ["JetBrains Mono", "monospace"],
       },
       maxWidth: {
         mobile: "430px",
+      },
+      borderRadius: {
+        card:   "16px",
+        button: "10px",
       },
     },
   },
