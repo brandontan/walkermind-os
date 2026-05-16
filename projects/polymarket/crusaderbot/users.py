@@ -9,6 +9,42 @@ from .database import get_pool
 
 logger = logging.getLogger(__name__)
 
+_DEMO_FEED_ID = "00000000-0000-0000-0001-000000000001"
+
+
+async def _enroll_signal_following(user_id: UUID) -> None:
+    """Enroll a new user in signal_following strategy and subscribe to demo feed.
+
+    Idempotent — safe to call on retries or existing users.
+    No-op if demo feed is not yet seeded in DB.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO user_strategies (user_id, strategy_name, weight, enabled, created_at)
+            VALUES ($1, 'signal_following', 0.10, TRUE, NOW())
+            ON CONFLICT DO NOTHING
+            """,
+            user_id,
+        )
+        await conn.execute(
+            """
+            INSERT INTO user_signal_subscriptions (user_id, feed_id, subscribed_at, is_demo)
+            SELECT $1, $2::uuid, NOW(), TRUE
+            WHERE EXISTS (
+                SELECT 1 FROM signal_feeds WHERE id = $2::uuid AND status = 'active'
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM user_signal_subscriptions
+                 WHERE user_id = $1
+                   AND feed_id = $2::uuid
+                   AND unsubscribed_at IS NULL
+            )
+            """,
+            user_id, _DEMO_FEED_ID,
+        )
+
 
 async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
     pool = get_pool()
@@ -21,7 +57,7 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
             if row is None:
                 row = await conn.fetchrow(
                     "INSERT INTO users (telegram_user_id, username, access_tier) "
-                    "VALUES ($1, $2, 2) RETURNING *",
+                    "VALUES ($1, $2, 3) RETURNING *",
                     telegram_user_id, username,
                 )
                 await conn.execute(
@@ -31,9 +67,9 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
                 )
                 _is_new_user = True
             else:
-                if row["access_tier"] < 2:
+                if row["access_tier"] < 3:
                     await conn.execute(
-                        "UPDATE users SET access_tier=2 WHERE id=$1", row["id"],
+                        "UPDATE users SET access_tier=3 WHERE id=$1", row["id"],
                     )
                 if username and username != row["username"]:
                     await conn.execute(
@@ -58,6 +94,12 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
         except Exception:
             logger.exception(
                 "paper seed failed for new user user_id=%s", row["id"]
+            )
+        try:
+            await _enroll_signal_following(row["id"])
+        except Exception:
+            logger.exception(
+                "signal enrollment failed for new user user_id=%s", row["id"]
             )
     return dict(row)
 

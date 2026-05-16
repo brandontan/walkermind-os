@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 22:00
-Status       : crusaderbot-finalize MERGED PR #1075 (2026-05-17). full-callback-prefix-migration PR open, awaiting WARP🔹CMD review (STANDARD). Production PAPER ONLY.
+Last Updated : 2026-05-17 23:30
+Status       : signal-scanner-enable PR open (WARP/signal-scanner-enable). Fixes signal pipeline: feed seed, access_tier, new user enrollment. Production PAPER ONLY.
 
 [COMPLETED]
 - role-model-admin-user MERGED PR #1076 (2026-05-17). Two-role refactor: risk gate step-3 tier check scoped to LIVE only (paper open to every user); bot/handlers/setup.py _ensure_tier2→_ensure_user (no setup gate); middleware/tier wording collapsed to two canonical messages; admin.py two-role surface (🛠 Admin sections, settier user|admin mapped onto FREE/ADMIN — no migration); assert_live_guards DELIBERATELY UNCHANGED per CLAUDE.md. SENTINEL 97/100. MAJOR, NARROW INTEGRATION.
@@ -21,12 +21,9 @@ Status       : crusaderbot-finalize MERGED PR #1075 (2026-05-17). full-callback-
 - V5 "AUTOBOT" UI Overhaul MERGED PR #1045. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- full-callback-prefix-migration PR open (WARP/full-callback-prefix-migration, 2026-05-17). F-02+F-03: 8 keyboard modules adopt _common.py helpers; positions nav:home migration; dispatcher nav: comment updated. ruff clean, compileall clean. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
-- telegram-ux-v5-overhaul PR open (WARP/telegram-ux-v5-overhaul). Awaiting WARP🔹CMD review (STANDARD tier). Report: projects/polymarket/crusaderbot/reports/forge/telegram-ux-v5-overhaul.md.
-- tg-ux-polish PR open (WARP/CRUSADERBOT-TG-UX-POLISH). Awaiting WARP🔹CMD review (MINOR tier). Report: projects/polymarket/crusaderbot/reports/forge/tg-ux-polish.md.
-- runtime-autotrade-fix PR open (WARP/CRUSADERBOT-RUNTIME-AUTOTRADE-FIX). Awaiting WARP🔹CMD merge decision (STANDARD tier). Report: projects/polymarket/crusaderbot/reports/forge/runtime-autotrade-fix.md.
+- signal-scanner-enable PR open (WARP/signal-scanner-enable, 2026-05-17). Fixes: migration 031 backfill (feed seed + enrollment), signal_scan_job access_tier filter, users.py _enroll_signal_following on new user creation. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - Closed beta observation / paper-mode runtime monitoring active.
-- Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
+- Current production posture: Telegram @CrusaderPolybot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
 - trading-unblock MERGED PR #1065. Migration 030 + Fly.io deploy pending — 5 stuck positions will close as MARKET_EXPIRED within 1 exit_watch tick after deploy.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
@@ -45,13 +42,8 @@ Status       : crusaderbot-finalize MERGED PR #1075 (2026-05-17). full-callback-
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- Post-merge crusaderbot-finalize: apply migration runbook per DEPLOY.md before production deploy; production stays PAPER ONLY.
-- WARP🔹CMD review required for telegram-ux-v5-overhaul (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/telegram-ux-v5-overhaul.md. Tier: STANDARD.
-- WARP🔹CMD review required for tg-ux-polish (MINOR). Source: projects/polymarket/crusaderbot/reports/forge/tg-ux-polish.md. Tier: MINOR. Verify: /settings renders bold header + separator; /autotrade active status shows [🏠 Home]; all bubbles consistent width on mobile.
-- WARP🔹CMD review required for runtime-autotrade-fix (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/runtime-autotrade-fix.md. Tier: STANDARD. Post-merge: /start fresh account → verify Balance: $1,000; auto-trade enabled → confirm no false market_expired within 5 min.
-- WARP🔹CMD review required for full-callback-prefix-migration (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/full-callback-prefix-migration.md. Tier: STANDARD.
-- WARP/bot-alert-dedup-audit + WARP/bot-onboarding-state-canonical follow-up lanes — deferred from PR #1069 by design.
-- WARP🔹CMD review required for startup-logo-fix (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/startup-logo-fix.md. Tier: STANDARD. Deliver crusaderbot-logo.png binary to webtrader/frontend/public/ before merge.
+- WARP🔹CMD review required for signal-scanner-enable (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/signal-scanner-enable.md. Tier: STANDARD. Post-merge: apply migration 031 to production DB → restart bot → verify scanner tick log published > 0 within 60s.
+- Apply migration 031 to production DB (idempotent — safe to apply immediately after merge).
 - Apply migration 030 to production. Then deploy main to Fly.io — trading-unblock fix is live on main (MERGED PR #1065).
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 
