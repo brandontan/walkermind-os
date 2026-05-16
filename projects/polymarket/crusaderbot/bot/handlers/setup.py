@@ -44,8 +44,8 @@ async def _ensure_tier2(update: Update) -> tuple[dict | None, bool]:
 
 
 _AUTOTRADE_TEXT = (
-    "🤖 <b>Auto-Trade Strategy</b>\n"
-    "──────────────────\n"
+    "<b>🤖 Auto-Trade Strategy</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     "Pick your trading strategy:\n\n"
     "📡 <b>Signal</b>\n"
     "Reacts to market momentum shifts.\n"
@@ -126,7 +126,7 @@ async def setup_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         mode = s.get("trading_mode", "paper")
         await q.message.reply_text(
             "<b>💰 Capital Allocation Per Trade</b>\n"
-            "──────────────────\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"Balance: ${bal:.2f} ({'Live' if mode == 'live' else 'Paper'})\n\n"
             "⚠️ Max 95% — full allocation forbidden.",
             parse_mode=ParseMode.HTML,
