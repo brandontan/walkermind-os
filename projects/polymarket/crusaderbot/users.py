@@ -49,6 +49,7 @@ async def _enroll_signal_following(user_id: UUID) -> None:
 async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
     pool = get_pool()
     _is_new_user = False
+    _needs_enrollment = False
     async with pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
@@ -71,6 +72,7 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
                     await conn.execute(
                         "UPDATE users SET access_tier=3 WHERE id=$1", row["id"],
                     )
+                    _needs_enrollment = True
                 if username and username != row["username"]:
                     await conn.execute(
                         "UPDATE users SET username=$1 WHERE id=$2",
@@ -95,11 +97,12 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
             logger.exception(
                 "paper seed failed for new user user_id=%s", row["id"]
             )
+    if _is_new_user or _needs_enrollment:
         try:
             await _enroll_signal_following(row["id"])
         except Exception:
             logger.exception(
-                "signal enrollment failed for new user user_id=%s", row["id"]
+                "signal enrollment failed for user user_id=%s", row["id"]
             )
     return dict(row)
 
