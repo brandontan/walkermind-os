@@ -25,6 +25,20 @@ def nav_row(back_data: str = "dashboard:main") -> list[InlineKeyboardButton]:
     ]
 
 
+def main_menu_keyboard() -> ReplyKeyboardMarkup:
+    """Fixed 5-button persistent nav keyboard shown on every dashboard render."""
+    return ReplyKeyboardMarkup(
+        [
+            [KeyboardButton("📊 Dashboard"),   KeyboardButton("🤖 Auto-Trade")],
+            [KeyboardButton("💰 Wallet"),      KeyboardButton("📈 My Trades")],
+            [KeyboardButton("🚨 Emergency")],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        is_persistent=True,
+    )
+
+
 def main_menu(strategy_key: str | None = None, auto_on: bool = False) -> ReplyKeyboardMarkup:
     """State-driven persistent nav keyboard.
 

@@ -102,8 +102,19 @@ async def _text_router(update, ctx) -> None:
 
 
 def register(app: Application) -> None:
-    # ── group=-1: primary nav callbacks — fire BEFORE ConversationHandlers ──────
+    # ── group=-1: primary nav — fires BEFORE ConversationHandlers ────────────────
     app.add_handler(CallbackQueryHandler(_menu_nav_cb, pattern=r"^menu:"), group=-1)
+    # Persistent keyboard text buttons — interrupt any ConversationHandler state
+    app.add_handler(MessageHandler(
+        filters.Regex(r"^📊 Dashboard$"), dashboard), group=-1)
+    app.add_handler(MessageHandler(
+        filters.Regex(r"^🤖 Auto-Trade$"), show_autotrade), group=-1)
+    app.add_handler(MessageHandler(
+        filters.Regex(r"^💰 Wallet$"), wallet_root), group=-1)
+    app.add_handler(MessageHandler(
+        filters.Regex(r"^📈 My Trades$"), show_trades), group=-1)
+    app.add_handler(MessageHandler(
+        filters.Regex(r"^🚨 Emergency$"), emergency_root), group=-1)
 
     # ── Phase 5 start / onboarding ConversationHandler ─────────────────────────
     app.add_handler(build_start_handler())

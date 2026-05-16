@@ -116,33 +116,25 @@ def dashboard_text(
         "<b>📊 CrusaderBot Dashboard</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "<b>💼 Portfolio</b>\n"
-        "<pre>"
         f"├─ Balance:        {_fmt(balance)}\n"
         f"├─ Positions:      {_fmt(positions_value)}\n"
         f"├─ Total Equity:   {_fmt(total_equity)}\n"
-        f"└─ Winning: {wins} | Losing: {losses}"
-        "</pre>\n\n"
+        f"└─ Winning: {wins} | Losing: {losses}\n\n"
         "<b>💰 Profit &amp; Loss</b>\n"
-        "<pre>"
         f"├─ Today:    {_signed(pnl_today)} ({_pct(pnl_today_pct)}%)\n"
         f"├─ 7 Day:    {_signed(pnl_7d)} ({_pct(pnl_7d_pct)}%)\n"
         f"├─ 30 Day:   {_signed(pnl_30d)} ({_pct(pnl_30d_pct)}%)\n"
-        f"└─ All-Time: {_signed(pnl_alltime)}"
-        "</pre>\n\n"
+        f"└─ All-Time: {_signed(pnl_alltime)}\n\n"
         "<b>📈 Trading Stats</b>\n"
-        "<pre>"
         f"├─ Total Trades:   {total_trades}\n"
         f"├─ Win Rate:       {float(win_rate):.1f}% ({wins}W / {losses}L)\n"
         f"├─ Total Volume:   {_fmt(total_volume)}\n"
-        f"└─ Markets Traded: {markets_count}"
-        "</pre>\n\n"
+        f"└─ Markets Traded: {markets_count}\n\n"
         "<b>🤖 Auto-Trade</b>\n"
-        "<pre>"
         f"├─ Status: {status_emoji} {status_label}\n"
         f"├─ Preset: {html.escape(preset_emoji)} {html.escape(preset_name) if preset_key else 'Not configured'}\n"
         f"├─ Risk:   {html.escape(risk_emoji)} {html.escape(risk_label)}\n"
         f"└─ Mode:   📝 Paper"
-        "</pre>"
     )
 
 
@@ -190,15 +182,13 @@ def preset_confirm_text(
     return (
         "<b>🤖 Auto-Trade Setup</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "<pre>"
         f"📋 Preset: {html.escape(preset_emoji)} {html.escape(preset_name)}\n"
         f"├─ Strategy:      {html.escape(strategy_label)}\n"
         f"├─ Risk:          {html.escape(risk_emoji)} {html.escape(risk_label)}\n"
         f"├─ Capital:       {capital_pct}%\n"
         f"├─ TP / SL:       +{tp_pct}% / -{sl_pct}%\n"
         f"├─ Max per trade: {max_pos_pct}%\n"
-        f"└─ Mode:          📝 Paper"
-        "</pre>\n\n"
+        f"└─ Mode:          📝 Paper\n\n"
         "<i>ℹ️ You can change these anytime\n"
         "   from the Auto-Trade menu.</i>"
     )
@@ -220,21 +210,17 @@ def preset_active_text(
     return (
         "<b>🤖 Auto-Trade Status</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "<pre>"
         f"📋 Active Preset: {html.escape(preset_emoji)} {html.escape(preset_name)}\n"
         f"├─ Status:        🟢 RUNNING\n"
         f"├─ Since:         {html.escape(activated_date)}\n"
         f"├─ Trades today:  {trades_today}\n"
-        f"└─ P&L today:     {_signed(pnl_today)}"
-        "</pre>\n\n"
+        f"└─ P&L today:     {_signed(pnl_today)}\n\n"
         "<b>⚙️ Current Config</b>\n"
-        "<pre>"
         f"├─ Strategy: {html.escape(strategy_label)}\n"
         f"├─ Risk:     {html.escape(risk_emoji)} {html.escape(risk_label)}\n"
         f"├─ Capital:  {capital_pct}%\n"
         f"├─ TP / SL:  +{tp_pct}% / -{sl_pct}%\n"
         f"└─ Mode:     📝 Paper"
-        "</pre>"
     )
 
 
@@ -282,9 +268,9 @@ def trades_text(
         sign = "+" if pnl_pct >= 0 else ""
         lines.append(f"{i}️⃣ <b>{q}</b>")
         lines.append(
-            f"<pre>├─ Side: {side} @ ${entry:.4f}\n"
+            f"├─ Side: {side} @ ${entry:.4f}\n"
             f"├─ Size: ${size:.2f}\n"
-            f"└─ Current: ${current:.4f} ({sign}{pnl_pct:.1f}%)</pre>"
+            f"└─ Current: ${current:.4f} ({sign}{pnl_pct:.1f}%)"
         )
         lines.append("")
 

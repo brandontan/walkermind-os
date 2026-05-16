@@ -59,7 +59,11 @@ async def show_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user is None:
         return
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    open_pos, recent_closed = await _fetch_trades(user["id"])
+    try:
+        open_pos, recent_closed = await _fetch_trades(user["id"])
+    except Exception as exc:
+        logger.error("show_trades fetch failed user=%s err=%s", user["id"], exc)
+        open_pos, recent_closed = [], []
 
     if not open_pos and not recent_closed:
         text = trades_empty_text()
@@ -227,7 +231,7 @@ async def history_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         sign = "+" if pnl >= 0 else ""
         q_text = (r["market_question"] or "Unknown")[:50]
         lines.append(f"{emoji} {q_text}")
-        lines.append(f"<pre>   {r['side'].upper()} | {sign}${pnl:.2f}</pre>")
+        lines.append(f"   {r['side'].upper()} | {sign}${pnl:.2f}")
 
     await _safe_edit(
         q, "\n".join(lines),

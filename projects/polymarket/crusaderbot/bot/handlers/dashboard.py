@@ -17,7 +17,7 @@ from telegram.ext import ContextTypes
 from ...database import get_pool
 from ...users import upsert_user
 from ...wallet.ledger import daily_pnl, get_balance
-from ..keyboards import p5_dashboard_kb
+from ..keyboards import main_menu_keyboard, p5_dashboard_kb
 from ..messages import dashboard_text
 
 logger = logging.getLogger(__name__)
@@ -178,7 +178,7 @@ async def show_dashboard(
     await target.reply_text(
         text,
         parse_mode=ParseMode.HTML,
-        reply_markup=p5_dashboard_kb(has_preset),
+        reply_markup=main_menu_keyboard(),
     )
 
 
@@ -200,9 +200,13 @@ async def show_dashboard_for_cb(
             await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
         except BadRequest as exc:
             if "Message is not modified" not in str(exc):
-                await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+                await q.message.reply_text(
+                    text, parse_mode=ParseMode.HTML, reply_markup=main_menu_keyboard(),
+                )
     elif update.message is not None:
-        await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        await update.message.reply_text(
+            text, parse_mode=ParseMode.HTML, reply_markup=main_menu_keyboard(),
+        )
 
 
 # ── Command handler alias ──────────────────────────────────────────────────────
