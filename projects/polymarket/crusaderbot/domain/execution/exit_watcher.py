@@ -333,14 +333,14 @@ async def _market_actually_expired(market_id: str) -> bool:
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT resolved, end_date_iso FROM markets WHERE id=$1",
+            "SELECT resolved, resolution_at FROM markets WHERE id=$1",
             market_id,
         )
     if row is None:
         return False  # unknown market — let the unknown-market path handle it elsewhere
     if row["resolved"]:
         return True
-    end = row["end_date_iso"]
+    end = row["resolution_at"]
     if end is not None and end < datetime.now(timezone.utc):
         return True
     return False
