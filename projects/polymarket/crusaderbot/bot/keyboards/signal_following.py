@@ -16,6 +16,8 @@ from typing import Iterable
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from ._common import home_row
+
 
 def _truncate_label(text: str, limit: int = 28) -> str:
     if len(text) <= limit:
@@ -42,4 +44,5 @@ def signal_subs_list_kb(
         ]
         for slug, name in entries
     ]
+    rows.append(home_row())
     return InlineKeyboardMarkup(rows)

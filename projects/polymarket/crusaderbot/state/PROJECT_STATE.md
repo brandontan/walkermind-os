@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 18:00
-Status       : crusaderbot-finalize WARP🔹CMD CLEAR TO MERGE — SENTINEL 96/100. PR #1075 ready. role-model-admin-user MERGED PR #1076. Production PAPER ONLY.
+Last Updated : 2026-05-17 22:00
+Status       : full-callback-prefix-migration PR open, awaiting WARP🔹CMD review (STANDARD). crusaderbot-finalize WARP🔹CMD CLEAR TO MERGE — SENTINEL 96/100. Production PAPER ONLY.
 
 [COMPLETED]
 - role-model-admin-user MERGED PR #1076 (2026-05-17). Two-role refactor: risk gate step-3 tier check scoped to LIVE only (paper open to every user); bot/handlers/setup.py _ensure_tier2→_ensure_user (no setup gate); middleware/tier wording collapsed to two canonical messages; admin.py two-role surface (🛠 Admin sections, settier user|admin mapped onto FREE/ADMIN — no migration); assert_live_guards DELIBERATELY UNCHANGED per CLAUDE.md. SENTINEL 97/100. MAJOR, NARROW INTEGRATION.
@@ -21,6 +21,7 @@ Status       : crusaderbot-finalize WARP🔹CMD CLEAR TO MERGE — SENTINEL 96/1
 - V5 "AUTOBOT" UI Overhaul MERGED PR #1045. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- full-callback-prefix-migration PR open (WARP/full-callback-prefix-migration, 2026-05-17). F-02+F-03: 8 keyboard modules adopt _common.py helpers; positions nav:home migration; dispatcher nav: comment updated. ruff clean, compileall clean. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - telegram-ux-v5-overhaul PR open (WARP/telegram-ux-v5-overhaul). Awaiting WARP🔹CMD review (STANDARD tier). Report: projects/polymarket/crusaderbot/reports/forge/telegram-ux-v5-overhaul.md.
 - tg-ux-polish PR open (WARP/CRUSADERBOT-TG-UX-POLISH). Awaiting WARP🔹CMD review (MINOR tier). Report: projects/polymarket/crusaderbot/reports/forge/tg-ux-polish.md.
 - runtime-autotrade-fix PR open (WARP/CRUSADERBOT-RUNTIME-AUTOTRADE-FIX). Awaiting WARP🔹CMD merge decision (STANDARD tier). Report: projects/polymarket/crusaderbot/reports/forge/runtime-autotrade-fix.md.
@@ -48,7 +49,7 @@ Status       : crusaderbot-finalize WARP🔹CMD CLEAR TO MERGE — SENTINEL 96/1
 - WARP🔹CMD review required for telegram-ux-v5-overhaul (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/telegram-ux-v5-overhaul.md. Tier: STANDARD.
 - WARP🔹CMD review required for tg-ux-polish (MINOR). Source: projects/polymarket/crusaderbot/reports/forge/tg-ux-polish.md. Tier: MINOR. Verify: /settings renders bold header + separator; /autotrade active status shows [🏠 Home]; all bubbles consistent width on mobile.
 - WARP🔹CMD review required for runtime-autotrade-fix (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/runtime-autotrade-fix.md. Tier: STANDARD. Post-merge: /start fresh account → verify Balance: $1,000; auto-trade enabled → confirm no false market_expired within 5 min.
-- WARP/full-callback-prefix-migration (MEDIUM, F-02+F-03). Rewrite remaining 8 keyboard modules to use _common.py helpers + nav:/act:/cfg: namespace; drop legacy patterns from bot/dispatcher.py once all senders migrate. Linear tracking item filed under team CrusaderBot.
+- WARP🔹CMD review required for full-callback-prefix-migration (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/full-callback-prefix-migration.md. Tier: STANDARD.
 - WARP/bot-alert-dedup-audit + WARP/bot-onboarding-state-canonical follow-up lanes — deferred from PR #1069 by design.
 - WARP🔹CMD review required for startup-logo-fix (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/startup-logo-fix.md. Tier: STANDARD. Deliver crusaderbot-logo.png binary to webtrader/frontend/public/ before merge.
 - Apply migration 030 to production. Then deploy main to Fly.io — trading-unblock fix is live on main (MERGED PR #1065).

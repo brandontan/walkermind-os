@@ -19,6 +19,7 @@ from __future__ import annotations
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from . import grid_rows
+from ._common import home_back_row
 
 _DISCOVER_FILTERS: list[tuple[str, str]] = [
     ("🪙 Crypto",    "crypto"),
@@ -69,8 +70,7 @@ def copy_trade_add_wallet_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton("📋 Paste Address", callback_data="copytrade:paste"),
         InlineKeyboardButton("🔍 Discover",      callback_data="copytrade:discover"),
     ])
-    bottom = [[InlineKeyboardButton("← Back", callback_data="copytrade:dashboard")]]
-    return InlineKeyboardMarkup(top + bottom)
+    return InlineKeyboardMarkup(top + [home_back_row("copytrade:dashboard")])
 
 
 def wallet_stats_kb(address: str) -> InlineKeyboardMarkup:
@@ -93,8 +93,7 @@ def discover_filter_kb(active_filter: str = "top_pnl") -> InlineKeyboardMarkup:
         )
         for label, f in _DISCOVER_FILTERS
     ]
-    back = InlineKeyboardButton("← Back", callback_data="copytrade:add")
-    return InlineKeyboardMarkup(grid_rows(buttons) + [[back]])
+    return InlineKeyboardMarkup(grid_rows(buttons) + [home_back_row("copytrade:add")])
 
 
 def discover_wallet_kb(address: str) -> InlineKeyboardMarkup:
@@ -176,8 +175,7 @@ def wizard_step2_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton("✅ Keep Defaults", callback_data="wizard:keep"),
         InlineKeyboardButton("✏️ Edit",           callback_data="wizard:risk:edit"),
     ]
-    back = InlineKeyboardButton("← Back", callback_data="wizard:back:step1")
-    return InlineKeyboardMarkup(grid_rows(buttons) + [[back]])
+    return InlineKeyboardMarkup(grid_rows(buttons) + [home_back_row("wizard:back:step1")])
 
 
 def wizard_step2_edit_kb(

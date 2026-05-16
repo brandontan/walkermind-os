@@ -139,7 +139,7 @@ def test_positions_list_kb_nav_only_no_force_close_rows():
     rows = kb.inline_keyboard
     assert len(rows) == 1
     assert [btn.text for btn in rows[0]] == ["⬅ Back", "🏠 Home"]
-    assert [btn.callback_data for btn in rows[0]] == ["portfolio:portfolio", "dashboard:main"]
+    assert [btn.callback_data for btn in rows[0]] == ["portfolio:portfolio", "nav:home"]
 
 
 def test_force_close_confirm_kb_yes_no_pair():

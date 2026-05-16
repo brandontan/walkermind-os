@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from ._common import home_row
+
 _MAX_SLUG = 50  # keeps callback_data under 64 bytes (prefix is ≤14 chars)
 
 
@@ -18,4 +20,5 @@ def market_card_kb(slug: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton("Set Alert", callback_data=f"market:a:{s}"),
             InlineKeyboardButton("Details",   callback_data=f"market:d:{s}"),
         ],
+        home_row(),
     ])
