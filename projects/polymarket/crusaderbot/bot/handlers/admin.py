@@ -54,6 +54,11 @@ async def _reject_silently(update: Update) -> None:
             pass
 
 
+# Two-role model: 'user' / 'admin'. Mapped onto the underlying tier
+# column (which the DB CHECK constraint still pins to FREE/ADMIN) so no
+# migration is required. Legacy FREE/PREMIUM/ADMIN are still accepted.
+_ROLE_MAP = {"USER": "FREE", "ADMIN": "ADMIN"}
+
 _ADMIN_HELP = (
     "<b>🛠 Admin</b>\n\n"
     "• Runtime Health — /ops_dashboard, /health\n"
@@ -148,10 +153,6 @@ async def _admin_settier(message, args: list[str], actor_id: int) -> None:
             parse_mode=ParseMode.HTML,
         )
         return
-    # Two-role model: 'user' / 'admin'. Mapped onto the underlying tier
-    # column (which the DB CHECK constraint still pins to FREE/ADMIN) so
-    # no migration is required. Legacy FREE/PREMIUM/ADMIN still accepted.
-    _ROLE_MAP = {"USER": "FREE", "ADMIN": "ADMIN"}
     raw_tier = _ROLE_MAP.get(raw_tier, raw_tier)
     if raw_tier not in VALID_TIERS:
         await message.reply_text(
