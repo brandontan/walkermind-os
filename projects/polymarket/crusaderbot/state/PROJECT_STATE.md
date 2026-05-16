@@ -1,8 +1,8 @@
-Last Updated : 2026-05-16 21:00
-Status       : WebTrader browser dashboard built. Backend (SSE/JWT/router), frontend (React/Vite/Tailwind, 6 pages, 7 components), migration 029, multi-stage Dockerfile. PR open, SENTINEL required before merge. Production PAPER ONLY.
+Last Updated : 2026-05-16 13:27
+Status       : WebTrader browser dashboard MERGED to main (PR #1058). Backend (SSE/JWT/router), frontend (React/Vite/Tailwind, 6 pages, 7 components), migration 029, multi-stage Dockerfile. WARP•SENTINEL audit required before production deploy. Production PAPER ONLY.
 
 [COMPLETED]
-- WARP/CRUSADERBOT-WEBTRADER built (2026-05-16). WebTrader browser dashboard: migration 029 (portfolio_snapshots, system_alerts, NOTIFY triggers), FastAPI SSE backend (asyncpg LISTEN/NOTIFY fan-out), JWT auth (Telegram Login Widget), React/Vite/Tailwind SPA (6 pages, 7 components), multi-stage Dockerfile. MAJOR, NARROW INTEGRATION. SENTINEL required before merge.
+- WARP/CRUSADERBOT-WEBTRADER MERGED PR #1058 (2026-05-16). WebTrader browser dashboard: migration 029 (portfolio_snapshots, system_alerts, NOTIFY triggers), FastAPI SSE backend (asyncpg LISTEN/NOTIFY fan-out), JWT auth (Telegram Login Widget), React/Vite/Tailwind SPA (6 pages, 7 components), multi-stage Dockerfile. MAJOR, NARROW INTEGRATION.
 - deploy-test-report complete (2026-05-16). Test suite 1398 pass, 1 skip. UX 6 screens static analysis: all pass. fly CLI not available — deploy not executed. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-PHASE5-FIX-R1 PR open (2026-05-16). 3 UX bugs: COPY CODE removed from dashboard/autotrade/trades screens; persistent 5-button ReplyKeyboard (main_menu_keyboard); My Trades show_trades DB error hardened with try/except + group=-1 handler. 119 tests green. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-PHASE5-UX-REBUILD MERGED PR #1055 (2026-05-16). Full UX rebuild: 6 screens, group=-1 nav fix, presets.py, messages.py, migration 028. ruff+compileall clean. MAJOR, NARROW INTEGRATION.
@@ -16,7 +16,6 @@ Status       : WebTrader browser dashboard built. Backend (SSE/JWT/router), fron
 - Premium UX v4 (Hybrid Luxury) — PR #1026 merged. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- WARP/CRUSADERBOT-WEBTRADER PR open — awaiting WARP•SENTINEL audit (MAJOR tier) before merge.
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
@@ -35,7 +34,7 @@ Status       : WebTrader browser dashboard built. Backend (SSE/JWT/router), fron
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for webtrader-dashboard before merge. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md. Tier: MAJOR.
+- WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 - WARP🔹CMD manual deploy required: fly CLI not available in cloud environment. Apply migration 027+028+029 first, set WEBTRADER_JWT_SECRET secret, then fly deploy from local machine. Report: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 - Apply migration 028 (preset_activated_at) to production before deploying Phase 5 code to Fly.io.
 - Apply migration 027 (notifications_on) to production before deploying to Fly.io.
