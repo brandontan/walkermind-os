@@ -14,7 +14,6 @@ from ..keyboards import (
     autoredeem_picker, category_picker, mode_picker, risk_picker,
     setup_menu, strategy_card_kb, strategy_picker,
 )
-from ..tier import Tier, has_tier, tier_block_message
 from . import presets as presets_handler
 
 logger = logging.getLogger(__name__)
@@ -29,17 +28,12 @@ STRATEGY_DISPLAY_NAMES: dict[str, str] = {
 }
 
 
-async def _ensure_tier2(update: Update) -> tuple[dict | None, bool]:
+async def _ensure_user(update: Update) -> tuple[dict | None, bool]:
+    """Resolve (and lazily create) the calling user. Auto-trade setup is
+    open to every user — there is no access gate on paper configuration."""
     if update.effective_user is None:
         return None, False
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
-        msg = tier_block_message(Tier.ALLOWLISTED)
-        if update.message:
-            await update.message.reply_text(msg)
-        elif update.callback_query:
-            await update.callback_query.answer(msg, show_alert=True)
-        return None, False
     return user, True
 
 
@@ -63,7 +57,7 @@ _AUTOTRADE_TEXT = (
 
 async def setup_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """🤖 Auto-Trade reply-keyboard button → strategy card picker (single render)."""
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok or update.message is None:
         return
     await update.message.reply_text(
@@ -76,7 +70,7 @@ async def setup_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 async def setup_legacy_root(update: Update,
                             ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Legacy raw-strategy setup menu (pre-Phase 5C)."""
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok or update.message is None:
         return
     s = await get_settings_for(user["id"])
@@ -101,7 +95,7 @@ async def setup_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     if q is None:
         return
     await q.answer()
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     sub = (q.data or "").split(":", 1)[-1]
@@ -178,7 +172,7 @@ async def set_strategy(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if q is None:
         return
     await q.answer()
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     choice = (q.data or "").split(":", 1)[-1]
@@ -216,7 +210,7 @@ async def set_strategy_card(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
     if q is None:
         return
     await q.answer()
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     card = (q.data or "").split(":", 1)[-1]
@@ -244,7 +238,7 @@ async def set_risk(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if q is None:
         return
     await q.answer()
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     choice = (q.data or "").split(":", 1)[-1]
@@ -259,7 +253,7 @@ async def set_category(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if q is None:
         return
     await q.answer()
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     choice = (q.data or "").split(":", 1)[-1]
@@ -281,7 +275,7 @@ async def set_mode(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if q is None:
         return
     await q.answer()
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     choice = (q.data or "").split(":", 1)[-1]
@@ -311,7 +305,7 @@ async def set_redeem_mode(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     if q is None:
         return
     await q.answer()
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     choice = (q.data or "").split(":", 1)[-1]

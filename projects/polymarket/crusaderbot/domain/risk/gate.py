@@ -169,8 +169,11 @@ async def evaluate(ctx: GateContext) -> GateResult:
         return GateResult(False, "auto_trade_off_or_paused", 2)
     await _log(ctx.user_id, ctx.market_id, 2, True, "ok")
 
-    # 3. Tier check (Tier 3+ to trade)
-    if ctx.access_tier < 3:
+    # 3. Paper trading is open to every user (no gate). Live retains a
+    #    funded-account check as defence-in-depth; the authoritative live
+    #    safety boundary is assert_live_guards (Tier 4 + activation guards)
+    #    at order submission, which is intentionally left intact.
+    if ctx.trading_mode == "live" and ctx.access_tier < 3:
         await _log(ctx.user_id, ctx.market_id, 3, False, f"tier_{ctx.access_tier}")
         return GateResult(False, "insufficient_tier", 3)
     await _log(ctx.user_id, ctx.market_id, 3, True, "ok")
