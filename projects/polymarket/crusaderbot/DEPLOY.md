@@ -85,6 +85,80 @@ fly secrets set \
 
 Leave out secrets that don't apply yet (e.g., Polymarket keys if not going live).
 
+### Step 4b — Generated secrets (required for WebTrader + /ops)
+
+These have no Replit equivalent — generate fresh:
+
+```bash
+fly secrets set \
+  WEBTRADER_JWT_SECRET="$(openssl rand -hex 32)" \
+  OPS_SECRET="$(openssl rand -hex 32)" \
+  ADMIN_API_TOKEN="$(openssl rand -hex 32)" \
+  --app crusaderbot
+```
+
+- `WEBTRADER_JWT_SECRET` — without it the WebTrader dashboard auth
+  returns 403 on every login. Mandatory before the dashboard is usable.
+- `OPS_SECRET` — without it `POST /ops/kill` and `/ops/resume` return
+  503 (the read-only `/ops` console still renders).
+- `ADMIN_API_TOKEN` — bearer for the hardened `/admin/*` REST path.
+
+### Step 4c — Apply database migrations to production
+
+Run BEFORE the first deploy that ships new schema. Idempotent — safe to
+re-run. Apply in numeric order:
+
+```bash
+fly postgres connect --app crusaderbot-db <<'SQL'
+\i migrations/027_notifications_on.sql
+\i migrations/028_*.sql
+\i migrations/029_*.sql
+\i migrations/030_job_runs_metadata.sql
+SQL
+```
+
+Or, from a machine with `DATABASE_URL` exported:
+
+```bash
+for f in migrations/0{27,28,29,30}_*.sql; do
+  echo "applying $f"; psql "$DATABASE_URL" -f "$f";
+done
+```
+
+Verify (`030` adds `job_runs.metadata` JSONB; its absence blocks the
+stuck-position auto-close path):
+
+```bash
+psql "$DATABASE_URL" -c "\d+ job_runs" | grep metadata
+```
+
+### Step 4d — Register the Login Widget domain in BotFather
+
+The Telegram Login Widget rejects any origin not registered with the
+bot. In a chat with **@BotFather**:
+
+```
+/setdomain
+@CrusaderBot
+crusaderbot.fly.dev
+```
+
+Skipping this → the WebTrader auth page loads but the Telegram button
+silently fails.
+
+### Step 4e — GitHub Actions CD secret
+
+The `crusaderbot-cd.yml` workflow deploys on merge to `main` but needs a
+Fly deploy token. Create one and add it as a repo secret:
+
+```bash
+fly tokens create deploy --app crusaderbot   # copy the output
+```
+
+GitHub → repo **Settings → Secrets and variables → Actions → New
+repository secret** → name `FLY_API_TOKEN`, value = the token. Until
+this exists, CD fails at the auth step (CI still runs).
+
 ---
 
 ## Step 5 — First deploy (polling mode)
@@ -148,6 +222,20 @@ python3 -c "from crusaderbot.scheduler import setup_scheduler; s = setup_schedul
 ```
 
 All `next_run_time` values should show UTC+7 (Asia/Jakarta) offset.
+
+### Step 7b — Post-deploy verification
+
+After migration `030` is applied and the deploy is live, confirm the
+exit watcher drains any stuck-open positions within one tick (~60s):
+
+```bash
+fly logs --app crusaderbot | grep -i "exit_watch\|MARKET_EXPIRED"
+psql "$DATABASE_URL" -c \
+  "SELECT status, COUNT(*) FROM positions GROUP BY status;"
+```
+
+Expect previously stuck rows to move to `closed` (MARKET_EXPIRED). A
+fresh `/start` account should show Balance: $1,000 (paper seed).
 
 ---
 
