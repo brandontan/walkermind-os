@@ -1,7 +1,8 @@
-Last Updated : 2026-05-16 22:30
-Status       : WebTrader frontend premium redesign PR open (WARP/CRUSADERBOT-WEBTRADER-REDESIGN, STANDARD). WARP/CRUSADERBOT-AUTOTRADE-RUNTIME MERGED PR #1061. Fly.io manual deploy pending. Production PAPER ONLY.
+Last Updated : 2026-05-16 23:30
+Status       : trading-unblock PR open (claude/unblock-trading-positions-l13YL, MAJOR). 5 expired positions will auto-close within 1 exit_watch tick after deploy. Signal scan fires immediately on startup. Production PAPER ONLY.
 
 [COMPLETED]
+- trading-unblock PR open (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-AUTOTRADE-RUNTIME MERGED PR #1061 (2026-05-16). exit_watcher live Gamma price fetch + pnl_usdc persistence + signal_scan open-position dedup guard + WebTrader YES/NO badges and date+time display. MAJOR, FULL RUNTIME INTEGRATION.
 - WARP/CRUSADERBOT-WEBTRADER-REDESIGN PR open (2026-05-16). WebTrader premium frontend redesign: Syne + JetBrains Mono fonts, new dark palette (#080A0F bg, gold #F5C842 accent), 5 pages + 5 components reskinned, Recharts PnL chart, ambient gradients, fadeSlideUp transitions. npm build clean. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-WEBTRADER MERGED PR #1058 (2026-05-16). WebTrader browser dashboard: migration 029 (portfolio_snapshots, system_alerts, NOTIFY triggers), FastAPI SSE backend (asyncpg LISTEN/NOTIFY fan-out), JWT auth (Telegram Login Widget), React/Vite/Tailwind SPA (6 pages, 7 components), multi-stage Dockerfile. MAJOR, NARROW INTEGRATION.
@@ -18,10 +19,11 @@ Status       : WebTrader frontend premium redesign PR open (WARP/CRUSADERBOT-WEB
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
-- 5 open positions stuck at entry_price — autotrade-runtime-fix MERGED PR #1061; positions will self-close via TP/SL once Fly.io deploy completes.
+- trading-unblock PR in review — 5 expired positions will auto-close within 1 exit_watch tick (60s) once deploy completes. SENTINEL validation required before merge.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
+- Apply migration 030 (job_runs metadata JSONB) to production before deploying trading-unblock.
 - Apply migration 029 (portfolio_snapshots, system_alerts, NOTIFY triggers) to production before deploying WARP/CRUSADERBOT-WEBTRADER.
 - Set fly secret WEBTRADER_JWT_SECRET=<openssl rand -hex 32> before deploying WebTrader.
 - Register crusaderbot.fly.dev domain in BotFather: /setdomain @CrusaderBot crusaderbot.fly.dev (required for Telegram Login Widget).
@@ -34,15 +36,13 @@ Status       : WebTrader frontend premium redesign PR open (WARP/CRUSADERBOT-WEB
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for trading-unblock (MAJOR) before merge. Source: projects/polymarket/crusaderbot/reports/forge/trading-unblock.md. Tier: MAJOR.
+- Apply migration 030 to production before deploy. Then deploy trading-unblock branch.
 - WARP🔹CMD review required for webtrader-redesign (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-redesign.md. Tier: STANDARD.
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
-- WARP🔹CMD manual deploy required: fly CLI not available in cloud environment. Apply migration 027+028+029 first, set WEBTRADER_JWT_SECRET secret, then fly deploy from local machine. Report: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
-- Apply migration 028 (preset_activated_at) to production before deploying Phase 5 code to Fly.io.
-- Apply migration 027 (notifications_on) to production before deploying to Fly.io.
-- Run live Telegram smoke test (walk3r69 / @CrusaderBot) after manual deploy.
 
 [KNOWN ISSUES]
-- 5 open positions stuck at entry_price; autotrade-runtime-fix MERGED PR #1061 — positions will self-close via TP/SL once Fly.io deploy completes.
+- 5 positions stuck open — trading-unblock PR will close them as MARKET_EXPIRED within 1 exit_watch tick (60s) after deploy. SENTINEL validation required before merge.
 - fly CLI not installed in cloud execution environment — deploy step requires WARP🔹CMD manual execution from fly CLI machine.
 - migration 027 (notifications_on) must be applied to production before deploying PR #1049 + PR #1055 code on Fly.io.
 - pnl_insights.py, copy_trade.py, portfolio_chart.py still contain ━━━ — out-of-scope for crusaderbot-mvp-runtime-ux; separate cleanup lane required.

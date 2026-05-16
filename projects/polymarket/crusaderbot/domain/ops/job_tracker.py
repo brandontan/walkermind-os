@@ -55,13 +55,15 @@ async def record_job_event(
     error: Optional[str] = None,
     started_at: Optional[datetime] = None,
     finished_at: Optional[datetime] = None,
+    metadata: Optional[dict[str, Any]] = None,
 ) -> None:
     """Persist a single job execution outcome.
 
     Failure to write must NEVER bubble up — observability cannot break
     the trading loop. ``error`` is truncated to 500 chars to bound the
     row size; the operator dashboard further truncates to 80 chars when
-    rendering.
+    rendering. ``metadata`` is an optional dict written to the JSONB column
+    (e.g. RunResult counts from exit_watch: submitted/expired/held/errors).
     """
     # ``started_at`` is normally captured synchronously by the scheduler
     # listener via ``pop_job_start`` to defeat the SUBMITTED-overwrite
@@ -81,8 +83,8 @@ async def record_job_event(
         async with pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO job_runs (job_name, status, started_at, "
-                "finished_at, error) VALUES ($1, $2, $3, $4, $5)",
-                job_id, status, started, finished, err,
+                "finished_at, error, metadata) VALUES ($1, $2, $3, $4, $5, $6)",
+                job_id, status, started, finished, err, metadata,
             )
     except Exception as exc:
         # Don't crash the scheduler loop because the ops table is down.
@@ -105,7 +107,7 @@ async def fetch_recent(limit: int = 10, *, only_failed: bool = False) -> list[di
     where = "WHERE status='failed' " if only_failed else ""
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            f"SELECT job_name, status, started_at, finished_at, error "
+            f"SELECT job_name, status, started_at, finished_at, error, metadata "
             f"FROM job_runs {where}"
             f"ORDER BY started_at DESC LIMIT $1",
             limit,

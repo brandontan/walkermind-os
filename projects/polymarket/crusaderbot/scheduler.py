@@ -522,9 +522,14 @@ def _job_tracker_listener(event) -> None:
     # create_task'd record_job_event reads it. This closes the race
     # Codex flagged on PR #874 (job_tracker.py:34).
     started_at = job_tracker.pop_job_start(event.job_id)
+    # Capture structured return value from jobs that return dicts.
+    # check_exits() returns RunResult-as-dict (submitted/expired/held/errors)
+    # which is stored in job_runs.metadata for operator dashboards.
+    retval = getattr(event, "retval", None) if success else None
+    metadata = retval if isinstance(retval, dict) else None
     coro = job_tracker.record_job_event(
         job_id=event.job_id, success=success, error=err,
-        started_at=started_at,
+        started_at=started_at, metadata=metadata,
     )
     try:
         loop = asyncio.get_running_loop()
