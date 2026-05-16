@@ -68,6 +68,12 @@ class Settings(BaseSettings):
     # --- Admin REST API (disabled when unset) ---
     ADMIN_API_TOKEN: Optional[str] = None
 
+    # --- WebTrader browser dashboard (disabled when unset) ---
+    # JWT secret for signing user tokens issued after Telegram Login Widget auth.
+    # Generate: openssl rand -hex 32
+    # Set in Fly.io: fly secrets set WEBTRADER_JWT_SECRET=<value>
+    WEBTRADER_JWT_SECRET: Optional[str] = None
+
     # --- /ops dashboard write controls (disabled when unset) ---
     # GET /ops stays open (read-only operator console). POST /ops/kill +
     # POST /ops/resume require this shared secret via the ``X-Ops-Token``
