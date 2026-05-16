@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 17:30
-Status       : role-model-admin-user SENTINEL APPROVED 95/100 (WARP/role-model-admin-user, MAJOR). Two-role model: paper open to all, live gate intact. Awaiting WARP🔹CMD merge decision. Production PAPER ONLY.
+Last Updated : 2026-05-17 17:45
+Status       : role-model-admin-user WARP🔹CMD CLEAR TO MERGE — Score 97/100. PR #1076 ready. Production PAPER ONLY.
 
 [COMPLETED]
 - role-model-admin-user PR open (WARP/role-model-admin-user, 2026-05-17). Two-role refactor: risk gate step-3 tier check scoped to LIVE only (paper open to every user); bot/handlers/setup.py _ensure_tier2→_ensure_user (no setup gate); middleware/tier wording collapsed to two canonical messages (access_tier.py, tier_gate.py, bot/tier.py, services/allowlist.py labels); admin.py two-role surface (🛠 Admin sections, settier user|admin mapped onto FREE/ADMIN — no migration, legacy values still accepted, stats Roles Users/Admins, "Admin access required."); live_checklist + presets + seed_operator_tier docstring de-tiered; scheduler deposit-watcher messages reworded (paper always available, deposit = live only). assert_live_guards (Tier-4 + activation guards) DELIBERATELY UNCHANGED — bypassing it is forbidden by CLAUDE.md. 1413 tests pass, ruff clean. MAJOR, NARROW INTEGRATION.
@@ -43,7 +43,7 @@ Status       : role-model-admin-user SENTINEL APPROVED 95/100 (WARP/role-model-a
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD merge decision required for role-model-admin-user (MAJOR). SENTINEL APPROVED 95/100. Source: projects/polymarket/crusaderbot/reports/sentinel/role-model-admin-user.md. CI green. Gemini review addressed. PR #1076 ready to merge.
+- WARP🔹CMD CLEAR TO MERGE — role-model-admin-user PR #1076 (MAJOR). SENTINEL 97/100. Awaiting merge execution. Post-merge: apply migration runbook per DEPLOY.md; production stays PAPER ONLY.
 - WARP🔹CMD review required for telegram-ux-v5-overhaul (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/telegram-ux-v5-overhaul.md. Tier: STANDARD.
 - WARP🔹CMD review required for tg-ux-polish (MINOR). Source: projects/polymarket/crusaderbot/reports/forge/tg-ux-polish.md. Tier: MINOR. Verify: /settings renders bold header + separator; /autotrade active status shows [🏠 Home]; all bubbles consistent width on mobile.
 - WARP🔹CMD review required for runtime-autotrade-fix (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/runtime-autotrade-fix.md. Tier: STANDARD. Post-merge: /start fresh account → verify Balance: $1,000; auto-trade enabled → confirm no false market_expired within 5 min.
