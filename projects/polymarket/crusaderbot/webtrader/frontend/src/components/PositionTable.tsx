@@ -33,8 +33,10 @@ export function PositionTable({ positions }: PositionTableProps) {
                   {p.market_question ?? p.market_id.slice(0, 12) + "…"}
                 </td>
                 <td className="py-2 pr-3">
-                  <span className={p.side === "BUY" ? "text-green" : "text-red"}>
-                    {p.side}
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    p.side === "yes" ? "bg-green/10 text-green" : "bg-red/10 text-red"
+                  }`}>
+                    {p.side === "yes" ? "YES" : "NO"}
                   </span>
                 </td>
                 <td className="py-2 pr-3 text-right">${p.size_usdc.toFixed(2)}</td>
@@ -42,10 +44,10 @@ export function PositionTable({ positions }: PositionTableProps) {
                   {pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}
                 </td>
                 <td className="py-2 text-right">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                     p.status === "open" ? "bg-green/10 text-green" : "bg-muted/20 text-muted"
                   }`}>
-                    {p.status}
+                    {p.status.toUpperCase()}
                   </span>
                 </td>
               </tr>
