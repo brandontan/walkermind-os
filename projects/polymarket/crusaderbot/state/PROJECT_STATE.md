@@ -1,7 +1,8 @@
-Last Updated : 2026-05-16 18:00
-Status       : Auto-trade runtime fix PR open (WARP/CRUSADERBOT-AUTOTRADE-RUNTIME). Live price fetch wired into exit_watcher; pnl_usdc now computed and persisted on every tick; signal_scan open-position guard added; WebTrader badges fixed. WARP•SENTINEL MAJOR audit required before merge. Production PAPER ONLY.
+Last Updated : 2026-05-16 14:58
+Status       : WARP/CRUSADERBOT-AUTOTRADE-RUNTIME MERGED PR #1061 (2026-05-16). exit_watcher live Gamma price fetch wired; pnl_usdc computed and persisted on every tick; signal_scan open-position guard active; WebTrader YES/NO badges and date+time display fixed. Fly.io manual deploy pending. Production PAPER ONLY.
 
 [COMPLETED]
+- WARP/CRUSADERBOT-AUTOTRADE-RUNTIME MERGED PR #1061 (2026-05-16). exit_watcher live Gamma price fetch + pnl_usdc persistence + signal_scan open-position dedup guard + WebTrader YES/NO badges and date+time display. MAJOR, FULL RUNTIME INTEGRATION.
 - WARP/CRUSADERBOT-WEBTRADER MERGED PR #1058 (2026-05-16). WebTrader browser dashboard: migration 029 (portfolio_snapshots, system_alerts, NOTIFY triggers), FastAPI SSE backend (asyncpg LISTEN/NOTIFY fan-out), JWT auth (Telegram Login Widget), React/Vite/Tailwind SPA (6 pages, 7 components), multi-stage Dockerfile. MAJOR, NARROW INTEGRATION.
 - deploy-test-report complete (2026-05-16). Test suite 1398 pass, 1 skip. UX 6 screens static analysis: all pass. fly CLI not available — deploy not executed. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-PHASE5-FIX-R1 PR open (2026-05-16). 3 UX bugs: COPY CODE removed from dashboard/autotrade/trades screens; persistent 5-button ReplyKeyboard (main_menu_keyboard); My Trades show_trades DB error hardened with try/except + group=-1 handler. 119 tests green. STANDARD, NARROW INTEGRATION.
@@ -11,16 +12,12 @@ Status       : Auto-trade runtime fix PR open (WARP/CRUSADERBOT-AUTOTRADE-RUNTIM
 - mvp-cleanup complete (2026-05-15). ParseMode.MARKDOWN/V2 → HTML across 17 handler files. STANDARD, NARROW INTEGRATION.
 - crusaderbot-mvp-runtime-ux MERGED PR #1049 (2026-05-15). 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline. MAJOR, FULL RUNTIME INTEGRATION. 1405 tests green.
 - V5 "AUTOBOT" UI Overhaul MERGED PR #1045. STANDARD, NARROW INTEGRATION.
-- live-execution-user-id-guards MERGED PR #1021. MAJOR, NARROW INTEGRATION. WARP•SENTINEL APPROVED 97/100.
-- compact-hierarchy-readability-regression MERGED PR #1032. STANDARD, NARROW INTEGRATION.
-- Premium UX v4 (Hybrid Luxury) — PR #1026 merged. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- WARP/CRUSADERBOT-AUTOTRADE-RUNTIME PR open. exit_watcher live price fetch + pnl_usdc + signal_scan open-position guard + WebTrader badge fixes. MAJOR, FULL RUNTIME INTEGRATION. WARP•SENTINEL required before merge.
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderBot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
-- 5 open positions stuck at entry_price — will self-resolve once live price fix deploys and TP/SL fires.
+- 5 open positions stuck at entry_price — autotrade-runtime-fix MERGED PR #1061; positions will self-close via TP/SL once Fly.io deploy completes.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
@@ -36,7 +33,6 @@ Status       : Auto-trade runtime fix PR open (WARP/CRUSADERBOT-AUTOTRADE-RUNTIM
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for autotrade-runtime-fix (MAJOR) before merge. Source: projects/polymarket/crusaderbot/reports/forge/autotrade-runtime-fix.md. Tier: MAJOR.
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 - WARP🔹CMD manual deploy required: fly CLI not available in cloud environment. Apply migration 027+028+029 first, set WEBTRADER_JWT_SECRET secret, then fly deploy from local machine. Report: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 - Apply migration 028 (preset_activated_at) to production before deploying Phase 5 code to Fly.io.
@@ -44,7 +40,7 @@ Status       : Auto-trade runtime fix PR open (WARP/CRUSADERBOT-AUTOTRADE-RUNTIM
 - Run live Telegram smoke test (walk3r69 / @CrusaderBot) after manual deploy.
 
 [KNOWN ISSUES]
-- 5 open positions stuck at entry_price pending autotrade-runtime-fix deploy; positions will self-close via TP/SL once live price feed is active. No manual action required before SENTINEL.
+- 5 open positions stuck at entry_price; autotrade-runtime-fix MERGED PR #1061 — positions will self-close via TP/SL once Fly.io deploy completes.
 - fly CLI not installed in cloud execution environment — deploy step requires WARP🔹CMD manual execution from fly CLI machine.
 - migration 027 (notifications_on) must be applied to production before deploying PR #1049 + PR #1055 code on Fly.io.
 - pnl_insights.py, copy_trade.py, portfolio_chart.py still contain ━━━ — out-of-scope for crusaderbot-mvp-runtime-ux; separate cleanup lane required.
