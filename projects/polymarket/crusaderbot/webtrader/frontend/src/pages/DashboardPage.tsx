@@ -154,108 +154,117 @@ export function DashboardPage() {
           ctaSecondary={{ label: "Portfolio", onClick: () => navigate("/portfolio") }}
         />
 
-        <StatsGrid
-          essential={
-            <>
-              <StatCard
-                color="grn"
-                icon="▰"
-                label="Balance"
-                value={data.balance_usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                unit="USDC"
-                sub="Paper Mode"
-              />
-              <StatCard
-                color="gold"
-                icon="▱"
-                label="Open"
-                value={data.open_positions}
-                sub={data.open_positions === 0 ? "No positions" : `${data.open_positions} active`}
-              />
-            </>
-          }
-          advanced={
-            <>
-              <StatCard
-                large
-                color="grn"
-                icon="▰"
-                label="Balance"
-                value={data.balance_usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                unit="USDC"
-                sub={`${data.trading_mode === "live" ? "Live" : "Paper"} · Polygon`}
-              />
-              <StatCard
-                color="gold"
-                icon="▱"
-                label="Win Rate"
-                value={winRate}
-                sub={`${data.wins}/${data.total_trades} closed`}
-              />
-              <StatCard
-                color="cyan"
-                icon="◈"
-                label="Signals"
-                value={alerts.length}
-                sub="last fetch"
-                subTone="up"
-              />
-            </>
-          }
-        />
+        {/* Desktop: 2-column layout — scanner left, stats + activity right */}
+        <div className="md:grid md:grid-cols-2 md:gap-4">
+          {/* Left column: scanner terminal */}
+          <div>
+            <StatsGrid
+              essential={
+                <>
+                  <StatCard
+                    color="grn"
+                    icon="▰"
+                    label="Balance"
+                    value={data.balance_usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                    unit="USDC"
+                    sub="Paper Mode"
+                  />
+                  <StatCard
+                    color="gold"
+                    icon="▱"
+                    label="Open"
+                    value={data.open_positions}
+                    sub={data.open_positions === 0 ? "No positions" : `${data.open_positions} active`}
+                  />
+                </>
+              }
+              advanced={
+                <>
+                  <StatCard
+                    large
+                    color="grn"
+                    icon="▰"
+                    label="Balance"
+                    value={data.balance_usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                    unit="USDC"
+                    sub={`${data.trading_mode === "live" ? "Live" : "Paper"} · Polygon`}
+                  />
+                  <StatCard
+                    color="gold"
+                    icon="▱"
+                    label="Win Rate"
+                    value={winRate}
+                    sub={`${data.wins}/${data.total_trades} closed`}
+                  />
+                  <StatCard
+                    color="cyan"
+                    icon="◈"
+                    label="Signals"
+                    value={alerts.length}
+                    sub="last fetch"
+                    subTone="up"
+                  />
+                </>
+              }
+            />
 
-        <AdvancedOnly>
-          <Terminal lines={buildScannerLines(alerts, data)} />
-        </AdvancedOnly>
-
-        <div className="flex items-center justify-between mt-3.5 mb-2 mx-0.5">
-          <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
-            <span className="w-3 h-px bg-gold" aria-hidden />
-            Recent Activity
+            <AdvancedOnly>
+              <Terminal lines={buildScannerLines(alerts, data)} />
+            </AdvancedOnly>
           </div>
-          <NavLink
-            to="/portfolio"
-            className="font-mono text-[10px] text-gold cursor-pointer tracking-[1px] font-semibold"
-          >
-            View all →
-          </NavLink>
-        </div>
 
-        {recentActivity.length === 0 ? (
-          <div className="text-[12px] text-ink-3 px-1 py-3 font-mono">
-            No activity yet.
-          </div>
-        ) : (
-          recentActivity.map((p) => {
-            const val = activityValueFor(p);
-            const tone = val.tone;
-            return (
-              <PositionCard
-                key={p.id}
-                market={p.market_question ?? `${p.market_id.slice(0, 16)}…`}
-                positionValue={val}
-                side={positionSide(p)}
-                borderTone={tone}
-                meta={[
-                  <>${p.size_usdc.toFixed(2)}</>,
-                  <>{p.status === "open" ? "LIVE" : formatTime(p.closed_at ?? p.opened_at)}</>,
-                ]}
-                metaAdvanced={[
-                  <>{p.side.toUpperCase()} @ {(p.entry_price * 100).toFixed(1)}¢</>,
-                ]}
+          {/* Right column: recent activity + kill switch */}
+          <div>
+            <div className="flex items-center justify-between mt-3.5 mb-2 mx-0.5 md:mt-0">
+              <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
+                <span className="w-3 h-px bg-gold" aria-hidden />
+                Recent Activity
+              </div>
+              <NavLink
+                to="/portfolio"
+                className="font-mono text-[10px] text-gold cursor-pointer tracking-[1px] font-semibold"
+              >
+                View all →
+              </NavLink>
+            </div>
+
+            {recentActivity.length === 0 ? (
+              <div className="text-[12px] text-ink-3 px-1 py-3 font-mono">
+                No activity yet.
+              </div>
+            ) : (
+              recentActivity.map((p) => {
+                const val = activityValueFor(p);
+                const tone = val.tone;
+                return (
+                  <PositionCard
+                    key={p.id}
+                    market={p.market_question ?? `${p.market_id.slice(0, 16)}…`}
+                    positionValue={val}
+                    side={positionSide(p)}
+                    borderTone={tone}
+                    meta={[
+                      <>${p.size_usdc.toFixed(2)}</>,
+                      <>{p.status === "open" ? "LIVE" : formatTime(p.closed_at ?? p.opened_at)}</>,
+                    ]}
+                    metaAdvanced={[
+                      <>{p.side.toUpperCase()} @ {(p.entry_price * 100).toFixed(1)}¢</>,
+                    ]}
+                  />
+                );
+              })
+            )}
+
+            <div className="mt-4">
+              <KillSwitchButton
+                active={data.kill_switch_active}
+                onKill={async () => {
+                  await api.postKill();
+                  await load();
+                }}
               />
-            );
-          })
-        )}
-
-        <div className="mt-4">
-          <KillSwitchButton
-            active={data.kill_switch_active}
-            onKill={async () => {
-              await api.postKill();
-              await load();
-            }}
-          />
+            </div>
+          </div>
         </div>
       </div>
     </>

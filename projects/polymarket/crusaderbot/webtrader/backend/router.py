@@ -23,12 +23,14 @@ from .schemas import (
     DashboardSummary,
     KillSwitchStatus,
     LedgerEntry,
+    MarketFilterUpdate,
     PortfolioSummary,
     PositionItem,
     PresetActivateRequest,
     RiskProfileRequest,
     TelegramAuthPayload,
     TokenResponse,
+    TradingSettingsUpdate,
     UserSettingsUpdate,
     WalletInfo,
 )
@@ -175,11 +177,13 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
             "SELECT auto_trade_on FROM users WHERE id=$1::uuid", user_id
         )
         s_row = await conn.fetchrow(
-            """SELECT risk_profile, capital_alloc_pct, tp_pct, sl_pct, active_preset
+            """SELECT risk_profile, capital_alloc_pct, tp_pct, sl_pct, active_preset,
+                      category_filters, min_liquidity, max_resolution_days, min_volume_24h
                FROM user_settings WHERE user_id=$1::uuid""",
             user_id,
         )
 
+    cats: list[str] = list(s_row["category_filters"]) if s_row and s_row["category_filters"] else []
     return AutoTradeState(
         auto_trade_on=bool(u_row["auto_trade_on"]) if u_row else False,
         active_preset=s_row["active_preset"] if s_row else None,
@@ -187,6 +191,10 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         capital_alloc_pct=float(s_row["capital_alloc_pct"]) if s_row else 0.5,
         tp_pct=float(s_row["tp_pct"]) if s_row and s_row["tp_pct"] else 0.0,
         sl_pct=float(s_row["sl_pct"]) if s_row and s_row["sl_pct"] else 0.0,
+        market_categories=cats,
+        min_liquidity=float(s_row["min_liquidity"]) if s_row and s_row["min_liquidity"] is not None else 1000.0,
+        max_resolution_days=int(s_row["max_resolution_days"]) if s_row and s_row["max_resolution_days"] is not None else None,
+        min_volume_24h=float(s_row["min_volume_24h"]) if s_row and s_row["min_volume_24h"] is not None else 100.0,
     )
 
 
@@ -276,6 +284,37 @@ async def customize_strategy(body: CustomizeRequest, user: _CurrentUser):
     _add("max_position_pct", body.max_position_pct)
     _add("auto_redeem_mode", body.auto_redeem_mode)
     _add("category_filters", body.category_filters)
+
+    if not updates:
+        return {"updated": False}
+
+    params.append(user_id)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            f"UPDATE user_settings SET {', '.join(updates)}, updated_at=NOW() WHERE user_id=${len(params)}::uuid",
+            *params,
+        )
+    return {"updated": True}
+
+
+@router.patch("/autotrade/market-filters")
+async def update_market_filters(body: MarketFilterUpdate, user: _CurrentUser):
+    pool = get_pool()
+    user_id = user["user_id"]
+    updates: list[str] = []
+    params: list = []
+
+    def _add(col: str, val):
+        if val is not None:
+            params.append(val)
+            updates.append(f"{col}=${len(params)}")
+
+    if body.market_categories is not None:
+        params.append(body.market_categories)
+        updates.append(f"category_filters=${len(params)}")
+    _add("min_liquidity", body.min_liquidity)
+    _add("max_resolution_days", body.max_resolution_days)
+    _add("min_volume_24h", body.min_volume_24h)
 
     if not updates:
         return {"updated": False}
@@ -387,12 +426,15 @@ async def get_settings_endpoint(user: _CurrentUser):
     user_id = user["user_id"]
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT risk_profile, notifications_on FROM user_settings WHERE user_id=$1::uuid",
+            """SELECT risk_profile, notifications_on, auto_redeem, auto_redeem_mode
+               FROM user_settings WHERE user_id=$1::uuid""",
             user_id,
         )
     return {
         "risk_profile": row["risk_profile"] if row else "balanced",
         "notifications_on": bool(row["notifications_on"]) if row else True,
+        "auto_redeem": bool(row["auto_redeem"]) if row and row["auto_redeem"] is not None else False,
+        "redeem_mode": row["auto_redeem_mode"] if row and row["auto_redeem_mode"] else "hourly",
     }
 
 
@@ -410,6 +452,36 @@ async def update_settings(body: UserSettingsUpdate, user: _CurrentUser):
     if body.notifications_on is not None:
         params.append(body.notifications_on)
         updates.append(f"notifications_on=${len(params)}")
+
+    if not updates:
+        return {"updated": False}
+
+    params.append(user_id)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            f"UPDATE user_settings SET {', '.join(updates)}, updated_at=NOW() WHERE user_id=${len(params)}::uuid",
+            *params,
+        )
+    return {"updated": True}
+
+
+@router.patch("/config/trading")
+async def update_trading_settings(body: TradingSettingsUpdate, user: _CurrentUser):
+    pool = get_pool()
+    user_id = user["user_id"]
+    updates: list[str] = []
+    params: list = []
+
+    if body.auto_redeem is not None:
+        params.append(body.auto_redeem)
+        updates.append(f"auto_redeem=${len(params)}")
+
+    if body.redeem_mode is not None:
+        if body.redeem_mode not in ("instant", "hourly"):
+            from fastapi import HTTPException as _HTTPException
+            raise _HTTPException(status_code=422, detail="redeem_mode must be 'instant' or 'hourly'")
+        params.append(body.redeem_mode)
+        updates.append(f"auto_redeem_mode=${len(params)}")
 
     if not updates:
         return {"updated": False}

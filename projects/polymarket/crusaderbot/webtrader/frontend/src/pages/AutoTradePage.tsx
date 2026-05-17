@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HeroCard } from "../components/HeroCard";
 import { TopBar } from "../components/TopBar";
-import { makeApi, type AutoTradeState, type RiskProfileParams } from "../lib/api";
+import { makeApi, type AutoTradeState, type MarketFilterSettings, type RiskProfileParams } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 
@@ -120,6 +120,15 @@ export function AutoTradePage() {
   const [customErr, setCustomErr]         = useState<string | null>(null);
   const [savingRisk, setSavingRisk]       = useState(false);
 
+  // Market filter state
+  const ALL_CATEGORIES = ["Politics","Sports","Crypto","Finance","Science","Entertainment","World","Weather","Other"];
+  const [filterCats, setFilterCats]           = useState<string[]>(ALL_CATEGORIES);
+  const [filterLiquidity, setFilterLiquidity] = useState<string>("1000");
+  const [filterResolution, setFilterResolution] = useState<string>("0");
+  const [filterVolume, setFilterVolume]       = useState<string>("100");
+  const [savingFilters, setSavingFilters]     = useState(false);
+  const [filterSaved, setFilterSaved]         = useState(false);
+
   const load = useCallback(async () => {
     const s = await api.getAutotrade();
     setState(s);
@@ -128,6 +137,10 @@ export function AutoTradePage() {
       setCustomTp(String(Math.round(s.tp_pct * 100)));
       setCustomSl(String(Math.round(s.sl_pct * 100)));
     }
+    if (s.market_categories?.length) setFilterCats(s.market_categories);
+    if (s.min_liquidity != null) setFilterLiquidity(String(s.min_liquidity));
+    if (s.max_resolution_days != null) setFilterResolution(String(s.max_resolution_days));
+    if (s.min_volume_24h != null) setFilterVolume(String(s.min_volume_24h));
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
@@ -153,6 +166,29 @@ export function AutoTradePage() {
     if (profile === "custom") return; // custom handled by save button
     await api.setRiskProfile({ profile });
     await load();
+  }
+
+  async function handleSaveFilters() {
+    setSavingFilters(true);
+    try {
+      const payload: MarketFilterSettings = {
+        market_categories: filterCats,
+        min_liquidity: parseFloat(filterLiquidity),
+        max_resolution_days: filterResolution === "0" ? null : parseInt(filterResolution),
+        min_volume_24h: parseFloat(filterVolume),
+      };
+      await api.updateMarketFilters(payload);
+      setFilterSaved(true);
+      setTimeout(() => setFilterSaved(false), 2000);
+    } finally {
+      setSavingFilters(false);
+    }
+  }
+
+  function toggleCategory(cat: string) {
+    setFilterCats(prev =>
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    );
   }
 
   async function handleSaveCustomRisk() {
@@ -232,7 +268,7 @@ export function AutoTradePage() {
           Select the algorithm to drive your trades. Independent of risk sizing.
         </p>
 
-        <div className="grid grid-cols-1 gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           {STRATEGY_PRESETS.map((p) => {
             const isActive = state.active_preset === p.key;
             return (
@@ -277,7 +313,7 @@ export function AutoTradePage() {
           {COMING_SOON.map((cs) => (
             <div
               key={cs.name}
-              className="w-full p-3 rounded-lg border border-surface-3 bg-surface-1/50 opacity-50 cursor-not-allowed"
+              className="w-full p-3 rounded-lg border border-surface-3 bg-surface-1/50 opacity-50 cursor-not-allowed md:col-span-1"
             >
               <div className="flex items-center gap-2">
                 <span className="text-lg">{cs.emoji}</span>
@@ -301,7 +337,7 @@ export function AutoTradePage() {
           Controls capital %, take profit, and stop loss. Applies to all trade types.
         </p>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {RISK_PROFILES.map((rp) => {
             const isActive = state.risk_profile === rp.key;
             return (
@@ -313,7 +349,7 @@ export function AutoTradePage() {
                   isActive
                     ? "border-gold bg-surface-2 shadow-[0_0_8px_rgba(191,155,48,0.2)]"
                     : "border-surface-3 bg-surface-1 hover:border-ink-3",
-                  rp.key === "custom" ? "col-span-2" : "",
+                  rp.key === "custom" ? "col-span-2 md:col-span-1" : "",
                 ].join(" ")}
               >
                 <div className="flex items-center gap-1.5 mb-1">
@@ -374,6 +410,95 @@ export function AutoTradePage() {
               </button>
             );
           })}
+        </div>
+
+        {/* ── SECTION C: Market Filter ── */}
+        <SectionTitle>Market Filter</SectionTitle>
+        <p className="text-ink-3 text-xs font-mono mb-3 mx-0.5">
+          Choose which market categories and liquidity thresholds the bot scans.
+        </p>
+
+        <div className="p-3 rounded-lg border border-surface-3 bg-surface-1 space-y-3">
+          {/* Categories */}
+          <div>
+            <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-2">Categories</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {ALL_CATEGORIES.map((cat) => {
+                const on = filterCats.includes(cat);
+                return (
+                  <label
+                    key={cat}
+                    className={[
+                      "flex items-center gap-1.5 px-2 py-1.5 rounded border cursor-pointer text-[10px] font-mono transition-colors",
+                      on
+                        ? "border-gold/50 bg-gold/10 text-gold"
+                        : "border-surface-3 bg-surface-2 text-ink-3 hover:border-ink-3",
+                    ].join(" ")}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() => toggleCategory(cat)}
+                      className="accent-gold w-3 h-3 shrink-0"
+                    />
+                    {cat}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Dropdowns */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <div>
+              <label className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono block mb-1">Min Liquidity</label>
+              <select
+                value={filterLiquidity}
+                onChange={e => setFilterLiquidity(e.target.value)}
+                className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+              >
+                <option value="1000">$1k</option>
+                <option value="5000">$5k</option>
+                <option value="10000">$10k</option>
+                <option value="50000">$50k</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono block mb-1">Max Time to Resolution</label>
+              <select
+                value={filterResolution}
+                onChange={e => setFilterResolution(e.target.value)}
+                className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+              >
+                <option value="0">Any</option>
+                <option value="1">1 day</option>
+                <option value="7">7 days</option>
+                <option value="30">30 days</option>
+                <option value="90">90 days</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono block mb-1">Min Volume 24h</label>
+              <select
+                value={filterVolume}
+                onChange={e => setFilterVolume(e.target.value)}
+                className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+              >
+                <option value="100">$100</option>
+                <option value="500">$500</option>
+                <option value="1000">$1k</option>
+                <option value="5000">$5k</option>
+              </select>
+            </div>
+          </div>
+
+          <button
+            onClick={() => void handleSaveFilters()}
+            disabled={savingFilters}
+            className="w-full py-1.5 rounded bg-gold/20 border border-gold/40 text-gold text-xs font-bold hover:bg-gold/30 disabled:opacity-50 transition-colors"
+          >
+            {filterSaved ? "✓ Saved" : savingFilters ? "Saving…" : "Save Market Filters"}
+          </button>
         </div>
 
       </div>
