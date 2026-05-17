@@ -10,6 +10,7 @@ import { StatsGrid } from "../components/StatsGrid";
 import { Terminal, type TerminalLine } from "../components/Terminal";
 import { Ticker } from "../components/Ticker";
 import { TopBar } from "../components/TopBar";
+import { useAlertCenter } from "../App";
 import { makeApi, type AlertItem, type DashboardSummary, type PositionItem } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
@@ -36,19 +37,19 @@ export function DashboardPage() {
   const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [recentActivity, setRecentActivity] = useState<PositionItem[]>([]);
-  const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Alerts come from the global AlertCenterContext (fetched once at AppShell level)
+  const { alerts: ctxAlerts } = useAlertCenter();
+  const alerts: AlertItem[] = ctxAlerts.slice(0, 5);
 
   const load = useCallback(async () => {
     try {
-      const [summary, recentPositions, alertList] = await Promise.all([
+      const [summary, recentPositions] = await Promise.all([
         api.getDashboard(),
         api.getPositions(undefined, 5),
-        api.getAlerts(),
       ]);
       setData(summary);
       setRecentActivity(recentPositions);
-      setAlerts(alertList.slice(0, 5));
     } catch (e) {
       setError(String(e));
     }
@@ -110,7 +111,7 @@ export function DashboardPage() {
 
   return (
     <>
-      <TopBar notifCount={alerts.length} />
+      <TopBar />
       <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
 
         {/* Desktop page header — hidden on mobile */}

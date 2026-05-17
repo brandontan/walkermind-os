@@ -1,9 +1,12 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { AlertCenter } from "./components/AlertCenter";
 import { BottomNav } from "./components/BottomNav";
 import { DesktopSidebar } from "./components/DesktopSidebar";
 import { AuthContext, useAuth, useAuthState } from "./lib/auth";
 import { SSEStatusContext, useSSE } from "./lib/sse";
 import { UiModeContext, useUiModeState } from "./lib/uiMode";
+import { makeApi, type AlertItem } from "./lib/api";
 import { AuthPage } from "./pages/AuthPage";
 import { AutoTradePage } from "./pages/AutoTradePage";
 import { CopyTradePage } from "./pages/CopyTradePage";
@@ -12,17 +15,82 @@ import { PortfolioPage } from "./pages/PortfolioPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WalletPage } from "./pages/WalletPage";
 
+const LAST_SEEN_KEY = "alertCenter_lastSeen";
+
+interface AlertCenterCtx {
+  alerts: AlertItem[];
+  unreadCount: number;
+  isOpen: boolean;
+  openAlertCenter: () => void;
+  closeAlertCenter: () => void;
+}
+
+export const AlertCenterContext = createContext<AlertCenterCtx>({
+  alerts: [],
+  unreadCount: 0,
+  isOpen: false,
+  openAlertCenter: () => undefined,
+  closeAlertCenter: () => undefined,
+});
+
+export function useAlertCenter(): AlertCenterCtx {
+  return useContext(AlertCenterContext);
+}
+
 function AppShell() {
   const { user } = useAuth();
   const location = useLocation();
   const isAuth = location.pathname === "/auth";
+  const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
 
   // Keep a single SSE connection alive at app level (no-op when token is null).
   const { connected: sseConnected } = useSSE(user?.token ?? null, {});
 
   const showChrome = Boolean(user) && !isAuth;
 
+  // ── Alert Center global state ────────────────────────────────────────────
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [lastSeen, setLastSeen] = useState<number>(() => {
+    const stored = localStorage.getItem(LAST_SEEN_KEY);
+    return stored ? Number(stored) : 0;
+  });
+
+  const fetchAlerts = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await api.getAlerts();
+      setAlerts(data);
+    } catch {
+      // non-critical — panel shows empty state
+    }
+  }, [api, user]);
+
+  useEffect(() => {
+    void fetchAlerts();
+  }, [fetchAlerts]);
+
+  const unreadCount = useMemo(
+    () => alerts.filter((a) => new Date(a.created_at).getTime() > lastSeen).length,
+    [alerts, lastSeen],
+  );
+
+  const openAlertCenter = useCallback(() => {
+    setIsAlertOpen(true);
+    const now = Date.now();
+    setLastSeen(now);
+    localStorage.setItem(LAST_SEEN_KEY, String(now));
+  }, []);
+
+  const closeAlertCenter = useCallback(() => setIsAlertOpen(false), []);
+
+  const alertCtx: AlertCenterCtx = useMemo(
+    () => ({ alerts, unreadCount, isOpen: isAlertOpen, openAlertCenter, closeAlertCenter }),
+    [alerts, unreadCount, isAlertOpen, openAlertCenter, closeAlertCenter],
+  );
+
   return (
+    <AlertCenterContext.Provider value={alertCtx}>
     <SSEStatusContext.Provider value={sseConnected}>
     <div className="min-h-screen text-ink-1 font-sans overflow-hidden">
       {/* Ambient washes — Tactical Terminal v3.2 */}
@@ -72,8 +140,16 @@ function AppShell() {
           {showChrome && <BottomNav />}
         </div>
       </div>
+
+      {/* Alert Center — rendered at root so it overlays all pages */}
+      <AlertCenter
+        isOpen={isAlertOpen}
+        alerts={alerts}
+        onClose={closeAlertCenter}
+      />
     </div>
     </SSEStatusContext.Provider>
+    </AlertCenterContext.Provider>
   );
 }
 

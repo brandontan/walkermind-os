@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TopBar } from "../components/TopBar";
+import { TxHash } from "../components/TxHash";
 import { makeApi } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
@@ -16,16 +17,17 @@ interface CopyTask {
   created_at: string;
 }
 
-function truncateWallet(addr: string): string {
-  if (addr.length < 12) return addr;
-  return `${addr.slice(0, 8)}…${addr.slice(-4)}`;
-}
-
 function FieldHelper({ text }: { text: string }) {
   return (
     <p className="text-[9px] text-ink-4 font-mono mt-0.5 leading-snug">{text}</p>
   );
 }
+
+// Shared input/select style: border-2 by default, gold on focus with soft glow, border-3 when active
+const INPUT_CLS =
+  "w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs font-mono text-ink-1 " +
+  "focus:border-gold focus:shadow-[0_0_0_2px_rgba(245,200,66,0.08)] focus:outline-none " +
+  "active:border-border-3";
 
 export function CopyTradePage() {
   const { user } = useAuth();
@@ -174,8 +176,8 @@ export function CopyTradePage() {
                             {t.status.toUpperCase()}
                           </span>
                         </div>
-                        <div className="text-[10px] text-ink-4 font-mono mt-0.5">
-                          {truncateWallet(t.wallet_address)}
+                        <div className="text-[10px] text-ink-4 mt-0.5">
+                          <TxHash hash={t.wallet_address} className="text-[10px]" />
                         </div>
                         <div className="text-[10px] text-ink-3 mt-1 flex gap-2 flex-wrap">
                           <span>{t.copy_direction === "buys_only" ? "📈 Buys only" : "🔄 Buys & Sells"}</span>
@@ -258,7 +260,7 @@ export function CopyTradePage() {
                   placeholder="0x..."
                   value={wallet}
                   onChange={e => setWallet(e.target.value)}
-                  className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                  className={INPUT_CLS}
                 />
                 <FieldHelper text="Find trader's address on their Polymarket profile → Copy Address" />
               </div>
@@ -270,7 +272,7 @@ export function CopyTradePage() {
                   placeholder="Bull Whale"
                   value={nickname}
                   onChange={e => setNickname(e.target.value)}
-                  className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                  className={INPUT_CLS}
                 />
               </div>
 
@@ -279,7 +281,7 @@ export function CopyTradePage() {
                 <select
                   value={direction}
                   onChange={e => setDirection(e.target.value as typeof direction)}
-                  className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                  className={INPUT_CLS}
                 >
                   <option value="buys_only">Buys Only</option>
                   <option value="buys_and_sells">Buys & Sells</option>
@@ -296,7 +298,7 @@ export function CopyTradePage() {
                 <select
                   value={copyType}
                   onChange={e => setCopyType(e.target.value as typeof copyType)}
-                  className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                  className={INPUT_CLS}
                 >
                   <option value="fixed">Fixed $</option>
                   <option value="percentage">Percentage %</option>
@@ -321,7 +323,7 @@ export function CopyTradePage() {
                   step={0.01}
                   value={amount}
                   onChange={e => setAmount(e.target.value)}
-                  className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                  className={INPUT_CLS}
                 />
               </div>
 
@@ -330,7 +332,7 @@ export function CopyTradePage() {
                 <select
                   value={slippage}
                   onChange={e => setSlippage(e.target.value as typeof slippage)}
-                  className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                  className={INPUT_CLS}
                 >
                   <option value="5">5%</option>
                   <option value="10">10%</option>
@@ -343,7 +345,7 @@ export function CopyTradePage() {
                 <select
                   value={execMode}
                   onChange={e => setExecMode(e.target.value as typeof execMode)}
-                  className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                  className={INPUT_CLS}
                 >
                   <option value="auto">Auto (Instant)</option>
                   <option value="manual">Manual (Confirm)</option>
@@ -355,7 +357,7 @@ export function CopyTradePage() {
                 <select
                   value={allowTopups ? "yes" : "no"}
                   onChange={e => setAllowTopups(e.target.value === "yes")}
-                  className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                  className={INPUT_CLS}
                 >
                   <option value="yes">Yes</option>
                   <option value="no">No</option>

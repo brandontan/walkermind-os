@@ -38,8 +38,10 @@ export function AddressCard({ label, address }: Props) {
         {label}
       </div>
       <div className="flex items-center gap-2.5">
-        <div className="font-mono text-[11px] text-ink-1 break-all flex-1 tracking-[0.5px]">
-          {address}
+        <div className="font-mono text-[11px] text-ink-1 flex-1 tracking-[0.5px]" title={address}>
+          {address.length > 12
+            ? `${address.slice(0, 6)}...${address.slice(-4)}`
+            : address}
         </div>
         <button
           type="button"

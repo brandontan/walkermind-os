@@ -23,9 +23,18 @@ import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 
 type Tab = "all" | "open" | "closed" | "orders";
-type Period = "1D" | "1W" | "1M" | "1Y" | "ALL";
+// 7D=1W, 30D=1M in backend; "All" maps to "ALL"
+type Period = "1D" | "7D" | "30D" | "All";
 
-const PERIODS: Period[] = ["1D", "1W", "1M", "1Y", "ALL"];
+const PERIODS: Period[] = ["1D", "7D", "30D", "All"];
+
+// Map UI period labels to backend query params
+const PERIOD_API: Record<Period, string> = {
+  "1D": "1D",
+  "7D": "1W",
+  "30D": "1M",
+  "All": "ALL",
+};
 
 export function PortfolioPage() {
   const { user } = useAuth();
@@ -34,7 +43,7 @@ export function PortfolioPage() {
   const [closed, setClosed] = useState<PositionItem[]>([]);
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [chartData, setChartData] = useState<ChartPoint[]>([]);
-  const [chartPeriod, setChartPeriod] = useState<Period>("1W");
+  const [chartPeriod, setChartPeriod] = useState<Period>("7D");
   const [tab, setTab] = useState<Tab>("open");
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +65,7 @@ export function PortfolioPage() {
   const loadChart = useCallback(
     async (period: Period) => {
       try {
-        const data = await api.getPortfolioChart(period);
+        const data = await api.getPortfolioChart(PERIOD_API[period]);
         setChartData(data);
       } catch {
         // non-critical — chart stays empty
@@ -241,7 +250,44 @@ function PortfolioHeader({ summary }: { summary: PortfolioSummary }) {
 
 // ── P&L Chart ───────────────────────────────────────────────────────────────
 
-type ChartEntry = { label: string; equity: number };
+// Custom tooltip: equity + date/time + PnL delta from period start
+function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ChartEntry }> }) {
+  if (!active || !payload?.length) return null;
+  const entry = payload[0].payload;
+  const delta = entry.pnlDelta;
+  const sign = delta >= 0 ? "+" : "−";
+  const deltaColor = Math.abs(delta) < 0.005 ? "#8FA3C4" : delta >= 0 ? "#00FF9C" : "#FF2D55";
+  let dateLabel = entry.ts;
+  try {
+    dateLabel = new Date(entry.ts).toLocaleString([], {
+      month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+    });
+  } catch { /* leave raw */ }
+  return (
+    <div style={{
+      background: "#0A1628",
+      border: "1px solid rgba(245,200,66,0.14)",
+      borderRadius: "3px",
+      padding: "6px 10px",
+      fontFamily: "JetBrains Mono, monospace",
+      fontSize: "11px",
+      color: "#F0F5FF",
+      minWidth: "120px",
+    }}>
+      <div style={{ color: "#455370", marginBottom: "3px", fontSize: "9px", letterSpacing: "1px" }}>
+        {dateLabel}
+      </div>
+      <div style={{ fontWeight: 600, marginBottom: "2px" }}>
+        ${entry.equity.toFixed(2)}
+      </div>
+      <div style={{ color: deltaColor, fontSize: "10px" }}>
+        {Math.abs(delta) < 0.005 ? "±$0.00" : `${sign}$${Math.abs(delta).toFixed(2)}`}
+      </div>
+    </div>
+  );
+}
+
+type ChartEntry = { label: string; equity: number; ts: string; pnlDelta: number };
 
 function PnlChart({
   data,
@@ -252,9 +298,12 @@ function PnlChart({
   period: Period;
   onPeriodChange: (p: Period) => void;
 }) {
+  const startEquity = data.length > 0 ? data[0].equity : 0;
   const chartEntries: ChartEntry[] = data.map((d) => ({
     label: fmtChartTime(d.ts, period),
     equity: d.equity,
+    ts: d.ts,
+    pnlDelta: d.equity - startEquity,
   }));
 
   const hasData = data.length >= 2;
@@ -309,8 +358,10 @@ function PnlChart({
                 </linearGradient>
               </defs>
               <CartesianGrid
-                strokeDasharray="2 4"
-                stroke="rgba(69,83,112,0.25)"
+                horizontal={true}
+                vertical={false}
+                stroke="rgba(245,200,66,0.06)"
+                strokeDasharray="0"
               />
               <XAxis
                 dataKey="label"
@@ -335,22 +386,7 @@ function PnlChart({
                 width={44}
                 tickFormatter={(v: number) => `$${v.toFixed(0)}`}
               />
-              <Tooltip
-                contentStyle={{
-                  background: "#0A1628",
-                  border: "1px solid #1E2D4A",
-                  borderRadius: "3px",
-                  fontSize: "11px",
-                  fontFamily: "monospace",
-                  color: "#F0F5FF",
-                  padding: "6px 10px",
-                }}
-                labelStyle={{ color: "#455370", marginBottom: "2px" }}
-                formatter={(value: number) => [
-                  `$${value.toFixed(2)}`,
-                  "Equity",
-                ]}
-              />
+              <Tooltip content={<ChartTooltip />} />
               <Area
                 type="monotone"
                 dataKey="equity"
@@ -476,7 +512,7 @@ function fmtChartTime(ts: string, period: Period): string {
     const d = new Date(ts);
     if (period === "1D")
       return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    if (period === "1W" || period === "1M")
+    if (period === "7D" || period === "30D")
       return d.toLocaleDateString([], { month: "short", day: "numeric" });
     return d.toLocaleDateString([], { month: "short", year: "2-digit" });
   } catch {
