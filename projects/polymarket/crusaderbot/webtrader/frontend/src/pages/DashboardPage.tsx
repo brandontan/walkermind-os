@@ -138,10 +138,10 @@ export function DashboardPage() {
         )}
 
         {/* Desktop: 2-column grid — Left: Hero + Stats | Right: Scanner + Activity */}
-        <div className="md:grid md:grid-cols-2 md:gap-5 md:items-start">
+        <div className="md:grid md:grid-cols-1 lg:grid-cols-2 md:gap-5 md:items-start min-w-0 overflow-x-hidden">
 
           {/* LEFT COLUMN: Hero card + Stats */}
-          <div>
+          <div className="md:min-w-0 md:overflow-hidden">
             <HeroCard
               label="Equity"
               value={equityWhole}
@@ -219,7 +219,7 @@ export function DashboardPage() {
           </div>
 
           {/* RIGHT COLUMN: Scanner terminal + Recent Activity */}
-          <div>
+          <div className="md:min-w-0 md:overflow-hidden">
             <AdvancedOnly>
               <Terminal lines={buildScannerLines(alerts, data)} />
             </AdvancedOnly>
