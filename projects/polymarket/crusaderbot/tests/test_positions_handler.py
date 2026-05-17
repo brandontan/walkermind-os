@@ -244,3 +244,55 @@ def test_force_close_confirm_yes_position_missing():
 
     marker.assert_not_called()
     assert any("not found" in r.lower() for r in replies)
+
+
+# ---------------------------------------------------------------------------
+# delete_position_with_ledger — atomicity (Part 2 of bundle)
+# ---------------------------------------------------------------------------
+
+
+def test_delete_position_with_ledger_issues_deletes_inside_transaction():
+    """Both DELETE statements must run inside a single transaction, and the
+    ledger must be deleted BEFORE the position (FK safety order)."""
+    import asyncio
+    from uuid import uuid4
+    from unittest.mock import AsyncMock, patch, MagicMock
+
+    from projects.polymarket.crusaderbot.domain.positions.registry import (
+        delete_position_with_ledger,
+    )
+
+    position_id = uuid4()
+    user_id = uuid4()
+    sql_log: list[tuple[str, tuple]] = []
+
+    class _TxCtx:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *_): return False
+
+    class _FakeConn:
+        def transaction(self):
+            return _TxCtx()
+
+        async def execute(self, sql, *args):
+            sql_log.append((sql, args))
+
+    async def _run():
+        conn = _FakeConn()
+        await delete_position_with_ledger(conn, position_id, user_id)
+
+    asyncio.run(_run())
+
+    assert len(sql_log) == 2, f"Expected 2 DELETE calls, got {len(sql_log)}: {sql_log}"
+
+    ledger_sql, ledger_args = sql_log[0]
+    position_sql, position_args = sql_log[1]
+
+    assert "ledger" in ledger_sql.lower(), "First DELETE must target ledger"
+    assert "positions" in position_sql.lower(), "Second DELETE must target positions"
+
+    # Both deletes must scope to the correct position_id and user_id
+    assert position_id in ledger_args
+    assert user_id in ledger_args
+    assert position_id in position_args
+    assert user_id in position_args

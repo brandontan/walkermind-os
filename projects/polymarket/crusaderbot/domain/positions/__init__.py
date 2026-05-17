@@ -12,6 +12,7 @@ from __future__ import annotations
 from .registry import (
     ExitReason,
     OpenPositionForExit,
+    delete_position_with_ledger,
     finalize_close_failed,
     list_open_for_exit,
     mark_force_close_intent_for_user,
@@ -23,6 +24,7 @@ from .registry import (
 __all__ = [
     "ExitReason",
     "OpenPositionForExit",
+    "delete_position_with_ledger",
     "finalize_close_failed",
     "list_open_for_exit",
     "mark_force_close_intent_for_user",

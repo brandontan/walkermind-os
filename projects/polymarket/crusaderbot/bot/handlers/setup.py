@@ -242,7 +242,17 @@ async def set_risk(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not ok:
         return
     choice = (q.data or "").split(":", 1)[-1]
-    if choice not in ("conservative", "balanced", "aggressive"):
+    if choice not in ("conservative", "balanced", "aggressive", "custom"):
+        return
+    if choice == "custom":
+        if ctx.user_data is not None:
+            ctx.user_data["awaiting"] = "risk_custom_capital"
+        await q.message.reply_text(
+            "<b>⚙️ Custom Risk — Step 1/3</b>\n\n"
+            "Enter capital allocation % (1–80):\n"
+            "<i>e.g. 30 for 30% of balance per trade</i>",
+            parse_mode="HTML",
+        )
         return
     await update_settings(user["id"], risk_profile=choice)
     await q.message.edit_reply_markup(reply_markup=risk_picker(choice))

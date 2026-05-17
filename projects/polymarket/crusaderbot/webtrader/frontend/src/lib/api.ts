@@ -39,6 +39,7 @@ export function makeApi(token: string | null) {
     getAutotrade: () => get<AutoTradeState>("/autotrade"),
     toggleAutotrade: (enabled: boolean) => post<{ auto_trade_on: boolean }>("/autotrade/toggle", { enabled }),
     activatePreset: (preset_key: string) => post<{ active_preset: string }>("/autotrade/preset", { preset_key }),
+    setRiskProfile: (params: RiskProfileParams) => patch<{ risk_profile: string }>("/autotrade/risk-profile", params),
     customizeStrategy: (params: CustomizeParams) => post<{ updated: boolean }>("/autotrade/customize", params),
     getWallet: () => get<WalletInfo>("/wallet"),
     getSettings: () => get<UserSettings>("/settings"),
@@ -46,6 +47,15 @@ export function makeApi(token: string | null) {
     getAlerts: () => get<AlertItem[]>("/alerts"),
     getKillSwitch: () => get<{ active: boolean }>("/killswitch"),
     postKill: () => post<{ ok: boolean }>("/kill"),
+    listCopyTasks: () => get<CopyTask[]>("/copy-trade/tasks"),
+    createCopyTask: (body: CopyTaskCreate) =>
+      post<{ id: string; status: string }>("/copy-trade/tasks", body),
+    updateCopyTask: (id: string, body: CopyTaskPatch) =>
+      patch<{ updated: boolean }>(`/copy-trade/tasks/${id}`, body),
+    deleteCopyTask: (id: string) =>
+      request<void>(`/copy-trade/tasks/${id}`, token, { method: "DELETE" }),
+    getCopyTaskStats: (id: string) =>
+      get<Record<string, unknown>>(`/copy-trade/tasks/${id}/stats`),
   };
 }
 
@@ -113,6 +123,13 @@ export interface CustomizeParams {
   category_filters?: string[];
 }
 
+export interface RiskProfileParams {
+  profile: "conservative" | "balanced" | "aggressive" | "custom";
+  capital_alloc_pct?: number;
+  tp_pct?: number;
+  sl_pct?: number;
+}
+
 export interface WalletInfo {
   deposit_address: string;
   balance_usdc: number;
@@ -137,4 +154,36 @@ export interface AlertItem {
   title: string;
   body: string | null;
   created_at: string;
+}
+
+export interface CopyTask {
+  id: string;
+  wallet_address: string;
+  nickname: string;
+  status: "active" | "paused";
+  copy_direction: string;
+  copy_mode: string;
+  copy_amount: number;
+  execution_mode: string;
+  allow_topups: boolean;
+  created_at: string;
+}
+
+export interface CopyTaskCreate {
+  wallet_address: string;
+  nickname?: string;
+  copy_direction?: string;
+  copy_type?: string;
+  amount?: number;
+  execution_mode?: string;
+  slippage_pct?: number;
+  allow_topups?: boolean;
+}
+
+export interface CopyTaskPatch {
+  nickname?: string;
+  copy_direction?: string;
+  execution_mode?: string;
+  allow_topups?: boolean;
+  status?: string;
 }

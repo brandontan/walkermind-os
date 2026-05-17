@@ -162,3 +162,4 @@ fully operational in paper mode on Fly.io IAD. Idempotency keys active.
 2026-05-17 16:00 | WARP/CRUSADERBOT-WEBTRADER-BUILD-FIX | Build pipeline verified intact (Dockerfile npm run build confirmed); BottomNav label Folio→Portfolio corrected; MINOR, FOUNDATION
 
 2026-05-17 20:00 | WARP/CRUSADERBOT-SCANNER-SYNC-FIX | scanner self-seeds markets table via _upsert_market(); scheduler.sync_markets outcomePrices JSON parse fixed; eliminates skipped_market_not_synced on every signal_following tick; STANDARD, NARROW INTEGRATION
+2026-05-17 16:29 | WARP/CRUSADERBOT-STRATEGY-RISK-COPY | 5-part bundle: preset isolation two-phase scan (LibStrategyRunner + _PRESET_ALLOWED), ledger atomic delete utility, AutoTradePage 8-preset restructure, TG auto 2-sub-menu + custom risk wizard, copy-trade 8-step wizard + CopyTradePage + monitor filters + migration 035; MAJOR, FULL RUNTIME INTEGRATION

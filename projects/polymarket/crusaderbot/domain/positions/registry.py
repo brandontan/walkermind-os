@@ -360,6 +360,31 @@ async def reset_close_failure(position_id: UUID, user_id: UUID) -> None:
         )
 
 
+async def delete_position_with_ledger(
+    position_id: UUID,
+    user_id: UUID,
+) -> None:
+    """Atomically hard-delete a position and all associated ledger entries.
+
+    Use ONLY for admin correction of bad data. Normal trade exits must go
+    through close_position() which updates status and creates a credit entry.
+    Deleting a position without removing its ledger rows leaves orphaned debit
+    entries that inflate the user's shown loss — this function prevents that.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "DELETE FROM ledger WHERE ref_id = $1 AND user_id = $2",
+                position_id, user_id,
+            )
+            await conn.execute(
+                "DELETE FROM positions WHERE id = $1 AND user_id = $2",
+                position_id, user_id,
+            )
+    logger.info("position_hard_deleted position=%s user=%s", position_id, user_id)
+
+
 async def finalize_close_failed(position_id: UUID, user_id: UUID, error_msg: str) -> bool:
     """Flip a position to ``status = 'close_failed'`` and stamp exit_reason.
 

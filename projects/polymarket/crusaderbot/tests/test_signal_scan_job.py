@@ -654,3 +654,56 @@ def test_process_candidate_skips_resume_when_kill_switch_active():
 
     # Kill switch active — router must not be called, row remains 'queued' for retry.
     assert not executed["called"]
+
+
+# ===========================================================================
+# Preset isolation tests (CRUSADERBOT-STRATEGY-RISK-COPY)
+# ===========================================================================
+
+from projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job import (
+    _preset_allows,
+)
+
+
+def test_preset_allows_whale_mirror_only_whale_tracking():
+    assert _preset_allows("whale_mirror", "whale_tracking") is True
+    assert _preset_allows("whale_mirror", "trend_breakout") is False
+    assert _preset_allows("whale_mirror", "momentum") is False
+
+
+def test_preset_allows_contrarian_only_momentum():
+    assert _preset_allows("contrarian", "momentum") is True
+    assert _preset_allows("contrarian", "trend_breakout") is False
+    assert _preset_allows("contrarian", "pair_arb") is False
+
+
+def test_preset_allows_ensemble_subset():
+    for name in ("ensemble", "trend_breakout", "momentum", "value_investor"):
+        assert _preset_allows("ensemble", name) is True, f"ensemble should allow {name}"
+    assert _preset_allows("ensemble", "pair_arb") is False
+    assert _preset_allows("ensemble", "whale_tracking") is False
+
+
+def test_preset_allows_full_auto_all_strategies():
+    from projects.polymarket.crusaderbot.services.signal_scan.lib_strategy_runner import (
+        ENABLED_STRATEGIES, DEFERRED_STRATEGIES,
+    )
+    for name in list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES):
+        assert _preset_allows("full_auto", name) is True, f"full_auto should allow {name}"
+
+
+def test_preset_allows_none_preset_all_strategies():
+    from projects.polymarket.crusaderbot.services.signal_scan.lib_strategy_runner import (
+        ENABLED_STRATEGIES,
+    )
+    for name in ENABLED_STRATEGIES:
+        assert _preset_allows(None, name) is True, f"None preset should allow {name}"
+
+
+def test_preset_allows_unknown_preset_defaults_to_all():
+    # Unknown preset keys fall back to full allow via _LIB_STRATEGY_NAMES default.
+    from projects.polymarket.crusaderbot.services.signal_scan.lib_strategy_runner import (
+        ENABLED_STRATEGIES,
+    )
+    for name in ENABLED_STRATEGIES:
+        assert _preset_allows("unknown_key", name) is True

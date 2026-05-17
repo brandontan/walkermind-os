@@ -100,6 +100,13 @@ class CustomizeRequest(BaseModel):
     category_filters: Optional[list[str]] = None
 
 
+class RiskProfileRequest(BaseModel):
+    profile: str  # conservative | balanced | aggressive | custom
+    capital_alloc_pct: Optional[float] = None  # required when profile='custom'
+    tp_pct: Optional[float] = None             # required when profile='custom'
+    sl_pct: Optional[float] = None             # required when profile='custom'
+
+
 # ── Wallet ────────────────────────────────────────────────────────────────────
 
 class LedgerEntry(BaseModel):
