@@ -31,7 +31,7 @@
 - PAPER only
 - SENTINEL required for MAJOR lanes
 
-## Week 2 – Live Gate + Premium UX — IN PROGRESS
+## Week 2 – Live Gate + Premium UX — COMPLETE
 
 | Track | Scope | Tier | Status | Notes |
 |---|---|---|---|---|

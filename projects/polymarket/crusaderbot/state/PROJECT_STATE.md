@@ -1,31 +1,27 @@
-Last Updated : 2026-05-17 23:15
-Status       : Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs open. Track E (daily P&L report) PR open. notification_service.register_handlers() wired into main.py startup. Production PAPER ONLY.
-Last Updated : 2026-05-17 23:59
-Status       : Track D (FAST-RISK-SAFETY) PR open. Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs open. Production PAPER ONLY.
-Last Updated : 2026-05-18 00:15
-Status       : SENTRY-HOTFIX-P0 in progress. Migration 032 crash + job_runs dict serialization + positions schema fixes. Production PAPER ONLY.
+Last Updated : 2026-05-17 14:30
+Status       : All Fast Track PRs merged (PR #1090–#1098). No open PRs on GitHub. Closed beta observation active. Production PAPER ONLY.
 
 [COMPLETED]
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
-- telegram-ux-final-polish PR open (2026-05-17). Wallet copy-address bug fixed (rsplit parse), portfolio_chart tier gate removed, wallet_p5_kb home label corrected, emergency_done_p5_kb auto-trade label corrected, _hub_text unused tier param removed. compileall clean. STANDARD, NARROW INTEGRATION.
+- telegram-ux-final-polish MERGED PR #1088 (2026-05-17). Wallet copy-address bug fixed (rsplit parse), portfolio_chart tier gate removed, wallet_p5_kb home label corrected, emergency_done_p5_kb auto-trade label corrected, _hub_text unused tier param removed. compileall clean. STANDARD, NARROW INTEGRATION.
 - crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.
 - signal-scanner-enable MERGED PR #1079 (2026-05-17). Migration 031 feed backfill + user enrollment; signal_scan_job access_tier filter relaxed for paper; users.py _enroll_signal_following on new user creation. STANDARD, NARROW INTEGRATION.
 - role-model-admin-user MERGED PR #1076 (2026-05-17). Two-role refactor: risk gate step-3 tier check scoped to LIVE only (paper open to every user); bot/handlers/setup.py _ensure_tier2→_ensure_user (no setup gate); middleware/tier wording collapsed to two canonical messages; admin.py two-role surface (🛠 Admin sections, settier user|admin mapped onto FREE/ADMIN — no migration); assert_live_guards DELIBERATELY UNCHANGED per CLAUDE.md. SENTINEL 97/100. MAJOR, NARROW INTEGRATION.
 - crusaderbot-finalize MERGED PR #1075 (2026-05-17). Public-ready paper beta hardening: config.py ENABLE_LIVE_TRADING default flipped True→False (paper-safe; fly.toml prod posture unchanged) + readiness_validator comment; copy_trade.py dead Phase 5F placeholder branches removed + edit_pnl implemented via repository.task_pnl_summary (positions⋈orders idempotency_key scoping); users.user_notifications_enabled + notifications_enabled_by_telegram_id (fail-open) wired into trade_notifications._send and daily_pnl_summary loop; settings.py docstring corrected; scheduler.sweep_deposits CTE COUNT fix + deposit_sweep audit; api/ops.py kill/resume client_host audit breadcrumb + documented deferral; pytest.ini testpaths polyquantbot→crusaderbot; .env.example + DEPLOY.md completed; PRODUCTION_CHECKLIST.md added. 1432 tests pass, ruff clean. SENTINEL 96/100. MAJOR, NARROW INTEGRATION.
 - webtrader-v3-and-bot-polish MERGED PR #1069 (2026-05-16). Tactical Terminal v3.2 atomic delivery — frontend: 15 new shared components (TopBar/Ticker/HeroCard/StatCard/StatsGrid/Terminal/PositionCard/EmptyState/Toggle/FilterTabs/WalletCard/AddressCard/SettingsGroup/AdvancedGate + StrategyCard rewrite), UiMode context with localStorage persist, scanline+grain+ambient atmosphere, clip-path HUD geometry, 6 pages rewritten; bot: messages.py EMOJI/DIV/_table + 5 new alert templates (signal/position_open/position_close/daily_summary/health), keyboards/_common.py shared row helpers (home_back_row/confirm_cancel_row/pagination_row), dispatcher.py drops 4 aliases (/pnl /close /scan /mode) + adds _nav_cb for nav:* prefix, keyboards/presets.py + settings.py 2-col mobile cleanup; tests 1400 pass 0 fail; npm build 62 modules clean; ruff clean. Supersedes WARP/CRUSADERBOT-WEBTRADER-REDESIGN. MAJOR, FULL RUNTIME INTEGRATION.
 - bot-polish-beta MERGED PR #1068 (2026-05-16). P0: fly.toml immediate deploy strategy + asyncpg max_inactive_connection_lifetime=60s + trades.py/share_card.py market_question→JOIN markets. Area 1: alert_user_market/close_failed user notifs suppressed in exit_watcher; alert_startup dead code + os import deleted from alerts.py; test_health.py refs updated. Area 2: trade notif inline keyboards (notify_entry/tp/sl/manual/emergency) + deposit KB in scheduler.py + dashboard switched to main_menu() state-driven. Area 3: /help admin-scoped; weekly_insights active-only filter; hourly_report JOIN bug fixed (t.user_id=u.id). MAJOR, FULL RUNTIME INTEGRATION.
-- startup-logo-fix PR open (2026-05-16). 60s Redis dedup on startup notification; duplicate alert_startup call removed; logo img added to DashboardPage topbar (32px) and AuthPage (80px); public/ dir created. Logo PNG binary pending. STANDARD, NARROW INTEGRATION.
+- WARP/CRUSADERBOT-SENTRY-HOTFIX-P0 MERGED PR #1098 (2026-05-18). 3 Sentry production blockers: migration 032 rewrite (ALTER TABLE copy_trade_events), job_tracker json.dumps(metadata), migration 034 positions schema + share_card exit_price + dashboard created_at. STANDARD, NARROW INTEGRATION.
+- WARP/CRUSADERBOT-FAST-RISK-SAFETY MERGED PR #1096 (2026-05-18). Track D: validate_risk_caps (10%/80%/-$50/20 caps) + unified kill switch executor (3 paths → execute_kill_switch) + migration 032 system_flags + audit_log. MAJOR, FULL RUNTIME INTEGRATION.
+- WARP/CRUSADERBOT-FAST-DAILY-PNL MERGED PR #1095 (2026-05-18). Track E daily P&L report service. STANDARD, NARROW INTEGRATION.
+- WARP/CRUSADERBOT-FAST-COPY-EXEC MERGED PR #1094 (2026-05-18). Track B: copy_trade_events table (migration 032) + copy_trade.executed event emission in monitor.py. MAJOR, FULL RUNTIME INTEGRATION.
+- WARP/CRUSADERBOT-FAST-TRADE-NOTIFS-WIRE MERGED PR #1093 (2026-05-18). wire-notification-handlers: register_notification_handlers() called in main.py lifespan after bot_app.start(). MINOR, NARROW INTEGRATION.
+- WARP/CRUSADERBOT-FAST-TRADE-ENGINE MERGED PR #1092 (2026-05-17). Track A: signal-to-order + TP/SL pipeline audit; EXIT_WATCH_INTERVAL 60→30s; 49 hermetic tests pass. MAJOR, FULL RUNTIME INTEGRATION.
+- WARP/CRUSADERBOT-FAST-TRADE-NOTIFS MERGED PR #1091 (2026-05-17). Track C: core/event_bus.py + services/notification_service.py — position.opened/closed + copy_trade.executed receipts. STANDARD, NARROW INTEGRATION.
+- WARP/CRUSADERBOT-MVP-BUGFIX-ROUND1 MERGED PR #1090 (2026-05-17). Handler audit round 1 — 9 bugs fixed. STANDARD, NARROW INTEGRATION.
+- startup-logo-fix closed on GitHub (2026-05-16). 60s Redis dedup on startup notification; duplicate alert_startup call removed; logo img added to DashboardPage topbar (32px) and AuthPage (80px); public/ dir created. Logo PNG binary pending. STANDARD, NARROW INTEGRATION.
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- WARP/CRUSADERBOT-SENTRY-HOTFIX-P0: P0 startup crash (migration 032 ALTER TABLE fix) + P1 job_runs dict serialization (json.dumps) + P3 schema (positions market_question/strategy_type + share_card exit_price + dashboard created_at). PR open. WARP🔹CMD review required. Tier: STANDARD.
-- WARP/CRUSADERBOT-FAST-RISK-SAFETY: Track D risk caps + kill switch. PR open. SENTINEL validation required before merge.
-- WARP/CRUSADERBOT-FAST-TRADE-ENGINE: Track A signal-to-order + TP/SL. PR open. SENTINEL validation required before merge.
-- WARP/CRUSADERBOT-MVP-BUGFIX-ROUND1: handler audit fixes PR open, awaiting WARP🔹CMD merge decision.
-- WARP/CRUSADERBOT-FAST-TRADE-NOTIFS: Track C event bus + notification service PR open. Awaiting Track A merge first.
-- WARP/CRUSADERBOT-FAST-TRADE-NOTIFS-WIRE: notification_service.register_handlers() wired into main.py. PR open, awaiting WARP🔹CMD merge.
-- WARP/CRUSADERBOT-FAST-DAILY-PNL: Track E daily P&L report service PR open. Awaiting WARP🔹CMD review. STANDARD, NARROW INTEGRATION.
-- WARP/CRUSADERBOT-FAST-COPY-EXEC: Track B copy_trade.executed event + copy_trade_events table + migration 032. PR open. SENTINEL validation required before merge.
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderPolybot live, Fly.io app running, PAPER ONLY.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
@@ -44,18 +40,9 @@ Status       : SENTRY-HOTFIX-P0 in progress. Migration 032 crash + job_runs dict
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for CRUSADERBOT-SENTRY-HOTFIX-P0 (3 Sentry blockers: migration 032 crash + job_runs serialization + schema). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-sentry-hotfix-p0.md. Tier: STANDARD.
-- WARP🔹CMD review required for crusaderbot-fast-daily-pnl (Track E daily P&L report service). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-daily-pnl.md. Tier: STANDARD.
-- WARP•SENTINEL validation required for risk-caps-kill-switch (Track D: validate_risk_caps + 3-path kill switch). Source: projects/polymarket/crusaderbot/reports/forge/risk-caps-kill-switch.md. Tier: MAJOR.
-- WARP🔹CMD review required for wire-notification-handlers (register_handlers() wired into main.py). Source: projects/polymarket/crusaderbot/reports/forge/wire-notification-handlers.md. Tier: MINOR.
-- WARP•SENTINEL validation required for fast-trade-engine (Track A: signal-to-order + TP/SL). Source: projects/polymarket/crusaderbot/reports/forge/fast-trade-engine.md. Tier: MAJOR.
-- WARP•SENTINEL validation required for crusaderbot-fast-copy-exec (Track B: copy_trade.executed event + copy_trade_events table). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-copy-exec.md. Tier: MAJOR.
-- WARP🔹CMD review required for trade-notifications Track C (event bus + notification service). Source: projects/polymarket/crusaderbot/reports/forge/trade-notifications.md. Tier: STANDARD. Merge after Track A.
-- WARP🔹CMD review required for crusaderbot-mvp-bugfix-round1 (9 handler bugs fixed). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-bugfix-round1.md. Tier: STANDARD.
-- WARP🔹CMD review required for autonomous-trading-bot MVP pipeline. Source: projects/polymarket/crusaderbot/reports/forge/autonomous-trading-bot.md. Tier: MAJOR.
-- Apply migration 031 to production DB (idempotent — safe to apply immediately after #1079 merge).
-- Apply migration 030 to production. Then deploy main to Fly.io — trading-unblock fix is live on main (MERGED PR #1065).
-- WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
+- WARP🔹CMD production deploy decision required: apply pending migrations (030, 031, 034) to production DB, then deploy main to Fly.io.
+- WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
+- Closed beta observation continues — no new feature PRs in Week 4.
 
 [KNOWN ISSUES]
 - WARP🔹CMD requested removal of the internal Tier-4/activation-guard LIVE-trading safety gate; WARP•FORGE declined that sub-item only — CLAUDE.md forbids bypassing the live-trading guard. assert_live_guards is intentionally preserved (invisible to users; live remains owner-gated + OFF). All other role-model items delivered as requested.

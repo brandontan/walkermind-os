@@ -6,14 +6,14 @@
 ---
 
 ## Right Now
-- [ ] signal-engine-fix — PR open (WARP/CRUSADERBOT-SIGNAL-ENGINE-FIX, 2026-05-17). edge_finder 0-signal bug fixed (RC-1 edge scoring, RC-2 liquidity floor, RC-3 idempotency dedup). STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
+- [x] signal-engine-fix — MERGED PR #1086 (WARP/CRUSADERBOT-SIGNAL-ENGINE-FIX, 2026-05-17). edge_finder 0-signal bug fixed (RC-1 edge scoring, RC-2 liquidity floor, RC-3 idempotency dedup). STANDARD, NARROW INTEGRATION.
 - [x] role-model-admin-user — MERGED PR #1076 (2026-05-17). Two-role model (admin + user): paper opened to every user, operator/tier/allowlist/premium wording removed, assert_live_guards intact. SENTINEL 97/100. MAJOR, NARROW INTEGRATION.
 - [x] crusaderbot-finalize — MERGED PR #1075 (2026-05-17). Public-ready paper beta: ENABLE_LIVE_TRADING default→False, copy-task P&L, notifications_on enforced fail-open, sweep count fix + audit, ops client_host breadcrumb, pytest.ini fix, .env.example + DEPLOY runbook + PRODUCTION_CHECKLIST.md. 1432 pytest pass, ruff clean. SENTINEL 96/100. MAJOR, NARROW INTEGRATION.
 - [x] webtrader-v3-and-bot-polish — MERGED PR #1069 (2026-05-16). Tactical Terminal v3.2 atomic delivery: 15 new shared components + Advanced Mode toggle + 6 page rewrites + bot template foundation (EMOJI/DIV/_table + 5 alert templates) + command consolidation + nav:* callback namespace. Supersedes WARP/CRUSADERBOT-WEBTRADER-REDESIGN (already merged earlier as PR #1062). npm build clean, ruff clean, 1400 pytest pass. WARP🔹CMD CONDITIONAL verdict at reports/sentinel/webtrader-v3-and-bot-polish.md. MAJOR, FULL RUNTIME INTEGRATION.
 - [x] WARP/full-callback-prefix-migration — PR open (2026-05-17). F-02+F-03 from sentinel report. 8 keyboard modules migrated to _common.py helpers (home_row / home_back_row / confirm_cancel_row); dispatcher nav: comment updated; 1 test updated (positions nav:home). ruff clean, compileall clean. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - [x] crusaderbot-phase5-ux-rebuild — MERGED PR #1055 (2026-05-16). Full UX rebuild: 6 screens, group=-1 nav fix, presets.py, messages.py, migration 028. ruff+compileall clean. MAJOR, NARROW INTEGRATION.
 - [x] mvp-cleanup — WARP/CRUSADERBOT-MVP-CLEANUP (2026-05-15). ParseMode HTML migration (17 handlers + notifier + domain/activation), operator→admin purge, 24 .bak files deleted, 3 dead keyboard functions removed. ruff+compileall clean. STANDARD, NARROW INTEGRATION. PR open — awaiting WARP🔹CMD review.
-- [ ] crusaderbot-ux-patch-1 — PR open (WARP/CRUSADERBOT-UX-PATCH-1, 2026-05-15). Startup message OPERATOR_CHAT_ID guard + bot-ON ReplyKeyboard layout (Active Monitor/Portfolio+Settings/Emergency). _MENU_BUTTONS updated. 74 hermetic UX tests green. MINOR, NARROW INTEGRATION. Awaiting WARP🔹CMD review and merge.
+- [x] crusaderbot-ux-patch-1 — closed on GitHub (WARP/CRUSADERBOT-UX-PATCH-1, 2026-05-15). Startup message OPERATOR_CHAT_ID guard + bot-ON ReplyKeyboard layout (Active Monitor/Portfolio+Settings/Emergency). _MENU_BUTTONS updated. 74 hermetic UX tests green. MINOR, NARROW INTEGRATION.
 - [x] crusaderbot-mvp-runtime-ux — MERGED PR #1049 (2026-05-15). 14 phases A–N complete. 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline, scanner state, tier wording cleanup. Closes #1036, #1034. 1405 tests green. MAJOR, FULL RUNTIME INTEGRATION.
 - Production posture: Telegram + Fly.io live, PAPER ONLY; activation guards remain NOT SET.
 - NEXT: Apply migrations 027+028 before production deploy. WARP🔹CMD deployment decision.
@@ -45,7 +45,7 @@ Done condition: WARP🔹CMD merge decision on each lane; activation guards remai
 
 ## Fast Track Week 1 -- Core Trading Loop
 
-- [x] Track A -- Trade Engine + TP/SL worker -- WARP/CRUSADERBOT-FAST-TRADE-ENGINE PR open (2026-05-17). EXIT_WATCH_INTERVAL corrected 60→30s. 49 hermetic tests pass. MAJOR, FULL RUNTIME INTEGRATION. Awaiting WARP•SENTINEL before merge.
+- [x] Track A -- Trade Engine + TP/SL worker -- WARP/CRUSADERBOT-FAST-TRADE-ENGINE MERGED PR #1092 (2026-05-17). EXIT_WATCH_INTERVAL corrected 60→30s. 49 hermetic tests pass. MAJOR, FULL RUNTIME INTEGRATION.
 - [x] Track B -- Copy Trade Execution -- MERGED PR #948 (2026-05-11), MAJOR. CopyTradeMonitor.run_once(), 020 migration, 25 hermetic tests green; P1 fixes applied.
 - [x] Track C -- Trade Notifications -- MERGED PR #951 (2026-05-11), STANDARD. TradeNotifier service layer; 16 hermetic tests green; already_closed guard P2 fix.
 - [x] Track D -- Live Gate Hardening -- MERGED PR #954 (2026-05-11), MAJOR. WARP•SENTINEL APPROVED 92/100; 35 tests green.
