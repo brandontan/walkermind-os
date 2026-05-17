@@ -1,3 +1,4 @@
+2026-05-17 22:30 | WARP/CRUSADERBOT-FAST-TRADE-NOTIFS-WIRE | wire-notification-handlers: register_notification_handlers() called in main.py lifespan after bot_app.start(); MINOR, NARROW INTEGRATION
 2026-05-17 22:00 | WARP/CRUSADERBOT-FAST-TRADE-ENGINE | Track A: signal-to-order + TP/SL pipeline audit; EXIT_WATCH_INTERVAL 60→30s; TestSchedulerWiring added; 49 hermetic tests pass; MAJOR, FULL RUNTIME INTEGRATION
 2026-05-17 20:00 | WARP/CRUSADERBOT-FAST-TRADE-NOTIFS | Track C: core/event_bus.py + services/notification_service.py — position.opened/closed + copy_trade.executed receipts; STANDARD, NARROW INTEGRATION
 2026-05-17 20:00 | WARP/CRUSADERBOT-SIGNAL-ENGINE-FIX | signal-engine-fix: edge_finder demo path widened (edge scoring replaces price<0.15 threshold), SCANNER_MIN_LIQUIDITY lowered to 5k, idempotency key date-scoped (prevents duplicate positions), structlog per-market logging added; STANDARD, NARROW INTEGRATION
