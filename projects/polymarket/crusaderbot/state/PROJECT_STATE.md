@@ -1,7 +1,8 @@
-Last Updated : 2026-05-18 02:00
-Status       : STRATEGY-RISK-COPY MERGED PR #1113. Preset isolation + risk profile + copy trade 8-step wizard + custom risk RISK-layer extension all live on main. portfolio-ui-polish + TG-KB-CLEANUP + SCANNER-SYNC-FIX + PRICE-FETCH-FIX + crusaderbot-webtrader-ws + SSE-AUTH-FIX + webtrader-build-fix awaiting WARP🔹CMD review. Production PAPER ONLY.
+Last Updated : 2026-05-18 02:30
+Status       : UI-RESPONSIVE-POLISH MERGED PR #1115. 6-page responsive layout + market filter + auto redeem + copy trade UX + migration 036 applied to Supabase. portfolio-ui-polish + TG-KB-CLEANUP + SCANNER-SYNC-FIX + PRICE-FETCH-FIX + crusaderbot-webtrader-ws + SSE-AUTH-FIX + webtrader-build-fix awaiting WARP🔹CMD review. Production PAPER ONLY.
 
 [COMPLETED]
+- WARP/CRUSADERBOT-UI-RESPONSIVE-POLISH MERGED PR #1115 (2026-05-18 02:30): 6-page responsive layout (md: breakpoint), market filter UI (9 categories + 3 dropdowns), auto redeem setting (toggle + mode), copy trade UX (empty state + helper text + stats); migration 036 (min_liquidity, max_resolution_days, min_volume_24h, auto_redeem) applied to Supabase. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-STRATEGY-RISK-COPY MERGED PR #1113 (2026-05-18 01:21): 5-part bundle — strategy preset isolation (two-phase scan loop + _PRESET_ALLOWED + LibStrategyRunner), ledger atomic delete utility, AutoTradePage 8-preset + 4 risk-card restructure, TG auto 2-sub-menu + custom risk wizard, copy-trade 8-step TG wizard + WebTrader CopyTradePage + monitor filters (copy_direction/allow_topups/execution_mode) + migration 035. Custom risk profile: PROFILES["custom"] + STRATEGY_AVAILABILITY + gate step 4 DB check + VALID_RISK_PROFILES + 3 strategy classes extended. 1455 tests pass. No SENTINEL run occurred; WARP🔹CMD merged directly. MAJOR, FULL RUNTIME INTEGRATION.
 - WARP/CRUSADERBOT-LEDGER-CLEANUP MERGED PR #1110 (2026-05-17): deleted 44 orphaned ledger entries (22 trade_open + 22 trade_close) with dead ref_ids from bad-trade cleanup; ledger_sum corrected +$1,227.57 → -$10.00; wallet/ledger consistent. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-BAD-TRADE-CLEANUP MERGED PR #1109 (2026-05-17): deleted 22 bad tp_hit positions for walk3r69 (price bug #1105); wallet balance corrected $2,227.57 → $990.00. Verification: 0 bad trades remain, 13 market_expired clean, 1 open untouched. STANDARD, NARROW INTEGRATION.
@@ -25,7 +26,6 @@ Status       : STRATEGY-RISK-COPY MERGED PR #1113. Preset isolation + risk profi
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- WARP/CRUSADERBOT-UI-RESPONSIVE-POLISH PR open — responsive layout (6 pages, md: breakpoint), market filter UI (AUTO page), auto redeem setting (CONFIG page), copy trade UX improvements; migration 036 ready. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-REALTIME-PNL-UI PR #1111 open — Home Recent Activity real-time + color coded; price null guard ($0.00→"—"); SSE position_updated; Portfolio borderTone. Awaiting WARP🔹CMD review.
 - portfolio-ui-polish PR open — WebTrader Portfolio tab: equity header, P&L chart (period selector), exit_reason badges, enhanced position rows, /portfolio/summary + /portfolio/chart endpoints. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-TG-KB-CLEANUP PR open — inline KB ghost fix: show_portfolio and _render_hub edit message in-place on callback; eliminates stale p5_dashboard_kb floating above Portfolio/Settings screens. Awaiting WARP🔹CMD review.
@@ -52,7 +52,6 @@ Status       : STRATEGY-RISK-COPY MERGED PR #1113. Preset isolation + risk profi
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for WARP/CRUSADERBOT-UI-RESPONSIVE-POLISH (responsive layout + market filter + auto redeem + copy trade UX). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ui-responsive-polish.md. Tier: STANDARD. Migration 036 must be applied before deploy.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-REALTIME-PNL-UI (realtime P&L UI). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-realtime-pnl-ui.md. Tier: STANDARD.
 - WARP🔹CMD decision needed: extend positions + ledger cleanup to qwneer8 + Maver1ch69 (identical bad trades from price bug #1105, not yet cleaned).
 - WARP🔹CMD review required for portfolio-ui-polish (Portfolio tab upgrade). Source: projects/polymarket/crusaderbot/reports/forge/portfolio-ui-polish.md. Tier: STANDARD.
