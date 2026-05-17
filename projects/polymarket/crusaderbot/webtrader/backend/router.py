@@ -200,7 +200,7 @@ async def toggle_autotrade(body: AutoTradeToggleRequest, user: _CurrentUser):
 
 
 _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
-    "signal_sniper": {"risk_profile": "safe",       "capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
+    "signal_sniper": {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
     "full_auto":     {"risk_profile": "balanced",   "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
     "value_hunter":  {"risk_profile": "aggressive", "capital_alloc_pct": 0.60, "tp_pct": 0.30, "sl_pct": 0.20},
     "whale_mirror":  {"risk_profile": "balanced",   "capital_alloc_pct": 0.50, "tp_pct": 0.20, "sl_pct": 0.10},
