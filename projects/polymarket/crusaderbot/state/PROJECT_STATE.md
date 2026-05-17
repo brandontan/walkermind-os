@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 19:30
-Status       : WARP/CRUSADERBOT-MVP-BUGFIX-ROUND1 in progress. Handler audit complete: 9 bugs fixed (W/L counter, portfolio count, health SQL, Auto Mode route, close flow, emergency pause+close). PR open for WARP🔹CMD review. Production PAPER ONLY.
+Last Updated : 2026-05-17 22:00
+Status       : WARP/CRUSADERBOT-FAST-TRADE-ENGINE PR open. Track A: signal-to-order + TP/SL pipeline confirmed complete. EXIT_WATCH_INTERVAL corrected 60→30s. 49 hermetic tests pass. MAJOR, FULL RUNTIME INTEGRATION. Awaiting WARP•SENTINEL validation before merge. Production PAPER ONLY.
 
 [COMPLETED]
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
@@ -14,6 +14,7 @@ Status       : WARP/CRUSADERBOT-MVP-BUGFIX-ROUND1 in progress. Handler audit com
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- WARP/CRUSADERBOT-FAST-TRADE-ENGINE: Track A signal-to-order + TP/SL. PR open. SENTINEL validation required before merge.
 - WARP/CRUSADERBOT-MVP-BUGFIX-ROUND1: handler audit fixes PR open, awaiting WARP🔹CMD merge decision.
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderPolybot live, Fly.io app running, PAPER ONLY.
@@ -33,6 +34,7 @@ Status       : WARP/CRUSADERBOT-MVP-BUGFIX-ROUND1 in progress. Handler audit com
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for fast-trade-engine (Track A: signal-to-order + TP/SL). Source: projects/polymarket/crusaderbot/reports/forge/fast-trade-engine.md. Tier: MAJOR. Track B (copy trade) blocked until this merges.
 - WARP🔹CMD review required for crusaderbot-mvp-bugfix-round1 (9 handler bugs fixed). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-bugfix-round1.md. Tier: STANDARD.
 - WARP🔹CMD review required for autonomous-trading-bot MVP pipeline. Source: projects/polymarket/crusaderbot/reports/forge/autonomous-trading-bot.md. Tier: MAJOR.
 - Apply migration 031 to production DB (idempotent — safe to apply immediately after #1079 merge).

@@ -45,7 +45,7 @@ Done condition: WARP🔹CMD merge decision on each lane; activation guards remai
 
 ## Fast Track Week 1 -- Core Trading Loop
 
-- [x] Track A -- Trade Engine + TP/SL worker -- MERGED PR #942 (2026-05-11), MAJOR, FULL RUNTIME INTEGRATION. TradeEngine service layer; signal_scan_job routes through TradeEngine; 47 hermetic tests green.
+- [x] Track A -- Trade Engine + TP/SL worker -- WARP/CRUSADERBOT-FAST-TRADE-ENGINE PR open (2026-05-17). EXIT_WATCH_INTERVAL corrected 60→30s. 49 hermetic tests pass. MAJOR, FULL RUNTIME INTEGRATION. Awaiting WARP•SENTINEL before merge.
 - [x] Track B -- Copy Trade Execution -- MERGED PR #948 (2026-05-11), MAJOR. CopyTradeMonitor.run_once(), 020 migration, 25 hermetic tests green; P1 fixes applied.
 - [x] Track C -- Trade Notifications -- MERGED PR #951 (2026-05-11), STANDARD. TradeNotifier service layer; 16 hermetic tests green; already_closed guard P2 fix.
 - [x] Track D -- Live Gate Hardening -- MERGED PR #954 (2026-05-11), MAJOR. WARP•SENTINEL APPROVED 92/100; 35 tests green.
