@@ -20,6 +20,7 @@ from .api import admin as api_admin, health as api_health, ops as api_ops
 from .webtrader.backend import sse as webtrader_sse
 from .webtrader.backend.router import router as web_router
 from .bot.dispatcher import register as register_handlers
+from .services.notification_service import register_handlers as register_notification_handlers
 from .cache import close_cache, get_cache, init_cache, set_cache
 from .config import get_settings, validate_required_env
 from .database import close_pool, init_pool, run_migrations
@@ -88,6 +89,7 @@ async def lifespan(_: FastAPI):
 
     await bot_app.initialize()
     await bot_app.start()
+    register_notification_handlers()
 
     if use_webhook:
         # Always enforce secret validation in webhook mode.
