@@ -55,6 +55,12 @@ export function DashboardPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Polling fallback — ensures data stays fresh when SSE events don't arrive
+  useEffect(() => {
+    const id = setInterval(() => { void load(); }, 10_000);
+    return () => clearInterval(id);
+  }, [load]);
+
   useSSE(user?.token ?? null, {
     positions: () => void load(),
     portfolio: () => void load(),

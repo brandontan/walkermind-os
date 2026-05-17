@@ -31,6 +31,13 @@ export function PortfolioPage() {
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Polling fallback — ensures positions stay current when SSE events don't arrive
+  useEffect(() => {
+    const id = setInterval(() => { void load(); }, 10_000);
+    return () => clearInterval(id);
+  }, [load]);
+
   useSSE(user?.token ?? null, { positions: () => void load() });
 
   const tabs: FilterTab<Tab>[] = [
