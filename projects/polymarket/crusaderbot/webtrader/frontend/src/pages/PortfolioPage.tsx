@@ -16,7 +16,6 @@ import { TopBar } from "../components/TopBar";
 import {
   makeApi,
   type ChartPoint,
-  type ClosePositionResult,
   type OrderItem,
   type PortfolioSummary,
   type PositionItem,
