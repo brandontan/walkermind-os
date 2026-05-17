@@ -274,7 +274,7 @@ async def close_position_endpoint(
             log.warning("manual close TG notify failed: %s", exc)
 
     return ClosePositionResponse(
-        order_id=None,
+        order_id=result.get("order_id"),
         estimated_fill=estimated_fill,
         status="closed",
     )

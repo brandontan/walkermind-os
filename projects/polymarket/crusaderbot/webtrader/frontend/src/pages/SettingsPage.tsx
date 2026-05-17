@@ -45,6 +45,13 @@ export function SettingsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  useEffect(() => {
+    return () => {
+      if (liquidityDebounce.current) clearTimeout(liquidityDebounce.current);
+      if (slippageDebounce.current) clearTimeout(slippageDebounce.current);
+    };
+  }, []);
+
   // All three notification toggles bind to the single `notifications_on` flag.
   async function handleNotifToggle(next: boolean) {
     if (!settings) return;

@@ -124,12 +124,13 @@ export function PortfolioPage() {
       await api.closePosition(cashOutTarget.id);
       setCashOutTarget(null);
       void loadPositions();
+      void loadOrders();
     } catch (e) {
       setCashOutError(String(e));
     } finally {
       setCashOutLoading(false);
     }
-  }, [api, cashOutTarget, loadPositions]);
+  }, [api, cashOutTarget, loadPositions, loadOrders]);
 
   const allPositions = useMemo(() => {
     const combined = [...open, ...closed];
