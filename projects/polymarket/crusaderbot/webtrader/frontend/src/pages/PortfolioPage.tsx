@@ -84,11 +84,20 @@ export function PortfolioPage() {
 }
 
 function PositionRow({ p }: { p: PositionItem }) {
-  const v = p.pnl_usdc ?? 0;
+  // Show current market value of the position, not raw PnL.
+  // Open: (current_price ?? entry_price) / entry_price * size_usdc
+  // Closed/expired: cost + realized pnl_usdc (what was actually returned)
+  const curVal = (() => {
+    if (p.status === "open") {
+      const price = p.current_price ?? p.entry_price;
+      return p.entry_price > 0 ? (price / p.entry_price) * p.size_usdc : p.size_usdc;
+    }
+    return p.size_usdc + (p.pnl_usdc ?? 0);
+  })();
+  const diff = curVal - p.size_usdc;
   const tone: "zero" | "up" | "dn" =
-    Math.abs(v) < 0.005 ? "zero" : v >= 0 ? "up" : "dn";
-  const sign = tone === "zero" ? "" : v >= 0 ? "+" : "−";
-  const pnl = { value: tone === "zero" ? "$0.00" : `${sign}$${Math.abs(v).toFixed(2)}`, tone };
+    Math.abs(diff) < 0.005 ? "zero" : diff > 0 ? "up" : "dn";
+  const pnl = { value: `$${curVal.toFixed(2)}`, tone };
   const side =
     p.status === "expired" ? "exp" : p.side === "no" ? "no" : "yes";
 
