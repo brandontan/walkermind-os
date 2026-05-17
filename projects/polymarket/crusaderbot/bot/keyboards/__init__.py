@@ -440,7 +440,7 @@ def emergency_confirm_p5_kb(action: str) -> InlineKeyboardMarkup:
 def emergency_done_p5_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("📊 Dashboard",  callback_data="menu:dashboard"),
+            InlineKeyboardButton("🏠 Home",       callback_data="menu:dashboard"),
             InlineKeyboardButton("🤖 Auto Mode",  callback_data="menu:autotrade"),
         ],
     ])
