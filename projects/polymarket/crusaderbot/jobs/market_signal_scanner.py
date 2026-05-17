@@ -118,9 +118,8 @@ async def _upsert_market(
     end = m.get("endDate") or m.get("end_date")
     resolution_at = None
     if end:
-        from datetime import datetime as _dt
         try:
-            resolution_at = _dt.fromisoformat(str(end).replace("Z", "+00:00"))
+            resolution_at = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
         except Exception:
             pass
     pool = get_pool()
