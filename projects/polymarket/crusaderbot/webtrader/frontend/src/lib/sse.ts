@@ -30,6 +30,8 @@ export function useSSE(token: string | null, handlers: SSEHandlers) {
       const EVENT_TYPES = [
         "orders", "fills", "positions", "settings",
         "system", "portfolio", "alerts",
+        "position_opened", "position_closed",
+        "portfolio_update", "scanner_tick",
       ] as const;
 
       for (const eventType of EVENT_TYPES) {

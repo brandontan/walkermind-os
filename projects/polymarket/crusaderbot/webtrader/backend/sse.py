@@ -5,6 +5,11 @@ Uses a DEDICATED asyncpg connection (not the pool) because:
   - Pool connections get recycled and UNLISTEN'd on return.
   - Supabase Supavisor pooler (port 6543) silently drops pg_notify.
     This module normalises the URL to the direct Postgres port (5432).
+
+event_bus bridge:
+  register_event_bus_handlers() wires position.opened, position.closed,
+  and scanner.tick events from the in-process event_bus into SSE queues
+  so the browser sees updates without polling.
 """
 from __future__ import annotations
 
@@ -12,7 +17,7 @@ import asyncio
 import json
 import logging
 import re
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 from urllib.parse import urlparse, urlunparse
 
 import asyncpg
@@ -38,6 +43,9 @@ _user_queues: dict[str, list[asyncio.Queue]] = {}
 _listener_conn: asyncpg.Connection | None = None
 _listener_task: asyncio.Task | None = None
 _lock = asyncio.Lock()
+
+# reverse map: telegram_user_id (int) → user_id (UUID str) for event_bus bridge
+_telegram_to_user_id: dict[int, str] = {}
 
 
 def _normalize_dsn_for_listen(dsn: str) -> str:
@@ -164,6 +172,97 @@ async def _listen_loop(dsn: str, pool: asyncpg.Pool) -> None:
             backoff = min(backoff * 2, 60.0)
 
 
+def _push_to_user(user_id: str, event_type: str, payload: dict) -> None:
+    """Push an SSE event directly to a specific user's queue(s)."""
+    event = {"type": event_type, "payload": payload}
+    for q in _user_queues.get(user_id, []):
+        try:
+            q.put_nowait(event)
+        except asyncio.QueueFull:
+            pass
+
+
+def _push_broadcast(event_type: str, payload: dict) -> None:
+    """Push an SSE event to all currently connected users."""
+    event = {"type": event_type, "payload": payload}
+    for queues in _user_queues.values():
+        for q in queues:
+            try:
+                q.put_nowait(event)
+            except asyncio.QueueFull:
+                pass
+
+
+# ---------------------------------------------------------------------------
+# event_bus bridge handlers
+# ---------------------------------------------------------------------------
+
+async def _on_position_opened_sse(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    side: str,
+    size_usdc: Any,
+    price: float,
+    market_question: str | None = None,
+    strategy_type: str | None = None,
+    **_: Any,
+) -> None:
+    user_id = _telegram_to_user_id.get(telegram_user_id)
+    if not user_id:
+        return
+    _push_to_user(user_id, "position_opened", {
+        "market_id": market_id,
+        "market_question": market_question,
+        "side": side,
+        "size_usdc": float(size_usdc),
+        "price": price,
+        "strategy_type": strategy_type,
+    })
+    _push_to_user(user_id, "portfolio_update", {})
+
+
+async def _on_position_closed_sse(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    pnl_usdc: Any,
+    market_question: str | None = None,
+    side: str = "",
+    close_reason: str = "MANUAL",
+    **_: Any,
+) -> None:
+    user_id = _telegram_to_user_id.get(telegram_user_id)
+    if not user_id:
+        return
+    _push_to_user(user_id, "position_closed", {
+        "market_id": market_id,
+        "market_question": market_question,
+        "side": side,
+        "pnl_usdc": float(pnl_usdc),
+        "close_reason": close_reason,
+    })
+    _push_to_user(user_id, "portfolio_update", {})
+
+
+async def _on_scanner_tick_sse(
+    *,
+    markets: int = 0,
+    signals: int = 0,
+    **_: Any,
+) -> None:
+    _push_broadcast("scanner_tick", {"markets": markets, "signals": signals})
+
+
+def register_event_bus_handlers() -> None:
+    """Subscribe SSE broadcaster to in-process event_bus events. Call once at startup."""
+    from ...core.event_bus import subscribe
+    subscribe("position.opened", _on_position_opened_sse)
+    subscribe("position.closed", _on_position_closed_sse)
+    subscribe("scanner.tick",    _on_scanner_tick_sse)
+    log.info("SSE: event_bus handlers registered")
+
+
 async def start_listener(dsn: str, pool: asyncpg.Pool) -> None:
     global _listener_task
     _listener_task = asyncio.create_task(
@@ -184,16 +283,24 @@ async def stop_listener() -> None:
     _listener_conn = None
 
 
-async def stream_for_user(user_id: str) -> AsyncIterator[dict]:
+async def stream_for_user(
+    user_id: str,
+    telegram_user_id: int | None = None,
+) -> AsyncIterator[dict]:
     """Async generator that yields SSE events for a single user.
 
     Yields dicts with 'event' and 'data' keys for sse-starlette.
     Sends a 'ping' comment every 25 seconds to keep the connection alive
     through proxies and Fly.io's idle timeout.
+
+    telegram_user_id is stored so event_bus handlers can resolve UUID from
+    telegram_user_id without a DB lookup.
     """
     queue: asyncio.Queue = asyncio.Queue(maxsize=100)
     async with _lock:
         _user_queues.setdefault(user_id, []).append(queue)
+        if telegram_user_id is not None:
+            _telegram_to_user_id[telegram_user_id] = user_id
 
     try:
         yield {"event": "connected", "data": json.dumps({"user_id": user_id})}
@@ -210,3 +317,5 @@ async def stream_for_user(user_id: str) -> AsyncIterator[dict]:
                 queues.remove(queue)
             if not queues:
                 _user_queues.pop(user_id, None)
+                if telegram_user_id is not None:
+                    _telegram_to_user_id.pop(telegram_user_id, None)

@@ -90,6 +90,7 @@ async def lifespan(_: FastAPI):
     await bot_app.initialize()
     await bot_app.start()
     register_notification_handlers()
+    webtrader_sse.register_event_bus_handlers()
 
     if use_webhook:
         # Always enforce secret validation in webhook mode.

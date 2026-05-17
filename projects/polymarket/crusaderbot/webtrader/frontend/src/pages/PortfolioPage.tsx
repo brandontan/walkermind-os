@@ -32,20 +32,12 @@ export function PortfolioPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Polling fallback — recursive setTimeout ensures no overlapping requests
-  useEffect(() => {
-    let id: ReturnType<typeof setTimeout>;
-    let active = true;
-    function schedule() {
-      id = setTimeout(async () => {
-        if (active) { await load(); schedule(); }
-      }, 10_000);
-    }
-    schedule();
-    return () => { active = false; clearTimeout(id); };
-  }, [load]);
-
-  useSSE(user?.token ?? null, { positions: () => void load() });
+  useSSE(user?.token ?? null, {
+    positions:        () => void load(),
+    position_opened:  () => void load(),
+    position_closed:  () => void load(),
+    portfolio_update: () => void load(),
+  });
 
   const tabs: FilterTab<Tab>[] = [
     { key: "open",   label: "Open",   count: open.length },

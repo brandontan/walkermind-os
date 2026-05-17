@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 16:00
-Status       : webtrader-build-fix open — build pipeline verified intact; BottomNav "Folio"→"Portfolio" label fixed. PR pending WARP🔹CMD review. Production PAPER ONLY.
+Last Updated : 2026-05-17 17:30
+Status       : crusaderbot-webtrader-ws open — SSE real-time push implemented; polling removed from DashboardPage + PortfolioPage; event_bus bridge wired to SSE. PR pending WARP🔹CMD review. Production PAPER ONLY.
 
 [COMPLETED]
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
@@ -22,6 +22,7 @@ Status       : webtrader-build-fix open — build pipeline verified intact; Bott
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- crusaderbot-webtrader-ws PR open — SSE push implemented: polling removed from DashboardPage + PortfolioPage, event_bus bridge (position.opened/closed/scanner.tick) wired to SSE broadcaster, four new SSE event types added. Awaiting WARP🔹CMD review.
 - webtrader-build-fix PR open — build pipeline verified intact (Dockerfile Stage 1 npm run build confirmed); BottomNav label "Folio"→"Portfolio" fixed. Awaiting WARP🔹CMD review + Fly.io redeploy.
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderPolybot live, Fly.io app running, PAPER ONLY.
@@ -41,6 +42,7 @@ Status       : webtrader-build-fix open — build pipeline verified intact; Bott
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for crusaderbot-webtrader-ws (SSE push + polling removal). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-webtrader-ws.md. Tier: STANDARD.
 - WARP🔹CMD review required for webtrader-build-fix (pipeline verified + BottomNav label fix). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-build-fix.md. Tier: MINOR.
 - WARP🔹CMD production deploy decision required: apply pending migrations (030, 031, 034) to production DB, then deploy main to Fly.io.
 - WARP🔹CMD production deploy verification: verify PORTFOLIO label + 10s polling in browser network tab.
