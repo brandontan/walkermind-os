@@ -43,9 +43,6 @@ function AppShell() {
   const isAuth = location.pathname === "/auth";
   const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
 
-  // Keep a single SSE connection alive at app level (no-op when token is null).
-  const { connected: sseConnected } = useSSE(user?.token ?? null, {});
-
   const showChrome = Boolean(user) && !isAuth;
 
   // ── Alert Center global state ────────────────────────────────────────────
@@ -65,6 +62,12 @@ function AppShell() {
       // non-critical — panel shows empty state
     }
   }, [api, user]);
+
+  // SSE connection — fetchAlerts defined above so it's safe to reference here.
+  // Re-fetch alerts on system events to keep the Alert Center in sync.
+  const { connected: sseConnected } = useSSE(user?.token ?? null, {
+    system: () => void fetchAlerts(),
+  });
 
   useEffect(() => {
     void fetchAlerts();

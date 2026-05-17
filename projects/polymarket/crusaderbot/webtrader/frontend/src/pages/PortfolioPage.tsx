@@ -361,7 +361,6 @@ function PnlChart({
                 horizontal={true}
                 vertical={false}
                 stroke="rgba(245,200,66,0.06)"
-                strokeDasharray="0"
               />
               <XAxis
                 dataKey="label"

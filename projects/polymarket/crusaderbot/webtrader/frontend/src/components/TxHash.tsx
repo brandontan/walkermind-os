@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Props = {
   hash: string;
@@ -54,12 +54,21 @@ const CopyIcon = ({ copied }: { copied: boolean }) => (
 
 export function TxHash({ hash, className = "" }: Props) {
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear pending reset timer on unmount to avoid state update on unmounted component
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const handleCopy = async () => {
     try {
       await copyToClipboard(hash);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
+      if (timerRef.current !== null) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setCopied(false), 1200);
     } catch {
       /* clipboard unavailable — hash remains selectable */
     }
