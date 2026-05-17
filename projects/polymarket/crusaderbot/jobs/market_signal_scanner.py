@@ -481,6 +481,7 @@ async def run_job() -> tuple[int, int]:
                     except Exception as _ue:
                         log.warning("scanner_market_upsert_failed",
                                     market_id=mid, error=str(_ue))
+                        continue  # skip publish — signal_scan_job cannot resolve this market
                     await _publish(
                         DEMO_FEED_ID, mid, side, target_price, "edge_finder",
                         {**base, "signal_reason": f"{side.lower()}_edge"},
