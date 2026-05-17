@@ -3,10 +3,10 @@ import type { AlertItem } from "../lib/api";
 type Category = "TRADE" | "RISK" | "COPY" | "SYSTEM";
 
 const CATEGORY_STYLE: Record<Category, { color: string; bg: string; border: string }> = {
-  TRADE:  { color: "#F5C842", bg: "rgba(245,200,66,0.10)",  border: "rgba(245,200,66,0.30)" },
-  RISK:   { color: "#FF2D55", bg: "rgba(255,45,85,0.10)",   border: "rgba(255,45,85,0.30)" },
-  COPY:   { color: "#00E5FF", bg: "rgba(0,229,255,0.10)",   border: "rgba(0,229,255,0.30)" },
-  SYSTEM: { color: "#8FA3C4", bg: "rgba(143,163,196,0.08)", border: "rgba(143,163,196,0.20)" },
+  TRADE:  { color: "var(--gold)",  bg: "rgba(245,200,66,0.10)",  border: "rgba(245,200,66,0.30)" },
+  RISK:   { color: "var(--red)",   bg: "rgba(255,45,85,0.10)",   border: "rgba(255,45,85,0.30)" },
+  COPY:   { color: "var(--cyan)",  bg: "rgba(0,229,255,0.10)",   border: "rgba(0,229,255,0.30)" },
+  SYSTEM: { color: "var(--ink-2)", bg: "rgba(143,163,196,0.08)", border: "rgba(143,163,196,0.20)" },
 };
 
 function deriveCategory(alert: AlertItem): Category {
@@ -59,32 +59,25 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
       <div
         role="dialog"
         aria-label="Alert Center"
-        className="fixed top-0 right-0 h-full z-[201] flex flex-col"
+        className="fixed top-0 right-0 h-full z-[201] flex flex-col bg-bg-2 border-l border-border-2"
         style={{
           width: "min(360px, 92vw)",
-          background: "#0A0F1C",
-          borderLeft: "1px solid rgba(245,200,66,0.14)",
           transform: isOpen ? "translateX(0)" : "translateX(100%)",
           transition: "transform 0.25s cubic-bezier(0.22,1,0.36,1)",
           boxShadow: isOpen ? "-8px 0 32px rgba(0,0,0,0.6)" : "none",
         }}
       >
         {/* Header */}
-        <div
-          className="flex items-center justify-between px-4 py-3.5 border-b"
-          style={{ borderColor: "rgba(245,200,66,0.14)" }}
-        >
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-border-2">
           <span
-            className="font-hud text-[13px] font-bold tracking-[3px] uppercase"
-            style={{ color: "#F5C842" }}
+            className="font-hud text-[13px] font-bold tracking-[3px] uppercase text-gold"
           >
             ALERT CENTER
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded text-ink-3 hover:text-ink-1 transition-colors"
-            style={{ background: "rgba(245,200,66,0.06)" }}
+            className="w-7 h-7 flex items-center justify-center rounded text-ink-3 hover:text-ink-1 transition-colors bg-border-1"
             aria-label="Close Alert Center"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
@@ -103,7 +96,7 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
               <span className="font-mono text-[12px] text-ink-3">No alerts yet.</span>
             </div>
           ) : (
-            <div className="divide-y" style={{ borderColor: "rgba(245,200,66,0.06)" }}>
+            <div className="divide-y divide-border-1">
               {alerts.map((alert) => {
                 const cat = deriveCategory(alert);
                 const style = CATEGORY_STYLE[cat];

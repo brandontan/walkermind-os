@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 17:00
-Status       : CRU-12 UX PHASE 1 BUNDLE built on claude/crusaderbot-ux-phase1-zClyD — awaiting WARP🔹CMD review. Production PAPER ONLY.
+Last Updated : 2026-05-18 18:00
+Status       : CRU-12 UX PHASE 1 BUNDLE built on WARP/CRUSADERBOT-UX-PHASE1 — awaiting WARP🔹CMD review. Production PAPER ONLY.
 
 [COMPLETED]
 - CRU-12 WARP/CRUSADERBOT-UX-PHASE1 PR open (2026-05-17): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel. Vite build clean. STANDARD, NARROW INTEGRATION.
@@ -27,7 +27,7 @@ Status       : CRU-12 UX PHASE 1 BUNDLE built on claude/crusaderbot-ux-phase1-zC
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- claude/crusaderbot-ux-phase1-zClyD PR open (CRU-12) — 5-item UX Phase 1 bundle. Awaiting WARP🔹CMD review. STANDARD, NARROW INTEGRATION.
+- WARP/CRUSADERBOT-UX-PHASE1 PR #1119 open (CRU-12) — 5-item UX Phase 1 bundle. Awaiting WARP🔹CMD review. STANDARD, NARROW INTEGRATION.
 - claude/crusaderbot-responsive-layout-ZyDip PR open — WebTrader desktop responsive layout V2: DesktopSidebar (220px fixed, nav+system+status card), TopBar center topnav pills, BottomNav md:hidden, 2-col home grid (Hero+Stats LEFT / Scanner+Activity RIGHT), desktop page headers on all 5 pages. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-REALTIME-PNL-UI PR #1111 open — Home Recent Activity real-time + color coded; price null guard ($0.00→"—"); SSE position_updated; Portfolio borderTone. Awaiting WARP🔹CMD review.
 - portfolio-ui-polish PR open — WebTrader Portfolio tab: equity header, P&L chart (period selector), exit_reason badges, enhanced position rows, /portfolio/summary + /portfolio/chart endpoints. Awaiting WARP🔹CMD review.
