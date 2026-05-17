@@ -31,6 +31,7 @@ import logging
 
 from telegram import Update
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from ...users import get_settings_for, update_settings, upsert_user
@@ -121,9 +122,12 @@ async def _render_hub(update: Update, user: dict) -> None:
     text = _hub_text(mode, risk_profile, notifs_on)
     kb = settings_hub_kb(is_admin=_is_admin(user))
     if update.callback_query is not None:
-        await update.callback_query.message.reply_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=kb,
-        )
+        q = update.callback_query
+        try:
+            await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        except BadRequest as exc:
+            if "Message is not modified" not in str(exc):
+                await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
     elif update.message is not None:
         await update.message.reply_text(
             text, parse_mode=ParseMode.HTML, reply_markup=kb,

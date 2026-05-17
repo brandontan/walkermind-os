@@ -37,6 +37,7 @@ from typing import Optional
 
 from telegram import Update
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from ...database import get_pool
@@ -191,11 +192,19 @@ async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refresh
     )
 
     if is_cb:
-        await update.callback_query.message.reply_text(
-            stats,
-            parse_mode=ParseMode.HTML,
-            reply_markup=portfolio_kb(),
-        )
+        try:
+            await update.callback_query.edit_message_text(
+                stats,
+                parse_mode=ParseMode.HTML,
+                reply_markup=portfolio_kb(),
+            )
+        except BadRequest as exc:
+            if "Message is not modified" not in str(exc):
+                await update.callback_query.message.reply_text(
+                    stats,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=portfolio_kb(),
+                )
     else:
         await update.message.reply_text(
             stats,
