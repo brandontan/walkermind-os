@@ -331,8 +331,9 @@ async def run_job() -> tuple[int, int]:
         log.info("signal_scan_cycle_start", scanning=len(markets or []))
 
         for m in markets or []:
-            mid = str(m.get("conditionId") or m.get("id") or "")
+            mid = "unknown"
             try:
+                mid = str(m.get("conditionId") or m.get("id") or "")
                 if m.get("closed") or m.get("resolved"):
                     _demo_rejected += 1
                     continue
@@ -380,8 +381,6 @@ async def run_job() -> tuple[int, int]:
                     _demo_rejected += 1
                     continue
 
-                demo_scanned += 1
-
                 # Edge scoring: fair value baseline is 0.5 for binary markets
                 edge = abs(yes_p - 0.5)
                 edge_bps = int(edge * 10_000)
@@ -392,6 +391,9 @@ async def run_job() -> tuple[int, int]:
                               min_edge_bps=min_edge_bps, yes_price=yes_p)
                     _demo_rejected += 1
                     continue
+
+                # All filters passed — count as approved
+                demo_scanned += 1
 
                 # Side: buy the underpriced outcome
                 side = "YES" if yes_p < 0.5 else "NO"
@@ -427,7 +429,7 @@ async def run_job() -> tuple[int, int]:
                 _demo_errors += 1
 
         log.info("signal_scan_cycle_end",
-                 approved=demo_scanned,
+                 edge_approved=demo_scanned,
                  rejected=_demo_rejected,
                  errors=_demo_errors,
                  published=demo_published)

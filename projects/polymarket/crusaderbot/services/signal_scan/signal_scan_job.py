@@ -278,13 +278,14 @@ def _build_idempotency_key(
     side: str,
     publication_id: UUID | None,  # retained for signature compat; no longer in hash
 ) -> str:
-    from datetime import date
+    from datetime import datetime, timezone
 
-    # Date scope (UTC calendar day) prevents same-day re-entry on the same market.
+    # UTC calendar day prevents same-day re-entry on the same market.
     # Without this, distinct publication_ids for the same market produce distinct
     # keys, each passing the 30-min gate independently → duplicate open positions.
     # Cross-day re-entry is intentional — new trading day = new opportunity.
-    raw = f"{user_id}:{market_id}:{side}:{date.today().isoformat()}"
+    # Explicit UTC (not date.today()) keeps rotation stable across all host timezones.
+    raw = f"{user_id}:{market_id}:{side}:{datetime.now(timezone.utc).date().isoformat()}"
     digest = hashlib.sha256(raw.encode()).hexdigest()[:32]
     return f"sf:{digest}"
 
