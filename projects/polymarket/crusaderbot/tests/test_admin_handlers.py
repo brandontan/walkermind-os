@@ -333,36 +333,31 @@ def test_killswitch_invalid_action_shows_usage():
     assert "Usage" in args[0]
 
 
-def test_killswitch_pause_calls_set_active_and_replies():
+def test_killswitch_pause_calls_execute_and_replies():
     update = _fake_update(user_id=42)
     ctx = _fake_ctx(args=["pause"])
-    set_active = AsyncMock(return_value={
-        "active": True, "lock_mode": False, "users_disabled": 0,
-    })
+    ks_execute = AsyncMock()
     with patch.object(admin, "get_settings", return_value=_fake_settings(42)), \
-         patch.object(admin.ops_kill_switch, "set_active", set_active), \
+         patch.object(admin, "ks_execute", ks_execute), \
          patch.object(admin.audit, "write", AsyncMock()), \
          patch.object(admin, "_broadcast_pause", AsyncMock(return_value=3)):
         asyncio.run(admin.killswitch_command(update, ctx))
-    set_active.assert_awaited_once()
-    kwargs = set_active.await_args.kwargs
-    assert kwargs["action"] == "pause"
-    assert kwargs["actor_id"] == 42
+    ks_execute.assert_awaited_once()
+    kwargs = ks_execute.await_args.kwargs
+    assert "admin:42" in kwargs["triggered_by"]
     args, _ = update.message.reply_text.call_args
     assert "ACTIVE" in args[0]
 
 
-def test_killswitch_resume_calls_set_active_and_replies():
+def test_killswitch_resume_calls_reset_and_replies():
     update = _fake_update(user_id=42)
     ctx = _fake_ctx(args=["resume"])
-    set_active = AsyncMock(return_value={
-        "active": False, "lock_mode": False, "users_disabled": 0,
-    })
+    ks_reset = AsyncMock()
     with patch.object(admin, "get_settings", return_value=_fake_settings(42)), \
-         patch.object(admin.ops_kill_switch, "set_active", set_active), \
+         patch.object(admin, "ks_reset", ks_reset), \
          patch.object(admin.audit, "write", AsyncMock()):
         asyncio.run(admin.killswitch_command(update, ctx))
-    set_active.assert_awaited_once()
+    ks_reset.assert_awaited_once()
     args, _ = update.message.reply_text.call_args
     assert "deactivated" in args[0].lower()
 

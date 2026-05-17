@@ -89,6 +89,9 @@ def _run(market: dict, cfg=None) -> list:
         patch.object(scanner, "get_settings", return_value=(cfg or _FAKE_CFG)),
         patch.object(scanner, "get_pool", return_value=pool),
         patch.object(
+            scanner._ops_kill_switch, "is_active", new=AsyncMock(return_value=False)
+        ),
+        patch.object(
             scanner.polymarket,
             "get_markets",
             new=AsyncMock(return_value=[market]),

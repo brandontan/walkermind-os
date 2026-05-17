@@ -142,11 +142,69 @@ def _passes_live_guards(ctx: GateContext, settings) -> bool:
     )
 
 
+async def validate_risk_caps(user_id: UUID, proposed_size: Decimal) -> GateResult:
+    """Hard caps applied before any order — Track D additions.
+
+    These are absolute per-user ceilings independent of risk profile.
+    Returns GateResult(approved=False, ...) on the first cap violation,
+    GateResult(approved=True, "caps_ok") when all four pass.
+    """
+    from ...config import get_settings
+    settings = get_settings()
+
+    balance = await get_balance(user_id)
+
+    # Cap 1: Single position size (10% of balance)
+    max_single = balance * Decimal(str(settings.MAX_SINGLE_POSITION_PCT))
+    if proposed_size > max_single:
+        return GateResult(
+            False,
+            f"position_size ${float(proposed_size):.2f} exceeds "
+            f"{settings.MAX_SINGLE_POSITION_PCT*100:.0f}% cap "
+            f"(${float(max_single):.2f})",
+            0,
+        )
+
+    # Cap 2: Total exposure (80% of balance)
+    open_exp = await _open_exposure(user_id)
+    max_exp = balance * Decimal(str(settings.MAX_TOTAL_EXPOSURE_PCT))
+    if open_exp + proposed_size > max_exp:
+        return GateResult(False, "total_exposure_cap_80pct", 0)
+
+    # Cap 3: Daily loss floor (default -$50, env-configurable)
+    today_pnl = await daily_pnl(user_id)
+    if today_pnl <= Decimal(str(settings.MAX_DAILY_LOSS_USD)):
+        return GateResult(
+            False,
+            f"daily_loss_cap_usd ${float(today_pnl):.2f} <= "
+            f"${settings.MAX_DAILY_LOSS_USD:.2f}",
+            0,
+        )
+
+    # Cap 4: Open positions count (hard cap 20)
+    open_count = await _open_position_count(user_id)
+    if open_count >= settings.MAX_OPEN_POSITIONS:
+        return GateResult(
+            False,
+            f"max_open_positions_{settings.MAX_OPEN_POSITIONS}_reached",
+            0,
+        )
+
+    return GateResult(True, "caps_ok")
+
+
 async def evaluate(ctx: GateContext) -> GateResult:
     """Run the 13 gates. Default chosen_mode is paper unless live guards pass."""
     from ...config import get_settings
     settings = get_settings()
     profile = K.profile_or_default(ctx.risk_profile)
+
+    # 0. Hard risk caps (Track D) — fail fast before any gate logging
+    caps_result = await validate_risk_caps(ctx.user_id, ctx.proposed_size_usdc)
+    if not caps_result.approved:
+        await _log(ctx.user_id, ctx.market_id, 0, False, caps_result.reason)
+        return caps_result
+    await _log(ctx.user_id, ctx.market_id, 0, True, "ok")
 
     # 1. Kill switch — read goes through the domain module so we hit the
     # 30s in-process cache instead of the DB on every signal evaluation.

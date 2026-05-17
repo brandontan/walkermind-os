@@ -1,3 +1,5 @@
+Last Updated : 2026-05-17 23:59
+Status       : Track D (FAST-RISK-SAFETY) PR open. Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs open. Production PAPER ONLY.
 Last Updated : 2026-05-17 23:55
 Status       : Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs open. Track B copy_trade.executed event + copy_trade_events table delivered (PR pending SENTINEL). Production PAPER ONLY.
 
@@ -14,6 +16,7 @@ Status       : Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs ope
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- WARP/CRUSADERBOT-FAST-RISK-SAFETY: Track D risk caps + kill switch. PR open. SENTINEL validation required before merge.
 - WARP/CRUSADERBOT-FAST-TRADE-ENGINE: Track A signal-to-order + TP/SL. PR open. SENTINEL validation required before merge.
 - WARP/CRUSADERBOT-MVP-BUGFIX-ROUND1: handler audit fixes PR open, awaiting WARP🔹CMD merge decision.
 - WARP/CRUSADERBOT-FAST-TRADE-NOTIFS: Track C event bus + notification service PR open. Awaiting Track A merge first.
@@ -37,6 +40,7 @@ Status       : Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs ope
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for risk-caps-kill-switch (Track D: validate_risk_caps + 3-path kill switch). Source: projects/polymarket/crusaderbot/reports/forge/risk-caps-kill-switch.md. Tier: MAJOR.
 - WARP🔹CMD review required for wire-notification-handlers (register_handlers() wired into main.py). Source: projects/polymarket/crusaderbot/reports/forge/wire-notification-handlers.md. Tier: MINOR.
 - WARP•SENTINEL validation required for fast-trade-engine (Track A: signal-to-order + TP/SL). Source: projects/polymarket/crusaderbot/reports/forge/fast-trade-engine.md. Tier: MAJOR.
 - WARP•SENTINEL validation required for crusaderbot-fast-copy-exec (Track B: copy_trade.executed event + copy_trade_events table). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-copy-exec.md. Tier: MAJOR.
