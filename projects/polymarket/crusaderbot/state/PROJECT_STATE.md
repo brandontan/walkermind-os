@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 20:00
-Status       : WARP/CRUSADERBOT-TG-KB-CLEANUP open — inline KB ghost fix: Portfolio and Settings now edit message in-place on Home navigation, eliminating stale p5_dashboard_kb artifacts. PR pending WARP🔹CMD review. Production PAPER ONLY.
+Last Updated : 2026-05-17 21:00
+Status       : Two PRs open — portfolio-ui-polish (WebTrader Portfolio upgrade) + WARP/CRUSADERBOT-TG-KB-CLEANUP (inline KB ghost fix). Both awaiting WARP🔹CMD review. Production PAPER ONLY.
 
 [COMPLETED]
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
@@ -22,6 +22,7 @@ Status       : WARP/CRUSADERBOT-TG-KB-CLEANUP open — inline KB ghost fix: Port
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- portfolio-ui-polish PR open — WebTrader Portfolio tab: equity header, P&L chart (period selector), exit_reason badges, enhanced position rows, /portfolio/summary + /portfolio/chart endpoints. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-TG-KB-CLEANUP PR open — inline KB ghost fix: show_portfolio and _render_hub edit message in-place on callback; eliminates stale p5_dashboard_kb floating above Portfolio/Settings screens. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-SCANNER-SYNC-FIX PR open — skipped_market_not_synced root cause fixed: scheduler.sync_markets outcomePrices JSON string parse + scanner self-seeding markets table via _upsert_market(). Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-PRICE-FETCH-FIX PR open — get_live_market_price 422 fix: GET /markets?conditionId= query param (not path segment); CLOB /price primary; Gamma outcomePrices fallback. Awaiting WARP🔹CMD review.
@@ -46,6 +47,7 @@ Status       : WARP/CRUSADERBOT-TG-KB-CLEANUP open — inline KB ghost fix: Port
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for portfolio-ui-polish (Portfolio tab upgrade). Source: projects/polymarket/crusaderbot/reports/forge/portfolio-ui-polish.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-TG-KB-CLEANUP (inline KB ghost fix). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-tg-kb-cleanup.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-SCANNER-SYNC-FIX (skipped_market_not_synced fix). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-scanner-sync-fix.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-PRICE-FETCH-FIX (get_live_market_price 422 fix). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-price-fetch-fix.md. Tier: STANDARD.

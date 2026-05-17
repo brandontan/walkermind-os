@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,10 +18,12 @@ from .schemas import (
     AlertItem,
     AutoTradeState,
     AutoTradeToggleRequest,
+    ChartPoint,
     CustomizeRequest,
     DashboardSummary,
     KillSwitchStatus,
     LedgerEntry,
+    PortfolioSummary,
     PositionItem,
     PresetActivateRequest,
     TelegramAuthPayload,
@@ -131,7 +134,8 @@ async def get_positions(
         rows = await conn.fetch(
             f"""SELECT p.id, p.market_id, m.question AS market_question,
                        p.side, p.size_usdc, p.entry_price, p.current_price,
-                       p.pnl_usdc, p.status, p.mode, p.opened_at, p.closed_at
+                       p.pnl_usdc, p.status, p.mode, p.opened_at, p.closed_at,
+                       p.exit_reason
                 FROM positions p
                 LEFT JOIN markets m ON m.id = p.market_id
                 {where}
@@ -154,6 +158,7 @@ async def get_positions(
             mode=r["mode"],
             opened_at=r["opened_at"],
             closed_at=r["closed_at"],
+            exit_reason=r["exit_reason"],
         )
         for r in rows
     ]
@@ -383,6 +388,111 @@ async def web_kill(user: _CurrentUser):
         log.error("web kill switch failed: %s", exc)
         raise HTTPException(status_code=500, detail="kill switch failed")
     return {"ok": True, "kill_switch_active": True}
+
+
+@router.get("/portfolio/summary", response_model=PortfolioSummary)
+async def get_portfolio_summary(user: _CurrentUser) -> PortfolioSummary:
+    pool = get_pool()
+    user_id = user["user_id"]
+
+    async with pool.acquire() as conn:
+        balance_row = await conn.fetchrow(
+            "SELECT balance_usdc FROM wallets WHERE user_id=$1::uuid", user_id
+        )
+        realized_pnl = float(
+            await conn.fetchval(
+                "SELECT COALESCE(SUM(pnl_usdc), 0) FROM positions WHERE user_id=$1::uuid AND status IN ('closed', 'expired')",
+                user_id,
+            ) or 0
+        )
+        open_rows = await conn.fetch(
+            "SELECT size_usdc, entry_price, current_price FROM positions WHERE user_id=$1::uuid AND status='open'",
+            user_id,
+        )
+
+    balance = float(balance_row["balance_usdc"]) if balance_row else 0.0
+    unrealized_pnl = _unrealized_pnl(open_rows)
+    deployed = sum(float(r["size_usdc"]) for r in open_rows)
+    equity = balance + deployed + unrealized_pnl
+
+    return PortfolioSummary(
+        available_usdc=balance,
+        realized_pnl=realized_pnl,
+        unrealized_pnl=unrealized_pnl,
+        equity_usdc=equity,
+        balance_usdc=balance,
+    )
+
+
+def _unrealized_pnl(open_rows: list) -> float:
+    total = 0.0
+    for r in open_rows:
+        ep = float(r["entry_price"])
+        if ep <= 0:
+            continue
+        cp = float(r["current_price"] if r["current_price"] is not None else r["entry_price"])
+        total += (cp / ep - 1) * float(r["size_usdc"])
+    return total
+
+
+_CHART_LOOKBACK: dict[str, timedelta | None] = {
+    "1D":  timedelta(days=1),
+    "1W":  timedelta(weeks=1),
+    "1M":  timedelta(days=30),
+    "1Y":  timedelta(days=365),
+    "ALL": None,
+}
+
+
+@router.get("/portfolio/chart")
+async def get_portfolio_chart(
+    user: _CurrentUser,
+    period: str = "1W",
+) -> list[ChartPoint]:
+    pool = get_pool()
+    user_id = user["user_id"]
+    now = datetime.now(timezone.utc)
+    lookback = _CHART_LOOKBACK.get(period.upper(), _CHART_LOOKBACK["1W"])
+    since = now - lookback if lookback else None
+
+    async with pool.acquire() as conn:
+        balance_row = await conn.fetchrow(
+            "SELECT balance_usdc FROM wallets WHERE user_id=$1::uuid", user_id
+        )
+        where_period = "WHERE user_id=$1::uuid AND status IN ('closed', 'expired')"
+        params_period: list = [user_id]
+        if since:
+            params_period.append(since)
+            where_period += f" AND closed_at >= ${len(params_period)}"
+        period_rows = await conn.fetch(
+            f"SELECT closed_at, pnl_usdc FROM positions {where_period} ORDER BY closed_at ASC",
+            *params_period,
+        )
+        open_rows = await conn.fetch(
+            "SELECT size_usdc, entry_price, current_price FROM positions WHERE user_id=$1::uuid AND status='open'",
+            user_id,
+        )
+
+    if not period_rows:
+        return []
+
+    balance = float(balance_row["balance_usdc"]) if balance_row else 0.0
+    period_pnl_sum = sum(float(r["pnl_usdc"] or 0) for r in period_rows)
+    unrealized = _unrealized_pnl(open_rows)
+    deployed = sum(float(r["size_usdc"]) for r in open_rows)
+
+    equity_at_start = balance - period_pnl_sum
+    start_ts = since if since else period_rows[0]["closed_at"]
+    points: list[ChartPoint] = [
+        ChartPoint(ts=start_ts.isoformat(), equity=round(equity_at_start, 2))
+    ]
+    running = equity_at_start
+    for row in period_rows:
+        running += float(row["pnl_usdc"] or 0)
+        points.append(ChartPoint(ts=row["closed_at"].isoformat(), equity=round(running, 2)))
+
+    points.append(ChartPoint(ts=now.isoformat(), equity=round(balance + deployed + unrealized, 2)))
+    return points
 
 
 @router.get("/stream")

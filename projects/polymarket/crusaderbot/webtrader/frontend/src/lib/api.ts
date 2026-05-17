@@ -28,6 +28,9 @@ export function makeApi(token: string | null) {
     getDashboard: () => get<DashboardSummary>("/dashboard"),
     getPositions: (status?: string) =>
       get<PositionItem[]>(`/positions${status ? `?status=${status}` : ""}`),
+    getPortfolioSummary: () => get<PortfolioSummary>("/portfolio/summary"),
+    getPortfolioChart: (period: string) =>
+      get<ChartPoint[]>(`/portfolio/chart?period=${encodeURIComponent(period)}`),
     getAutotrade: () => get<AutoTradeState>("/autotrade"),
     toggleAutotrade: (enabled: boolean) => post<{ auto_trade_on: boolean }>("/autotrade/toggle", { enabled }),
     activatePreset: (preset_key: string) => post<{ active_preset: string }>("/autotrade/preset", { preset_key }),
@@ -71,6 +74,20 @@ export interface PositionItem {
   mode: string;
   opened_at: string;
   closed_at: string | null;
+  exit_reason: string | null;
+}
+
+export interface PortfolioSummary {
+  available_usdc: number;
+  realized_pnl: number;
+  unrealized_pnl: number;
+  equity_usdc: number;
+  balance_usdc: number;
+}
+
+export interface ChartPoint {
+  ts: string;
+  equity: number;
 }
 
 export interface AutoTradeState {
