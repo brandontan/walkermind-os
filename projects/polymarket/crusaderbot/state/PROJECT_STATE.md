@@ -1,7 +1,8 @@
-Last Updated : 2026-05-17 23:30
-Status       : Realtime P&L UI delivered (PR #1111). Ledger cleanup PR #1110 open. Multiple feature PRs awaiting WARP🔹CMD review. Production PAPER ONLY.
+Last Updated : 2026-05-17 23:45
+Status       : WARP/CRUSADERBOT-REALTIME-PNL-UI MERGED PR #1111. Ledger cleanup PR #1110 open. Multiple feature PRs awaiting WARP🔹CMD review. Production PAPER ONLY.
 
 [COMPLETED]
+- WARP/CRUSADERBOT-REALTIME-PNL-UI MERGED PR #1111 (2026-05-17): Home Recent Activity real-time (open+closed, 5 most recent), P&L color-coded left border + value text, price null→"—", SSE position_updated in-place update, Portfolio borderTone consistency. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-BAD-TRADE-CLEANUP MERGED PR #1109 (2026-05-17): deleted 22 bad tp_hit positions for walk3r69 (price bug #1105); wallet balance corrected $2,227.57 → $990.00. Verification: 0 bad trades remain, 13 market_expired clean, 1 open untouched. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
 - telegram-ux-final-polish MERGED PR #1088 (2026-05-17). Wallet copy-address bug fixed (rsplit parse), portfolio_chart tier gate removed, wallet_p5_kb home label corrected, emergency_done_p5_kb auto-trade label corrected, _hub_text unused tier param removed. compileall clean. STANDARD, NARROW INTEGRATION.
@@ -23,7 +24,6 @@ Status       : Realtime P&L UI delivered (PR #1111). Ledger cleanup PR #1110 ope
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- WARP/CRUSADERBOT-REALTIME-PNL-UI PR #1111 open — Home Recent Activity real-time + color coded; price null guard ($0.00→"—"); SSE position_updated; Portfolio borderTone. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-LEDGER-CLEANUP PR #1110 open — DB work done (44 orphaned ledger entries deleted, ledger_sum -$10.00, wallet/ledger consistent); awaiting WARP🔹CMD review and merge.
 - portfolio-ui-polish PR open — WebTrader Portfolio tab: equity header, P&L chart (period selector), exit_reason badges, enhanced position rows, /portfolio/summary + /portfolio/chart endpoints. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-TG-KB-CLEANUP PR open — inline KB ghost fix: show_portfolio and _render_hub edit message in-place on callback; eliminates stale p5_dashboard_kb floating above Portfolio/Settings screens. Awaiting WARP🔹CMD review.
@@ -50,12 +50,8 @@ Status       : Realtime P&L UI delivered (PR #1111). Ledger cleanup PR #1110 ope
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-<<<<<<< HEAD
 - WARP🔹CMD review required for WARP/CRUSADERBOT-LEDGER-CLEANUP (orphaned ledger entries). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ledger-cleanup.md. Tier: STANDARD. Decision needed: extend ledger + position cleanup to qwneer8 + Maver1ch69.
-=======
-- WARP🔹CMD review required for WARP/CRUSADERBOT-REALTIME-PNL-UI (realtime P&L UI). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-realtime-pnl-ui.md. Tier: STANDARD.
-- WARP🔹CMD review required for WARP/CRUSADERBOT-BAD-TRADE-CLEANUP (bad-trade DB cleanup). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-bad-trade-cleanup.md. Tier: STANDARD. Decision needed: extend cleanup to qwneer8 + Maver1ch69 (same bug, same inflated trades).
->>>>>>> b760feb (feat: realtime P&L UI — home activity color-coding + null price guard + SSE position_updated)
+- WARP🔹CMD production deploy decision required: apply pending migrations (030, 031, 034) to production DB, then deploy main (now includes PR #1111 realtime P&L UI) to Fly.io.
 - WARP🔹CMD review required for portfolio-ui-polish (Portfolio tab upgrade). Source: projects/polymarket/crusaderbot/reports/forge/portfolio-ui-polish.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-TG-KB-CLEANUP (inline KB ghost fix). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-tg-kb-cleanup.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-SCANNER-SYNC-FIX (skipped_market_not_synced fix). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-scanner-sync-fix.md. Tier: STANDARD.
@@ -63,7 +59,6 @@ Status       : Realtime P&L UI delivered (PR #1111). Ledger cleanup PR #1110 ope
 - WARP🔹CMD review required for WARP/CRUSADERBOT-SSE-AUTH-FIX (SSE status dot + auth confirmed). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-sse-auth-fix.md. Tier: MINOR.
 - WARP🔹CMD review required for crusaderbot-webtrader-ws (SSE push + polling removal). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-webtrader-ws.md. Tier: STANDARD.
 - WARP🔹CMD review required for webtrader-build-fix (pipeline verified + BottomNav label fix). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-build-fix.md. Tier: MINOR.
-- WARP🔹CMD production deploy decision required: apply pending migrations (030, 031, 034) to production DB, then deploy main to Fly.io.
 - WARP🔹CMD production deploy verification: verify PORTFOLIO label + 10s polling in browser network tab.
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 - Closed beta observation continues — no new feature PRs in Week 4.
