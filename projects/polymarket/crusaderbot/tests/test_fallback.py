@@ -306,6 +306,11 @@ def test_gate_step13_silent_downgrade_triggers_live_guard_unset_fallback():
         ENABLE_LIVE_TRADING = False
         EXECUTION_PATH_VALIDATED = False
         CAPITAL_MODE_CONFIRMED = False
+        # Track D risk cap defaults (must be present for validate_risk_caps)
+        MAX_SINGLE_POSITION_PCT: float = 0.10
+        MAX_TOTAL_EXPOSURE_PCT: float = 0.80
+        MAX_DAILY_LOSS_USD: float = -50.00
+        MAX_OPEN_POSITIONS: int = 20
 
     trigger_calls: list = []
 
