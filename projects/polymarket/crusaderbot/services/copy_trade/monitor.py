@@ -208,6 +208,16 @@ async def _process_one(
             raw_side=raw_side,
         )
         return
+
+    # --- copy_direction filter (migration 035) ---
+    if task.copy_direction == "buys_only" and raw_side in ("sell", "no"):
+        log.info(
+            "copy_trade_monitor: SKIPPED — copy_direction=buys_only, leader SELL",
+            reason="copy_direction_filter",
+            raw_side=raw_side,
+        )
+        return
+
     outcome = (leader_trade.get("outcome") or "").strip().lower() or None
     side = _resolve_side(raw_side, task.reverse_copy, outcome)
 
@@ -235,9 +245,44 @@ async def _process_one(
         )
         return
 
+    # --- allow_topups filter (migration 035) ---
+    if not task.allow_topups:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            already_held = await conn.fetchval(
+                "SELECT 1 FROM positions WHERE user_id=$1 AND market_id=$2 AND status='open' LIMIT 1",
+                task.user_id, market_id,
+            )
+        if already_held:
+            log.info(
+                "copy_trade_monitor: SKIPPED — allow_topups=false, open position exists",
+                reason="allow_topups_filter",
+                market_id=market_id,
+            )
+            return
+
     market_question: str | None = leader_trade.get("market_question") or leader_trade.get("title")
     price = _extract_price(leader_trade, side)
     idempotency_key = _make_idempotency_key(task.id, leader_trade_id)
+
+    # --- execution_mode filter (migration 035) ---
+    if task.execution_mode == "manual":
+        log.info(
+            "copy_trade_monitor: PENDING — execution_mode=manual, skipping auto-exec",
+            reason="execution_mode_manual",
+            market_id=market_id,
+            side=side,
+        )
+        await event_bus.emit(
+            "copy_trade.pending_confirm",
+            telegram_user_id=user_ctx["telegram_user_id"],
+            task_id=str(task.id),
+            wallet_address=wallet_address,
+            market_id=market_id,
+            side=side,
+            proposed_size_usdc=str(round(copy_size, 2)),
+        )
+        return
 
     signal = TradeSignal(
         user_id=task.user_id,

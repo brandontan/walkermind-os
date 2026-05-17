@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any
 
 VALID_SIDES: tuple[str, ...] = ("YES", "NO")
-VALID_RISK_PROFILES: tuple[str, ...] = ("conservative", "balanced", "aggressive")
+VALID_RISK_PROFILES: tuple[str, ...] = ("conservative", "balanced", "aggressive", "custom")
 VALID_EXIT_REASONS: tuple[str, ...] = ("strategy_exit", "hold")
 
 

@@ -169,7 +169,7 @@ def test_signal_following_strategy_attributes():
     assert SignalFollowingStrategy.name == "signal_following"
     assert SignalFollowingStrategy.version == "1.0.0"
     assert set(SignalFollowingStrategy.risk_profile_compatibility) == {
-        "conservative", "balanced", "aggressive",
+        "conservative", "balanced", "aggressive", "custom",
     }
 
 

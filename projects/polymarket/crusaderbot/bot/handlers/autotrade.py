@@ -17,7 +17,7 @@ from telegram.ext import ContextTypes
 from ...database import get_pool
 from ...users import set_auto_trade, set_paused, upsert_user, update_settings
 from ...wallet.ledger import daily_pnl
-from ..keyboards import preset_active_kb, preset_confirm_kb, preset_picker_kb
+from ..keyboards import auto_trade_menu_kb, preset_active_kb, preset_confirm_kb, preset_picker_kb
 from ..messages import (
     PRESET_PICKER_TEXT,
     preset_activated_success_text,
@@ -53,17 +53,39 @@ async def _safe_edit(q, text: str, **kwargs) -> None:
 
 # ── Screen 03 — Preset Picker ──────────────────────────────────────────────────
 
+_AUTO_TRADE_MENU_TEXT = (
+    "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n\n"
+    "Choose what to configure:"
+)
+
+# Risk Profile sub-menu body. Module-level so the copy is maintained in one
+# place alongside _AUTO_TRADE_MENU_TEXT (the matching keyboard is mvp_risk_kb).
+_RISK_PROFILE_TEXT = (
+    "<b>⚖️ Risk Profile</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "🟢 <b>Conservative</b> — 20% cap · TP +10% · SL -5%\n"
+    "🟡 <b>Balanced</b> — 40% cap · TP +20% · SL -15%\n"
+    "🔴 <b>Aggressive</b> — 60% cap · TP +30% · SL -20%\n"
+    "⚙️ <b>Custom Risk</b> — set your own capital, TP, SL"
+)
+
+
 async def show_autotrade(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Entry point — routes to picker or active status depending on user state."""
+    """Entry point — shows the Auto Trade top-level 2-sub-menu."""
     if update.effective_user is None:
         return
-    user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    preset_key, sett = await _get_active_preset(user["id"])
-
-    if user.get("auto_trade_on") and preset_key:
-        await _show_active_status(update, ctx, user, preset_key, sett)
-    else:
-        await _show_preset_picker(update, ctx)
+    q = update.callback_query
+    if q is not None and q.message is not None:
+        await _safe_edit(
+            q, _AUTO_TRADE_MENU_TEXT,
+            parse_mode=ParseMode.HTML, reply_markup=auto_trade_menu_kb(),
+        )
+    elif update.message is not None:
+        await update.message.reply_text(
+            _AUTO_TRADE_MENU_TEXT,
+            parse_mode=ParseMode.HTML,
+            reply_markup=auto_trade_menu_kb(),
+        )
 
 
 async def _show_preset_picker(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -174,12 +196,44 @@ async def _show_active_status(
 # ── Callback handler ───────────────────────────────────────────────────────────
 
 async def autotrade_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Routes all p5:preset:*, p5:confirm:*, p5:active:* callbacks."""
+    """Routes all auto_trade:*, p5:preset:*, p5:confirm:*, p5:active:* callbacks."""
     q = update.callback_query
     if q is None or update.effective_user is None:
         return
     await q.answer()
     data = q.data or ""
+
+    if data == "auto_trade:strategy":
+        user = await upsert_user(update.effective_user.id, update.effective_user.username)
+        preset_key, sett = await _get_active_preset(user["id"])
+        if user.get("auto_trade_on") and preset_key:
+            await _show_active_status(update, ctx, user, preset_key, sett)
+        else:
+            await _show_preset_picker(update, ctx)
+        return
+
+    if data == "auto_trade:risk":
+        from ...users import get_settings_for
+        from ..keyboards import mvp_risk_kb
+        user = await upsert_user(update.effective_user.id, update.effective_user.username)
+        s = await get_settings_for(user["id"])
+        current_risk = s.get("risk_profile", "balanced")
+        if q.message:
+            try:
+                await q.message.edit_text(
+                    _RISK_PROFILE_TEXT, parse_mode=ParseMode.HTML,
+                    reply_markup=mvp_risk_kb(current_risk),
+                )
+            except Exception:
+                await q.message.reply_text(
+                    _RISK_PROFILE_TEXT, parse_mode=ParseMode.HTML,
+                    reply_markup=mvp_risk_kb(current_risk),
+                )
+        return
+
+    if data == "auto_trade:back":
+        await show_autotrade(update, ctx)
+        return
 
     if data.startswith("p5:preset:"):
         preset_key = data.split(":", 2)[-1]

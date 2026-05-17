@@ -36,6 +36,7 @@ Safety:
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 from decimal import Decimal
 from typing import Any
@@ -48,7 +49,9 @@ from ...domain.execution.router import execute as router_execute
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
 from ...domain.strategy.registry import StrategyRegistry
 from ...domain.strategy.types import MarketFilters, SignalCandidate, UserContext
+from ...integrations import polymarket as _polymarket
 from ..trade_engine import TradeEngine, TradeResult, TradeSignal
+from .lib_strategy_runner import ENABLED_STRATEGIES, DEFERRED_STRATEGIES, run_lib_strategy
 
 logger = structlog.get_logger(__name__)
 
@@ -57,6 +60,29 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 _STRATEGY_NAME = "signal_following"
+
+# ---------------------------------------------------------------------------
+# Preset → lib strategy name mapping
+# ---------------------------------------------------------------------------
+
+_LIB_STRATEGY_NAMES: frozenset[str] = frozenset(ENABLED_STRATEGIES) | frozenset(DEFERRED_STRATEGIES)
+
+_PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
+    "whale_mirror":   frozenset({"whale_tracking"}),
+    "trend_breakout": frozenset({"trend_breakout"}),
+    "contrarian":     frozenset({"momentum"}),
+    "value_hunter":   frozenset({"value_investor"}),
+    "close_sweep":    frozenset({"expiration_timing"}),
+    "pair_arb":       frozenset({"pair_arb"}),
+    "ensemble":       frozenset({"ensemble", "trend_breakout", "momentum", "value_investor"}),
+    "full_auto":      _LIB_STRATEGY_NAMES,
+    None:             _LIB_STRATEGY_NAMES,  # no preset set → full_auto behaviour
+}
+
+
+def _preset_allows(active_preset: str | None, strategy_name: str) -> bool:
+    """Return True if user's active_preset permits signals from strategy_name."""
+    return strategy_name in _PRESET_ALLOWED.get(active_preset, _LIB_STRATEGY_NAMES)
 
 # Module-level TradeEngine singleton — stateless; safe to share across ticks.
 _engine: TradeEngine = TradeEngine()
@@ -86,7 +112,8 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 s.sl_pct,
                 s.daily_loss_override,
                 us.weight                AS capital_allocation_pct,
-                COALESCE(urp.profile_name, s.risk_profile, 'balanced') AS resolved_profile
+                COALESCE(urp.profile_name, s.risk_profile, 'balanced') AS resolved_profile,
+                s.active_preset
             FROM user_strategies us
             JOIN users          u   ON u.id  = us.user_id
             JOIN wallets        w   ON w.user_id = u.id
@@ -332,7 +359,7 @@ def _build_trade_signal(
         market_liquidity=float(market.get("liquidity_usdc") or 0.0),
         market_status=str(market.get("status") or ""),
         idempotency_key=idempotency_key,
-        strategy_type=_STRATEGY_NAME,
+        strategy_type=cand.strategy_name,
         risk_profile=str(row.get("resolved_profile") or "balanced"),
         trading_mode=str(row.get("trading_mode") or "paper"),
         signal_ts=cand.signal_ts,
@@ -509,7 +536,7 @@ async def _process_candidate(
         try:
             inserted = await _insert_execution_queue(
                 user_id=user_id,
-                strategy_name=_STRATEGY_NAME,
+                strategy_name=cand.strategy_name,
                 market_id=cand.market_id,
                 side=side,
                 publication_id=pub_uuid,
@@ -541,8 +568,26 @@ async def _process_candidate(
 # ---------------------------------------------------------------------------
 
 
+async def _fetch_markets_for_lib_strategies() -> list[dict]:
+    """Fetch active market list from Gamma API for lib strategy scans.
+
+    Returns empty list on failure — lib strategies handle empty input gracefully.
+    """
+    try:
+        return await _polymarket.get_markets(limit=200)
+    except Exception as exc:
+        logger.warning("lib_strategy_market_fetch_failed", error=str(exc))
+        return []
+
+
 async def run_once() -> None:
-    """Run one tick of the signal_following scan loop for all enrolled users.
+    """Run one tick of the lib-strategy scan loop for all enrolled users.
+
+    Two-phase execution:
+      Phase A — run each enabled lib strategy once per tick against the shared
+                market list; collect candidates keyed by strategy_name.
+      Phase B — for each enrolled user, filter candidates by their active_preset
+                via _preset_allows(); call _process_candidate for each match.
 
     Each user is processed independently — an exception for one user does
     not prevent other users from being scanned on the same tick.
@@ -556,37 +601,42 @@ async def run_once() -> None:
     if not users:
         return
 
-    reg = StrategyRegistry.instance()
-    try:
-        strategy = reg.get(_STRATEGY_NAME)
-    except KeyError:
-        logger.error("signal_scan_strategy_not_registered", strategy=_STRATEGY_NAME)
-        return
+    # Phase A: fetch markets once, run each lib strategy, collect by name.
+    markets = await _fetch_markets_for_lib_strategies()
+    all_candidates: dict[str, list[SignalCandidate]] = {}
+    strategies_to_run = list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES)
+    for lib_name in strategies_to_run:
+        try:
+            cands = await asyncio.get_event_loop().run_in_executor(
+                None, run_lib_strategy, lib_name, markets, {}
+            )
+            all_candidates[lib_name] = cands
+        except Exception as exc:
+            logger.warning("lib_strategy_run_failed", strategy=lib_name, error=str(exc))
+            all_candidates[lib_name] = []
 
+    total_signals = sum(len(v) for v in all_candidates.values())
+    logger.info("lib_strategy_phase_a_done", strategies=len(strategies_to_run),
+                total_signals=total_signals)
+
+    # Phase B: distribute signals to users based on their active_preset.
     for row in users:
-        user_log = logger.bind(user_id=str(row["user_id"]))
-        try:
-            user_ctx = _build_user_context(row)
-            mkt_filters = _build_market_filters()
-        except Exception as exc:
-            user_log.warning("signal_scan_context_build_failed", error=str(exc))
-            continue
+        active_preset = row.get("active_preset")
+        user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
 
-        try:
-            candidates = await strategy.scan(mkt_filters, user_ctx)
-        except Exception as exc:
-            user_log.warning("signal_scan_strategy_scan_failed", error=str(exc))
-            continue
-
-        for cand in candidates:
-            try:
-                await _process_candidate(row, cand)
-            except Exception as exc:
-                user_log.error(
-                    "signal_scan_candidate_unhandled",
-                    market_id=cand.market_id,
-                    error=str(exc),
-                )
+        for lib_name, candidates in all_candidates.items():
+            if not _preset_allows(active_preset, lib_name):
+                continue
+            for cand in candidates:
+                try:
+                    await _process_candidate(row, cand)
+                except Exception as exc:
+                    user_log.error(
+                        "signal_scan_candidate_unhandled",
+                        market_id=cand.market_id,
+                        strategy=lib_name,
+                        error=str(exc),
+                    )
 
 
 __all__ = ["run_once"]

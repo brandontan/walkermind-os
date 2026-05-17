@@ -76,6 +76,7 @@ from projects.polymarket.crusaderbot.bot.handlers.copy_trade import (
     COPY_EDIT,
     COPY_RISK,
     _init_wizard,
+    build_new_copy_wizard_handler,
     build_wizard_handler,
     custom_input_handler,
     edit_delete_ask,
@@ -306,6 +307,11 @@ def _fake_db_row(**overrides) -> MagicMock:
         "reverse_copy": False,
         "created_at": now,
         "updated_at": now,
+        # migration 035 columns (always present via COALESCE in _SELECT)
+        "nickname": None,
+        "copy_direction": "buys_only",
+        "execution_mode": "auto",
+        "allow_topups": True,
         **overrides,
     }[k])
     return row
@@ -638,14 +644,19 @@ def test_37_edit_pnl_db_error_shows_truthful_unavailable():
 
 
 def test_38_copytrade_copy_and_edit_route_to_wizard_not_placeholder():
-    # Regression: the dead 'Phase 5F placeholder' alerts were removed; the
-    # wizard ConversationHandler owns copytrade:copy:/copytrade:edit:.
+    # Regression: the dead 'Phase 5F placeholder' alerts were removed.
+    # Post-bundle, copytrade:copy: is owned by the NEW 8-step wizard
+    # (build_new_copy_wizard_handler); copytrade:edit: stays on the legacy
+    # wizard (build_wizard_handler).
     import inspect
     src = inspect.getsource(ct_mod)
     assert "wizard placeholder" not in src
     assert "coming in Phase 5F" not in src
 
-    handler = build_wizard_handler()
-    patterns = [ep.pattern.pattern for ep in handler.entry_points]
-    assert any("copytrade:copy:" in p for p in patterns)
-    assert any("copytrade:edit:" in p for p in patterns)
+    new_handler = build_new_copy_wizard_handler()
+    new_patterns = [ep.pattern.pattern for ep in new_handler.entry_points]
+    assert any("copytrade:copy:" in p for p in new_patterns)
+
+    edit_handler = build_wizard_handler()
+    edit_patterns = [ep.pattern.pattern for ep in edit_handler.entry_points]
+    assert any("copytrade:edit:" in p for p in edit_patterns)

@@ -25,6 +25,11 @@ class CopyTradeTask:
     reverse_copy: bool
     created_at: datetime
     updated_at: datetime
+    # New columns added in migration 035 — default values mirror DB defaults.
+    nickname: str | None = None
+    copy_direction: str = "buys_only"   # 'buys_only' | 'buys_and_sells'
+    execution_mode: str = "auto"         # 'auto' | 'manual'
+    allow_topups: bool = True
 
     @property
     def is_active(self) -> bool:

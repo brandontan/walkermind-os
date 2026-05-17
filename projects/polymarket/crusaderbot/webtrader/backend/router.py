@@ -26,6 +26,7 @@ from .schemas import (
     PortfolioSummary,
     PositionItem,
     PresetActivateRequest,
+    RiskProfileRequest,
     TelegramAuthPayload,
     TokenResponse,
     UserSettingsUpdate,
@@ -204,12 +205,29 @@ async def toggle_autotrade(body: AutoTradeToggleRequest, user: _CurrentUser):
     return {"auto_trade_on": body.enabled}
 
 
+# Preset key → default risk parameters applied when preset is activated.
+# Risk profile (capital/TP/SL) can be overridden separately via /autotrade/risk-profile.
 _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
+    # Legacy preset keys — kept for backward compatibility with existing users.
     "signal_sniper": {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
-    "full_auto":     {"risk_profile": "balanced",   "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
-    "value_hunter":  {"risk_profile": "aggressive", "capital_alloc_pct": 0.60, "tp_pct": 0.30, "sl_pct": 0.20},
-    "whale_mirror":  {"risk_profile": "balanced",   "capital_alloc_pct": 0.50, "tp_pct": 0.20, "sl_pct": 0.10},
-    "hybrid":        {"risk_profile": "balanced",   "capital_alloc_pct": 0.60, "tp_pct": 0.15, "sl_pct": 0.10},
+    "full_auto":     {"risk_profile": "aggressive",   "capital_alloc_pct": 0.60, "tp_pct": 0.30, "sl_pct": 0.20},
+    "value_hunter":  {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
+    "whale_mirror":  {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
+    "hybrid":        {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.15, "sl_pct": 0.10},
+    # New preset keys mapped to lib/strategies/ classes.
+    "trend_breakout": {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
+    "contrarian":     {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.15, "sl_pct": 0.10},
+    "close_sweep":    {"risk_profile": "balanced",     "capital_alloc_pct": 0.30, "tp_pct": 0.15, "sl_pct": 0.08},
+    "pair_arb":       {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.05, "sl_pct": 0.03},
+    "ensemble":       {"risk_profile": "balanced",   "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.12},
+}
+
+_VALID_RISK_PROFILES: frozenset[str] = frozenset({"conservative", "balanced", "aggressive", "custom"})
+
+_RISK_PROFILE_DEFAULTS: dict[str, dict[str, float]] = {
+    "conservative": {"capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
+    "balanced":     {"capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
+    "aggressive":   {"capital_alloc_pct": 0.60, "tp_pct": 0.30, "sl_pct": 0.20},
 }
 
 
@@ -269,6 +287,64 @@ async def customize_strategy(body: CustomizeRequest, user: _CurrentUser):
             *params,
         )
     return {"updated": True}
+
+
+@router.patch("/autotrade/risk-profile")
+async def set_risk_profile(body: RiskProfileRequest, user: _CurrentUser):
+    """Set user's risk profile independently of their strategy preset.
+
+    For standard profiles (conservative/balanced/aggressive), pre-defined
+    capital/TP/SL defaults are applied. For 'custom', the caller must supply
+    all three parameters.
+
+    Validation is enforced server-side so it cannot be bypassed via the WebTrader.
+    """
+    if body.profile not in _VALID_RISK_PROFILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid risk profile: {body.profile!r}. "
+                   f"Must be one of {sorted(_VALID_RISK_PROFILES)}",
+        )
+
+    if body.profile == "custom":
+        if body.capital_alloc_pct is None or body.tp_pct is None or body.sl_pct is None:
+            raise HTTPException(
+                status_code=422,
+                detail="custom profile requires capital_alloc_pct, tp_pct, and sl_pct",
+            )
+        if body.capital_alloc_pct > 0.80:
+            raise HTTPException(
+                status_code=422,
+                detail="capital_alloc_pct must not exceed 0.80 (80% hard ceiling)",
+            )
+        if body.tp_pct <= body.sl_pct:
+            raise HTTPException(
+                status_code=422,
+                detail="tp_pct must be greater than sl_pct",
+            )
+        cap = body.capital_alloc_pct
+        tp = body.tp_pct
+        sl = body.sl_pct
+    else:
+        defaults = _RISK_PROFILE_DEFAULTS[body.profile]
+        cap = float(body.capital_alloc_pct) if body.capital_alloc_pct is not None else defaults["capital_alloc_pct"]
+        tp = float(body.tp_pct) if body.tp_pct is not None else defaults["tp_pct"]
+        sl = float(body.sl_pct) if body.sl_pct is not None else defaults["sl_pct"]
+
+    pool = get_pool()
+    user_id = user["user_id"]
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """UPDATE user_settings
+                  SET risk_profile      = $1,
+                      capital_alloc_pct = $2,
+                      tp_pct            = $3,
+                      sl_pct            = $4,
+                      updated_at        = NOW()
+               WHERE user_id = $5::uuid""",
+            body.profile, cap, tp, sl, user_id,
+        )
+    return {"risk_profile": body.profile, "capital_alloc_pct": cap, "tp_pct": tp, "sl_pct": sl}
 
 
 @router.get("/wallet", response_model=WalletInfo)
@@ -501,3 +577,158 @@ async def sse_stream(user: _CurrentUser):
     return EventSourceResponse(
         webtrader_sse.stream_for_user(user["user_id"], telegram_id)
     )
+
+
+# ── Copy Trade ────────────────────────────────────────────────────────────────
+
+from typing import Literal as _Literal  # noqa: E402
+
+from pydantic import BaseModel as _BaseModel  # noqa: E402
+
+# Enum-constrained at the schema boundary so a malformed client payload
+# (e.g. "buy_only", "manuall") is rejected with 422 before persistence —
+# monitor logic branches on exact literals, so silent typos would change
+# trading behaviour (sell filtering / manual-confirm bypass).
+_CopyDirection = _Literal["buys_only", "buys_and_sells"]
+_CopyType = _Literal["fixed", "percentage", "rm"]
+_ExecutionMode = _Literal["auto", "manual"]
+_TaskStatus = _Literal["active", "paused"]
+
+
+class CopyTradeTaskCreate(_BaseModel):
+    wallet_address: str
+    nickname: Optional[str] = None
+    copy_direction: _CopyDirection = "buys_only"
+    copy_type: _CopyType = "fixed"
+    amount: float = 10.0
+    execution_mode: _ExecutionMode = "auto"
+    slippage_pct: float = 0.05
+    allow_topups: bool = True
+
+
+class CopyTradeTaskPatch(_BaseModel):
+    nickname: Optional[str] = None
+    copy_direction: Optional[_CopyDirection] = None
+    execution_mode: Optional[_ExecutionMode] = None
+    allow_topups: Optional[bool] = None
+    status: Optional[_TaskStatus] = None
+
+
+@router.get("/copy-trade/tasks")
+async def list_copy_trade_tasks(user: _CurrentUser):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT id::text, wallet_address,
+                      COALESCE(nickname, task_name) AS nickname,
+                      status,
+                      COALESCE(copy_direction, 'buys_only') AS copy_direction,
+                      copy_mode, copy_amount,
+                      COALESCE(execution_mode, 'auto') AS execution_mode,
+                      COALESCE(allow_topups, true) AS allow_topups,
+                      created_at
+               FROM copy_trade_tasks
+               WHERE user_id = $1::uuid
+               ORDER BY created_at ASC""",
+            user["user_id"],
+        )
+    return [dict(r) for r in rows]
+
+
+@router.post("/copy-trade/tasks", status_code=201)
+async def create_copy_trade_task(body: CopyTradeTaskCreate, user: _CurrentUser):
+    copy_mode = {"fixed": "fixed", "percentage": "proportional", "rm": "rm_mirror"}.get(
+        body.copy_type, "fixed"
+    )
+    copy_amount = body.amount if body.copy_type == "fixed" else 10.0
+    copy_pct = body.amount / 100.0 if body.copy_type != "fixed" else None
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO copy_trade_tasks
+               (user_id, wallet_address, task_name, copy_mode, copy_amount, copy_pct,
+                slippage_pct, status, nickname, copy_direction, execution_mode, allow_topups)
+               VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11)
+               RETURNING id::text""",
+            user["user_id"],
+            body.wallet_address.lower(),
+            body.nickname or body.wallet_address[:12],
+            copy_mode,
+            copy_amount,
+            copy_pct,
+            body.slippage_pct,
+            body.nickname,
+            body.copy_direction,
+            body.execution_mode,
+            body.allow_topups,
+        )
+    return {"id": row["id"], "status": "active"}
+
+
+@router.patch("/copy-trade/tasks/{task_id}")
+async def update_copy_trade_task(task_id: str, body: CopyTradeTaskPatch, user: _CurrentUser):
+    fields: list[str] = []
+    values: list = []
+    if body.nickname is not None:
+        fields.append(f"nickname = ${len(values)+3}")
+        values.append(body.nickname)
+    if body.copy_direction is not None:
+        fields.append(f"copy_direction = ${len(values)+3}")
+        values.append(body.copy_direction)
+    if body.execution_mode is not None:
+        fields.append(f"execution_mode = ${len(values)+3}")
+        values.append(body.execution_mode)
+    if body.allow_topups is not None:
+        fields.append(f"allow_topups = ${len(values)+3}")
+        values.append(body.allow_topups)
+    if body.status is not None:
+        if body.status not in ("active", "paused"):
+            raise HTTPException(status_code=422, detail="status must be active or paused")
+        fields.append(f"status = ${len(values)+3}")
+        values.append(body.status)
+    if not fields:
+        raise HTTPException(status_code=422, detail="no fields to update")
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            f"UPDATE copy_trade_tasks SET {', '.join(fields)}, updated_at=NOW() "
+            f"WHERE id=$1::uuid AND user_id=$2::uuid",
+            task_id, user["user_id"], *values,
+        )
+    return {"updated": True}
+
+
+@router.delete("/copy-trade/tasks/{task_id}", status_code=204)
+async def delete_copy_trade_task(task_id: str, user: _CurrentUser):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        deleted = await conn.fetchval(
+            "DELETE FROM copy_trade_tasks WHERE id=$1::uuid AND user_id=$2::uuid RETURNING 1",
+            task_id, user["user_id"],
+        )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="task not found")
+
+
+@router.get("/copy-trade/tasks/{task_id}/stats")
+async def get_copy_trade_task_stats(task_id: str, user: _CurrentUser):
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        task = await conn.fetchrow(
+            "SELECT wallet_address FROM copy_trade_tasks WHERE id=$1::uuid AND user_id=$2::uuid",
+            task_id, user["user_id"],
+        )
+    if task is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    try:
+        from ...services.copy_trade.wallet_stats import fetch_wallet_stats
+        stats = await fetch_wallet_stats(task["wallet_address"])
+        return {
+            "pnl_30d": stats.pnl_30d,
+            "win_rate": stats.win_rate,
+            "total_predictions": stats.total_predictions,
+            "biggest_win": stats.biggest_win,
+        }
+    except Exception as exc:
+        log.warning("copy_trade_stats_fetch_failed wallet=%s error=%s", task["wallet_address"], exc)
+        return {"error": "stats unavailable"}

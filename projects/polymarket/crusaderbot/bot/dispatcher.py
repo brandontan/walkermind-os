@@ -190,7 +190,10 @@ def register(app: Application) -> None:
     # /settings). One alias kept for back-compat:
     app.add_handler(CommandHandler("trades",          my_trades))
 
-    # ── Phase 5F copy-trade wizard (before general copytrade: handler) ──────────
+    # ── 8-step copy-trade wizard (registered BEFORE the 3-step wizard) ──────────
+    app.add_handler(copy_trade.build_new_copy_wizard_handler())
+
+    # ── Phase 5F copy-trade wizard (edit-only entry after new wizard) ────────────
     app.add_handler(copy_trade.build_wizard_handler())
 
     # ── Phase 5 customize wizard (before general preset: handler) ───────────────
@@ -203,9 +206,9 @@ def register(app: Application) -> None:
 
     # ── Callback query handlers ─────────────────────────────────────────────────
 
-    # Phase 5 — autotrade (preset picker + confirm + active status)
+    # Phase 5 — autotrade (preset picker + confirm + active status + menu)
     app.add_handler(CallbackQueryHandler(autotrade_callback,
-                                         pattern=r"^p5:(preset|confirm|active):"))
+                                         pattern=r"^(p5:(preset|confirm|active):|auto_trade:)"))
 
     # Phase 5 — emergency
     app.add_handler(CallbackQueryHandler(emergency_callback,

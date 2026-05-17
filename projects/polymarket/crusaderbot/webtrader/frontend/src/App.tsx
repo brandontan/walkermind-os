@@ -5,6 +5,7 @@ import { SSEStatusContext, useSSE } from "./lib/sse";
 import { UiModeContext, useUiModeState } from "./lib/uiMode";
 import { AuthPage } from "./pages/AuthPage";
 import { AutoTradePage } from "./pages/AutoTradePage";
+import { CopyTradePage } from "./pages/CopyTradePage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { PortfolioPage } from "./pages/PortfolioPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -44,6 +45,10 @@ function AppShell() {
           <Route
             path="/wallet"
             element={user ? <WalletPage /> : <Navigate to="/auth" replace />}
+          />
+          <Route
+            path="/copy-trade"
+            element={user ? <CopyTradePage /> : <Navigate to="/auth" replace />}
           />
           <Route
             path="/settings"

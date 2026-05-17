@@ -14,7 +14,11 @@ _SELECT = """
     SELECT id, user_id, wallet_address, task_name, status,
            copy_mode, copy_amount, copy_pct,
            tp_pct, sl_pct, max_daily_spend, slippage_pct,
-           min_trade_size, reverse_copy, created_at, updated_at
+           min_trade_size, reverse_copy, created_at, updated_at,
+           nickname,
+           COALESCE(copy_direction, 'buys_only')  AS copy_direction,
+           COALESCE(execution_mode, 'auto')        AS execution_mode,
+           COALESCE(allow_topups, true)            AS allow_topups
       FROM copy_trade_tasks
 """
 
@@ -43,6 +47,10 @@ def _row_to_task(row: object) -> CopyTradeTask:
         reverse_copy=row["reverse_copy"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        nickname=row["nickname"],
+        copy_direction=row["copy_direction"],
+        execution_mode=row["execution_mode"],
+        allow_topups=bool(row["allow_topups"]),
     )
 
 

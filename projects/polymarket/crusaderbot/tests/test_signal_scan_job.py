@@ -184,7 +184,7 @@ def test_strategy_availability_includes_signal_following():
 
 def test_signal_following_availability_all_profiles():
     avail = K.STRATEGY_AVAILABILITY["signal_following"]
-    assert set(avail) == {"conservative", "balanced", "aggressive"}
+    assert set(avail) == {"conservative", "balanced", "aggressive", "custom"}
 
 
 def test_signal_following_matches_strategy_name():
@@ -528,23 +528,32 @@ def test_process_candidate_risk_rejects_inactive_market():
 
 
 def test_run_once_happy_path_calls_process_candidate():
+    """Two-phase loop: Phase A runs each lib strategy once, Phase B
+    distributes candidates to users filtered by active_preset. With
+    active_preset=None (full_auto) all lib strategies are allowed; only
+    one strategy yields a candidate so _process_candidate is called once."""
     bootstrap_default_strategies()
     row = _user_row()
+    row["active_preset"] = None  # None → full_auto: all lib strategies allowed
     cand = _candidate()
     processed = {"calls": 0}
 
-    async def _fake_scan(mf: MarketFilters, uc: UserContext):
-        return [cand]
+    def _fake_run_lib(lib_name, markets, config):
+        # Only one strategy emits a signal this tick.
+        return [cand] if lib_name == "trend_breakout" else []
+
+    async def _fake_fetch_markets():
+        return []
 
     async def _fake_process(r, c):
         processed["calls"] += 1
 
     with patch.object(job, "_load_enrolled_users", return_value=[row]), \
             patch.object(
-                StrategyRegistry.instance().get("signal_following"),
-                "scan",
-                side_effect=_fake_scan,
+                job, "_fetch_markets_for_lib_strategies",
+                side_effect=_fake_fetch_markets,
             ), \
+            patch.object(job, "run_lib_strategy", side_effect=_fake_run_lib), \
             patch.object(job, "_process_candidate", side_effect=_fake_process):
         asyncio.run(job.run_once())
 
@@ -557,33 +566,40 @@ def test_run_once_happy_path_calls_process_candidate():
 
 
 def test_run_once_scan_failure_does_not_stop_other_users():
+    """Phase B per-user isolation: _process_candidate raising for the first
+    user must not prevent the second user from being processed on the same
+    tick."""
     bootstrap_default_strategies()
     row1 = _user_row(user_id=UUID("11111111-1111-1111-1111-111111111111"))
     row2 = _user_row(user_id=UUID("22222222-2222-2222-2222-222222222222"))
-    processed = {"calls": 0}
+    row1["active_preset"] = None
+    row2["active_preset"] = None
+    processed = {"row1": 0, "row2": 0}
 
-    call_n = {"n": 0}
+    def _fake_run_lib(lib_name, markets, config):
+        return [_candidate()] if lib_name == "trend_breakout" else []
 
-    async def _failing_then_ok(mf, uc):
-        call_n["n"] += 1
-        if call_n["n"] == 1:
-            raise RuntimeError("boom")
-        return [_candidate()]
+    async def _fake_fetch_markets():
+        return []
 
     async def _fake_process(r, c):
-        processed["calls"] += 1
+        if r["user_id"] == UUID("11111111-1111-1111-1111-111111111111"):
+            processed["row1"] += 1
+            raise RuntimeError("boom")
+        processed["row2"] += 1
 
     with patch.object(job, "_load_enrolled_users", return_value=[row1, row2]), \
             patch.object(
-                StrategyRegistry.instance().get("signal_following"),
-                "scan",
-                side_effect=_failing_then_ok,
+                job, "_fetch_markets_for_lib_strategies",
+                side_effect=_fake_fetch_markets,
             ), \
+            patch.object(job, "run_lib_strategy", side_effect=_fake_run_lib), \
             patch.object(job, "_process_candidate", side_effect=_fake_process):
         asyncio.run(job.run_once())
 
-    # First user scan raised — second user still processed.
-    assert processed["calls"] == 1
+    # First user's _process_candidate raised — second user still processed.
+    assert processed["row1"] == 1
+    assert processed["row2"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -654,3 +670,56 @@ def test_process_candidate_skips_resume_when_kill_switch_active():
 
     # Kill switch active — router must not be called, row remains 'queued' for retry.
     assert not executed["called"]
+
+
+# ===========================================================================
+# Preset isolation tests (CRUSADERBOT-STRATEGY-RISK-COPY)
+# ===========================================================================
+
+from projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job import (
+    _preset_allows,
+)
+
+
+def test_preset_allows_whale_mirror_only_whale_tracking():
+    assert _preset_allows("whale_mirror", "whale_tracking") is True
+    assert _preset_allows("whale_mirror", "trend_breakout") is False
+    assert _preset_allows("whale_mirror", "momentum") is False
+
+
+def test_preset_allows_contrarian_only_momentum():
+    assert _preset_allows("contrarian", "momentum") is True
+    assert _preset_allows("contrarian", "trend_breakout") is False
+    assert _preset_allows("contrarian", "pair_arb") is False
+
+
+def test_preset_allows_ensemble_subset():
+    for name in ("ensemble", "trend_breakout", "momentum", "value_investor"):
+        assert _preset_allows("ensemble", name) is True, f"ensemble should allow {name}"
+    assert _preset_allows("ensemble", "pair_arb") is False
+    assert _preset_allows("ensemble", "whale_tracking") is False
+
+
+def test_preset_allows_full_auto_all_strategies():
+    from projects.polymarket.crusaderbot.services.signal_scan.lib_strategy_runner import (
+        ENABLED_STRATEGIES, DEFERRED_STRATEGIES,
+    )
+    for name in list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES):
+        assert _preset_allows("full_auto", name) is True, f"full_auto should allow {name}"
+
+
+def test_preset_allows_none_preset_all_strategies():
+    from projects.polymarket.crusaderbot.services.signal_scan.lib_strategy_runner import (
+        ENABLED_STRATEGIES,
+    )
+    for name in ENABLED_STRATEGIES:
+        assert _preset_allows(None, name) is True, f"None preset should allow {name}"
+
+
+def test_preset_allows_unknown_preset_defaults_to_all():
+    # Unknown preset keys fall back to full allow via _LIB_STRATEGY_NAMES default.
+    from projects.polymarket.crusaderbot.services.signal_scan.lib_strategy_runner import (
+        ENABLED_STRATEGIES,
+    )
+    for name in ENABLED_STRATEGIES:
+        assert _preset_allows("unknown_key", name) is True

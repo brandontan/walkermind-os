@@ -89,6 +89,15 @@ def mvp_auto_trade_kb() -> InlineKeyboardMarkup:
     ])
 
 
+def auto_trade_menu_kb() -> InlineKeyboardMarkup:
+    """Top-level Auto Trade menu — Strategy Preset sub-menu + Risk Profile sub-menu."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📊 Strategy Preset", callback_data="auto_trade:strategy")],
+        [InlineKeyboardButton("⚖️ Risk Profile",    callback_data="auto_trade:risk")],
+        [InlineKeyboardButton("← Back",             callback_data="menu:dashboard")],
+    ])
+
+
 def activity_nav_kb() -> InlineKeyboardMarkup:
     """Nav keyboard for the activity / recent-trades screen."""
     return InlineKeyboardMarkup([[
@@ -103,9 +112,11 @@ def mvp_risk_kb(current: str = "") -> InlineKeyboardMarkup:
         return ("✅ " if r == current else "") + r.title()
 
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"📡 {mark('conservative')}", callback_data="set_risk:conservative")],
-        [InlineKeyboardButton(f"🎯 {mark('balanced')}",     callback_data="set_risk:balanced")],
-        [InlineKeyboardButton(f"🚀 {mark('aggressive')}",   callback_data="set_risk:aggressive")],
+        [InlineKeyboardButton(f"🟢 {mark('conservative')}", callback_data="set_risk:conservative")],
+        [InlineKeyboardButton(f"🟡 {mark('balanced')}",     callback_data="set_risk:balanced")],
+        [InlineKeyboardButton(f"🔴 {mark('aggressive')}",   callback_data="set_risk:aggressive")],
+        [InlineKeyboardButton(f"{'✅ ' if current == 'custom' else ''}⚙️ Custom Risk",
+                              callback_data="set_risk:custom")],
         [
             InlineKeyboardButton("⬅ Back", callback_data="settings:hub"),
             InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
@@ -169,6 +180,10 @@ def risk_picker(current: str) -> InlineKeyboardMarkup:
                              callback_data="set_risk:conservative"),
         InlineKeyboardButton(mark("balanced"),  callback_data="set_risk:balanced"),
         InlineKeyboardButton(mark("aggressive"), callback_data="set_risk:aggressive"),
+        InlineKeyboardButton(
+            f"{'✅' if current == 'custom' else '◻️'} ⚙️ Custom Risk",
+            callback_data="set_risk:custom",
+        ),
         InlineKeyboardButton("⬅️ Back", callback_data="setup:menu"),
     ]
     return InlineKeyboardMarkup(grid_rows(buttons))
@@ -348,12 +363,15 @@ def p5_dashboard_kb(has_preset: bool = False) -> InlineKeyboardMarkup:
 
 def preset_picker_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🐋 Whale Mirror",  callback_data="p5:preset:whale_mirror")],
-        [InlineKeyboardButton("📡 Signal Sniper", callback_data="p5:preset:signal_sniper")],
-        [InlineKeyboardButton("🐋📡 Hybrid",      callback_data="p5:preset:hybrid")],
-        [InlineKeyboardButton("🎯 Value Hunter",  callback_data="p5:preset:value_hunter")],
-        [InlineKeyboardButton("🚀 Full Auto",     callback_data="p5:preset:full_auto")],
-        [InlineKeyboardButton("← Back",           callback_data="menu:dashboard")],
+        [InlineKeyboardButton("🐋 Whale Mirror",   callback_data="p5:preset:whale_mirror")],
+        [InlineKeyboardButton("📈 Trend Breakout", callback_data="p5:preset:trend_breakout")],
+        [InlineKeyboardButton("🔄 Contrarian",     callback_data="p5:preset:contrarian")],
+        [InlineKeyboardButton("🎯 Value Hunter",   callback_data="p5:preset:value_hunter")],
+        [InlineKeyboardButton("⏰ Close Sweep",    callback_data="p5:preset:close_sweep")],
+        [InlineKeyboardButton("💰 Pair Arb",       callback_data="p5:preset:pair_arb")],
+        [InlineKeyboardButton("🤖 Ensemble",       callback_data="p5:preset:ensemble")],
+        [InlineKeyboardButton("🚀 Full Auto",      callback_data="p5:preset:full_auto")],
+        [InlineKeyboardButton("← Back",            callback_data="auto_trade:back")],
     ])
 
 

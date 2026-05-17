@@ -481,16 +481,93 @@ async def cap_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def settings_text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Handle awaiting text inputs for tpsl_tp, tpsl_sl flows."""
+    """Handle awaiting text inputs for tpsl_tp, tpsl_sl, and custom risk flows."""
     if update.message is None or update.effective_user is None:
         return False
     awaiting = (ctx.user_data or {}).get("awaiting")
-    if awaiting not in ("tpsl_tp", "tpsl_sl"):
+    if awaiting not in ("tpsl_tp", "tpsl_sl", "risk_custom_capital", "risk_custom_tp", "risk_custom_sl"):
         return False
 
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
     text = (update.message.text or "").strip()
 
+    # ── Custom risk wizard ────────────────────────────────────────────────────
+    if awaiting == "risk_custom_capital":
+        try:
+            val = int(text)
+        except ValueError:
+            await update.message.reply_text("❌ Enter an integer (1–80). Try again.")
+            return True
+        if not 1 <= val <= 80:
+            await update.message.reply_text("❌ Capital must be 1–80%. Try again.")
+            return True
+        if ctx.user_data is not None:
+            ctx.user_data["risk_custom_capital"] = val
+            ctx.user_data["awaiting"] = "risk_custom_tp"
+        await update.message.reply_text(
+            "<b>⚙️ Custom Risk — Step 2/3</b>\n\n"
+            "Enter take profit % (1–99):\n"
+            "<i>e.g. 20 for +20% gain triggers close</i>",
+            parse_mode="HTML",
+        )
+        return True
+
+    if awaiting == "risk_custom_tp":
+        try:
+            val = int(text)
+        except ValueError:
+            await update.message.reply_text("❌ Enter an integer (1–99). Try again.")
+            return True
+        if not 1 <= val <= 99:
+            await update.message.reply_text("❌ TP must be 1–99%. Try again.")
+            return True
+        if ctx.user_data is not None:
+            ctx.user_data["risk_custom_tp"] = val
+            ctx.user_data["awaiting"] = "risk_custom_sl"
+        await update.message.reply_text(
+            "<b>⚙️ Custom Risk — Step 3/3</b>\n\n"
+            "Enter stop loss % (1–99):\n"
+            "<i>e.g. 10 for -10% loss triggers close</i>",
+            parse_mode="HTML",
+        )
+        return True
+
+    if awaiting == "risk_custom_sl":
+        try:
+            val = int(text)
+        except ValueError:
+            await update.message.reply_text("❌ Enter an integer (1–99). Try again.")
+            return True
+        if not 1 <= val <= 99:
+            await update.message.reply_text("❌ SL must be 1–99%. Try again.")
+            return True
+        cap = (ctx.user_data or {}).get("risk_custom_capital", 20)
+        tp = (ctx.user_data or {}).get("risk_custom_tp", 15)
+        sl = val
+        if tp <= sl:
+            await update.message.reply_text(
+                f"❌ Take Profit ({tp}%) must be greater than Stop Loss ({sl}%). Re-enter SL:"
+            )
+            return True
+        await update_settings(
+            user["id"],
+            risk_profile="custom",
+            capital_alloc_pct=cap / 100.0,
+            tp_pct=tp / 100.0,
+            sl_pct=sl / 100.0,
+        )
+        if ctx.user_data is not None:
+            ctx.user_data.pop("risk_custom_capital", None)
+            ctx.user_data.pop("risk_custom_tp", None)
+            ctx.user_data.pop("awaiting", None)
+        await update.message.reply_text(
+            f"✅ Custom Risk saved.\n\n"
+            f"Capital: <b>{cap}%</b>  ·  TP: <b>+{tp}%</b>  ·  SL: <b>-{sl}%</b>",
+            parse_mode="HTML",
+        )
+        return True
+
+    # ── TP / SL preset wizard (existing) ────────────────────────────────────
     try:
         val = int(text)
     except ValueError:

@@ -1,17 +1,18 @@
 import { NavLink } from "react-router-dom";
 
 const TABS = [
-  { to: "/dashboard", label: "Home",   icon: "🏠" },
-  { to: "/autotrade", label: "Auto",   icon: "🤖" },
-  { to: "/portfolio", label: "Portfolio",  icon: "📊" },
-  { to: "/wallet",    label: "Wallet", icon: "💰" },
-  { to: "/settings",  label: "Config", icon: "⚙️" },
+  { to: "/dashboard",   label: "Home",   icon: "🏠" },
+  { to: "/autotrade",   label: "Auto",   icon: "🤖" },
+  { to: "/copy-trade",  label: "Copy",   icon: "🐋" },
+  { to: "/portfolio",   label: "Port",   icon: "📊" },
+  { to: "/wallet",      label: "Wallet", icon: "💰" },
+  { to: "/settings",    label: "Config", icon: "⚙️" },
 ] as const;
 
 export function BottomNav() {
   return (
     <nav
-      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-mobile z-[100] border-t border-border-2 grid grid-cols-5 pt-2 pb-3"
+      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-mobile z-[100] border-t border-border-2 grid grid-cols-6 pt-2 pb-3"
       style={{
         background: "rgba(2,5,11,0.95)",
         backdropFilter: "blur(24px) saturate(180%)",
