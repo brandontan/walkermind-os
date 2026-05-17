@@ -441,6 +441,7 @@ def test_scheduler_registers_daily_pnl_summary_job():
         WS_WATCHDOG_INTERVAL_SECONDS = 60
         COPY_TRADE_MONITOR_INTERVAL = 60
         MARKET_SIGNAL_SCAN_INTERVAL = 60
+        DAILY_REPORT_HOUR = 23
 
     with patch.object(scheduler, "get_settings", return_value=_SettingsStub()):
         sched = scheduler.setup_scheduler()
@@ -617,6 +618,7 @@ def test_scheduler_registers_run_job_as_daily_callable():
         WS_WATCHDOG_INTERVAL_SECONDS = 60
         COPY_TRADE_MONITOR_INTERVAL = 60
         MARKET_SIGNAL_SCAN_INTERVAL = 60
+        DAILY_REPORT_HOUR = 23
 
     with patch.object(scheduler, "get_settings", return_value=_SettingsStub()):
         sched = scheduler.setup_scheduler()

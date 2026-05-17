@@ -31,6 +31,7 @@ from .domain.activation.auto_fallback import (
     run_auto_fallback_check,
 )
 from .jobs import daily_pnl_summary, hourly_report, market_signal_scanner, market_sync, weekly_insights
+from .services.daily_report_service import daily_pnl_report_job, JOB_ID as DAILY_REPORT_JOB_ID
 from .services.signal_scan import signal_scan_job as sf_scan_job
 from .services.copy_trade import monitor as copy_trade_monitor
 from .services.redeem import hourly_worker as redeem_hourly_worker
@@ -583,6 +584,14 @@ def setup_scheduler() -> AsyncIOScheduler:
         hourly_report.run_job, "cron",
         minute=0,
         id=hourly_report.JOB_ID, max_instances=1, coalesce=True,
+    )
+    # Track E — daily P&L report. Hour is configurable via DAILY_REPORT_HOUR
+    # env (default 23). Timezone is resolved from s.TIMEZONE (Asia/Jakarta).
+    sched.add_job(
+        daily_pnl_report_job, "cron",
+        hour=s.DAILY_REPORT_HOUR, minute=0,
+        id=DAILY_REPORT_JOB_ID, max_instances=1, coalesce=True,
+        replace_existing=True,
     )
     # Track F — auto-fallback monitor (60s poll).
     sched.add_job(
