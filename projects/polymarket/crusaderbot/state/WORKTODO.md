@@ -6,6 +6,7 @@
 ---
 
 ## Right Now
+- [ ] signal-engine-fix — PR open (WARP/CRUSADERBOT-SIGNAL-ENGINE-FIX, 2026-05-17). edge_finder 0-signal bug fixed (RC-1 edge scoring, RC-2 liquidity floor, RC-3 idempotency dedup). STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - [x] role-model-admin-user — MERGED PR #1076 (2026-05-17). Two-role model (admin + user): paper opened to every user, operator/tier/allowlist/premium wording removed, assert_live_guards intact. SENTINEL 97/100. MAJOR, NARROW INTEGRATION.
 - [x] crusaderbot-finalize — MERGED PR #1075 (2026-05-17). Public-ready paper beta: ENABLE_LIVE_TRADING default→False, copy-task P&L, notifications_on enforced fail-open, sweep count fix + audit, ops client_host breadcrumb, pytest.ini fix, .env.example + DEPLOY runbook + PRODUCTION_CHECKLIST.md. 1432 pytest pass, ruff clean. SENTINEL 96/100. MAJOR, NARROW INTEGRATION.
 - [x] webtrader-v3-and-bot-polish — MERGED PR #1069 (2026-05-16). Tactical Terminal v3.2 atomic delivery: 15 new shared components + Advanced Mode toggle + 6 page rewrites + bot template foundation (EMOJI/DIV/_table + 5 alert templates) + command consolidation + nav:* callback namespace. Supersedes WARP/CRUSADERBOT-WEBTRADER-REDESIGN (already merged earlier as PR #1062). npm build clean, ruff clean, 1400 pytest pass. WARP🔹CMD CONDITIONAL verdict at reports/sentinel/webtrader-v3-and-bot-polish.md. MAJOR, FULL RUNTIME INTEGRATION.

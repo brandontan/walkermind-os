@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 12:00
-Status       : fix-duplicate-menu-handlers complete. Dashboard button duplicate-message bug fixed. Production PAPER ONLY.
+Last Updated : 2026-05-17 20:00
+Status       : signal-engine-fix complete. edge_finder 0-signal bug fixed. Duplicate position dedup hardened. Production PAPER ONLY.
 
 [COMPLETED]
 - crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.
@@ -23,6 +23,7 @@ Status       : fix-duplicate-menu-handlers complete. Dashboard button duplicate-
 - V5 "AUTOBOT" UI Overhaul MERGED PR #1045. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- signal-engine-fix PR open (WARP/CRUSADERBOT-SIGNAL-ENGINE-FIX, 2026-05-17). Awaiting WARP🔹CMD review and merge.
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderPolybot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
@@ -43,6 +44,7 @@ Status       : fix-duplicate-menu-handlers complete. Dashboard button duplicate-
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required. Source: projects/polymarket/crusaderbot/reports/forge/signal-engine-fix.md. Tier: STANDARD.
 - Apply migration 031 to production DB (idempotent — safe to apply immediately after #1079 merge).
 - Apply migration 030 to production. Then deploy main to Fly.io — trading-unblock fix is live on main (MERGED PR #1065).
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.

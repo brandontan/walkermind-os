@@ -276,9 +276,16 @@ def _build_idempotency_key(
     user_id: UUID,
     market_id: str,
     side: str,
-    publication_id: UUID | None,
+    publication_id: UUID | None,  # retained for signature compat; no longer in hash
 ) -> str:
-    raw = f"{user_id}:{market_id}:{side}:{publication_id or ''}"
+    from datetime import datetime, timezone
+
+    # UTC calendar day prevents same-day re-entry on the same market.
+    # Without this, distinct publication_ids for the same market produce distinct
+    # keys, each passing the 30-min gate independently → duplicate open positions.
+    # Cross-day re-entry is intentional — new trading day = new opportunity.
+    # Explicit UTC (not date.today()) keeps rotation stable across all host timezones.
+    raw = f"{user_id}:{market_id}:{side}:{datetime.now(timezone.utc).date().isoformat()}"
     digest = hashlib.sha256(raw.encode()).hexdigest()[:32]
     return f"sf:{digest}"
 
@@ -444,7 +451,8 @@ async def _process_candidate(
     try:
         if await _has_open_position_for_market(user_id, cand.market_id):
             log.info("scan_outcome", outcome="skipped_open_position_exists",
-                     market_id=cand.market_id)
+                     market_id=cand.market_id,
+                     message="duplicate skipped — open position exists for market")
             return
     except Exception as exc:
         log.warning("open_position_market_check_failed", error=str(exc))

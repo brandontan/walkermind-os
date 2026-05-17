@@ -164,6 +164,18 @@ class Settings(BaseSettings):
     DEPOSIT_WATCH_INTERVAL: int = 120
     SIGNAL_SCAN_INTERVAL: int = 180
     MARKET_SIGNAL_SCAN_INTERVAL: int = 60
+    # --- Signal scanner thresholds (demo path edge_finder) ---
+    # Market eligibility price range: excludes near-resolved markets
+    SCANNER_EDGE_MIN_PRICE: float = 0.05   # env: SCANNER_EDGE_MIN_PRICE
+    SCANNER_EDGE_MAX_PRICE: float = 0.95   # env: SCANNER_EDGE_MAX_PRICE
+    # Minimum edge in basis points (1 bps = 0.01%) to publish a signal
+    SCANNER_MIN_EDGE_BPS: int = 200        # env: SCANNER_MIN_EDGE_BPS
+    # Minimum confidence score for published signals
+    SCANNER_MIN_CONFIDENCE: float = 0.55  # env: SCANNER_MIN_CONFIDENCE
+    # Live path candle deviation threshold (was hardcoded 0.08)
+    SCANNER_EDGE_DEVIATION_PCT: float = 0.05  # env: SCANNER_EDGE_DEVIATION_PCT
+    # Discovery liquidity floor — lower than execution floor (10k) to widen pool
+    SCANNER_MIN_LIQUIDITY: float = 5_000.0  # env: SCANNER_MIN_LIQUIDITY
     COPY_TRADE_MONITOR_INTERVAL: int = 60  # Fast Track B — copy trade tick cadence
     EXIT_WATCH_INTERVAL: int = 60
     REDEEM_INTERVAL: int = 3600
