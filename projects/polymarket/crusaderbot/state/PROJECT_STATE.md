@@ -1,7 +1,8 @@
-Last Updated : 2026-05-17 18:00
-Status       : WARP/CRUSADERBOT-SSE-AUTH-FIX open — SSE query-param auth confirmed wired; TopBar SSE status dot added (green/red). PR pending WARP🔹CMD review. Production PAPER ONLY.
+Last Updated : 2026-05-17 18:30
+Status       : WARP/CRUSADERBOT-SSE-AUTH-FIX MERGED PR #1103 — SSE auth + TopBar status dot live. crusaderbot-webtrader-ws PR open awaiting WARP🔹CMD review. Production PAPER ONLY.
 
 [COMPLETED]
+- WARP/CRUSADERBOT-SSE-AUTH-FIX MERGED PR #1103 (2026-05-17). SSE auth query-param confirmed wired; useSSE returns { connected }; SSEStatusContext + TopBar green/red dot using CSS vars. MINOR, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
 - telegram-ux-final-polish MERGED PR #1088 (2026-05-17). Wallet copy-address bug fixed (rsplit parse), portfolio_chart tier gate removed, wallet_p5_kb home label corrected, emergency_done_p5_kb auto-trade label corrected, _hub_text unused tier param removed. compileall clean. STANDARD, NARROW INTEGRATION.
 - crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.
@@ -23,7 +24,7 @@ Status       : WARP/CRUSADERBOT-SSE-AUTH-FIX open — SSE query-param auth confi
 
 [IN PROGRESS]
 - crusaderbot-webtrader-ws PR open — SSE push implemented: polling removed from DashboardPage + PortfolioPage, event_bus bridge (position.opened/closed/scanner.tick) wired to SSE broadcaster, four new SSE event types added. Awaiting WARP🔹CMD review.
-- WARP/CRUSADERBOT-SSE-AUTH-FIX PR open — SSE query-param auth confirmed wired; useSSE returns { connected }; SSEStatusContext propagates to TopBar dot. Awaiting WARP🔹CMD review.
+
 - webtrader-build-fix PR open — build pipeline verified intact (Dockerfile Stage 1 npm run build confirmed); BottomNav label "Folio"→"Portfolio" fixed. Awaiting WARP🔹CMD review + Fly.io redeploy.
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderPolybot live, Fly.io app running, PAPER ONLY.
@@ -43,8 +44,8 @@ Status       : WARP/CRUSADERBOT-SSE-AUTH-FIX open — SSE query-param auth confi
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for WARP/CRUSADERBOT-SSE-AUTH-FIX (SSE status dot + auth confirmed). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-sse-auth-fix.md. Tier: MINOR.
 - WARP🔹CMD review required for crusaderbot-webtrader-ws (SSE push + polling removal). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-webtrader-ws.md. Tier: STANDARD.
+- WARP🔹CMD production deploy decision required: apply pending migrations (030, 031, 034) to production DB, then deploy main to Fly.io.
 - WARP🔹CMD review required for webtrader-build-fix (pipeline verified + BottomNav label fix). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-build-fix.md. Tier: MINOR.
 - WARP🔹CMD production deploy decision required: apply pending migrations (030, 031, 034) to production DB, then deploy main to Fly.io.
 - WARP🔹CMD production deploy verification: verify PORTFOLIO label + 10s polling in browser network tab.
