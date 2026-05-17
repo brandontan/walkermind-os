@@ -37,7 +37,9 @@ HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
 
 MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     # V5 AUTOBOT fixed menu
-    "📊 Dashboard":          dashboard.dashboard,
+    # "📊 Dashboard" intentionally absent — covered by group=-1 MessageHandler
+    # in dispatcher.py (filters.Regex(r"^📊 Dashboard$")).  Including it here
+    # caused PTB to fire both handlers on every tap → duplicate bot messages.
     "💼 Portfolio":          positions.show_portfolio,
     "🤖 Auto Mode":          presets.show_preset_picker,
     "⚙️ Settings":           settings_handler.settings_hub_root,
