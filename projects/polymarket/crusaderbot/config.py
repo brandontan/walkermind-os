@@ -177,7 +177,7 @@ class Settings(BaseSettings):
     # Discovery liquidity floor — lower than execution floor (10k) to widen pool
     SCANNER_MIN_LIQUIDITY: float = 5_000.0  # env: SCANNER_MIN_LIQUIDITY
     COPY_TRADE_MONITOR_INTERVAL: int = 60  # Fast Track B — copy trade tick cadence
-    EXIT_WATCH_INTERVAL: int = 60
+    EXIT_WATCH_INTERVAL: int = 30  # Track A: TP/SL poll cadence (30s per spec)
     REDEEM_INTERVAL: int = 3600
     RESOLUTION_CHECK_INTERVAL: int = 300
     DB_POOL_MAX: int = 5

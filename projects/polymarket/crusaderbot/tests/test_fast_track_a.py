@@ -922,3 +922,80 @@ class TestScanPathTradeEngineIntegration:
         )
         assert sig.tp_pct is None
         assert sig.sl_pct is None
+
+
+# ---------------------------------------------------------------------------
+# Scheduler wiring — Track A jobs registered at correct intervals
+# ---------------------------------------------------------------------------
+
+
+class TestSchedulerWiring:
+
+    def _fake_settings(self):
+        s = MagicMock()
+        s.EXIT_WATCH_INTERVAL = 30
+        s.MARKET_SCAN_INTERVAL = 60
+        s.DEPOSIT_WATCH_INTERVAL = 60
+        s.SIGNAL_SCAN_INTERVAL = 180
+        s.MARKET_SIGNAL_SCAN_INTERVAL = 60
+        s.COPY_TRADE_MONITOR_INTERVAL = 60
+        s.ORDER_POLL_INTERVAL_SECONDS = 30
+        s.WS_WATCHDOG_INTERVAL_SECONDS = 60
+        s.REDEEM_INTERVAL = 3600
+        s.RESOLUTION_CHECK_INTERVAL = 300
+        s.TIMEZONE = "UTC"
+        s.USE_REAL_CLOB = False
+        return s
+
+    def test_exit_watch_job_registered_at_30s(self):
+        """exit_watch APScheduler job must be registered and run every 30s."""
+        from projects.polymarket.crusaderbot.scheduler import setup_scheduler
+
+        mock_sched = MagicMock()
+        jobs: list[dict] = []
+
+        def capture_add_job(fn, trigger, **kwargs):
+            jobs.append({"id": kwargs.get("id"), "seconds": kwargs.get("seconds"), "fn": fn})
+
+        mock_sched.add_job.side_effect = capture_add_job
+        mock_sched.add_listener = MagicMock()
+
+        with (
+            patch("projects.polymarket.crusaderbot.scheduler.AsyncIOScheduler",
+                  return_value=mock_sched),
+            patch("projects.polymarket.crusaderbot.scheduler.get_settings",
+                  return_value=self._fake_settings()),
+        ):
+            setup_scheduler()
+
+        exit_jobs = [j for j in jobs if j["id"] == "exit_watch"]
+        assert len(exit_jobs) == 1, "exit_watch job must be registered exactly once"
+        assert exit_jobs[0]["seconds"] == 30, (
+            f"exit_watch must run every 30s, got {exit_jobs[0]['seconds']}s"
+        )
+
+    def test_exit_watch_max_instances_one(self):
+        """exit_watch must have max_instances=1 to prevent concurrent sweeps."""
+        from projects.polymarket.crusaderbot.scheduler import setup_scheduler
+
+        mock_sched = MagicMock()
+        jobs: list[dict] = []
+
+        def capture_add_job(fn, trigger, **kwargs):
+            jobs.append(kwargs)
+
+        mock_sched.add_job.side_effect = capture_add_job
+        mock_sched.add_listener = MagicMock()
+
+        with (
+            patch("projects.polymarket.crusaderbot.scheduler.AsyncIOScheduler",
+                  return_value=mock_sched),
+            patch("projects.polymarket.crusaderbot.scheduler.get_settings",
+                  return_value=self._fake_settings()),
+        ):
+            setup_scheduler()
+
+        exit_jobs = [j for j in jobs if j.get("id") == "exit_watch"]
+        assert len(exit_jobs) == 1, "exit_watch job must be registered exactly once"
+        assert exit_jobs[0]["max_instances"] == 1
+        assert exit_jobs[0].get("coalesce") is True
