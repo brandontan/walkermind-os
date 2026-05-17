@@ -173,7 +173,7 @@ async def validate_risk_caps(user_id: UUID, proposed_size: Decimal) -> GateResul
 
     # Cap 3: Daily loss floor (default -$50, env-configurable)
     today_pnl = await daily_pnl(user_id)
-    if float(today_pnl) <= settings.MAX_DAILY_LOSS_USD:
+    if today_pnl <= Decimal(str(settings.MAX_DAILY_LOSS_USD)):
         return GateResult(
             False,
             f"daily_loss_cap_usd ${float(today_pnl):.2f} <= "
@@ -204,6 +204,7 @@ async def evaluate(ctx: GateContext) -> GateResult:
     if not caps_result.approved:
         await _log(ctx.user_id, ctx.market_id, 0, False, caps_result.reason)
         return caps_result
+    await _log(ctx.user_id, ctx.market_id, 0, True, "ok")
 
     # 1. Kill switch — read goes through the domain module so we hit the
     # 30s in-process cache instead of the DB on every signal evaluation.

@@ -19,6 +19,7 @@ import structlog
 
 from ..config import get_settings
 from ..database import get_pool
+from ..domain.ops import kill_switch as _ops_kill_switch
 from ..integrations import polymarket
 from ..services import heisenberg
 
@@ -310,8 +311,7 @@ async def run_job() -> tuple[int, int]:
     """
     # Path 2 — kill switch DB flag check (Track D). Checked at the start of
     # every scan cycle so the switch propagates within one tick interval.
-    from ..domain.ops import kill_switch as _ks
-    if await _ks.is_active():
+    if await _ops_kill_switch.is_active():
         log.warning("scanner run_job: kill switch active — skipping tick")
         return 0, 0
 
