@@ -2,7 +2,7 @@ Last Updated : 2026-05-18 01:21
 Status       : STRATEGY-RISK-COPY MERGED PR #1113. Preset isolation + risk profile + copy trade 8-step wizard + custom risk RISK-layer extension all live on main. portfolio-ui-polish + TG-KB-CLEANUP + SCANNER-SYNC-FIX + PRICE-FETCH-FIX + crusaderbot-webtrader-ws + SSE-AUTH-FIX + webtrader-build-fix awaiting WARP🔹CMD review. Production PAPER ONLY.
 
 [COMPLETED]
-- WARP/CRUSADERBOT-STRATEGY-RISK-COPY MERGED PR #1113 (2026-05-18 01:21): 5-part bundle — strategy preset isolation (two-phase scan loop + _PRESET_ALLOWED + LibStrategyRunner), ledger atomic delete utility, AutoTradePage 8-preset + 4 risk-card restructure, TG auto 2-sub-menu + custom risk wizard, copy-trade 8-step TG wizard + WebTrader CopyTradePage + monitor filters (copy_direction/allow_topups/execution_mode) + migration 035. Custom risk profile: PROFILES["custom"] + STRATEGY_AVAILABILITY + gate step 4 DB check + VALID_RISK_PROFILES + 3 strategy classes extended. 1455 tests pass. MAJOR, FULL RUNTIME INTEGRATION.
+- WARP/CRUSADERBOT-STRATEGY-RISK-COPY MERGED PR #1113 (2026-05-18 01:21): 5-part bundle — strategy preset isolation (two-phase scan loop + _PRESET_ALLOWED + LibStrategyRunner), ledger atomic delete utility, AutoTradePage 8-preset + 4 risk-card restructure, TG auto 2-sub-menu + custom risk wizard, copy-trade 8-step TG wizard + WebTrader CopyTradePage + monitor filters (copy_direction/allow_topups/execution_mode) + migration 035. Custom risk profile: PROFILES["custom"] + STRATEGY_AVAILABILITY + gate step 4 DB check + VALID_RISK_PROFILES + 3 strategy classes extended. 1455 tests pass. No SENTINEL run occurred; WARP🔹CMD merged directly. MAJOR, FULL RUNTIME INTEGRATION.
 - WARP/CRUSADERBOT-LEDGER-CLEANUP MERGED PR #1110 (2026-05-17): deleted 44 orphaned ledger entries (22 trade_open + 22 trade_close) with dead ref_ids from bad-trade cleanup; ledger_sum corrected +$1,227.57 → -$10.00; wallet/ledger consistent. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-BAD-TRADE-CLEANUP MERGED PR #1109 (2026-05-17): deleted 22 bad tp_hit positions for walk3r69 (price bug #1105); wallet balance corrected $2,227.57 → $990.00. Verification: 0 bad trades remain, 13 market_expired clean, 1 open untouched. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
@@ -51,7 +51,6 @@ Status       : STRATEGY-RISK-COPY MERGED PR #1113. Preset isolation + risk profi
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for WARP/CRUSADERBOT-STRATEGY-RISK-COPY — MERGED PR #1113. No SENTINEL run occurred; WARP🔹CMD merged directly.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-REALTIME-PNL-UI (realtime P&L UI). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-realtime-pnl-ui.md. Tier: STANDARD.
 - WARP🔹CMD decision needed: extend positions + ledger cleanup to qwneer8 + Maver1ch69 (identical bad trades from price bug #1105, not yet cleaned).
 - WARP🔹CMD review required for portfolio-ui-polish (Portfolio tab upgrade). Source: projects/polymarket/crusaderbot/reports/forge/portfolio-ui-polish.md. Tier: STANDARD.
@@ -61,12 +60,13 @@ Status       : STRATEGY-RISK-COPY MERGED PR #1113. Preset isolation + risk profi
 - WARP🔹CMD review required for WARP/CRUSADERBOT-SSE-AUTH-FIX (SSE status dot + auth confirmed). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-sse-auth-fix.md. Tier: MINOR.
 - WARP🔹CMD review required for crusaderbot-webtrader-ws (SSE push + polling removal). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-webtrader-ws.md. Tier: STANDARD.
 - WARP🔹CMD review required for webtrader-build-fix (pipeline verified + BottomNav label fix). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-build-fix.md. Tier: MINOR.
-- WARP🔹CMD production deploy decision required: apply pending migrations (030, 031, 034) to production DB, then deploy main to Fly.io.
+- WARP🔹CMD production deploy decision required: apply pending migrations (030, 031, 034, 035) to production DB, then deploy main to Fly.io.
 - WARP🔹CMD production deploy verification: verify PORTFOLIO label + 10s polling in browser network tab.
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 - Closed beta observation continues — no new feature PRs in Week 4.
 
 [KNOWN ISSUES]
+- CopyTradeStrategy (domain/strategy/strategies/copy_trade.py) still queries legacy `copy_targets` table while the new 8-step wizard and WebTrader CopyTradePage write to `copy_trade_tasks`. Tasks created via the new UI will not be picked up by the strategy scanner until copy_trade.py is updated to read from `copy_trade_tasks`. Separate fix lane required.
 - qwneer8 and Maver1ch69 have identical bad tp_hit positions from price bug #1105 (same 0.540–0.545 inflated exit_price). Not cleaned in this lane — WARP🔹CMD decision required to extend cleanup.
 - WARP🔹CMD requested removal of the internal Tier-4/activation-guard LIVE-trading safety gate; WARP•FORGE declined that sub-item only — CLAUDE.md forbids bypassing the live-trading guard. assert_live_guards is intentionally preserved (invisible to users; live remains owner-gated + OFF). All other role-model items delivered as requested.
 - Dual tier tables (users.access_tier integer + user_tiers string) retained by design (logic+UX collapse, no DB teardown). Internal-only; not user-visible. Full schema removal deferred to a separate migration lane if ever required.
