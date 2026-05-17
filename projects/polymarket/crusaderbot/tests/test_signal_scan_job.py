@@ -249,11 +249,14 @@ def test_build_idempotency_key_differs_by_side():
     assert k_yes != k_no
 
 
-def test_build_idempotency_key_differs_by_publication():
+def test_build_idempotency_key_same_for_different_publications():
+    # After date-scoping fix, publication_id is NOT part of the key hash.
+    # Same (user, market, side, day) → same key regardless of publication_id,
+    # preventing multiple open positions across separate publications.
     pub2 = uuid4()
     k1 = job._build_idempotency_key(_USER_UUID, _MARKET_ID, "YES", _PUB_UUID)
     k2 = job._build_idempotency_key(_USER_UUID, _MARKET_ID, "YES", pub2)
-    assert k1 != k2
+    assert k1 == k2
 
 
 def test_build_idempotency_key_starts_with_sf_prefix():
