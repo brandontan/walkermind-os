@@ -54,5 +54,7 @@ Dockerfile multi-stage build:
 
 ## 6. What is next
 
-- WARP🔹CMD merges PR → runs `fly deploy` to push label fix live
+- WARP🔹CMD merges PR → applies pending migrations (030, 031, 034) → runs `fly deploy` to push label fix live
 - Verify in browser: bottom nav shows "PORTFOLIO" and network tab shows `/api/*` requests every ~10s
+
+**Build verification (local):** `npm run build` completed cleanly (62 modules, 212KB bundle). Bundle contains two `setTimeout(...,1e4)` + `clearTimeout` pairs confirming 10s polling compiled for DashboardPage and PortfolioPage.

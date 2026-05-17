@@ -42,8 +42,8 @@ Status       : webtrader-build-fix open — build pipeline verified intact; Bott
 
 [NEXT PRIORITY]
 - WARP🔹CMD review required for webtrader-build-fix (pipeline verified + BottomNav label fix). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-build-fix.md. Tier: MINOR.
-- WARP🔹CMD production deploy decision required: run fly deploy after merge to push BottomNav label fix live; verify PORTFOLIO label + 10s polling in browser network tab.
 - WARP🔹CMD production deploy decision required: apply pending migrations (030, 031, 034) to production DB, then deploy main to Fly.io.
+- WARP🔹CMD production deploy verification: verify PORTFOLIO label + 10s polling in browser network tab.
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 - Closed beta observation continues — no new feature PRs in Week 4.
 
