@@ -50,12 +50,8 @@ Status       : Realtime P&L UI + bad-trade + ledger cleanup complete (PRs #1111,
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-<<<<<<< HEAD
-- WARP🔹CMD review required for WARP/CRUSADERBOT-LEDGER-CLEANUP (orphaned ledger entries). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ledger-cleanup.md. Tier: STANDARD. Decision needed: extend ledger + position cleanup to qwneer8 + Maver1ch69.
-=======
 - WARP🔹CMD review required for WARP/CRUSADERBOT-REALTIME-PNL-UI (realtime P&L UI). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-realtime-pnl-ui.md. Tier: STANDARD.
-- WARP🔹CMD review required for WARP/CRUSADERBOT-BAD-TRADE-CLEANUP (bad-trade DB cleanup). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-bad-trade-cleanup.md. Tier: STANDARD. Decision needed: extend cleanup to qwneer8 + Maver1ch69 (same bug, same inflated trades).
->>>>>>> b760feb (feat: realtime P&L UI — home activity color-coding + null price guard + SSE position_updated)
+- WARP🔹CMD decision needed: extend positions + ledger cleanup to qwneer8 + Maver1ch69 (identical bad trades from price bug #1105, not yet cleaned).
 - WARP🔹CMD review required for portfolio-ui-polish (Portfolio tab upgrade). Source: projects/polymarket/crusaderbot/reports/forge/portfolio-ui-polish.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-TG-KB-CLEANUP (inline KB ghost fix). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-tg-kb-cleanup.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-SCANNER-SYNC-FIX (skipped_market_not_synced fix). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-scanner-sync-fix.md. Tier: STANDARD.
