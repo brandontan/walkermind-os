@@ -250,6 +250,18 @@ async def _act_on_decision(
         await registry.update_current_price(
             position.id, decision.current_price, position.user_id, pnl_usdc=pnl
         )
+        try:
+            from ...webtrader.backend.sse import push_position_updated
+            push_position_updated(
+                str(position.user_id),
+                str(position.id),
+                decision.current_price,
+                pnl,
+            )
+        except ImportError:
+            pass
+        except Exception as exc:
+            logger.warning("exit_watcher: SSE position_updated push failed: %s", exc)
         return
 
     reason = decision.reason or ExitReason.STRATEGY_EXIT.value

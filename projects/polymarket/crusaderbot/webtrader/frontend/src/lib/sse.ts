@@ -43,6 +43,7 @@ export function useSSE(token: string | null, handlers: SSEHandlers): { connected
         "orders", "fills", "positions", "settings",
         "system", "portfolio", "alerts",
         "position_opened", "position_closed",
+        "position_updated",
         "portfolio_update", "scanner_tick",
       ] as const;
 

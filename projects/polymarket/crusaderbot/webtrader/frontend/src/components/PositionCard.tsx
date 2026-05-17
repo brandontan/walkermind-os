@@ -11,6 +11,8 @@ type Props = {
   meta: ReactNode[];
   /** Extra meta only shown in Advanced Mode (e.g. "YES @ 4.0¢", tx hashes). */
   metaAdvanced?: ReactNode[];
+  /** Override the left border color with a P&L tone instead of side color. */
+  borderTone?: "up" | "dn" | "zero";
   onClick?: () => void;
 };
 
@@ -38,13 +40,20 @@ const STRIPE: Record<PositionSide, string> = {
   debit:  "var(--ink-3,#455370)",
 };
 
+const STRIPE_TONE: Record<"up" | "dn" | "zero", string> = {
+  up:   "var(--grn,#00FF9C)",
+  dn:   "var(--red,#FF2D55)",
+  zero: "var(--ink-3,#455370)",
+};
+
 const PNL_TONE = {
   zero: "text-ink-2",
   up:   "text-grn",
   dn:   "text-red",
 } as const;
 
-export function PositionCard({ market, positionValue, side, meta, metaAdvanced, onClick }: Props) {
+export function PositionCard({ market, positionValue, side, meta, metaAdvanced, borderTone, onClick }: Props) {
+  const stripeColor = borderTone ? STRIPE_TONE[borderTone] : STRIPE[side];
   return (
     <div
       role={onClick ? "button" : undefined}
@@ -57,7 +66,7 @@ export function PositionCard({ market, positionValue, side, meta, metaAdvanced, 
     >
       <span
         className="absolute left-0 top-0 bottom-0 w-0.5 opacity-70"
-        style={{ background: STRIPE[side] }}
+        style={{ background: stripeColor }}
         aria-hidden
       />
       <div className="flex justify-between gap-2.5 mb-2">

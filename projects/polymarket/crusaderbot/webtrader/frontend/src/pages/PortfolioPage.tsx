@@ -387,6 +387,7 @@ const EXIT_TONE: Record<string, string> = {
 
 function PositionRow({ p }: { p: PositionItem }) {
   const isOpen = p.status === "open";
+  const priceUnavailable = isOpen && p.current_price === null;
 
   const curVal = (() => {
     if (isOpen) {
@@ -400,13 +401,14 @@ function PositionRow({ p }: { p: PositionItem }) {
 
   const diff = isOpen ? curVal - p.size_usdc : (p.pnl_usdc ?? 0);
   const tone: "zero" | "up" | "dn" =
-    Math.abs(diff) < 0.005 ? "zero" : diff > 0 ? "up" : "dn";
+    priceUnavailable ? "zero" : Math.abs(diff) < 0.005 ? "zero" : diff > 0 ? "up" : "dn";
 
   const pnlSign = diff >= 0 ? "+" : "−";
   const pnlPct =
     p.size_usdc > 0 ? (Math.abs(diff) / p.size_usdc) * 100 : 0;
-  const pnlStr =
-    Math.abs(diff) < 0.005
+  const pnlStr = priceUnavailable
+    ? "—"
+    : Math.abs(diff) < 0.005
       ? "±$0.00"
       : `${pnlSign}$${Math.abs(diff).toFixed(2)} (${pnlPct.toFixed(1)}%)`;
 
@@ -442,8 +444,9 @@ function PositionRow({ p }: { p: PositionItem }) {
   return (
     <PositionCard
       market={p.market_question ?? `${p.market_id.slice(0, 18)}…`}
-      positionValue={{ value: `$${curVal.toFixed(2)}`, tone }}
+      positionValue={{ value: priceUnavailable ? "—" : `$${curVal.toFixed(2)}`, tone }}
       side={side}
+      borderTone={tone}
       meta={metaItems}
       metaAdvanced={[
         <span key="entry">
