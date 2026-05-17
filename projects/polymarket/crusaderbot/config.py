@@ -152,6 +152,12 @@ class Settings(BaseSettings):
     # explicit WARP🔹CMD decision backed by a SENTINEL report.
     RISK_CONTROLS_VALIDATED: bool = False
     FEE_COLLECTION_ENABLED: bool = False
+
+    # --- Risk caps (Track D) — hard caps enforced per-user before any order ---
+    MAX_SINGLE_POSITION_PCT: float = 0.10      # 10% of balance per position
+    MAX_TOTAL_EXPOSURE_PCT: float = 0.80       # 80% of balance max open exposure
+    MAX_DAILY_LOSS_USD: float = -50.00         # configurable via env MAX_DAILY_LOSS_USD
+    MAX_OPEN_POSITIONS: int = 20               # hard cap on concurrent open positions
     REFERRAL_PAYOUT_ENABLED: bool = False
     AUTO_REDEEM_ENABLED: bool = True
 

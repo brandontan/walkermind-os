@@ -19,6 +19,7 @@ import structlog
 
 from ..config import get_settings
 from ..database import get_pool
+from ..domain.ops import kill_switch as _ops_kill_switch
 from ..integrations import polymarket
 from ..services import heisenberg
 
@@ -308,6 +309,12 @@ async def run_job() -> tuple[int, int]:
     Demo path uses Polymarket API prices with threshold edge logic (is_demo=TRUE).
     Live path uses Heisenberg candlestick + liquidity agents (is_demo=FALSE).
     """
+    # Path 2 — kill switch DB flag check (Track D). Checked at the start of
+    # every scan cycle so the switch propagates within one tick interval.
+    if await _ops_kill_switch.is_active():
+        log.warning("scanner run_job: kill switch active — skipping tick")
+        return 0, 0
+
     demo_scanned = 0
     demo_published = 0
 

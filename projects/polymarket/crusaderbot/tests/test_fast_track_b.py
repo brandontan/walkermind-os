@@ -159,8 +159,10 @@ async def test_tc01_signal_accepted_end_to_end() -> None:
          patch.object(ct_monitor, "_is_already_processed", new=AsyncMock(return_value=False)), \
          patch.object(ct_monitor, "_get_daily_spend", new=AsyncMock(return_value=0.0)), \
          patch.object(ct_monitor, "_record_spend", new=m_spend), \
+         patch.object(ct_monitor, "_record_copy_trade_event", new=AsyncMock()), \
          patch.object(ct_monitor, "_mark_processed", new=m_mark), \
          patch.object(ct_monitor, "_load_user_context", new=AsyncMock(return_value=USER_CTX)), \
+         patch.object(ct_monitor.event_bus, "emit", new=AsyncMock()), \
          patch.object(ct_monitor._engine, "execute", new=m_engine):
         await ct_monitor.run_once()
 
@@ -290,8 +292,10 @@ async def test_tc06_idempotency_persisted_correct_id() -> None:
          patch.object(ct_monitor, "_is_already_processed", new=AsyncMock(return_value=False)), \
          patch.object(ct_monitor, "_get_daily_spend", new=AsyncMock(return_value=0.0)), \
          patch.object(ct_monitor, "_record_spend", new=AsyncMock()), \
+         patch.object(ct_monitor, "_record_copy_trade_event", new=AsyncMock()), \
          patch.object(ct_monitor, "_mark_processed", new=m_mark), \
          patch.object(ct_monitor, "_load_user_context", new=AsyncMock(return_value=USER_CTX)), \
+         patch.object(ct_monitor.event_bus, "emit", new=AsyncMock()), \
          patch.object(ct_monitor._engine, "execute", new=AsyncMock(return_value=_approved())):
         await ct_monitor.run_once()
 
@@ -315,8 +319,10 @@ async def test_tc07_spend_recorded_positive() -> None:
          patch.object(ct_monitor, "_is_already_processed", new=AsyncMock(return_value=False)), \
          patch.object(ct_monitor, "_get_daily_spend", new=AsyncMock(return_value=0.0)), \
          patch.object(ct_monitor, "_record_spend", new=m_spend), \
+         patch.object(ct_monitor, "_record_copy_trade_event", new=AsyncMock()), \
          patch.object(ct_monitor, "_mark_processed", new=AsyncMock()), \
          patch.object(ct_monitor, "_load_user_context", new=AsyncMock(return_value=USER_CTX)), \
+         patch.object(ct_monitor.event_bus, "emit", new=AsyncMock()), \
          patch.object(ct_monitor._engine, "execute", new=AsyncMock(return_value=_approved())):
         await ct_monitor.run_once()
 
@@ -368,8 +374,10 @@ async def test_tc09_reverse_copy_flips_side() -> None:
          patch.object(ct_monitor, "_is_already_processed", new=AsyncMock(return_value=False)), \
          patch.object(ct_monitor, "_get_daily_spend", new=AsyncMock(return_value=0.0)), \
          patch.object(ct_monitor, "_record_spend", new=AsyncMock()), \
+         patch.object(ct_monitor, "_record_copy_trade_event", new=AsyncMock()), \
          patch.object(ct_monitor, "_mark_processed", new=AsyncMock()), \
          patch.object(ct_monitor, "_load_user_context", new=AsyncMock(return_value=USER_CTX)), \
+         patch.object(ct_monitor.event_bus, "emit", new=AsyncMock()), \
          patch.object(ct_monitor._engine, "execute", new=AsyncMock(side_effect=_capture)):
         await ct_monitor.run_once()
 
