@@ -317,5 +317,5 @@ async def stream_for_user(
                 queues.remove(queue)
             if not queues:
                 _user_queues.pop(user_id, None)
-            if telegram_user_id is not None:
-                _telegram_to_user_id.pop(telegram_user_id, None)
+                if telegram_user_id is not None:
+                    _telegram_to_user_id.pop(telegram_user_id, None)
