@@ -230,7 +230,7 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """SELECT p.id, p.user_id, p.market_id, p.side, p.size_usdc,
-                      p.entry_price, p.mode, m.yes_token_id, m.no_token_id
+                      p.entry_price, p.current_price, p.mode, m.yes_token_id, m.no_token_id
                FROM positions p
                LEFT JOIN markets m ON m.id = p.market_id
                WHERE p.id = $1 AND p.user_id = $2 AND p.status = 'open'""",
@@ -247,6 +247,8 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         # Paper positions: close immediately via paper engine.
         token_id = row["yes_token_id"] if row["side"] == "yes" else row["no_token_id"]
         mark = await _fetch_mark_price(token_id)
+        if mark is None and row["current_price"] is not None:
+            mark = float(row["current_price"])
         exit_price = mark if mark is not None else float(row["entry_price"])
 
         try:
