@@ -304,17 +304,14 @@ async def update_market_filters(body: MarketFilterUpdate, user: _CurrentUser):
     updates: list[str] = []
     params: list = []
 
-    def _add(col: str, val):
-        if val is not None:
-            params.append(val)
-            updates.append(f"{col}=${len(params)}")
-
-    if body.market_categories is not None:
-        params.append(body.market_categories)
-        updates.append(f"category_filters=${len(params)}")
-    _add("min_liquidity", body.min_liquidity)
-    _add("max_resolution_days", body.max_resolution_days)
-    _add("min_volume_24h", body.min_volume_24h)
+    # Use model_dump(exclude_unset=True) so fields explicitly set to null
+    # (e.g. max_resolution_days=null meaning "Any") are included and correctly
+    # propagated to the DB, while truly absent fields are skipped.
+    data = body.model_dump(exclude_unset=True)
+    for field, val in data.items():
+        col = "category_filters" if field == "market_categories" else field
+        params.append(val)
+        updates.append(f"{col}=${len(params)}")
 
     if not updates:
         return {"updated": False}
@@ -478,8 +475,7 @@ async def update_trading_settings(body: TradingSettingsUpdate, user: _CurrentUse
 
     if body.redeem_mode is not None:
         if body.redeem_mode not in ("instant", "hourly"):
-            from fastapi import HTTPException as _HTTPException
-            raise _HTTPException(status_code=422, detail="redeem_mode must be 'instant' or 'hourly'")
+            raise HTTPException(status_code=422, detail="redeem_mode must be 'instant' or 'hourly'")
         params.append(body.redeem_mode)
         updates.append(f"auto_redeem_mode=${len(params)}")
 

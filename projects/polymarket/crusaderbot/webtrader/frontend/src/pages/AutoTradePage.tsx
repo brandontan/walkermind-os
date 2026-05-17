@@ -5,6 +5,8 @@ import { makeApi, type AutoTradeState, type MarketFilterSettings, type RiskProfi
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 
+const ALL_CATEGORIES = ["Politics","Sports","Crypto","Finance","Science","Entertainment","World","Weather","Other"];
+
 // ── Section A: Strategy Presets (mapped to lib/strategies/ classes) ───────────
 
 const STRATEGY_PRESETS = [
@@ -121,7 +123,6 @@ export function AutoTradePage() {
   const [savingRisk, setSavingRisk]       = useState(false);
 
   // Market filter state
-  const ALL_CATEGORIES = ["Politics","Sports","Crypto","Finance","Science","Entertainment","World","Weather","Other"];
   const [filterCats, setFilterCats]           = useState<string[]>(ALL_CATEGORIES);
   const [filterLiquidity, setFilterLiquidity] = useState<string>("1000");
   const [filterResolution, setFilterResolution] = useState<string>("0");
@@ -137,7 +138,7 @@ export function AutoTradePage() {
       setCustomTp(String(Math.round(s.tp_pct * 100)));
       setCustomSl(String(Math.round(s.sl_pct * 100)));
     }
-    if (s.market_categories?.length) setFilterCats(s.market_categories);
+    if (s.market_categories) setFilterCats(s.market_categories);
     if (s.min_liquidity != null) setFilterLiquidity(String(s.min_liquidity));
     if (s.max_resolution_days != null) setFilterResolution(String(s.max_resolution_days));
     if (s.min_volume_24h != null) setFilterVolume(String(s.min_volume_24h));
@@ -174,7 +175,7 @@ export function AutoTradePage() {
       const payload: MarketFilterSettings = {
         market_categories: filterCats,
         min_liquidity: parseFloat(filterLiquidity),
-        max_resolution_days: filterResolution === "0" ? null : parseInt(filterResolution),
+        max_resolution_days: filterResolution === "0" ? null : parseInt(filterResolution, 10),
         min_volume_24h: parseFloat(filterVolume),
       };
       await api.updateMarketFilters(payload);
