@@ -211,7 +211,10 @@ async def skip_deposit_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int
 
     # Apply the preset selected during onboarding so auto_trade_on gets set.
     # Without this, the scanner never picks up the new user.
+    # Fallback ensures auto_trade_on=True even if full preset apply fails —
+    # prevents silent "scanner ignores user" regression on transient DB errors.
     preset_key = ctx.user_data.get("onboard_preset_key")
+    _preset_ok = False
     if preset_key:
         p = get_preset(preset_key)
         if p is not None:
@@ -231,6 +234,7 @@ async def skip_deposit_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int
                 )
                 await set_auto_trade(user["id"], True)
                 await set_paused(user["id"], False)
+                _preset_ok = True
                 logger.info(
                     "onboard.preset_applied user=%s preset=%s", user["id"], p.key,
                 )
@@ -239,6 +243,14 @@ async def skip_deposit_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int
                     "onboard.preset_apply_failed user=%s preset=%s err=%s",
                     user["id"], preset_key, exc,
                 )
+
+    if not _preset_ok:
+        # Fallback: activate scanner with defaults so user is never stranded.
+        try:
+            await set_auto_trade(user["id"], True)
+            await set_paused(user["id"], False)
+        except Exception as exc:
+            logger.error("onboard.auto_trade_fallback_failed user=%s err=%s", user["id"], exc)
 
     await set_onboarding_complete(user["id"], True)
     ctx.user_data.pop("onboard_in_preset_step", None)
