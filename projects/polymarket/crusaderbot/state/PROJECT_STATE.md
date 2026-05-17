@@ -1,9 +1,8 @@
-Last Updated : 2026-05-17 23:00
-Status       : Bad-trade cleanup merged (PR #1109). Ledger orphan follow-on fix complete (44 ledger rows deleted, ledger now consistent with wallet). WARP🔹CMD review required for ledger cleanup PR. Production PAPER ONLY.
+Last Updated : 2026-05-17 23:30
+Status       : Bad-trade cleanup merged (PR #1109). Ledger cleanup DB done, PR #1110 open. portfolio-ui-polish + TG-KB-CLEANUP + SCANNER-SYNC-FIX + PRICE-FETCH-FIX + SSE-AUTH-FIX + webtrader-ws + webtrader-build-fix all awaiting WARP🔹CMD review. Production PAPER ONLY.
 
 [COMPLETED]
 - WARP/CRUSADERBOT-BAD-TRADE-CLEANUP MERGED PR #1109 (2026-05-17): deleted 22 bad tp_hit positions for walk3r69 (price bug #1105); wallet balance corrected $2,227.57 → $990.00. Verification: 0 bad trades remain, 13 market_expired clean, 1 open untouched. STANDARD, NARROW INTEGRATION.
-- WARP/CRUSADERBOT-LEDGER-CLEANUP (2026-05-17): deleted 44 orphaned ledger entries (22 trade_open + 22 trade_close) with dead ref_ids pointing to deleted positions; ledger_sum corrected from +$1,227.57 → -$10.00 (one open position); wallet/ledger now consistent. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
 - telegram-ux-final-polish MERGED PR #1088 (2026-05-17). Wallet copy-address bug fixed (rsplit parse), portfolio_chart tier gate removed, wallet_p5_kb home label corrected, emergency_done_p5_kb auto-trade label corrected, _hub_text unused tier param removed. compileall clean. STANDARD, NARROW INTEGRATION.
 - crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.
@@ -24,6 +23,7 @@ Status       : Bad-trade cleanup merged (PR #1109). Ledger orphan follow-on fix 
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- WARP/CRUSADERBOT-LEDGER-CLEANUP PR #1110 open — DB work done (44 orphaned ledger entries deleted, ledger_sum -$10.00, wallet/ledger consistent); awaiting WARP🔹CMD review and merge.
 - portfolio-ui-polish PR open — WebTrader Portfolio tab: equity header, P&L chart (period selector), exit_reason badges, enhanced position rows, /portfolio/summary + /portfolio/chart endpoints. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-TG-KB-CLEANUP PR open — inline KB ghost fix: show_portfolio and _render_hub edit message in-place on callback; eliminates stale p5_dashboard_kb floating above Portfolio/Settings screens. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-SCANNER-SYNC-FIX PR open — skipped_market_not_synced root cause fixed: scheduler.sync_markets outcomePrices JSON string parse + scanner self-seeding markets table via _upsert_market(). Awaiting WARP🔹CMD review.
