@@ -1,8 +1,8 @@
-Last Updated : 2026-05-18 18:00
-Status       : CRU-12 UX PHASE 1 BUNDLE built on WARP/CRUSADERBOT-UX-PHASE1 — awaiting WARP🔹CMD review. Production PAPER ONLY.
+Last Updated : 2026-05-18 19:00
+Status       : CRU-12 UX PHASE 1 BUNDLE MERGED PR #1119. Production PAPER ONLY.
 
 [COMPLETED]
-- CRU-12 WARP/CRUSADERBOT-UX-PHASE1 PR open (2026-05-17): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel. Vite build clean. STANDARD, NARROW INTEGRATION.
+- CRU-12 WARP/CRUSADERBOT-UX-PHASE1 MERGED PR #1119 (2026-05-18): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel + CSS var token system. Vite build clean. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-UI-RESPONSIVE-POLISH MERGED PR #1115 (2026-05-18 02:30): 6-page responsive layout (md: breakpoint), market filter UI (9 categories + 3 dropdowns), auto redeem setting (toggle + mode), copy trade UX (empty state + helper text + stats); migration 036 (min_liquidity, max_resolution_days, min_volume_24h, auto_redeem) applied to Supabase. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-STRATEGY-RISK-COPY MERGED PR #1113 (2026-05-18 01:21): 5-part bundle — strategy preset isolation (two-phase scan loop + _PRESET_ALLOWED + LibStrategyRunner), ledger atomic delete utility, AutoTradePage 8-preset + 4 risk-card restructure, TG auto 2-sub-menu + custom risk wizard, copy-trade 8-step TG wizard + WebTrader CopyTradePage + monitor filters (copy_direction/allow_topups/execution_mode) + migration 035. Custom risk profile: PROFILES["custom"] + STRATEGY_AVAILABILITY + gate step 4 DB check + VALID_RISK_PROFILES + 3 strategy classes extended. 1455 tests pass. No SENTINEL run occurred; WARP🔹CMD merged directly. MAJOR, FULL RUNTIME INTEGRATION.
 - WARP/CRUSADERBOT-LEDGER-CLEANUP MERGED PR #1110 (2026-05-17): deleted 44 orphaned ledger entries (22 trade_open + 22 trade_close) with dead ref_ids from bad-trade cleanup; ledger_sum corrected +$1,227.57 → -$10.00; wallet/ledger consistent. STANDARD, NARROW INTEGRATION.
@@ -27,7 +27,6 @@ Status       : CRU-12 UX PHASE 1 BUNDLE built on WARP/CRUSADERBOT-UX-PHASE1 — 
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- WARP/CRUSADERBOT-UX-PHASE1 PR #1119 open (CRU-12) — 5-item UX Phase 1 bundle. Awaiting WARP🔹CMD review. STANDARD, NARROW INTEGRATION.
 - claude/crusaderbot-responsive-layout-ZyDip PR open — WebTrader desktop responsive layout V2: DesktopSidebar (220px fixed, nav+system+status card), TopBar center topnav pills, BottomNav md:hidden, 2-col home grid (Hero+Stats LEFT / Scanner+Activity RIGHT), desktop page headers on all 5 pages. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-REALTIME-PNL-UI PR #1111 open — Home Recent Activity real-time + color coded; price null guard ($0.00→"—"); SSE position_updated; Portfolio borderTone. Awaiting WARP🔹CMD review.
 - portfolio-ui-polish PR open — WebTrader Portfolio tab: equity header, P&L chart (period selector), exit_reason badges, enhanced position rows, /portfolio/summary + /portfolio/chart endpoints. Awaiting WARP🔹CMD review.
@@ -55,7 +54,6 @@ Status       : CRU-12 UX PHASE 1 BUNDLE built on WARP/CRUSADERBOT-UX-PHASE1 — 
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for crusaderbot-ux-phase1 (CRU-12 UX bundle: hash truncate, copy-trade inputs, chart enhancements, win rate fix, alert center). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ux-phase1.md. Tier: STANDARD.
 - WARP🔹CMD review required for crusaderbot-ui-responsive-v2 (WebTrader desktop responsive layout V2). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ui-responsive-v2.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-REALTIME-PNL-UI (realtime P&L UI). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-realtime-pnl-ui.md. Tier: STANDARD.
 - WARP🔹CMD decision needed: extend positions + ledger cleanup to qwneer8 + Maver1ch69 (identical bad trades from price bug #1105, not yet cleaned).
