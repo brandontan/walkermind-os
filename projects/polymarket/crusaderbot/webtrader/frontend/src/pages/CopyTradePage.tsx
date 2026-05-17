@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { FilterTabs, type FilterTab } from "../components/FilterTabs";
 import { TopBar } from "../components/TopBar";
 import { TxHash } from "../components/TxHash";
-import { makeApi } from "../lib/api";
+import { makeApi, type LeaderboardEntry } from "../lib/api";
 import { useAuth } from "../lib/auth";
+
+type CopyTab = "manual" | "leaderboard";
 
 interface CopyTask {
   id: string;
@@ -48,6 +51,9 @@ export function CopyTradePage() {
   const [formErr, setFormErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [copyTab, setCopyTab] = useState<CopyTab>("manual");
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [lbLoading, setLbLoading] = useState(false);
 
   const load = useCallback(async () => {
     const data = await api.listCopyTasks();
@@ -68,6 +74,22 @@ export function CopyTradePage() {
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const loadLeaderboard = useCallback(async () => {
+    setLbLoading(true);
+    try {
+      const data = await api.getLeaderboard();
+      setLeaderboard(data);
+    } catch {
+      // non-critical
+    } finally {
+      setLbLoading(false);
+    }
+  }, [api]);
+
+  useEffect(() => {
+    if (copyTab === "leaderboard") void loadLeaderboard();
+  }, [copyTab, loadLeaderboard]);
 
   async function handleToggle(id: string, current: string) {
     setLoading(true);
@@ -122,6 +144,11 @@ export function CopyTradePage() {
     }
   }
 
+  const copyTabs: FilterTab<CopyTab>[] = [
+    { key: "manual", label: "Manual" },
+    { key: "leaderboard", label: "Leaderboard" },
+  ];
+
   return (
     <>
       <TopBar />
@@ -139,6 +166,18 @@ export function CopyTradePage() {
           </p>
         </div>
 
+        <FilterTabs tabs={copyTabs} active={copyTab} onChange={setCopyTab} />
+
+        {copyTab === "leaderboard" && (
+          <LeaderboardPanel
+            entries={leaderboard}
+            loading={lbLoading}
+            onCopyWallet={(w) => { setWallet(w); setCopyTab("manual"); setShowForm(true); }}
+          />
+        )}
+
+        {copyTab === "manual" && (
+        <>
         {/* Active Targets */}
         {tasks.length === 0 && !showForm ? (
           <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
@@ -377,7 +416,122 @@ export function CopyTradePage() {
             </button>
           </div>
         )}
+        </>
+        )}
       </div>
     </>
+  );
+}
+
+function badgeLabel(badge: string | null): string {
+  switch (badge) {
+    case "Whale": return "🐋 Whale";
+    case "Hot Streak": return "🔥 Hot Streak";
+    case "Conservative": return "🛡 Conservative";
+    case "High Risk": return "⚡ High Risk";
+    default: return badge ?? "";
+  }
+}
+
+function badgeClass(badge: string | null): string {
+  switch (badge) {
+    case "Whale": return "text-blue-400 border-blue-400/30 bg-blue-400/10";
+    case "Hot Streak": return "text-orange-400 border-orange-400/30 bg-orange-400/10";
+    case "Conservative": return "text-green-400 border-green-400/30 bg-green-400/10";
+    case "High Risk": return "text-red-400 border-red-400/30 bg-red-400/10";
+    default: return "text-ink-3 border-border-2 bg-surface-2";
+  }
+}
+
+function truncateWallet(wallet: string): string {
+  if (wallet.length < 12) return wallet;
+  return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
+}
+
+function LeaderboardPanel({
+  entries,
+  loading,
+  onCopyWallet,
+}: {
+  entries: LeaderboardEntry[];
+  loading: boolean;
+  onCopyWallet: (wallet: string) => void;
+}) {
+  if (loading) {
+    return (
+      <div className="space-y-2 mt-2">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-16 rounded-lg border border-surface-3 bg-surface-1 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+        <div className="text-2xl mb-2">📊</div>
+        <p className="font-hud text-sm font-bold text-ink-2 mb-1">No leaderboard data yet.</p>
+        <p className="text-ink-3 text-xs font-mono">Trader rankings appear here as copy data accumulates.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 mt-2">
+      {entries.map((e) => (
+        <div key={e.wallet} className="p-3 rounded-lg border border-surface-3 bg-surface-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="text-gold font-bold font-mono text-[11px] flex-shrink-0">#{e.rank}</span>
+              <div className="min-w-0">
+                <div className="font-hud text-[11px] font-bold text-ink-1">
+                  {e.alias || truncateWallet(e.wallet)}
+                </div>
+                {e.alias && (
+                  <div className="text-[9px] font-mono text-ink-4">{truncateWallet(e.wallet)}</div>
+                )}
+              </div>
+            </div>
+            {e.badge && (
+              <span className={`text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded border flex-shrink-0 ${badgeClass(e.badge)}`}>
+                {badgeLabel(e.badge)}
+              </span>
+            )}
+          </div>
+
+          <div className="mt-2 grid grid-cols-3 gap-1 text-[9px] font-mono">
+            <div className="bg-surface rounded px-1.5 py-1">
+              <div className="text-ink-4">Win Rate</div>
+              <div className="text-ink-1 font-bold">{e.win_rate != null ? `${(e.win_rate * 100).toFixed(0)}%` : "—"}</div>
+            </div>
+            <div className="bg-surface rounded px-1.5 py-1">
+              <div className="text-ink-4">Total PnL</div>
+              <div className={`font-bold ${e.total_pnl != null && e.total_pnl >= 0 ? "text-grn" : "text-red"}`}>
+                {e.total_pnl != null ? `${e.total_pnl >= 0 ? "+" : ""}$${e.total_pnl.toFixed(0)}` : "—"}
+              </div>
+            </div>
+            <div className="bg-surface rounded px-1.5 py-1">
+              <div className="text-ink-4">ROI</div>
+              <div className={`font-bold ${e.roi_pct != null && e.roi_pct >= 0 ? "text-grn" : "text-red"}`}>
+                {e.roi_pct != null ? `${(e.roi_pct * 100).toFixed(1)}%` : "—"}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-1.5 flex items-center justify-between">
+            <span className="text-[9px] font-mono text-ink-4">
+              Vol: {e.volume_usdc != null ? `$${(e.volume_usdc / 1000).toFixed(1)}k` : "—"}
+            </span>
+            <button
+              onClick={() => onCopyWallet(e.wallet)}
+              className="text-[9px] font-bold text-gold px-2 py-0.5 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
+            >
+              Copy Trader
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

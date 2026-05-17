@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { HeroCard } from "../components/HeroCard";
 import { TopBar } from "../components/TopBar";
@@ -113,6 +114,8 @@ const riskColor: Record<string, string> = {
 export function AutoTradePage() {
   const { user } = useAuth();
   const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
+  const [searchParams] = useSearchParams();
+  const marketName = searchParams.get("market_name") ?? null;
   const [state, setState] = useState<AutoTradeState | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -235,6 +238,16 @@ export function AutoTradePage() {
     <>
       <TopBar />
       <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
+
+        {/* Market context banner — shown when navigated from Discover page */}
+        {marketName && (
+          <div className="mb-3 px-3 py-2 rounded border border-gold/30 bg-gold/5 flex items-center gap-2">
+            <span className="text-gold text-[11px]">🎯</span>
+            <p className="text-[10px] font-mono text-ink-2">
+              Configuring for: <span className="text-gold font-bold">{marketName}</span>
+            </p>
+          </div>
+        )}
 
         {/* Desktop page header — hidden on mobile */}
         <DesktopPageHeader

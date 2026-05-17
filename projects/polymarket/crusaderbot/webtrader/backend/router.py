@@ -25,15 +25,19 @@ from .schemas import (
     CustomizeRequest,
     DashboardSummary,
     KillSwitchStatus,
+    LeaderboardEntry,
     LedgerEntry,
     MarketFilterUpdate,
     OrderItem,
+    PortfolioAnalytics,
     PortfolioSummary,
     PositionItem,
     PresetActivateRequest,
     RiskProfileRequest,
+    StrategyPnl,
     TelegramAuthPayload,
     TokenResponse,
+    TradeHighlight,
     TradingSettingsUpdate,
     UserSettingsUpdate,
     WalletInfo,
@@ -772,6 +776,133 @@ async def sse_stream(user: _CurrentUser):
     return EventSourceResponse(
         webtrader_sse.stream_for_user(user["user_id"], telegram_id)
     )
+
+
+@router.get("/portfolio/analytics", response_model=PortfolioAnalytics)
+async def get_portfolio_analytics(user: _CurrentUser) -> PortfolioAnalytics:
+    pool = get_pool()
+    user_id = user["user_id"]
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT p.pnl_usdc, p.opened_at, p.closed_at,
+                      COALESCE(p.strategy_type, 'unknown') AS strategy_type,
+                      COALESCE(m.question, p.market_id) AS market_question
+               FROM positions p
+               LEFT JOIN markets m ON m.id = p.market_id
+               WHERE p.user_id = $1::uuid
+                 AND p.status IN ('closed', 'expired')
+                 AND p.pnl_usdc IS NOT NULL
+               ORDER BY p.closed_at ASC""",
+            user_id,
+        )
+
+    if not rows:
+        return PortfolioAnalytics(
+            has_data=False,
+            max_drawdown_pct=None,
+            profit_per_strategy=[],
+            best_trade=None,
+            worst_trade=None,
+            win_loss_ratio=None,
+            wins=0,
+            losses=0,
+            avg_hold_hours=None,
+        )
+
+    pnls = [float(r["pnl_usdc"]) for r in rows]
+
+    # Max drawdown: peak-to-trough on cumulative equity curve.
+    # When peak > 0: standard percentage drawdown against high watermark.
+    # When peak == 0 (all-losses case): express as 100% — the curve never
+    # recovered above the starting point, so the full loss is the drawdown.
+    running = 0.0
+    peak = 0.0
+    max_dd = 0.0
+    for p in pnls:
+        running += p
+        if running > peak:
+            peak = running
+        if peak > 0:
+            dd = (peak - running) / peak
+        elif running < 0:
+            dd = 1.0  # 100% drawdown from zero starting point
+        else:
+            dd = 0.0
+        if dd > max_dd:
+            max_dd = dd
+
+    # Profit per strategy
+    strat_pnl: dict[str, float] = {}
+    for r in rows:
+        s = r["strategy_type"]
+        strat_pnl[s] = strat_pnl.get(s, 0.0) + float(r["pnl_usdc"])
+    profit_per_strategy = [
+        StrategyPnl(strategy=k, pnl_usdc=round(v, 2))
+        for k, v in sorted(strat_pnl.items(), key=lambda x: -x[1])
+    ]
+
+    # Best / worst trade
+    best_row = max(rows, key=lambda r: float(r["pnl_usdc"]))
+    worst_row = min(rows, key=lambda r: float(r["pnl_usdc"]))
+
+    # Win / loss
+    wins = sum(1 for p in pnls if p > 0)
+    losses = sum(1 for p in pnls if p <= 0)
+    win_loss_ratio = round(wins / losses, 2) if losses > 0 else None
+
+    # Avg hold duration in hours
+    durations = [
+        (r["closed_at"] - r["opened_at"]).total_seconds() / 3600.0
+        for r in rows
+        if r["closed_at"] and r["opened_at"]
+    ]
+    avg_hold_hours = round(sum(durations) / len(durations), 1) if durations else None
+
+    return PortfolioAnalytics(
+        has_data=True,
+        max_drawdown_pct=round(max_dd * 100, 2),
+        profit_per_strategy=profit_per_strategy,
+        best_trade=TradeHighlight(
+            market_question=best_row["market_question"],
+            pnl_usdc=round(float(best_row["pnl_usdc"]), 2),
+        ),
+        worst_trade=TradeHighlight(
+            market_question=worst_row["market_question"],
+            pnl_usdc=round(float(worst_row["pnl_usdc"]), 2),
+        ),
+        win_loss_ratio=win_loss_ratio,
+        wins=wins,
+        losses=losses,
+        avg_hold_hours=avg_hold_hours,
+    )
+
+
+@router.get("/leaderboard", response_model=list[LeaderboardEntry])
+async def get_leaderboard(user: _CurrentUser) -> list[LeaderboardEntry]:
+    pool = get_pool()
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT wallet, alias, win_rate, total_pnl, volume_usdc, roi_pct, badge
+               FROM leaderboard_stats
+               ORDER BY total_pnl DESC
+               LIMIT 50"""
+        )
+
+    return [
+        LeaderboardEntry(
+            rank=i + 1,
+            wallet=r["wallet"],
+            alias=r["alias"],
+            win_rate=float(r["win_rate"]) if r["win_rate"] is not None else None,
+            total_pnl=float(r["total_pnl"]) if r["total_pnl"] is not None else None,
+            volume_usdc=float(r["volume_usdc"]) if r["volume_usdc"] is not None else None,
+            roi_pct=float(r["roi_pct"]) if r["roi_pct"] is not None else None,
+            badge=r["badge"],
+        )
+        for i, r in enumerate(rows)
+    ]
 
 
 # ── Copy Trade ────────────────────────────────────────────────────────────────

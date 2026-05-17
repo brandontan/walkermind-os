@@ -11,6 +11,7 @@ import { AuthPage } from "./pages/AuthPage";
 import { AutoTradePage } from "./pages/AutoTradePage";
 import { CopyTradePage } from "./pages/CopyTradePage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { DiscoverPage } from "./pages/DiscoverPage";
 import { PortfolioPage } from "./pages/PortfolioPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WalletPage } from "./pages/WalletPage";
@@ -142,6 +143,10 @@ function AppShell() {
             <Route
               path="/copy-trade"
               element={user ? <CopyTradePage /> : <Navigate to="/auth" replace />}
+            />
+            <Route
+              path="/discover"
+              element={user ? <DiscoverPage /> : <Navigate to="/auth" replace />}
             />
             <Route
               path="/settings"

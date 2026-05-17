@@ -115,6 +115,13 @@ export function TopBar({ notifCount: _notifCount, onBellClick: _onBellClick }: P
           </StatusPill>
         </AdvancedOnly>
         <button
+          onClick={() => navigate("/discover")}
+          className="w-8 h-8 rounded-[4px] bg-surface border border-border-2 flex items-center justify-center text-[13px] transition-colors hover:border-gold hover:bg-surface-2"
+          aria-label="Discover Markets"
+        >
+          🔍
+        </button>
+        <button
           onClick={openAlertCenter}
           className="relative w-8 h-8 rounded-[4px] bg-surface border border-border-2 flex items-center justify-center text-[13px] transition-colors hover:border-gold hover:bg-surface-2"
           aria-label="Alert Center"

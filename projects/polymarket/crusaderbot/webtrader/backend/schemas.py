@@ -192,3 +192,40 @@ class KillSwitchStatus(BaseModel):
 class SSEEvent(BaseModel):
     type: str
     payload: dict
+
+
+# ── Portfolio Analytics ───────────────────────────────────────────────────────
+
+class StrategyPnl(BaseModel):
+    strategy: str
+    pnl_usdc: float
+
+
+class TradeHighlight(BaseModel):
+    market_question: Optional[str]
+    pnl_usdc: float
+
+
+class PortfolioAnalytics(BaseModel):
+    has_data: bool
+    max_drawdown_pct: Optional[float]
+    profit_per_strategy: list[StrategyPnl]
+    best_trade: Optional[TradeHighlight]
+    worst_trade: Optional[TradeHighlight]
+    win_loss_ratio: Optional[float]
+    wins: int
+    losses: int
+    avg_hold_hours: Optional[float]
+
+
+# ── Leaderboard ───────────────────────────────────────────────────────────────
+
+class LeaderboardEntry(BaseModel):
+    rank: int
+    wallet: str
+    alias: Optional[str]
+    win_rate: Optional[float]
+    total_pnl: Optional[float]
+    volume_usdc: Optional[float]
+    roi_pct: Optional[float]
+    badge: Optional[str]

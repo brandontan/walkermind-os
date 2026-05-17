@@ -17,13 +17,14 @@ import {
   makeApi,
   type ChartPoint,
   type OrderItem,
+  type PortfolioAnalytics,
   type PortfolioSummary,
   type PositionItem,
 } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 
-type Tab = "all" | "open" | "closed" | "orders";
+type Tab = "all" | "open" | "closed" | "orders" | "analytics";
 // 7D=1W, 30D=1M in backend; "All" maps to "ALL"
 type Period = "1D" | "7D" | "30D" | "All";
 
@@ -144,6 +145,7 @@ export function PortfolioPage() {
     { key: "open", label: "Open", count: open.length },
     { key: "closed", label: "Closed", count: closed.length },
     { key: "all", label: "All", count: open.length + closed.length },
+    { key: "analytics", label: "Analytics" },
     { key: "orders", label: "Orders", count: orders.length, advanced: true },
   ];
 
@@ -226,6 +228,8 @@ export function PortfolioPage() {
             </div>
           )
         )}
+
+        {tab === "analytics" && <AnalyticsPanel api={api} />}
       </div>
 
       {/* Cash Out confirm modal */}
@@ -706,4 +710,123 @@ function fmtDate(ts: string): string {
   } catch {
     return ts.slice(0, 10);
   }
+}
+
+// ── Analytics Panel ──────────────────────────────────────────────────────────
+
+function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
+  const [data, setData] = useState<PortfolioAnalytics | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api.getPortfolioAnalytics()
+      .then(setData)
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [api]);
+
+  if (loading) {
+    return (
+      <div className="space-y-2 mt-2">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-14 rounded-lg border border-surface-3 bg-surface-1 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!data || !data.has_data) {
+    return (
+      <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+        <div className="text-2xl mb-2">📊</div>
+        <p className="font-hud text-sm font-bold text-ink-2 mb-1">No analytics yet.</p>
+        <p className="text-ink-3 text-xs font-mono leading-relaxed">
+          No closed trades yet. Analytics appear after your first completed position.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 mt-2">
+      {/* Row 1: key metrics */}
+      <div className="grid grid-cols-2 gap-2">
+        <AnalyticCard
+          label="Max Drawdown"
+          value={data.max_drawdown_pct != null ? `${data.max_drawdown_pct.toFixed(1)}%` : "—"}
+          color={data.max_drawdown_pct != null && data.max_drawdown_pct > 10 ? "var(--red,#FF2D55)" : "var(--ink-1)"}
+        />
+        <AnalyticCard
+          label="Win / Loss Ratio"
+          value={data.win_loss_ratio != null ? `${data.win_loss_ratio.toFixed(2)}` : "—"}
+          sub={`${data.wins}W · ${data.losses}L`}
+          color="var(--ink-1)"
+        />
+        <AnalyticCard
+          label="Avg Hold Duration"
+          value={data.avg_hold_hours != null ? `${data.avg_hold_hours.toFixed(1)}h` : "—"}
+          color="var(--ink-1)"
+        />
+        <AnalyticCard
+          label="Best Trade"
+          value={data.best_trade != null ? `${data.best_trade.pnl_usdc >= 0 ? "+" : ""}$${data.best_trade.pnl_usdc.toFixed(2)}` : "—"}
+          sub={data.best_trade?.market_question?.slice(0, 30) ?? undefined}
+          color="var(--grn,#00FF9C)"
+        />
+      </div>
+
+      {/* Worst trade */}
+      {data.worst_trade && (
+        <div className="p-3 rounded-lg border border-surface-3 bg-surface-1">
+          <div className="text-[9px] font-mono text-ink-4 uppercase tracking-widest mb-1">Worst Trade</div>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono text-ink-2 truncate max-w-[200px]">
+              {data.worst_trade.market_question ?? "—"}
+            </span>
+            <span className="font-bold font-mono text-[11px] text-red flex-shrink-0">
+              ${data.worst_trade.pnl_usdc.toFixed(2)}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Profit per strategy */}
+      {data.profit_per_strategy.length > 0 && (
+        <div className="p-3 rounded-lg border border-surface-3 bg-surface-1">
+          <div className="text-[9px] font-mono text-ink-4 uppercase tracking-widest mb-2">Profit by Strategy</div>
+          <div className="space-y-1.5">
+            {data.profit_per_strategy.map((s) => (
+              <div key={s.strategy} className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-ink-2 capitalize">{s.strategy}</span>
+                <span className={`font-bold font-mono text-[10px] ${s.pnl_usdc >= 0 ? "text-grn" : "text-red"}`}>
+                  {s.pnl_usdc >= 0 ? "+" : ""}${s.pnl_usdc.toFixed(2)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AnalyticCard({
+  label,
+  value,
+  sub,
+  color,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  color: string;
+}) {
+  return (
+    <div className="p-3 rounded-lg border border-surface-3 bg-surface-1">
+      <div className="text-[9px] font-mono text-ink-4 uppercase tracking-widest mb-1">{label}</div>
+      <div className="font-hud font-bold text-[14px] leading-tight" style={{ color }}>{value}</div>
+      {sub && <div className="text-[9px] font-mono text-ink-4 mt-0.5 truncate">{sub}</div>}
+    </div>
+  );
 }

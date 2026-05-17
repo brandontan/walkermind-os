@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 23:45
-Status       : CRU-13 SAFETY PHASE 2 complete on claude/crusaderbot-safety-phase2-2hY1C — aggressive limit order + 30s retry + slippage delta + partial-fill dedup + NO position estimate fix added. PR open, WARP•SENTINEL audit required before merge. Production PAPER ONLY.
+Last Updated : 2026-05-17 23:55
+Status       : CRU-14 GROWTH PHASE 3 complete on WARP/CRUSADERBOT-GROWTH-PHASE3 — Discover Markets page, Copy Trade Leaderboard tab, Portfolio Analytics tab, AutoTrade market context banner. PR open, WARP🔹CMD review required. Production PAPER ONLY.
 
 [COMPLETED]
 - CRU-12 WARP/CRUSADERBOT-UX-PHASE1 PR open (2026-05-17): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel. Vite build clean. STANDARD, NARROW INTEGRATION.
@@ -27,6 +27,7 @@ Status       : CRU-13 SAFETY PHASE 2 complete on claude/crusaderbot-safety-phase
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- CRU-14 WARP/CRUSADERBOT-GROWTH-PHASE3 PR open — Growth Phase 3: Discover Markets page (Gamma API + 5-min cache + mock fallback), Copy Trade Leaderboard tab (migration 038 + /leaderboard endpoint), Portfolio Analytics tab (/portfolio/analytics endpoint + 6 metrics), AutoTrade market context banner. Build clean. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - CRU-13 claude/crusaderbot-safety-phase2-2hY1C PR open — Trading Safety Phase 2: liquidity filter, slippage protection, partial fill handling, manual close position. MAJOR, NARROW INTEGRATION. WARP•SENTINEL audit required before merge.
 - WARP/CRUSADERBOT-UX-PHASE1 PR #1119 open (CRU-12) — 5-item UX Phase 1 bundle. Awaiting WARP🔹CMD review. STANDARD, NARROW INTEGRATION.
 - claude/crusaderbot-responsive-layout-ZyDip PR open — WebTrader desktop responsive layout V2: DesktopSidebar (220px fixed, nav+system+status card), TopBar center topnav pills, BottomNav md:hidden, 2-col home grid (Hero+Stats LEFT / Scanner+Activity RIGHT), desktop page headers on all 5 pages. STANDARD, NARROW INTEGRATION.
@@ -56,6 +57,7 @@ Status       : CRU-13 SAFETY PHASE 2 complete on claude/crusaderbot-safety-phase
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for crusaderbot-growth-phase3 (CRU-14: Discover page, Leaderboard, Analytics). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-growth-phase3.md. Tier: STANDARD. Apply migration 038 before deploy.
 - WARP•SENTINEL validation required for crusaderbot-safety-phase2 (CRU-13: liquidity filter, slippage, partial fill, manual close). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-safety-phase2.md. Tier: MAJOR.
 - Apply migration 037 to Supabase after SENTINEL approval and before merge.
 - WARP🔹CMD review required for crusaderbot-ux-phase1 (CRU-12 UX bundle: hash truncate, copy-trade inputs, chart enhancements, win rate fix, alert center). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ux-phase1.md. Tier: STANDARD.

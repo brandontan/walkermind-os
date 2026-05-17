@@ -68,6 +68,8 @@ export function makeApi(token: string | null) {
     },
     closePosition: (positionId: string) =>
       post<ClosePositionResult>(`/positions/${positionId}/close`),
+    getPortfolioAnalytics: () => get<PortfolioAnalytics>("/portfolio/analytics"),
+    getLeaderboard: () => get<LeaderboardEntry[]>("/leaderboard"),
   };
 }
 
@@ -239,4 +241,37 @@ export interface CopyTaskPatch {
   execution_mode?: string;
   allow_topups?: boolean;
   status?: string;
+}
+
+export interface StrategyPnl {
+  strategy: string;
+  pnl_usdc: number;
+}
+
+export interface TradeHighlight {
+  market_question: string | null;
+  pnl_usdc: number;
+}
+
+export interface PortfolioAnalytics {
+  has_data: boolean;
+  max_drawdown_pct: number | null;
+  profit_per_strategy: StrategyPnl[];
+  best_trade: TradeHighlight | null;
+  worst_trade: TradeHighlight | null;
+  win_loss_ratio: number | null;
+  wins: number;
+  losses: number;
+  avg_hold_hours: number | null;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  wallet: string;
+  alias: string | null;
+  win_rate: number | null;
+  total_pnl: number | null;
+  volume_usdc: number | null;
+  roi_pct: number | null;
+  badge: string | null;
 }
