@@ -182,6 +182,7 @@ class Settings(BaseSettings):
     RESOLUTION_CHECK_INTERVAL: int = 300
     DB_POOL_MAX: int = 5
     TIMEZONE: str = "Asia/Jakarta"
+    DAILY_REPORT_HOUR: int = 23  # env: DAILY_REPORT_HOUR (0-23 UTC)
 
     # --- Instant redeem gas guard (R10): if Polygon gas exceeds this when a
     # live position becomes redeemable, defer to the hourly queue. ---
