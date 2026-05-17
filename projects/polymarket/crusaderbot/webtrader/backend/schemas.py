@@ -57,6 +57,7 @@ class PositionItem(BaseModel):
     mode: str
     opened_at: datetime
     closed_at: Optional[datetime] = None
+    exit_reason: Optional[str] = None
 
 
 class OrderItem(BaseModel):
@@ -129,6 +130,21 @@ class AlertItem(BaseModel):
     title: str
     body: Optional[str] = None
     created_at: datetime
+
+
+# ── Portfolio ─────────────────────────────────────────────────────────────────
+
+class PortfolioSummary(BaseModel):
+    available_usdc: float
+    realized_pnl: float
+    unrealized_pnl: float
+    equity_usdc: float
+    balance_usdc: float
+
+
+class ChartPoint(BaseModel):
+    ts: str
+    equity: float
 
 
 # ── Kill Switch ───────────────────────────────────────────────────────────────
