@@ -415,7 +415,7 @@ def close_confirm_kb(position_id: str) -> InlineKeyboardMarkup:
 def wallet_p5_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📋 Copy Address", callback_data="p5:wallet:copy")],
-        [InlineKeyboardButton("📊 Dashboard",    callback_data="menu:dashboard")],
+        [InlineKeyboardButton("🏠 Home",         callback_data="menu:dashboard")],
     ])
 
 
@@ -440,8 +440,8 @@ def emergency_confirm_p5_kb(action: str) -> InlineKeyboardMarkup:
 def emergency_done_p5_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("📊 Dashboard",   callback_data="menu:dashboard"),
-            InlineKeyboardButton("🤖 Auto-Trade",  callback_data="menu:autotrade"),
+            InlineKeyboardButton("📊 Dashboard",  callback_data="menu:dashboard"),
+            InlineKeyboardButton("🤖 Auto Mode",  callback_data="menu:autotrade"),
         ],
     ])
 

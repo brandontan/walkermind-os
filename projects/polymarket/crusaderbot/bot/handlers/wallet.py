@@ -52,7 +52,7 @@ async def wallet_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     if q is None or update.effective_user is None:
         return
     await q.answer()
-    sub = (q.data or "").split(":", 1)[-1]
+    sub = (q.data or "").rsplit(":", 1)[-1]
 
     if sub == "copy":
         user = await upsert_user(update.effective_user.id, update.effective_user.username)
@@ -64,5 +64,5 @@ async def wallet_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             await q.answer("Address not available yet.", show_alert=True)
         return
 
-    # All other p5:wallet:* sub-routes re-render the wallet screen
+    # All other wallet sub-routes re-render the wallet screen
     await _render(update, ctx)

@@ -52,7 +52,7 @@ from ..keyboards.settings import (
 
 logger = logging.getLogger(__name__)
 
-def _hub_text(mode: str, tier: int, risk_profile: str = "balanced") -> str:
+def _hub_text(mode: str, risk_profile: str = "balanced") -> str:
     """V6 Settings hub — clean grouped display."""
     mode_label = "💸 Live" if mode == "live" else "📑 Paper"
     risk_display = {
@@ -115,9 +115,8 @@ async def _render_hub(update: Update, user: dict) -> None:
     """Shared hub render — handles message and callback surfaces."""
     s = await get_settings_for(user["id"])
     mode = s.get("trading_mode", "paper")
-    tier = user.get("access_tier", 2)
     risk_profile = s.get("risk_profile", "balanced")
-    text = _hub_text(mode, tier, risk_profile)
+    text = _hub_text(mode, risk_profile)
     kb = settings_hub_kb(is_admin=_is_admin(user))
     if update.callback_query is not None:
         await update.callback_query.message.reply_text(
