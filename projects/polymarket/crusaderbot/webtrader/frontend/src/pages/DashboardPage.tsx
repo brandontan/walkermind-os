@@ -55,10 +55,17 @@ export function DashboardPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Polling fallback — ensures data stays fresh when SSE events don't arrive
+  // Polling fallback — recursive setTimeout ensures no overlapping requests
   useEffect(() => {
-    const id = setInterval(() => { void load(); }, 10_000);
-    return () => clearInterval(id);
+    let id: ReturnType<typeof setTimeout>;
+    let active = true;
+    function schedule() {
+      id = setTimeout(async () => {
+        if (active) { await load(); schedule(); }
+      }, 10_000);
+    }
+    schedule();
+    return () => { active = false; clearTimeout(id); };
   }, [load]);
 
   useSSE(user?.token ?? null, {

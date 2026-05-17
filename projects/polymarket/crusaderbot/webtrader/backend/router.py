@@ -199,7 +199,7 @@ async def toggle_autotrade(body: AutoTradeToggleRequest, user: _CurrentUser):
     return {"auto_trade_on": body.enabled}
 
 
-_PRESET_PARAMS: dict[str, dict[str, object]] = {
+_PRESET_PARAMS: dict[str, dict[str, str | float]] = {
     "signal_sniper": {"risk_profile": "safe",       "capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
     "full_auto":     {"risk_profile": "balanced",   "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
     "value_hunter":  {"risk_profile": "aggressive", "capital_alloc_pct": 0.60, "tp_pct": 0.30, "sl_pct": 0.20},
@@ -210,9 +210,11 @@ _PRESET_PARAMS: dict[str, dict[str, object]] = {
 
 @router.post("/autotrade/preset")
 async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
+    if body.preset_key not in _PRESET_PARAMS:
+        raise HTTPException(status_code=400, detail=f"invalid preset key: {body.preset_key}")
     pool = get_pool()
     user_id = user["user_id"]
-    params = _PRESET_PARAMS.get(body.preset_key, {})
+    params = _PRESET_PARAMS[body.preset_key]
     async with pool.acquire() as conn:
         await conn.execute(
             """UPDATE user_settings
