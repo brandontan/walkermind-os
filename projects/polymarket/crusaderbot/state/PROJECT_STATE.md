@@ -42,8 +42,8 @@ Status       : crusaderbot-mvp-runtime-v1 MERGED PR #1080 + signal-scanner-enabl
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- Apply migration 031 to production DB (signal feed backfill + user enrollment — idempotent, safe to apply immediately).
-- Apply migration 030 to production (job_runs metadata JSONB). Then deploy main to Fly.io — PAPER ONLY, activation guards OFF.
+- Apply migration 030 to production (job_runs metadata JSONB).
+- Apply migration 031 to production DB (signal feed backfill + user enrollment — idempotent, safe to apply immediately). Then deploy main to Fly.io — PAPER ONLY, activation guards OFF.
 - WARP🔹CMD decision: deploy to Fly.io requires manual fly CLI (not available in cloud execution env).
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 
