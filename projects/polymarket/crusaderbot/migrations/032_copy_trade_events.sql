@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS copy_trade_events (
     position_id    UUID         REFERENCES positions(id),
     target_wallet  VARCHAR(100) NOT NULL,
     market_id      VARCHAR(100) NOT NULL,
-    size_usdc      NUMERIC(12,2),
+    size_usdc      NUMERIC(18,6),
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 

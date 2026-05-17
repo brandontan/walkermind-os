@@ -294,27 +294,34 @@ async def _process_one(
             # Record spend and persist idempotency row
             actual_size = float(result.final_size_usdc) if result.final_size_usdc else copy_size
             await _record_spend(task.user_id, task.id, actual_size)
-            # Persist copy_trade_events row for this mirrored position
-            await _record_copy_trade_event(
-                user_id=task.user_id,
-                position_id=result.position_id,
-                target_wallet=wallet_address,
-                market_id=market_id,
-                size_usdc=actual_size,
-            )
-            # Emit event OUTSIDE the transaction — fire-and-forget via event bus.
-            # Track C notification handlers subscribe to "copy_trade.executed".
-            # Note: paper.py already calls notify_entry() for every paper fill;
-            # this event is for downstream subscribers (Track C), not a duplicate notif.
-            await event_bus.emit(
-                "copy_trade.executed",
-                telegram_user_id=user_ctx["telegram_user_id"],
-                market_id=market_id,
-                target_wallet=wallet_address,
-                side=side,
-                size_usdc=actual_size,
-                entry_price=price,
-            )
+            # Persist copy_trade_events row + emit event. Failures here are
+            # non-fatal: the paper fill already landed atomically; log and
+            # continue so _mark_processed still runs on this tick.
+            try:
+                await _record_copy_trade_event(
+                    user_id=task.user_id,
+                    position_id=result.position_id,
+                    target_wallet=wallet_address,
+                    market_id=market_id,
+                    size_usdc=actual_size,
+                )
+                # Emit OUTSIDE the transaction — fire-and-forget via event bus.
+                # Track C notification handlers subscribe to "copy_trade.executed".
+                await event_bus.emit(
+                    "copy_trade.executed",
+                    telegram_user_id=user_ctx["telegram_user_id"],
+                    market_id=market_id,
+                    target_wallet=wallet_address,
+                    side=side,
+                    size_usdc=actual_size,
+                    entry_price=price,
+                )
+            except Exception:
+                log.exception(
+                    "copy_trade_monitor: post-fill audit/emit failed (non-fatal)",
+                    position_id=str(result.position_id) if result.position_id else None,
+                    market_id=market_id,
+                )
         await _mark_processed(task.user_id, task.id, leader_trade_id)
     else:
         log.info(
