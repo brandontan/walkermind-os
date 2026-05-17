@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AdvancedOnly } from "../components/AdvancedGate";
+import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { SettingsGroup, SettingsRow } from "../components/SettingsGroup";
 import { Toggle } from "../components/Toggle";
 import { TopBar } from "../components/TopBar";
@@ -89,6 +90,12 @@ export function SettingsPage() {
     <>
       <TopBar />
       <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
+
+        {/* Desktop page header — hidden on mobile */}
+        <DesktopPageHeader
+          title={<>CON<span className="text-gold">FIG</span></>}
+          subtitle="DISPLAY · NOTIFICATIONS · TRADING · ACCOUNT"
+        />
 
         <div className="md:grid md:grid-cols-2 md:gap-4 md:items-start">
           {/* Left column */}

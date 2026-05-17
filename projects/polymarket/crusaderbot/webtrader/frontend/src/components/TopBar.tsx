@@ -1,5 +1,15 @@
+import { useLocation, useNavigate } from "react-router-dom";
 import { AdvancedOnly } from "./AdvancedGate";
 import { useSSEStatus } from "../lib/sse";
+
+const TOPNAV = [
+  { to: "/dashboard",  label: "Home" },
+  { to: "/autotrade",  label: "Auto Trade" },
+  { to: "/copy-trade", label: "Copy" },
+  { to: "/portfolio",  label: "Portfolio" },
+  { to: "/wallet",     label: "Wallet" },
+  { to: "/settings",   label: "Config" },
+] as const;
 
 type Props = {
   notifCount?: number;
@@ -8,6 +18,9 @@ type Props = {
 
 export function TopBar({ notifCount = 0, onBellClick }: Props) {
   const sseConnected = useSSEStatus();
+  const location = useLocation();
+  const navigate = useNavigate();
+
   return (
     <div
       className="sticky top-0 z-[100] flex items-center justify-between px-4 pt-3.5 pb-3 border-b border-border-1"
@@ -29,8 +42,8 @@ export function TopBar({ notifCount = 0, onBellClick }: Props) {
         aria-hidden
       />
 
-      {/* Brand */}
-      <div className="flex items-center gap-2.5">
+      {/* Brand — left, never shrinks */}
+      <div className="flex items-center gap-2.5 flex-shrink-0">
         <img
           src="/crusaderbot-logo.png"
           alt="CrusaderBot"
@@ -57,8 +70,30 @@ export function TopBar({ notifCount = 0, onBellClick }: Props) {
         </div>
       </div>
 
-      {/* Right cluster */}
-      <div className="flex items-center gap-1.5">
+      {/* Desktop center topnav pills — flex-1 keeps it between brand and right cluster, never overlaps */}
+      <div className="hidden md:flex flex-1 items-center justify-center gap-0.5 px-2">
+        {TOPNAV.map(({ to, label }) => {
+          const active = location.pathname === to || location.pathname.startsWith(to + "/");
+          return (
+            <button
+              key={to}
+              onClick={() => navigate(to)}
+              className={[
+                "font-mono text-[9.5px] font-bold tracking-[1.5px] uppercase",
+                "px-3 py-1.5 rounded-[2px] border transition-all duration-200 whitespace-nowrap cursor-pointer",
+                active
+                  ? "text-gold border-border-2 bg-[rgba(245,200,66,0.08)]"
+                  : "text-ink-3 border-transparent hover:text-ink-2 hover:bg-[rgba(245,200,66,0.04)]",
+              ].join(" ")}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Right cluster — never shrinks */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
         <span
           className="w-2 h-2 rounded-full flex-shrink-0"
           style={sseConnected

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AddressCard } from "../components/AddressCard";
 import { AdvancedOnly } from "../components/AdvancedGate";
+import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { EmptyState } from "../components/EmptyState";
 import { PositionCard } from "../components/PositionCard";
 import { TopBar } from "../components/TopBar";
@@ -50,6 +51,11 @@ export function WalletPage() {
     <>
       <TopBar />
       <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
+        {/* Desktop page header — hidden on mobile */}
+        <DesktopPageHeader
+          title={<>WAL<span className="text-gold">LET</span></>}
+          subtitle="BALANCE · DEPOSITS · LEDGER"
+        />
         <div className="md:grid md:grid-cols-2 md:gap-4">
           <div>
             <WalletCard

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate, NavLink } from "react-router-dom";
 import { AdvancedOnly } from "../components/AdvancedGate";
+import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { HeroCard, type RiskLevel } from "../components/HeroCard";
 import { KillSwitchButton } from "../components/KillSwitchButton";
 import { PositionCard } from "../components/PositionCard";
@@ -11,7 +13,6 @@ import { TopBar } from "../components/TopBar";
 import { makeApi, type AlertItem, type DashboardSummary, type PositionItem } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
-import { useNavigate, NavLink } from "react-router-dom";
 
 const PRESET_RISK: Record<string, RiskLevel> = {
   signal_sniper: "safe",
@@ -112,6 +113,12 @@ export function DashboardPage() {
       <TopBar notifCount={alerts.length} />
       <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
 
+        {/* Desktop page header — hidden on mobile */}
+        <DesktopPageHeader
+          title={<>DASH<span className="text-gold">BOARD</span></>}
+          subtitle={`PAPER MODE · ${data.active_preset ? (presetCode ?? "STRATEGY") + " ACTIVE" : "STRATEGY IDLE"} · EDGE-FINDER`}
+        />
+
         <AdvancedOnly>
           <Ticker items={[
             { symbol: "SIGNAL FEED", value: "EDGE-FINDER", delta: "● ACTIVE", dir: "up" },
@@ -129,35 +136,36 @@ export function DashboardPage() {
           </div>
         )}
 
-        <HeroCard
-          label="Equity"
-          value={equityWhole}
-          cents={equityCents}
-          statusLabel={data.active_preset ? "STRATEGY ACTIVE" : "STRATEGY IDLE"}
-          statusCode={presetCode ? <AdvancedOnly>{presetCode}</AdvancedOnly> : undefined}
-          risk={risk}
-          metaItems={
-            <>
-              <span className={pnlZero ? "text-ink-2 font-bold inline-flex items-center gap-1" : data.pnl_today >= 0 ? "text-grn font-bold inline-flex items-center gap-1" : "text-red font-bold inline-flex items-center gap-1"}>
-                <span aria-hidden>{pnlZero ? "─" : data.pnl_today >= 0 ? "▲" : "▼"}</span>
-                {pnlSign}${pnlAbs} TODAY
-              </span>
-              <span className="text-ink-4">│</span>
-              <span>{data.open_positions} OPEN</span>
-              <AdvancedOnly>
-                <span className="text-ink-4">│</span>
-                <span>{closedCount} CLOSED</span>
-              </AdvancedOnly>
-            </>
-          }
-          ctaPrimary={{ label: "Configure", onClick: () => navigate("/autotrade") }}
-          ctaSecondary={{ label: "Portfolio", onClick: () => navigate("/portfolio") }}
-        />
+        {/* Desktop: 2-column grid — Left: Hero + Stats | Right: Scanner + Activity */}
+        <div className="md:grid md:grid-cols-2 md:gap-5 md:items-start">
 
-        {/* Desktop: 2-column layout — scanner left, stats + activity right */}
-        <div className="md:grid md:grid-cols-2 md:gap-4">
-          {/* Left column: scanner terminal */}
+          {/* LEFT COLUMN: Hero card + Stats */}
           <div>
+            <HeroCard
+              label="Equity"
+              value={equityWhole}
+              cents={equityCents}
+              statusLabel={data.active_preset ? "STRATEGY ACTIVE" : "STRATEGY IDLE"}
+              statusCode={presetCode ? <AdvancedOnly>{presetCode}</AdvancedOnly> : undefined}
+              risk={risk}
+              metaItems={
+                <>
+                  <span className={pnlZero ? "text-ink-2 font-bold inline-flex items-center gap-1" : data.pnl_today >= 0 ? "text-grn font-bold inline-flex items-center gap-1" : "text-red font-bold inline-flex items-center gap-1"}>
+                    <span aria-hidden>{pnlZero ? "─" : data.pnl_today >= 0 ? "▲" : "▼"}</span>
+                    {pnlSign}${pnlAbs} TODAY
+                  </span>
+                  <span className="text-ink-4">│</span>
+                  <span>{data.open_positions} OPEN</span>
+                  <AdvancedOnly>
+                    <span className="text-ink-4">│</span>
+                    <span>{closedCount} CLOSED</span>
+                  </AdvancedOnly>
+                </>
+              }
+              ctaPrimary={{ label: "Configure", onClick: () => navigate("/autotrade") }}
+              ctaSecondary={{ label: "Portfolio", onClick: () => navigate("/portfolio") }}
+            />
+
             <StatsGrid
               essential={
                 <>
@@ -207,14 +215,14 @@ export function DashboardPage() {
                 </>
               }
             />
+          </div>
 
+          {/* RIGHT COLUMN: Scanner terminal + Recent Activity */}
+          <div>
             <AdvancedOnly>
               <Terminal lines={buildScannerLines(alerts, data)} />
             </AdvancedOnly>
-          </div>
 
-          {/* Right column: recent activity + kill switch */}
-          <div>
             <div className="flex items-center justify-between mt-3.5 mb-2 mx-0.5 md:mt-0">
               <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
                 <span className="w-3 h-px bg-gold" aria-hidden />

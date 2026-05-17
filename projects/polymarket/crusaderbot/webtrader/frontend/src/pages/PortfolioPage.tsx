@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { EmptyState } from "../components/EmptyState";
 import { FilterTabs, type FilterTab } from "../components/FilterTabs";
 import { PositionCard } from "../components/PositionCard";
@@ -104,6 +105,11 @@ export function PortfolioPage() {
     <>
       <TopBar />
       <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
+        {/* Desktop page header — hidden on mobile */}
+        <DesktopPageHeader
+          title={<>PORT<span className="text-gold">FOLIO</span></>}
+          subtitle="POSITIONS · P&amp;L · TRADE HISTORY"
+        />
         {summary && <PortfolioHeader summary={summary} />}
 
         <PnlChart
