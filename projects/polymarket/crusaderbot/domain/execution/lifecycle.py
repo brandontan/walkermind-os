@@ -20,6 +20,7 @@ existing orders rows. New live orders are created in
 """
 from __future__ import annotations
 
+import datetime
 import json
 import logging
 from decimal import Decimal
@@ -49,6 +50,10 @@ STATUS_FILLED = "filled"
 STATUS_CANCELLED = "cancelled"
 STATUS_EXPIRED = "expired"
 STATUS_STALE = "stale"
+
+# Seconds after submission before retrying at wider offset, then cancelling.
+SLIPPAGE_RETRY_SECONDS = 30
+SLIPPAGE_CANCEL_SECONDS = 60
 
 # Polymarket's order detail returns ``size_matched`` (and other share
 # counts) as fixed-math with 6 decimals — i.e. 125 shares is reported
@@ -102,7 +107,8 @@ class OrderLifecycleManager:
                 """
                 SELECT id, user_id, market_id, side, size_usdc, price,
                        polymarket_order_id, status, poll_attempts, mode,
-                       fill_size, fill_price
+                       fill_size, fill_price,
+                       created_at, slippage_retry_count, filled_amount
                   FROM orders
                  WHERE mode = 'live'
                    AND status = ANY($1::text[])
@@ -226,14 +232,17 @@ class OrderLifecycleManager:
             return status
 
         # Detect partial fill — broker still open but size_matched > 0.
-        # Persist PARTIAL_FILLED status + filled/remaining amounts, then
-        # notify the user. The polling loop keeps picking this order up
-        # because STATUS_OPEN now includes "partial_filled".
+        # Only transition and notify if filled_notional increased by > $0.01
+        # since the last cycle to suppress duplicate Telegram alerts on
+        # long-lived GTC orders that sit partially filled across many polls.
         if fills:
             avg_price, total_size = _aggregate_fills(fills, fallback={})
             if total_size > 0:
                 filled_notional = Decimal(str(avg_price)) * Decimal(str(total_size))
-                if filled_notional > Decimal("0"):
+                existing_filled = Decimal(str(order.get("filled_amount") or 0))
+                if filled_notional > Decimal("0") and (
+                    filled_notional - existing_filled > Decimal("0.01")
+                ):
                     size_usdc = Decimal(str(order["size_usdc"]))
                     await self._on_partial_fill(
                         order=order,
@@ -242,6 +251,30 @@ class OrderLifecycleManager:
                         attempts=new_attempts,
                     )
                     return "partial_filled"
+
+        # Aggressive-limit timeout: if the order has been open without any fill
+        # for SLIPPAGE_RETRY_SECONDS, re-submit at a wider offset. If still open
+        # after SLIPPAGE_CANCEL_SECONDS, cancel and notify the user.
+        # Only applies to submitted/pending orders (not partial fills) with a live client.
+        if client is not None and order["status"] != STATUS_PARTIAL_FILLED:
+            created_at = order.get("created_at")
+            if created_at is not None:
+                now_utc = datetime.datetime.now(datetime.timezone.utc)
+                # asyncpg returns timezone-aware datetimes; ensure comparison is safe.
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=datetime.timezone.utc)
+                elapsed = (now_utc - created_at).total_seconds()
+                retry_count = int(order.get("slippage_retry_count") or 0)
+                if retry_count >= 1 and elapsed > SLIPPAGE_CANCEL_SECONDS:
+                    await self._on_slippage_cancel(
+                        order=order, attempts=new_attempts, client=client,
+                    )
+                    return "cancelled"
+                if retry_count == 0 and elapsed > SLIPPAGE_RETRY_SECONDS:
+                    await self._on_slippage_retry(
+                        order=order, attempts=new_attempts, client=client,
+                    )
+                    return "open"
 
         if new_attempts >= max_attempts:
             await self._mark_stale(
@@ -310,6 +343,8 @@ class OrderLifecycleManager:
                     order["id"], fill_price,
                 )
 
+        submitted_price = float(order.get("price") or 0)
+        slippage_delta = round(fill_price - submitted_price, 6) if submitted_price else None
         await self._safe_audit(
             actor_role="bot", action="order_filled",
             user_id=order["user_id"],
@@ -319,6 +354,8 @@ class OrderLifecycleManager:
                 "side": order["side"],
                 "fill_price": float(fill_price),
                 "fill_size": float(fill_size),
+                "submitted_price": submitted_price,
+                "slippage_delta": slippage_delta,
                 "fills": _safe_fills(fills),
             },
         )
@@ -563,6 +600,149 @@ class OrderLifecycleManager:
         elif partial_fill and refund == 0:
             user_text = f"{user_text}\nFully matched before cancel; no refund."
         await self._safe_notify_user(user_id=order["user_id"], text=user_text)
+
+    async def _on_slippage_retry(
+        self,
+        *,
+        order: dict,
+        attempts: int,
+        client: ClobClientProtocol,
+    ) -> None:
+        """Cancel unfilled CLOB order and re-submit at +1 tick wider offset.
+
+        Called when a submitted GTC order has been open for > SLIPPAGE_RETRY_SECONDS
+        without any fill. Cancels the stale CLOB order, shifts the limit price
+        one tick in the aggressive direction, and re-submits. Sets
+        slippage_retry_count=1 so the next timeout triggers _on_slippage_cancel.
+        """
+        broker_id = str(order.get("polymarket_order_id") or "")
+        if broker_id:
+            try:
+                await client.cancel_order(broker_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "lifecycle slippage_retry: cancel failed order=%s broker=%s: %s",
+                    order["id"], broker_id, exc,
+                )
+
+        # Widen by one extra tick in the aggressive direction.
+        original_price = float(order.get("price") or 0)
+        side = str(order.get("side") or "yes").lower()
+        tick_size = 0.01
+        if side in {"yes", "buy"}:
+            new_limit = round(min(0.99, original_price + tick_size), 4)
+        else:
+            new_limit = round(max(0.01, original_price - tick_size), 4)
+        shares = float(order["size_usdc"]) / max(new_limit, 0.0001)
+
+        pool = self._pool_override or get_pool()
+        async with pool.acquire() as conn:
+            mkt = await conn.fetchrow(
+                "SELECT yes_token_id, no_token_id FROM markets WHERE id=$1",
+                order["market_id"],
+            )
+        if mkt is None:
+            logger.error(
+                "lifecycle slippage_retry: market %s not found — cannot re-submit order %s",
+                order["market_id"], order["id"],
+            )
+            return
+
+        token_id = (
+            mkt["yes_token_id"] if side in {"yes", "buy"} else mkt["no_token_id"]
+        )
+        if not token_id:
+            logger.error(
+                "lifecycle slippage_retry: missing token_id for order %s side=%s",
+                order["id"], side,
+            )
+            return
+
+        new_broker_id = ""
+        try:
+            result = await client.post_order(
+                token_id=token_id,
+                side="BUY" if side in {"yes", "buy"} else "SELL",
+                price=new_limit,
+                size=shares,
+                order_type="GTC",
+            )
+            new_broker_id = (
+                result.get("orderID") or result.get("order_id") or result.get("id") or ""
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "lifecycle slippage_retry: re-submit failed order=%s: %s",
+                order["id"], exc,
+            )
+            return
+
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE orders
+                   SET polymarket_order_id = $2,
+                       price               = $3,
+                       slippage_retry_count = 1,
+                       poll_attempts        = $4,
+                       last_polled_at       = NOW()
+                 WHERE id = $1
+                """,
+                order["id"], str(new_broker_id), new_limit, attempts,
+            )
+        await self._safe_audit(
+            actor_role="bot", action="order_slippage_retry",
+            user_id=order["user_id"],
+            payload={
+                "order_id": str(order["id"]),
+                "market_id": order["market_id"],
+                "original_price": original_price,
+                "new_limit_price": new_limit,
+                "old_broker_id": broker_id,
+                "new_broker_id": new_broker_id,
+            },
+        )
+        logger.info(
+            "lifecycle slippage_retry: order=%s re-submitted at %.4f (was %.4f) "
+            "broker=%s",
+            order["id"], new_limit, original_price, new_broker_id,
+        )
+
+    async def _on_slippage_cancel(
+        self,
+        *,
+        order: dict,
+        attempts: int,
+        client: ClobClientProtocol,
+    ) -> None:
+        """Cancel a GTC order that has not filled after SLIPPAGE_CANCEL_SECONDS.
+
+        Called after one retry at wider offset still did not produce a fill.
+        Cancels the live CLOB order and routes through _terminal_close so the
+        user gets a standard cancellation notification with any partial-fill
+        refund math applied.
+        """
+        broker_id = str(order.get("polymarket_order_id") or "")
+        if broker_id:
+            try:
+                await client.cancel_order(broker_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "lifecycle slippage_cancel: cancel failed order=%s broker=%s: %s",
+                    order["id"], broker_id, exc,
+                )
+
+        await self._safe_audit(
+            actor_role="bot", action="order_slippage_timeout_cancel",
+            user_id=order["user_id"],
+            payload={
+                "order_id": str(order["id"]),
+                "market_id": order["market_id"],
+                "broker_id": broker_id,
+                "reason": "no fill after slippage retry window",
+            },
+        )
+        await self._on_cancel(order=order, attempts=attempts, fills=[])
 
     async def _mark_stale(
         self, *, order: dict, attempts: int, reason: str,

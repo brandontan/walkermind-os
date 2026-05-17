@@ -118,6 +118,13 @@ Modified:
 - Config UI — Risk Profile section: Min Market Liquidity input (debounce-saved); Slippage Tolerance input with inline warning > 3%.
 - Paper mode: all guards remain untouched. `ENABLE_LIVE_TRADING`, `EXECUTION_PATH_VALIDATED`, `CAPITAL_MODE_CONFIRMED`, `RISK_CONTROLS_VALIDATED` not mutated anywhere.
 - Migrations 030–036: untouched.
+- Aggressive limit price: `live.execute()` accepts `best_ask`/`best_bid`; computes `limit_price = compute_aggressive_limit_price(side, offset_ticks=1)`; uses it for CLOB submission and position entry_price; logs `slippage_delta_submitted` in audit.
+- Slippage delta at fill: `_on_fill()` now logs `slippage_delta = fill_price - submitted_price` in audit payload.
+- 30s timeout retry: `_resolve_one()` checks `elapsed = NOW() - created_at`. At >30s (retry_count=0): cancel CLOB order + re-submit at +1 tick → `slippage_retry_count=1`. At >60s (retry_count≥1): cancel via `_on_slippage_cancel()` + user notification.
+- Duplicate notification fix (P1): partial-fill notification suppressed if `filled_notional - existing_filled_amount < $0.01` — prevents repeated TG alerts on long-lived GTC orders.
+- NO position cash-out estimate fixed (P2): modal now uses side-aware formula: NO = `size_usdc * (1-cp) / (1-ep)`, YES = `size_usdc * cp / ep`.
+- `compute_aggressive_limit_price()` pure function added to `slippage.py`: clamped to [0.01, 0.99].
+- Migration 037 extended: added `slippage_retry_count INTEGER DEFAULT 0` to orders table.
 - Python syntax: `py_compile` clean on all modified `.py` files.
 
 ---
@@ -125,7 +132,7 @@ Modified:
 ## 5. Known Issues
 
 - Frontend TypeScript build: `tsc` fails on pre-existing type declaration errors (missing `@types/react`, `@types/react-router-dom`) that existed on the branch before this PR. My changes do not introduce new root-cause errors; they follow the same patterns as pre-existing WalletPage code. Vite itself bundles successfully when invoked directly. SENTINEL should verify this is pre-existing and not caused by this PR.
-- Aggressive limit order offset (best_ask ± 1-2 ticks for live buy/sell): the UI/config infrastructure (slippage_tolerance_pct column + PATCH endpoint) is wired, but the actual price-offset logic inside `live.execute()` is not implemented in this PR. Live execution is gated (`ENABLE_LIVE_TRADING=false`); this is deferred to the live-activation lane. The Config UI warning fires correctly at > 3% tolerance.
+- Aggressive limit order execution is gated behind `ENABLE_LIVE_TRADING=false`. The logic exists in `live.execute()` and `lifecycle.py` but is unreachable in paper mode. SENTINEL should verify all guards remain intact.
 - `POST /positions/{id}/close` uses `current_price` from the positions table as exit price. If current_price is NULL (price unavailable), it falls back to `entry_price`. SENTINEL should verify this fallback doesn't produce unexpected P&L.
 - Migration 037 not yet applied to production Supabase — requires WARP🔹CMD action.
 

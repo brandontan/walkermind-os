@@ -33,6 +33,7 @@ from ...integrations.clob import (
     get_clob_client,
 )
 from ...wallet import ledger
+from .slippage import compute_aggressive_limit_price
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,8 @@ async def execute(
     tp_pct: float | None,
     sl_pct: float | None,
     order_type: str = "GTC",
+    best_ask: float | None = None,
+    best_bid: float | None = None,
     clob_client: ClobClientProtocol | None = None,
 ) -> dict:
     """Execute a live buy order via ClobClientProtocol.
@@ -119,10 +122,20 @@ async def execute(
     if not token_id:
         raise LivePreSubmitError("missing token_id for live order")
 
-    # Convert USDC notional → exact share count at the entry price. We persist
-    # both size_usdc and entry_price so close-side can recompute the same
-    # share count and submit an exact-quantity SELL (no exit-price re-quoting).
-    shares = float(size_usdc) / max(price, 0.0001)
+    # Compute aggressive limit price if market-depth params supplied.
+    # Uses best_ask + 1 tick for buys, best_bid - 1 tick for sells to
+    # cross the spread aggressively and improve fill probability.
+    # Falls back to the signal price when market-depth is unavailable.
+    limit_price = (
+        compute_aggressive_limit_price(
+            side, best_ask=best_ask, best_bid=best_bid, offset_ticks=1
+        )
+        if best_ask is not None and best_bid is not None
+        else price
+    )
+
+    # Shares computed from limit_price so notional at entry is exact.
+    shares = float(size_usdc) / max(limit_price, 0.0001)
     try:
         client = clob_client or get_clob_client(s)
     except (ClobConfigError, ClobAuthError) as exc:
@@ -163,7 +176,7 @@ async def execute(
         submit_result = await client.post_order(
             token_id=token_id,
             side="BUY",
-            price=price,
+            price=limit_price,
             size=shares,
             order_type=order_type,
         )
@@ -231,7 +244,7 @@ async def execute(
                     RETURNING id
                     """,
                     user_id, market_id, order_id, side,
-                    size_usdc, price, tp_pct, sl_pct,
+                    size_usdc, limit_price, tp_pct, sl_pct,
                 )
                 position_id = pos_row["id"]
                 await ledger.debit_in_conn(
@@ -254,7 +267,9 @@ async def execute(
                                "market_id": market_id,
                                "polymarket_order_id": str(polymarket_order_id),
                                "size_usdc": str(size_usdc),
-                               "price": price})
+                               "signal_price": price,
+                               "limit_price": limit_price,
+                               "slippage_delta_submitted": round(limit_price - price, 6)})
     label = html.escape(market_question or market_id)
     await notifications.send(
         telegram_user_id,

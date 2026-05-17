@@ -14,6 +14,10 @@ UPDATE orders SET remaining_amount = size_usdc WHERE remaining_amount IS NULL;
 ALTER TABLE user_settings
     ADD COLUMN IF NOT EXISTS slippage_tolerance_pct NUMERIC(5,4) DEFAULT 0.03;
 
+-- Orders: track aggressive-limit retry attempts (0=first submit, 1=widened, 2+=cancel)
+ALTER TABLE orders
+    ADD COLUMN IF NOT EXISTS slippage_retry_count INTEGER DEFAULT 0;
+
 -- Rollback:
 -- ALTER TABLE orders
 --     DROP COLUMN IF EXISTS filled_amount,

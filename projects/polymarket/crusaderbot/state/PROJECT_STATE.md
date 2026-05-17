@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 23:00
-Status       : CRU-13 SAFETY PHASE 2 built on claude/crusaderbot-safety-phase2-2hY1C — PR open, WARP•SENTINEL audit required before merge. Production PAPER ONLY.
+Last Updated : 2026-05-17 23:45
+Status       : CRU-13 SAFETY PHASE 2 complete on claude/crusaderbot-safety-phase2-2hY1C — aggressive limit order + 30s retry + slippage delta + partial-fill dedup + NO position estimate fix added. PR open, WARP•SENTINEL audit required before merge. Production PAPER ONLY.
 
 [COMPLETED]
 - CRU-12 WARP/CRUSADERBOT-UX-PHASE1 PR open (2026-05-17): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel. Vite build clean. STANDARD, NARROW INTEGRATION.

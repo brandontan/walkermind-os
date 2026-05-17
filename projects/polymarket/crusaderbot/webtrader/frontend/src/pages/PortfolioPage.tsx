@@ -247,9 +247,14 @@ export function PortfolioPage() {
             </p>
             <p className="text-[11px] text-ink-3 font-mono mb-4">
               Close at market price?
-              {cashOutTarget.current_price != null && (
-                <> Est. fill ≈ ${(cashOutTarget.size_usdc * cashOutTarget.current_price / Math.max(cashOutTarget.entry_price, 0.0001)).toFixed(2)}</>
-              )}
+              {cashOutTarget.current_price != null && (() => {
+                const cp = cashOutTarget.current_price!;
+                const ep = cashOutTarget.entry_price;
+                const est = cashOutTarget.side === "no"
+                  ? cashOutTarget.size_usdc * (1 - cp) / Math.max(1 - ep, 0.0001)
+                  : cashOutTarget.size_usdc * cp / Math.max(ep, 0.0001);
+                return <> Est. fill ≈ ${est.toFixed(2)}</>;
+              })()}
             </p>
             {cashOutError && (
               <p className="text-red text-[10px] font-mono mb-3">{cashOutError}</p>
