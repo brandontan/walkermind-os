@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 _EventHandler = Callable[..., Coroutine[Any, Any, None]]
 
 _subscribers: dict[str, list[_EventHandler]] = defaultdict(list)
+_background_tasks: set[asyncio.Task[Any]] = set()
 
 
 def subscribe(event: str, handler: _EventHandler) -> None:
@@ -34,7 +35,9 @@ async def emit(event: str, **payload: Any) -> None:
     Returns immediately after scheduling; handlers execute concurrently.
     """
     for handler in list(_subscribers.get(event, [])):
-        asyncio.create_task(_safe_call(handler, event, payload))
+        task = asyncio.create_task(_safe_call(handler, event, payload))
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
 
 
 async def _safe_call(
@@ -48,6 +51,6 @@ async def _safe_call(
         logger.error(
             "event_bus: handler_error event=%s handler=%s error=%s",
             event,
-            handler.__name__,
+            getattr(handler, "__name__", str(handler)),
             exc,
         )

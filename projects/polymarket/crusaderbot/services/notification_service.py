@@ -69,7 +69,7 @@ def _fmt_sl(sl_pct: Optional[float]) -> str:
     return f"{sl_pct * 100:.1f}%" if sl_pct is not None else "—"
 
 
-def _fmt_pnl(pnl_usdc: float) -> str:
+def _fmt_pnl(pnl_usdc: Decimal | float) -> str:
     if pnl_usdc > 0:
         return f"+${pnl_usdc:.2f}"
     if pnl_usdc < 0:
@@ -88,7 +88,7 @@ def _fmt_duration(seconds: Optional[float]) -> str:
     return f"{minutes}m"
 
 
-def _result_icon(pnl_usdc: float) -> str:
+def _result_icon(pnl_usdc: Decimal | float) -> str:
     if pnl_usdc > 0:
         return "✅"
     if pnl_usdc < 0:
@@ -96,7 +96,7 @@ def _result_icon(pnl_usdc: float) -> str:
     return "➖"
 
 
-def _result_label(pnl_usdc: float) -> str:
+def _result_label(pnl_usdc: Decimal | float) -> str:
     if pnl_usdc > 0:
         return "WIN"
     if pnl_usdc < 0:
@@ -181,7 +181,7 @@ async def _on_position_closed(
     side: str,
     entry_price: float,
     exit_price: float,
-    pnl_usdc: float,
+    pnl_usdc: Decimal | float,
     duration_seconds: Optional[float] = None,
     close_reason: str = "MANUAL",
     mode: str = "paper",
