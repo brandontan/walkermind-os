@@ -1,7 +1,8 @@
-Last Updated : 2026-05-17 23:30
-Status       : Realtime P&L UI delivered (PR #1111). Ledger cleanup PR #1110 open. Multiple feature PRs awaiting WARP🔹CMD review. Production PAPER ONLY.
+Last Updated : 2026-05-17 23:59
+Status       : Realtime P&L UI + bad-trade + ledger cleanup complete (PRs #1111, #1110, #1109 merged). portfolio-ui-polish + TG-KB-CLEANUP + SCANNER-SYNC-FIX + PRICE-FETCH-FIX + crusaderbot-webtrader-ws + SSE-AUTH-FIX + webtrader-build-fix awaiting WARP🔹CMD review. Production PAPER ONLY.
 
 [COMPLETED]
+- WARP/CRUSADERBOT-LEDGER-CLEANUP MERGED PR #1110 (2026-05-17): deleted 44 orphaned ledger entries (22 trade_open + 22 trade_close) with dead ref_ids from bad-trade cleanup; ledger_sum corrected +$1,227.57 → -$10.00; wallet/ledger consistent. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-BAD-TRADE-CLEANUP MERGED PR #1109 (2026-05-17): deleted 22 bad tp_hit positions for walk3r69 (price bug #1105); wallet balance corrected $2,227.57 → $990.00. Verification: 0 bad trades remain, 13 market_expired clean, 1 open untouched. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
 - telegram-ux-final-polish MERGED PR #1088 (2026-05-17). Wallet copy-address bug fixed (rsplit parse), portfolio_chart tier gate removed, wallet_p5_kb home label corrected, emergency_done_p5_kb auto-trade label corrected, _hub_text unused tier param removed. compileall clean. STANDARD, NARROW INTEGRATION.
@@ -24,7 +25,6 @@ Status       : Realtime P&L UI delivered (PR #1111). Ledger cleanup PR #1110 ope
 
 [IN PROGRESS]
 - WARP/CRUSADERBOT-REALTIME-PNL-UI PR #1111 open — Home Recent Activity real-time + color coded; price null guard ($0.00→"—"); SSE position_updated; Portfolio borderTone. Awaiting WARP🔹CMD review.
-- WARP/CRUSADERBOT-LEDGER-CLEANUP PR #1110 open — DB work done (44 orphaned ledger entries deleted, ledger_sum -$10.00, wallet/ledger consistent); awaiting WARP🔹CMD review and merge.
 - portfolio-ui-polish PR open — WebTrader Portfolio tab: equity header, P&L chart (period selector), exit_reason badges, enhanced position rows, /portfolio/summary + /portfolio/chart endpoints. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-TG-KB-CLEANUP PR open — inline KB ghost fix: show_portfolio and _render_hub edit message in-place on callback; eliminates stale p5_dashboard_kb floating above Portfolio/Settings screens. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-SCANNER-SYNC-FIX PR open — skipped_market_not_synced root cause fixed: scheduler.sync_markets outcomePrices JSON string parse + scanner self-seeding markets table via _upsert_market(). Awaiting WARP🔹CMD review.
