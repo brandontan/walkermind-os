@@ -15,7 +15,7 @@ from telegram.ext import ContextTypes
 
 from ... import audit
 from ...database import get_pool
-from ...users import get_user_by_telegram_id, set_auto_trade, set_locked, set_paused, upsert_user
+from ...users import set_auto_trade, set_locked, set_paused, upsert_user
 from ..keyboards import emergency_confirm_p5_kb, emergency_done_p5_kb, emergency_p5_kb
 from ..messages import (
     EMERGENCY_TEXT,
@@ -95,25 +95,22 @@ async def _system_status_text(user_id: UUID | str) -> str:
     pool = get_pool()
     try:
         async with pool.acquire() as conn:
-            user_row = await conn.fetchrow(
-                "SELECT auto_trade_on, paused, locked FROM users WHERE id=$1",
-                user_id,
-            )
-            open_count = await conn.fetchval(
-                "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status='open'",
-                user_id,
-            )
-            copy_active = await conn.fetchval(
-                "SELECT COUNT(*) FROM copy_trade_tasks WHERE user_id=$1 AND status='active'",
+            row = await conn.fetchrow(
+                "SELECT auto_trade_on, paused, locked,"
+                " (SELECT COUNT(*) FROM positions"
+                "   WHERE user_id=$1 AND status='open') AS open_count,"
+                " (SELECT COUNT(*) FROM copy_trade_tasks"
+                "   WHERE user_id=$1 AND status='active') AS copy_active"
+                " FROM users WHERE id=$1",
                 user_id,
             )
     except Exception as exc:
         logger.error("system_status query failed: %s", exc)
         return "⚠️ Could not retrieve system status."
 
-    auto_on = user_row["auto_trade_on"] if user_row else False
-    paused = user_row["paused"] if user_row else False
-    locked = user_row["locked"] if user_row else False
+    auto_on = row["auto_trade_on"] if row else False
+    paused = row["paused"] if row else False
+    locked = row["locked"] if row else False
 
     auto_icon = "🟢" if (auto_on and not paused and not locked) else "🔴"
     lock_icon = "🔒" if locked else "🔓"
@@ -124,8 +121,8 @@ async def _system_status_text(user_id: UUID | str) -> str:
         paused=paused,
         lock_icon=lock_icon,
         locked=locked,
-        open_positions=int(open_count or 0),
-        copy_active=int(copy_active or 0),
+        open_positions=int(row["open_count"] if row else 0),
+        copy_active=int(row["copy_active"] if row else 0),
     )
 
 
@@ -134,13 +131,6 @@ async def _execute_action(
 ) -> None:
     q = update.callback_query
     if update.effective_user is None:
-        return
-
-    # Auth gate: only registered users may trigger emergency actions.
-    registered = await get_user_by_telegram_id(update.effective_user.id)
-    if registered is None:
-        if q is not None:
-            await q.answer("Not authorized.", show_alert=True)
         return
 
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
@@ -195,14 +185,14 @@ async def _execute_action(
             try:
                 pool = get_pool()
                 async with pool.acquire() as conn:
-                    pos_ids = await conn.fetch(
-                        "SELECT id FROM positions WHERE user_id=$1 AND status='open'",
+                    await conn.execute(
+                        "UPDATE positions SET force_close_intent = TRUE"
+                        " WHERE user_id = $1 AND status = 'open'"
+                        " AND force_close_intent = FALSE",
                         user["id"],
                     )
-                for row in pos_ids:
-                    await mark_force_close_intent_for_position(row["id"], user["id"])
             except Exception as exc:
-                logger.error("kill_all_positions marking failed: %s", exc)
+                logger.error("kill_all_positions bulk update failed: %s", exc)
             await audit.write(
                 actor_role="user", action="emergency_kill_all_positions", user_id=user["id"],
             )

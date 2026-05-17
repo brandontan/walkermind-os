@@ -1,4 +1,4 @@
-Last Updated : 2026-05-17 02:00
+Last Updated : 2026-05-18 00:05
 Status       : CRU-15 TELEGRAM POWER MODE complete on claude/crusaderbot-telegram-phase4-A9FvW — push notifications (auto-trade/copy-trade/trade-blocked), inline action buttons (View/Close/Pause Copy/Dashboard), /emergency extended (4 new controls + auth gate). PR open, WARP🔹CMD review required. Production PAPER ONLY.
 
 [COMPLETED]

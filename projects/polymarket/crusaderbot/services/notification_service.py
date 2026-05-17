@@ -54,6 +54,7 @@ _STRAT_LABELS: dict[str, str] = {
 
 # Per-user cooldown for trade.blocked alerts (seconds)
 _BLOCKED_COOLDOWN_SECONDS: float = 300.0
+_BLOCKED_COOLDOWN_MAX_ENTRIES: int = 1000
 _blocked_cooldowns: dict[int, float] = {}
 
 
@@ -273,6 +274,10 @@ async def _on_trade_blocked(
     last = _blocked_cooldowns.get(telegram_user_id, 0.0)
     if now - last < _BLOCKED_COOLDOWN_SECONDS:
         return
+    if len(_blocked_cooldowns) >= _BLOCKED_COOLDOWN_MAX_ENTRIES:
+        # Evict the oldest entry to keep the dict bounded
+        oldest = min(_blocked_cooldowns, key=_blocked_cooldowns.__getitem__)
+        del _blocked_cooldowns[oldest]
     _blocked_cooldowns[telegram_user_id] = now
 
     label = _market_label(market_question, market_id)
