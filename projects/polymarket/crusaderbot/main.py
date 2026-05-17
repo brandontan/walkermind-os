@@ -149,6 +149,16 @@ async def lifespan(_: FastAPI):
         )
         log.info("live_gate_opened audit event written (all activation guards enabled)")
 
+    # Path 3 — Env var kill switch (Track D). Checked after DB + bot are ready
+    # so audit_log is available and admin notification can be delivered.
+    import os as _os
+    if _os.getenv("KILL_SWITCH", "false").lower() == "true":
+        from .domain.risk.kill_switch_exec import execute_kill_switch as _exec_ks
+        await _exec_ks(
+            reason="Env var KILL_SWITCH=true on startup",
+            triggered_by="system:env",
+        )
+
     # Operator-only boot alert — must NEVER target a regular user's chat_id.
     # Guard ensures the send is skipped rather than misdirected when
     # OPERATOR_CHAT_ID is not yet configured.

@@ -308,6 +308,13 @@ async def run_job() -> tuple[int, int]:
     Demo path uses Polymarket API prices with threshold edge logic (is_demo=TRUE).
     Live path uses Heisenberg candlestick + liquidity agents (is_demo=FALSE).
     """
+    # Path 2 — kill switch DB flag check (Track D). Checked at the start of
+    # every scan cycle so the switch propagates within one tick interval.
+    from ..domain.ops import kill_switch as _ks
+    if await _ks.is_active():
+        log.warning("scanner run_job: kill switch active — skipping tick")
+        return 0, 0
+
     demo_scanned = 0
     demo_published = 0
 

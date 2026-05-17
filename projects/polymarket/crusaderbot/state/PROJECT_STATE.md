@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 22:30
-Status       : Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs open. notification_service.register_handlers() wired into main.py startup. Production PAPER ONLY.
+Last Updated : 2026-05-17 23:59
+Status       : Track D (FAST-RISK-SAFETY) PR open. Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs open. Production PAPER ONLY.
 
 [COMPLETED]
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
@@ -14,6 +14,7 @@ Status       : Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs ope
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- WARP/CRUSADERBOT-FAST-RISK-SAFETY: Track D risk caps + kill switch. PR open. SENTINEL validation required before merge.
 - WARP/CRUSADERBOT-FAST-TRADE-ENGINE: Track A signal-to-order + TP/SL. PR open. SENTINEL validation required before merge.
 - WARP/CRUSADERBOT-MVP-BUGFIX-ROUND1: handler audit fixes PR open, awaiting WARP🔹CMD merge decision.
 - WARP/CRUSADERBOT-FAST-TRADE-NOTIFS: Track C event bus + notification service PR open. Awaiting Track A merge first.
@@ -36,6 +37,7 @@ Status       : Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs ope
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for risk-caps-kill-switch (Track D: validate_risk_caps + 3-path kill switch). Source: projects/polymarket/crusaderbot/reports/forge/risk-caps-kill-switch.md. Tier: MAJOR.
 - WARP🔹CMD review required for wire-notification-handlers (register_handlers() wired into main.py). Source: projects/polymarket/crusaderbot/reports/forge/wire-notification-handlers.md. Tier: MINOR.
 - WARP•SENTINEL validation required for fast-trade-engine (Track A: signal-to-order + TP/SL). Source: projects/polymarket/crusaderbot/reports/forge/fast-trade-engine.md. Tier: MAJOR. Track B (copy trade) blocked until this merges.
 - WARP🔹CMD review required for trade-notifications Track C (event bus + notification service). Source: projects/polymarket/crusaderbot/reports/forge/trade-notifications.md. Tier: STANDARD. Merge after Track A.

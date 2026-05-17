@@ -635,19 +635,49 @@ async def _apply_killswitch_action(
         except Exception as exc:  # noqa: BLE001
             logger.warning("lock broadcast pre-fetch failed: %s", exc)
 
-    try:
-        result = await ops_kill_switch.set_active(
-            action=action, actor_id=actor_id,
-        )
-    except ValueError as exc:
-        if reply is not None:
-            await reply(f"❌ {exc}")
-        return
-    except Exception as exc:  # noqa: BLE001
-        logger.error("killswitch %s failed: %s", action, exc)
-        if reply is not None:
-            await reply(f"❌ killswitch {action} failed: {exc}")
-        return
+    # Path 1 — Telegram command (Track D). The "pause" action routes through the
+    # unified executor (execute_kill_switch) which converges all 3 activation
+    # paths to the same logic. "resume" and "lock" use the existing ops module
+    # directly since they are not kill-switch activations.
+    result: dict = {}
+    if action == "pause":
+        try:
+            from ...domain.risk.kill_switch_exec import execute_kill_switch as _exec_ks
+            await _exec_ks(
+                reason="Manual admin command",
+                triggered_by=f"admin:{actor_id}",
+            )
+            result = {"active": True, "lock_mode": False, "users_disabled": 0}
+        except Exception as exc:  # noqa: BLE001
+            logger.error("killswitch execute_kill_switch failed: %s", exc)
+            if reply is not None:
+                await reply(f"❌ kill switch failed: {exc}")
+            return
+    elif action == "resume":
+        try:
+            from ...domain.risk.kill_switch_exec import reset_kill_switch as _reset_ks
+            triggered = f"admin:{actor_id}"
+            await _reset_ks(triggered_by=triggered)
+            result = {"active": False, "lock_mode": False, "users_disabled": 0}
+        except Exception as exc:  # noqa: BLE001
+            logger.error("killswitch reset failed: %s", exc)
+            if reply is not None:
+                await reply(f"❌ kill switch reset failed: {exc}")
+            return
+    else:
+        try:
+            result = await ops_kill_switch.set_active(
+                action=action, actor_id=actor_id,
+            )
+        except ValueError as exc:
+            if reply is not None:
+                await reply(f"❌ {exc}")
+            return
+        except Exception as exc:  # noqa: BLE001
+            logger.error("killswitch %s failed: %s", action, exc)
+            if reply is not None:
+                await reply(f"❌ killswitch {action} failed: {exc}")
+            return
 
     await audit.write(
         actor_role="operator",
