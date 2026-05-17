@@ -1,4 +1,4 @@
-Last Updated : 2026-05-17 22:00
+Last Updated : 2026-05-18 02:00
 Status       : STRATEGY-RISK-COPY MERGED PR #1113. Preset isolation + risk profile + copy trade 8-step wizard + custom risk RISK-layer extension all live on main. portfolio-ui-polish + TG-KB-CLEANUP + SCANNER-SYNC-FIX + PRICE-FETCH-FIX + crusaderbot-webtrader-ws + SSE-AUTH-FIX + webtrader-build-fix awaiting WARP🔹CMD review. Production PAPER ONLY.
 
 [COMPLETED]
