@@ -11,7 +11,9 @@ from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
 from ...database import get_pool
+from ...domain.execution import router as exec_router
 from ...domain.ops import kill_switch
+from ... import notifications as notif_module
 from . import sse as webtrader_sse
 from .auth import authenticate_telegram, get_current_user
 from .schemas import (
@@ -19,11 +21,13 @@ from .schemas import (
     AutoTradeState,
     AutoTradeToggleRequest,
     ChartPoint,
+    ClosePositionResponse,
     CustomizeRequest,
     DashboardSummary,
     KillSwitchStatus,
     LedgerEntry,
     MarketFilterUpdate,
+    OrderItem,
     PortfolioSummary,
     PositionItem,
     PresetActivateRequest,
@@ -168,6 +172,112 @@ async def get_positions(
         )
         for r in rows
     ]
+
+
+@router.get("/orders")
+async def get_orders(
+    user: _CurrentUser,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[OrderItem]:
+    pool = get_pool()
+    user_id = user["user_id"]
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT o.id, o.market_id, m.question AS market_question,
+                      o.side, o.size_usdc, o.price, o.status, o.mode,
+                      o.strategy_type,
+                      COALESCE(o.filled_amount, 0) AS filled_amount,
+                      o.remaining_amount,
+                      o.created_at
+               FROM orders o
+               LEFT JOIN markets m ON m.id = o.market_id
+               WHERE o.user_id = $1::uuid
+               ORDER BY o.created_at DESC
+               LIMIT $2 OFFSET $3""",
+            user_id, limit, offset,
+        )
+    return [
+        OrderItem(
+            id=str(r["id"]),
+            market_id=r["market_id"],
+            market_question=r["market_question"],
+            side=r["side"],
+            size_usdc=float(r["size_usdc"]),
+            price=float(r["price"]),
+            status=r["status"],
+            mode=r["mode"],
+            strategy_type=r["strategy_type"],
+            filled_amount=float(r["filled_amount"] or 0),
+            remaining_amount=float(r["remaining_amount"]) if r["remaining_amount"] is not None else None,
+            created_at=r["created_at"],
+        )
+        for r in rows
+    ]
+
+
+@router.post("/positions/{position_id}/close", response_model=ClosePositionResponse)
+async def close_position_endpoint(
+    position_id: str,
+    user: _CurrentUser,
+) -> ClosePositionResponse:
+    """Manually close an open position at current market price."""
+    pool = get_pool()
+    user_id = user["user_id"]
+
+    async with pool.acquire() as conn:
+        pos_row = await conn.fetchrow(
+            """SELECT p.id, p.user_id, p.market_id, p.side, p.size_usdc,
+                      p.entry_price, p.current_price, p.status, p.mode,
+                      m.yes_token_id, m.no_token_id, m.question,
+                      u.telegram_user_id
+               FROM positions p
+               LEFT JOIN markets m ON m.id = p.market_id
+               LEFT JOIN users u ON u.id = p.user_id
+               WHERE p.id = $1::uuid AND p.user_id = $2::uuid AND p.status = 'open'""",
+            position_id, user_id,
+        )
+
+    if not pos_row:
+        raise HTTPException(status_code=404, detail="open position not found")
+
+    position = dict(pos_row)
+    entry_price = float(position["entry_price"])
+    exit_price = float(position["current_price"] or position["entry_price"])
+    size_usdc = float(position["size_usdc"])
+    estimated_fill = size_usdc * (exit_price / max(entry_price, 0.0001))
+
+    try:
+        result = await exec_router.close(
+            position=position,
+            exit_price=exit_price,
+            exit_reason="manual",
+        )
+    except Exception as exc:
+        log.error("manual close failed position=%s: %s", position_id, exc)
+        raise HTTPException(status_code=500, detail=f"close failed: {exc}")
+
+    pnl = float(result.get("pnl_usdc", 0))
+    pnl_sign = "+" if pnl >= 0 else "−"
+    tg_id = position.get("telegram_user_id")
+    if tg_id:
+        market_label = position.get("question") or position["market_id"][:30]
+        try:
+            await notif_module.send(
+                int(tg_id),
+                f"🔴 <b>Position Manually Closed</b>\n"
+                f"Market: {market_label}\n"
+                f"Exit: ${exit_price:.3f}\n"
+                f"PnL: {pnl_sign}${abs(pnl):.2f}",
+            )
+        except Exception as exc:
+            log.warning("manual close TG notify failed: %s", exc)
+
+    return ClosePositionResponse(
+        order_id=None,
+        estimated_fill=estimated_fill,
+        status="closed",
+    )
 
 
 @router.get("/autotrade", response_model=AutoTradeState)
@@ -481,6 +591,18 @@ async def update_trading_settings(body: TradingSettingsUpdate, user: _CurrentUse
             raise HTTPException(status_code=422, detail="redeem_mode must be 'instant' or 'hourly'")
         params.append(body.redeem_mode)
         updates.append(f"auto_redeem_mode=${len(params)}")
+
+    if body.min_liquidity_usd is not None:
+        if body.min_liquidity_usd < 0:
+            raise HTTPException(status_code=422, detail="min_liquidity_usd must be >= 0")
+        params.append(body.min_liquidity_usd)
+        updates.append(f"min_liquidity=${len(params)}")
+
+    if body.slippage_tolerance_pct is not None:
+        if not (0.0 <= body.slippage_tolerance_pct <= 1.0):
+            raise HTTPException(status_code=422, detail="slippage_tolerance_pct must be between 0 and 1")
+        params.append(body.slippage_tolerance_pct)
+        updates.append(f"slippage_tolerance_pct=${len(params)}")
 
     if not updates:
         return {"updated": False}

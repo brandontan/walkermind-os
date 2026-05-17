@@ -60,6 +60,14 @@ export function makeApi(token: string | null) {
       patch<{ updated: boolean }>("/config/trading", data),
     updateMarketFilters: (data: MarketFilterSettings) =>
       patch<{ updated: boolean }>("/autotrade/market-filters", data),
+    getOrders: (limit?: number) => {
+      const params = new URLSearchParams();
+      if (limit) params.set("limit", String(limit));
+      const qs = params.toString();
+      return get<OrderItem[]>(`/orders${qs ? `?${qs}` : ""}`);
+    },
+    closePosition: (positionId: string) =>
+      post<ClosePositionResult>(`/positions/${positionId}/close`),
   };
 }
 
@@ -159,8 +167,31 @@ export interface UserSettings {
 }
 
 export interface TradingSettings {
-  auto_redeem: boolean;
-  redeem_mode: "instant" | "hourly";
+  auto_redeem?: boolean;
+  redeem_mode?: "instant" | "hourly";
+  min_liquidity_usd?: number;
+  slippage_tolerance_pct?: number;
+}
+
+export interface OrderItem {
+  id: string;
+  market_id: string;
+  market_question: string | null;
+  side: string;
+  size_usdc: number;
+  price: number;
+  status: string;
+  mode: string;
+  strategy_type: string | null;
+  filled_amount: number;
+  remaining_amount: number | null;
+  created_at: string;
+}
+
+export interface ClosePositionResult {
+  order_id: string | null;
+  estimated_fill: number;
+  status: string;
 }
 
 export interface MarketFilterSettings {

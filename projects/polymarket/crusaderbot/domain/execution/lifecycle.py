@@ -43,7 +43,8 @@ logger = logging.getLogger(__name__)
 
 # Status values tracked on the orders row. Kept in sync with
 # domain/execution/live.py and migrations/015_order_lifecycle.sql.
-STATUS_OPEN = ("submitted", "pending")
+STATUS_OPEN = ("submitted", "pending", "partial_filled")
+STATUS_PARTIAL_FILLED = "partial_filled"
 STATUS_FILLED = "filled"
 STATUS_CANCELLED = "cancelled"
 STATUS_EXPIRED = "expired"
@@ -224,6 +225,24 @@ class OrderLifecycleManager:
             await handler(order=order, attempts=new_attempts, fills=fills)
             return status
 
+        # Detect partial fill — broker still open but size_matched > 0.
+        # Persist PARTIAL_FILLED status + filled/remaining amounts, then
+        # notify the user. The polling loop keeps picking this order up
+        # because STATUS_OPEN now includes "partial_filled".
+        if fills:
+            avg_price, total_size = _aggregate_fills(fills, fallback={})
+            if total_size > 0:
+                filled_notional = Decimal(str(avg_price)) * Decimal(str(total_size))
+                if filled_notional > Decimal("0"):
+                    size_usdc = Decimal(str(order["size_usdc"]))
+                    await self._on_partial_fill(
+                        order=order,
+                        filled_notional=filled_notional,
+                        size_usdc=size_usdc,
+                        attempts=new_attempts,
+                    )
+                    return "partial_filled"
+
         if new_attempts >= max_attempts:
             await self._mark_stale(
                 order=order, attempts=new_attempts,
@@ -245,6 +264,7 @@ class OrderLifecycleManager:
         attempts: int,
     ) -> None:
         pool = self._pool_override or get_pool()
+        size_usdc = Decimal(str(order["size_usdc"]))
         async with pool.acquire() as conn:
             async with conn.transaction():
                 updated = await conn.fetchval(
@@ -255,13 +275,16 @@ class OrderLifecycleManager:
                            fill_size = $4,
                            filled_at = NOW(),
                            poll_attempts = $5,
-                           last_polled_at = NOW()
+                           last_polled_at = NOW(),
+                           filled_amount = $7,
+                           remaining_amount = 0
                      WHERE id = $1
                        AND status = ANY($6::text[])
                      RETURNING id
                     """,
                     order["id"], STATUS_FILLED,
                     fill_price, fill_size, attempts, list(STATUS_OPEN),
+                    float(size_usdc),
                 )
                 if updated is None:
                     # Already terminal — another poll cycle won the race.
@@ -339,6 +362,62 @@ class OrderLifecycleManager:
             ),
         )
 
+    async def _on_partial_fill(
+        self,
+        *,
+        order: dict,
+        filled_notional: Decimal,
+        size_usdc: Decimal,
+        attempts: int,
+    ) -> None:
+        """Record a partial fill on an open GTC order.
+
+        Transitions order status to ``partial_filled`` and updates
+        ``filled_amount`` / ``remaining_amount``. The polling loop
+        continues to process this order because STATUS_OPEN includes
+        ``partial_filled``. On full fill or cancel the normal
+        ``_on_fill`` / ``_terminal_close`` paths take over.
+        """
+        remaining = max(size_usdc - filled_notional, Decimal("0"))
+        pool = self._pool_override or get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE orders
+                   SET status           = $2,
+                       filled_amount    = $3,
+                       remaining_amount = $4,
+                       poll_attempts    = $5,
+                       last_polled_at   = NOW()
+                 WHERE id = $1
+                   AND status = ANY($6::text[])
+                """,
+                order["id"], STATUS_PARTIAL_FILLED,
+                float(filled_notional), float(remaining), attempts,
+                list(STATUS_OPEN),
+            )
+        await self._safe_audit(
+            actor_role="bot", action="order_partial_filled",
+            user_id=order["user_id"],
+            payload={
+                "order_id": str(order["id"]),
+                "market_id": order["market_id"],
+                "filled_amount": float(filled_notional),
+                "remaining_amount": float(remaining),
+                "size_usdc": float(size_usdc),
+            },
+        )
+        await self._safe_notify_user(
+            user_id=order["user_id"],
+            text=(
+                "⚠️ <b>Order Partially Filled</b>\n"
+                f"Filled <code>${float(filled_notional):.2f}</code> of "
+                f"<code>${float(size_usdc):.2f}</code>\n"
+                f"Market <code>{order['market_id']}</code>\n"
+                f"Remaining: <code>${float(remaining):.2f}</code> open"
+            ),
+        )
+
     async def _terminal_close(
         self,
         *,
@@ -385,7 +464,9 @@ class OrderLifecycleManager:
                    poll_attempts = $3,
                    last_polled_at = NOW(),
                    fill_price = COALESCE($5, fill_price),
-                   fill_size = COALESCE($6, fill_size)
+                   fill_size = COALESCE($6, fill_size),
+                   filled_amount = COALESCE($7, filled_amount),
+                   remaining_amount = $8
              WHERE id = $1
                AND status = ANY($4::text[])
              RETURNING id
@@ -398,6 +479,8 @@ class OrderLifecycleManager:
                     list(STATUS_OPEN),
                     float(avg_price) if partial_fill else None,
                     float(total_size_shares) if partial_fill else None,
+                    float(filled_notional) if partial_fill else None,
+                    0.0,
                 )
                 if updated is None:
                     logger.info(

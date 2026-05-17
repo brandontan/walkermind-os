@@ -16,6 +16,8 @@ import { TopBar } from "../components/TopBar";
 import {
   makeApi,
   type ChartPoint,
+  type ClosePositionResult,
+  type OrderItem,
   type PortfolioSummary,
   type PositionItem,
 } from "../lib/api";
@@ -41,11 +43,17 @@ export function PortfolioPage() {
   const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
   const [open, setOpen] = useState<PositionItem[]>([]);
   const [closed, setClosed] = useState<PositionItem[]>([]);
+  const [orders, setOrders] = useState<OrderItem[]>([]);
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [chartData, setChartData] = useState<ChartPoint[]>([]);
   const [chartPeriod, setChartPeriod] = useState<Period>("7D");
   const [tab, setTab] = useState<Tab>("open");
   const [error, setError] = useState<string | null>(null);
+
+  // Cash Out modal state
+  const [cashOutTarget, setCashOutTarget] = useState<PositionItem | null>(null);
+  const [cashOutLoading, setCashOutLoading] = useState(false);
+  const [cashOutError, setCashOutError] = useState<string | null>(null);
 
   const loadPositions = useCallback(async () => {
     try {
@@ -59,6 +67,15 @@ export function PortfolioPage() {
       setSummary(summ);
     } catch (e) {
       setError(String(e));
+    }
+  }, [api]);
+
+  const loadOrders = useCallback(async () => {
+    try {
+      const ords = await api.getOrders(50);
+      setOrders(ords);
+    } catch {
+      // non-critical — orders list stays stale
     }
   }, [api]);
 
@@ -82,10 +99,15 @@ export function PortfolioPage() {
     void loadChart(chartPeriod);
   }, [loadChart, chartPeriod]);
 
+  useEffect(() => {
+    void loadOrders();
+  }, [loadOrders]);
+
   const refresh = useCallback(() => {
     void loadPositions();
     void loadChart(chartPeriod);
-  }, [loadPositions, loadChart, chartPeriod]);
+    void loadOrders();
+  }, [loadPositions, loadChart, loadOrders, chartPeriod]);
 
   useSSE(user?.token ?? null, {
     positions: refresh,
@@ -93,6 +115,21 @@ export function PortfolioPage() {
     position_closed: refresh,
     portfolio_update: refresh,
   });
+
+  const handleCashOutConfirm = useCallback(async () => {
+    if (!cashOutTarget) return;
+    setCashOutLoading(true);
+    setCashOutError(null);
+    try {
+      await api.closePosition(cashOutTarget.id);
+      setCashOutTarget(null);
+      void loadPositions();
+    } catch (e) {
+      setCashOutError(String(e));
+    } finally {
+      setCashOutLoading(false);
+    }
+  }, [api, cashOutTarget, loadPositions]);
 
   const allPositions = useMemo(() => {
     const combined = [...open, ...closed];
@@ -107,7 +144,7 @@ export function PortfolioPage() {
     { key: "open", label: "Open", count: open.length },
     { key: "closed", label: "Closed", count: closed.length },
     { key: "all", label: "All", count: open.length + closed.length },
-    { key: "orders", label: "Orders", advanced: true },
+    { key: "orders", label: "Orders", count: orders.length, advanced: true },
   ];
 
   return (
@@ -140,7 +177,13 @@ export function PortfolioPage() {
             />
           ) : (
             <div className="md:grid md:grid-cols-2 md:gap-3">
-              {open.map((p) => <PositionRow key={p.id} p={p} />)}
+              {open.map((p) => (
+                <PositionRow
+                  key={p.id}
+                  p={p}
+                  onCashOut={() => { setCashOutTarget(p); setCashOutError(null); }}
+                />
+              ))}
             </div>
           ))}
 
@@ -171,13 +214,69 @@ export function PortfolioPage() {
           ))}
 
         {tab === "orders" && (
-          <EmptyState
-            icon="🧾"
-            title="Order Book"
-            text="Pending limit orders will show here. (Advanced mode)"
-          />
+          orders.length === 0 ? (
+            <EmptyState
+              icon="🧾"
+              title="No Orders"
+              text="Limit orders from auto-trading will appear here."
+            />
+          ) : (
+            <div className="space-y-2">
+              {orders.map((o) => <OrderRow key={o.id} o={o} />)}
+            </div>
+          )
         )}
       </div>
+
+      {/* Cash Out confirm modal */}
+      {cashOutTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.7)" }}
+        >
+          <div
+            className="bg-surface border border-border-1 clip-card p-5 w-[320px]"
+            role="dialog"
+            aria-modal="true"
+          >
+            <p className="font-hud text-[11px] font-bold tracking-[2px] uppercase text-gold mb-3">
+              Close Position
+            </p>
+            <p className="text-xs text-ink-2 font-mono mb-1">
+              {cashOutTarget.market_question ?? cashOutTarget.market_id.slice(0, 30)}
+            </p>
+            <p className="text-[11px] text-ink-3 font-mono mb-4">
+              Close at market price?
+              {cashOutTarget.current_price != null && (
+                <> Est. fill ≈ ${(cashOutTarget.size_usdc * cashOutTarget.current_price / Math.max(cashOutTarget.entry_price, 0.0001)).toFixed(2)}</>
+              )}
+            </p>
+            {cashOutError && (
+              <p className="text-red text-[10px] font-mono mb-3">{cashOutError}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={cashOutLoading}
+                onClick={() => void handleCashOutConfirm()}
+                className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors"
+                style={{ background: "rgba(255,45,85,0.12)", border: "1px solid rgba(255,45,85,0.4)", color: "#FF2D55" }}
+              >
+                {cashOutLoading ? "Closing…" : "Confirm"}
+              </button>
+              <button
+                type="button"
+                disabled={cashOutLoading}
+                onClick={() => setCashOutTarget(null)}
+                className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors text-ink-3"
+                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -432,7 +531,7 @@ const EXIT_TONE: Record<string, string> = {
   market_expired: "text-ink-3",
 };
 
-function PositionRow({ p }: { p: PositionItem }) {
+function PositionRow({ p, onCashOut }: { p: PositionItem; onCashOut?: () => void }) {
   const isOpen = p.status === "open";
   const priceUnavailable = isOpen && p.current_price === null;
 
@@ -500,7 +599,81 @@ function PositionRow({ p }: { p: PositionItem }) {
           {p.side.toUpperCase()} @ {(p.entry_price * 100).toFixed(1)}¢
         </span>,
       ]}
+      footer={
+        isOpen && onCashOut ? (
+          <button
+            type="button"
+            onClick={onCashOut}
+            className="w-full mt-2 clip-btn font-hud text-[9px] font-bold tracking-[1.5px] uppercase py-2 transition-colors"
+            style={{
+              background: "rgba(255,45,85,0.08)",
+              border: "1px solid rgba(255,45,85,0.25)",
+              color: "#FF2D55",
+            }}
+          >
+            Cash Out
+          </button>
+        ) : undefined
+      }
     />
+  );
+}
+
+// ── Order Row ────────────────────────────────────────────────────────────────
+
+const ORDER_STATUS_BADGE: Record<string, { label: string; color: string }> = {
+  partial_filled: { label: "PARTIAL", color: "#F5C842" },
+  filled:         { label: "FILLED",  color: "#00FF9C" },
+  cancelled:      { label: "CANCEL",  color: "#FF2D55" },
+  failed:         { label: "FAILED",  color: "#FF2D55" },
+  pending:        { label: "PENDING", color: "#8FA3C4" },
+  submitted:      { label: "OPEN",    color: "#8FA3C4" },
+};
+
+function OrderRow({ o }: { o: OrderItem }) {
+  const badge = ORDER_STATUS_BADGE[o.status] ?? { label: o.status.toUpperCase(), color: "#8FA3C4" };
+  const filledPct = o.size_usdc > 0 && o.filled_amount > 0
+    ? Math.min((o.filled_amount / o.size_usdc) * 100, 100)
+    : 0;
+  const remaining = o.remaining_amount ?? (o.size_usdc - o.filled_amount);
+
+  return (
+    <div className="bg-surface border border-border-1 clip-card p-3">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="font-mono text-[10px] text-ink-2 truncate max-w-[200px]">
+          {o.market_question ?? o.market_id.slice(0, 20)}
+        </span>
+        <span
+          className="font-hud text-[9px] font-bold tracking-[1.5px] px-1.5 py-0.5 rounded"
+          style={{ color: badge.color, background: `${badge.color}18`, border: `1px solid ${badge.color}40` }}
+        >
+          {badge.label}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-3 text-[10px] font-mono text-ink-3 mb-2">
+        <span className="uppercase font-bold" style={{ color: o.side === "yes" ? "#00FF9C" : "#FF2D55" }}>
+          {o.side}
+        </span>
+        <span>${o.size_usdc.toFixed(2)} @ {(o.price * 100).toFixed(1)}¢</span>
+        <span className="text-ink-4">{o.mode}</span>
+      </div>
+
+      {o.status === "partial_filled" || o.filled_amount > 0 ? (
+        <div>
+          <div className="flex justify-between text-[9px] font-mono text-ink-3 mb-1">
+            <span>Filled: <span className="text-grn">${o.filled_amount.toFixed(2)}</span> / ${o.size_usdc.toFixed(2)}</span>
+            <span>Remaining: ${Math.max(remaining, 0).toFixed(2)}</span>
+          </div>
+          <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+            <div
+              className="h-full rounded-full transition-all"
+              style={{ width: `${filledPct.toFixed(1)}%`, background: "#00FF9C" }}
+            />
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

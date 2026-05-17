@@ -1,5 +1,5 @@
-Last Updated : 2026-05-18 18:00
-Status       : CRU-12 UX PHASE 1 BUNDLE built on WARP/CRUSADERBOT-UX-PHASE1 — awaiting WARP🔹CMD review. Production PAPER ONLY.
+Last Updated : 2026-05-17 23:00
+Status       : CRU-13 SAFETY PHASE 2 built on claude/crusaderbot-safety-phase2-2hY1C — PR open, WARP•SENTINEL audit required before merge. Production PAPER ONLY.
 
 [COMPLETED]
 - CRU-12 WARP/CRUSADERBOT-UX-PHASE1 PR open (2026-05-17): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel. Vite build clean. STANDARD, NARROW INTEGRATION.
@@ -27,6 +27,7 @@ Status       : CRU-12 UX PHASE 1 BUNDLE built on WARP/CRUSADERBOT-UX-PHASE1 — 
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- CRU-13 claude/crusaderbot-safety-phase2-2hY1C PR open — Trading Safety Phase 2: liquidity filter, slippage protection, partial fill handling, manual close position. MAJOR, NARROW INTEGRATION. WARP•SENTINEL audit required before merge.
 - WARP/CRUSADERBOT-UX-PHASE1 PR #1119 open (CRU-12) — 5-item UX Phase 1 bundle. Awaiting WARP🔹CMD review. STANDARD, NARROW INTEGRATION.
 - claude/crusaderbot-responsive-layout-ZyDip PR open — WebTrader desktop responsive layout V2: DesktopSidebar (220px fixed, nav+system+status card), TopBar center topnav pills, BottomNav md:hidden, 2-col home grid (Hero+Stats LEFT / Scanner+Activity RIGHT), desktop page headers on all 5 pages. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-REALTIME-PNL-UI PR #1111 open — Home Recent Activity real-time + color coded; price null guard ($0.00→"—"); SSE position_updated; Portfolio borderTone. Awaiting WARP🔹CMD review.
@@ -55,6 +56,8 @@ Status       : CRU-12 UX PHASE 1 BUNDLE built on WARP/CRUSADERBOT-UX-PHASE1 — 
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for crusaderbot-safety-phase2 (CRU-13: liquidity filter, slippage, partial fill, manual close). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-safety-phase2.md. Tier: MAJOR.
+- Apply migration 037 to Supabase after SENTINEL approval and before merge.
 - WARP🔹CMD review required for crusaderbot-ux-phase1 (CRU-12 UX bundle: hash truncate, copy-trade inputs, chart enhancements, win rate fix, alert center). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ux-phase1.md. Tier: STANDARD.
 - WARP🔹CMD review required for crusaderbot-ui-responsive-v2 (WebTrader desktop responsive layout V2). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ui-responsive-v2.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-REALTIME-PNL-UI (realtime P&L UI). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-realtime-pnl-ui.md. Tier: STANDARD.
