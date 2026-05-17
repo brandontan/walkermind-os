@@ -368,7 +368,7 @@ def test_bootstrap_registers_copy_trade():
     assert reg.get("copy_trade").name == "copy_trade"
     assert reg.get("copy_trade").version == "1.0.0"
     assert set(reg.get("copy_trade").risk_profile_compatibility) == {
-        "conservative", "balanced", "aggressive",
+        "conservative", "balanced", "aggressive", "custom",
     }
 
 

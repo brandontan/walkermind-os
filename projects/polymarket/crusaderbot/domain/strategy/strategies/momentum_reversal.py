@@ -54,7 +54,7 @@ class MomentumReversalStrategy(BaseStrategy):
 
     name = "momentum_reversal"
     version = "1.0.0"
-    risk_profile_compatibility = ["balanced", "aggressive"]
+    risk_profile_compatibility = ["balanced", "aggressive", "custom"]
 
     def default_tp_sl(self) -> tuple[float, float]:
         return (DEFAULT_TP_PCT, DEFAULT_SL_PCT)

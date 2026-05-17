@@ -244,6 +244,17 @@ async def evaluate(ctx: GateContext) -> GateResult:
         await _log(ctx.user_id, ctx.market_id, 4, False,
                    f"strategy_{ctx.strategy_type}_not_for_{ctx.risk_profile}")
         return GateResult(False, "strategy_unavailable_for_profile", 4)
+    # Custom profile requires capital_alloc_pct to be configured in user_settings.
+    if ctx.risk_profile == "custom":
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            cap_alloc = await conn.fetchval(
+                "SELECT capital_alloc_pct FROM user_settings WHERE user_id = $1",
+                ctx.user_id,
+            )
+        if cap_alloc is None:
+            await _log(ctx.user_id, ctx.market_id, 4, False, "custom_risk_not_configured")
+            return GateResult(False, "custom_risk_not_configured", 4)
     await _log(ctx.user_id, ctx.market_id, 4, True, "ok")
 
     # 5. Daily loss limit

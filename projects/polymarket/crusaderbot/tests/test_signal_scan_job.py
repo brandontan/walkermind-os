@@ -184,7 +184,7 @@ def test_strategy_availability_includes_signal_following():
 
 def test_signal_following_availability_all_profiles():
     avail = K.STRATEGY_AVAILABILITY["signal_following"]
-    assert set(avail) == {"conservative", "balanced", "aggressive"}
+    assert set(avail) == {"conservative", "balanced", "aggressive", "custom"}
 
 
 def test_signal_following_matches_strategy_name():

@@ -81,6 +81,7 @@ _CAPITAL_BY_PROFILE: dict[str, float] = {
     "conservative": 0.20,
     "balanced":     0.40,
     "aggressive":   0.60,
+    "custom":       0.40,  # fallback; actual value read from user_settings.capital_alloc_pct
 }
 
 

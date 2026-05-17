@@ -60,7 +60,7 @@ class CopyTradeStrategy(BaseStrategy):
 
     name = "copy_trade"
     version = "1.0.0"
-    risk_profile_compatibility = ["conservative", "balanced", "aggressive"]
+    risk_profile_compatibility = ["conservative", "balanced", "aggressive", "custom"]
 
     def default_tp_sl(self) -> tuple[float, float]:
         return (DEFAULT_TP_PCT, DEFAULT_SL_PCT)
