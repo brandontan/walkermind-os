@@ -1,4 +1,5 @@
 import { AdvancedOnly } from "./AdvancedGate";
+import { useSSEStatus } from "../lib/sse";
 
 type Props = {
   notifCount?: number;
@@ -6,6 +7,7 @@ type Props = {
 };
 
 export function TopBar({ notifCount = 0, onBellClick }: Props) {
+  const sseConnected = useSSEStatus();
   return (
     <div
       className="sticky top-0 z-[100] flex items-center justify-between px-4 pt-3.5 pb-3 border-b border-border-1"
@@ -57,6 +59,14 @@ export function TopBar({ notifCount = 0, onBellClick }: Props) {
 
       {/* Right cluster */}
       <div className="flex items-center gap-1.5">
+        <span
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={sseConnected
+            ? { background: "var(--grn,#00FF9C)", boxShadow: "0 0 6px var(--grn,#00FF9C)" }
+            : { background: "var(--red,#FF4444)", boxShadow: "0 0 6px var(--red,#FF4444)" }}
+          title={sseConnected ? "Live stream connected" : "Reconnecting…"}
+          aria-label={sseConnected ? "Stream connected" : "Stream reconnecting"}
+        />
         <StatusPill kind="paper">PAPER</StatusPill>
         <AdvancedOnly>
           <StatusPill kind="live">

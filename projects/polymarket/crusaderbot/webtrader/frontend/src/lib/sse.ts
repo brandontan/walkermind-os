@@ -1,8 +1,16 @@
-import { useEffect, useRef } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 export type SSEHandlers = Record<string, (data: unknown) => void>;
 
-export function useSSE(token: string | null, handlers: SSEHandlers) {
+export const SSEStatusContext = createContext<boolean>(false);
+
+export function useSSEStatus(): boolean {
+  return useContext(SSEStatusContext);
+}
+
+export function useSSE(token: string | null, handlers: SSEHandlers): { connected: boolean } {
+  const [connected, setConnected] = useState(false);
+
   // Keep a ref so event listeners always call the latest handler without reconnecting
   const handlersRef = useRef<SSEHandlers>(handlers);
   useEffect(() => {
@@ -10,7 +18,10 @@ export function useSSE(token: string | null, handlers: SSEHandlers) {
   }); // no deps — update on every render
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setConnected(false);
+      return;
+    }
 
     let es: EventSource;
     let reconnectTimeout: ReturnType<typeof setTimeout>;
@@ -23,6 +34,7 @@ export function useSSE(token: string | null, handlers: SSEHandlers) {
 
       es.addEventListener("connected", () => {
         backoff = 1000;
+        setConnected(true);
       });
 
       // Route each known SSE event type through the ref so callers
@@ -45,6 +57,7 @@ export function useSSE(token: string | null, handlers: SSEHandlers) {
       }
 
       es.onerror = () => {
+        setConnected(false);
         es.close();
         if (!destroyed) {
           reconnectTimeout = setTimeout(() => {
@@ -61,6 +74,9 @@ export function useSSE(token: string | null, handlers: SSEHandlers) {
       destroyed = true;
       clearTimeout(reconnectTimeout);
       es?.close();
+      setConnected(false);
     };
   }, [token]); // re-connect only when token changes
+
+  return { connected };
 }
