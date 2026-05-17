@@ -1,7 +1,7 @@
 """Market signal scanner — edge-finder + momentum_reversal publication writer.
 
 Dual-feed pipeline:
-  Demo path (DEMO_FEED_ID): Polymarket API prices, is_demo=TRUE, edge price threshold
+  Demo path (DEMO_FEED_ID): Polymarket API prices, is_demo=TRUE, edge scoring
   Live path (LIVE_FEED_ID): Heisenberg agents 568/575/585, is_demo=FALSE, candle logic
 
 Both feeds write to signal_publications for signal_following pipeline to consume.
@@ -15,25 +15,29 @@ import time
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+import structlog
+
+from ..config import get_settings
 from ..database import get_pool
 from ..integrations import polymarket
 from ..services import heisenberg
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 # Feed UUIDs — must match migration seeds
 DEMO_FEED_ID: UUID = UUID("00000000-0000-0000-0001-000000000001")  # migration 024
 LIVE_FEED_ID: UUID = UUID("00000000-0000-0000-0002-000000000001")  # migration 025
 
-# Demo path thresholds
+# Legacy constant preserved for backward compat with existing test mocks only.
+# Runtime thresholds are now read from config (SCANNER_* env vars).
 EDGE_PRICE_THRESHOLD: float = 0.15
 
 # Live path thresholds
-EDGE_DEVIATION_PCT: float = 0.08       # 8% deviation from 6h mean triggers edge signal
+EDGE_DEVIATION_PCT: float = 0.08       # legacy — overridden by SCANNER_EDGE_DEVIATION_PCT
 MOMENTUM_CANDLES: int = 3              # consecutive candles in one direction
 
 # Shared config
-MIN_LIQUIDITY: float = 10_000.0
+MIN_LIQUIDITY: float = 10_000.0        # legacy — scanner uses SCANNER_MIN_LIQUIDITY (5k)
 DEDUP_WINDOW_HOURS: int = 2
 SIGNAL_EXPIRY_HOURS: int = 4
 DEFAULT_SIGNAL_SIZE_USDC: float = 10.0
@@ -126,7 +130,8 @@ def _candle_close(c: dict) -> float | None:
 
 
 def _check_edge_finder(candles: list[dict]) -> tuple[str | None, float]:
-    """Return (side, latest_close) if 8% deviation from 6h mean, else (None, 0)."""
+    """Return (side, latest_close) if candle deviation exceeds threshold, else (None, 0)."""
+    deviation_pct = get_settings().SCANNER_EDGE_DEVIATION_PCT
     closes = [_candle_close(c) for c in candles]
     closes = [v for v in closes if v is not None]
     if len(closes) < 6:
@@ -135,7 +140,7 @@ def _check_edge_finder(candles: list[dict]) -> tuple[str | None, float]:
     if mean6h == 0:
         return None, 0.0
     latest = closes[-1]
-    if abs(latest - mean6h) / mean6h <= EDGE_DEVIATION_PCT:
+    if abs(latest - mean6h) / mean6h <= deviation_pct:
         return None, 0.0
     return ("YES" if latest < mean6h else "NO"), latest
 
@@ -175,15 +180,13 @@ def extract_keywords(question: str) -> str:
 async def _run_heisenberg_signals() -> tuple[int, int]:
     """Scan real non-demo markets using Heisenberg agents. Returns (scanned, published)."""
     if not os.getenv("HEISENBERG_API_TOKEN", ""):
-        logger.warning(
-            "market_signal_scanner: HEISENBERG_API_TOKEN not set — skipping live scan"
-        )
+        log.warning("heisenberg_token_missing",
+                    message="HEISENBERG_API_TOKEN not set — skipping live scan")
         return 0, 0
 
     if not await _feed_active(LIVE_FEED_ID):
-        logger.warning(
-            "market_signal_scanner: live feed not found — run migration 025"
-        )
+        log.warning("live_feed_inactive",
+                    message="live feed not found — run migration 025")
         return 0, 0
 
     pool = get_pool()
@@ -280,27 +283,19 @@ async def _run_heisenberg_signals() -> tuple[int, int]:
                         ):
                             payload["social_momentum"] = True
                 except Exception as exc:
-                    logger.debug(
-                        "market_signal_scanner: social pulse failed market=%s: %s",
-                        market_id, exc,
-                    )
+                    log.debug("social_pulse_failed", market_id=market_id, error=str(exc))
 
                 await _publish(
                     LIVE_FEED_ID, market_id, side, price,
                     sig_type, payload, is_demo=False,
                 )
                 published += 1
-                logger.info(
-                    "market_signal_scanner: live signal published "
-                    "market=%s side=%s type=%s price=%.4f",
-                    market_id, side, sig_type, price,
-                )
+                log.info("live_signal_published",
+                         market_id=market_id, side=side,
+                         signal_type=sig_type, price=price)
 
         except Exception as exc:
-            logger.warning(
-                "market_signal_scanner: live market processing failed market=%s: %s",
-                market_id, exc,
-            )
+            log.warning("live_market_failed", market_id=market_id, error=str(exc))
 
     return scanned, published
 
@@ -317,21 +312,38 @@ async def run_job() -> tuple[int, int]:
     demo_published = 0
 
     if await _feed_active(DEMO_FEED_ID):
+        cfg = get_settings()
+        edge_min_price: float = cfg.SCANNER_EDGE_MIN_PRICE
+        edge_max_price: float = cfg.SCANNER_EDGE_MAX_PRICE
+        min_edge_bps: int = cfg.SCANNER_MIN_EDGE_BPS
+        min_confidence: float = cfg.SCANNER_MIN_CONFIDENCE
+        min_liq: float = cfg.SCANNER_MIN_LIQUIDITY
+
         try:
             markets = await polymarket.get_markets(limit=200)
         except Exception as exc:
-            logger.warning("market_signal_scanner: polymarket fetch failed: %s", exc)
+            log.warning("polymarket_fetch_failed", error=str(exc))
             markets = []
 
+        _demo_rejected = 0
+        _demo_errors = 0
+
+        log.info("signal_scan_cycle_start", scanning=len(markets or []))
+
         for m in markets or []:
+            mid = str(m.get("conditionId") or m.get("id") or "")
             try:
                 if m.get("closed") or m.get("resolved"):
+                    _demo_rejected += 1
                     continue
-                mid = str(m.get("conditionId") or m.get("id") or "")  # prefer conditionId (hex) — matches markets.id PK
                 if not mid:
+                    _demo_errors += 1
                     continue
                 liq = float(m.get("liquidity") or 0)
-                if liq < MIN_LIQUIDITY:
+                if liq < min_liq:
+                    log.debug("signal_scan_market", market_id=mid, result="REJECTED",
+                              reason="low_liquidity", liquidity=liq)
+                    _demo_rejected += 1
                     continue
 
                 outcomes = m.get("outcomePrices") or [None, None]
@@ -354,54 +366,83 @@ async def run_job() -> tuple[int, int]:
                     if len(outcomes) > 1 and outcomes[1] is not None
                     else None
                 )
+
+                if yes_p is None:
+                    log.debug("signal_scan_market", market_id=mid, result="REJECTED",
+                              reason="no_price")
+                    _demo_rejected += 1
+                    continue
+
+                # Price eligibility: skip near-resolved markets
+                if not (edge_min_price <= yes_p <= edge_max_price):
+                    log.debug("signal_scan_market", market_id=mid, result="REJECTED",
+                              reason="price_out_of_range", yes_price=yes_p)
+                    _demo_rejected += 1
+                    continue
+
                 demo_scanned += 1
+
+                # Edge scoring: fair value baseline is 0.5 for binary markets
+                edge = abs(yes_p - 0.5)
+                edge_bps = int(edge * 10_000)
+
+                if edge_bps < min_edge_bps:
+                    log.debug("signal_scan_market", market_id=mid, result="REJECTED",
+                              reason="insufficient_edge", edge_bps=edge_bps,
+                              min_edge_bps=min_edge_bps, yes_price=yes_p)
+                    _demo_rejected += 1
+                    continue
+
+                # Side: buy the underpriced outcome
+                side = "YES" if yes_p < 0.5 else "NO"
+                confidence = min(min_confidence + edge * 2.0, 0.90)
+                target_price = yes_p if side == "YES" else (no_p or round(1.0 - yes_p, 4))
+
+                log.info("signal_scan_market", market_id=mid, yes_price=yes_p,
+                         edge_bps=edge_bps, liquidity=liq, side=side, result="APPROVED")
+
                 base: dict = {
                     "strategy": "edge_finder",
                     "liquidity": liq,
                     "question": str(m.get("question") or "")[:200],
-                    "confidence": DEFAULT_CONFIDENCE,
+                    "confidence": confidence,
                     "size_usdc": DEFAULT_SIGNAL_SIZE_USDC,
+                    "edge_bps": edge_bps,
+                    "yes_price": yes_p,
                 }
 
-                if yes_p is not None and yes_p < EDGE_PRICE_THRESHOLD:
-                    if not await _already_published(DEMO_FEED_ID, mid, "YES"):
-                        await _publish(
-                            DEMO_FEED_ID, mid, "YES", yes_p, "edge_finder",
-                            {**base, "yes_price": yes_p, "signal_reason": "yes_edge"},
-                            True,
-                        )
-                        demo_published += 1
-
-                if no_p is not None and no_p < EDGE_PRICE_THRESHOLD:
-                    if not await _already_published(DEMO_FEED_ID, mid, "NO"):
-                        await _publish(
-                            DEMO_FEED_ID, mid, "NO", no_p, "edge_finder",
-                            {**base, "no_price": no_p, "signal_reason": "no_edge"},
-                            True,
-                        )
-                        demo_published += 1
+                if not await _already_published(DEMO_FEED_ID, mid, side):
+                    await _publish(
+                        DEMO_FEED_ID, mid, side, target_price, "edge_finder",
+                        {**base, "signal_reason": f"{side.lower()}_edge"},
+                        True,
+                    )
+                    demo_published += 1
+                else:
+                    log.debug("signal_scan_market", market_id=mid, result="DEDUP",
+                              reason="already_published", side=side)
 
             except Exception as exc:
-                logger.warning(
-                    "market_signal_scanner: demo market failed mid=%s: %s",
-                    m.get("id"), exc,
-                )
+                log.warning("signal_scan_market_error", market_id=mid, error=str(exc))
+                _demo_errors += 1
+
+        log.info("signal_scan_cycle_end",
+                 approved=demo_scanned,
+                 rejected=_demo_rejected,
+                 errors=_demo_errors,
+                 published=demo_published)
     else:
-        logger.warning(
-            "market_signal_scanner: demo feed not active — "
-            "run migration 024_signal_scan_engine_seed.sql",
-        )
+        log.warning("demo_feed_inactive",
+                    message="run migration 024_signal_scan_engine_seed.sql")
 
     # Live path — Heisenberg agents
     live_scanned, live_published = await _run_heisenberg_signals()
 
     total_scanned = demo_scanned + live_scanned
     total_published = demo_published + live_published
-    logger.info(
-        "market_signal_scanner: tick done "
-        "demo_scanned=%d live_scanned=%d published=%d",
-        demo_scanned, live_scanned, total_published,
-    )
+    log.info("signal_scan_tick_done",
+             demo_scanned=demo_scanned, live_scanned=live_scanned,
+             published=total_published)
     _scanner_state["scanned"] = total_scanned
     _scanner_state["published"] = total_published
     _scanner_state["last_tick_ts"] = time.time()
