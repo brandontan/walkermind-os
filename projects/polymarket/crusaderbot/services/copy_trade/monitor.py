@@ -41,6 +41,7 @@ from uuid import UUID
 
 import structlog
 
+from ...core import event_bus
 from ...database import get_pool
 from ...domain.copy_trade.models import CopyTradeTask
 from ...domain.copy_trade.repository import list_active_tasks
@@ -293,8 +294,27 @@ async def _process_one(
             # Record spend and persist idempotency row
             actual_size = float(result.final_size_usdc) if result.final_size_usdc else copy_size
             await _record_spend(task.user_id, task.id, actual_size)
-            # Note: paper.py already calls notify_entry() for every paper fill.
-            # Do NOT call it again here — that would send a duplicate Telegram message.
+            # Persist copy_trade_events row for this mirrored position
+            await _record_copy_trade_event(
+                user_id=task.user_id,
+                position_id=result.position_id,
+                target_wallet=wallet_address,
+                market_id=market_id,
+                size_usdc=actual_size,
+            )
+            # Emit event OUTSIDE the transaction — fire-and-forget via event bus.
+            # Track C notification handlers subscribe to "copy_trade.executed".
+            # Note: paper.py already calls notify_entry() for every paper fill;
+            # this event is for downstream subscribers (Track C), not a duplicate notif.
+            await event_bus.emit(
+                "copy_trade.executed",
+                telegram_user_id=user_ctx["telegram_user_id"],
+                market_id=market_id,
+                target_wallet=wallet_address,
+                side=side,
+                size_usdc=actual_size,
+                entry_price=price,
+            )
         await _mark_processed(task.user_id, task.id, leader_trade_id)
     else:
         log.info(
@@ -372,6 +392,27 @@ async def _record_spend(user_id: UUID, task_id: UUID, spend_usdc: float) -> None
             DO UPDATE SET spend_usdc = copy_trade_daily_spend.spend_usdc + EXCLUDED.spend_usdc
             """,
             user_id, task_id, today, spend_usdc,
+        )
+
+
+async def _record_copy_trade_event(
+    *,
+    user_id: UUID,
+    position_id: UUID | None,
+    target_wallet: str,
+    market_id: str,
+    size_usdc: float,
+) -> None:
+    """Insert a copy_trade_events row for the mirrored position."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO copy_trade_events
+                (user_id, position_id, target_wallet, market_id, size_usdc)
+            VALUES ($1, $2, $3, $4, $5)
+            """,
+            user_id, position_id, target_wallet, market_id, size_usdc,
         )
 
 

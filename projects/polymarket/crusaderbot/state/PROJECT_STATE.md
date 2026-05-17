@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 22:30
-Status       : Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs open. notification_service.register_handlers() wired into main.py startup. Production PAPER ONLY.
+Last Updated : 2026-05-17 23:55
+Status       : Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs open. Track B copy_trade.executed event + copy_trade_events table delivered (PR pending SENTINEL). Production PAPER ONLY.
 
 [COMPLETED]
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
@@ -18,6 +18,7 @@ Status       : Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs ope
 - WARP/CRUSADERBOT-MVP-BUGFIX-ROUND1: handler audit fixes PR open, awaiting WARP🔹CMD merge decision.
 - WARP/CRUSADERBOT-FAST-TRADE-NOTIFS: Track C event bus + notification service PR open. Awaiting Track A merge first.
 - WARP/CRUSADERBOT-FAST-TRADE-NOTIFS-WIRE: notification_service.register_handlers() wired into main.py. PR open, awaiting WARP🔹CMD merge.
+- WARP/CRUSADERBOT-FAST-COPY-EXEC: Track B copy_trade.executed event + copy_trade_events table + migration 032. PR open. SENTINEL validation required before merge.
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderPolybot live, Fly.io app running, PAPER ONLY.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
@@ -37,7 +38,8 @@ Status       : Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs ope
 
 [NEXT PRIORITY]
 - WARP🔹CMD review required for wire-notification-handlers (register_handlers() wired into main.py). Source: projects/polymarket/crusaderbot/reports/forge/wire-notification-handlers.md. Tier: MINOR.
-- WARP•SENTINEL validation required for fast-trade-engine (Track A: signal-to-order + TP/SL). Source: projects/polymarket/crusaderbot/reports/forge/fast-trade-engine.md. Tier: MAJOR. Track B (copy trade) blocked until this merges.
+- WARP•SENTINEL validation required for fast-trade-engine (Track A: signal-to-order + TP/SL). Source: projects/polymarket/crusaderbot/reports/forge/fast-trade-engine.md. Tier: MAJOR.
+- WARP•SENTINEL validation required for crusaderbot-fast-copy-exec (Track B: copy_trade.executed event + copy_trade_events table). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-copy-exec.md. Tier: MAJOR.
 - WARP🔹CMD review required for trade-notifications Track C (event bus + notification service). Source: projects/polymarket/crusaderbot/reports/forge/trade-notifications.md. Tier: STANDARD. Merge after Track A.
 - WARP🔹CMD review required for crusaderbot-mvp-bugfix-round1 (9 handler bugs fixed). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-bugfix-round1.md. Tier: STANDARD.
 - WARP🔹CMD review required for autonomous-trading-bot MVP pipeline. Source: projects/polymarket/crusaderbot/reports/forge/autonomous-trading-bot.md. Tier: MAJOR.
