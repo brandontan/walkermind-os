@@ -20,6 +20,10 @@ from ...config import get_settings
 from ...database import get_pool, is_kill_switch_active, set_kill_switch
 from ...domain.ops import job_tracker
 from ...domain.ops import kill_switch as ops_kill_switch
+from ...domain.risk.kill_switch_exec import (
+    execute_kill_switch as ks_execute,
+    reset_kill_switch as ks_reset,
+)
 from ...services.tiers import (
     TIER_ADMIN,
     VALID_TIERS,
@@ -642,8 +646,7 @@ async def _apply_killswitch_action(
     result: dict = {}
     if action == "pause":
         try:
-            from ...domain.risk.kill_switch_exec import execute_kill_switch as _exec_ks
-            await _exec_ks(
+            await ks_execute(
                 reason="Manual admin command",
                 triggered_by=f"admin:{actor_id}",
             )
@@ -655,9 +658,7 @@ async def _apply_killswitch_action(
             return
     elif action == "resume":
         try:
-            from ...domain.risk.kill_switch_exec import reset_kill_switch as _reset_ks
-            triggered = f"admin:{actor_id}"
-            await _reset_ks(triggered_by=triggered)
+            await ks_reset(triggered_by=f"admin:{actor_id}")
             result = {"active": False, "lock_mode": False, "users_disabled": 0}
         except Exception as exc:  # noqa: BLE001
             logger.error("killswitch reset failed: %s", exc)
