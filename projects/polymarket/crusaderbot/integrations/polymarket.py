@@ -166,7 +166,7 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
                 raw_clob = clob_resp.get("price")
                 if raw_clob is not None:
                     clob_price = float(raw_clob)
-                    if 0.0 <= clob_price <= 1.0:
+                    if 0.0 < clob_price <= 1.0:
                         return clob_price
         except Exception as exc:
             logger.warning(
@@ -189,7 +189,7 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
         if raw is None:
             return None
         price = float(raw)
-        if not (0.0 <= price <= 1.0):
+        if not (0.0 < price <= 1.0):
             logger.warning(
                 "get_live_market_price out-of-range price=%.4f market=%s side=%s",
                 price, market_id, side,

@@ -282,6 +282,15 @@ async def _on_scanner_tick_sse(
     _push_broadcast("scanner_tick", {"markets": markets, "signals": signals})
 
 
+def push_position_updated(user_id: str, position_id: str, current_price: float, pnl_usdc: float) -> None:
+    """Push a position_updated tick to the user's SSE stream."""
+    _push_to_user(user_id, "position_updated", {
+        "position_id": position_id,
+        "current_price": current_price,
+        "pnl_usdc": pnl_usdc,
+    })
+
+
 def register_event_bus_handlers() -> None:
     """Subscribe SSE broadcaster to in-process event_bus events. Call once at startup."""
     from ...core.event_bus import subscribe

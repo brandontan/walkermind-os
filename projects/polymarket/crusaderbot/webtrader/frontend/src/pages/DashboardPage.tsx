@@ -34,19 +34,22 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
   const [data, setData] = useState<DashboardSummary | null>(null);
-  const [closedRecent, setClosedRecent] = useState<PositionItem[]>([]);
+  const [recentActivity, setRecentActivity] = useState<PositionItem[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [summary, closed, alertList] = await Promise.all([
+      const [summary, allPositions, alertList] = await Promise.all([
         api.getDashboard(),
-        api.getPositions("closed"),
+        api.getPositions(),
         api.getAlerts(),
       ]);
       setData(summary);
-      setClosedRecent(closed.slice(0, 3));
+      const sorted = [...allPositions].sort(
+        (a, b) => new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
+      );
+      setRecentActivity(sorted.slice(0, 5));
       setAlerts(alertList.slice(0, 5));
     } catch (e) {
       setError(String(e));
@@ -62,6 +65,16 @@ export function DashboardPage() {
     settings:         () => void load(),
     position_opened:  () => void load(),
     position_closed:  () => void load(),
+    position_updated: (raw) => {
+      const ev = raw as { position_id: string; current_price: number; pnl_usdc: number };
+      setRecentActivity((prev: PositionItem[]) =>
+        prev.map((p: PositionItem) =>
+          p.id === ev.position_id
+            ? { ...p, current_price: ev.current_price, pnl_usdc: ev.pnl_usdc }
+            : p,
+        ),
+      );
+    },
     portfolio_update: () => void load(),
     scanner_tick:     () => void load(),
   });
@@ -211,26 +224,31 @@ export function DashboardPage() {
           </NavLink>
         </div>
 
-        {closedRecent.length === 0 ? (
+        {recentActivity.length === 0 ? (
           <div className="text-[12px] text-ink-3 px-1 py-3 font-mono">
-            No closed trades yet.
+            No activity yet.
           </div>
         ) : (
-          closedRecent.map((p) => (
-            <PositionCard
-              key={p.id}
-              market={p.market_question ?? `${p.market_id.slice(0, 16)}…`}
-              positionValue={pnlFor(p)}
-              side={positionSide(p)}
-              meta={[
-                <>${p.size_usdc.toFixed(2)}</>,
-                <>{formatTime(p.closed_at ?? p.opened_at)}</>,
-              ]}
-              metaAdvanced={[
-                <>{p.side.toUpperCase()} @ {(p.entry_price * 100).toFixed(1)}¢</>,
-              ]}
-            />
-          ))
+          recentActivity.map((p) => {
+            const val = activityValueFor(p);
+            const tone = val.tone;
+            return (
+              <PositionCard
+                key={p.id}
+                market={p.market_question ?? `${p.market_id.slice(0, 16)}…`}
+                positionValue={val}
+                side={positionSide(p)}
+                borderTone={tone}
+                meta={[
+                  <>${p.size_usdc.toFixed(2)}</>,
+                  <>{p.status === "open" ? "LIVE" : formatTime(p.closed_at ?? p.opened_at)}</>,
+                ]}
+                metaAdvanced={[
+                  <>{p.side.toUpperCase()} @ {(p.entry_price * 100).toFixed(1)}¢</>,
+                ]}
+              />
+            );
+          })
         )}
 
         <div className="mt-4">
@@ -247,9 +265,28 @@ export function DashboardPage() {
   );
 }
 
-function pnlFor(p: PositionItem): { value: string; tone: "zero" | "up" | "dn" } {
-  const v = p.pnl_usdc ?? 0;
-  if (Math.abs(v) < 0.005) return { value: "$0.00", tone: "zero" };
+function activityValueFor(p: PositionItem): { value: string; tone: "zero" | "up" | "dn" } {
+  if (p.status === "open") {
+    // Show current market value; fall back to "—" when price is unavailable
+    if (p.current_price === null || p.current_price === undefined) {
+      return { value: "—", tone: "zero" };
+    }
+    const curVal =
+      p.entry_price > 0
+        ? (p.current_price / p.entry_price) * p.size_usdc
+        : p.size_usdc;
+    const diff = curVal - p.size_usdc;
+    if (Math.abs(diff) < 0.005) return { value: `$${curVal.toFixed(2)}`, tone: "zero" };
+    const tone: "up" | "dn" = diff > 0 ? "up" : "dn";
+    const sign = diff > 0 ? "+" : "−";
+    return { value: `${sign}$${Math.abs(diff).toFixed(2)}`, tone };
+  }
+  // Closed position: show P&L; "—" when null
+  if (p.pnl_usdc === null || p.pnl_usdc === undefined) {
+    return { value: "—", tone: "zero" };
+  }
+  const v = p.pnl_usdc;
+  if (Math.abs(v) < 0.005) return { value: "±$0.00", tone: "zero" };
   const sign = v >= 0 ? "+" : "−";
   return { value: `${sign}$${Math.abs(v).toFixed(2)}`, tone: v >= 0 ? "up" : "dn" };
 }
