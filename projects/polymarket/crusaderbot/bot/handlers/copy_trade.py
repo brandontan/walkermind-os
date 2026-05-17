@@ -1854,7 +1854,6 @@ COPY_MODE       = 15
 COPY_SLIPPAGE   = 16
 COPY_TOPUPS     = 17
 COPY_CONFIRM_NEW = 18
-COPY_CUSTOM_NEW  = 19
 
 
 def _nwz(ctx: ContextTypes.DEFAULT_TYPE) -> dict:

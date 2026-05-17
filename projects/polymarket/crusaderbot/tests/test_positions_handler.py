@@ -256,32 +256,42 @@ def test_delete_position_with_ledger_issues_deletes_inside_transaction():
     ledger must be deleted BEFORE the position (FK safety order)."""
     import asyncio
     from uuid import uuid4
-    from unittest.mock import AsyncMock, patch, MagicMock
+    from unittest.mock import patch
 
-    from projects.polymarket.crusaderbot.domain.positions.registry import (
-        delete_position_with_ledger,
-    )
+    from projects.polymarket.crusaderbot.domain.positions import registry as reg
 
     position_id = uuid4()
     user_id = uuid4()
     sql_log: list[tuple[str, tuple]] = []
+    tx_state = {"open": False}
 
     class _TxCtx:
-        async def __aenter__(self): return self
-        async def __aexit__(self, *_): return False
+        async def __aenter__(self):
+            tx_state["open"] = True
+            return self
+
+        async def __aexit__(self, *_):
+            tx_state["open"] = False
+            return False
 
     class _FakeConn:
         def transaction(self):
             return _TxCtx()
 
         async def execute(self, sql, *args):
+            # Every DELETE must run while the transaction is open.
+            assert tx_state["open"], "DELETE issued outside transaction"
             sql_log.append((sql, args))
 
-    async def _run():
-        conn = _FakeConn()
-        await delete_position_with_ledger(conn, position_id, user_id)
+    class _PoolCM:
+        async def __aenter__(self): return _FakeConn()
+        async def __aexit__(self, *_): return False
 
-    asyncio.run(_run())
+    class _FakePool:
+        def acquire(self): return _PoolCM()
+
+    with patch.object(reg, "get_pool", return_value=_FakePool()):
+        asyncio.run(reg.delete_position_with_ledger(position_id, user_id))
 
     assert len(sql_log) == 2, f"Expected 2 DELETE calls, got {len(sql_log)}: {sql_log}"
 

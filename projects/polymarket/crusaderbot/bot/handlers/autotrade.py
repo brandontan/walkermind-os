@@ -58,6 +58,17 @@ _AUTO_TRADE_MENU_TEXT = (
     "Choose what to configure:"
 )
 
+# Risk Profile sub-menu body. Module-level so the copy is maintained in one
+# place alongside _AUTO_TRADE_MENU_TEXT (the matching keyboard is mvp_risk_kb).
+_RISK_PROFILE_TEXT = (
+    "<b>⚖️ Risk Profile</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "🟢 <b>Conservative</b> — 20% cap · TP +10% · SL -5%\n"
+    "🟡 <b>Balanced</b> — 40% cap · TP +20% · SL -15%\n"
+    "🔴 <b>Aggressive</b> — 60% cap · TP +30% · SL -20%\n"
+    "⚙️ <b>Custom Risk</b> — set your own capital, TP, SL"
+)
+
 
 async def show_autotrade(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Entry point — shows the Auto Trade top-level 2-sub-menu."""
@@ -207,23 +218,15 @@ async def autotrade_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
         user = await upsert_user(update.effective_user.id, update.effective_user.username)
         s = await get_settings_for(user["id"])
         current_risk = s.get("risk_profile", "balanced")
-        risk_text = (
-            "<b>⚖️ Risk Profile</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "🟢 <b>Conservative</b> — 20% cap · TP +10% · SL -5%\n"
-            "🟡 <b>Balanced</b> — 40% cap · TP +20% · SL -15%\n"
-            "🔴 <b>Aggressive</b> — 60% cap · TP +30% · SL -20%\n"
-            "⚙️ <b>Custom Risk</b> — set your own capital, TP, SL"
-        )
         if q.message:
             try:
                 await q.message.edit_text(
-                    risk_text, parse_mode=ParseMode.HTML,
+                    _RISK_PROFILE_TEXT, parse_mode=ParseMode.HTML,
                     reply_markup=mvp_risk_kb(current_risk),
                 )
             except Exception:
                 await q.message.reply_text(
-                    risk_text, parse_mode=ParseMode.HTML,
+                    _RISK_PROFILE_TEXT, parse_mode=ParseMode.HTML,
                     reply_markup=mvp_risk_kb(current_risk),
                 )
         return

@@ -212,13 +212,13 @@ _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
     "signal_sniper": {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
     "full_auto":     {"risk_profile": "aggressive",   "capital_alloc_pct": 0.60, "tp_pct": 0.30, "sl_pct": 0.20},
     "value_hunter":  {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
-    "whale_mirror":  {"risk_profile": "safe",         "capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
+    "whale_mirror":  {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
     "hybrid":        {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.15, "sl_pct": 0.10},
     # New preset keys mapped to lib/strategies/ classes.
-    "trend_breakout": {"risk_profile": "balanced",   "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
-    "contrarian":     {"risk_profile": "balanced",   "capital_alloc_pct": 0.40, "tp_pct": 0.15, "sl_pct": 0.10},
-    "close_sweep":    {"risk_profile": "balanced",   "capital_alloc_pct": 0.30, "tp_pct": 0.15, "sl_pct": 0.08},
-    "pair_arb":       {"risk_profile": "safe",       "capital_alloc_pct": 0.20, "tp_pct": 0.05, "sl_pct": 0.03},
+    "trend_breakout": {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
+    "contrarian":     {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.15, "sl_pct": 0.10},
+    "close_sweep":    {"risk_profile": "balanced",     "capital_alloc_pct": 0.30, "tp_pct": 0.15, "sl_pct": 0.08},
+    "pair_arb":       {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.05, "sl_pct": 0.03},
     "ensemble":       {"risk_profile": "balanced",   "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.12},
 }
 
@@ -581,25 +581,37 @@ async def sse_stream(user: _CurrentUser):
 
 # ── Copy Trade ────────────────────────────────────────────────────────────────
 
+from typing import Literal as _Literal  # noqa: E402
+
 from pydantic import BaseModel as _BaseModel  # noqa: E402
+
+# Enum-constrained at the schema boundary so a malformed client payload
+# (e.g. "buy_only", "manuall") is rejected with 422 before persistence —
+# monitor logic branches on exact literals, so silent typos would change
+# trading behaviour (sell filtering / manual-confirm bypass).
+_CopyDirection = _Literal["buys_only", "buys_and_sells"]
+_CopyType = _Literal["fixed", "percentage", "rm"]
+_ExecutionMode = _Literal["auto", "manual"]
+_TaskStatus = _Literal["active", "paused"]
+
 
 class CopyTradeTaskCreate(_BaseModel):
     wallet_address: str
     nickname: Optional[str] = None
-    copy_direction: str = "buys_only"
-    copy_type: str = "fixed"      # 'fixed' | 'percentage' | 'rm'
+    copy_direction: _CopyDirection = "buys_only"
+    copy_type: _CopyType = "fixed"
     amount: float = 10.0
-    execution_mode: str = "auto"
+    execution_mode: _ExecutionMode = "auto"
     slippage_pct: float = 0.05
     allow_topups: bool = True
 
 
 class CopyTradeTaskPatch(_BaseModel):
     nickname: Optional[str] = None
-    copy_direction: Optional[str] = None
-    execution_mode: Optional[str] = None
+    copy_direction: Optional[_CopyDirection] = None
+    execution_mode: Optional[_ExecutionMode] = None
     allow_topups: Optional[bool] = None
-    status: Optional[str] = None  # 'active' | 'paused'
+    status: Optional[_TaskStatus] = None
 
 
 @router.get("/copy-trade/tasks")
