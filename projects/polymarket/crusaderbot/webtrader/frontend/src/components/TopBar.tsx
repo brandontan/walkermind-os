@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { AdvancedOnly } from "./AdvancedGate";
 import { useSSEStatus } from "../lib/sse";
+import { useAlertCenter } from "../App";
 
 const TOPNAV = [
   { to: "/dashboard",  label: "Home" },
@@ -12,14 +13,17 @@ const TOPNAV = [
 ] as const;
 
 type Props = {
+  /** Kept for backward-compat; superseded by AlertCenterContext.unreadCount */
   notifCount?: number;
+  /** Kept for backward-compat; superseded by AlertCenterContext.openAlertCenter */
   onBellClick?: () => void;
 };
 
-export function TopBar({ notifCount = 0, onBellClick }: Props) {
+export function TopBar({ notifCount: _notifCount, onBellClick: _onBellClick }: Props) {
   const sseConnected = useSSEStatus();
   const location = useLocation();
   const navigate = useNavigate();
+  const { unreadCount, openAlertCenter } = useAlertCenter();
 
   return (
     <div
@@ -111,17 +115,17 @@ export function TopBar({ notifCount = 0, onBellClick }: Props) {
           </StatusPill>
         </AdvancedOnly>
         <button
-          onClick={onBellClick}
+          onClick={openAlertCenter}
           className="relative w-8 h-8 rounded-[4px] bg-surface border border-border-2 flex items-center justify-center text-[13px] transition-colors hover:border-gold hover:bg-surface-2"
-          aria-label="Notifications"
+          aria-label="Alert Center"
         >
           🔔
-          {notifCount > 0 && (
+          {unreadCount > 0 && (
             <span
               className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-gold text-bg-0 font-mono text-[8px] font-bold flex items-center justify-center"
               style={{ boxShadow: "0 0 8px rgba(245,200,66,0.5)" }}
             >
-              {notifCount > 9 ? "9+" : notifCount}
+              {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
         </button>

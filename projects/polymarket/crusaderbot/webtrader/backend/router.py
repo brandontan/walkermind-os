@@ -90,10 +90,13 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
                  AND closed_at >= NOW() - INTERVAL '7 days'""",
             user_id,
         )
+        # settled YES = pnl_usdc > 0 (win), settled NO = pnl_usdc <= 0 (loss).
+        # Expired markets (exit_reason='market_expired') are excluded — expiry ≠ settled outcome.
         totals = await conn.fetchrow(
-            """SELECT COUNT(*) AS total,
-                      COUNT(*) FILTER (WHERE pnl_usdc > 0) AS wins,
-                      COUNT(*) FILTER (WHERE pnl_usdc <= 0) AS losses
+            """SELECT
+                 COUNT(*) FILTER (WHERE exit_reason IS DISTINCT FROM 'market_expired') AS total,
+                 COUNT(*) FILTER (WHERE pnl_usdc > 0 AND exit_reason IS DISTINCT FROM 'market_expired') AS wins,
+                 COUNT(*) FILTER (WHERE pnl_usdc <= 0 AND exit_reason IS DISTINCT FROM 'market_expired') AS losses
                FROM positions WHERE user_id=$1::uuid AND status='closed'""",
             user_id,
         )
@@ -582,7 +585,9 @@ def _unrealized_pnl(open_rows: list) -> float:
 _CHART_LOOKBACK: dict[str, timedelta | None] = {
     "1D":  timedelta(days=1),
     "1W":  timedelta(weeks=1),
+    "7D":  timedelta(weeks=1),   # frontend alias for 1W
     "1M":  timedelta(days=30),
+    "30D": timedelta(days=30),   # frontend alias for 1M
     "1Y":  timedelta(days=365),
     "ALL": None,
 }
