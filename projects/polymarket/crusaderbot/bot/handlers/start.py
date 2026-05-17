@@ -23,6 +23,7 @@ from ...database import get_pool
 from ...domain.preset import get_preset
 from ...domain.preset.presets import capital_for_risk_profile
 from ...users import (
+    get_settings_for,
     set_auto_trade,
     set_onboarding_complete,
     set_paused,
@@ -215,7 +216,6 @@ async def skip_deposit_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int
         p = get_preset(preset_key)
         if p is not None:
             try:
-                from ...users import get_settings_for
                 s = await get_settings_for(user["id"])
                 capital_pct = capital_for_risk_profile(
                     s.get("risk_profile", "balanced")
