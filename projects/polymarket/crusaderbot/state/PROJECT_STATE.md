@@ -1,7 +1,8 @@
-Last Updated : 2026-05-17 21:00
-Status       : Two PRs open — portfolio-ui-polish (WebTrader Portfolio upgrade) + WARP/CRUSADERBOT-TG-KB-CLEANUP (inline KB ghost fix). Both awaiting WARP🔹CMD review. Production PAPER ONLY.
+Last Updated : 2026-05-17 22:00
+Status       : Bad-trade DB cleanup complete for walk3r69 (22 rows deleted, wallet reset $990.00). WARP🔹CMD review required for cleanup PR. Multiple feature PRs still awaiting review. Production PAPER ONLY.
 
 [COMPLETED]
+- WARP/CRUSADERBOT-BAD-TRADE-CLEANUP (2026-05-17): deleted 22 bad tp_hit positions for walk3r69 (price bug #1105); wallet balance corrected $2,227.57 → $990.00. Verification: 0 bad trades remain, 13 market_expired clean, 1 open untouched. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
 - telegram-ux-final-polish MERGED PR #1088 (2026-05-17). Wallet copy-address bug fixed (rsplit parse), portfolio_chart tier gate removed, wallet_p5_kb home label corrected, emergency_done_p5_kb auto-trade label corrected, _hub_text unused tier param removed. compileall clean. STANDARD, NARROW INTEGRATION.
 - crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.
@@ -47,6 +48,7 @@ Status       : Two PRs open — portfolio-ui-polish (WebTrader Portfolio upgrade
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for WARP/CRUSADERBOT-BAD-TRADE-CLEANUP (bad-trade DB cleanup). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-bad-trade-cleanup.md. Tier: STANDARD. Decision needed: extend cleanup to qwneer8 + Maver1ch69 (same bug, same inflated trades).
 - WARP🔹CMD review required for portfolio-ui-polish (Portfolio tab upgrade). Source: projects/polymarket/crusaderbot/reports/forge/portfolio-ui-polish.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-TG-KB-CLEANUP (inline KB ghost fix). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-tg-kb-cleanup.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-SCANNER-SYNC-FIX (skipped_market_not_synced fix). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-scanner-sync-fix.md. Tier: STANDARD.
@@ -60,6 +62,7 @@ Status       : Two PRs open — portfolio-ui-polish (WebTrader Portfolio upgrade
 - Closed beta observation continues — no new feature PRs in Week 4.
 
 [KNOWN ISSUES]
+- qwneer8 and Maver1ch69 have identical bad tp_hit positions from price bug #1105 (same 0.540–0.545 inflated exit_price). Not cleaned in this lane — WARP🔹CMD decision required to extend cleanup.
 - WARP🔹CMD requested removal of the internal Tier-4/activation-guard LIVE-trading safety gate; WARP•FORGE declined that sub-item only — CLAUDE.md forbids bypassing the live-trading guard. assert_live_guards is intentionally preserved (invisible to users; live remains owner-gated + OFF). All other role-model items delivered as requested.
 - Dual tier tables (users.access_tier integer + user_tiers string) retained by design (logic+UX collapse, no DB teardown). Internal-only; not user-visible. Full schema removal deferred to a separate migration lane if ever required.
 - New users before runtime-autotrade-fix deploy still receive $0 balance — two affected users (qwneer8, Maver1ch69) already backfilled via SQL; fix ships with this PR.
