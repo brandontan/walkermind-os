@@ -5,7 +5,7 @@ export type PositionSide = "yes" | "no" | "exp" | "credit" | "debit";
 
 type Props = {
   market: string;
-  pnl: { value: string; tone: "zero" | "up" | "dn" };
+  positionValue: { value: string; tone: "zero" | "up" | "dn" };
   side: PositionSide;
   /** Primary meta items shown in essential + advanced. */
   meta: ReactNode[];
@@ -44,7 +44,7 @@ const PNL_TONE = {
   dn:   "text-red",
 } as const;
 
-export function PositionCard({ market, pnl, side, meta, metaAdvanced, onClick }: Props) {
+export function PositionCard({ market, positionValue, side, meta, metaAdvanced, onClick }: Props) {
   return (
     <div
       role={onClick ? "button" : undefined}
@@ -64,8 +64,8 @@ export function PositionCard({ market, pnl, side, meta, metaAdvanced, onClick }:
         <div className="font-sans text-[13px] font-semibold leading-[1.3] text-ink-1 flex-1">
           {market}
         </div>
-        <div className={`font-mono text-[13px] font-bold whitespace-nowrap ${PNL_TONE[pnl.tone]}`}>
-          {pnl.value}
+        <div className={`font-mono text-[13px] font-bold whitespace-nowrap ${PNL_TONE[positionValue.tone]}`}>
+          {positionValue.value}
         </div>
       </div>
       <div className="flex gap-3 items-center font-mono text-[10px] text-ink-3 tracking-[0.5px]">

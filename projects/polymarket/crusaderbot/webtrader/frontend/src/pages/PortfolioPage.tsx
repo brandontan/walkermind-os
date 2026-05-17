@@ -97,14 +97,14 @@ function PositionRow({ p }: { p: PositionItem }) {
   const diff = curVal - p.size_usdc;
   const tone: "zero" | "up" | "dn" =
     Math.abs(diff) < 0.005 ? "zero" : diff > 0 ? "up" : "dn";
-  const pnl = { value: `$${curVal.toFixed(2)}`, tone };
+  const positionValue = { value: `$${curVal.toFixed(2)}`, tone };
   const side =
     p.status === "expired" ? "exp" : p.side === "no" ? "no" : "yes";
 
   return (
     <PositionCard
       market={p.market_question ?? `${p.market_id.slice(0, 18)}…`}
-      pnl={pnl}
+      positionValue={positionValue}
       side={side}
       meta={[
         <>${p.size_usdc.toFixed(2)}</>,
