@@ -57,6 +57,27 @@ def check_market_impact(
     return SlippageResult(accepted=True, reason="ok", impact_pct=impact)
 
 
+def compute_aggressive_limit_price(
+    side: str,
+    *,
+    best_ask: float,
+    best_bid: float,
+    offset_ticks: int = 1,
+    tick_size: float = 0.01,
+) -> float:
+    """Compute an aggressive limit price that crosses the spread by offset_ticks.
+
+    Buys (YES): best_ask + offset_ticks * tick_size — willing to pay above ask.
+    Sells (NO): best_bid - offset_ticks * tick_size — willing to accept below bid.
+    Clamped to [0.01, 0.99] to stay within binary market price bounds.
+    """
+    if side.lower() in {"yes", "buy"}:
+        raw = best_ask + offset_ticks * tick_size
+    else:
+        raw = best_bid - offset_ticks * tick_size
+    return max(0.01, min(0.99, round(raw, 4)))
+
+
 def check_price_deviation(
     proposed_price: float,
     reference_price: float,

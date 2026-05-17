@@ -13,6 +13,8 @@ type Props = {
   metaAdvanced?: ReactNode[];
   /** Override the left border color with a P&L tone instead of side color. */
   borderTone?: "up" | "dn" | "zero";
+  /** Optional footer rendered below the meta row (e.g. Cash Out button). */
+  footer?: ReactNode;
   onClick?: () => void;
 };
 
@@ -52,7 +54,7 @@ const PNL_TONE = {
   dn:   "text-red",
 } as const;
 
-export function PositionCard({ market, positionValue, side, meta, metaAdvanced, borderTone, onClick }: Props) {
+export function PositionCard({ market, positionValue, side, meta, metaAdvanced, borderTone, footer, onClick }: Props) {
   const stripeColor = borderTone ? STRIPE_TONE[borderTone] : STRIPE[side];
   return (
     <div
@@ -109,6 +111,7 @@ export function PositionCard({ market, positionValue, side, meta, metaAdvanced, 
           )}
         </div>
       </div>
+      {footer && <div className="mt-1 px-0">{footer}</div>}
     </div>
   );
 }

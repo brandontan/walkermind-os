@@ -63,13 +63,22 @@ class PositionItem(BaseModel):
 class OrderItem(BaseModel):
     id: str
     market_id: str
+    market_question: Optional[str] = None
     side: str
     size_usdc: float
     price: float
     status: str
     mode: str
     strategy_type: Optional[str] = None
+    filled_amount: float = 0.0
+    remaining_amount: Optional[float] = None
     created_at: datetime
+
+
+class ClosePositionResponse(BaseModel):
+    order_id: Optional[str] = None
+    estimated_fill: float
+    status: str
 
 
 # ── Auto-Trade ────────────────────────────────────────────────────────────────
@@ -136,6 +145,8 @@ class UserSettingsUpdate(BaseModel):
 class TradingSettingsUpdate(BaseModel):
     auto_redeem: Optional[bool] = None
     redeem_mode: Optional[str] = None
+    min_liquidity_usd: Optional[float] = None
+    slippage_tolerance_pct: Optional[float] = None
 
 
 class MarketFilterUpdate(BaseModel):

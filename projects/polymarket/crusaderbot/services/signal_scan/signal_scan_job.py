@@ -113,7 +113,8 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 s.daily_loss_override,
                 us.weight                AS capital_allocation_pct,
                 COALESCE(urp.profile_name, s.risk_profile, 'balanced') AS resolved_profile,
-                s.active_preset
+                s.active_preset,
+                COALESCE(s.min_liquidity, 0)         AS min_liquidity_threshold
             FROM user_strategies us
             JOIN users          u   ON u.id  = us.user_id
             JOIN wallets        w   ON w.user_id = u.id
@@ -499,6 +500,20 @@ async def _process_candidate(
     if market is None:
         log.info("scan_outcome", outcome="skipped_market_not_synced")
         return
+
+    # 2b. Liquidity filter — skip markets below the user's configured threshold.
+    min_liquidity = float(row.get("min_liquidity_threshold") or 0.0)
+    if min_liquidity > 0:
+        market_liquidity = float(market.get("liquidity_usdc") or 0.0)
+        if market_liquidity < min_liquidity:
+            log.info(
+                "scan_outcome",
+                outcome="skipped_liquidity",
+                market_liquidity=market_liquidity,
+                threshold=min_liquidity,
+                message=f"Skipped: liquidity ${market_liquidity:.0f} below threshold ${min_liquidity:.0f}",
+            )
+            return
 
     # 3. Build TradeSignal — typed contract for TradeEngine (gate + paper fill).
     idem_key = _build_idempotency_key(user_id, cand.market_id, side, pub_uuid)
