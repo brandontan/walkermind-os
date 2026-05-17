@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { HeroCard } from "../components/HeroCard";
 import { TopBar } from "../components/TopBar";
 import { makeApi, type AutoTradeState, type MarketFilterSettings, type RiskProfileParams } from "../lib/api";
@@ -234,6 +235,12 @@ export function AutoTradePage() {
     <>
       <TopBar />
       <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
+
+        {/* Desktop page header — hidden on mobile */}
+        <DesktopPageHeader
+          title={<>AUTO <span className="text-gold">TRADE</span></>}
+          subtitle="SELECT STRATEGY · RISK PROFILE · MARKET FILTER"
+        />
 
         {/* Hero */}
         <HeroCard

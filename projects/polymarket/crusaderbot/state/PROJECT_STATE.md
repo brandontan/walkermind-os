@@ -1,5 +1,5 @@
-Last Updated : 2026-05-18 02:30
-Status       : UI-RESPONSIVE-POLISH MERGED PR #1115. 6-page responsive layout + market filter + auto redeem + copy trade UX + migration 036 applied to Supabase. portfolio-ui-polish + TG-KB-CLEANUP + SCANNER-SYNC-FIX + PRICE-FETCH-FIX + crusaderbot-webtrader-ws + SSE-AUTH-FIX + webtrader-build-fix awaiting WARP🔹CMD review. Production PAPER ONLY.
+Last Updated : 2026-05-17 10:00
+Status       : UI-RESPONSIVE-POLISH MERGED PR #1115. Desktop responsive layout V2 (sidebar + topnav + page headers + 2-col home grid) built on claude/crusaderbot-responsive-layout-ZyDip — awaiting WARP🔹CMD review. Production PAPER ONLY.
 
 [COMPLETED]
 - WARP/CRUSADERBOT-UI-RESPONSIVE-POLISH MERGED PR #1115 (2026-05-18 02:30): 6-page responsive layout (md: breakpoint), market filter UI (9 categories + 3 dropdowns), auto redeem setting (toggle + mode), copy trade UX (empty state + helper text + stats); migration 036 (min_liquidity, max_resolution_days, min_volume_24h, auto_redeem) applied to Supabase. STANDARD, NARROW INTEGRATION.
@@ -26,6 +26,7 @@ Status       : UI-RESPONSIVE-POLISH MERGED PR #1115. 6-page responsive layout + 
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- claude/crusaderbot-responsive-layout-ZyDip PR open — WebTrader desktop responsive layout V2: DesktopSidebar (220px fixed, nav+system+status card), TopBar center topnav pills, BottomNav md:hidden, 2-col home grid (Hero+Stats LEFT / Scanner+Activity RIGHT), desktop page headers on all 5 pages. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-REALTIME-PNL-UI PR #1111 open — Home Recent Activity real-time + color coded; price null guard ($0.00→"—"); SSE position_updated; Portfolio borderTone. Awaiting WARP🔹CMD review.
 - portfolio-ui-polish PR open — WebTrader Portfolio tab: equity header, P&L chart (period selector), exit_reason badges, enhanced position rows, /portfolio/summary + /portfolio/chart endpoints. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-TG-KB-CLEANUP PR open — inline KB ghost fix: show_portfolio and _render_hub edit message in-place on callback; eliminates stale p5_dashboard_kb floating above Portfolio/Settings screens. Awaiting WARP🔹CMD review.
@@ -52,6 +53,7 @@ Status       : UI-RESPONSIVE-POLISH MERGED PR #1115. 6-page responsive layout + 
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for crusaderbot-ui-responsive-v2 (WebTrader desktop responsive layout V2). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ui-responsive-v2.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-REALTIME-PNL-UI (realtime P&L UI). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-realtime-pnl-ui.md. Tier: STANDARD.
 - WARP🔹CMD decision needed: extend positions + ledger cleanup to qwneer8 + Maver1ch69 (identical bad trades from price bug #1105, not yet cleaned).
 - WARP🔹CMD review required for portfolio-ui-polish (Portfolio tab upgrade). Source: projects/polymarket/crusaderbot/reports/forge/portfolio-ui-polish.md. Tier: STANDARD.
