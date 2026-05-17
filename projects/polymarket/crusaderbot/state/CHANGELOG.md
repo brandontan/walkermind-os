@@ -1,3 +1,4 @@
+2026-05-17 18:30 | WARP/CRUSADERBOT-PRICE-FETCH-FIX | get_live_market_price 422 fix: Gamma ?conditionId= query param + CLOB /price primary source + Gamma outcomePrices fallback; STANDARD, NARROW INTEGRATION
 2026-05-17 18:00 | WARP/CRUSADERBOT-SSE-AUTH-FIX | SSE auth query-param confirmed wired; useSSE returns { connected }; SSEStatusContext + TopBar green/red dot; MINOR, NARROW INTEGRATION
 2026-05-17 17:30 | WARP/CRUSADERBOT-WEBTRADER-WS | SSE real-time push: polling removed from DashboardPage + PortfolioPage; event_bus bridge wired to SSE broadcaster (position.opened/closed/scanner.tick); four new SSE event types; scanner.tick emit added to market_signal_scanner; STANDARD, NARROW INTEGRATION
 2026-05-17 14:30 | WARP/crusaderbot-state-truth-sync | State truth sync: reconcile PROJECT_STATE.md + ROADMAP.md + WORKTODO.md against GitHub PR reality (0 open PRs); all Fast Track PRs #1090–#1098 confirmed merged; stale IN PROGRESS cleared; STANDARD, FOUNDATION

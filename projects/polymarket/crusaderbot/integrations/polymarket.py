@@ -109,36 +109,74 @@ async def get_market_by_slug(slug: str) -> Optional[dict]:
 
 
 async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
-    """Fetch live mid-price for one side of a binary market from Gamma API.
+    """Fetch live mid-price for one side of a binary market.
 
-    Cache key is ``lp:{market_id}`` (not per-side) so two positions on the
-    same market in a single exit_watcher batch share one HTTP round-trip.
-    ``outcomePrices[0]`` = YES price, ``outcomePrices[1]`` = NO price.
+    Resolves market via ``GET /markets?conditionId={market_id}`` (query param,
+    not path segment — path segment causes 422 for hex conditionIds).
+    Primary price source: CLOB ``GET /price?token_id=...&side=buy`` (live order
+    book). Fallback: Gamma ``outcomePrices[0]`` (YES) / ``[1]`` (NO).
 
-    Returns None on any error — callers must fall back to ``entry_price``.
-    TTL is 30 s to align with the exit_watcher 30 s tick interval.
+    Cache key ``lp:{market_id}`` is shared across sides — one HTTP round-trip
+    per market per 30 s tick, regardless of how many positions share the market.
+    Returns None on any error — callers fall back to ``entry_price``.
     """
     cache_key = f"lp:{market_id}"
     if hit := await get_cache(cache_key):
-        outcomes = hit.get("outcomePrices") or hit.get("outcome_prices") or []
+        market_data: dict = hit
     else:
         try:
-            data = await _get_json(f"{GAMMA}/markets/{market_id}", timeout=5.0)
+            # /markets?conditionId= is the correct form for hex conditionIds.
+            # /markets/{id} as a path segment returns 422 Unprocessable Entity.
+            data = await _get_json(
+                f"{GAMMA}/markets",
+                params={"conditionId": market_id},
+                timeout=5.0,
+            )
         except Exception as exc:
             logger.warning(
                 "get_live_market_price fetch failed market=%s: %s", market_id, exc
             )
             return None
-        if not isinstance(data, dict):
+        markets: list = data if isinstance(data, list) else data.get("data", [])
+        if not markets or not isinstance(markets[0], dict):
             logger.warning(
-                "get_live_market_price unexpected response type market=%s", market_id
+                "get_live_market_price no market found conditionId=%s", market_id
             )
             return None
-        await set_cache(cache_key, data, ttl=30)
-        outcomes = data.get("outcomePrices") or data.get("outcome_prices") or []
+        market_data = markets[0]
+        await set_cache(cache_key, market_data, ttl=30)
 
-    # Gamma API returns outcomePrices as a JSON-encoded string
-    # (e.g. '["0.565", "0.435"]') rather than a parsed list.
+    # Primary: CLOB /price — live order-book mid-price is more accurate than
+    # Gamma outcomePrices for TP/SL evaluation.
+    # tokens[0]=YES, tokens[1]=NO per Polymarket convention.
+    token_idx = 0 if side == "yes" else 1
+    tokens: list = market_data.get("tokens") or []
+    token_id: Optional[str] = None
+    if len(tokens) > token_idx and isinstance(tokens[token_idx], dict):
+        token_id = tokens[token_idx].get("token_id")
+
+    if token_id:
+        try:
+            clob_resp = await _get_json(
+                f"{CLOB}/price",
+                params={"token_id": token_id, "side": "buy"},
+                timeout=5.0,
+            )
+            if isinstance(clob_resp, dict):
+                raw_clob = clob_resp.get("price")
+                if raw_clob is not None:
+                    clob_price = float(raw_clob)
+                    if 0.0 <= clob_price <= 1.0:
+                        return clob_price
+        except Exception as exc:
+            logger.warning(
+                "get_live_market_price CLOB price failed market=%s side=%s: %s",
+                market_id, side, exc,
+            )
+
+    # Fallback: Gamma outcomePrices[0]=YES [1]=NO.
+    # Gamma returns outcomePrices as a JSON-encoded string e.g. '["0.565","0.435"]'.
+    outcomes = market_data.get("outcomePrices") or market_data.get("outcome_prices") or []
     if isinstance(outcomes, str):
         try:
             outcomes = json.loads(outcomes)

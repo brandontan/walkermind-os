@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 18:00
-Status       : WARP/CRUSADERBOT-SSE-AUTH-FIX open — SSE query-param auth confirmed wired; TopBar SSE status dot added (green/red). PR pending WARP🔹CMD review. Production PAPER ONLY.
+Last Updated : 2026-05-17 18:30
+Status       : WARP/CRUSADERBOT-PRICE-FETCH-FIX open — get_live_market_price 422 fix: Gamma ?conditionId= query param + CLOB /price primary source. PR pending WARP🔹CMD review. Production PAPER ONLY.
 
 [COMPLETED]
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
@@ -22,6 +22,7 @@ Status       : WARP/CRUSADERBOT-SSE-AUTH-FIX open — SSE query-param auth confi
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- WARP/CRUSADERBOT-PRICE-FETCH-FIX PR open — get_live_market_price 422 fix: GET /markets?conditionId= query param (not path segment); CLOB /price primary; Gamma outcomePrices fallback. Awaiting WARP🔹CMD review.
 - crusaderbot-webtrader-ws PR open — SSE push implemented: polling removed from DashboardPage + PortfolioPage, event_bus bridge (position.opened/closed/scanner.tick) wired to SSE broadcaster, four new SSE event types added. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-SSE-AUTH-FIX PR open — SSE query-param auth confirmed wired; useSSE returns { connected }; SSEStatusContext propagates to TopBar dot. Awaiting WARP🔹CMD review.
 - webtrader-build-fix PR open — build pipeline verified intact (Dockerfile Stage 1 npm run build confirmed); BottomNav label "Folio"→"Portfolio" fixed. Awaiting WARP🔹CMD review + Fly.io redeploy.
@@ -43,6 +44,7 @@ Status       : WARP/CRUSADERBOT-SSE-AUTH-FIX open — SSE query-param auth confi
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for WARP/CRUSADERBOT-PRICE-FETCH-FIX (get_live_market_price 422 fix). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-price-fetch-fix.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-SSE-AUTH-FIX (SSE status dot + auth confirmed). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-sse-auth-fix.md. Tier: MINOR.
 - WARP🔹CMD review required for crusaderbot-webtrader-ws (SSE push + polling removal). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-webtrader-ws.md. Tier: STANDARD.
 - WARP🔹CMD review required for webtrader-build-fix (pipeline verified + BottomNav label fix). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-build-fix.md. Tier: MINOR.
