@@ -60,8 +60,10 @@ export function TopBar({ notifCount = 0, onBellClick }: Props) {
       {/* Right cluster */}
       <div className="flex items-center gap-1.5">
         <span
-          className={`w-2 h-2 rounded-full flex-shrink-0 ${sseConnected ? "bg-green-400" : "bg-red-500"}`}
-          style={{ boxShadow: sseConnected ? "0 0 6px #4ade80" : "0 0 6px #ef4444" }}
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={sseConnected
+            ? { background: "var(--grn,#00FF9C)", boxShadow: "0 0 6px var(--grn,#00FF9C)" }
+            : { background: "var(--red,#FF4444)", boxShadow: "0 0 6px var(--red,#FF4444)" }}
           title={sseConnected ? "Live stream connected" : "Reconnecting…"}
           aria-label={sseConnected ? "Stream connected" : "Stream reconnecting"}
         />
