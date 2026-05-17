@@ -387,4 +387,7 @@ async def web_kill(user: _CurrentUser):
 
 @router.get("/stream")
 async def sse_stream(user: _CurrentUser):
-    return EventSourceResponse(webtrader_sse.stream_for_user(user["user_id"]))
+    telegram_id: int | None = user.get("telegram_id")
+    return EventSourceResponse(
+        webtrader_sse.stream_for_user(user["user_id"], telegram_id)
+    )

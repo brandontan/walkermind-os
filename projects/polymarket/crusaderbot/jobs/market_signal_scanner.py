@@ -455,6 +455,17 @@ async def run_job() -> tuple[int, int]:
     _scanner_state["scanned"] = total_scanned
     _scanner_state["published"] = total_published
     _scanner_state["last_tick_ts"] = time.time()
+
+    try:
+        from ..core import event_bus as _event_bus
+        await _event_bus.emit(
+            "scanner.tick",
+            markets=total_scanned,
+            signals=total_published,
+        )
+    except Exception as exc:
+        log.warning("scanner_tick_emit_failed", error=str(exc))
+
     return total_scanned, total_published
 
 
