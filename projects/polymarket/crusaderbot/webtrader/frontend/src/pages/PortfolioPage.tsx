@@ -124,7 +124,9 @@ export function PortfolioPage() {
               text="When auto-trade opens a position, it will appear here in real-time."
             />
           ) : (
-            open.map((p) => <PositionRow key={p.id} p={p} />)
+            <div className="md:grid md:grid-cols-2 md:gap-3">
+              {open.map((p) => <PositionRow key={p.id} p={p} />)}
+            </div>
           ))}
 
         {tab === "closed" &&
@@ -135,7 +137,9 @@ export function PortfolioPage() {
               text="Closed trades, expiries, and force-exits land here."
             />
           ) : (
-            closed.map((p) => <PositionRow key={p.id} p={p} />)
+            <div className="md:grid md:grid-cols-2 md:gap-3">
+              {closed.map((p) => <PositionRow key={p.id} p={p} />)}
+            </div>
           ))}
 
         {tab === "all" &&
@@ -146,7 +150,9 @@ export function PortfolioPage() {
               text="Your trades will appear here once auto-trade opens a position."
             />
           ) : (
-            allPositions.map((p) => <PositionRow key={p.id} p={p} />)
+            <div className="md:grid md:grid-cols-2 md:gap-3">
+              {allPositions.map((p) => <PositionRow key={p.id} p={p} />)}
+            </div>
           ))}
 
         {tab === "orders" && (

@@ -81,6 +81,10 @@ class AutoTradeState(BaseModel):
     capital_alloc_pct: float
     tp_pct: float
     sl_pct: float
+    market_categories: list[str] = []
+    min_liquidity: float = 1000.0
+    max_resolution_days: Optional[int] = None
+    min_volume_24h: float = 100.0
 
 
 class AutoTradeToggleRequest(BaseModel):
@@ -127,6 +131,18 @@ class WalletInfo(BaseModel):
 class UserSettingsUpdate(BaseModel):
     risk_profile: Optional[str] = None
     notifications_on: Optional[bool] = None
+
+
+class TradingSettingsUpdate(BaseModel):
+    auto_redeem: Optional[bool] = None
+    redeem_mode: Optional[str] = None
+
+
+class MarketFilterUpdate(BaseModel):
+    market_categories: Optional[list[str]] = None
+    min_liquidity: Optional[float] = None
+    max_resolution_days: Optional[int] = None
+    min_volume_24h: Optional[float] = None
 
 
 # ── Alerts ───────────────────────────────────────────────────────────────────

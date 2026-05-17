@@ -56,6 +56,10 @@ export function makeApi(token: string | null) {
       request<void>(`/copy-trade/tasks/${id}`, token, { method: "DELETE" }),
     getCopyTaskStats: (id: string) =>
       get<Record<string, unknown>>(`/copy-trade/tasks/${id}/stats`),
+    updateTradingSettings: (data: TradingSettings) =>
+      patch<{ updated: boolean }>("/config/trading", data),
+    updateMarketFilters: (data: MarketFilterSettings) =>
+      patch<{ updated: boolean }>("/autotrade/market-filters", data),
   };
 }
 
@@ -112,6 +116,10 @@ export interface AutoTradeState {
   capital_alloc_pct: number;
   tp_pct: number;
   sl_pct: number;
+  market_categories: string[];
+  min_liquidity: number;
+  max_resolution_days: number | null;
+  min_volume_24h: number;
 }
 
 export interface CustomizeParams {
@@ -146,6 +154,20 @@ export interface LedgerEntry {
 export interface UserSettings {
   risk_profile: string;
   notifications_on: boolean;
+  auto_redeem?: boolean;
+  redeem_mode?: "instant" | "hourly";
+}
+
+export interface TradingSettings {
+  auto_redeem: boolean;
+  redeem_mode: "instant" | "hourly";
+}
+
+export interface MarketFilterSettings {
+  market_categories: string[];
+  min_liquidity: number;
+  max_resolution_days: number | null;
+  min_volume_24h: number;
 }
 
 export interface AlertItem {

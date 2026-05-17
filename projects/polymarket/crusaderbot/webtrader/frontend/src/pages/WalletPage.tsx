@@ -50,42 +50,47 @@ export function WalletPage() {
     <>
       <TopBar />
       <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
-        <WalletCard
-          label="Paper Balance"
-          balance={balanceStr}
-          mode="Paper Mode · No real funds at risk"
-        />
+        <div className="md:grid md:grid-cols-2 md:gap-4">
+          <div>
+            <WalletCard
+              label="Paper Balance"
+              balance={balanceStr}
+              mode="Paper Mode · No real funds at risk"
+            />
+            <AddressCard
+              label="Deposit Address · Polygon USDC"
+              address={info.deposit_address}
+            />
+          </div>
 
-        <AddressCard
-          label="Deposit Address · Polygon USDC"
-          address={info.deposit_address}
-        />
+          <div>
+            <div className="flex items-center justify-between mt-3.5 mb-2 mx-0.5 md:mt-0">
+              <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
+                <span className="w-3 h-px bg-gold" aria-hidden />
+                Recent Activity
+              </div>
+            </div>
 
-        <div className="flex items-center justify-between mt-3.5 mb-2 mx-0.5">
-          <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
-            <span className="w-3 h-px bg-gold" aria-hidden />
-            Recent Activity
+            {info.ledger_recent.length === 0 ? (
+              <EmptyState
+                icon="📥"
+                title="No Activity Yet"
+                text="Credits and debits will appear here once trading starts."
+              />
+            ) : (
+              <>
+                {essentialLedger.map((entry, i) => (
+                  <LedgerCard key={i} entry={entry} />
+                ))}
+                <AdvancedOnly>
+                  {advancedLedger.map((entry, i) => (
+                    <LedgerCard key={`adv-${i}`} entry={entry} />
+                  ))}
+                </AdvancedOnly>
+              </>
+            )}
           </div>
         </div>
-
-        {info.ledger_recent.length === 0 ? (
-          <EmptyState
-            icon="📥"
-            title="No Activity Yet"
-            text="Credits and debits will appear here once trading starts."
-          />
-        ) : (
-          <>
-            {essentialLedger.map((entry, i) => (
-              <LedgerCard key={i} entry={entry} />
-            ))}
-            <AdvancedOnly>
-              {advancedLedger.map((entry, i) => (
-                <LedgerCard key={`adv-${i}`} entry={entry} />
-              ))}
-            </AdvancedOnly>
-          </>
-        )}
       </div>
     </>
   );

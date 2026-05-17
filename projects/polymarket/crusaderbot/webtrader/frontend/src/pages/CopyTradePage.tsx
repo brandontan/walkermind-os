@@ -21,10 +21,17 @@ function truncateWallet(addr: string): string {
   return `${addr.slice(0, 8)}…${addr.slice(-4)}`;
 }
 
+function FieldHelper({ text }: { text: string }) {
+  return (
+    <p className="text-[9px] text-ink-4 font-mono mt-0.5 leading-snug">{text}</p>
+  );
+}
+
 export function CopyTradePage() {
   const { user } = useAuth();
   const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
   const [tasks, setTasks] = useState<CopyTask[]>([]);
+  const [taskStats, setTaskStats] = useState<Record<string, { pnl_30d?: number; win_rate?: number; total_predictions?: number }>>({});
   const [loading, setLoading] = useState(false);
 
   // Add form state
@@ -43,6 +50,19 @@ export function CopyTradePage() {
   const load = useCallback(async () => {
     const data = await api.listCopyTasks();
     setTasks(data);
+    // Fetch stats for each task (best-effort)
+    const statsMap: typeof taskStats = {};
+    await Promise.allSettled(
+      data.map(async (t: CopyTask) => {
+        try {
+          const s = await api.getCopyTaskStats(t.id) as { pnl_30d?: number; win_rate?: number; total_predictions?: number };
+          statsMap[t.id] = s;
+        } catch {
+          // non-critical
+        }
+      })
+    );
+    setTaskStats(statsMap);
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
@@ -105,86 +125,132 @@ export function CopyTradePage() {
       <TopBar />
       <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mt-1 mb-3 mx-0.5">
-          <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
+        {/* Page header */}
+        <div className="mb-3 mx-0.5">
+          <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2 mb-1.5">
             <span className="w-3 h-px bg-gold" aria-hidden />
             Copy Trade
           </div>
-          <button
-            onClick={() => setShowForm(v => !v)}
-            className="font-hud text-[9px] font-bold tracking-widest text-gold uppercase px-2 py-1 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
-          >
-            {showForm ? "← Cancel" : "+ Add Target"}
-          </button>
+          <p className="text-ink-3 text-xs font-mono leading-relaxed">
+            Copy Trade automatically mirrors the trades of top-performing Polymarket traders.
+            Add a target wallet, configure your settings, and the bot handles the rest.
+          </p>
         </div>
 
         {/* Active Targets */}
-        {tasks.length === 0 && !showForm && (
-          <p className="text-ink-3 text-xs font-mono text-center py-8">
-            No copy targets yet. Add a wallet to start mirroring trades.
-          </p>
-        )}
-
-        <div className="space-y-2">
-          {tasks.map((t) => (
-            <div
-              key={t.id}
-              className="p-3 rounded-lg border border-surface-3 bg-surface-1"
+        {tasks.length === 0 && !showForm ? (
+          <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+            <div className="text-2xl mb-2">🐋</div>
+            <p className="font-hud text-sm font-bold text-ink-2 mb-1">No copy targets yet.</p>
+            <p className="text-ink-3 text-xs font-mono leading-relaxed">
+              Add a Polymarket wallet address below<br />to start mirroring their trades.
+            </p>
+            <button
+              onClick={() => setShowForm(true)}
+              className="mt-3 font-hud text-[9px] font-bold tracking-widest text-gold uppercase px-3 py-1.5 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="font-hud text-sm font-bold text-ink-1 flex items-center gap-2">
-                    🐋 {t.nickname}
-                    <span className={`text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded border ${
-                      t.status === "active"
-                        ? "text-grn border-grn/40 bg-grn/10"
-                        : "text-ink-3 border-ink-4/40 bg-surface-2"
-                    }`}>
-                      {t.status.toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-ink-4 font-mono mt-0.5">
-                    {truncateWallet(t.wallet_address)}
-                  </div>
-                  <div className="text-[10px] text-ink-3 mt-1 flex gap-2 flex-wrap">
-                    <span>{t.copy_direction === "buys_only" ? "📈 Buys only" : "🔄 Buys & Sells"}</span>
-                    <span className="text-ink-4">·</span>
-                    <span>{t.execution_mode === "auto" ? "⚡ Auto" : "✋ Manual"}</span>
-                    <span className="text-ink-4">·</span>
-                    <span>{t.allow_topups ? "➕ Top-ups" : "🚫 No top-ups"}</span>
-                  </div>
-                </div>
-                <div className="shrink-0 flex flex-col gap-1">
-                  <button
-                    disabled={loading}
-                    onClick={() => void handleToggle(t.id, t.status)}
-                    className="text-[9px] font-bold text-ink-2 px-2 py-0.5 rounded border border-surface-3 hover:border-ink-3 disabled:opacity-40"
+              + Add Target
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2 mb-3">
+              {tasks.map((t) => {
+                const stats = taskStats[t.id];
+                return (
+                  <div
+                    key={t.id}
+                    className="p-3 rounded-lg border border-surface-3 bg-surface-1"
                   >
-                    {t.status === "active" ? "⏸ Pause" : "▶ Resume"}
-                  </button>
-                  <button
-                    disabled={loading}
-                    onClick={() => void handleDelete(t.id)}
-                    className="text-[9px] font-bold text-red-400 px-2 py-0.5 rounded border border-red-900/40 hover:border-red-400/60 disabled:opacity-40"
-                  >
-                    🗑 Delete
-                  </button>
-                </div>
-              </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-hud text-sm font-bold text-ink-1 flex items-center gap-2 flex-wrap">
+                          🐋 {t.nickname}
+                          <span className={`text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded border ${
+                            t.status === "active"
+                              ? "text-grn border-grn/40 bg-grn/10"
+                              : "text-ink-3 border-ink-4/40 bg-surface-2"
+                          }`}>
+                            {t.status.toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-ink-4 font-mono mt-0.5">
+                          {truncateWallet(t.wallet_address)}
+                        </div>
+                        <div className="text-[10px] text-ink-3 mt-1 flex gap-2 flex-wrap">
+                          <span>{t.copy_direction === "buys_only" ? "📈 Buys only" : "🔄 Buys & Sells"}</span>
+                          <span className="text-ink-4">·</span>
+                          <span>{t.execution_mode === "auto" ? "⚡ Auto" : "✋ Manual"}</span>
+                          <span className="text-ink-4">·</span>
+                          <span>{t.allow_topups ? "➕ Top-ups" : "🚫 No top-ups"}</span>
+                        </div>
+                        {stats && (
+                          <div className="mt-1.5 flex gap-3 text-[9px] font-mono">
+                            <span className="text-ink-3">
+                              Trades: <span className="text-ink-1 font-bold">{stats.total_predictions ?? "—"}</span>
+                            </span>
+                            <span className="text-ink-3">
+                              Est. PnL:{" "}
+                              <span className={
+                                stats.pnl_30d == null ? "text-ink-1 font-bold" :
+                                stats.pnl_30d >= 0 ? "text-grn font-bold" : "text-red font-bold"
+                              }>
+                                {stats.pnl_30d == null ? "—" : `${stats.pnl_30d >= 0 ? "+" : ""}$${stats.pnl_30d.toFixed(2)}`}
+                              </span>
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="shrink-0 flex flex-col gap-1">
+                        <button
+                          disabled={loading}
+                          onClick={() => void handleToggle(t.id, t.status)}
+                          className="text-[9px] font-bold text-ink-2 px-2 py-0.5 rounded border border-surface-3 hover:border-ink-3 disabled:opacity-40"
+                        >
+                          {t.status === "active" ? "⏸ Pause" : "▶ Resume"}
+                        </button>
+                        <button
+                          disabled={loading}
+                          onClick={() => void handleDelete(t.id)}
+                          className="text-[9px] font-bold text-red-400 px-2 py-0.5 rounded border border-red-900/40 hover:border-red-400/60 disabled:opacity-40"
+                        >
+                          🗑 Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
-        </div>
+
+            {!showForm && (
+              <button
+                onClick={() => setShowForm(true)}
+                className="w-full py-2 rounded border border-gold/30 bg-gold/5 text-gold text-xs font-bold hover:bg-gold/10 font-hud tracking-widest uppercase"
+              >
+                + Add Target
+              </button>
+            )}
+          </>
+        )}
 
         {/* Add Form */}
         {showForm && (
           <div className="mt-4 p-3 rounded-lg border border-surface-3 bg-surface-1 space-y-3">
-            <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
-              <span className="w-3 h-px bg-gold" aria-hidden />
-              Add Copy Target
+            <div className="flex items-center justify-between">
+              <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
+                <span className="w-3 h-px bg-gold" aria-hidden />
+                Add Copy Target
+              </div>
+              <button
+                onClick={() => setShowForm(false)}
+                className="text-[9px] font-bold text-ink-3 hover:text-ink-1"
+              >
+                ← Cancel
+              </button>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
               <div>
                 <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Wallet Address *</label>
                 <input
@@ -194,6 +260,7 @@ export function CopyTradePage() {
                   onChange={e => setWallet(e.target.value)}
                   className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
                 />
+                <FieldHelper text="Find trader's address on their Polymarket profile → Copy Address" />
               </div>
 
               <div>
@@ -207,82 +274,93 @@ export function CopyTradePage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Copy Direction</label>
-                  <select
-                    value={direction}
-                    onChange={e => setDirection(e.target.value as typeof direction)}
-                    className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
-                  >
-                    <option value="buys_only">Buys Only</option>
-                    <option value="buys_and_sells">Buys & Sells</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Copy Type</label>
-                  <select
-                    value={copyType}
-                    onChange={e => setCopyType(e.target.value as typeof copyType)}
-                    className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
-                  >
-                    <option value="fixed">Fixed $</option>
-                    <option value="percentage">Percentage %</option>
-                    <option value="rm">RM Mirror</option>
-                  </select>
-                </div>
+              <div>
+                <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Copy Direction</label>
+                <select
+                  value={direction}
+                  onChange={e => setDirection(e.target.value as typeof direction)}
+                  className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                >
+                  <option value="buys_only">Buys Only</option>
+                  <option value="buys_and_sells">Buys & Sells</option>
+                </select>
+                <FieldHelper text={
+                  direction === "buys_only"
+                    ? "Copy entries, get notified on exits."
+                    : "Fully automated mirror — copies both entries and exits."
+                } />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[9px] text-ink-4 uppercase block mb-0.5">
-                    {copyType === "fixed" ? "Amount ($)" : "Amount (%)"}
-                  </label>
-                  <input
-                    type="number"
-                    min={0.01}
-                    step={0.01}
-                    value={amount}
-                    onChange={e => setAmount(e.target.value)}
-                    className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Slippage</label>
-                  <select
-                    value={slippage}
-                    onChange={e => setSlippage(e.target.value as typeof slippage)}
-                    className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
-                  >
-                    <option value="5">5%</option>
-                    <option value="10">10%</option>
-                  </select>
-                </div>
+              <div>
+                <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Copy Type</label>
+                <select
+                  value={copyType}
+                  onChange={e => setCopyType(e.target.value as typeof copyType)}
+                  className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                >
+                  <option value="fixed">Fixed $</option>
+                  <option value="percentage">Percentage %</option>
+                  <option value="rm">RM Mirror</option>
+                </select>
+                <FieldHelper text={
+                  copyType === "fixed"
+                    ? "Same dollar amount per trade."
+                    : copyType === "percentage"
+                    ? "% of your balance (grows with profits)."
+                    : "Mirror exact position size scaled by your balance ratio."
+                } />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Execution</label>
-                  <select
-                    value={execMode}
-                    onChange={e => setExecMode(e.target.value as typeof execMode)}
-                    className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
-                  >
-                    <option value="auto">Auto (Instant)</option>
-                    <option value="manual">Manual (Confirm)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Allow Top-ups</label>
-                  <select
-                    value={allowTopups ? "yes" : "no"}
-                    onChange={e => setAllowTopups(e.target.value === "yes")}
-                    className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
-                  >
-                    <option value="yes">Yes</option>
-                    <option value="no">No</option>
-                  </select>
-                </div>
+              <div>
+                <label className="text-[9px] text-ink-4 uppercase block mb-0.5">
+                  {copyType === "fixed" ? "Amount ($)" : "Amount (%)"}
+                </label>
+                <input
+                  type="number"
+                  min={0.01}
+                  step={0.01}
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Slippage</label>
+                <select
+                  value={slippage}
+                  onChange={e => setSlippage(e.target.value as typeof slippage)}
+                  className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                >
+                  <option value="5">5%</option>
+                  <option value="10">10%</option>
+                </select>
+                <FieldHelper text="Max price difference accepted when copying. Higher = better fill rate but less precise entry." />
+              </div>
+
+              <div>
+                <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Execution</label>
+                <select
+                  value={execMode}
+                  onChange={e => setExecMode(e.target.value as typeof execMode)}
+                  className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                >
+                  <option value="auto">Auto (Instant)</option>
+                  <option value="manual">Manual (Confirm)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Allow Top-ups</label>
+                <select
+                  value={allowTopups ? "yes" : "no"}
+                  onChange={e => setAllowTopups(e.target.value === "yes")}
+                  className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                >
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+                <FieldHelper text="Follow if the trader buys MORE of the same market later." />
               </div>
             </div>
 
