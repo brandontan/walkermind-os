@@ -172,7 +172,7 @@ async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refresh
     pnl_today = await daily_pnl(user["id"])
     st = await _fetch_stats(user["id"])
 
-    open_count = st.get("open_positions", 0)
+    open_count = st.get("open_positions", 0)  # populated by _fetch_stats open_count column
 
     if open_count == 0:
         footer = "No open positions. Use Auto Trade to start."
@@ -227,8 +227,8 @@ async def portfolio_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     if sub == "trades":
-        from .my_trades import my_trades
-        await my_trades(update, ctx)
+        from .trades import my_trades_cb
+        await my_trades_cb(update, ctx)
         return
 
     # portfolio:portfolio — fallback to portfolio screen itself
