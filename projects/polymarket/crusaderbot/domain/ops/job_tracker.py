@@ -7,6 +7,7 @@ reads from this table directly — no in-memory state.
 """
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -84,7 +85,8 @@ async def record_job_event(
             await conn.execute(
                 "INSERT INTO job_runs (job_name, status, started_at, "
                 "finished_at, error, metadata) VALUES ($1, $2, $3, $4, $5, $6)",
-                job_id, status, started, finished, err, metadata,
+                job_id, status, started, finished, err,
+                json.dumps(metadata) if metadata is not None else None,
             )
     except Exception as exc:
         # Don't crash the scheduler loop because the ops table is down.

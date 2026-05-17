@@ -1,3 +1,4 @@
+2026-05-18 00:15 | WARP/CRUSADERBOT-SENTRY-HOTFIX-P0 | FIX1: migration 032 rewrite (ALTER TABLE copy_trade_events); FIX2: job_tracker json.dumps(metadata); FIX3: migration 034 positions schema + share_card exit_price + dashboard created_at; STANDARD, NARROW INTEGRATION
 2026-05-17 23:59 | WARP/CRUSADERBOT-FAST-RISK-SAFETY | Track D: validate_risk_caps (10%/80%/-$50/20 caps) + unified kill switch executor (3 paths → execute_kill_switch) + migration 032 system_flags + audit_log; MAJOR, FULL RUNTIME INTEGRATION
 2026-05-17 23:55 | WARP/CRUSADERBOT-FAST-COPY-EXEC | Track B: copy_trade_events table (migration 032) + copy_trade.executed event emission in monitor.py; MAJOR, FULL RUNTIME INTEGRATION
 2026-05-17 22:30 | WARP/CRUSADERBOT-FAST-TRADE-NOTIFS-WIRE | wire-notification-handlers: register_notification_handlers() called in main.py lifespan after bot_app.start(); MINOR, NARROW INTEGRATION
