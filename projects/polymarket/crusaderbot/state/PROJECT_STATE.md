@@ -1,8 +1,8 @@
-Last Updated : 2026-05-17 07:13
-Status       : crusaderbot-mvp-runtime-v1 MERGED PR #1080 + signal-scanner-enable MERGED PR #1079 (2026-05-17). All legacy tier gates removed from paper paths. Binary admin+user role model fully live on main. Production PAPER ONLY.
+Last Updated : 2026-05-17 07:12
+Status       : crusaderbot-mvp-runtime-v1 MERGED PR #1080 (WARP/crusaderbot-mvp-runtime-v1). Tier gates removed from all paper paths. signal-scanner-enable MERGED PR #1079. Production PAPER ONLY.
 
 [COMPLETED]
-- crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary, weekly_insights, tier_gate.py (no-op passthrough), admin.py (status/snapshot/broadcast). Lock broadcast pre-fetch fix (Codex P2). MAJOR, FULL RUNTIME INTEGRATION.
+- crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.
 - signal-scanner-enable MERGED PR #1079 (2026-05-17). Migration 031 feed backfill + user enrollment; signal_scan_job access_tier filter relaxed for paper; users.py _enroll_signal_following on new user creation. STANDARD, NARROW INTEGRATION.
 - role-model-admin-user MERGED PR #1076 (2026-05-17). Two-role refactor: risk gate step-3 tier check scoped to LIVE only (paper open to every user); bot/handlers/setup.py _ensure_tier2→_ensure_user (no setup gate); middleware/tier wording collapsed to two canonical messages; admin.py two-role surface (🛠 Admin sections, settier user|admin mapped onto FREE/ADMIN — no migration); assert_live_guards DELIBERATELY UNCHANGED per CLAUDE.md. SENTINEL 97/100. MAJOR, NARROW INTEGRATION.
 - crusaderbot-finalize MERGED PR #1075 (2026-05-17). Public-ready paper beta hardening: config.py ENABLE_LIVE_TRADING default flipped True→False (paper-safe; fly.toml prod posture unchanged) + readiness_validator comment; copy_trade.py dead Phase 5F placeholder branches removed + edit_pnl implemented via repository.task_pnl_summary (positions⋈orders idempotency_key scoping); users.user_notifications_enabled + notifications_enabled_by_telegram_id (fail-open) wired into trade_notifications._send and daily_pnl_summary loop; settings.py docstring corrected; scheduler.sweep_deposits CTE COUNT fix + deposit_sweep audit; api/ops.py kill/resume client_host audit breadcrumb + documented deferral; pytest.ini testpaths polyquantbot→crusaderbot; .env.example + DEPLOY.md completed; PRODUCTION_CHECKLIST.md added. 1432 tests pass, ruff clean. SENTINEL 96/100. MAJOR, NARROW INTEGRATION.
@@ -25,7 +25,8 @@ Status       : crusaderbot-mvp-runtime-v1 MERGED PR #1080 + signal-scanner-enabl
 [IN PROGRESS]
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderPolybot live, Fly.io app running, PAPER ONLY.
-- Fly.io deploy pending — migrations 030+031 must be applied before restart.
+- Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
+- trading-unblock MERGED PR #1065. Migration 030 + Fly.io deploy pending — 5 stuck positions will close as MARKET_EXPIRED within 1 exit_watch tick after deploy.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
@@ -42,9 +43,8 @@ Status       : crusaderbot-mvp-runtime-v1 MERGED PR #1080 + signal-scanner-enabl
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- Apply migration 030 to production (job_runs metadata JSONB).
-- Apply migration 031 to production DB (signal feed backfill + user enrollment — idempotent, safe to apply immediately). Then deploy main to Fly.io — PAPER ONLY, activation guards OFF.
-- WARP🔹CMD decision: deploy to Fly.io requires manual fly CLI (not available in cloud execution env).
+- Apply migration 031 to production DB (idempotent — safe to apply immediately after #1079 merge).
+- Apply migration 030 to production. Then deploy main to Fly.io — trading-unblock fix is live on main (MERGED PR #1065).
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 
 [KNOWN ISSUES]
