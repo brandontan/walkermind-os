@@ -223,6 +223,8 @@ async def _on_position_opened_sse(
     strategy_type: str | None = None,
     **_: Any,
 ) -> None:
+    if not _user_queues:
+        return
     user_id = _telegram_to_user_id.get(telegram_user_id)
     if not user_id:
         log.debug("SSE: position.opened — telegram_user_id=%d not in reverse map, trying DB", telegram_user_id)
@@ -251,6 +253,8 @@ async def _on_position_closed_sse(
     close_reason: str = "MANUAL",
     **_: Any,
 ) -> None:
+    if not _user_queues:
+        return
     user_id = _telegram_to_user_id.get(telegram_user_id)
     if not user_id:
         log.debug("SSE: position.closed — telegram_user_id=%d not in reverse map, trying DB", telegram_user_id)
