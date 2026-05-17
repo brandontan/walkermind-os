@@ -1,3 +1,4 @@
+2026-05-17 23:30 | WARP/signal-scanner-enable | signal-scanner-enable: migration 031 feed backfill + user enrollment; signal_scan_job access_tier filter relaxed for paper; users.py _enroll_signal_following on new user creation; STANDARD, NARROW INTEGRATION
 2026-05-17 17:45 | WARP/role-model-admin-user | WARP🔹CMD CLEAR TO MERGE 97/100 — two-role model (admin + user); paper open to all; assert_live_guards intact; no live path weakened; MAJOR, NARROW INTEGRATION
 2026-05-17 00:00 | WARP/telegram-ux-v5-overhaul | V5 AUTOBOT branding: 🏛️ CRUSADER|AUTOBOT headers, dynamic pulse line, <code>-wrapped financials, 5-button fixed main menu, p5_dashboard_kb 2-col inline; STANDARD, NARROW INTEGRATION
 2026-05-16 21:13 | WARP/CRUSADERBOT-RUNTIME-AUTOTRADE-FIX | runtime-autotrade-fix: atomic $1K paper seed on upsert_user + MIN_LIQUIDITY raised to $10K + exit_watcher _market_actually_expired() gate; STANDARD, NARROW INTEGRATION

@@ -96,7 +96,7 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
               AND us.enabled        = TRUE
               AND u.auto_trade_on   = TRUE
               AND u.paused          = FALSE
-              AND u.access_tier    >= 3
+              AND (u.access_tier >= 3 OR COALESCE(s.trading_mode, 'paper') != 'live')
             """,
             _STRATEGY_NAME,
         )
