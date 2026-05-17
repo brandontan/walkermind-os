@@ -932,7 +932,6 @@ class TestScanPathTradeEngineIntegration:
 class TestSchedulerWiring:
 
     def _fake_settings(self):
-        from unittest.mock import MagicMock
         s = MagicMock()
         s.EXIT_WATCH_INTERVAL = 30
         s.MARKET_SCAN_INTERVAL = 60
@@ -950,7 +949,6 @@ class TestSchedulerWiring:
 
     def test_exit_watch_job_registered_at_30s(self):
         """exit_watch APScheduler job must be registered and run every 30s."""
-        from unittest.mock import patch, MagicMock
         from projects.polymarket.crusaderbot.scheduler import setup_scheduler
 
         mock_sched = MagicMock()
@@ -978,7 +976,6 @@ class TestSchedulerWiring:
 
     def test_exit_watch_max_instances_one(self):
         """exit_watch must have max_instances=1 to prevent concurrent sweeps."""
-        from unittest.mock import patch, MagicMock
         from projects.polymarket.crusaderbot.scheduler import setup_scheduler
 
         mock_sched = MagicMock()
@@ -999,4 +996,6 @@ class TestSchedulerWiring:
             setup_scheduler()
 
         exit_jobs = [j for j in jobs if j.get("id") == "exit_watch"]
+        assert len(exit_jobs) == 1, "exit_watch job must be registered exactly once"
         assert exit_jobs[0]["max_instances"] == 1
+        assert exit_jobs[0].get("coalesce") is True
