@@ -1,3 +1,4 @@
+2026-05-17 20:00 | WARP/CRUSADERBOT-TG-KB-CLEANUP | inline KB ghost fix: show_portfolio + _render_hub edit message in-place on callback; zero stale p5_dashboard_kb artifacts on Home navigation; STANDARD, NARROW INTEGRATION
 2026-05-17 18:30 | WARP/CRUSADERBOT-PRICE-FETCH-FIX | get_live_market_price 422 fix: Gamma ?conditionId= query param + CLOB /price primary source + Gamma outcomePrices fallback; STANDARD, NARROW INTEGRATION
 2026-05-17 18:00 | WARP/CRUSADERBOT-SSE-AUTH-FIX | SSE auth query-param confirmed wired; useSSE returns { connected }; SSEStatusContext + TopBar green/red dot; MINOR, NARROW INTEGRATION
 2026-05-17 17:30 | WARP/CRUSADERBOT-WEBTRADER-WS | SSE real-time push: polling removed from DashboardPage + PortfolioPage; event_bus bridge wired to SSE broadcaster (position.opened/closed/scanner.tick); four new SSE event types; scanner.tick emit added to market_signal_scanner; STANDARD, NARROW INTEGRATION
