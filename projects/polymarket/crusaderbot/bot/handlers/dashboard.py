@@ -33,7 +33,8 @@ async def _fetch_stats(user_id) -> dict:
                 COUNT(*) FILTER (WHERE current_price IS NOT NULL
                                    AND current_price > entry_price) AS winning,
                 COUNT(*) FILTER (WHERE current_price IS NOT NULL
-                                   AND current_price < entry_price) AS losing
+                                   AND current_price < entry_price) AS losing,
+                COUNT(*) AS open_count
             FROM positions
             WHERE user_id = $1 AND status = 'open'
             """,
@@ -45,7 +46,7 @@ async def _fetch_stats(user_id) -> dict:
                 COUNT(*)                                        AS total_trades,
                 COUNT(*) FILTER (WHERE pnl_usdc > 0)           AS wins,
                 COUNT(*) FILTER (WHERE pnl_usdc IS NOT NULL
-                                   AND pnl_usdc <= 0)          AS losses,
+                                   AND pnl_usdc < 0)           AS losses,
                 COALESCE(SUM(size_usdc), 0)                    AS total_volume,
                 COUNT(DISTINCT market_id)                       AS markets_traded
             FROM positions
@@ -77,6 +78,7 @@ async def _fetch_stats(user_id) -> dict:
         "positions_value": Decimal(str(pos["positions_value"])),
         "winning":         int(pos["winning"]),
         "losing":          int(pos["losing"]),
+        "open_positions":  int(pos["open_count"]),
         "total_trades":    int(trades["total_trades"]),
         "wins":            int(trades["wins"]),
         "losses":          int(trades["losses"]),

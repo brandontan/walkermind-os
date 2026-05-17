@@ -213,7 +213,7 @@ def register(app: Application) -> None:
 
     # Phase 5 — close position flow
     app.add_handler(CallbackQueryHandler(close_ask_cb,
-                                         pattern=r"^close_position:[^c]"))
+                                         pattern=r"^close_position:(?!confirm:)"))
     app.add_handler(CallbackQueryHandler(close_confirm_cb,
                                          pattern=r"^close_position:confirm:"))
     app.add_handler(CallbackQueryHandler(cancel_close_cb,

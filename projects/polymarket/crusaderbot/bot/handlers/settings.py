@@ -195,12 +195,12 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
             pool = get_pool()
             async with pool.acquire() as conn:
                 job_rows = await conn.fetch(
-                    "SELECT job_id, status, finished_at FROM job_runs "
+                    "SELECT job_name, status, finished_at FROM job_runs "
                     "ORDER BY finished_at DESC LIMIT 3",
                 )
             if job_rows:
                 job_summary = "\n".join(
-                    f"├ {r['job_id']}: {r['status']}" for r in job_rows
+                    f"├ {r['job_name']}: {r['status']}" for r in job_rows
                 )
             else:
                 job_summary = "└ No recent jobs"

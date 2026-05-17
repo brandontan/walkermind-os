@@ -101,8 +101,6 @@ async def _execute_action(
         elif action == "pause_close":
             await set_paused(user["id"], True)
             try:
-                from ...domain.positions import registry as position_registry
-                from ...database import get_pool
                 pool = get_pool()
                 async with pool.acquire() as conn:
                     pos_ids = await conn.fetch(
@@ -110,7 +108,7 @@ async def _execute_action(
                         user["id"],
                     )
                 for row in pos_ids:
-                    await position_registry.mark_force_close_intent_for_position(
+                    await mark_force_close_intent_for_position(
                         row["id"], user["id"],
                     )
             except Exception as exc:
