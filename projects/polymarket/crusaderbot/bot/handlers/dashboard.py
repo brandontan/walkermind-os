@@ -103,7 +103,7 @@ async def _fetch_last_trade_action(user_id) -> str:
                     p.status,
                     m.question AS market_question,
                     CASE WHEN p.status = 'open'
-                         THEN p.created_at
+                         THEN p.opened_at
                          ELSE p.closed_at
                     END AS action_time
                 FROM positions p
