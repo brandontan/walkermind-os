@@ -1363,7 +1363,7 @@ def test_copy_targets_list_kb_one_button_per_target():
 # ---------------------------------------------------------------------------
 
 
-def _make_task(**kwargs) -> "CopyTradeTask":  # type: ignore[name-defined]
+def _make_task(**kwargs):
     """Build a minimal CopyTradeTask for monitor tests."""
     from decimal import Decimal
     from uuid import uuid4
