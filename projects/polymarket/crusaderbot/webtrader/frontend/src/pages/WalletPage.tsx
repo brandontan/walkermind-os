@@ -98,7 +98,7 @@ function LedgerCard({ entry }: { entry: LedgerEntry }) {
   return (
     <PositionCard
       market={entry.note ?? entry.type}
-      positionValue={{ value: `${sign}$${Math.abs(entry.amount_usdc).toFixed(2)}`, tone }}
+      positionValue={Math.abs(entry.amount_usdc) < 0.005 ? { value: "$0.00", tone: "zero" } : { value: `${sign}$${Math.abs(entry.amount_usdc).toFixed(2)}`, tone }}
       side={isCredit ? "credit" : "debit"}
       meta={[
         <>USDC</>,
