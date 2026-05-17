@@ -227,7 +227,7 @@ async def portfolio_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     if sub == "trades":
-        from .my_trades import my_trades_cb
+        from .trades import my_trades_cb
         await my_trades_cb(update, ctx)
         return
 

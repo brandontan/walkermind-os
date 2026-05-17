@@ -234,7 +234,7 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
                FROM positions p
                LEFT JOIN markets m ON m.id = p.market_id
                WHERE p.id = $1 AND p.user_id = $2 AND p.status = 'open'""",
-            pos_id, user["id"],
+            UUID(pos_id), user["id"],
         )
     if row is None:
         await _safe_edit(
@@ -257,8 +257,8 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
                 exit_reason="manual",
             )
             realized = float(result.get("pnl_usdc", 0))
-            sign = "+" if realized >= 0 else ""
-            msg = f"✅ Position closed. Realized P&L: {sign}${abs(realized):.2f}"
+            sign = "+" if realized > 0 else ""
+            msg = f"✅ Position closed. Realized P&L: {sign}${realized:.2f}"
         except Exception as exc:
             logger.error("close_confirm_cb paper close failed pos=%s err=%s", pos_id, exc)
             msg = "⚠️ Could not close position. Please try again."
