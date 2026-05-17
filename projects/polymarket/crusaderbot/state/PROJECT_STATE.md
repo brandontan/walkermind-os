@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 07:12
-Status       : crusaderbot-mvp-runtime-v1 MERGED PR #1080 (WARP/crusaderbot-mvp-runtime-v1). Tier gates removed from all paper paths. signal-scanner-enable MERGED PR #1079. Production PAPER ONLY.
+Last Updated : 2026-05-17 12:00
+Status       : fix-duplicate-menu-handlers complete. Dashboard button duplicate-message bug fixed. Production PAPER ONLY.
 
 [COMPLETED]
 - crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.

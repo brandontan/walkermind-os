@@ -135,3 +135,4 @@ fully operational in paper mode on Fly.io IAD. Idempotency keys active.
 
 2026-05-17 20:35 | WARP/crusaderbot-finalize | MERGED PR #1075 — public-ready paper beta: ENABLE_LIVE_TRADING default→False, copy-task P&L, notifications fail-open, sweep count fix + audit breadcrumb, pytest.ini fix; 1432 tests pass; MAJOR, NARROW INTEGRATION
 2026-05-17 07:12 | WARP/crusaderbot-mvp-runtime-v1 | MERGED PR #1080 — tier gates removed from all paper paths: scheduler auto-bump + scan filter, signal_scan_job filter, daily_pnl_summary + weekly_insights user filter, tier_gate.py no-op, admin status/snapshot/broadcast; MAJOR, FULL RUNTIME INTEGRATION
+2026-05-17 12:00 | claude/fix-duplicate-menu-handlers-2AL7g | fix-duplicate-menu-handlers: removed "📊 Dashboard" from MAIN_MENU_ROUTES — sole duplicate of group=-1 dispatcher handler; eliminates double bot message on Dashboard tap; MINOR, FOUNDATION
