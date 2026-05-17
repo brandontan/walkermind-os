@@ -18,7 +18,7 @@ export function DesktopSidebar() {
 
   return (
     <aside
-      className="hidden md:flex fixed top-0 left-0 bottom-0 w-[220px] flex-col z-[150] overflow-y-auto py-5"
+      className="hidden md:flex fixed top-0 left-0 bottom-0 w-[180px] lg:w-[220px] flex-col z-[150] overflow-y-auto py-5"
       style={{
         background: "rgba(2,5,11,0.98)",
         borderRight: "1px solid rgba(245,200,66,0.14)",

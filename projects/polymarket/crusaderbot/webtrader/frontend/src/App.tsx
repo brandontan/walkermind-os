@@ -105,11 +105,19 @@ function AppShell() {
       {showChrome && <DesktopSidebar />}
 
       {/* Content: mobile-centered up to 440px; desktop full-width offset from sidebar */}
-      <div className="flex justify-center md:block relative" style={{ zIndex: 1 }}>
+      <div
+        className={[
+          "relative",
+          showChrome ? "flex justify-center md:block" : "flex justify-center",
+        ].join(" ")}
+        style={{ zIndex: 1 }}
+      >
         <div
           className={[
-            "w-full max-w-mobile",
-            showChrome ? "md:max-w-none md:ml-[220px] pb-24 md:pb-0" : "",
+            "w-full",
+            showChrome
+              ? "max-w-mobile md:max-w-none md:ml-[180px] lg:ml-[220px] md:overflow-x-hidden pb-24 md:pb-0"
+              : "max-w-mobile md:max-w-none",
           ].join(" ")}
         >
           <Routes>
