@@ -216,7 +216,7 @@ export function DashboardPage() {
             <PositionCard
               key={p.id}
               market={p.market_question ?? `${p.market_id.slice(0, 16)}…`}
-              pnl={pnlFor(p)}
+              positionValue={pnlFor(p)}
               side={positionSide(p)}
               meta={[
                 <>${p.size_usdc.toFixed(2)}</>,
