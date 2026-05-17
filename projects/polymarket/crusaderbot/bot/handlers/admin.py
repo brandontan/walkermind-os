@@ -318,8 +318,7 @@ async def _send_status(message) -> None:
     cache_ok = await ping_cache()
     async with pool.acquire() as conn:
         users_n = await conn.fetchval("SELECT COUNT(*) FROM users")
-        funded_n = await conn.fetchval("SELECT COUNT(*) FROM users WHERE access_tier>=3")
-        live_n = await conn.fetchval("SELECT COUNT(*) FROM users WHERE access_tier>=4")
+        admin_n = await conn.fetchval("SELECT COUNT(*) FROM user_tiers WHERE tier='ADMIN'")
         open_paper = await conn.fetchval(
             "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='paper'")
         open_live = await conn.fetchval(
@@ -328,7 +327,7 @@ async def _send_status(message) -> None:
     await message.reply_text(
         "<b>🩺 System status</b>\n\n"
         f"DB: {'✅' if db_ok else '❌'}  Cache: {'✅' if cache_ok else '❌'}\n"
-        f"Users: {users_n} · Funded: {funded_n} · Live: {live_n}\n"
+        f"Users: {users_n} · Admins: {admin_n}\n"
         f"Open positions: {open_paper} paper · {open_live} live\n\n"
         f"Guards:\n"
         f"  ENABLE_LIVE_TRADING={s.ENABLE_LIVE_TRADING}\n"
@@ -434,7 +433,7 @@ async def _collect_dashboard_snapshot() -> dict[str, Any]:
         async with pool.acquire() as conn:
             snapshot["db_ok"] = await conn.fetchval("SELECT 1") == 1
             snapshot["active_users"] = int(await conn.fetchval(
-                "SELECT COUNT(*) FROM users WHERE access_tier >= 2"
+                "SELECT COUNT(*) FROM users"
             ) or 0)
             snapshot["open_positions"] = int(await conn.fetchval(
                 "SELECT COUNT(*) FROM positions WHERE status = 'open'"
@@ -579,29 +578,36 @@ _KS_USAGE = (
 
 
 async def _broadcast_pause(ctx: ContextTypes.DEFAULT_TYPE | None,
-                           message: str) -> int:
+                           message: str,
+                           *,
+                           pre_fetched_ids: list[int] | None = None) -> int:
     if ctx is None:
         return 0
-    try:
-        pool = get_pool()
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT telegram_user_id FROM users "
-                "WHERE auto_trade_on = TRUE OR access_tier >= 2"
-            )
-    except Exception as exc:  # noqa: BLE001
-        logger.error("killswitch broadcast user lookup failed: %s", exc)
-        return 0
+    if pre_fetched_ids is not None:
+        tg_ids = pre_fetched_ids
+    else:
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT telegram_user_id FROM users "
+                    "WHERE auto_trade_on = TRUE"
+                )
+            tg_ids = [int(r["telegram_user_id"]) for r in rows
+                      if r["telegram_user_id"] is not None]
+        except Exception as exc:  # noqa: BLE001
+            logger.error("killswitch broadcast user lookup failed: %s", exc)
+            return 0
 
     sent = 0
-    for r in rows:
+    for tg_id in tg_ids:
         try:
-            await notifications.send(int(r["telegram_user_id"]), message)
+            await notifications.send(tg_id, message)
             sent += 1
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "killswitch broadcast send failed user=%s err=%s",
-                r["telegram_user_id"], exc,
+                tg_id, exc,
             )
     return sent
 
@@ -614,6 +620,20 @@ async def _apply_killswitch_action(
     broadcast_via_ctx: ContextTypes.DEFAULT_TYPE | None,
 ) -> None:
     """Shared implementation for ``/killswitch`` and the inline buttons."""
+    # For lock: capture recipients before set_active() flips auto_trade_on to FALSE.
+    lock_recipients: list[int] = []
+    if action == "lock":
+        try:
+            _pool = get_pool()
+            async with _pool.acquire() as _conn:
+                _rows = await _conn.fetch(
+                    "SELECT telegram_user_id FROM users WHERE auto_trade_on = TRUE"
+                )
+            lock_recipients = [int(r["telegram_user_id"]) for r in _rows
+                               if r["telegram_user_id"] is not None]
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("lock broadcast pre-fetch failed: %s", exc)
+
     try:
         result = await ops_kill_switch.set_active(
             action=action, actor_id=actor_id,
@@ -663,6 +683,7 @@ async def _apply_killswitch_action(
             "🔒 Auto-trade has been locked by admin due to an "
             "incident. Your auto-trade has been turned OFF — re-enable "
             "from /dashboard once confirmed safe.",
+            pre_fetched_ids=lock_recipients,
         )
 
 

@@ -118,8 +118,6 @@ async def watch_deposits() -> None:
     persisted (or non-credited because the address belongs to no user).
     """
     pool = get_pool()
-    settings = get_settings()
-    min_deposit = Decimal(str(settings.MIN_DEPOSIT_USDC))
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT user_id, deposit_address FROM wallets",
@@ -138,7 +136,7 @@ async def watch_deposits() -> None:
         logger.warning("watch_deposits scan failed (no cursor advance): %s", exc)
         return
 
-    notify_after: list[tuple[int, Decimal, str, bool]] = []
+    notify_after: list[tuple[int, Decimal, str]] = []
     all_ok = True
     for t in transfers:
         to_addr = t["to"].lower()
@@ -171,35 +169,6 @@ async def watch_deposits() -> None:
                         conn, user_id, amount, ledger.T_DEPOSIT,
                         ref_id=row["id"], note=t["tx_hash"],
                     )
-                    # Tier 3 promotion gated on cumulative confirmed deposits
-                    # >= MIN_DEPOSIT_USDC. Dust deposits must not bypass the
-                    # funded-beta tier gate.
-                    total_balance = Decimal(str(await conn.fetchval(
-                        "SELECT COALESCE(SUM(amount_usdc), 0) FROM deposits "
-                        "WHERE user_id = $1 AND confirmed_at IS NOT NULL",
-                        user_id,
-                    ) or 0))
-                    tier_promoted = total_balance >= min_deposit
-                    if tier_promoted:
-                        await conn.execute(
-                            "UPDATE users SET access_tier = GREATEST(access_tier, 3) "
-                            "WHERE id = $1",
-                            user_id,
-                        )
-                        logger.info(
-                            "user promoted to Tier 3: user_id=%s "
-                            "total_balance=%s min_required=%s",
-                            user_id, float(total_balance),
-                            float(settings.MIN_DEPOSIT_USDC),
-                        )
-                    else:
-                        logger.info(
-                            "deposit credited but below MIN_DEPOSIT_USDC — "
-                            "Tier 3 not granted: user_id=%s total_balance=%s "
-                            "min_required=%s",
-                            user_id, float(total_balance),
-                            float(settings.MIN_DEPOSIT_USDC),
-                        )
                     u = await conn.fetchrow(
                         "SELECT telegram_user_id FROM users WHERE id=$1",
                         user_id,
@@ -207,11 +176,10 @@ async def watch_deposits() -> None:
             await audit.write(actor_role="bot", action="deposit_confirmed",
                               user_id=user_id,
                               payload={"tx_hash": t["tx_hash"],
-                                       "amount": str(amount),
-                                       "tier_promoted": tier_promoted})
+                                       "amount": str(amount)})
             if u:
                 notify_after.append(
-                    (u["telegram_user_id"], amount, t["tx_hash"], tier_promoted)
+                    (u["telegram_user_id"], amount, t["tx_hash"])
                 )
         except Exception as exc:
             logger.error("deposit credit failed for %s: %s — cursor will not advance",
@@ -225,18 +193,11 @@ async def watch_deposits() -> None:
         InlineKeyboardButton("💰 Wallet", callback_data="menu:wallet"),
         InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
     ]])
-    for tg_id, amt, tx, tier_promoted in notify_after:
-        if tier_promoted:
-            tail = "Your balance is credited and ready."
-        else:
-            tail = (
-                f"Credited. Live trading needs a minimum balance of "
-                f"${float(min_deposit):.2f} USDC (paper auto-trade is always available)."
-            )
+    for tg_id, amt, tx in notify_after:
         await notifications.send(
             tg_id,
             f"✅ <b>Deposit confirmed:</b> ${float(amt):.2f} USDC\n"
-            f"<code>{html.escape(tx)}</code>\n{html.escape(tail)}",
+            f"<code>{html.escape(tx)}</code>",
             reply_markup=deposit_kb,
         )
 
@@ -278,7 +239,6 @@ async def run_signal_scan() -> None:
               JOIN wallets w ON w.user_id = u.id
               JOIN user_settings s ON s.user_id = u.id
              WHERE u.auto_trade_on = TRUE AND u.paused = FALSE
-               AND u.access_tier >= 3
             """
         )
     for u_row in users:

@@ -1,7 +1,9 @@
-Last Updated : 2026-05-17 23:30
-Status       : signal-scanner-enable PR open (WARP/signal-scanner-enable). Fixes signal pipeline: feed seed, access_tier, new user enrollment. Production PAPER ONLY.
+Last Updated : 2026-05-17 06:48
+Status       : crusaderbot-mvp-runtime-v1 PR #1080 open (WARP/crusaderbot-mvp-runtime-v1). Tier gates removed from all paper paths. signal-scanner-enable MERGED PR #1079. Awaiting WARP•SENTINEL validation on PR #1080. Production PAPER ONLY.
 
 [COMPLETED]
+- crusaderbot-mvp-runtime-v1 FORGE complete (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). Lock broadcast pre-fetch fix included. MAJOR, FULL RUNTIME INTEGRATION. compileall clean.
+- signal-scanner-enable MERGED PR #1079 (2026-05-17). Migration 031 feed backfill + user enrollment; signal_scan_job access_tier filter relaxed for paper; users.py _enroll_signal_following on new user creation. STANDARD, NARROW INTEGRATION.
 - role-model-admin-user MERGED PR #1076 (2026-05-17). Two-role refactor: risk gate step-3 tier check scoped to LIVE only (paper open to every user); bot/handlers/setup.py _ensure_tier2→_ensure_user (no setup gate); middleware/tier wording collapsed to two canonical messages; admin.py two-role surface (🛠 Admin sections, settier user|admin mapped onto FREE/ADMIN — no migration); assert_live_guards DELIBERATELY UNCHANGED per CLAUDE.md. SENTINEL 97/100. MAJOR, NARROW INTEGRATION.
 - crusaderbot-finalize MERGED PR #1075 (2026-05-17). Public-ready paper beta hardening: config.py ENABLE_LIVE_TRADING default flipped True→False (paper-safe; fly.toml prod posture unchanged) + readiness_validator comment; copy_trade.py dead Phase 5F placeholder branches removed + edit_pnl implemented via repository.task_pnl_summary (positions⋈orders idempotency_key scoping); users.user_notifications_enabled + notifications_enabled_by_telegram_id (fail-open) wired into trade_notifications._send and daily_pnl_summary loop; settings.py docstring corrected; scheduler.sweep_deposits CTE COUNT fix + deposit_sweep audit; api/ops.py kill/resume client_host audit breadcrumb + documented deferral; pytest.ini testpaths polyquantbot→crusaderbot; .env.example + DEPLOY.md completed; PRODUCTION_CHECKLIST.md added. 1432 tests pass, ruff clean. SENTINEL 96/100. MAJOR, NARROW INTEGRATION.
 - webtrader-v3-and-bot-polish MERGED PR #1069 (2026-05-16). Tactical Terminal v3.2 atomic delivery — frontend: 15 new shared components (TopBar/Ticker/HeroCard/StatCard/StatsGrid/Terminal/PositionCard/EmptyState/Toggle/FilterTabs/WalletCard/AddressCard/SettingsGroup/AdvancedGate + StrategyCard rewrite), UiMode context with localStorage persist, scanline+grain+ambient atmosphere, clip-path HUD geometry, 6 pages rewritten; bot: messages.py EMOJI/DIV/_table + 5 new alert templates (signal/position_open/position_close/daily_summary/health), keyboards/_common.py shared row helpers (home_back_row/confirm_cancel_row/pagination_row), dispatcher.py drops 4 aliases (/pnl /close /scan /mode) + adds _nav_cb for nav:* prefix, keyboards/presets.py + settings.py 2-col mobile cleanup; tests 1400 pass 0 fail; npm build 62 modules clean; ruff clean. Supersedes WARP/CRUSADERBOT-WEBTRADER-REDESIGN. MAJOR, FULL RUNTIME INTEGRATION.
@@ -21,7 +23,7 @@ Status       : signal-scanner-enable PR open (WARP/signal-scanner-enable). Fixes
 - V5 "AUTOBOT" UI Overhaul MERGED PR #1045. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- signal-scanner-enable PR open (WARP/signal-scanner-enable, 2026-05-17). Fixes: migration 031 backfill (feed seed + enrollment), signal_scan_job access_tier filter, users.py _enroll_signal_following on new user creation. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
+- crusaderbot-mvp-runtime-v1 PR #1080 open — rebase after #1079 merge in progress. MAJOR, FULL RUNTIME INTEGRATION. Awaiting WARP•SENTINEL validation.
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderPolybot live, Fly.io app running, PAPER ONLY.
 - Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
@@ -42,8 +44,8 @@ Status       : signal-scanner-enable PR open (WARP/signal-scanner-enable). Fixes
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for signal-scanner-enable (STANDARD). Source: projects/polymarket/crusaderbot/reports/forge/signal-scanner-enable.md. Tier: STANDARD. Post-merge: apply migration 031 to production DB → restart bot → verify scanner tick log published > 0 within 60s.
-- Apply migration 031 to production DB (idempotent — safe to apply immediately after merge).
+- WARP•SENTINEL validation required: WARP/crusaderbot-mvp-runtime-v1 PR #1080 (MAJOR). Confirm paper scan picks up all users regardless of access_tier; confirm assert_live_guards still raises; confirm admin /status shows Admins count. Report: projects/polymarket/crusaderbot/reports/forge/crusaderbot-mvp-runtime-v1.md.
+- Apply migration 031 to production DB (idempotent — safe to apply immediately after #1079 merge).
 - Apply migration 030 to production. Then deploy main to Fly.io — trading-unblock fix is live on main (MERGED PR #1065).
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 

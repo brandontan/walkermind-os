@@ -217,7 +217,7 @@ async def _list_active_users() -> list[dict]:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT id, telegram_user_id FROM users "
-            "WHERE access_tier >= 2 AND telegram_user_id IS NOT NULL "
+            "WHERE telegram_user_id IS NOT NULL "
             "AND paused = FALSE AND auto_trade_on = TRUE ORDER BY id",
         )
     return [dict(r) for r in rows]

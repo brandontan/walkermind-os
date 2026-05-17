@@ -249,8 +249,7 @@ async def _list_recipient_users() -> list[dict]:
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT id, telegram_user_id FROM users "
-            "WHERE access_tier >= 2 ORDER BY id",
+            "SELECT id, telegram_user_id FROM users ORDER BY id",
         )
     return [dict(r) for r in rows]
 
