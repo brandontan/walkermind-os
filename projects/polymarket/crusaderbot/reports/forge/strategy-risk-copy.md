@@ -120,10 +120,29 @@ Three systems remain strictly isolated. No shared hot-path coupling.
   — 8 new keyboard functions for new wizard
 - `projects/polymarket/crusaderbot/bot/dispatcher.py`
   — updated autotrade callback pattern, registered new copy wizard handler
+- `projects/polymarket/crusaderbot/domain/risk/constants.py`
+  — `"custom"` added to `PROFILES` (balanced-floor values + nullable custom markers),
+    `STRATEGY_AVAILABILITY` extended with `"custom"` for all strategy types,
+    `effective_daily_loss()` guarded against unknown profile KeyError
+- `projects/polymarket/crusaderbot/domain/risk/gate.py`
+  — Gate step 4: `"custom"` allowed; inline DB check rejects if `capital_alloc_pct` is NULL
+- `projects/polymarket/crusaderbot/domain/preset/presets.py`
+  — `_CAPITAL_BY_PROFILE["custom"] = 0.40` (balanced fallback)
+- `projects/polymarket/crusaderbot/domain/strategy/types.py`
+  — `VALID_RISK_PROFILES` tuple extended with `"custom"`
+- `projects/polymarket/crusaderbot/domain/strategy/strategies/copy_trade.py`
+  — `risk_profile_compatibility` extended with `"custom"`
+- `projects/polymarket/crusaderbot/domain/strategy/strategies/signal_following.py`
+  — `risk_profile_compatibility` extended with `"custom"`
+- `projects/polymarket/crusaderbot/domain/strategy/strategies/momentum_reversal.py`
+  — `risk_profile_compatibility` extended with `"custom"`
 - `projects/polymarket/crusaderbot/tests/test_signal_scan_job.py`
-  — 6 preset isolation unit tests
+  — 6 preset isolation unit tests; assertions updated for expanded profile set
 - `projects/polymarket/crusaderbot/tests/test_copy_trade.py`
-  — 7 monitor filter tests (copy_direction, allow_topups, execution_mode)
+  — 7 monitor filter tests (copy_direction, allow_topups, execution_mode);
+    assertion updated for expanded profile set
+- `projects/polymarket/crusaderbot/tests/test_signal_following.py`
+  — assertion updated for expanded profile set
 - `projects/polymarket/crusaderbot/tests/test_positions_handler.py`
   — `delete_position_with_ledger` atomicity test
 
@@ -147,7 +166,11 @@ Three systems remain strictly isolated. No shared hot-path coupling.
   skips repeat entry on same market; execution_mode=manual emits pending_confirm event without
   calling TradeEngine.execute
 - Migration 035: idempotent `IF NOT EXISTS` on all 4 new columns
-- All modified Python files parse cleanly (AST verified)
+- Custom risk profile: `PROFILES["custom"]` uses balanced risk floor; gate step 4 validates
+  `capital_alloc_pct` is set in `user_settings` before allowing `"custom"` through; rejects
+  with `custom_risk_not_configured` if not configured; `VALID_RISK_PROFILES` + all three
+  strategy `risk_profile_compatibility` lists extended; all 1455 tests pass
+- All modified Python files parse cleanly (ruff + AST verified)
 - BottomNav: 6-tab layout with Copy tab at `/copy-trade`
 
 ---

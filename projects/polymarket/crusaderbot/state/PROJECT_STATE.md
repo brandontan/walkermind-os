@@ -1,5 +1,5 @@
 Last Updated : 2026-05-17 23:59
-Status       : Realtime P&L UI + Sentry hotfix + Risk safety + bad-trade + ledger cleanup complete (PRs #1111, #1098, #1096, #1110, #1109 merged). STRATEGY-RISK-COPY bundle + custom risk profile extension PR open — awaiting SENTINEL. portfolio-ui-polish + TG-KB-CLEANUP + SCANNER-SYNC-FIX + PRICE-FETCH-FIX + crusaderbot-webtrader-ws + SSE-AUTH-FIX + webtrader-build-fix awaiting WARP🔹CMD review. Production PAPER ONLY.
+Status       : Realtime P&L UI + Sentry hotfix + Risk safety + bad-trade + ledger cleanup complete (PRs #1111, #1098, #1096, #1110, #1109 merged). STRATEGY-RISK-COPY bundle + custom risk profile extension (PROFILES + gate step 4 + VALID_RISK_PROFILES + 1455 tests) PR open — awaiting SENTINEL. portfolio-ui-polish + TG-KB-CLEANUP + SCANNER-SYNC-FIX + PRICE-FETCH-FIX + crusaderbot-webtrader-ws + SSE-AUTH-FIX + webtrader-build-fix awaiting WARP🔹CMD review. Production PAPER ONLY.
 
 [COMPLETED]
 - WARP/CRUSADERBOT-LEDGER-CLEANUP MERGED PR #1110 (2026-05-17): deleted 44 orphaned ledger entries (22 trade_open + 22 trade_close) with dead ref_ids from bad-trade cleanup; ledger_sum corrected +$1,227.57 → -$10.00; wallet/ledger consistent. STANDARD, NARROW INTEGRATION.
