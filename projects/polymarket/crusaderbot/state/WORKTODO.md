@@ -1,99 +1,112 @@
-# CrusaderBot -- WORKTODO
+# CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated: 2026-05-15 15:30 WIB
+**Last Updated:** 2026-05-17 Asia/Jakarta
+
+> North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
+> No feature creep. Runtime truth > cosmetics.
 
 ---
 
-## Right Now
-- [x] signal-engine-fix — MERGED PR #1086 (WARP/CRUSADERBOT-SIGNAL-ENGINE-FIX, 2026-05-17). edge_finder 0-signal bug fixed (RC-1 edge scoring, RC-2 liquidity floor, RC-3 idempotency dedup). STANDARD, NARROW INTEGRATION.
-- [x] role-model-admin-user — MERGED PR #1076 (2026-05-17). Two-role model (admin + user): paper opened to every user, operator/tier/allowlist/premium wording removed, assert_live_guards intact. SENTINEL 97/100. MAJOR, NARROW INTEGRATION.
-- [x] crusaderbot-finalize — MERGED PR #1075 (2026-05-17). Public-ready paper beta: ENABLE_LIVE_TRADING default→False, copy-task P&L, notifications_on enforced fail-open, sweep count fix + audit, ops client_host breadcrumb, pytest.ini fix, .env.example + DEPLOY runbook + PRODUCTION_CHECKLIST.md. 1432 pytest pass, ruff clean. SENTINEL 96/100. MAJOR, NARROW INTEGRATION.
-- [x] webtrader-v3-and-bot-polish — MERGED PR #1069 (2026-05-16). Tactical Terminal v3.2 atomic delivery: 15 new shared components + Advanced Mode toggle + 6 page rewrites + bot template foundation (EMOJI/DIV/_table + 5 alert templates) + command consolidation + nav:* callback namespace. Supersedes WARP/CRUSADERBOT-WEBTRADER-REDESIGN (already merged earlier as PR #1062). npm build clean, ruff clean, 1400 pytest pass. WARP🔹CMD CONDITIONAL verdict at reports/sentinel/webtrader-v3-and-bot-polish.md. MAJOR, FULL RUNTIME INTEGRATION.
-- [x] WARP/full-callback-prefix-migration — PR open (2026-05-17). F-02+F-03 from sentinel report. 8 keyboard modules migrated to _common.py helpers (home_row / home_back_row / confirm_cancel_row); dispatcher nav: comment updated; 1 test updated (positions nav:home). ruff clean, compileall clean. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
-- [x] crusaderbot-phase5-ux-rebuild — MERGED PR #1055 (2026-05-16). Full UX rebuild: 6 screens, group=-1 nav fix, presets.py, messages.py, migration 028. ruff+compileall clean. MAJOR, NARROW INTEGRATION.
-- [x] mvp-cleanup — WARP/CRUSADERBOT-MVP-CLEANUP (2026-05-15). ParseMode HTML migration (17 handlers + notifier + domain/activation), operator→admin purge, 24 .bak files deleted, 3 dead keyboard functions removed. ruff+compileall clean. STANDARD, NARROW INTEGRATION. PR open — awaiting WARP🔹CMD review.
-- [x] crusaderbot-ux-patch-1 — closed on GitHub (WARP/CRUSADERBOT-UX-PATCH-1, 2026-05-15). Startup message OPERATOR_CHAT_ID guard + bot-ON ReplyKeyboard layout (Active Monitor/Portfolio+Settings/Emergency). _MENU_BUTTONS updated. 74 hermetic UX tests green. MINOR, NARROW INTEGRATION.
-- [x] crusaderbot-mvp-runtime-ux — MERGED PR #1049 (2026-05-15). 14 phases A–N complete. 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline, scanner state, tier wording cleanup. Closes #1036, #1034. 1405 tests green. MAJOR, FULL RUNTIME INTEGRATION.
-- Production posture: Telegram + Fly.io live, PAPER ONLY; activation guards remain NOT SET.
-- NEXT: Apply migrations 027+028 before production deploy. WARP🔹CMD deployment decision.
-- [x] crusaderbot-mvp-runtime-ux — MERGED PR #1049 (2026-05-15). MVP Runtime + Telegram UX Redesign: 5-preset system, capital decoupling, state-driven menu, HTML blockquote UX, copy-trade pipeline, scanner state, tier wording cleanup; 58 hermetic tests green; MAJOR, FULL RUNTIME INTEGRATION + UX REDESIGN. Issues #1036 and #1034 closed.
-- Deploy migration 027 (notifications_on) before activating PR #1049 code on Fly.io.
-- Production posture unchanged: Telegram + Fly.io live, PAPER ONLY; activation guards remain NOT SET.
+## P0 -- Runtime Spine Validation (MANDATORY)
+
+Prove the actual runtime spine is real end-to-end:
 
 
-- Signal Scan Engine MERGED PR #991 (2026-05-12). market_signal_scanner (60s), hourly_report cron, /health operator command, migration 024 deployed.
-- Hotfix /insights strategy_type MERGED PR #995 (2026-05-12). weekly_insights signal breakdown now joins orders for strategy_type.
-- Activation guards remain NOT SET.
-- Production remains Telegram + Fly.io live, PAPER ONLY. signal_publications now being written by scanner.
-- NEXT: closed beta observation / paper-mode runtime monitoring. WARP Auto Gate v1 MERGED PR #996 (2026-05-12).
+```text
+/start
+→ onboarding
+↓ user state
+↓ paper wallet
+− default strategy
+− active scanner
+"钒 analysis engine
+↓ risk gate
+−  paper trade open
+↓ position monitor
+↓ paper trade close
+↓ portfolio update
+↓ Telegram receipt
+```
 
----
-
-## Fast Track Week 2 -- Live Gate + Premium UX
-
-- [x] Premium PNL Insights UX -- MERGED PR #965 (2026-05-11), STANDARD, NARROW INTEGRATION. /insights command; insight_kb; dashboard:insights sub; my_trades nav update; 22 hermetic tests green; issue #963 closed.
-- [x] Track F -- Live Opt-In Gate -- MERGED PR #970 (2026-05-12). 3-step /enable_live gate; 4-guard check; mode_change_events audit (021); auto-fallback 60s monitor; 20 hermetic tests green; issue #968 closed.
-- [x] Track G -- UI Premium Pack 1 -- MERGED PR #989 (2026-05-12), STANDARD, PRESENTATION. UX overhaul/premium grade merged with 45 hermetic tests green.
-- [x] Track H -- Portfolio Charts + Insights -- MERGED PR #979 (2026-05-12), STANDARD, NARROW INTEGRATION. /chart PNG photo; chart callbacks; /insights weekly breakdown; 30 hermetic tests green.
-- [x] Track I -- Referral + Share System -- built and tracked in state; activation remains gated. Fee collection and referral payout remain OFF.
-- [x] Hotfix /insights strategy_type -- MERGED PR #995 (2026-05-12). Fixes DAWN-SNOWFLAKE-1729-10 and DAWN-SNOWFLAKE-1729-Z.
-
-Done condition: WARP🔹CMD merge decision on each lane; activation guards remain OFF throughout.
+Deliverables:
+- [ ] Runtime evidence matrix
+- [ ] Broken/fake/dead path map
+- [ ] Multi-user isolation verification
+- [ ] Proof PAPER ONLY posture unchanged
 
 ---
 
-## Fast Track Week 1 -- Core Trading Loop
+## P0 -- WebTrader Realtime Trust
 
-- [x] Track A -- Trade Engine + TP/SL worker -- WARP/CRUSADERBOT-FAST-TRADE-ENGINE MERGED PR #1092 (2026-05-17). EXIT_WATCH_INTERVAL corrected 60→30s. 49 hermetic tests pass. MAJOR, FULL RUNTIME INTEGRATION.
-- [x] Track B -- Copy Trade Execution -- MERGED PR #948 (2026-05-11), MAJOR. CopyTradeMonitor.run_once(), 020 migration, 25 hermetic tests green; P1 fixes applied.
-- [x] Track C -- Trade Notifications -- MERGED PR #951 (2026-05-11), STANDARD. TradeNotifier service layer; 16 hermetic tests green; already_closed guard P2 fix.
-- [x] Track D -- Live Gate Hardening -- MERGED PR #954 (2026-05-11), MAJOR. WARP•SENTINEL APPROVED 92/100; 35 tests green.
-- [x] Track E -- Daily P&L Report -- MERGED PR #962 (2026-05-11), STANDARD, NARROW INTEGRATION. Paper-mode daily Telegram P&L summary; opened/closed/W/L counts; no-trade empty state; scheduler callback wiring; 26 daily_pnl_summary tests green; issue #960 closed.
+Validate and fix realtime trust gaps:
 
-Done condition: Track A-E merged and SENTINEL-approved where MAJOR; activation guards remain OFF.
-
----
-
-## Phase 3 -- Strategy Plane
-
-- [x] P3a -- Strategy Registry Foundation -- MERGED PR #876 (2026-05-05), STANDARD, FOUNDATION.
-- [x] P3b -- Copy Trade strategy -- MERGED PR #877 (2026-05-06), MAJOR, SENTINEL CONDITIONAL resolved.
-- [x] P3c -- Signal Following strategy -- MERGED PR #892, MAJOR, SENTINEL APPROVED 100/100.
-- [x] P3d -- Per-user signal scan loop + execution queue wiring -- MERGED PR #897 + state sync PR #898, MAJOR, SENTINEL APPROVED 94/100.
-- [x] P3e -- MomentumReversalStrategy adapter -- MERGED PR #978 (2026-05-11), STANDARD, NARROW INTEGRATION.
-
-Done condition: P3 lanes merged, registry catalog populated at boot, scan loop wired through risk gate, SENTINEL approved before live activation.
+- [ ] Terminal updates without manual refresh
+- [ ] Scanner counts match backend jobs
+- [ ] Recent Activity synced to runtime truth
+- [ ] Portfolio / Wallet sync with ledger
+- [ ] Heartbeat / last_tick / last_scan timestamps
+- [ ] PAPER ONLY posture clear; LIVE not misleading
 
 ---
 
-## R12 -- Production Readiness
+## P0 -- Production Integrity
 
-- [x] R12a -- CI/CD Pipeline (GitHub Actions) -- DONE (PR #855 merged 2026-05-04, STANDARD).
-- [x] R12b -- Fly.io Health Alerts -- DONE (PR #856 merged).
-- [x] R12c -- Auto-Close / Take-Profit -- DONE (PR #865 merged 2026-05-05, MAJOR, SENTINEL APPROVED 95/100).
-- [x] R12d -- Telegram Position UX -- DONE (PR #868 merged).
-- [x] R12e -- Auto-Redeem System -- DONE (PR #869 merged, MAJOR; conditions resolved PR #879).
-- [x] R12f -- Operator Dashboard + Kill Switch + Job Monitor -- DONE (PR #874 merged, STANDARD).
-- [x] R12 Live Readiness -- Live Opt-In Checklist / Auto-Fallback / Daily P&L Summary -- DONE on WARP/CRUSADERBOT-R12-LIVE-READINESS.
-- [ ] R12 -- Deployment final operator verification pending per runbooks. Activation guards remain NOT SET.
+Close production gaps before beta:
 
----
-
-## Activation Guards (DO NOT TOUCH until explicit owner decision)
-
-- EXECUTION_PATH_VALIDATED -- NOT SET
-- CAPITAL_MODE_CONFIRMED -- NOT SET
-- ENABLE_LIVE_TRADING -- NOT SET
-- RISK_CONTROLS_VALIDATED -- NOT SET
-- USE_REAL_CLOB -- NOT SET (default False, paper-safe)
+- [ ] Apply pending migrations (027/029/030/031 as required)
+- [ ] Fly.io deploy validation
+- [ ] Scheduler health / retry check
+- [ ] Telegram notification reliability
+- [ ] Paper trading consistency (PNL, positions, ledger)
+- [ ] Logging and operational sanity
 
 ---
 
-## Known Issues / Tech Debt
+## P1 -- Closed Beta Hardening
 
-- [x] WARP Auto Gate v1 issue #980 -- STANDARD repo automation lane, no CrusaderBot runtime code. MERGED PR #996 (2026-05-12).
-- [ ] check_alchemy_ws TCP-only, no full WS handshake (follow-up lane, LOW).
-- [ ] services/* dead code (post-R12 cleanup, LOW).
-- [ ] /deposit no tier gate (intentional, non-blocking).
-- [ ] WARP/LIB-F401-CLEANUP (MINOR, deferred post-demo) -- shared-lib cross-project audit required before cleanup.
+Observe the runtime under real usage:
+
+- [ ] No duplicate trades
+- [ ] No stuck positions
+- [ ] No state bleed between users
+- [ ] Notification failure review
+- [ ] Restart recovery validation
+- [ ] API timeout / failure behavior
+
+---
+
+## P1 -- Telegram UX Final (After Runtime Proven)
+
+- [ ] No dead buttons
+- [ ] No fake placeholder routes
+- [ ] State-driven keyboard
+- [ ] Concierge onboarding polish
+- [ ] Portfolio / Settings clarity
+- [ ] No legacy tier / operator wording
+
+---
+
+## P2 -- Project Finish Criteria
+
+CRUSADERBOT is considered **DONE** only when:
+
+- [x] WebTrader running
+- [ ] Runtime spine proven end-to-end
+- [ ] WebTrader realtime trusted
+- [ ] Telegram stable
+- [ ] Paper trading stable
+- [ ] No user bleed
+- [ ] No dead routes
+- [ ] Closed beta clean
+- [ ] Production checklist complete
+
+---
+
+## Deferred / NOT NOW
+
+❌ live trading activation
+❌ fancy analytics expansion
+❌ dashboard redesign
+❌ monetization / premium expansion
+❌ new feature creep until PAPER runtime is trusted
