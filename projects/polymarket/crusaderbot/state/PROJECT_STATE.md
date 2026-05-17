@@ -1,7 +1,5 @@
 Last Updated : 2026-05-17 23:59
-Status       : Track D (FAST-RISK-SAFETY) PR open. Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs open. Production PAPER ONLY.
-Last Updated : 2026-05-17 23:55
-Status       : Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs open. Track B copy_trade.executed event + copy_trade_events table delivered (PR pending SENTINEL). Production PAPER ONLY.
+Status       : Track D (FAST-RISK-SAFETY) PR open. Track B copy_trade.executed event + copy_trade_events table delivered. Track A (FAST-TRADE-ENGINE) + Track C (FAST-TRADE-NOTIFS) PRs open. Production PAPER ONLY.
 
 [COMPLETED]
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
