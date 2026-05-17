@@ -141,9 +141,16 @@ def test_portfolio_route_registered():
     assert "💼 Portfolio" in MAIN_MENU_ROUTES
 
 
-def test_v5_dashboard_route_registered():
-    # V5: "📊 Dashboard" is now the primary route
+def test_v5_dashboard_route_is_noop_sentinel():
+    # "📊 Dashboard" maps to _group0_noop, not the real dashboard handler.
+    # The group=-1 MessageHandler in dispatcher.py sends the actual response;
+    # the noop here ensures _text_router clears ctx.user_data['awaiting'] and
+    # short-circuits before wizard text-input handlers run.
+    from projects.polymarket.crusaderbot.bot.menus.main import _group0_noop
+    from projects.polymarket.crusaderbot.bot.handlers.dashboard import dashboard
     assert "📊 Dashboard" in MAIN_MENU_ROUTES
+    assert MAIN_MENU_ROUTES["📊 Dashboard"] is _group0_noop
+    assert MAIN_MENU_ROUTES["📊 Dashboard"] is not dashboard
 
 
 def test_v5_auto_mode_route_registered():
@@ -179,6 +186,7 @@ def test_backward_compat_aliases_present():
 
 
 def test_dashboard_and_portfolio_are_different_handlers():
+    # Dashboard maps to _group0_noop sentinel; still distinct from portfolio.
     assert MAIN_MENU_ROUTES["📊 Dashboard"] is not MAIN_MENU_ROUTES["💼 Portfolio"]
 
 

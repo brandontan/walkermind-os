@@ -35,11 +35,28 @@ from ..handlers import (
 HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
 
 
+async def _group0_noop(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Sentinel for buttons whose response is already sent by a group=-1
+    MessageHandler in dispatcher.py.
+
+    Registered in MAIN_MENU_ROUTES so that _text_router still:
+      (a) clears ctx.user_data['awaiting'] before returning, and
+      (b) short-circuits before reaching wizard text-input handlers
+          (copy_trade / settings / setup).
+
+    Without this sentinel a Dashboard tap during an active wizard would fall
+    through to e.g. copy_trade.text_input and trigger a stale-state error
+    message even though the dashboard response was already sent by group=-1.
+    """
+
+
 MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     # V5 AUTOBOT fixed menu
-    # "📊 Dashboard" intentionally absent — covered by group=-1 MessageHandler
-    # in dispatcher.py (filters.Regex(r"^📊 Dashboard$")).  Including it here
-    # caused PTB to fire both handlers on every tap → duplicate bot messages.
+    # "📊 Dashboard" maps to _group0_noop — the visible response is sent by the
+    # group=-1 MessageHandler in dispatcher.py (fires first).  The noop entry
+    # here lets _text_router clear ctx.user_data['awaiting'] and return early,
+    # preventing wizard text handlers from misprocessing the Dashboard tap.
+    "📊 Dashboard":          _group0_noop,
     "💼 Portfolio":          positions.show_portfolio,
     "🤖 Auto Mode":          presets.show_preset_picker,
     "⚙️ Settings":           settings_handler.settings_hub_root,
