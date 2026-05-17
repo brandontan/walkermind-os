@@ -339,9 +339,10 @@ async def _send_status(message) -> None:
 
 
 async def allowlist_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    if not _is_operator(update) or update.message is None:
-        if update.message:
-            await update.message.reply_text("Admin access required.")
+    if update.message is None:
+        return
+    if not await _is_admin_user(update):
+        await update.message.reply_text("Admin access required.")
         return
     args = ctx.args or []
     if not args:
