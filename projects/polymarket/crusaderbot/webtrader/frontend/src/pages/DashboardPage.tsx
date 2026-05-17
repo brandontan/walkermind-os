@@ -40,16 +40,13 @@ export function DashboardPage() {
 
   const load = useCallback(async () => {
     try {
-      const [summary, allPositions, alertList] = await Promise.all([
+      const [summary, recentPositions, alertList] = await Promise.all([
         api.getDashboard(),
-        api.getPositions(),
+        api.getPositions(undefined, 5),
         api.getAlerts(),
       ]);
       setData(summary);
-      const sorted = [...allPositions].sort(
-        (a, b) => new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
-      );
-      setRecentActivity(sorted.slice(0, 5));
+      setRecentActivity(recentPositions);
       setAlerts(alertList.slice(0, 5));
     } catch (e) {
       setError(String(e));
@@ -276,7 +273,7 @@ function activityValueFor(p: PositionItem): { value: string; tone: "zero" | "up"
         ? (p.current_price / p.entry_price) * p.size_usdc
         : p.size_usdc;
     const diff = curVal - p.size_usdc;
-    if (Math.abs(diff) < 0.005) return { value: `$${curVal.toFixed(2)}`, tone: "zero" };
+    if (Math.abs(diff) < 0.005) return { value: "±$0.00", tone: "zero" };
     const tone: "up" | "dn" = diff > 0 ? "up" : "dn";
     const sign = diff > 0 ? "+" : "−";
     return { value: `${sign}$${Math.abs(diff).toFixed(2)}`, tone };

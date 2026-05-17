@@ -258,8 +258,10 @@ async def _act_on_decision(
                 decision.current_price,
                 pnl,
             )
-        except Exception:
+        except ImportError:
             pass
+        except Exception as exc:
+            logger.warning("exit_watcher: SSE position_updated push failed: %s", exc)
         return
 
     reason = decision.reason or ExitReason.STRATEGY_EXIT.value

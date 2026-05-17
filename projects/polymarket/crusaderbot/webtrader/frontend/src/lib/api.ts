@@ -26,8 +26,13 @@ export function makeApi(token: string | null) {
 
   return {
     getDashboard: () => get<DashboardSummary>("/dashboard"),
-    getPositions: (status?: string) =>
-      get<PositionItem[]>(`/positions${status ? `?status=${status}` : ""}`),
+    getPositions: (status?: string, limit?: number) => {
+      const params = new URLSearchParams();
+      if (status) params.set("status", status);
+      if (limit) params.set("limit", String(limit));
+      const qs = params.toString();
+      return get<PositionItem[]>(`/positions${qs ? `?${qs}` : ""}`);
+    },
     getPortfolioSummary: () => get<PortfolioSummary>("/portfolio/summary"),
     getPortfolioChart: (period: string) =>
       get<ChartPoint[]>(`/portfolio/chart?period=${encodeURIComponent(period)}`),
