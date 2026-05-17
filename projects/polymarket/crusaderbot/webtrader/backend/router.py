@@ -401,7 +401,7 @@ async def get_portfolio_summary(user: _CurrentUser) -> PortfolioSummary:
         )
         realized_pnl = float(
             await conn.fetchval(
-                "SELECT COALESCE(SUM(pnl_usdc), 0) FROM positions WHERE user_id=$1::uuid AND status='closed'",
+                "SELECT COALESCE(SUM(pnl_usdc), 0) FROM positions WHERE user_id=$1::uuid AND status IN ('closed', 'expired')",
                 user_id,
             ) or 0
         )
@@ -411,12 +411,7 @@ async def get_portfolio_summary(user: _CurrentUser) -> PortfolioSummary:
         )
 
     balance = float(balance_row["balance_usdc"]) if balance_row else 0.0
-    unrealized_pnl = sum(
-        (float(r["current_price"] or r["entry_price"]) / float(r["entry_price"]) - 1)
-        * float(r["size_usdc"])
-        if float(r["entry_price"]) > 0 else 0.0
-        for r in open_rows
-    )
+    unrealized_pnl = _unrealized_pnl(open_rows)
     deployed = sum(float(r["size_usdc"]) for r in open_rows)
     equity = balance + deployed + unrealized_pnl
 
@@ -427,6 +422,17 @@ async def get_portfolio_summary(user: _CurrentUser) -> PortfolioSummary:
         equity_usdc=equity,
         balance_usdc=balance,
     )
+
+
+def _unrealized_pnl(open_rows: list) -> float:
+    total = 0.0
+    for r in open_rows:
+        ep = float(r["entry_price"])
+        if ep <= 0:
+            continue
+        cp = float(r["current_price"] if r["current_price"] is not None else r["entry_price"])
+        total += (cp / ep - 1) * float(r["size_usdc"])
+    return total
 
 
 _CHART_LOOKBACK: dict[str, timedelta | None] = {
@@ -453,7 +459,7 @@ async def get_portfolio_chart(
         balance_row = await conn.fetchrow(
             "SELECT balance_usdc FROM wallets WHERE user_id=$1::uuid", user_id
         )
-        where_period = "WHERE user_id=$1::uuid AND status='closed'"
+        where_period = "WHERE user_id=$1::uuid AND status IN ('closed', 'expired')"
         params_period: list = [user_id]
         if since:
             params_period.append(since)
@@ -467,20 +473,16 @@ async def get_portfolio_chart(
             user_id,
         )
 
+    if not period_rows:
+        return []
+
     balance = float(balance_row["balance_usdc"]) if balance_row else 0.0
     period_pnl_sum = sum(float(r["pnl_usdc"] or 0) for r in period_rows)
-    unrealized = sum(
-        (float(r["current_price"] or r["entry_price"]) / float(r["entry_price"]) - 1)
-        * float(r["size_usdc"])
-        if float(r["entry_price"]) > 0 else 0.0
-        for r in open_rows
-    )
+    unrealized = _unrealized_pnl(open_rows)
     deployed = sum(float(r["size_usdc"]) for r in open_rows)
 
     equity_at_start = balance - period_pnl_sum
-    start_ts = since if since else (
-        period_rows[0]["closed_at"] if period_rows else now
-    )
+    start_ts = since if since else period_rows[0]["closed_at"]
     points: list[ChartPoint] = [
         ChartPoint(ts=start_ts.isoformat(), equity=round(equity_at_start, 2))
     ]
