@@ -439,6 +439,14 @@ def wallet_p5_kb() -> InlineKeyboardMarkup:
 
 def emergency_p5_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🛑 Stop All Auto Trade", callback_data="p5:emergency:ask:stop_auto_trade"),
+            InlineKeyboardButton("💀 Kill All Positions",   callback_data="p5:emergency:ask:kill_all_positions"),
+        ],
+        [
+            InlineKeyboardButton("🔒 Lock Bot",             callback_data="p5:emergency:ask:lock_bot"),
+            InlineKeyboardButton("ℹ️ System Status",        callback_data="p5:emergency:confirm:system_status"),
+        ],
         [InlineKeyboardButton("⏸ Pause Auto-Trade",    callback_data="p5:emergency:ask:pause")],
         [InlineKeyboardButton("⏸🛑 Pause + Close All", callback_data="p5:emergency:ask:pause_close")],
         [InlineKeyboardButton("🔒 Lock Account",        callback_data="p5:emergency:ask:lock")],

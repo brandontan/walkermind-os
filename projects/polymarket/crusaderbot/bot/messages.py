@@ -513,6 +513,18 @@ EMERGENCY_CONFIRM_TEXTS: dict[str, tuple[str, str]] = {
         "🔒 Lock Account",
         "Freezes all trading and account actions.\nRequires admin support to unlock.",
     ),
+    "stop_auto_trade": (
+        "🛑 Stop All Auto Trade",
+        "Disables auto-trading immediately.\nOpen positions are kept as-is.",
+    ),
+    "kill_all_positions": (
+        "💀 Kill All Positions",
+        "Queues every open position for immediate close at market price.\nThis cannot be undone.",
+    ),
+    "lock_bot": (
+        "🔒 Lock Bot",
+        "Disables all trading and locks your account.\nRequires admin support to unlock.",
+    ),
 }
 
 
@@ -526,8 +538,34 @@ def emergency_confirm_text(action: str) -> str:
 
 def emergency_feedback_text(action: str) -> str:
     labels = {
-        "pause": "✅ Auto-trade paused. No new trades will be entered.",
-        "pause_close": "✅ Auto-trade paused and all positions queued for close.",
-        "lock": "🔒 Account locked. Contact support to unlock.",
+        "pause":             "✅ Auto-trade paused. No new trades will be entered.",
+        "pause_close":       "✅ Auto-trade paused and all positions queued for close.",
+        "lock":              "🔒 Account locked. Contact support to unlock.",
+        "stop_auto_trade":   "🛑 Auto-trading stopped. No new trades will be entered.",
+        "kill_all_positions":"💀 All positions queued for close.",
+        "lock_bot":          "🔒 Bot locked. All trading disabled. Contact support to unlock.",
     }
     return labels.get(action, "✅ Action completed.")
+
+
+def emergency_system_status_text(
+    *,
+    auto_icon: str,
+    auto_on: bool,
+    paused: bool,
+    lock_icon: str,
+    locked: bool,
+    open_positions: int,
+    copy_active: int,
+) -> str:
+    auto_label = "ON" if (auto_on and not paused and not locked) else "OFF"
+    return (
+        "<b>ℹ️ System Status</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{auto_icon} Auto-Trade: <b>{auto_label}</b>"
+        + (" (paused)" if paused and not locked else "")
+        + "\n"
+        f"{lock_icon} Account: <b>{'LOCKED' if locked else 'ACTIVE'}</b>\n"
+        f"📊 Open Positions: <b>{open_positions}</b>\n"
+        f"🐋 Active Copy Tasks: <b>{copy_active}</b>"
+    )

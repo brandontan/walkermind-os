@@ -356,10 +356,13 @@ async def _process_one(
                     "copy_trade.executed",
                     telegram_user_id=user_ctx["telegram_user_id"],
                     market_id=market_id,
+                    market_question=market_question,
                     target_wallet=wallet_address,
                     side=side,
                     size_usdc=actual_size,
-                    entry_price=price,
+                    price=price,
+                    position_id=str(result.position_id) if result.position_id else None,
+                    copy_task_id=str(task.id),
                 )
             except Exception:
                 log.exception(
