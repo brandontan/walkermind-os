@@ -4,6 +4,7 @@ import { useSSEStatus } from "../lib/sse";
 const MAIN_NAV = [
   { to: "/dashboard",  label: "Dashboard",  icon: "🏠" },
   { to: "/autotrade",  label: "Auto Trade", icon: "🤖" },
+  { to: "/copy-trade", label: "Copy Trade", icon: "🐋" },
   { to: "/portfolio",  label: "Portfolio",  icon: "📊" },
   { to: "/wallet",     label: "Wallet",     icon: "💰" },
 ] as const;
@@ -81,7 +82,7 @@ export function DesktopSidebar() {
         <button
           className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left font-sans text-[14px] font-semibold transition-all duration-150 border-l-2 border-transparent"
           style={{ color: "var(--red, #FF2D55)" }}
-          onClick={() => navigate("/settings")}
+          onClick={() => navigate("/dashboard")}
         >
           <span className="text-[15px] w-5 text-center flex-shrink-0">🛑</span>
           Emergency Stop
