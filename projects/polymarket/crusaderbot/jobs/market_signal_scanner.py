@@ -456,6 +456,8 @@ async def run_job() -> tuple[int, int]:
     _scanner_state["published"] = total_published
     _scanner_state["last_tick_ts"] = time.time()
 
+    log.info("scanner.tick: emitting to event_bus",
+             markets=total_scanned, signals=total_published)
     try:
         from ..core import event_bus as _event_bus
         await _event_bus.emit(

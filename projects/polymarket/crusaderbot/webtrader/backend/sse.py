@@ -197,6 +197,21 @@ def _push_broadcast(event_type: str, payload: dict) -> None:
 # event_bus bridge handlers
 # ---------------------------------------------------------------------------
 
+async def _resolve_user_id_by_telegram(telegram_user_id: int) -> str | None:
+    """DB fallback: resolve telegram_user_id → user UUID when not in reverse map."""
+    from ...database import get_pool
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM users WHERE telegram_user_id = $1", telegram_user_id
+            )
+        return str(row["id"]) if row else None
+    except Exception as exc:
+        log.warning("SSE: DB user resolution failed telegram_user_id=%d: %s", telegram_user_id, exc)
+        return None
+
+
 async def _on_position_opened_sse(
     *,
     telegram_user_id: int,
@@ -210,6 +225,10 @@ async def _on_position_opened_sse(
 ) -> None:
     user_id = _telegram_to_user_id.get(telegram_user_id)
     if not user_id:
+        log.debug("SSE: position.opened — telegram_user_id=%d not in reverse map, trying DB", telegram_user_id)
+        user_id = await _resolve_user_id_by_telegram(telegram_user_id)
+    if not user_id:
+        log.debug("SSE: position.opened dropped — telegram_user_id=%d has no active WebTrader session", telegram_user_id)
         return
     _push_to_user(user_id, "position_opened", {
         "market_id": market_id,
@@ -234,6 +253,10 @@ async def _on_position_closed_sse(
 ) -> None:
     user_id = _telegram_to_user_id.get(telegram_user_id)
     if not user_id:
+        log.debug("SSE: position.closed — telegram_user_id=%d not in reverse map, trying DB", telegram_user_id)
+        user_id = await _resolve_user_id_by_telegram(telegram_user_id)
+    if not user_id:
+        log.debug("SSE: position.closed dropped — telegram_user_id=%d has no active WebTrader session", telegram_user_id)
         return
     _push_to_user(user_id, "position_closed", {
         "market_id": market_id,
@@ -251,6 +274,7 @@ async def _on_scanner_tick_sse(
     signals: int = 0,
     **_: Any,
 ) -> None:
+    log.info("SSE push: scanner.tick → %d users connected", len(_user_queues))
     _push_broadcast("scanner_tick", {"markets": markets, "signals": signals})
 
 
@@ -302,8 +326,16 @@ async def stream_for_user(
         if telegram_user_id is not None:
             _telegram_to_user_id[telegram_user_id] = user_id
 
+    log.info("SSE: user %s connected (telegram_id=%s), active sessions: %d",
+             user_id, telegram_user_id, len(_user_queues))
+
     try:
         yield {"event": "connected", "data": json.dumps({"user_id": user_id})}
+        # Diagnostic: push test event through the queue to verify end-to-end delivery
+        _push_to_user(user_id, "debug_connected", {
+            "user_id": user_id,
+            "sessions": len(_user_queues),
+        })
         while True:
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=25.0)
@@ -319,3 +351,5 @@ async def stream_for_user(
                 _user_queues.pop(user_id, None)
                 if telegram_user_id is not None:
                     _telegram_to_user_id.pop(telegram_user_id, None)
+        log.info("SSE: user %s disconnected, remaining sessions: %d",
+                 user_id, len(_user_queues))
