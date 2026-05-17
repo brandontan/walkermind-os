@@ -60,6 +60,12 @@ async def sync_markets() -> None:
                 if not mid:
                     continue
                 outcomes = m.get("outcomePrices") or m.get("outcome_prices") or [None, None]
+                if isinstance(outcomes, str):
+                    import json as _json
+                    try:
+                        outcomes = _json.loads(outcomes)
+                    except Exception:
+                        outcomes = [None, None]
                 yes_p = float(outcomes[0]) if outcomes and outcomes[0] is not None else None
                 no_p = float(outcomes[1]) if len(outcomes) > 1 and outcomes[1] is not None else None
                 tokens = m.get("clobTokenIds") or m.get("tokenIds") or [None, None]
