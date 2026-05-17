@@ -1,7 +1,8 @@
 Last Updated : 2026-05-17 20:00
-Status       : signal-engine-fix complete. edge_finder 0-signal bug fixed. Duplicate position dedup hardened. Production PAPER ONLY.
+Status       : telegram-ux-final-polish complete. Wallet copy-address bug fixed, portfolio_chart tier gate removed, keyboard label consistency restored. Production PAPER ONLY.
 
 [COMPLETED]
+- telegram-ux-final-polish PR open (2026-05-17). Wallet copy-address bug fixed (rsplit parse), portfolio_chart tier gate removed, wallet_p5_kb home label corrected, emergency_done_p5_kb auto-trade label corrected, _hub_text unused tier param removed. compileall clean. STANDARD, NARROW INTEGRATION.
 - crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.
 - signal-scanner-enable MERGED PR #1079 (2026-05-17). Migration 031 feed backfill + user enrollment; signal_scan_job access_tier filter relaxed for paper; users.py _enroll_signal_following on new user creation. STANDARD, NARROW INTEGRATION.
 - role-model-admin-user MERGED PR #1076 (2026-05-17). Two-role refactor: risk gate step-3 tier check scoped to LIVE only (paper open to every user); bot/handlers/setup.py _ensure_tier2→_ensure_user (no setup gate); middleware/tier wording collapsed to two canonical messages; admin.py two-role surface (🛠 Admin sections, settier user|admin mapped onto FREE/ADMIN — no migration); assert_live_guards DELIBERATELY UNCHANGED per CLAUDE.md. SENTINEL 97/100. MAJOR, NARROW INTEGRATION.
@@ -44,7 +45,11 @@ Status       : signal-engine-fix complete. edge_finder 0-signal bug fixed. Dupli
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+<<<<<<< HEAD
 - WARP🔹CMD review required. Source: projects/polymarket/crusaderbot/reports/forge/signal-engine-fix.md. Tier: STANDARD.
+=======
+- WARP🔹CMD review required for telegram-ux-final-polish. Source: projects/polymarket/crusaderbot/reports/forge/telegram-ux-final-polish.md. Tier: STANDARD.
+>>>>>>> cd19931 (forge: telegram-ux-final-polish — wallet copy fix + tier gate removal + label consistency)
 - Apply migration 031 to production DB (idempotent — safe to apply immediately after #1079 merge).
 - Apply migration 030 to production. Then deploy main to Fly.io — trading-unblock fix is live on main (MERGED PR #1065).
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.

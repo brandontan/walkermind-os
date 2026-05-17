@@ -20,7 +20,6 @@ from telegram.ext import ContextTypes
 from ...services.portfolio_chart import generate_portfolio_chart
 from ...users import upsert_user
 from ..keyboards import chart_kb
-from ..tier import Tier, has_tier, tier_block_message
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +57,6 @@ async def chart_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username
     )
-    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
-        await update.message.reply_text(tier_block_message(Tier.ALLOWLISTED))
-        return
-
     await _send_chart(
         chat_id=update.message.chat_id,
         user_id=user["id"],
@@ -80,10 +75,6 @@ async def chart_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username
     )
-    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
-        await q.answer(tier_block_message(Tier.ALLOWLISTED), show_alert=True)
-        return
-
     # callback_data format: chart:7 / chart:30 / chart:all
     raw_key = (q.data or "chart:7").split(":", 1)[-1]
     days_key = raw_key if raw_key in {"7", "30", "all"} else "7"
