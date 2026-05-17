@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 14:30
-Status       : All Fast Track PRs merged (PR #1090–#1098). No open PRs on GitHub. Closed beta observation active. Production PAPER ONLY.
+Last Updated : 2026-05-17 15:00
+Status       : WARP/CRUSADERBOT-BUGFIX-ROUND2 open — 3 bugs fixed (strategy config sync, signal scan dedup 24h, WebTrader 10s auto-refresh). PR pending WARP🔹CMD review. Production PAPER ONLY.
 
 [COMPLETED]
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
@@ -22,6 +22,7 @@ Status       : All Fast Track PRs merged (PR #1090–#1098). No open PRs on GitH
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- WARP/CRUSADERBOT-BUGFIX-ROUND2 PR open — 3 fixes: WebTrader strategy config sync, signal scan 24h market dedup, WebTrader 10s polling fallback. Awaiting WARP🔹CMD review.
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderPolybot live, Fly.io app running, PAPER ONLY.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
@@ -40,6 +41,7 @@ Status       : All Fast Track PRs merged (PR #1090–#1098). No open PRs on GitH
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for WARP/CRUSADERBOT-BUGFIX-ROUND2 (3 bug fixes: strategy config sync, 24h market dedup, WebTrader 10s polling). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-bugfix-round2.md. Tier: STANDARD.
 - WARP🔹CMD production deploy decision required: apply pending migrations (030, 031, 034) to production DB, then deploy main to Fly.io.
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
 - Closed beta observation continues — no new feature PRs in Week 4.

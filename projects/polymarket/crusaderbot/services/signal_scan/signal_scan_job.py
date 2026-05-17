@@ -150,7 +150,7 @@ async def _load_stale_queued_row(
 
 
 async def _has_open_position_for_market(user_id: UUID, market_id: str) -> bool:
-    """Return True when the user already holds an open position on this market.
+    """Return True when the user has an open OR recently closed (24h) position on this market.
 
     Runs before the risk gate so it short-circuits without creating a risk_log
     entry or idempotency_key record. Closes the race window between two
@@ -158,12 +158,21 @@ async def _has_open_position_for_market(user_id: UUID, market_id: str) -> bool:
     before either has committed its position row — positions is the
     authoritative source because it is committed in the same atomic transaction
     as the order row.
+
+    The 24h closed-position window prevents the scanner from immediately
+    reopening the same market after a TP/SL/manual close within the same day.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT 1 FROM positions "
-            " WHERE user_id = $1 AND market_id = $2 AND status = 'open'",
+            """
+            SELECT 1 FROM positions
+             WHERE user_id = $1 AND market_id = $2
+               AND (
+                   status = 'open'
+                   OR (status = 'closed' AND closed_at >= NOW() - INTERVAL '24 hours')
+               )
+            """,
             user_id, market_id,
         )
     return row is not None

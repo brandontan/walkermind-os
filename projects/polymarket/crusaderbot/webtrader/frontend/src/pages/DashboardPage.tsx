@@ -55,6 +55,19 @@ export function DashboardPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Polling fallback — recursive setTimeout ensures no overlapping requests
+  useEffect(() => {
+    let id: ReturnType<typeof setTimeout>;
+    let active = true;
+    function schedule() {
+      id = setTimeout(async () => {
+        if (active) { await load(); schedule(); }
+      }, 10_000);
+    }
+    schedule();
+    return () => { active = false; clearTimeout(id); };
+  }, [load]);
+
   useSSE(user?.token ?? null, {
     positions: () => void load(),
     portfolio: () => void load(),

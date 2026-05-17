@@ -199,15 +199,38 @@ async def toggle_autotrade(body: AutoTradeToggleRequest, user: _CurrentUser):
     return {"auto_trade_on": body.enabled}
 
 
+_PRESET_PARAMS: dict[str, dict[str, str | float]] = {
+    "signal_sniper": {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
+    "full_auto":     {"risk_profile": "balanced",   "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
+    "value_hunter":  {"risk_profile": "aggressive", "capital_alloc_pct": 0.60, "tp_pct": 0.30, "sl_pct": 0.20},
+    "whale_mirror":  {"risk_profile": "balanced",   "capital_alloc_pct": 0.50, "tp_pct": 0.20, "sl_pct": 0.10},
+    "hybrid":        {"risk_profile": "balanced",   "capital_alloc_pct": 0.60, "tp_pct": 0.15, "sl_pct": 0.10},
+}
+
+
 @router.post("/autotrade/preset")
 async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
+    if body.preset_key not in _PRESET_PARAMS:
+        raise HTTPException(status_code=400, detail=f"invalid preset key: {body.preset_key}")
     pool = get_pool()
     user_id = user["user_id"]
+    params = _PRESET_PARAMS[body.preset_key]
     async with pool.acquire() as conn:
         await conn.execute(
-            """UPDATE user_settings SET active_preset=$1, updated_at=NOW()
-               WHERE user_id=$2::uuid""",
-            body.preset_key, user_id,
+            """UPDATE user_settings
+                  SET active_preset       = $1,
+                      risk_profile        = COALESCE($2, risk_profile),
+                      capital_alloc_pct   = COALESCE($3, capital_alloc_pct),
+                      tp_pct              = COALESCE($4, tp_pct),
+                      sl_pct              = COALESCE($5, sl_pct),
+                      updated_at          = NOW()
+               WHERE user_id = $6::uuid""",
+            body.preset_key,
+            params.get("risk_profile"),
+            params.get("capital_alloc_pct"),
+            params.get("tp_pct"),
+            params.get("sl_pct"),
+            user_id,
         )
     return {"active_preset": body.preset_key}
 
