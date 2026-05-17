@@ -1,5 +1,5 @@
-Last Updated : 2026-05-17 20:00
-Status       : telegram-ux-final-polish complete. Wallet copy-address bug fixed, portfolio_chart tier gate removed, keyboard label consistency restored. Production PAPER ONLY.
+Last Updated : 2026-05-17 10:48
+Status       : autonomous-trading-bot MVP pipeline in progress. Critical onboarding bug fixed (preset activation + auto_trade_on in skip_deposit_cb). Production PAPER ONLY.
 
 [COMPLETED]
 - telegram-ux-final-polish PR open (2026-05-17). Wallet copy-address bug fixed (rsplit parse), portfolio_chart tier gate removed, wallet_p5_kb home label corrected, emergency_done_p5_kb auto-trade label corrected, _hub_text unused tier param removed. compileall clean. STANDARD, NARROW INTEGRATION.
@@ -24,11 +24,9 @@ Status       : telegram-ux-final-polish complete. Wallet copy-address bug fixed,
 - V5 "AUTOBOT" UI Overhaul MERGED PR #1045. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- signal-engine-fix PR open (WARP/CRUSADERBOT-SIGNAL-ENGINE-FIX, 2026-05-17). Awaiting WARP🔹CMD review and merge.
+- WARP/CRUSADERBOT-MVP-RUNTIME-V1 branch: Phase 0 audit complete (P0_RUNTIME_MAP.md). Critical bug fix: skip_deposit_cb now applies preset + sets auto_trade_on=True. allowlist_command migrated to is_admin(). PROJECT_STATE merge conflict resolved.
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderPolybot live, Fly.io app running, PAPER ONLY.
-- Test user walk3r69 has $1000 paper USDC, Full Auto aggressive preset, access_tier promoted to 3, enrolled in signal_following, subscribed to demo feed.
-- trading-unblock MERGED PR #1065. Migration 030 + Fly.io deploy pending — 5 stuck positions will close as MARKET_EXPIRED within 1 exit_watch tick after deploy.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
 
 [NOT STARTED]
@@ -45,11 +43,7 @@ Status       : telegram-ux-final-polish complete. Wallet copy-address bug fixed,
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-<<<<<<< HEAD
-- WARP🔹CMD review required. Source: projects/polymarket/crusaderbot/reports/forge/signal-engine-fix.md. Tier: STANDARD.
-=======
-- WARP🔹CMD review required for telegram-ux-final-polish. Source: projects/polymarket/crusaderbot/reports/forge/telegram-ux-final-polish.md. Tier: STANDARD.
->>>>>>> cd19931 (forge: telegram-ux-final-polish — wallet copy fix + tier gate removal + label consistency)
+- WARP🔹CMD review required for autonomous-trading-bot MVP pipeline. Source: projects/polymarket/crusaderbot/reports/forge/autonomous-trading-bot.md. Tier: MAJOR.
 - Apply migration 031 to production DB (idempotent — safe to apply immediately after #1079 merge).
 - Apply migration 030 to production. Then deploy main to Fly.io — trading-unblock fix is live on main (MERGED PR #1065).
 - WARP•SENTINEL validation required for webtrader-dashboard (MAJOR) before production deploy — PR #1058 merged to main. Source: projects/polymarket/crusaderbot/reports/forge/webtrader-dashboard.md.
