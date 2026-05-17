@@ -25,6 +25,7 @@ from .handlers.dashboard import (
     show_dashboard_for_cb, activity,
 )
 from .handlers.emergency import emergency_callback, emergency_root, emergency_root_cb
+from .handlers.tg_power_mode import tg_power_mode_cb
 from .handlers.presets import preset_callback
 from .handlers.start import build_start_handler, help_command
 from .handlers.trades import (
@@ -300,6 +301,9 @@ def register(app: Application) -> None:
 
     # noop:refresh
     app.add_handler(CallbackQueryHandler(_noop_refresh_cb, pattern=r"^noop:"))
+
+    # Telegram Power Mode — trade notification inline buttons
+    app.add_handler(CallbackQueryHandler(tg_power_mode_cb, pattern=r"^tgnotif:"))
 
     # Free text — must be last
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _text_router))

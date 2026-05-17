@@ -1,9 +1,10 @@
 """Notification service — subscribes to event_bus and dispatches Telegram receipts.
 
 Subscriptions:
-    position.opened     -> entry receipt   (📋 TRADE OPENED)
-    position.closed     -> exit receipt    (✅/❌/➖ TRADE CLOSED)
-    copy_trade.executed -> copy receipt    (🐋 COPY TRADE)
+    position.opened     -> auto-trade entry receipt   (🚨 Auto Trade Executed)
+    copy_trade.executed -> copy-trade receipt         (👥 Copy Trade Triggered)
+    trade.blocked       -> risk-gate block receipt    (⚠️ Trade Blocked)
+    position.closed     -> exit receipt               (✅/❌/➖ TRADE CLOSED)
 
 Failure contract:
     All handlers catch every exception from Telegram delivery.
@@ -17,6 +18,7 @@ from __future__ import annotations
 
 import html
 import logging
+import time
 from decimal import Decimal
 from typing import Any, Optional
 
@@ -49,6 +51,10 @@ _STRAT_LABELS: dict[str, str] = {
     "value":         "🎯 Value",
     "manual":        "Manual",
 }
+
+# Per-user cooldown for trade.blocked alerts (seconds)
+_BLOCKED_COOLDOWN_SECONDS: float = 300.0
+_blocked_cooldowns: dict[int, float] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -111,6 +117,29 @@ def _portfolio_trades_kb() -> InlineKeyboardMarkup:
     ]])
 
 
+def _auto_trade_kb(position_id: Optional[str]) -> InlineKeyboardMarkup:
+    if not position_id:
+        return _portfolio_trades_kb()
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("📊 View Position", callback_data=f"mytrades:open:{position_id}"),
+        InlineKeyboardButton("❌ Close Position", callback_data=f"close_position:{position_id}"),
+        InlineKeyboardButton("🌐 Dashboard",      callback_data="tgnotif:dashboard"),
+    ]])
+
+
+def _copy_trade_kb(
+    position_id: Optional[str],
+    copy_task_id: Optional[str],
+) -> InlineKeyboardMarkup:
+    row = []
+    if position_id:
+        row.append(InlineKeyboardButton("📊 View Position", callback_data=f"mytrades:open:{position_id}"))
+    if copy_task_id:
+        row.append(InlineKeyboardButton("⏸ Pause Copy", callback_data=f"tgnotif:pause_copy:{copy_task_id}"))
+    row.append(InlineKeyboardButton("🌐 Dashboard", callback_data="tgnotif:dashboard"))
+    return InlineKeyboardMarkup([row])
+
+
 # ---------------------------------------------------------------------------
 # Delivery helper
 # ---------------------------------------------------------------------------
@@ -157,20 +186,12 @@ async def _on_position_opened(
     label = _market_label(market_question, market_id)
     strat = _STRAT_LABELS.get(strategy_type or "", strategy_type or "Auto")
     text = (
-        f"{_SEP}\n"
-        "📋  TRADE OPENED\n"
-        f"{_SEP}\n"
-        f"<pre>Market  │ {html.escape(label[:28])}\n"
-        f"Side    │ {html.escape(side.upper())}\n"
-        f"Size    │ ${size_usdc:.2f}\n"
-        f"Entry   │ ${price:.4f}\n"
-        f"TP      │ {_fmt_tp(tp_pct)}\n"
-        f"SL      │ {_fmt_sl(sl_pct)}</pre>\n"
-        f"{_SEP}\n"
-        f"Strategy: {html.escape(strat)}\n"
-        f"{_SEP}"
+        f"🚨 <b>Auto Trade Executed</b>\n"
+        f"Bought ${size_usdc:.2f} {html.escape(side.upper())}\n"
+        f"Market: {html.escape(label)}\n"
+        f"Price: {price:.4f} | Strategy: {html.escape(strat)}"
     )
-    await _send_safe(telegram_user_id, text, "position.opened", _portfolio_trades_kb())
+    await _send_safe(telegram_user_id, text, "position.opened", _auto_trade_kb(position_id))
 
 
 async def _on_position_closed(
@@ -218,6 +239,8 @@ async def _on_copy_trade_executed(
     tp_pct: Optional[float] = None,
     sl_pct: Optional[float] = None,
     target_wallet: Optional[str] = None,
+    position_id: Optional[str] = None,
+    copy_task_id: Optional[str] = None,
     mode: str = "paper",
     **_: Any,
 ) -> None:
@@ -228,19 +251,37 @@ async def _on_copy_trade_executed(
         else (target_wallet or "—")
     )
     text = (
-        f"{_SEP}\n"
-        "🐋  COPY TRADE\n"
-        f"{_SEP}\n"
-        f"<pre>Market  │ {html.escape(label[:28])}\n"
-        f"Side    │ {html.escape(side.upper())}\n"
-        f"Size    │ ${size_usdc:.2f}\n"
-        f"Entry   │ ${price:.4f}\n"
-        f"Wallet  │ {html.escape(wallet_display)}\n"
-        f"TP      │ {_fmt_tp(tp_pct)}\n"
-        f"SL      │ {_fmt_sl(sl_pct)}</pre>\n"
-        f"{_SEP}"
+        f"👥 <b>Copy Trade Triggered</b>\n"
+        f"Copied: <code>{html.escape(wallet_display)}</code>\n"
+        f"Bought ${size_usdc:.2f} {html.escape(side.upper())} | Market: {html.escape(label)}"
     )
-    await _send_safe(telegram_user_id, text, "copy_trade.executed", _portfolio_trades_kb())
+    await _send_safe(
+        telegram_user_id, text, "copy_trade.executed",
+        _copy_trade_kb(position_id, copy_task_id),
+    )
+
+
+async def _on_trade_blocked(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    market_question: Optional[str] = None,
+    reason: str = "unknown",
+    **_: Any,
+) -> None:
+    now = time.monotonic()
+    last = _blocked_cooldowns.get(telegram_user_id, 0.0)
+    if now - last < _BLOCKED_COOLDOWN_SECONDS:
+        return
+    _blocked_cooldowns[telegram_user_id] = now
+
+    label = _market_label(market_question, market_id)
+    text = (
+        f"⚠️ <b>Trade Blocked</b>\n"
+        f"Market: {html.escape(label)}\n"
+        f"Reason: {html.escape(reason)}"
+    )
+    await _send_safe(telegram_user_id, text, "trade.blocked")
 
 
 # ---------------------------------------------------------------------------
@@ -252,3 +293,4 @@ def register_handlers() -> None:
     subscribe("position.opened",     _on_position_opened)
     subscribe("position.closed",     _on_position_closed)
     subscribe("copy_trade.executed", _on_copy_trade_executed)
+    subscribe("trade.blocked",       _on_trade_blocked)

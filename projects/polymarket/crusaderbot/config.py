@@ -73,6 +73,8 @@ class Settings(BaseSettings):
     # Generate: openssl rand -hex 32
     # Set in Fly.io: fly secrets set WEBTRADER_JWT_SECRET=<value>
     WEBTRADER_JWT_SECRET: Optional[str] = None
+    # Public URL for the WebTrader dashboard — sent via Dashboard button in TG notifications.
+    WEBTRADER_URL: Optional[str] = None
 
     # --- /ops dashboard write controls (disabled when unset) ---
     # GET /ops stays open (read-only operator console). POST /ops/kill +

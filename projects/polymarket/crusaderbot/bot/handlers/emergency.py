@@ -15,9 +15,14 @@ from telegram.ext import ContextTypes
 
 from ... import audit
 from ...database import get_pool
-from ...users import set_locked, set_paused, upsert_user
+from ...users import get_user_by_telegram_id, set_auto_trade, set_locked, set_paused, upsert_user
 from ..keyboards import emergency_confirm_p5_kb, emergency_done_p5_kb, emergency_p5_kb
-from ..messages import EMERGENCY_TEXT, emergency_confirm_text, emergency_feedback_text
+from ..messages import (
+    EMERGENCY_TEXT,
+    emergency_confirm_text,
+    emergency_feedback_text,
+    emergency_system_status_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,13 +90,73 @@ async def emergency_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
         return
 
 
+async def _system_status_text(user_id: UUID | str) -> str:
+    """Build a system status snapshot for the current user."""
+    pool = get_pool()
+    try:
+        async with pool.acquire() as conn:
+            user_row = await conn.fetchrow(
+                "SELECT auto_trade_on, paused, locked FROM users WHERE id=$1",
+                user_id,
+            )
+            open_count = await conn.fetchval(
+                "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status='open'",
+                user_id,
+            )
+            copy_active = await conn.fetchval(
+                "SELECT COUNT(*) FROM copy_trade_tasks WHERE user_id=$1 AND status='active'",
+                user_id,
+            )
+    except Exception as exc:
+        logger.error("system_status query failed: %s", exc)
+        return "⚠️ Could not retrieve system status."
+
+    auto_on = user_row["auto_trade_on"] if user_row else False
+    paused = user_row["paused"] if user_row else False
+    locked = user_row["locked"] if user_row else False
+
+    auto_icon = "🟢" if (auto_on and not paused and not locked) else "🔴"
+    lock_icon = "🔒" if locked else "🔓"
+
+    return emergency_system_status_text(
+        auto_icon=auto_icon,
+        auto_on=auto_on,
+        paused=paused,
+        lock_icon=lock_icon,
+        locked=locked,
+        open_positions=int(open_count or 0),
+        copy_active=int(copy_active or 0),
+    )
+
+
 async def _execute_action(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE, action: str,
 ) -> None:
     q = update.callback_query
     if update.effective_user is None:
         return
+
+    # Auth gate: only registered users may trigger emergency actions.
+    registered = await get_user_by_telegram_id(update.effective_user.id)
+    if registered is None:
+        if q is not None:
+            await q.answer("Not authorized.", show_alert=True)
+        return
+
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
+
+    # system_status is read-only — skip the try/except confirm flow
+    if action == "system_status":
+        text = await _system_status_text(user["id"])
+        if q is not None and q.message is not None:
+            await _safe_edit(
+                q, text, parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
+            )
+        elif update.message is not None:
+            await update.message.reply_text(
+                text, parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
+            )
+        return
 
     try:
         if action == "pause":
@@ -119,6 +184,36 @@ async def _execute_action(
             await set_paused(user["id"], True)
             await set_locked(user["id"], True)
             await audit.write(actor_role="user", action="self_lock_account", user_id=user["id"])
+
+        elif action == "stop_auto_trade":
+            await set_auto_trade(user["id"], False)
+            await audit.write(
+                actor_role="user", action="emergency_stop_auto_trade", user_id=user["id"],
+            )
+
+        elif action == "kill_all_positions":
+            try:
+                pool = get_pool()
+                async with pool.acquire() as conn:
+                    pos_ids = await conn.fetch(
+                        "SELECT id FROM positions WHERE user_id=$1 AND status='open'",
+                        user["id"],
+                    )
+                for row in pos_ids:
+                    await mark_force_close_intent_for_position(row["id"], user["id"])
+            except Exception as exc:
+                logger.error("kill_all_positions marking failed: %s", exc)
+            await audit.write(
+                actor_role="user", action="emergency_kill_all_positions", user_id=user["id"],
+            )
+
+        elif action == "lock_bot":
+            await set_paused(user["id"], True)
+            await set_auto_trade(user["id"], False)
+            await set_locked(user["id"], True)
+            await audit.write(
+                actor_role="user", action="emergency_lock_bot", user_id=user["id"],
+            )
 
     except Exception as exc:
         logger.error("emergency action=%s failed: %s", action, exc)
