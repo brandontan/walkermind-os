@@ -1,8 +1,9 @@
-Last Updated : 2026-05-17 22:00
-Status       : Bad-trade DB cleanup complete for walk3r69 (22 rows deleted, wallet reset $990.00). WARP🔹CMD review required for cleanup PR. Multiple feature PRs still awaiting review. Production PAPER ONLY.
+Last Updated : 2026-05-17 23:00
+Status       : Bad-trade cleanup merged (PR #1109). Ledger orphan follow-on fix complete (44 ledger rows deleted, ledger now consistent with wallet). WARP🔹CMD review required for ledger cleanup PR. Production PAPER ONLY.
 
 [COMPLETED]
-- WARP/CRUSADERBOT-BAD-TRADE-CLEANUP (2026-05-17): deleted 22 bad tp_hit positions for walk3r69 (price bug #1105); wallet balance corrected $2,227.57 → $990.00. Verification: 0 bad trades remain, 13 market_expired clean, 1 open untouched. STANDARD, NARROW INTEGRATION.
+- WARP/CRUSADERBOT-BAD-TRADE-CLEANUP MERGED PR #1109 (2026-05-17): deleted 22 bad tp_hit positions for walk3r69 (price bug #1105); wallet balance corrected $2,227.57 → $990.00. Verification: 0 bad trades remain, 13 market_expired clean, 1 open untouched. STANDARD, NARROW INTEGRATION.
+- WARP/CRUSADERBOT-LEDGER-CLEANUP (2026-05-17): deleted 44 orphaned ledger entries (22 trade_open + 22 trade_close) with dead ref_ids pointing to deleted positions; ledger_sum corrected from +$1,227.57 → -$10.00 (one open position); wallet/ledger now consistent. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
 - telegram-ux-final-polish MERGED PR #1088 (2026-05-17). Wallet copy-address bug fixed (rsplit parse), portfolio_chart tier gate removed, wallet_p5_kb home label corrected, emergency_done_p5_kb auto-trade label corrected, _hub_text unused tier param removed. compileall clean. STANDARD, NARROW INTEGRATION.
 - crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.
@@ -48,7 +49,7 @@ Status       : Bad-trade DB cleanup complete for walk3r69 (22 rows deleted, wall
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for WARP/CRUSADERBOT-BAD-TRADE-CLEANUP (bad-trade DB cleanup). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-bad-trade-cleanup.md. Tier: STANDARD. Decision needed: extend cleanup to qwneer8 + Maver1ch69 (same bug, same inflated trades).
+- WARP🔹CMD review required for WARP/CRUSADERBOT-LEDGER-CLEANUP (orphaned ledger entries). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ledger-cleanup.md. Tier: STANDARD. Decision needed: extend ledger + position cleanup to qwneer8 + Maver1ch69.
 - WARP🔹CMD review required for portfolio-ui-polish (Portfolio tab upgrade). Source: projects/polymarket/crusaderbot/reports/forge/portfolio-ui-polish.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-TG-KB-CLEANUP (inline KB ghost fix). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-tg-kb-cleanup.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/CRUSADERBOT-SCANNER-SYNC-FIX (skipped_market_not_synced fix). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-scanner-sync-fix.md. Tier: STANDARD.
