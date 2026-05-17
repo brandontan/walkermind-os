@@ -96,6 +96,62 @@ async def _already_published(feed_id: UUID, market_id: str, side: str) -> bool:
     return row is not None
 
 
+async def _upsert_market(
+    market_id: str,
+    m: dict,
+    yes_p: float | None,
+    no_p: float | None,
+    liq: float,
+    is_demo: bool,
+) -> None:
+    """Seed markets table from scanner API data so signal_scan_job can resolve markets.
+
+    The scanner publishes signals using conditionId as market_id.  Without this
+    upsert, _load_market() in signal_scan_job finds nothing and logs
+    skipped_market_not_synced for every candidate, even when edge_finder approves.
+    """
+    tokens = m.get("clobTokenIds") or m.get("tokenIds") or [None, None]
+    yes_tok: str | None = str(tokens[0]) if tokens and tokens[0] else None
+    no_tok: str | None = str(tokens[1]) if len(tokens) > 1 and tokens[1] else None
+    resolved = bool(m.get("closed") or m.get("resolved") or False)
+    category = str(m.get("category") or m.get("groupItemTitle") or "")[:50]
+    end = m.get("endDate") or m.get("end_date")
+    resolution_at = None
+    if end:
+        from datetime import datetime as _dt
+        try:
+            resolution_at = _dt.fromisoformat(str(end).replace("Z", "+00:00"))
+        except Exception:
+            pass
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO markets
+                (id, slug, question, category, status, yes_price, no_price,
+                 yes_token_id, no_token_id, liquidity_usdc, resolution_at,
+                 resolved, condition_id, is_demo, synced_at)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
+            ON CONFLICT (id) DO UPDATE SET
+                yes_price     = EXCLUDED.yes_price,
+                no_price      = EXCLUDED.no_price,
+                yes_token_id  = COALESCE(EXCLUDED.yes_token_id, markets.yes_token_id),
+                no_token_id   = COALESCE(EXCLUDED.no_token_id, markets.no_token_id),
+                liquidity_usdc = EXCLUDED.liquidity_usdc,
+                status        = EXCLUDED.status,
+                resolved      = EXCLUDED.resolved,
+                synced_at     = NOW()
+            """,
+            market_id,
+            str(m.get("slug") or "")[:300] or None,
+            str(m.get("question") or "")[:500] or None,
+            category or None,
+            "resolved" if resolved else "active",
+            yes_p, no_p, yes_tok, no_tok, liq, resolution_at, resolved,
+            market_id, is_demo,
+        )
+
+
 async def _publish(
     feed_id: UUID,
     market_id: str,
@@ -421,6 +477,11 @@ async def run_job() -> tuple[int, int]:
                 }
 
                 if not await _already_published(DEMO_FEED_ID, mid, side):
+                    try:
+                        await _upsert_market(mid, m, yes_p, no_p, liq, is_demo=True)
+                    except Exception as _ue:
+                        log.warning("scanner_market_upsert_failed",
+                                    market_id=mid, error=str(_ue))
                     await _publish(
                         DEMO_FEED_ID, mid, side, target_price, "edge_finder",
                         {**base, "signal_reason": f"{side.lower()}_edge"},

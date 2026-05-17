@@ -155,3 +155,5 @@ fully operational in paper mode on Fly.io IAD. Idempotency keys active.
 2026-05-17 23:15 | WARP/CRUSADERBOT-FAST-DAILY-PNL | Track E daily P&L report: services/daily_report_service.py new + config DAILY_REPORT_HOUR + scheduler cron wire-up; STANDARD, NARROW INTEGRATION
 2026-05-17 15:00 | WARP/CRUSADERBOT-BUGFIX-ROUND2 | FIX1: activate_preset syncs risk_profile + capital_alloc_pct + tp_pct + sl_pct (was only setting active_preset); FIX2: _has_open_position_for_market includes 24h closed-position window (prevents same-market re-entry); FIX3: DashboardPage + PortfolioPage 10s polling fallback added alongside SSE; STANDARD, NARROW INTEGRATION
 2026-05-17 16:00 | WARP/CRUSADERBOT-WEBTRADER-BUILD-FIX | Build pipeline verified intact (Dockerfile npm run build confirmed); BottomNav label Folio→Portfolio corrected; MINOR, FOUNDATION
+
+2026-05-17 20:00 | WARP/CRUSADERBOT-SCANNER-SYNC-FIX | scanner self-seeds markets table via _upsert_market(); scheduler.sync_markets outcomePrices JSON parse fixed; eliminates skipped_market_not_synced on every signal_following tick; STANDARD, NARROW INTEGRATION
