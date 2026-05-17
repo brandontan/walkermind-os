@@ -1,7 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { BottomNav } from "./components/BottomNav";
 import { AuthContext, useAuth, useAuthState } from "./lib/auth";
-import { useSSE } from "./lib/sse";
+import { SSEStatusContext, useSSE } from "./lib/sse";
 import { UiModeContext, useUiModeState } from "./lib/uiMode";
 import { AuthPage } from "./pages/AuthPage";
 import { AutoTradePage } from "./pages/AutoTradePage";
@@ -16,9 +16,10 @@ function AppShell() {
   const isAuth = location.pathname === "/auth";
 
   // Keep a single SSE connection alive at app level (no-op when token is null).
-  useSSE(user?.token ?? null, {});
+  const { connected: sseConnected } = useSSE(user?.token ?? null, {});
 
   return (
+    <SSEStatusContext.Provider value={sseConnected}>
     <div className="min-h-screen text-ink-1 font-sans flex justify-center overflow-hidden">
       {/* Ambient washes — Tactical Terminal v3.2 */}
       <div className="ambient amb-gold" aria-hidden />
@@ -53,6 +54,7 @@ function AppShell() {
         {user && !isAuth && <BottomNav />}
       </div>
     </div>
+    </SSEStatusContext.Provider>
   );
 }
 
