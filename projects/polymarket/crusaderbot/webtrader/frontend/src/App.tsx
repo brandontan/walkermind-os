@@ -64,9 +64,10 @@ function AppShell() {
   }, [api, user]);
 
   // SSE connection — fetchAlerts defined above so it's safe to reference here.
-  // Re-fetch alerts on system events to keep the Alert Center in sync.
+  // Re-fetch on both system and alert events to keep the Alert Center in sync.
   const { connected: sseConnected } = useSSE(user?.token ?? null, {
-    system: () => void fetchAlerts(),
+    system: fetchAlerts,
+    alert: fetchAlerts,
   });
 
   useEffect(() => {

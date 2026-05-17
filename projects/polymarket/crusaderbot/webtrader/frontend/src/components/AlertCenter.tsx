@@ -59,9 +59,11 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
       <div
         role="dialog"
         aria-label="Alert Center"
-        className="fixed top-0 right-0 h-full z-[201] flex flex-col bg-bg-2 border-l border-border-2"
+        className="fixed top-0 right-0 h-full z-[201] flex flex-col"
         style={{
           width: "min(360px, 92vw)",
+          background: "var(--surface-2)",
+          borderLeft: "1px solid var(--border-2)",
           transform: isOpen ? "translateX(0)" : "translateX(100%)",
           transition: "transform 0.25s cubic-bezier(0.22,1,0.36,1)",
           boxShadow: isOpen ? "-8px 0 32px rgba(0,0,0,0.6)" : "none",
