@@ -10,13 +10,21 @@ from fastapi import FastAPI, Header, HTTPException, Request, Response
 from telegram import Update
 from telegram.ext import Application
 
+from pathlib import Path
+
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
+
 from . import notifications
 from .api import admin as api_admin, health as api_health, ops as api_ops
+from .webtrader.backend import sse as webtrader_sse
+from .webtrader.backend.router import router as web_router
 from .bot.dispatcher import register as register_handlers
-from .cache import close_cache, init_cache
+from .services.notification_service import register_handlers as register_notification_handlers
+from .cache import close_cache, get_cache, init_cache, set_cache
 from .config import get_settings, validate_required_env
 from .database import close_pool, init_pool, run_migrations
-from .domain.strategy import bootstrap_default_strategies
+from .domain.strategy import bootstrap_default_strategies, seed_defaults
 from .monitoring import alerts as monitoring_alerts
 from .monitoring import sentry as monitoring_sentry
 from .monitoring.health import run_health_checks
@@ -34,6 +42,9 @@ scheduler_app = None
 # Remains None in polling mode — the endpoint rejects all requests in that case.
 _webhook_secret: str | None = None
 _webhook_mode_active: bool = False
+
+_STARTUP_DEDUP_KEY = "startup_notif_sent"
+_STARTUP_DEDUP_TTL = 60  # seconds — covers Fly.io rolling deploy overlap
 
 
 @asynccontextmanager
@@ -58,10 +69,21 @@ async def lifespan(_: FastAPI):
         settings.CAPITAL_MODE_CONFIRMED,
     )
 
-    await init_pool()
+    pool = await init_pool()
     await run_migrations()
     await init_cache()
     bootstrap_default_strategies()
+    seed_defaults()
+    from .users import backfill_missing_wallets
+    await backfill_missing_wallets(pool)
+    from .domain.strategy.registry import StrategyRegistry
+    catalog = StrategyRegistry.instance().list_available()
+    log.info(
+        "strategy registry ready: %d strategies registered: %s",
+        len(catalog),
+        [s["name"] for s in catalog],
+    )
+    await webtrader_sse.start_listener(settings.DATABASE_URL, pool)
 
     use_webhook = bool(settings.TELEGRAM_WEBHOOK_URL)
 
@@ -77,6 +99,8 @@ async def lifespan(_: FastAPI):
 
     await bot_app.initialize()
     await bot_app.start()
+    register_notification_handlers()
+    webtrader_sse.register_event_bus_handlers()
 
     if use_webhook:
         # Always enforce secret validation in webhook mode.
@@ -128,24 +152,53 @@ async def lifespan(_: FastAPI):
                 "CAPITAL_MODE_CONFIRMED": settings.CAPITAL_MODE_CONFIRMED,
                 "APP_ENV": settings.APP_ENV,
                 "note": (
-                    "All three operator guards are True at startup. "
+                    "All three activation guards are True at startup. "
                     "Tier 4 users who have switched to live mode will now "
                     "route real orders to the Polymarket CLOB."
                 ),
             },
         )
-        log.info("live_gate_opened audit event written (all operator guards enabled)")
+        log.info("live_gate_opened audit event written (all activation guards enabled)")
 
-    await notifications.send(
-        settings.OPERATOR_CHAT_ID,
-        f"🟢 CrusaderBot up\nenv: {settings.APP_ENV}\n"
-        f"mode: {'webhook' if use_webhook else 'polling'}\n"
-        f"live_trading_enabled: {settings.ENABLE_LIVE_TRADING}\n"
-        f"execution_path_validated: {settings.EXECUTION_PATH_VALIDATED}\n"
-        f"capital_mode_confirmed: {settings.CAPITAL_MODE_CONFIRMED}\n"
-        f"{'✅ operator guards OPEN — Tier 4 users can trade live' if all_guards_ready else '🔒 operator guards LOCKED — all trades route to paper'}",
-        parse_mode=None,
-    )
+    # Path 3 — Env var kill switch (Track D). Checked after DB + bot are ready
+    # so audit_log is available and admin notification can be delivered.
+    import os as _os
+    if _os.getenv("KILL_SWITCH", "false").lower() == "true":
+        from .domain.risk.kill_switch_exec import execute_kill_switch as _exec_ks
+        await _exec_ks(
+            reason="Env var KILL_SWITCH=true on startup",
+            triggered_by="system:env",
+        )
+
+    # Operator-only boot alert — must NEVER target a regular user's chat_id.
+    # Guard ensures the send is skipped rather than misdirected when
+    # OPERATOR_CHAT_ID is not yet configured.
+    # 60-second Redis dedup prevents duplicate alerts during Fly.io rolling
+    # deploys where old and new instances overlap briefly.
+    if settings.OPERATOR_CHAT_ID:
+        _notif_suppressed = False
+        try:
+            _notif_suppressed = bool(await get_cache(_STARTUP_DEDUP_KEY))
+        except Exception as exc:
+            log.warning("startup dedup cache check failed — proceeding: %s", exc)
+        if _notif_suppressed:
+            log.info("startup notification suppressed (duplicate within 60s)")
+        else:
+            _delivered = await notifications.send(
+                settings.OPERATOR_CHAT_ID,
+                f"\U0001f7e2 CrusaderBot up\nenv: {settings.APP_ENV}\n"
+                f"mode: {'webhook' if use_webhook else 'polling'}\n"
+                f"live_trading_enabled: {settings.ENABLE_LIVE_TRADING}\n"
+                f"execution_path_validated: {settings.EXECUTION_PATH_VALIDATED}\n"
+                f"capital_mode_confirmed: {settings.CAPITAL_MODE_CONFIRMED}\n"
+                f"{'✅ activation guards OPEN — live trading enabled' if all_guards_ready else '\U0001f512 activation guards LOCKED — all trades route to paper'}",
+                parse_mode=None,
+            )
+            if _delivered:
+                try:
+                    await set_cache(_STARTUP_DEDUP_KEY, "1", ttl=_STARTUP_DEDUP_TTL)
+                except Exception as exc:
+                    log.warning("startup dedup cache set failed: %s", exc)
 
     # --- observability: startup alert + dependency probe ---
     # Fly.io starts a fresh machine on every deploy or VM restart, so a boot
@@ -155,9 +208,6 @@ async def lifespan(_: FastAPI):
     # run_health_checks() is bounded by its own per-check 3s timeout, so
     # awaiting it here is safe.
     try:
-        monitoring_alerts.schedule_alert(
-            monitoring_alerts.alert_startup(restart_detected=True),
-        )
         if missing_env:
             # One aggregated page covers all missing keys; per-variable
             # alerts would collide on the same cooldown bucket and silently
@@ -208,6 +258,7 @@ async def lifespan(_: FastAPI):
                 await bot_app.shutdown()
         except Exception as exc:
             log.warning("bot shutdown error: %s", exc)
+        await webtrader_sse.stop_listener()
         await close_cache()
         await close_pool()
 
@@ -217,11 +268,19 @@ app.add_middleware(RequestLogMiddleware)
 app.include_router(api_health.router)
 app.include_router(api_admin.router)
 app.include_router(api_ops.router)
+app.include_router(web_router, prefix="/api/web")
+
+# Serve the React frontend from /dashboard (static files from the Docker build)
+_frontend_dist = Path(__file__).parent / "webtrader" / "frontend" / "dist"
+if _frontend_dist.exists():
+    app.mount("/dashboard", StaticFiles(directory=str(_frontend_dist), html=True), name="webtrader")
+else:
+    log.warning("WebTrader dist not found at %s — /dashboard will not serve the UI", _frontend_dist)
 
 
 @app.get("/")
 async def root():
-    return {"service": "crusaderbot", "status": "running"}
+    return RedirectResponse("/dashboard", status_code=302)
 
 
 @app.post("/telegram/webhook")

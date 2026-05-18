@@ -1,14 +1,66 @@
 """User CRUD helpers used across handlers + scheduler."""
 from __future__ import annotations
 
+import logging
 from typing import Optional
 from uuid import UUID
 
 from .database import get_pool
 
+logger = logging.getLogger(__name__)
+
+_DEMO_FEED_ID = "00000000-0000-0000-0001-000000000001"
+
+
+async def _enroll_signal_following(user_id: UUID) -> None:
+    """Enroll user in signal_following strategy and subscribe to demo feed.
+
+    Idempotent — safe to call on every /start for every user.
+    Self-heals the demo feed if migrations ran before any users existed.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        # Self-heal: seed demo feed using this user as operator if feed is missing.
+        # Covers the fresh-DB case where migration 031 ran before any users existed.
+        await conn.execute(
+            """
+            INSERT INTO signal_feeds (id, name, slug, operator_id, status, description,
+                                      subscriber_count, is_demo, created_at, updated_at)
+            VALUES ($2::uuid,
+                    'CrusaderBot Demo Feed', 'crusaderbot-demo',
+                    $1, 'active',
+                    'Auto-generated demo feed for paper trading. Signals from edge_finder strategy.',
+                    0, TRUE, NOW(), NOW())
+            ON CONFLICT DO NOTHING
+            """,
+            user_id, _DEMO_FEED_ID,
+        )
+        await conn.execute(
+            """
+            INSERT INTO user_strategies (user_id, strategy_name, weight, enabled, created_at)
+            VALUES ($1, 'signal_following', 0.10, TRUE, NOW())
+            ON CONFLICT DO NOTHING
+            """,
+            user_id,
+        )
+        await conn.execute(
+            """
+            INSERT INTO user_signal_subscriptions (user_id, feed_id, subscribed_at, is_demo)
+            SELECT $1, $2::uuid, NOW(), TRUE
+            WHERE NOT EXISTS (
+                SELECT 1 FROM user_signal_subscriptions
+                 WHERE user_id = $1
+                   AND feed_id = $2::uuid
+                   AND unsubscribed_at IS NULL
+            )
+            """,
+            user_id, _DEMO_FEED_ID,
+        )
+
 
 async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
     pool = get_pool()
+    _is_new_user = False
     async with pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
@@ -16,22 +68,91 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
             )
             if row is None:
                 row = await conn.fetchrow(
-                    "INSERT INTO users (telegram_user_id, username) "
-                    "VALUES ($1, $2) RETURNING *",
+                    "INSERT INTO users (telegram_user_id, username, access_tier) "
+                    "VALUES ($1, $2, 3) RETURNING *",
                     telegram_user_id, username,
                 )
-                # Default settings row
                 await conn.execute(
                     "INSERT INTO user_settings (user_id) VALUES ($1) "
                     "ON CONFLICT (user_id) DO NOTHING",
                     row["id"],
                 )
-            elif username and username != row["username"]:
-                await conn.execute(
-                    "UPDATE users SET username=$1 WHERE id=$2",
-                    username, row["id"],
+                _is_new_user = True
+            else:
+                if row["access_tier"] < 3:
+                    await conn.execute(
+                        "UPDATE users SET access_tier=3 WHERE id=$1", row["id"],
+                    )
+                if username and username != row["username"]:
+                    await conn.execute(
+                        "UPDATE users SET username=$1 WHERE id=$2",
+                        username, row["id"],
+                    )
+                row = await conn.fetchrow(
+                    "SELECT * FROM users WHERE id=$1", row["id"],
                 )
+    # Must run AFTER transaction commits — vault.py uses its own connection.
+    # ON CONFLICT DO NOTHING in create_wallet_for_user makes this safe on retries.
+    if _is_new_user:
+        from .wallet.vault import create_wallet_for_user
+        try:
+            await create_wallet_for_user(row["id"])
+        except Exception:
+            logger.exception(
+                "wallet creation failed for new user user_id=%s", row["id"]
+            )
+        try:
+            await seed_paper_capital(row["id"])
+        except Exception:
+            logger.exception(
+                "paper seed failed for new user user_id=%s", row["id"]
+            )
+    try:
+        await _enroll_signal_following(row["id"])
+    except Exception:
+        logger.exception(
+            "signal enrollment failed for user user_id=%s", row["id"]
+        )
     return dict(row)
+
+
+async def seed_paper_capital(user_id: UUID) -> bool:
+    """Atomically credit $1,000 paper USDC if wallet exists at zero balance
+    AND no prior seed-ledger entry exists. Idempotent — safe to retry.
+
+    Returns True if a credit happened, False if no-op (already seeded or
+    wallet missing).
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            bal = await conn.fetchval(
+                "SELECT balance_usdc FROM wallets WHERE user_id=$1 FOR UPDATE",
+                user_id,
+            )
+            if bal is None:
+                return False  # wallet not yet created; caller can retry
+            if float(bal) != 0:
+                return False  # already has funds — never overwrite
+            already = await conn.fetchval(
+                "SELECT 1 FROM ledger WHERE user_id=$1 AND type='deposit' "
+                "AND note='Paper wallet — initial $1,000 credit' LIMIT 1",
+                user_id,
+            )
+            if already:
+                return False
+            await conn.execute(
+                "UPDATE wallets SET balance_usdc=1000 "
+                "WHERE user_id=$1 AND balance_usdc=0",
+                user_id,
+            )
+            await conn.execute(
+                "INSERT INTO ledger (user_id, type, amount_usdc, note) "
+                "VALUES ($1, 'deposit', 1000, "
+                "'Paper wallet — initial $1,000 credit')",
+                user_id,
+            )
+            return True
 
 
 async def get_user_by_telegram_id(telegram_user_id: int) -> Optional[dict]:
@@ -118,6 +239,49 @@ async def get_settings_for(user_id: UUID) -> dict:
     return dict(row)
 
 
+async def user_notifications_enabled(user_id: UUID) -> bool:
+    """Return whether the user wants per-user trade / summary alerts.
+
+    Fail-open: any DB error, missing row, or missing column → True. A
+    closed beta must never go silent because of an infra blip or an
+    un-applied migration. Operator + health alerts are NEVER gated by this.
+    """
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT notifications_on FROM user_settings WHERE user_id=$1",
+                user_id,
+            )
+    except Exception as exc:  # noqa: BLE001 — fail-open, never block the send
+        logger.warning("notifications_on read failed user=%s err=%s", user_id, exc)
+        return True
+    if row is None or row["notifications_on"] is None:
+        return True
+    return bool(row["notifications_on"])
+
+
+async def notifications_enabled_by_telegram_id(telegram_user_id: int) -> bool:
+    """telegram-id-keyed variant — single JOIN, fail-open (see above)."""
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT s.notifications_on "
+                "FROM users u JOIN user_settings s ON s.user_id = u.id "
+                "WHERE u.telegram_user_id=$1",
+                telegram_user_id,
+            )
+    except Exception as exc:  # noqa: BLE001 — fail-open
+        logger.warning(
+            "notifications_on read failed tg_id=%s err=%s", telegram_user_id, exc
+        )
+        return True
+    if row is None or row["notifications_on"] is None:
+        return True
+    return bool(row["notifications_on"])
+
+
 async def set_onboarding_complete(user_id: UUID, complete: bool = True) -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -136,3 +300,33 @@ async def update_settings(user_id: UUID, **fields) -> None:
             f"UPDATE user_settings SET {cols}, updated_at=NOW() WHERE user_id=$1",
             user_id, *fields.values(),
         )
+
+
+async def backfill_missing_wallets(pool) -> int:
+    """Idempotent startup backfill: create wallet rows for any user missing one.
+
+    Runs on every restart. Safe to call repeatedly — create_wallet_for_user uses
+    ON CONFLICT DO NOTHING and seed_paper_capital checks balance before crediting.
+    Never raises; logs and returns 0 on failure.
+    """
+    from .wallet.vault import create_wallet_for_user
+
+    try:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT id FROM users WHERE id NOT IN (SELECT user_id FROM wallets)"
+            )
+        count = 0
+        for row in rows:
+            uid = row["id"]
+            try:
+                await create_wallet_for_user(uid)
+                await seed_paper_capital(uid)
+                count += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("wallet backfill: failed for user %s: %s", uid, exc)
+        logger.info("wallet backfill: %d wallets created", count)
+        return count
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("wallet backfill: startup check failed: %s", exc)
+        return 0
