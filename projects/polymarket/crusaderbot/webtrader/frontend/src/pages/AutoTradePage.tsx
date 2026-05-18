@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { HeroCard } from "../components/HeroCard";
 import { TopBar } from "../components/TopBar";
-import { makeApi, type AutoTradeState, type MarketFilterSettings, type RiskProfileParams } from "../lib/api";
+import { makeApi, type AutoTradeState, type MarketFilterSettings, type RiskProfileParams, type TradingSettings } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 
@@ -129,6 +129,7 @@ export function AutoTradePage() {
   const [filterLiquidity, setFilterLiquidity] = useState<string>("1000");
   const [filterResolution, setFilterResolution] = useState<string>("0");
   const [filterVolume, setFilterVolume]       = useState<string>("100");
+  const [filterSlippage, setFilterSlippage]   = useState<string>("3");
   const [savingFilters, setSavingFilters]     = useState(false);
   const [filterSaved, setFilterSaved]         = useState(false);
 
@@ -174,13 +175,23 @@ export function AutoTradePage() {
   async function handleSaveFilters() {
     setSavingFilters(true);
     try {
-      const payload: MarketFilterSettings = {
+      const filterPayload: MarketFilterSettings = {
         market_categories: filterCats,
         min_liquidity: parseFloat(filterLiquidity),
         max_resolution_days: filterResolution === "0" ? null : parseInt(filterResolution, 10),
         min_volume_24h: parseFloat(filterVolume),
       };
-      await api.updateMarketFilters(payload);
+      const slippageNum = parseFloat(filterSlippage);
+      const tradingPayload: TradingSettings = {};
+      if (!isNaN(slippageNum) && slippageNum >= 0 && slippageNum <= 100) {
+        tradingPayload.slippage_tolerance_pct = slippageNum / 100;
+      }
+      await Promise.all([
+        api.updateMarketFilters(filterPayload),
+        Object.keys(tradingPayload).length > 0
+          ? api.updateTradingSettings(tradingPayload)
+          : Promise.resolve(),
+      ]);
       setFilterSaved(true);
       setTimeout(() => setFilterSaved(false), 2000);
     } finally {
@@ -509,6 +520,32 @@ export function AutoTradePage() {
                 <option value="1000">$1k</option>
                 <option value="5000">$5k</option>
               </select>
+            </div>
+          </div>
+
+          {/* Slippage Tolerance */}
+          <div>
+            <label className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono block mb-1">
+              Slippage Tolerance
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.5}
+                value={filterSlippage}
+                onChange={e => setFilterSlippage(e.target.value)}
+                className="w-20 bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 placeholder:text-ink-3 focus:border-gold focus:outline-none"
+                style={{ color: "white" }}
+                placeholder="3"
+              />
+              <span className="text-ink-3 font-mono text-xs">%</span>
+              {parseFloat(filterSlippage) > 3 && (
+                <span className="text-[10px] font-mono" style={{ color: "#F5C842" }}>
+                  ⚠ High — may get poor fills on thin markets
+                </span>
+              )}
             </div>
           </div>
 
