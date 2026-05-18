@@ -1,5 +1,5 @@
-Last Updated : 2026-05-18 23:30
-Status       : WARP/CRUSADERBOT-FAST-ISOLATION-AUDIT PR open — Track J: user_id isolation audit (INTENTIONAL comments on 3 all-user queries), wallet startup backfill, qrcode dep removal. MAJOR. SENTINEL required before merge.
+Last Updated : 2026-05-18 23:59
+Status       : WARP/CRUSADERBOT-FAST-ISOLATION-AUDIT MERGED — CRU-16: Track J isolation audit, wallet startup backfill, qrcode dep removal. MAJOR. Merged by WARP🔹CMD.
 
 [COMPLETED]
 - CRU-12 WARP/CRUSADERBOT-UX-PHASE1 PR open (2026-05-17): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel. Vite build clean. STANDARD, NARROW INTEGRATION.
@@ -27,7 +27,6 @@ Status       : WARP/CRUSADERBOT-FAST-ISOLATION-AUDIT PR open — Track J: user_i
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- WARP/CRUSADERBOT-FAST-ISOLATION-AUDIT PR open — CRU-16: Track J isolation audit (INTENTIONAL comments on lifecycle.py + kill_switch_exec.py + fallback.py), backfill_missing_wallets() startup hook (users.py + main.py), qrcode[pil] dep removed (pyproject.toml), test_user_isolation.py (13 tests pass), test_wallet_backfill.py (8 tests pass). MAJOR, NARROW INTEGRATION. SENTINEL required before merge.
 - WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE PR open — 6 active Sentry errors fixed: scheduler metadata json.dumps, preset_picker_kb→preset_picker rename, migration 041 (strategy_type+market_question on positions), slippage NUMERIC clamp, DB pool 4. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-UI-FIXES-BATCH2 PR open — SettingsPage liquidity+slippage removed, AutoTradePage custom risk text color fix, Weather Arb+Market Making COMING SOON removed, FilterTabs mobile scroll. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-RUNTIME-FIXES PR open — HEISENBERG_API_KEY alignment (config.py), asyncpg command_timeout=30 + _warn_if_supavisor_transaction_pool (database.py), StrategyRegistry startup log (main.py). STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
@@ -65,7 +64,6 @@ Status       : WARP/CRUSADERBOT-FAST-ISOLATION-AUDIT PR open — Track J: user_i
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for crusaderbot-fast-isolation-audit (CRU-16: user_id isolation audit, wallet backfill, qrcode dep). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-fast-isolation-audit.md. Tier: MAJOR. Score 90+ required.
 - WARP🔹CMD: apply migration 041 to Supabase production, then review+merge WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-sentry-hotfix-bundle.md. Tier: STANDARD.
 - WARP🔹CMD review required for crusaderbot-ui-fixes-batch2 (4 UI fixes: SettingsPage liquidity+slippage removal, custom risk text color, COMING SOON removal, mobile scroll tabs). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ui-fixes-batch2.md. Tier: STANDARD.
 - WARP🔹CMD review required for crusaderbot-runtime-fixes (HEISENBERG key alignment, asyncpg timeout, startup log). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-runtime-fixes.md. Tier: STANDARD. Set HEISENBERG_API_KEY Fly secret before deploy.
@@ -97,7 +95,7 @@ Status       : WARP/CRUSADERBOT-FAST-ISOLATION-AUDIT PR open — Track J: user_i
 - qwneer8 and Maver1ch69 have identical bad tp_hit positions from price bug #1105 (same 0.540–0.545 inflated exit_price). Not cleaned in this lane — WARP🔹CMD decision required to extend cleanup.
 - WARP🔹CMD requested removal of the internal Tier-4/activation-guard LIVE-trading safety gate; WARP•FORGE declined that sub-item only — CLAUDE.md forbids bypassing the live-trading guard. assert_live_guards is intentionally preserved (invisible to users; live remains owner-gated + OFF). All other role-model items delivered as requested.
 - Dual tier tables (users.access_tier integer + user_tiers string) retained by design (logic+UX collapse, no DB teardown). Internal-only; not user-visible. Full schema removal deferred to a separate migration lane if ever required.
-- New users before runtime-autotrade-fix deploy still receive $0 balance — two affected users (qwneer8, Maver1ch69) already backfilled via SQL; fix deployed via backfill_missing_wallets() in WARP/CRUSADERBOT-FAST-ISOLATION-AUDIT (pending merge).
+- New users before runtime-autotrade-fix deploy still receive $0 balance — two affected users (qwneer8, Maver1ch69) already backfilled via SQL; fix merged via backfill_missing_wallets() in WARP/CRUSADERBOT-FAST-ISOLATION-AUDIT.
 - Fly.io deploy blocked until migration 030 (job_runs metadata JSONB) applied to production — trading-unblock MERGED PR #1065, live on main.
 - crusaderbot-logo.png binary not yet in repo — WebTrader logo img references will render broken until PNG committed to webtrader/frontend/public/ by WARP🔹CMD.
 - 5 positions stuck open — trading-unblock MERGED PR #1065. Will auto-close as MARKET_EXPIRED within 1 exit_watch tick (60s) after migration 030 applied and Fly.io deploy completes.
