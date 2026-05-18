@@ -1,7 +1,8 @@
-Last Updated : 2026-05-19 00:30
-Status       : WARP/CRUSADERBOT-SIGNAL-FRESHNESS-GATE-CLEAN PR open — signal freshness gate (step 1c) added to _process_candidate(), rejects signal_publications older than 30 minutes.
+Last Updated : 2026-05-19 00:40
+Status       : WARP/CRUSADERBOT-PRICE-DRIFT-GUARD MERGED PR #1148 — price drift guard live; paper-fill protection complete (freshness gate step 1c + drift guard step 2b).
 
 [COMPLETED]
+- WARP/CRUSADERBOT-PRICE-DRIFT-GUARD MERGED PR #1148 (2026-05-19 00:40): target price drift guard added to _process_candidate() step 2b — rejects feed signals where current DB yes_price/no_price has drifted >25% from signal target_price; side-aware; no API call; matched _build_trade_signal fallback chain. STANDARD, NARROW INTEGRATION.
 - WARP/crusaderbot-realtime-pipeline-runtime MERGED PR #1141 (2026-05-18 23:55): pipeline MONITORING events (scan_started/strategy_scan_done/scan_completed/risk_gate_evaluated), /status endpoint, 14/14 hermetic pipeline ordering tests, WebTrader TopBar dynamic trading_mode pill, Paper Mode banners, analytics trust guard, config IA reorder, mobile nav readability, leaderboard data source note; Promise.allSettled AutoTrade load decoupled from dashboard failures. SENTINEL APPROVED 89/100. MAJOR, FULL RUNTIME INTEGRATION.
 - CRU-12 WARP/CRUSADERBOT-UX-PHASE1 PR open (2026-05-17): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel. Vite build clean. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-UI-RESPONSIVE-POLISH MERGED PR #1115 (2026-05-18 02:30): 6-page responsive layout (md: breakpoint), market filter UI (9 categories + 3 dropdowns), auto redeem setting (toggle + mode), copy trade UX (empty state + helper text + stats); migration 036 (min_liquidity, max_resolution_days, min_volume_24h, auto_redeem) applied to Supabase. STANDARD, NARROW INTEGRATION.
