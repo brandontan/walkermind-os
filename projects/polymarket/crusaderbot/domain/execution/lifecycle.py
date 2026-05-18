@@ -615,12 +615,17 @@ class OrderLifecycleManager:
         one tick in the aggressive direction, and re-submits. Sets
         slippage_retry_count=1 so the next timeout triggers _on_slippage_cancel.
         """
-        s = get_settings()
+        s = self._settings or get_settings()
         if not s.ENABLE_LIVE_TRADING:
             logger.warning(
                 "lifecycle slippage_retry skipped: ENABLE_LIVE_TRADING=false "
-                "order=%s — retry deferred until live gate is active",
+                "order=%s — marking stale for manual reconciliation",
                 order["id"],
+            )
+            await self._mark_stale(
+                order=order,
+                attempts=attempts,
+                reason="ENABLE_LIVE_TRADING=false during slippage retry window",
             )
             return
         broker_id = str(order.get("polymarket_order_id") or "")
