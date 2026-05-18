@@ -74,6 +74,13 @@ async def lifespan(_: FastAPI):
     await init_cache()
     bootstrap_default_strategies()
     seed_defaults()
+    from .domain.strategy.registry import StrategyRegistry
+    catalog = StrategyRegistry.instance().list_available()
+    log.info(
+        "strategy registry ready: %d strategies registered: %s",
+        len(catalog),
+        [s["name"] for s in catalog],
+    )
     await webtrader_sse.start_listener(settings.DATABASE_URL, pool)
 
     use_webhook = bool(settings.TELEGRAM_WEBHOOK_URL)

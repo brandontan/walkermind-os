@@ -1,5 +1,5 @@
-Last Updated : 2026-05-18 17:30
-Status       : WARP/CRUSADERBOT-R5-STRATEGY-CONFIG PR open — 3-fix bundle: lifecycle slippage_retry counter-advance (paper-mode), AlertCenter CSS vars, R5 strategy config commands (/strategy /risk /paper /config) + migration 040. STANDARD. Awaiting WARP🔹CMD review.
+Last Updated : 2026-05-18 18:00
+Status       : WARP/CRUSADERBOT-RUNTIME-FIXES PR open — 3 targeted runtime fixes: HEISENBERG key name alignment (config.py), asyncpg command_timeout 10→30 + helper rename (database.py), StrategyRegistry startup log (main.py). STANDARD. Awaiting WARP🔹CMD review.
 
 [COMPLETED]
 - CRU-12 WARP/CRUSADERBOT-UX-PHASE1 PR open (2026-05-17): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel. Vite build clean. STANDARD, NARROW INTEGRATION.
@@ -27,6 +27,7 @@ Status       : WARP/CRUSADERBOT-R5-STRATEGY-CONFIG PR open — 3-fix bundle: lif
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- WARP/CRUSADERBOT-RUNTIME-FIXES PR open — HEISENBERG_API_KEY alignment (config.py), asyncpg command_timeout=30 + _warn_if_supavisor_transaction_pool (database.py), StrategyRegistry startup log (main.py). STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-R5-STRATEGY-CONFIG PR open — lifecycle slippage_retry deferred counter-advance, AlertCenter CSS var migration, R5 /strategy /risk /paper /config commands + migration 040. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-FAST-LIVE-GATE-HARDENING PR open — Track D: guard bypass CRITICAL logging (live.py + router.py), SLIPPAGE_GUARD_PCT=0.05 in constants.py + live.py fence, balance>0 cap in validate_risk_caps(), ExecutionDryRun + dry_run_execute() + POST /admin/dry-run, 3 kill switch path tests (all pass), state/LIVE_READINESS.md. MAJOR, FULL RUNTIME INTEGRATION. SENTINEL required before merge.
 - WARP/CRUSADERBOT-REALTIME-LEADERBOARD PR open — Falcon API live leaderboard (agent_id 584), Wallet 360 inline enrichment panel (agent_id 581), DiscoverPage localStorage→in-mem cache + MOCK_MARKETS removed, migration 039 (delete fake rows), leaderboard freshness filter. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
@@ -61,6 +62,7 @@ Status       : WARP/CRUSADERBOT-R5-STRATEGY-CONFIG PR open — 3-fix bundle: lif
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for crusaderbot-runtime-fixes (HEISENBERG key alignment, asyncpg timeout, startup log). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-runtime-fixes.md. Tier: STANDARD. Set HEISENBERG_API_KEY Fly secret before deploy.
 - WARP🔹CMD review required for r5-strategy-config (lifecycle slippage_retry counter-advance, AlertCenter CSS vars, /strategy /risk /paper /config commands, migration 040). Source: projects/polymarket/crusaderbot/reports/forge/r5-strategy-config.md. Tier: STANDARD. Apply migration 040 before deploy.
 - WARP•SENTINEL validation required for crusaderbot-live-gate-hardening (Track D: guard bypass logging, SLIPPAGE_GUARD_PCT, balance>0 cap, kill switch 3-path tests, dry-run endpoint). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-live-gate-hardening.md. Tier: MAJOR.
 - WARP🔹CMD review required for crusaderbot-realtime-leaderboard (Falcon API live leaderboard + Wallet 360 + DiscoverPage fix + zero mock data). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-realtime-leaderboard.md. Tier: STANDARD. Apply migration 039 + set HEISENBERG_API_KEY secret before deploy.

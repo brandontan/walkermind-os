@@ -55,9 +55,9 @@ def _safe_float(val: Any) -> float | None:
 
 
 async def sync_leaderboard(pool: Any) -> None:
-    api_key = os.environ.get("HEISENBERG_API_KEY", "")
+    api_key = os.environ.get("HEISENBERG_API_TOKEN", "")
     if not api_key:
-        log.warning("leaderboard sync: HEISENBERG_API_KEY not set — skipping")
+        log.warning("leaderboard sync: HEISENBERG_API_TOKEN not set — skipping")
         return
 
     headers = {
