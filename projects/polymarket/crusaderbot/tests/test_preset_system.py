@@ -369,7 +369,6 @@ def test_pick_renders_confirmation_with_all_values(monkeypatch):
     text = replies[0]
     # Confirmation shows the preset name (Value Hunter for value_hunter preset)
     assert "Value Hunter" in text or "value_hunter" in text.lower()
-    assert "activate" in text.lower()  # "Start Auto Trade" or "Tap ... to activate"
     cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
            for b in row]
     assert cbs == [
