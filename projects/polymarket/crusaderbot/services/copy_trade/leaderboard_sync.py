@@ -108,8 +108,14 @@ async def sync_leaderboard(pool: Any) -> None:
         if not wallet:
             continue
         win_rate = _safe_float(r.get("win_rate_pct_15d"))
+        if win_rate is not None and win_rate > 1.0:
+            win_rate = win_rate / 100.0
+        if win_rate is not None:
+            win_rate = max(0.0, min(1.0, win_rate))
         total_pnl = _safe_float(r.get("total_pnl_15d"))
         roi_pct = _safe_float(r.get("roi_pct_15d"))
+        if roi_pct is not None and roi_pct > 1.0:
+            roi_pct = roi_pct / 100.0
         volume_usdc = _safe_float(r.get("total_volume_15d"))
         tier = r.get("tier")
         badge = _badge_from_tier(tier, win_rate, total_pnl)
