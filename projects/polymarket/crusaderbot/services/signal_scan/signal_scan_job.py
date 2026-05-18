@@ -685,7 +685,9 @@ async def run_once() -> None:
         for cand in feed_candidates:
             try:
                 await _process_candidate(row, cand)
+                candidates_processed += 1
             except Exception as exc:
+                candidates_errored += 1
                 user_log.error(
                     "signal_scan_feed_candidate_unhandled",
                     market_id=cand.market_id,
