@@ -1,4 +1,4 @@
-Last Updated : 2026-05-18 21:00
+Last Updated : 2026-05-19 00:35
 Status       : WARP/CRUSADERBOT-PRICE-GUARD PR open — live price divergence guard (step 2b) added to _process_candidate(); rejects publication-backed signals where Gamma live/DB ratio > 2.0x; market_sync interval 1800→300s.
 
 [COMPLETED]
