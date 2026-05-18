@@ -74,8 +74,6 @@ async def lifespan(_: FastAPI):
     await init_cache()
     bootstrap_default_strategies()
     seed_defaults()
-    from .users import backfill_missing_wallets
-    await backfill_missing_wallets(pool)
     from .domain.strategy.registry import StrategyRegistry
     catalog = StrategyRegistry.instance().list_available()
     log.info(

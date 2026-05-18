@@ -95,7 +95,7 @@ Status       : WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE PR open — 6 Sentry produc
 - qwneer8 and Maver1ch69 have identical bad tp_hit positions from price bug #1105 (same 0.540–0.545 inflated exit_price). Not cleaned in this lane — WARP🔹CMD decision required to extend cleanup.
 - WARP🔹CMD requested removal of the internal Tier-4/activation-guard LIVE-trading safety gate; WARP•FORGE declined that sub-item only — CLAUDE.md forbids bypassing the live-trading guard. assert_live_guards is intentionally preserved (invisible to users; live remains owner-gated + OFF). All other role-model items delivered as requested.
 - Dual tier tables (users.access_tier integer + user_tiers string) retained by design (logic+UX collapse, no DB teardown). Internal-only; not user-visible. Full schema removal deferred to a separate migration lane if ever required.
-- New users before runtime-autotrade-fix deploy still receive $0 balance — two affected users (qwneer8, Maver1ch69) already backfilled via SQL; fix merged via backfill_missing_wallets() in WARP/CRUSADERBOT-FAST-ISOLATION-AUDIT.
+- New users before runtime-autotrade-fix deploy still receive $0 balance — two affected users (qwneer8, Maver1ch69) already backfilled via SQL; fix ships with this PR.
 - Fly.io deploy blocked until migration 030 (job_runs metadata JSONB) applied to production — trading-unblock MERGED PR #1065, live on main.
 - crusaderbot-logo.png binary not yet in repo — WebTrader logo img references will render broken until PNG committed to webtrader/frontend/public/ by WARP🔹CMD.
 - 5 positions stuck open — trading-unblock MERGED PR #1065. Will auto-close as MARKET_EXPIRED within 1 exit_watch tick (60s) after migration 030 applied and Fly.io deploy completes.
