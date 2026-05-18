@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { TopBar } from "../components/TopBar";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/web";
 
 const ALL_CATEGORIES = ["All", "Politics", "Sports", "Crypto", "Economy", "World Events"] as const;
 type Category = (typeof ALL_CATEGORIES)[number];
