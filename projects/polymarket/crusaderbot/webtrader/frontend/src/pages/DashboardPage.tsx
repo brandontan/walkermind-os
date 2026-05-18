@@ -36,6 +36,9 @@ export function DashboardPage() {
   const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [feedSignals, setFeedSignals] = useState<FeedSignal[]>([]);
+  const [feedOffset, setFeedOffset] = useState(0);
+  const [feedHasMore, setFeedHasMore] = useState(false);
+  const [feedLoadingMore, setFeedLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastTick, setLastTick] = useState<number | null>(null);
   // Alerts come from the global AlertCenterContext (fetched once at AppShell level)
@@ -51,12 +54,34 @@ export function DashboardPage() {
     }
   }, [api]);
 
+  const FEED_PAGE_SIZE = 10;
+
   const loadFeedSignals = useCallback(async () => {
     try {
-      const data = await api.getRecentSignals(10);
+      const data = await api.getRecentSignals(FEED_PAGE_SIZE, 0);
       setFeedSignals(data);
+      setFeedOffset(data.length);
+      setFeedHasMore(data.length >= FEED_PAGE_SIZE);
     } catch { /* silent */ }
   }, [api]);
+
+  const loadMoreFeedSignals = useCallback(async () => {
+    setFeedLoadingMore(true);
+    try {
+      const page = await api.getRecentSignals(FEED_PAGE_SIZE, feedOffset);
+      setFeedOffset((prev) => prev + page.length);
+      setFeedSignals((prev) => {
+        const seen = new Set(prev.map((s) => `${s.market_id}-${s.published_at}`));
+        const fresh = page.filter((s) => !seen.has(`${s.market_id}-${s.published_at}`));
+        return [...prev, ...fresh];
+      });
+      setFeedHasMore(page.length >= FEED_PAGE_SIZE);
+    } catch {
+      // leave feedHasMore unchanged so the button stays and user can retry
+    } finally {
+      setFeedLoadingMore(false);
+    }
+  }, [api, feedOffset]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -258,33 +283,46 @@ export function DashboardPage() {
                 Awaiting signals…
               </div>
             ) : (
-              feedSignals.map((s) => (
-                <div key={`${s.market_id}-${s.published_at}`} className="p-2.5 mb-1.5 rounded-lg border border-surface-3
-                                        bg-surface-1 flex items-center gap-2.5">
-                  <span className={`flex-shrink-0 font-hud text-[9px] font-bold px-1.5 py-0.5
-                                   rounded border tracking-widest uppercase
-                                   ${s.side === "YES"
-                                     ? "text-grn border-grn/30 bg-grn/10"
-                                     : "text-red border-red/30 bg-red/10"}`}>
-                    {s.side}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-hud text-[10px] font-bold text-ink-1 leading-snug truncate">
-                      {s.market_question}
-                    </p>
-                    <p className="font-mono text-[9px] text-ink-4 mt-0.5">
-                      {s.target_price ? `${(s.target_price * 100).toFixed(1)}¢` : "—"}
-                      {" · "}
-                      {new Date(s.published_at).toLocaleTimeString([], {
-                        hour: "2-digit", minute: "2-digit"
-                      })}
-                    </p>
+              <>
+                {feedSignals.map((s) => (
+                  <div key={`${s.market_id}-${s.published_at}`} className="p-2.5 mb-1.5 rounded-lg border border-surface-3
+                                          bg-surface-1 flex items-center gap-2.5">
+                    <span className={`flex-shrink-0 font-hud text-[9px] font-bold px-1.5 py-0.5
+                                     rounded border tracking-widest uppercase
+                                     ${s.side === "YES"
+                                       ? "text-grn border-grn/30 bg-grn/10"
+                                       : "text-red border-red/30 bg-red/10"}`}>
+                      {s.side}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-hud text-[10px] font-bold text-ink-1 leading-snug truncate">
+                        {s.market_question}
+                      </p>
+                      <p className="font-mono text-[9px] text-ink-4 mt-0.5">
+                        {s.target_price ? `${(s.target_price * 100).toFixed(1)}¢` : "—"}
+                        {" · "}
+                        {new Date(s.published_at).toLocaleTimeString([], {
+                          hour: "2-digit", minute: "2-digit"
+                        })}
+                      </p>
+                    </div>
+                    <span className="flex-shrink-0 font-mono text-[9px] text-gold">
+                      SIGNAL
+                    </span>
                   </div>
-                  <span className="flex-shrink-0 font-mono text-[9px] text-gold">
-                    SIGNAL
-                  </span>
-                </div>
-              ))
+                ))}
+                {feedHasMore && (
+                  <button
+                    type="button"
+                    onClick={() => void loadMoreFeedSignals()}
+                    disabled={feedLoadingMore}
+                    className="w-full mt-2 py-2 font-hud text-[9px] font-bold tracking-[1.5px] uppercase text-ink-3 border border-border-1 clip-btn transition-colors hover:border-border-2 disabled:opacity-50"
+                    style={{ background: "rgba(255,255,255,0.02)" }}
+                  >
+                    {feedLoadingMore ? "Loading…" : "Load more"}
+                  </button>
+                )}
+              </>
             )}
 
             <div className="mt-4">

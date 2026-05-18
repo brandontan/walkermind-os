@@ -27,10 +27,11 @@ export function makeApi(token: string | null) {
   return {
     getRuntimeStatus: () => get<RuntimeStatus>("/status"),
     getDashboard: () => get<DashboardSummary>("/dashboard"),
-    getPositions: (status?: string, limit?: number) => {
+    getPositions: (status?: string, limit?: number, offset?: number) => {
       const params = new URLSearchParams();
       if (status) params.set("status", status);
       if (limit) params.set("limit", String(limit));
+      if (offset) params.set("offset", String(offset));
       const qs = params.toString();
       return get<PositionItem[]>(`/positions${qs ? `?${qs}` : ""}`);
     },
@@ -63,20 +64,22 @@ export function makeApi(token: string | null) {
       patch<{ updated: boolean }>("/config/trading", data),
     updateMarketFilters: (data: MarketFilterSettings) =>
       patch<{ updated: boolean }>("/autotrade/market-filters", data),
-    getOrders: (limit?: number) => {
+    getOrders: (limit?: number, offset?: number) => {
       const params = new URLSearchParams();
       if (limit) params.set("limit", String(limit));
+      if (offset) params.set("offset", String(offset));
       const qs = params.toString();
       return get<OrderItem[]>(`/orders${qs ? `?${qs}` : ""}`);
     },
     closePosition: (positionId: string) =>
       post<ClosePositionResult>(`/positions/${positionId}/close`),
     getPortfolioAnalytics: () => get<PortfolioAnalytics>("/portfolio/analytics"),
-    getLeaderboard: () => get<LeaderboardEntry[]>("/leaderboard"),
+    getLeaderboard: (offset = 0, limit = 10) =>
+      get<LeaderboardEntry[]>(`/leaderboard?offset=${offset}&limit=${limit}`),
     getWallet360: (address: string) =>
       get<Wallet360>(`/copy-trade/wallet-360/${address}`),
-    getRecentSignals: (limit = 10) =>
-      get<FeedSignal[]>(`/signals/recent?limit=${limit}`),
+    getRecentSignals: (limit = 10, offset = 0) =>
+      get<FeedSignal[]>(`/signals/recent?limit=${limit}&offset=${offset}`),
   };
 }
 

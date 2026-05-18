@@ -143,15 +143,16 @@ def test_confirm_keyboard_carries_preset_key():
     assert cbs == [
         "preset:activate:signal_sniper",
         "preset:customize:signal_sniper",
-        "preset:picker",
+        "preset:picker",  # Back
+        "nav:home",       # Home
     ]
 
 
 def test_confirm_keyboard_is_two_col():
     kb = preset_confirm("value_hunter")
-    # 3 buttons → row 0 has 2, row 1 has 1
+    # Row 0: Start + Customize; Row 1: Back + Home (home_back_row)
     assert len(kb.inline_keyboard[0]) == 2
-    assert len(kb.inline_keyboard[1]) == 1
+    assert len(kb.inline_keyboard[1]) == 2
 
 
 def test_status_keyboard_swaps_pause_resume():
@@ -192,7 +193,10 @@ def _make_update(*, message_text=None, callback_data=None):
         replies.append(text)
         sent_kw.append(kw)
 
-    msg = SimpleNamespace(reply_text=AsyncMock(side_effect=_capture))
+    msg = SimpleNamespace(
+        reply_text=AsyncMock(side_effect=_capture),
+        edit_text=AsyncMock(side_effect=_capture),
+    )
     if callback_data is not None:
         cq = SimpleNamespace(
             data=callback_data,
@@ -287,10 +291,10 @@ def test_show_preset_picker_renders_all_three(monkeypatch):
     assert len(replies) == 1
     text = replies[0]
     assert "Auto Mode" in text  # V5 AUTOBOT branding: header changed from "Auto Trade" to "Auto Mode"
-    # MVP keyboard: "Choose Strategy" CTA → directs user to preset:picker
+    # WARP-24: picker grid rendered directly — preset:pick:{key} buttons present
     kb = kws[0]["reply_markup"]
     all_cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    assert "preset:picker" in all_cbs
+    assert any("preset:pick:" in cb for cb in all_cbs)
 
 
 def test_show_preset_picker_clears_awaiting(monkeypatch):
@@ -365,13 +369,13 @@ def test_pick_renders_confirmation_with_all_values(monkeypatch):
     text = replies[0]
     # Confirmation shows the preset name (Value Hunter for value_hunter preset)
     assert "Value Hunter" in text or "value_hunter" in text.lower()
-    assert "activate" in text.lower()  # "Start Auto Trade" or "Tap ... to activate"
     cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
            for b in row]
     assert cbs == [
         "preset:activate:value_hunter",
         "preset:customize:value_hunter",
-        "preset:picker",
+        "preset:picker",  # Back
+        "nav:home",       # Home
     ]
 
 

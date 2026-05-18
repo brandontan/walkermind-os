@@ -55,6 +55,10 @@ export function CopyTradePage() {
   const [copyTab, setCopyTab] = useState<CopyTab>("manual");
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [lbLoading, setLbLoading] = useState(false);
+  const [lbOffset, setLbOffset] = useState(0);
+  const [lbHasMore, setLbHasMore] = useState(false);
+  const [lbLoadingMore, setLbLoadingMore] = useState(false);
+  const LB_PAGE_SIZE = 10;
 
   const load = useCallback(async () => {
     const data = await api.listCopyTasks();
@@ -79,14 +83,34 @@ export function CopyTradePage() {
   const loadLeaderboard = useCallback(async () => {
     setLbLoading(true);
     try {
-      const data = await api.getLeaderboard();
+      const data = await api.getLeaderboard(0, LB_PAGE_SIZE);
       setLeaderboard(data);
+      setLbOffset(data.length);
+      setLbHasMore(data.length >= LB_PAGE_SIZE);
     } catch {
       // non-critical
     } finally {
       setLbLoading(false);
     }
   }, [api]);
+
+  const loadMoreLeaderboard = useCallback(async () => {
+    setLbLoadingMore(true);
+    try {
+      const page = await api.getLeaderboard(lbOffset, LB_PAGE_SIZE);
+      setLbOffset((prev) => prev + page.length);
+      setLeaderboard((prev) => {
+        const seen = new Set(prev.map((e) => e.wallet));
+        const fresh = page.filter((e) => !seen.has(e.wallet));
+        return [...prev, ...fresh];
+      });
+      setLbHasMore(page.length >= LB_PAGE_SIZE);
+    } catch {
+      // leave lbHasMore unchanged so the button stays and user can retry
+    } finally {
+      setLbLoadingMore(false);
+    }
+  }, [api, lbOffset]);
 
   useEffect(() => {
     if (copyTab === "leaderboard") void loadLeaderboard();
@@ -174,6 +198,9 @@ export function CopyTradePage() {
             <LeaderboardPanel
               entries={leaderboard}
               loading={lbLoading}
+              hasMore={lbHasMore}
+              loadingMore={lbLoadingMore}
+              onLoadMore={() => void loadMoreLeaderboard()}
               api={api}
               onCopyWallet={(w) => { setWallet(w); setCopyTab("manual"); setShowForm(true); }}
             />
@@ -548,11 +575,17 @@ function Wallet360Panel({
 function LeaderboardPanel({
   entries,
   loading,
+  hasMore,
+  loadingMore,
+  onLoadMore,
   api,
   onCopyWallet,
 }: {
   entries: LeaderboardEntry[];
   loading: boolean;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
   api: ReturnType<typeof makeApi>;
   onCopyWallet: (wallet: string) => void;
 }) {
@@ -672,6 +705,17 @@ function LeaderboardPanel({
           )}
         </div>
       ))}
+      {hasMore && (
+        <button
+          type="button"
+          onClick={onLoadMore}
+          disabled={loadingMore}
+          className="w-full mt-2 py-2 font-hud text-[9px] font-bold tracking-[1.5px] uppercase text-ink-3 border border-border-1 clip-btn transition-colors hover:border-border-2 disabled:opacity-50"
+          style={{ background: "rgba(255,255,255,0.02)" }}
+        >
+          {loadingMore ? "Loading…" : "Load more"}
+        </button>
+      )}
     </div>
   );
 }
