@@ -108,7 +108,7 @@ async def get_recent_signals(user: _CurrentUser, limit: int = 10):
             "market_id": r["market_id"],
             "market_question": r["market_question"] or r["market_id"][:24] + "…",
             "side": r["side"],
-            "target_price": float(r["target_price"]) if r["target_price"] else None,
+            "target_price": float(r["target_price"]) if r["target_price"] is not None else None,
             "signal_type": r["signal_type"],
             "published_at": r["published_at"].isoformat(),
         }
