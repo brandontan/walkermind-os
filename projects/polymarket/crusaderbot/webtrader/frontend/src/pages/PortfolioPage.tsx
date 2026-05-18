@@ -707,15 +707,19 @@ function PositionRow({ p, onCashOut }: { p: PositionItem; onCashOut?: () => void
         isOpen && onCashOut ? (
           <button
             type="button"
-            onClick={onCashOut}
-            className="w-full mt-2 clip-btn font-hud text-[9px] font-bold tracking-[1.5px] uppercase py-2 transition-colors"
-            style={{
+            onClick={() => onCashOut()}
+            className="w-full mt-2 py-1.5 font-hud text-[9px] font-bold tracking-widest uppercase rounded border transition-colors"
+            style={diff > 0 ? {
+              background: "rgba(0,255,156,0.08)",
+              border: "1px solid rgba(0,255,156,0.35)",
+              color: "#00FF9C",
+            } : {
               background: "rgba(255,45,85,0.08)",
-              border: "1px solid rgba(255,45,85,0.25)",
-              color: "#FF2D55",
+              border: "1px solid rgba(255,45,85,0.35)",
+              color: "#FF6B6B",
             }}
           >
-            Cash Out
+            {diff > 0 ? "💚 Cash Out" : "🔴 Cash Out"}
           </button>
         ) : undefined
       }

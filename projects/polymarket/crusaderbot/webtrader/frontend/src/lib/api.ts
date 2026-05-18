@@ -75,6 +75,8 @@ export function makeApi(token: string | null) {
     getLeaderboard: () => get<LeaderboardEntry[]>("/leaderboard"),
     getWallet360: (address: string) =>
       get<Wallet360>(`/copy-trade/wallet-360/${address}`),
+    getRecentSignals: (limit = 10) =>
+      get<FeedSignal[]>(`/signals/recent?limit=${limit}`),
   };
 }
 
@@ -300,6 +302,15 @@ export interface RuntimeStatus {
   scanner_scanned: number;
   scanner_published: number;
   scanner_last_tick: number | null;
+}
+
+export interface FeedSignal {
+  market_id: string;
+  market_question: string;
+  side: string;
+  target_price: number | null;
+  signal_type: string;
+  published_at: string;
 }
 
 export interface Wallet360 {
