@@ -193,7 +193,10 @@ def _make_update(*, message_text=None, callback_data=None):
         replies.append(text)
         sent_kw.append(kw)
 
-    msg = SimpleNamespace(reply_text=AsyncMock(side_effect=_capture))
+    msg = SimpleNamespace(
+        reply_text=AsyncMock(side_effect=_capture),
+        edit_text=AsyncMock(side_effect=_capture),
+    )
     if callback_data is not None:
         cq = SimpleNamespace(
             data=callback_data,
