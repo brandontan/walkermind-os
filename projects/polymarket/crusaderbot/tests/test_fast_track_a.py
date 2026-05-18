@@ -745,7 +745,7 @@ def _make_scan_cand(pub_id: str | None = None) -> SignalCandidate:
         confidence=0.75,
         suggested_size_usdc=25.0,
         strategy_name="signal_following",
-        signal_ts=_NOW,
+        signal_ts=datetime.now(timezone.utc),
         metadata={"publication_id": pub_id or str(uuid4())},
     )
 
