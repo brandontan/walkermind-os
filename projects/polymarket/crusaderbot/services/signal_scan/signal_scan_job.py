@@ -22,7 +22,11 @@ Crash recovery:
     paper engine completed. This path resumes via router_execute directly
     (bypassing TradeEngine / re-running the risk gate) because:
       * Gate step 10 rejects the same idempotency_key for 30 min.
-      * Gate step 9 rejects stale signals after the 5-min staleness window.
+      * Gate step 9 rejects stale signals after the 4h staleness window
+        (SIGNAL_STALE_SECONDS=14400). Step 1c in _process_candidate enforces
+        a tighter 30-min window for feed publications before gate execution.
+      * Crash-recovery re-fetches current market prices at resume time, so
+        stale entry prices are not a concern on this path.
     The crash-recovery router call is the ONLY place router_execute is used
     directly in this module. All normal execution paths go through TradeEngine.
 
@@ -172,8 +176,10 @@ async def _load_stale_queued_row(
     A 'queued' row means a prior tick inserted the queue entry and approved
     the gate but crashed before router_execute completed.  The row must be
     resumed without re-running the gate because: (a) gate step 10 rejects
-    the same idempotency_key for 30 min, and (b) gate step 9 permanently
-    rejects the original signal after the 5-min staleness window expires.
+    the same idempotency_key for 30 min, and (b) gate step 9 rejects the
+    original signal after the 4h staleness window (SIGNAL_STALE_SECONDS=14400).
+    Current market prices are re-fetched at resume time, so stale entry prices
+    are not a concern on this path.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -413,7 +419,7 @@ async def _process_candidate(
     # 0. Crash-recovery resume — a prior tick inserted a 'queued' row but
     #    crashed before the paper engine completed. Re-running the gate would
     #    fail at step 10 (idempotency_key already recorded for 30 min) or
-    #    step 9 (signal stale after 5 min), so router_execute is called
+    #    step 9 (signal stale after 4h / SIGNAL_STALE_SECONDS=14400), so router_execute is called
     #    directly from the stored row. This is the ONLY direct router call
     #    in this module; all normal execution paths go through TradeEngine.
     if pub_uuid is not None:
