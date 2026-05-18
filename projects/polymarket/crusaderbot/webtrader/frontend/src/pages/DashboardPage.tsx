@@ -37,6 +37,7 @@ export function DashboardPage() {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [feedSignals, setFeedSignals] = useState<FeedSignal[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [lastTick, setLastTick] = useState<number | null>(null);
   // Alerts come from the global AlertCenterContext (fetched once at AppShell level)
   const { alerts: ctxAlerts } = useAlertCenter();
   const alerts: AlertItem[] = ctxAlerts.slice(0, 5);
@@ -59,11 +60,7 @@ export function DashboardPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  useEffect(() => {
-    void loadFeedSignals();
-    const t = setInterval(() => void loadFeedSignals(), 30_000);
-    return () => clearInterval(t);
-  }, [loadFeedSignals]);
+  useEffect(() => { void loadFeedSignals(); }, [loadFeedSignals]);
 
   useSSE(user?.token ?? null, {
     positions:        () => void load(),
@@ -73,7 +70,12 @@ export function DashboardPage() {
     position_opened:  () => void load(),
     position_closed:  () => void load(),
     portfolio_update: () => void load(),
-    scanner_tick:     () => void load(),
+    scanner_tick: (raw) => {
+      void load();
+      void loadFeedSignals();
+      const payload = raw as { ts?: number };
+      if (payload.ts) setLastTick(payload.ts * 1000);
+    },
   });
 
   if (error) return (
@@ -237,7 +239,7 @@ export function DashboardPage() {
           {/* RIGHT COLUMN: Scanner terminal + Recent Activity */}
           <div className="md:min-w-0 md:overflow-hidden">
             <AdvancedOnly>
-              <Terminal lines={buildScannerLines(alerts, data)} />
+              <Terminal lines={buildScannerLines(alerts, data, lastTick)} />
             </AdvancedOnly>
 
             <div className="flex items-center justify-between mt-3.5 mb-2 mx-0.5 md:mt-0">
@@ -247,7 +249,7 @@ export function DashboardPage() {
                 Live Market Feed
               </div>
               <span className="font-mono text-[9px] text-ink-4">
-                signals · auto-refresh
+                signals · sse push
               </span>
             </div>
 
@@ -301,8 +303,11 @@ export function DashboardPage() {
   );
 }
 
-function buildScannerLines(alerts: AlertItem[], data: DashboardSummary): TerminalLine[] {
-  const lines: TerminalLine[] = [
+function buildScannerLines(alerts: AlertItem[], data: DashboardSummary, lastTick: number | null): TerminalLine[] {
+  const tickLabel = lastTick
+    ? new Date(lastTick).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : "—";
+  return [
     {
       parts: [
         { type: "cmd",  text: "market_signal_scanner" },
@@ -324,8 +329,8 @@ function buildScannerLines(alerts: AlertItem[], data: DashboardSummary): Termina
     },
     {
       parts: [
-        { type: "out", text: "exit_watch " },
-        { type: "ok",  text: "✓ active" },
+        { type: "out", text: "last_tick " },
+        { type: "ok",  text: tickLabel },
       ],
     },
     {
@@ -335,5 +340,4 @@ function buildScannerLines(alerts: AlertItem[], data: DashboardSummary): Termina
       cursor: true,
     },
   ];
-  return lines;
 }

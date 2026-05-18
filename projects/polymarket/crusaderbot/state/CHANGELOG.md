@@ -1,3 +1,4 @@
+2026-05-18 21:00 | WARP/truth-integration-mock-cleanup | WARP-21: Live Market Feed 30s poll→SSE, scanner.tick ts payload, Discover case-insensitive category + SSE refresh, mock audit clean; STANDARD, FULL RUNTIME INTEGRATION
 2026-05-19 | WARP/CRUSADERBOT-UI-COLLAPSIBLE-FIX | all CollapsibleSection defaultOpen=true; SHOW/HIDE labeled toggle button; pagination scoped to ledger + market list only; STANDARD, NARROW INTEGRATION
 2026-05-19 | WARP/CRUSADERBOT-UI-FEED-CASHOUT | Dashboard Recent Activity replaced with Live Market Feed (signal_publications, 30s refresh); Cash Out button green=profit / red=loss; STANDARD, NARROW INTEGRATION
 2026-05-19 | WARP/CRUSADERBOT-SPA-AUTH-FIX | SPAStaticFiles 404→index.html fallback; navigate("/") post-login redirect; upsert_user replaces 403 gate — webtrader login works without prior /start; STANDARD, NARROW
