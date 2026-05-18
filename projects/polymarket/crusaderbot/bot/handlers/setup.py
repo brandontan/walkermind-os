@@ -6,6 +6,7 @@ import logging
 
 from telegram import Update
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from ...database import get_pool
@@ -255,7 +256,10 @@ async def set_risk(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
     await update_settings(user["id"], risk_profile=choice)
-    await q.message.edit_reply_markup(reply_markup=risk_picker(choice))
+    try:
+        await q.message.edit_reply_markup(reply_markup=risk_picker(choice))
+    except BadRequest:
+        pass  # already showing selected choice
 
 
 async def set_category(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
