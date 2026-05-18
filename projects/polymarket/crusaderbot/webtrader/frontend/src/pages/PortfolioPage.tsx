@@ -180,7 +180,7 @@ export function PortfolioPage() {
                   setDepositAddress(w.deposit_address);
                   setIsPaperMode(w.paper_mode !== false);
                 } catch {
-                  setDepositAddress("");
+                  // leave depositAddress null so the next click retries
                 }
               }
               setShowDeposit(true);
@@ -203,7 +203,7 @@ export function PortfolioPage() {
                   setDepositAddress(w.deposit_address);
                   setIsPaperMode(w.paper_mode !== false);
                 } catch {
-                  setDepositAddress("");
+                  // leave depositAddress null so the next click retries
                 }
               }
               setShowWithdraw(true);

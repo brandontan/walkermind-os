@@ -19,6 +19,7 @@ export function WalletPage() {
   const [showDeposit, setShowDeposit] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [ledgerAll, setLedgerAll] = useState<LedgerEntry[]>([]);
+  const [ledgerOffset, setLedgerOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
 
@@ -27,6 +28,7 @@ export function WalletPage() {
       const w = await api.getWallet();
       setInfo(w);
       setLedgerAll(w.ledger_recent);
+      setLedgerOffset(w.ledger_recent.length);
       setHasMore(w.ledger_recent.length >= 20);
     } catch (e) {
       setError(String(e));
@@ -38,7 +40,10 @@ export function WalletPage() {
   const loadMore = useCallback(async () => {
     setLoadingMore(true);
     try {
-      const page = await api.getLedger(ledgerAll.length);
+      const page = await api.getLedger(ledgerOffset);
+      // Advance server offset by what the server returned (before client-side dedup),
+      // so subsequent requests always fetch the next page even if all entries were dupes.
+      setLedgerOffset((prev) => prev + page.entries.length);
       setLedgerAll((prev) => {
         const existingIds = new Set(prev.map((e) => e.id));
         const fresh = page.entries.filter((e) => !existingIds.has(e.id));
@@ -50,7 +55,7 @@ export function WalletPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [api, ledgerAll.length]);
+  }, [api, ledgerOffset]);
 
   if (error) return (
     <>
