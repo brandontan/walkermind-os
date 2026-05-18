@@ -619,21 +619,14 @@ class OrderLifecycleManager:
         if not s.ENABLE_LIVE_TRADING:
             logger.warning(
                 "lifecycle slippage_retry skipped: ENABLE_LIVE_TRADING=false "
-                "order=%s — advancing retry counter without broker call",
+                "order=%s — marking stale for manual reconciliation",
                 order["id"],
             )
-            pool = self._pool_override or get_pool()
-            async with pool.acquire() as conn:
-                await conn.execute(
-                    """
-                    UPDATE orders
-                       SET slippage_retry_count = 1,
-                           poll_attempts        = $2,
-                           last_polled_at       = NOW()
-                     WHERE id = $1
-                    """,
-                    order["id"], attempts,
-                )
+            await self._mark_stale(
+                order=order,
+                attempts=attempts,
+                reason="ENABLE_LIVE_TRADING=false during slippage retry window",
+            )
             return
         broker_id = str(order.get("polymarket_order_id") or "")
         if broker_id:
