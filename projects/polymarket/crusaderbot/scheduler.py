@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import html
-import json
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -512,7 +511,7 @@ def _job_tracker_listener(event) -> None:
     # check_exits() returns RunResult-as-dict (submitted/expired/held/errors)
     # which is stored in job_runs.metadata for operator dashboards.
     retval = getattr(event, "retval", None) if success else None
-    metadata = json.dumps(retval) if isinstance(retval, dict) else None
+    metadata = retval if isinstance(retval, dict) else None
     coro = job_tracker.record_job_event(
         job_id=event.job_id, success=success, error=err,
         started_at=started_at, metadata=metadata,
