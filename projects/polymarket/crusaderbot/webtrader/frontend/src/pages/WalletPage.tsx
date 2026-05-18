@@ -51,7 +51,7 @@ export function WalletPage() {
       });
       setHasMore(page.has_more);
     } catch {
-      setHasMore(false);
+      // Leave hasMore unchanged so the button stays and the user can retry
     } finally {
       setLoadingMore(false);
     }

@@ -514,7 +514,7 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
         )
         ledger_rows = await conn.fetch(
             """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
-               WHERE user_id=$1::uuid ORDER BY created_at DESC LIMIT 20""",
+               WHERE user_id=$1::uuid ORDER BY created_at DESC, id DESC LIMIT 20""",
             user_id,
         )
         settings_row = await conn.fetchrow(
@@ -564,7 +564,7 @@ async def get_wallet_ledger(
         )
         rows = await conn.fetch(
             """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
-               WHERE user_id=$1::uuid ORDER BY created_at DESC
+               WHERE user_id=$1::uuid ORDER BY created_at DESC, id DESC
                LIMIT $2 OFFSET $3""",
             user_id,
             limit,

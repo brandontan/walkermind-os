@@ -79,9 +79,11 @@ No new layers introduced. Changes are:
 - DepositModal: renders QR from actual `deposit_address` returned by `/wallet`. Empty address shows unavailable state, not fake QR.
 - WithdrawModal: Paper mode shows "unavailable" copy. Live mode shows "use Telegram bot". No on-chain transfer path introduced.
 - CollapsibleSection: localStorage-backed collapse per `id` key; accessible (aria-expanded, keyboard tab). Hidden sections do not interrupt SSE/polling data refresh — only the DOM visibility is toggled.
-- Pagination: `GET /wallet/ledger` endpoint stable cursor-free offset pagination. Frontend appends without duplicates.
+- Pagination: `GET /wallet/ledger` endpoint deterministic offset pagination using `ORDER BY created_at DESC, id DESC`. Same ordering in `/wallet` initial 20-row fetch. Frontend appends without duplicates via UUID dedup.
 - `paper_mode` from backend: derived from `user_settings.trading_mode != "live"`. Defaults paper-safe (True) if no settings row.
 - PortfolioPage deposit lazy-loads wallet info on first click (avoids redundant fetch on page load).
+- PortfolioPage Deposit/Withdraw buttons: loading guard prevents concurrent wallet fetches; Withdraw button styling reflects paper/live mode dynamically.
+- Load More button preserved on transient fetch errors so user can retry.
 
 ---
 
