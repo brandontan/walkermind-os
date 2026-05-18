@@ -59,7 +59,7 @@ MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     # preventing wizard text handlers from misprocessing the Dashboard tap.
     "📊 Dashboard":          _group0_noop,
     "💼 Portfolio":          positions.show_portfolio,
-    "🤖 Auto Mode":          autotrade.show_autotrade,
+    "🤖 Auto Mode":          presets.show_preset_picker,
     "⚙️ Settings":           settings_handler.settings_hub_root,
     "❓ Help":               onboarding.help_handler,
     # Backward-compat aliases (old state-driven labels)

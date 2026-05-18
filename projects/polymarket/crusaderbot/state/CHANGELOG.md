@@ -31,3 +31,4 @@
 2026-05-19 09:01 | claude/fix-warpforge-kill-switch-4A9Gy | WARP-17: fix kill_switch_exec.py _set_system_flag() system_flags → system_settings; MAJOR, FULL RUNTIME INTEGRATION
 2026-05-19 09:02 | WARP/fix-kill-switch-db-table | WARP-17: branch renamed to WARP-compliant name; log messages aligned to system_settings; supersedes claude/fix-warpforge-kill-switch-4A9Gy
 2026-05-19 09:03 | WARP/fix-kill-switch-db-table | SENTINEL APPROVED 93/100 — kill switch table fix validated; all paths intact; P1 cache invalidation finding (bounded 30s, non-blocking); zero critical issues
+2026-05-18 23:00 | WARP/tg-ux-redesign | WARP-24: Dashboard HUD <pre> tactical terminal + Last Scan heartbeat + 🟢/🔴 P&L; Auto Mode compact picker grid + in-place detail view + Back/Home nav; STANDARD, FULL RUNTIME INTEGRATION

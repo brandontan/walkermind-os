@@ -12,11 +12,13 @@ trading mode is *paper*. Live activation continues to require the existing
 """
 from __future__ import annotations
 
+import html
 import logging
 from typing import Tuple
 
 from telegram import Update
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import (
     CallbackQueryHandler, CommandHandler, ContextTypes, ConversationHandler,
     MessageHandler, filters,
@@ -29,7 +31,6 @@ from ...users import (
     get_settings_for, set_auto_trade, set_paused, update_settings, upsert_user,
 )
 from ...wallet.ledger import daily_pnl, get_balance
-from ..keyboards import mvp_auto_trade_kb
 from ..keyboards.presets import (
     preset_confirm, preset_picker, preset_status, preset_stop_confirm,
     preset_switch_confirm,
@@ -109,36 +110,54 @@ _MVP_DESCRIPTIONS: dict[str, str] = {
 }
 
 
+_DIV = "━" * 26
+
+
 def _preset_picker_text(active_preset_key: str | None = None) -> str:
-    """Auto Trade screen — 5-preset picker with descriptions."""
+    """Compact picker header — descriptions shown only on detail view."""
     active_label = "None selected"
-    if active_preset_key and active_preset_key in _MVP_LABELS:
-        emoji, label = _MVP_LABELS[active_preset_key]
-        active_label = f"{emoji} {label}"
-
-    lines = [
-        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧 — Auto Mode</b>",
-        "",
-        f"Active: {active_label}",
-        "",
-    ]
-    for p in list_presets():
-        desc = _MVP_DESCRIPTIONS.get(p.key, "")
-        lines.append(desc)
-        lines.append("")
-
-    lines.append("Choose your strategy below.")
-    return "\n".join(lines)
+    if active_preset_key:
+        if active_preset_key in _MVP_LABELS:
+            emoji, label = _MVP_LABELS[active_preset_key]
+            active_label = f"{emoji} {label}"
+        else:
+            p = get_preset(active_preset_key)
+            if p:
+                active_label = f"{p.emoji} {p.name}"
+    return (
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧 — Auto Mode</b>\n"
+        f"{_DIV}\n\n"
+        f"Active: <b>{html.escape(active_label)}</b>\n\n"
+        "Choose your trading strategy:"
+    )
 
 
 def _preset_confirm_text(p: Preset) -> str:
-    """Confirmation card — shows preset details before activation."""
+    """Detail view card — full logic, config, and PnL example on $1,000."""
     emoji, label = _MVP_LABELS.get(p.key, (p.emoji, p.name))
-    desc = _MVP_DESCRIPTIONS.get(p.key, "")
+    desc = _MVP_DESCRIPTIONS.get(p.key) or p.description
+    cap_pct = int(p.capital_pct * 100)
+    tp_pct = int(p.tp_pct * 100)
+    sl_pct = int(p.sl_pct * 100)
+    deployed = int(1000 * p.capital_pct)
+    tp_gain = int(deployed * p.tp_pct)
+    sl_loss = int(deployed * p.sl_pct)
     return (
-        f"<b>{emoji} {label}</b>\n\n"
-        f"{desc}\n\n"
-        "Tap <b>Start Auto Trade</b> to activate, or <b>Customize</b> to adjust TP/SL."
+        f"🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
+        f"{_DIV}\n"
+        f"<b>{html.escape(emoji)} {html.escape(label)}</b>\n"
+        f"{html.escape(desc)}\n\n"
+        f"{_DIV}\n"
+        "<b>📊 Config</b>\n"
+        f"<pre>Capital:  {cap_pct}%\n"
+        f"TP:       +{tp_pct}%\n"
+        f"SL:       -{sl_pct}%\n"
+        f"Mode:     📝 Paper</pre>\n\n"
+        f"{_DIV}\n"
+        "<b>💡 Example on $1,000</b>\n"
+        f"<pre>Deployed: ${deployed}\n"
+        f"TP hit:   +${tp_gain}\n"
+        f"SL hit:   -${sl_loss}</pre>"
     )
 
 
@@ -187,7 +206,7 @@ async def _preset_status_text(user: dict, p: Preset) -> str:
 
 async def show_preset_picker(update: Update,
                              ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Render the MVP Auto Trade screen."""
+    """Render the compact Auto Mode preset grid."""
     user, ok = await _ensure_tier2(update)
     if not ok:
         return
@@ -197,7 +216,8 @@ async def show_preset_picker(update: Update,
     active_preset = s.get("active_preset")
     await _reply(
         update, _preset_picker_text(active_preset),
-        reply_markup=mvp_auto_trade_kb(),
+        parse_mode=ParseMode.HTML,
+        reply_markup=preset_picker(),
     )
 
 
@@ -300,10 +320,17 @@ async def _on_pick(update: Update, preset_key: str) -> None:
     if p is None:
         await _reply(update, "❌ Unknown preset.")
         return
-    await _reply(
-        update, _preset_confirm_text(p),
-        parse_mode=ParseMode.HTML, reply_markup=preset_confirm(p.key),
-    )
+    text = _preset_confirm_text(p)
+    kb = preset_confirm(p.key)
+    q = update.callback_query
+    if q is not None and q.message is not None:
+        try:
+            await q.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        except BadRequest as exc:
+            if "Message is not modified" not in str(exc):
+                await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+    else:
+        await _reply(update, text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 
 async def _on_activate(update: Update, ctx: ContextTypes.DEFAULT_TYPE,

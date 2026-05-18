@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import html
 import logging
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from telegram import Update
@@ -15,6 +16,7 @@ from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from ...database import get_pool
+from ...jobs.market_signal_scanner import get_scanner_state
 from ...users import upsert_user
 from ...wallet.ledger import daily_pnl, get_balance
 from ..keyboards import main_menu, p5_dashboard_kb
@@ -135,6 +137,16 @@ def _preset_display(preset_key: str | None) -> tuple[str, str, str, str]:
     return cfg["emoji"], cfg["name"], cfg["risk_emoji"], cfg["risk_label"]
 
 
+def _build_last_scan() -> str:
+    """Return the scanner's last tick time in WIB (UTC+7) HH:MM:SS, or '—'."""
+    state = get_scanner_state()
+    ts_epoch = state.get("last_tick_ts")
+    if not ts_epoch:
+        return "—"
+    ts = datetime.fromtimestamp(ts_epoch, tz=timezone.utc) + timedelta(hours=7)
+    return ts.strftime("%H:%M:%S")
+
+
 async def _build_dashboard_message(user: dict) -> tuple[str, bool]:
     """Return (message_text, has_preset). All data live from DB."""
     bal = await get_balance(user["id"])
@@ -148,7 +160,6 @@ async def _build_dashboard_message(user: dict) -> tuple[str, bool]:
     bal_d = Decimal(str(bal))
     total_equity = bal_d + st["positions_value"]
 
-    # pnl today percentage
     pnl_today_d = Decimal(str(pnl_today))
     pnl_today_pct = (
         float(pnl_today_d) / float(bal_d) * 100 if bal_d > 0 else 0.0
@@ -189,6 +200,7 @@ async def _build_dashboard_message(user: dict) -> tuple[str, bool]:
         risk_emoji=r_emoji,
         risk_label=r_label,
         pulse_line=pulse_line,
+        last_scan=_build_last_scan(),
     )
     return text, bool(preset_key)
 
