@@ -129,10 +129,72 @@ async def live_gate_status(authorization: str | None = Header(default=None)):
         },
         "activation_history": activation_history,
         "summary": (
-            "✅ operator guards OPEN — Tier 4 users who set live mode will trade live"
+            "✅ activation guards OPEN — live trading enabled"
             if operator_guards_open
-            else "🔒 operator guards LOCKED — all trades route to paper regardless of user mode"
+            else "🔒 activation guards LOCKED — all trades route to paper"
         ),
+    }
+
+
+@router.post("/dry-run")
+async def dry_run(request: dict, authorization: str | None = Header(default=None)):
+    """Shadow-execute the full pipeline for a signal without submitting any order.
+
+    Operator-only. Runs signal → risk gate → sizing and returns the decision
+    that WOULD be made if execute() were called, with no DB mutations and
+    no CLOB submission.  Use to validate that paper and live paths produce
+    identical decisions for the same input.
+
+    Request body keys (all required):
+      user_id, market_id, side, proposed_size_usdc, price,
+      market_liquidity, strategy_type, risk_profile
+    """
+    token = authorization.removeprefix("Bearer ").strip() if authorization else None
+    _check(token)
+
+    import uuid
+    from decimal import Decimal
+    from datetime import datetime, timezone
+    from ..services.trade_engine.engine import TradeEngine, TradeSignal, ExecutionDryRun
+
+    try:
+        signal = TradeSignal(
+            user_id=uuid.UUID(str(request.get("user_id", ""))),
+            telegram_user_id=int(request.get("telegram_user_id", 0)),
+            access_tier=int(request.get("access_tier", 2)),
+            auto_trade_on=bool(request.get("auto_trade_on", True)),
+            paused=bool(request.get("paused", False)),
+            market_id=str(request.get("market_id", "")),
+            market_question=request.get("market_question"),
+            yes_token_id=request.get("yes_token_id"),
+            no_token_id=request.get("no_token_id"),
+            side=str(request.get("side", "yes")),
+            proposed_size_usdc=Decimal(str(request.get("proposed_size_usdc", "10"))),
+            price=float(request.get("price", 0.5)),
+            market_liquidity=float(request.get("market_liquidity", 10000.0)),
+            market_status=str(request.get("market_status", "active")),
+            idempotency_key=str(request.get(
+                "idempotency_key",
+                f"dryrun-{uuid.uuid4()}",
+            )),
+            strategy_type=str(request.get("strategy_type", "signal")),
+            risk_profile=str(request.get("risk_profile", "balanced")),
+            trading_mode=str(request.get("trading_mode", "paper")),
+            signal_ts=datetime.now(timezone.utc),
+        )
+    except Exception as exc:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=422, detail=f"invalid dry-run payload: {exc}") from exc
+
+    result: ExecutionDryRun = await TradeEngine().dry_run_execute(signal)
+    return {
+        "market_id": result.market_id,
+        "side": result.side,
+        "size_usdc": str(result.size_usdc) if result.size_usdc is not None else None,
+        "entry_price": result.entry_price,
+        "risk_decision": result.risk_decision,
+        "would_be_rejected": result.would_be_rejected,
+        "rejection_reason": result.rejection_reason,
     }
 
 

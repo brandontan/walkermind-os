@@ -10,6 +10,7 @@ Tier:    ALLOWLISTED (Tier 2+)
 """
 from __future__ import annotations
 
+import html
 import logging
 from decimal import Decimal
 from uuid import UUID
@@ -22,7 +23,7 @@ from ...database import get_pool
 from ...jobs.weekly_insights import _fetch_weekly_stats, format_weekly_insights
 from ...users import upsert_user
 from ..keyboards import insights_kb
-from ..tier import Tier, has_tier, tier_block_message
+
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +43,11 @@ def _fmt_signed_usdc(value: Decimal | None) -> str:
 
 
 def _safe_md(s: str) -> str:
-    """Replace legacy Markdown reserved chars that break italic/bold markers.
+    """Strip legacy Markdown reserved characters from dynamic strings.
 
-    Telegram legacy Markdown treats _text_ as italic only at word boundaries;
-    embedded underscores in market titles close the italic early and corrupt
-    the message rendering.  Replace the four reserved chars with safe
-    alternatives so dynamic market titles never break the Markdown structure.
+    Kept for backward compatibility — callers and tests that imported this
+    function before the HTML migration continue to work. The HTML render path
+    uses html.escape() instead.
     """
     return (
         s.replace("\\", "")
@@ -110,9 +110,9 @@ async def _fetch_insights(user_id: UUID) -> dict:
                     FILTER (WHERE status = 'closed' AND mode = 'paper'
                               AND pnl_usdc > 0), 0)
                     AS avg_win,
-                COALESCE(ABS(AVG(pnl_usdc))
+                COALESCE(ABS(AVG(pnl_usdc)
                     FILTER (WHERE status = 'closed' AND mode = 'paper'
-                              AND pnl_usdc <= 0), 0)
+                              AND pnl_usdc <= 0)), 0)
                     AS avg_loss,
                 COUNT(*) FILTER (
                     WHERE status = 'closed' AND mode = 'paper'
@@ -197,12 +197,15 @@ async def _fetch_insights(user_id: UUID) -> dict:
 
 
 def format_insights(data: dict) -> str:
-    """Render insights data as a Telegram Markdown message."""
-    if data["total_closed"] == 0:
+    """Render insights data as HTML with blockquote for financial rows."""
+    if data["total_closed"] < 3:
         return (
-            "\U0001f4ca *PNL Insights*\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            "No closed trades yet. Start paper trading to see your insights."
+            "<b>📊 PNL Insights</b>\n\n"
+            "<blockquote>"
+            "Not enough data yet.\n"
+            "Need at least 3 closed trades.\n"
+            f"Current: {data['total_closed']} closed trades."
+            "</blockquote>"
         )
 
     total = data["total_closed"]
@@ -221,10 +224,10 @@ def format_insights(data: dict) -> str:
 
     best_pnl = data["best_pnl"]
     worst_pnl = data["worst_pnl"]
-    best_str = _fmt_signed_usdc(best_pnl)
-    worst_str = _fmt_signed_usdc(worst_pnl)
-    best_title = _safe_md(data.get("best_title") or "—")
-    worst_title = _safe_md(data.get("worst_title") or "—")
+    best_str = html.escape(_fmt_signed_usdc(best_pnl))
+    worst_str = html.escape(_fmt_signed_usdc(worst_pnl))
+    best_title = html.escape(data.get("best_title") or "—")
+    worst_title = html.escape(data.get("worst_title") or "—")
 
     avg_win = data["avg_win"]
     avg_loss = data["avg_loss"]
@@ -234,35 +237,38 @@ def format_insights(data: dict) -> str:
     if streak_len == 0:
         streak_str = "—"
     else:
-        icon = "\U0001f525" if streak_dir == "win" else "❄️"
+        icon = "🔥" if streak_dir == "win" else "❄️"
         label = "win" if streak_dir == "win" else "loss"
         streak_str = f"{icon} {streak_len} {label}{'s' if streak_len > 1 else ''}"
 
     pnl_7d = data["pnl_7d"]
     trades_7d = data["trades_7d"]
-    pnl_7d_str = _fmt_signed_usdc(pnl_7d)
+    pnl_7d_str = html.escape(_fmt_signed_usdc(pnl_7d))
 
     return (
-        "\U0001f4ca *PNL Insights*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "\U0001f3c6 *Performance*\n"
-        f"├─ Closed Trades: {total} ({wins}W / {losses}L)\n"
-        f"├─ Win Rate: {win_rate}%\n"
-        f"└─ Profit Factor: {pf_str}\n\n"
-        "\U0001f4b0 *Averages*\n"
-        f"├─ Avg Win: +${avg_win:.2f}\n"
-        f"└─ Avg Loss: -${avg_loss:.2f}\n\n"
-        "\U0001f3af *Best Trade*\n"
-        f"├─ P&L: {best_str}\n"
-        f"└─ _{best_title}_\n\n"
-        "\U0001f4c9 *Worst Trade*\n"
-        f"├─ P&L: {worst_str}\n"
-        f"└─ _{worst_title}_\n\n"
-        "⚡ *Streak*\n"
-        f"└─ Current: {streak_str}\n\n"
-        "\U0001f4c5 *Last 7 Days*\n"
+        "<b>📊 PNL Insights</b>\n\n"
+        "<b>🏆 Performance</b>\n"
+        "<blockquote>"
+        f"Closed Trades  {total} ({wins}W / {losses}L)\n"
+        f"Win Rate       {win_rate}%\n"
+        f"Profit Factor  {pf_str}"
+        "</blockquote>\n\n"
+        "<b>💰 Averages</b>\n"
+        "<blockquote>"
+        f"Avg Win   +${avg_win:.2f}\n"
+        f"Avg Loss  -${avg_loss:.2f}"
+        "</blockquote>\n\n"
+        "<b>🎯 Best Trade</b>\n"
+        f"├─ P&amp;L: {best_str}\n"
+        f"└─ <i>{best_title}</i>\n\n"
+        "<b>📉 Worst Trade</b>\n"
+        f"├─ P&amp;L: {worst_str}\n"
+        f"└─ <i>{worst_title}</i>\n\n"
+        "<b>⚡ Streak</b>\n"
+        f"└─ Current: {html.escape(streak_str)}\n\n"
+        "<b>📅 Last 7 Days</b>\n"
         f"├─ Trades: {trades_7d}\n"
-        f"└─ P&L: {pnl_7d_str}"
+        f"└─ P&amp;L: {pnl_7d_str}"
     )
 
 
@@ -274,16 +280,10 @@ async def pnl_insights_command(
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username
     )
-    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
-        await update.message.reply_text(tier_block_message(Tier.ALLOWLISTED))
-        return
     data = await _fetch_insights(user["id"])
-    weekly_data = await _fetch_weekly_stats(user["id"])
-    weekly_section = format_weekly_insights(weekly_data)
-    full_text = format_insights(data) + "\n\n" + weekly_section
     await update.message.reply_text(
-        full_text,
-        parse_mode=ParseMode.MARKDOWN,
+        format_insights(data),
+        parse_mode=ParseMode.HTML,
         reply_markup=insights_kb(),
     )
 
@@ -298,15 +298,9 @@ async def insights_cb(
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username
     )
-    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
-        await q.answer(tier_block_message(Tier.ALLOWLISTED), show_alert=True)
-        return
     data = await _fetch_insights(user["id"])
-    weekly_data = await _fetch_weekly_stats(user["id"])
-    weekly_section = format_weekly_insights(weekly_data)
-    full_text = format_insights(data) + "\n\n" + weekly_section
     await q.message.reply_text(
-        full_text,
-        parse_mode=ParseMode.MARKDOWN,
+        format_insights(data),
+        parse_mode=ParseMode.HTML,
         reply_markup=insights_kb(),
     )

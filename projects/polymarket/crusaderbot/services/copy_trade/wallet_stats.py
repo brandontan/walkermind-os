@@ -61,6 +61,7 @@ async def fetch_wallet_stats(address: str) -> WalletStats:
     return stats
 
 
+# Deprecated — use leaderboard_sync.py
 async def fetch_top_wallets(category: str | None = None) -> list[WalletStats]:
     """Return up to 10 top wallets for the discovery leaderboard.
 

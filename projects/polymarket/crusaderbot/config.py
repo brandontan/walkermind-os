@@ -68,13 +68,22 @@ class Settings(BaseSettings):
     # --- Admin REST API (disabled when unset) ---
     ADMIN_API_TOKEN: Optional[str] = None
 
+    # --- WebTrader browser dashboard (disabled when unset) ---
+    # JWT secret for signing user tokens issued after Telegram Login Widget auth.
+    # Generate: openssl rand -hex 32
+    # Set in Fly.io: fly secrets set WEBTRADER_JWT_SECRET=<value>
+    WEBTRADER_JWT_SECRET: Optional[str] = None
+    # Public URL for the WebTrader dashboard — sent via Dashboard button in TG notifications.
+    WEBTRADER_URL: Optional[str] = None
+
     # --- /ops dashboard write controls (disabled when unset) ---
     # GET /ops stays open (read-only operator console). POST /ops/kill +
     # POST /ops/resume require this shared secret via the ``X-Ops-Token``
     # header OR ``?token=<value>`` query param. Disabled (503) when this
-    # value is unset. The full auth hardening lane (per-operator login,
-    # rotation, audit) is deferred post-demo — see the in-code TODO in
-    # ``api/ops.py``.
+    # value is unset. Full auth hardening (per-operator login, rotation,
+    # token-out-of-URL) is an INTENTIONAL documented deferral for the
+    # paper-mode beta — tracked in PROJECT_STATE KNOWN ISSUES, rationale
+    # in the ``api/ops.py`` module docstring. Not an incomplete stub.
     OPS_SECRET: Optional[str] = None
 
     # --- Sentry-related app metadata ---
@@ -88,6 +97,9 @@ class Settings(BaseSettings):
     # APP_VERSION is kept here because /health surfaces it; Optional[str]
     # cannot fail validation, so this stays safe.
     APP_VERSION: Optional[str] = None
+
+    # --- Heisenberg / Falcon API (market data + signal enrichment) ---
+    HEISENBERG_API_TOKEN: Optional[str] = None
 
     # --- Polymarket (only required for LIVE trading) ---
     POLYMARKET_API_KEY: Optional[str] = None
@@ -128,10 +140,12 @@ class Settings(BaseSettings):
     MASTER_WALLET_PRIVATE_KEY: Optional[str] = None
 
     # --- Activation guards ---
-    # Per user revision: live engine is fully built and reachable.
-    # Default for every NEW USER/TRADE is still paper. Live requires
-    # ALL guards true + Tier 4 user approval.
-    ENABLE_LIVE_TRADING: bool = True
+    # Paper-safe default: False. A live order is only ever reachable when an
+    # operator EXPLICITLY overrides this via env (fly.toml / .env) AND every
+    # other guard below is true AND the user is Tier 4. Defaulting False means
+    # a dev/test/local boot WITHOUT fly.toml can never silently arm live
+    # trading. Production behaviour is unchanged — fly.toml forces this false.
+    ENABLE_LIVE_TRADING: bool = False
     EXECUTION_PATH_VALIDATED: bool = False
     CAPITAL_MODE_CONFIRMED: bool = False
     # Set to True ONLY after WARP•SENTINEL validates the risk assertion layer
@@ -140,6 +154,12 @@ class Settings(BaseSettings):
     # explicit WARP🔹CMD decision backed by a SENTINEL report.
     RISK_CONTROLS_VALIDATED: bool = False
     FEE_COLLECTION_ENABLED: bool = False
+
+    # --- Risk caps (Track D) — hard caps enforced per-user before any order ---
+    MAX_SINGLE_POSITION_PCT: float = 0.10      # 10% of balance per position
+    MAX_TOTAL_EXPOSURE_PCT: float = 0.80       # 80% of balance max open exposure
+    MAX_DAILY_LOSS_USD: float = -50.00         # configurable via env MAX_DAILY_LOSS_USD
+    MAX_OPEN_POSITIONS: int = 20               # hard cap on concurrent open positions
     REFERRAL_PAYOUT_ENABLED: bool = False
     AUTO_REDEEM_ENABLED: bool = True
 
@@ -151,12 +171,26 @@ class Settings(BaseSettings):
     MARKET_SCAN_INTERVAL: int = 300
     DEPOSIT_WATCH_INTERVAL: int = 120
     SIGNAL_SCAN_INTERVAL: int = 180
+    MARKET_SIGNAL_SCAN_INTERVAL: int = 60
+    # --- Signal scanner thresholds (demo path edge_finder) ---
+    # Market eligibility price range: excludes near-resolved markets
+    SCANNER_EDGE_MIN_PRICE: float = 0.05   # env: SCANNER_EDGE_MIN_PRICE
+    SCANNER_EDGE_MAX_PRICE: float = 0.95   # env: SCANNER_EDGE_MAX_PRICE
+    # Minimum edge in basis points (1 bps = 0.01%) to publish a signal
+    SCANNER_MIN_EDGE_BPS: int = 200        # env: SCANNER_MIN_EDGE_BPS
+    # Minimum confidence score for published signals
+    SCANNER_MIN_CONFIDENCE: float = 0.55  # env: SCANNER_MIN_CONFIDENCE
+    # Live path candle deviation threshold (was hardcoded 0.08)
+    SCANNER_EDGE_DEVIATION_PCT: float = 0.05  # env: SCANNER_EDGE_DEVIATION_PCT
+    # Discovery liquidity floor — lower than execution floor (10k) to widen pool
+    SCANNER_MIN_LIQUIDITY: float = 5_000.0  # env: SCANNER_MIN_LIQUIDITY
     COPY_TRADE_MONITOR_INTERVAL: int = 60  # Fast Track B — copy trade tick cadence
-    EXIT_WATCH_INTERVAL: int = 60
+    EXIT_WATCH_INTERVAL: int = 30  # Track A: TP/SL poll cadence (30s per spec)
     REDEEM_INTERVAL: int = 3600
     RESOLUTION_CHECK_INTERVAL: int = 300
-    DB_POOL_MAX: int = 5
+    DB_POOL_MAX: int = 4
     TIMEZONE: str = "Asia/Jakarta"
+    DAILY_REPORT_HOUR: int = 23  # env: DAILY_REPORT_HOUR (0-23 UTC)
 
     # --- Instant redeem gas guard (R10): if Polygon gas exceeds this when a
     # live position becomes redeemable, defer to the hourly queue. ---

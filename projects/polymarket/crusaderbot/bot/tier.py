@@ -10,9 +10,9 @@ class Tier:
 
 
 TIER_MSG = {
-    2: "⏳ This feature requires Tier 2 (allowlist). Ask the operator to grant access.",
-    3: "💰 Deposit USDC to unlock this feature (Tier 3).",
-    4: "🔒 Live trading requires operator approval (Tier 4) and all activation guards.",
+    2: "This feature is not available.",
+    3: "This feature is not available.",
+    4: "This feature is not available.",
 }
 
 
@@ -21,4 +21,4 @@ def has_tier(user_tier: int, min_tier: int) -> bool:
 
 
 def tier_block_message(min_tier: int) -> str:
-    return TIER_MSG.get(min_tier, f"This feature requires tier {min_tier}.")
+    return TIER_MSG.get(min_tier, "This feature is not available.")

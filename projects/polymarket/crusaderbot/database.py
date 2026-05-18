@@ -29,8 +29,8 @@ _last_ping_error: Optional[str] = None
 _POOLER_HOST_HINT = "pooler.supabase.com"
 
 
-def _log_connection_type(dsn: str) -> None:
-    """Log whether DATABASE_URL points at a Supabase pooler or direct connection.
+def _warn_if_supavisor_transaction_pool(dsn: str) -> None:
+    """Detect and log whether DATABASE_URL points at a Supabase pooler or direct connection.
 
     Logs WARNING when host contains 'pooler.supabase.com' (any port).
     Logs INFO when host is a Supabase direct host (contains 'supabase'
@@ -59,12 +59,23 @@ def _log_connection_type(dsn: str) -> None:
         )
 
 
+async def _init_connection(conn: asyncpg.Connection) -> None:
+    """Warm-ping every new pool connection on creation.
+
+    Surfaces broken connections (e.g. Supabase idle-timeout recycled backends)
+    at pool-init time rather than mid-request, so the pool health check in
+    /health and job_runs write paths never hit a silently dead connection.
+    asyncpg calls this coroutine once per new physical backend connection.
+    """
+    await conn.execute("SELECT 1")
+
+
 async def init_pool() -> asyncpg.Pool:
     global _pool
     if _pool is not None:
         return _pool
     settings = get_settings()
-    _log_connection_type(settings.DATABASE_URL)
+    _warn_if_supavisor_transaction_pool(settings.DATABASE_URL)
     # statement_cache_size=0 disables asyncpg's per-connection
     # server-side prepared statement cache. Required when DATABASE_URL
     # points at a transaction-pooled proxy (Supabase Supavisor, Fly
@@ -85,8 +96,10 @@ async def init_pool() -> asyncpg.Pool:
         dsn=settings.DATABASE_URL,
         min_size=1,
         max_size=settings.DB_POOL_MAX,
+        max_inactive_connection_lifetime=60.0,
         command_timeout=30,
         statement_cache_size=0,
+        init=_init_connection,
         server_settings={"application_name": "crusaderbot"},
     )
     logger.info("asyncpg pool initialised (max=%s)", settings.DB_POOL_MAX)
@@ -107,17 +120,28 @@ async def close_pool() -> None:
 
 
 async def run_migrations() -> None:
+    """Run all SQL migrations. MUST be idempotent — safe to call on every restart."""
     pool = await init_pool()
     migrations_dir = Path(__file__).parent / "migrations"
     files = sorted(migrations_dir.glob("*.sql"))
     if not files:
         logger.warning("No migration files found in %s", migrations_dir)
         return
-    async with pool.acquire() as conn:
-        for f in files:
-            sql = f.read_text(encoding="utf-8")
-            logger.info("Running migration %s", f.name)
-            await conn.execute(sql)
+    try:
+        async with pool.acquire() as conn:
+            for f in files:
+                sql = f.read_text(encoding="utf-8")
+                logger.info("Running migration %s", f.name)
+                try:
+                    await conn.execute(sql)
+                except Exception as exc:
+                    logger.error(
+                        "Migration failed: %s — %s", f.name, exc, exc_info=True
+                    )
+                    raise
+    except Exception as exc:
+        logger.error("run_migrations failed: %s", exc, exc_info=True)
+        raise
     logger.info("Migrations complete (%d files)", len(files))
 
 

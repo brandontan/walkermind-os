@@ -22,6 +22,7 @@ Implementation notes:
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 import time
 from datetime import datetime, timezone
@@ -47,7 +48,6 @@ CLOSE_FAILURE_OPERATOR_THRESHOLD: int = 2
 _last_alert_at: dict[tuple[str, str], float] = {}
 # Consecutive-failure counter per check name, used by ``record_health_result``.
 _consecutive_failures: dict[str, int] = {}
-
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -93,16 +93,6 @@ async def _dispatch(alert_type: str, key: str, body: str) -> bool:
         return False
     _last_alert_at[(alert_type, key)] = time.monotonic()
     return True
-
-
-async def alert_startup(restart_detected: bool = True) -> None:
-    """Notify the operator that the process has just started (Fly machine boot)."""
-    body = (
-        f"[CrusaderBot] startup\n"
-        f"time: {_now_iso()}\n"
-        f"event: {'machine_restart' if restart_detected else 'cold_start'}"
-    )
-    await _dispatch("startup", "boot", body)
 
 
 async def alert_dependency_unreachable(check_name: str, reason: str) -> None:
@@ -280,8 +270,8 @@ def reset_state() -> None:
 # deployments isolate notifications correctly.
 
 def _format_exit_label(market_question: Optional[str], market_id: str) -> str:
-    """Human-friendly market label for user-facing alerts."""
-    return market_question or market_id
+    """Human-friendly market label for user-facing alerts (HTML-escaped)."""
+    return html.escape(market_question or market_id)
 
 
 async def alert_user_tp_hit(
@@ -297,10 +287,10 @@ async def alert_user_tp_hit(
     """Notify the position owner that TP was hit and the close was submitted."""
     label = _format_exit_label(market_question, market_id)
     text = (
-        f"\U0001f3af *[{mode.upper()}] TP hit*\n"
+        f"\U0001f3af <b>[{html.escape(mode.upper())}] TP hit</b>\n"
         f"{label}\n"
-        f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
-        f"P&L: *${pnl_usdc:+.2f}*"
+        f"Side: <b>{html.escape(side.upper())}</b> — Exit: <code>{exit_price:.3f}</code>\n"
+        f"P&amp;L: <b>${pnl_usdc:+.2f}</b>"
     )
     await notifications.send(telegram_user_id, text)
 
@@ -318,10 +308,10 @@ async def alert_user_sl_hit(
     """Notify the position owner that SL was hit and the close was submitted."""
     label = _format_exit_label(market_question, market_id)
     text = (
-        f"\U0001f6d1 *[{mode.upper()}] SL hit*\n"
+        f"\U0001f6d1 <b>[{html.escape(mode.upper())}] SL hit</b>\n"
         f"{label}\n"
-        f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
-        f"P&L: *${pnl_usdc:+.2f}*"
+        f"Side: <b>{html.escape(side.upper())}</b> — Exit: <code>{exit_price:.3f}</code>\n"
+        f"P&amp;L: <b>${pnl_usdc:+.2f}</b>"
     )
     await notifications.send(telegram_user_id, text)
 
@@ -339,10 +329,10 @@ async def alert_user_force_close(
     """Notify the position owner that an emergency force-close completed."""
     label = _format_exit_label(market_question, market_id)
     text = (
-        f"\U0001f6a8 *[{mode.upper()}] Force-close executed*\n"
+        f"\U0001f6a8 <b>[{html.escape(mode.upper())}] Force-close executed</b>\n"
         f"{label}\n"
-        f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
-        f"P&L: *${pnl_usdc:+.2f}*"
+        f"Side: <b>{html.escape(side.upper())}</b> — Exit: <code>{exit_price:.3f}</code>\n"
+        f"P&amp;L: <b>${pnl_usdc:+.2f}</b>"
     )
     await notifications.send(telegram_user_id, text)
 
@@ -360,10 +350,10 @@ async def alert_user_strategy_exit(
     """Notify the position owner of a strategy-driven exit close."""
     label = _format_exit_label(market_question, market_id)
     text = (
-        f"\U0001f4c9 *[{mode.upper()}] Strategy exit*\n"
+        f"\U0001f4c9 <b>[{html.escape(mode.upper())}] Strategy exit</b>\n"
         f"{label}\n"
-        f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
-        f"P&L: *${pnl_usdc:+.2f}*"
+        f"Side: <b>{html.escape(side.upper())}</b> — Exit: <code>{exit_price:.3f}</code>\n"
+        f"P&amp;L: <b>${pnl_usdc:+.2f}</b>"
     )
     await notifications.send(telegram_user_id, text)
 
@@ -381,10 +371,31 @@ async def alert_user_manual_close(
     """Notify the position owner that a manual close completed successfully."""
     label = _format_exit_label(market_question, market_id)
     text = (
-        f"✅ *[{mode.upper()}] Manual close*\n"
+        f"✅ <b>[{html.escape(mode.upper())}] Manual close</b>\n"
         f"{label}\n"
-        f"Side: *{side.upper()}* — Exit: `{exit_price:.3f}`\n"
-        f"P&L: *${pnl_usdc:+.2f}*"
+        f"Side: <b>{html.escape(side.upper())}</b> — Exit: <code>{exit_price:.3f}</code>\n"
+        f"P&amp;L: <b>${pnl_usdc:+.2f}</b>"
+    )
+    await notifications.send(telegram_user_id, text)
+
+
+async def alert_user_market_expired(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    market_question: Optional[str],
+    side: str,
+    size_usdc: float,
+    mode: str,
+) -> None:
+    """DEPRECATED: caller removed. User notification suppressed. Retained for potential admin-scope reuse."""
+    label = _format_exit_label(market_question, market_id)
+    text = (
+        f"⏰ <b>[{html.escape(mode.upper())}] Market expired</b>\n"
+        f"{label}\n"
+        f"Side: <b>{html.escape(side.upper())}</b>\n"
+        f"Capital returned: <b>${size_usdc:.2f} USDC</b>\n"
+        "Position closed — market is no longer active on Polymarket."
     )
     await notifications.send(telegram_user_id, text)
 
@@ -397,19 +408,14 @@ async def alert_user_close_failed(
     side: str,
     error: str,
 ) -> None:
-    """Notify the position owner that the close attempt failed (and will retry).
-
-    The user-facing message intentionally avoids broker-level error detail
-    that leaks internal infra; the operator alert (below) carries the full
-    context for reconciliation.
-    """
+    """DEPRECATED: caller removed. User notification suppressed. Retained for potential admin-scope reuse."""
     label = _format_exit_label(market_question, market_id)
     text = (
-        "⚠️ *Close attempt failed*\n"
+        "⚠️ <b>Close attempt failed</b>\n"
         f"{label}\n"
-        f"Side: *{side.upper()}*\n"
+        f"Side: <b>{html.escape(side.upper())}</b>\n"
         "We will retry on the next exit-watcher tick. If failures persist, "
-        "the operator has been notified."
+        "admin has been notified."
     )
     await notifications.send(telegram_user_id, text)
     logger.warning("close_failed user-alert delivered tg=%s market=%s err=%s",

@@ -1,18 +1,8 @@
-"""Inline keyboards for the live position monitor and per-position
-force-close flow (R12d).
+"""Inline keyboards for the live position monitor (R12d).
 
-Layout:
-  * positions_list_kb    — one row per open position with a
-                           [🛑 Force Close] button keyed by position UUID
-  * force_close_confirm_kb — two-button confirm dialog keyed by position UUID
-
-Callback prefixes (registered in bot.dispatcher):
-  position:fc_ask:<uuid>      — user tapped 🛑 Force Close on row
-  position:fc_yes:<uuid>      — user confirmed
-  position:fc_no:<uuid>       — user cancelled
-
-The UUID is round-tripped through callback_data so the confirm step does not
-have to re-query the DB to know which position the user is acting on.
+MVP UX hides manual force-close controls from standard user surfaces.
+The force-close confirmation keyboard remains available for internal/admin
+callback paths, but positions_list_kb renders navigation-only controls.
 """
 from __future__ import annotations
 
@@ -21,34 +11,24 @@ from uuid import UUID
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from ._common import confirm_cancel_row, home_back_row
+
 
 def positions_list_kb(position_ids: Iterable[UUID | str]) -> InlineKeyboardMarkup:
-    """One [🛑 Force Close] button per open position."""
-    rows = [
-        [
-            InlineKeyboardButton(
-                f"🛑 Force Close {str(pid)[:6]}",
-                callback_data=f"position:fc_ask:{pid}",
-            )
-        ]
-        for pid in position_ids
-    ]
+    """Navigation-only keyboard for portfolio surfaces (no manual close CTA)."""
+    _ = list(position_ids)  # keep signature stable for existing call sites
+    rows: list[list[InlineKeyboardButton]] = []
+    rows.append(home_back_row("portfolio:portfolio"))
     return InlineKeyboardMarkup(rows)
 
 
 def force_close_confirm_kb(position_id: UUID | str) -> InlineKeyboardMarkup:
     """Two-button confirm dialog for a single position force-close."""
-    return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton(
-                    "✅ Confirm Close",
-                    callback_data=f"position:fc_yes:{position_id}",
-                ),
-                InlineKeyboardButton(
-                    "❌ Cancel",
-                    callback_data=f"position:fc_no:{position_id}",
-                ),
-            ]
-        ]
-    )
+    return InlineKeyboardMarkup([
+        confirm_cancel_row(
+            f"position:fc_yes:{position_id}",
+            f"position:fc_no:{position_id}",
+            "✅ Confirm Close",
+            "❌ Cancel",
+        ),
+    ])

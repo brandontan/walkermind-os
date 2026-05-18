@@ -17,6 +17,7 @@ without submitting real orders.
 """
 from __future__ import annotations
 
+import html
 import logging
 from decimal import Decimal
 from uuid import UUID
@@ -32,6 +33,8 @@ from ...integrations.clob import (
     get_clob_client,
 )
 from ...wallet import ledger
+from .slippage import compute_aggressive_limit_price
+from ..risk.constants import SLIPPAGE_GUARD_PCT
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +91,8 @@ async def execute(
     tp_pct: float | None,
     sl_pct: float | None,
     order_type: str = "GTC",
+    best_ask: float | None = None,
+    best_bid: float | None = None,
     clob_client: ClobClientProtocol | None = None,
 ) -> dict:
     """Execute a live buy order via ClobClientProtocol.
@@ -99,6 +104,26 @@ async def execute(
     book; FOK fills in full immediately or cancels.
     """
     s = get_settings()
+
+    # Guard bypass detection (Track D Part A defense-in-depth).
+    # live.execute() must ONLY be reached when ALL four activation guards are
+    # SET. If this assertion fails, someone bypassed the router guard — log
+    # CRITICAL before the regular assert_live_guards() raises.
+    _all_guards_set = (
+        s.ENABLE_LIVE_TRADING
+        and s.EXECUTION_PATH_VALIDATED
+        and s.CAPITAL_MODE_CONFIRMED
+        and s.USE_REAL_CLOB
+    )
+    if not _all_guards_set:
+        logger.critical(
+            "GUARD_BYPASS_ATTEMPT: live.execute() called with incomplete guards "
+            "ENABLE_LIVE_TRADING=%s EXECUTION_PATH_VALIDATED=%s "
+            "CAPITAL_MODE_CONFIRMED=%s USE_REAL_CLOB=%s — "
+            "routing via assert_live_guards for safe rejection",
+            s.ENABLE_LIVE_TRADING, s.EXECUTION_PATH_VALIDATED,
+            s.CAPITAL_MODE_CONFIRMED, s.USE_REAL_CLOB,
+        )
 
     # Dry-run intercept: USE_REAL_CLOB=True but ENABLE_LIVE_TRADING not set.
     # Log intent for credential/workflow testing; do not touch DB or broker.
@@ -118,10 +143,38 @@ async def execute(
     if not token_id:
         raise LivePreSubmitError("missing token_id for live order")
 
-    # Convert USDC notional → exact share count at the entry price. We persist
-    # both size_usdc and entry_price so close-side can recompute the same
-    # share count and submit an exact-quantity SELL (no exit-price re-quoting).
-    shares = float(size_usdc) / max(price, 0.0001)
+    # Compute aggressive limit price if market-depth params supplied.
+    # Uses best_ask + 1 tick for buys, best_bid - 1 tick for sells to
+    # cross the spread aggressively and improve fill probability.
+    # Falls back to the signal price when market-depth is unavailable.
+    limit_price = (
+        compute_aggressive_limit_price(
+            side, best_ask=best_ask, best_bid=best_bid, offset_ticks=1
+        )
+        if best_ask is not None and best_bid is not None
+        else price
+    )
+
+    # SLIPPAGE_GUARD_PCT fence (Track D Part C).
+    # Hard rejection: if intended price deviates from signal price by > 5%,
+    # the market has moved too far since signal generation — never submit.
+    if price > 0:
+        _slippage_pct = abs(limit_price - price) / price
+        if _slippage_pct > SLIPPAGE_GUARD_PCT:
+            logger.critical(
+                "SLIPPAGE_REJECTED: limit_price=%.4f signal_price=%.4f "
+                "deviation=%.4f > SLIPPAGE_GUARD_PCT=%.4f "
+                "market=%s side=%s user=%s",
+                limit_price, price, _slippage_pct, SLIPPAGE_GUARD_PCT,
+                market_id, side, user_id,
+            )
+            raise LivePreSubmitError(
+                f"SLIPPAGE_REJECTED: deviation {_slippage_pct:.4f} "
+                f"> SLIPPAGE_GUARD_PCT {SLIPPAGE_GUARD_PCT}"
+            )
+
+    # Shares computed from limit_price so notional at entry is exact.
+    shares = float(size_usdc) / max(limit_price, 0.0001)
     try:
         client = clob_client or get_clob_client(s)
     except (ClobConfigError, ClobAuthError) as exc:
@@ -162,7 +215,7 @@ async def execute(
         submit_result = await client.post_order(
             token_id=token_id,
             side="BUY",
-            price=price,
+            price=limit_price,
             size=shares,
             order_type=order_type,
         )
@@ -230,7 +283,7 @@ async def execute(
                     RETURNING id
                     """,
                     user_id, market_id, order_id, side,
-                    size_usdc, price, tp_pct, sl_pct,
+                    size_usdc, limit_price, tp_pct, sl_pct,
                 )
                 position_id = pos_row["id"]
                 await ledger.debit_in_conn(
@@ -253,11 +306,13 @@ async def execute(
                                "market_id": market_id,
                                "polymarket_order_id": str(polymarket_order_id),
                                "size_usdc": str(size_usdc),
-                               "price": price})
-    label = market_question or market_id
+                               "signal_price": price,
+                               "limit_price": limit_price,
+                               "slippage_delta_submitted": round(limit_price - price, 6)})
+    label = html.escape(market_question or market_id)
     await notifications.send(
         telegram_user_id,
-        f"📈 *[LIVE] Opened*\n{label}\n*{side.upper()}* @ {price:.3f}\n"
+        f"📈 <b>[LIVE] Opened</b>\n{label}\n<b>{html.escape(side.upper())}</b> @ {price:.3f}\n"
         f"Size: ${size_usdc:.2f}",
     )
     return {"order_id": order_id, "position_id": position_id, "mode": "live"}
@@ -307,8 +362,8 @@ async def close_position(
     async with pool.acquire() as conn:
         claimed = await conn.fetchval(
             "UPDATE positions SET status='closing' "
-            "WHERE id=$1 AND status='open' RETURNING id",
-            position["id"],
+            "WHERE id=$1 AND user_id=$2 AND status='open' RETURNING id",
+            position["id"], position["user_id"],
         )
     if claimed is None:
         logger.info("live close skip — position %s already closing/closed",
@@ -325,8 +380,8 @@ async def close_position(
     except (ClobConfigError, ClobAuthError) as exc:
         async with pool.acquire() as conn:
             await conn.execute(
-                "UPDATE positions SET status='open' WHERE id=$1",
-                position["id"],
+                "UPDATE positions SET status='open' WHERE id=$1 AND user_id=$2",
+                position["id"], position["user_id"],
             )
         raise RuntimeError(f"CLOB client error during close: {exc}") from exc
     try:
@@ -340,8 +395,8 @@ async def close_position(
     except Exception:
         async with pool.acquire() as conn:
             await conn.execute(
-                "UPDATE positions SET status='open' WHERE id=$1",
-                position["id"],
+                "UPDATE positions SET status='open' WHERE id=$1 AND user_id=$2",
+                position["id"], position["user_id"],
             )
         raise
 
@@ -360,8 +415,8 @@ async def close_position(
             updated = await conn.fetchval(
                 "UPDATE positions SET status='closed', exit_reason=$2, "
                 "current_price=$3, pnl_usdc=$4, closed_at=NOW() "
-                "WHERE id=$1 AND status='closing' RETURNING id",
-                position["id"], exit_reason, exit_price, pnl,
+                "WHERE id=$1 AND user_id=$5 AND status='closing' RETURNING id",
+                position["id"], exit_reason, exit_price, pnl, position["user_id"],
             )
             if updated is None:
                 # The claim was ours; status should still be 'closing'. If we

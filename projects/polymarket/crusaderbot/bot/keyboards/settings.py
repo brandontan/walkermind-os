@@ -1,17 +1,98 @@
-"""R12e Settings menu keyboards."""
+"""Settings hub keyboards — V6 UX Redesign."""
 from __future__ import annotations
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from . import grid_rows
+from ._common import home_back_row
+
+
+def settings_hub_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
+    """V6 settings hub — grouped: Trading, Account, System, Navigation."""
+    rows: list[list[InlineKeyboardButton]] = [
+        # Trading group
+        [
+            InlineKeyboardButton("⚖️ Risk",          callback_data="settings:risk"),
+            InlineKeyboardButton("📑 Mode",           callback_data="settings:mode"),
+        ],
+        # Account group
+        [
+            InlineKeyboardButton("💰 Wallet",         callback_data="settings:wallet"),
+            InlineKeyboardButton("🔔 Notifications",  callback_data="settings:notifications"),
+        ],
+        # System group
+        [InlineKeyboardButton("🏥 Health",            callback_data="settings:health")],
+    ]
+    if is_admin:
+        rows[-1].append(InlineKeyboardButton("🧭 Admin", callback_data="settings:admin"))
+    rows.append([
+        InlineKeyboardButton("⬅ Back", callback_data="settings:back"),
+        InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
+    ])
+    return InlineKeyboardMarkup(rows)
+
+def tp_preset_kb(current_tp: float | None) -> InlineKeyboardMarkup:
+    """Step 1 of 2: Take Profit preset selection. Max 2 cols for mobile."""
+    _ = current_tp  # shown in message text, not in keyboard
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("+5%",  callback_data="tp_set:5"),
+            InlineKeyboardButton("+10%", callback_data="tp_set:10"),
+        ],
+        [
+            InlineKeyboardButton("+15%", callback_data="tp_set:15"),
+            InlineKeyboardButton("+25%", callback_data="tp_set:25"),
+        ],
+        [InlineKeyboardButton("✏️ Custom", callback_data="tp_set:custom")],
+        home_back_row("settings:hub"),
+    ])
+
+
+def sl_preset_kb(current_sl: float | None) -> InlineKeyboardMarkup:
+    """Step 2 of 2: Stop Loss preset selection. Max 2 cols for mobile."""
+    _ = current_sl  # shown in message text, not in keyboard
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("-5%",  callback_data="sl_set:5"),
+            InlineKeyboardButton("-8%",  callback_data="sl_set:8"),
+        ],
+        [
+            InlineKeyboardButton("-10%", callback_data="sl_set:10"),
+            InlineKeyboardButton("-15%", callback_data="sl_set:15"),
+        ],
+        [InlineKeyboardButton("✏️ Custom", callback_data="sl_set:custom")],
+        home_back_row("settings:hub"),
+    ])
+
+
+def tpsl_confirm_kb() -> InlineKeyboardMarkup:
+    """Confirmation keyboard after TP+SL set."""
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("⬅ Back", callback_data="settings:hub"),
+    ]])
+
+
+def capital_preset_kb(balance: float, mode: str) -> InlineKeyboardMarkup:
+    """Capital allocation preset buttons showing real dollar amounts."""
+    def _btn(pct: int) -> InlineKeyboardButton:
+        amount = balance * pct / 100.0
+        return InlineKeyboardButton(
+            f"{pct}% — ${amount:.0f}",
+            callback_data=f"cap_set:{pct}",
+        )
+
+    return InlineKeyboardMarkup([
+        [_btn(10)],
+        [_btn(25)],
+        [_btn(50)],
+        [_btn(75)],
+        [InlineKeyboardButton("✏️ Custom", callback_data="cap_set:custom")],
+        [InlineKeyboardButton("⬅ Back", callback_data="settings:hub")],
+    ])
 
 
 def settings_menu(auto_redeem_mode: str) -> InlineKeyboardMarkup:
-    """Root settings keyboard.
-
-    Surfaces the current auto-redeem mode in the button label so the
-    user does not have to drill down to see the active setting.
-    """
+    """Legacy auto-redeem settings keyboard — kept for /settings command compat."""
     label = f"🏆 Auto-Redeem Mode: {auto_redeem_mode.title()}"
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(label, callback_data="settings:redeem")],
@@ -27,6 +108,18 @@ def autoredeem_settings_picker(current: str) -> InlineKeyboardMarkup:
                              callback_data="settings:redeem_set:instant"),
         InlineKeyboardButton(mark("hourly"),
                              callback_data="settings:redeem_set:hourly"),
-        InlineKeyboardButton("⬅️ Back", callback_data="settings:menu"),
+        InlineKeyboardButton("⬅️ Back", callback_data="settings:hub"),
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
+
+
+def settings_mode_picker(current: str) -> InlineKeyboardMarkup:
+    """Mode picker scoped to Settings hub — Back routes to settings:hub."""
+    def mark(m: str) -> str:
+        return f"{'✅' if m == current else '◻️'} {m.title()}"
+    buttons = [
+        InlineKeyboardButton(mark("paper"), callback_data="set_mode:paper"),
+        InlineKeyboardButton(mark("live"), callback_data="set_mode:live"),
+        InlineKeyboardButton("⬅️ Back", callback_data="settings:hub"),
     ]
     return InlineKeyboardMarkup(grid_rows(buttons))

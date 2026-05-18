@@ -1,37 +1,29 @@
-"""Dashboard / Positions / Activity views."""
+"""Phase 5 UX Rebuild — Dashboard (Screen 02).
+
+Trigger: /start (returning user), menu:dashboard callback.
+All data live from DB.
+"""
 from __future__ import annotations
 
+import html
+import logging
 from decimal import Decimal
-from uuid import UUID
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import Update
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from ...database import get_pool
-from ...users import get_settings_for, set_auto_trade, upsert_user
+from ...users import upsert_user
 from ...wallet.ledger import daily_pnl, get_balance
-from ...wallet.vault import get_wallet
-from ..keyboards import autotrade_toggle, dashboard_nav, setup_menu, wallet_menu
-from ..tier import Tier, has_tier, tier_block_message
+from ..keyboards import main_menu, p5_dashboard_kb
+from ..messages import dashboard_text
+
+logger = logging.getLogger(__name__)
 
 
-async def _ensure(update: Update, min_tier: int) -> tuple[dict | None, bool]:
-    if update.effective_user is None:
-        return None, False
-    user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    if not has_tier(user["access_tier"], min_tier):
-        msg = tier_block_message(min_tier)
-        if update.message:
-            await update.message.reply_text(msg)
-        elif update.callback_query:
-            await update.callback_query.answer(msg, show_alert=True)
-        return None, False
-    return user, True
-
-
-async def _fetch_stats(user_id: UUID) -> dict:
-    """All supplementary dashboard data in one connection."""
+async def _fetch_stats(user_id) -> dict:
     pool = get_pool()
     async with pool.acquire() as conn:
         pos = await conn.fetchrow(
@@ -41,7 +33,8 @@ async def _fetch_stats(user_id: UUID) -> dict:
                 COUNT(*) FILTER (WHERE current_price IS NOT NULL
                                    AND current_price > entry_price) AS winning,
                 COUNT(*) FILTER (WHERE current_price IS NOT NULL
-                                   AND current_price < entry_price) AS losing
+                                   AND current_price < entry_price) AS losing,
+                COUNT(*) AS open_count
             FROM positions
             WHERE user_id = $1 AND status = 'open'
             """,
@@ -53,7 +46,7 @@ async def _fetch_stats(user_id: UUID) -> dict:
                 COUNT(*)                                        AS total_trades,
                 COUNT(*) FILTER (WHERE pnl_usdc > 0)           AS wins,
                 COUNT(*) FILTER (WHERE pnl_usdc IS NOT NULL
-                                   AND pnl_usdc <= 0)          AS losses,
+                                   AND pnl_usdc < 0)           AS losses,
                 COALESCE(SUM(size_usdc), 0)                    AS total_volume,
                 COUNT(DISTINCT market_id)                       AS markets_traded
             FROM positions
@@ -78,14 +71,14 @@ async def _fetch_stats(user_id: UUID) -> dict:
             user_id,
         )
         sett = await conn.fetchrow(
-            "SELECT risk_profile, strategy_types, trading_mode "
-            "FROM user_settings WHERE user_id = $1",
+            "SELECT active_preset, risk_profile FROM user_settings WHERE user_id = $1",
             user_id,
         )
     return {
         "positions_value": Decimal(str(pos["positions_value"])),
         "winning":         int(pos["winning"]),
         "losing":          int(pos["losing"]),
+        "open_positions":  int(pos["open_count"]),
         "total_trades":    int(trades["total_trades"]),
         "wins":            int(trades["wins"]),
         "losses":          int(trades["losses"]),
@@ -94,330 +87,253 @@ async def _fetch_stats(user_id: UUID) -> dict:
         "pnl_7d":          Decimal(str(pnl["pnl_7d"])),
         "pnl_30d":         Decimal(str(pnl["pnl_30d"])),
         "pnl_all":         Decimal(str(pnl["pnl_all"])),
-        "risk_profile":    sett["risk_profile"]   if sett else "balanced",
-        "strategy_types":  sett["strategy_types"] if sett else ["copy_trade"],
-        "trading_mode":    sett["trading_mode"]   if sett else "paper",
+        "active_preset":   dict(sett).get("active_preset") if sett else None,
+        "risk_profile":    dict(sett).get("risk_profile", "balanced") if sett else "balanced",
     }
 
 
-def _pnl_line(val: Decimal, base: Decimal | None = None) -> str:
-    sign = "+" if val >= 0 else ""
-    pct = ""
-    if base and base > 0:
-        pct = f" ({sign}{float(val) / float(base) * 100:.1f}%)"
-    return f"{sign}${val:.2f}{pct}"
-
-
-def _risk_icon(profile: str) -> str:
-    return {"conservative": "🟢", "balanced": "🟡", "aggressive": "🔴"}.get(profile, "🟡")
-
-
-def _build_text(
-    bal: Decimal,
-    pnl_today: Decimal,
-    st: dict,
-    auto_on: bool,
-) -> str:
-    equity = bal + st["positions_value"]
-    closed_total = st["wins"] + st["losses"]
-    win_rate = int(st["wins"] / closed_total * 100) if closed_total else 0
-
-    pnl_all = st["pnl_all"]
-    pnl_all_str = f"+${pnl_all:.2f}" if pnl_all >= 0 else f"-${abs(pnl_all):.2f}"
-
-    auto_status = "🟢 ACTIVE" if auto_on else "⚪ INACTIVE"
-    strats = st["strategy_types"]
-    preset = (
-        ", ".join(s.replace("_", " ").title() for s in strats)
-        if strats else "Not configured"
-    )
-    risk_icon = _risk_icon(st["risk_profile"])
-    risk_label = st["risk_profile"].title()
-    mode_label = "🔴 Live" if st["trading_mode"] == "live" else "📝 Paper"
-
-    return (
-        "📊 *CrusaderBot Dashboard*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "💼 *Portfolio*\n"
-        f"├─ Balance: ${bal:.2f}\n"
-        f"├─ Positions Value: ${st['positions_value']:.2f}\n"
-        f"├─ Total Equity: ${equity:.2f}\n"
-        f"└─ Winning: {st['winning']} | Losing: {st['losing']}\n\n"
-        "💰 *Profit & Loss*\n"
-        f"├─ Today: {_pnl_line(pnl_today, bal)}\n"
-        f"├─ 7 Day: {_pnl_line(st['pnl_7d'], bal)}\n"
-        f"├─ 30 Day: {_pnl_line(st['pnl_30d'], bal)}\n"
-        f"└─ All-Time: {pnl_all_str}\n\n"
-        "📈 *Trading Stats*\n"
-        f"├─ Total Trades: {st['total_trades']}\n"
-        f"├─ Win Rate: {win_rate}% ({st['wins']}W / {st['losses']}L)\n"
-        f"├─ Total Volume: ${st['total_volume']:.2f}\n"
-        f"└─ Markets Traded: {st['markets_traded']}\n\n"
-        "🤖 *Auto-Trade*\n"
-        f"├─ Status: {auto_status}\n"
-        f"├─ Preset: {preset}\n"
-        f"├─ Risk: {risk_icon} {risk_label}\n"
-        f"└─ Mode: {mode_label}"
-    )
-
-
-async def dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    user, ok = await _ensure(update, Tier.ALLOWLISTED)
-    if not ok or update.message is None:
-        return
-
-    bal = await get_balance(user["id"])
-    pnl_today = await daily_pnl(user["id"])
-    st = await _fetch_stats(user["id"])
-
-    text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
-    has_trades = st["total_trades"] > 0 or (st["winning"] + st["losing"]) > 0
-
-    await update.message.reply_text(
-        text,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=dashboard_nav(has_trades),
-    )
-
-
-async def show_dashboard_for_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Render the dashboard in response to a callback query (q.message path)."""
-    q = update.callback_query
-    if q is None:
-        return
-    user, ok = await _ensure(update, Tier.ALLOWLISTED)
-    if not ok:
-        return
-    bal = await get_balance(user["id"])
-    pnl_today = await daily_pnl(user["id"])
-    st = await _fetch_stats(user["id"])
-    text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
-    has_trades = st["total_trades"] > 0 or (st["winning"] + st["losing"]) > 0
-    await q.message.reply_text(
-        text,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=dashboard_nav(has_trades),
-    )
-
-
-async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handles dashboard inline nav: [🤖 Auto-Trade] [📈 Trades] [💰 Wallet] [📊 main]."""
-    q = update.callback_query
-    if q is None:
-        return
-    await q.answer()
-
-    sub = (q.data or "").split(":", 1)[-1]
-    user, ok = await _ensure(update, Tier.ALLOWLISTED)
-    if not ok:
-        return
-
-    if sub == "main":
-        bal = await get_balance(user["id"])
-        pnl_today = await daily_pnl(user["id"])
-        st = await _fetch_stats(user["id"])
-        text = _build_text(bal, pnl_today, st, user["auto_trade_on"])
-        has_trades = st["total_trades"] > 0 or (st["winning"] + st["losing"]) > 0
-        await q.message.reply_text(
-            text,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=dashboard_nav(has_trades),
-        )
-        return
-
-    if sub == "autotrade":
-        s = await get_settings_for(user["id"])
-        text = (
-            "*🤖 Auto-Trade Setup*\n\n"
-            f"Strategy: `{', '.join(s['strategy_types'])}`\n"
-            f"Risk profile: `{s['risk_profile']}`\n"
-            f"Capital alloc: `{float(s['capital_alloc_pct']) * 100:.0f}%`\n"
-            f"Mode: `{s['trading_mode']}`\n"
-        )
-        await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN,
-                                   reply_markup=setup_menu())
-
-    elif sub == "trades":
+async def _fetch_last_trade_action(user_id) -> str:
+    """Return a pulse line describing the most recent trade action, or scanning fallback."""
+    try:
         pool = get_pool()
         async with pool.acquire() as conn:
-            rows = await conn.fetch(
+            row = await conn.fetchrow(
                 """
-                SELECT p.side, p.size_usdc, p.pnl_usdc, p.status,
-                       m.question, p.market_id
-                  FROM positions p
-                  LEFT JOIN markets m ON m.id = p.market_id
-                 WHERE p.user_id = $1
-                 ORDER BY COALESCE(p.closed_at, p.opened_at) DESC
-                 LIMIT 10
+                SELECT
+                    p.status,
+                    m.question AS market_question,
+                    CASE WHEN p.status = 'open'
+                         THEN p.opened_at
+                         ELSE p.closed_at
+                    END AS action_time
+                FROM positions p
+                LEFT JOIN markets m ON m.id = p.market_id
+                WHERE p.user_id = $1
+                ORDER BY action_time DESC NULLS LAST
+                LIMIT 1
                 """,
-                user["id"],
+                user_id,
             )
-        if not rows:
-            await q.message.reply_text(
-                "No trades yet. Tap 🤖 Auto-Trade to configure and start."
-            )
-            return
-        lines = ["*📈 Recent Trades:*\n"]
-        for r in rows:
-            title = (r["question"] or r["market_id"])[:40]
-            pnl = (
-                f" P&L: *${float(r['pnl_usdc']):+.2f}*"
-                if r["pnl_usdc"] is not None else ""
-            )
-            lines.append(
-                f"*{r['side'].upper()}* ${float(r['size_usdc']):.2f} "
-                f"[{r['status']}]{pnl}\n_{title}_"
-            )
-        await q.message.reply_text(
-            "\n\n".join(lines), parse_mode=ParseMode.MARKDOWN,
+        if row is None:
+            return "📡 Scanning Polymarket liquidity..."
+        q = html.escape((row["market_question"] or "")[:35])
+        if row["status"] == "open":
+            return f"📈 Last: Bought — {q}"
+        return f"📉 Last: Closed — {q}"
+    except Exception:
+        return "📡 Scanning Polymarket liquidity..."
+
+
+def _preset_display(preset_key: str | None) -> tuple[str, str, str, str]:
+    """Return (emoji, name, risk_emoji, risk_label) for a preset key."""
+    from ..presets import PRESET_CONFIG
+    if not preset_key:
+        return "⚙️", "Not configured", "⚫", "—"
+    cfg = PRESET_CONFIG.get(preset_key)
+    if not cfg:
+        return "⚙️", preset_key, "⚫", "—"
+    return cfg["emoji"], cfg["name"], cfg["risk_emoji"], cfg["risk_label"]
+
+
+async def _build_dashboard_message(user: dict) -> tuple[str, bool]:
+    """Return (message_text, has_preset). All data live from DB."""
+    bal = await get_balance(user["id"])
+    pnl_today = await daily_pnl(user["id"])
+    st = await _fetch_stats(user["id"])
+    pulse_line = await _fetch_last_trade_action(user["id"])
+
+    preset_key = st["active_preset"]
+    p_emoji, p_name, r_emoji, r_label = _preset_display(preset_key)
+
+    bal_d = Decimal(str(bal))
+    total_equity = bal_d + st["positions_value"]
+
+    # pnl today percentage
+    pnl_today_d = Decimal(str(pnl_today))
+    pnl_today_pct = (
+        float(pnl_today_d) / float(bal_d) * 100 if bal_d > 0 else 0.0
+    )
+    pnl_7d_pct = (
+        float(st["pnl_7d"]) / float(bal_d) * 100 if bal_d > 0 else 0.0
+    )
+    pnl_30d_pct = (
+        float(st["pnl_30d"]) / float(bal_d) * 100 if bal_d > 0 else 0.0
+    )
+
+    win_rate = (
+        float(st["wins"]) / st["total_trades"] * 100
+        if st["total_trades"] > 0 else 0.0
+    )
+
+    text = dashboard_text(
+        balance=bal_d,
+        positions_value=st["positions_value"],
+        total_equity=total_equity,
+        wins=st["wins"],
+        losses=st["losses"],
+        pnl_today=pnl_today_d,
+        pnl_today_pct=pnl_today_pct,
+        pnl_7d=st["pnl_7d"],
+        pnl_7d_pct=pnl_7d_pct,
+        pnl_30d=st["pnl_30d"],
+        pnl_30d_pct=pnl_30d_pct,
+        pnl_alltime=st["pnl_all"],
+        total_trades=st["total_trades"],
+        win_rate=win_rate,
+        total_volume=st["total_volume"],
+        markets_count=st["markets_traded"],
+        autotrade_on=user.get("auto_trade_on", False),
+        preset_key=preset_key,
+        preset_emoji=p_emoji,
+        preset_name=p_name,
+        risk_emoji=r_emoji,
+        risk_label=r_label,
+        pulse_line=pulse_line,
+    )
+    return text, bool(preset_key)
+
+
+# ── Public entry points ────────────────────────────────────────────────────────
+
+async def show_dashboard(
+    update: Update,
+    ctx: ContextTypes.DEFAULT_TYPE,
+    user: dict | None = None,
+) -> None:
+    """Message-based dashboard render (from /start or command)."""
+    if update.effective_user is None:
+        return
+    if user is None:
+        user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    text, has_preset = await _build_dashboard_message(user)
+    target = update.message or (
+        update.callback_query.message if update.callback_query else None
+    )
+    if target is None:
+        return
+    nav_kb = main_menu(
+        strategy_key="set" if has_preset else None,
+        auto_on=user.get("auto_trade_on", False),
+    )
+    await target.reply_text(
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=nav_kb,
+    )
+
+
+async def show_dashboard_for_cb(
+    update: Update,
+    ctx: ContextTypes.DEFAULT_TYPE,
+    refresh: bool = False,
+) -> None:
+    """Callback-query-compatible dashboard render (edit or reply)."""
+    q = update.callback_query
+    if update.effective_user is None:
+        return
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    text, has_preset = await _build_dashboard_message(user)
+    kb = p5_dashboard_kb(has_preset)
+
+    nav_kb = main_menu(
+        strategy_key="set" if has_preset else None,
+        auto_on=user.get("auto_trade_on", False),
+    )
+    if q is not None and q.message is not None:
+        try:
+            await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        except BadRequest as exc:
+            if "Message is not modified" not in str(exc):
+                await q.message.reply_text(
+                    text, parse_mode=ParseMode.HTML, reply_markup=nav_kb,
+                )
+    elif update.message is not None:
+        await update.message.reply_text(
+            text, parse_mode=ParseMode.HTML, reply_markup=nav_kb,
         )
 
-    elif sub == "wallet":
-        bal = await get_balance(user["id"])
-        w = await get_wallet(user["id"])
-        addr = w["deposit_address"] if w else "(not set)"
-        await q.message.reply_text(
-            f"*💰 Wallet*\n\nBalance: *${bal:.2f}* USDC\n\nDeposit address (Polygon):\n`{addr}`",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=wallet_menu(),
-        )
 
-    elif sub == "insights":
-        from .pnl_insights import _fetch_insights, format_insights
-        from ..keyboards import insights_kb
-        data = await _fetch_insights(user["id"])
-        await q.message.reply_text(
-            format_insights(data),
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=insights_kb(),
-        )
+# ── Command handler alias ──────────────────────────────────────────────────────
+
+async def dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await show_dashboard(update, ctx)
 
 
-async def autotrade_toggle_cb(update: Update,
-                              ctx: ContextTypes.DEFAULT_TYPE) -> None:
+# ── Legacy callback shim — routes dashboard:* callbacks ───────────────────────
+
+async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Routes legacy dashboard:* callbacks from non-rewritten handlers."""
     q = update.callback_query
     if q is None:
         return
     await q.answer()
-    user, ok = await _ensure(update, Tier.FUNDED)
-    if not ok:
-        return
-    new_state = not user["auto_trade_on"]
-    if new_state and user.get("locked", False):
-        await q.answer("Account locked. Contact an operator to unlock.", show_alert=True)
-        return
-    from .activation import autotrade_toggle_pending_confirm
-    if await autotrade_toggle_pending_confirm(update, ctx):
-        return
-    await set_auto_trade(user["id"], new_state)
-    await q.message.reply_text(
-        f"Auto-trade is now *{'ON' if new_state else 'OFF'}*.",
-        parse_mode=ParseMode.MARKDOWN,
-    )
+    sub = (q.data or "").split(":", 1)[-1]
 
-
-async def positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    user, ok = await _ensure(update, Tier.ALLOWLISTED)
-    if not ok or update.message is None:
-        return
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT p.id, p.market_id, p.side, p.size_usdc, p.entry_price,
-                   p.current_price, p.mode, p.opened_at, m.question
-              FROM positions p
-              LEFT JOIN markets m ON m.id = p.market_id
-             WHERE p.user_id=$1 AND p.status='open'
-             ORDER BY p.opened_at DESC LIMIT 25
-            """,
-            user["id"],
-        )
-    if not rows:
-        await update.message.reply_text("No open positions.")
-        return
-    lines = ["*📈 Open positions:*\n"]
-    buttons = []
-    for r in rows:
-        q = (r["question"] or r["market_id"])[:48]
-        lines.append(
-            f"`{str(r['id'])[:8]}` *{r['side'].upper()}* @ "
-            f"{float(r['entry_price']):.3f} · ${float(r['size_usdc']):.2f} "
-            f"[{r['mode']}]\n_{q}_"
-        )
-        buttons.append([InlineKeyboardButton(
-            f"🛑 Close {str(r['id'])[:6]}",
-            callback_data=f"position:close:{r['id']}",
-        )])
-    await update.message.reply_text(
-        "\n\n".join(lines), parse_mode=ParseMode.MARKDOWN,
-        reply_markup=InlineKeyboardMarkup(buttons),
-    )
-
-
-async def close_position_cb(update: Update,
-                            ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    from ...domain.execution.router import close
-    q = update.callback_query
-    if q is None:
-        return
-    await q.answer("Closing…")
-    user, ok = await _ensure(update, Tier.ALLOWLISTED)
-    if not ok:
-        return
-    pos_id = (q.data or "").split(":", 2)[-1]
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT * FROM positions WHERE id=$1 AND user_id=$2 AND status='open'",
-            pos_id, user["id"],
-        )
-        if not row:
-            await q.message.reply_text("Position not found or already closed.")
+    if sub in ("main", "refresh"):
+        await show_dashboard_for_cb(update, ctx)
+    elif sub in ("auto", "autotrade"):
+        from .autotrade import show_autotrade
+        await show_autotrade(update, ctx)
+    elif sub in ("portfolio", "trades"):
+        from .trades import show_trades
+        await show_trades(update, ctx)
+    elif sub == "wallet":
+        from .wallet import wallet_root_cb
+        await wallet_root_cb(update, ctx)
+    elif sub == "settings":
+        from .settings import settings_hub_root
+        await settings_hub_root(update, ctx)
+    elif sub == "insights":
+        from .pnl_insights import pnl_insights_command
+        await pnl_insights_command(update, ctx)
+    elif sub == "monitor":
+        await show_dashboard_for_cb(update, ctx, refresh=True)
+    elif sub == "start_auto":
+        from .autotrade import show_autotrade
+        await show_autotrade(update, ctx)
+    elif sub == "stop":
+        from ...users import set_auto_trade
+        if update.effective_user is None:
             return
-        market = await conn.fetchrow(
-            "SELECT yes_price, no_price FROM markets WHERE id=$1", row["market_id"],
+        user = await upsert_user(update.effective_user.id, update.effective_user.username)
+        await set_auto_trade(user["id"], False)
+        await show_dashboard_for_cb(update, ctx)
+    else:
+        await show_dashboard_for_cb(update, ctx)
+
+
+async def autotrade_toggle_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Legacy autotrade:toggle callback — kept for backward compat."""
+    q = update.callback_query
+    if q is None or update.effective_user is None:
+        return
+    await q.answer()
+    from ...users import set_auto_trade
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    new_state = not user.get("auto_trade_on", False)
+    await set_auto_trade(user["id"], new_state)
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    text, has_preset = await _build_dashboard_message(user)
+    try:
+        await q.edit_message_text(
+            text, parse_mode=ParseMode.HTML, reply_markup=p5_dashboard_kb(has_preset),
         )
-    exit_price = float(
-        (market["yes_price"] if row["side"] == "yes" else market["no_price"])
-        if market else row["entry_price"]
-    )
-    res = await close(position=dict(row), exit_price=exit_price,
-                      exit_reason="user_close")
-    await q.message.reply_text(
-        f"📉 *Closed* `{str(pos_id)[:8]}` @ {exit_price:.3f}\n"
-        f"P&L: *${float(res['pnl_usdc']):+.2f}*",
-        parse_mode=ParseMode.MARKDOWN,
-    )
+    except BadRequest as exc:
+        if "Message is not modified" not in str(exc):
+            raise
+
+
+async def close_position_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Legacy position:close:* callback handler."""
+    q = update.callback_query
+    if q is None or update.effective_user is None:
+        return
+    await q.answer()
+    from .trades import close_ask_cb
+    await close_ask_cb(update, ctx)
 
 
 async def activity(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    user, ok = await _ensure(update, Tier.ALLOWLISTED)
-    if not ok or update.message is None:
-        return
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT o.id, o.market_id, o.side, o.size_usdc, o.price, o.mode,
-                   o.status, o.created_at, m.question
-              FROM orders o
-              LEFT JOIN markets m ON m.id = o.market_id
-             WHERE o.user_id=$1
-             ORDER BY o.created_at DESC LIMIT 10
-            """,
-            user["id"],
-        )
-    if not rows:
-        await update.message.reply_text("No activity yet.")
-        return
-    lines = ["*📋 Last 10 trades:*\n"]
-    for r in rows:
-        q = (r["question"] or r["market_id"])[:40]
-        lines.append(
-            f"{r['created_at'].strftime('%m-%d %H:%M')} · "
-            f"*{r['side'].upper()}* @ {float(r['price']):.3f} · "
-            f"${float(r['size_usdc']):.2f} [{r['mode']}/{r['status']}]\n_{q}_"
-        )
-    await update.message.reply_text("\n\n".join(lines),
-                                    parse_mode=ParseMode.MARKDOWN)
+    """Legacy /activity command — routes to trades screen."""
+    from .trades import show_trades
+    await show_trades(update, ctx)

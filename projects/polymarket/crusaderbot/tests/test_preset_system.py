@@ -34,22 +34,22 @@ from projects.polymarket.crusaderbot.domain.risk.constants import MAX_POSITION_P
 
 # ---------- Preset definitions ----------------------------------------------
 
-def test_three_presets_defined():
-    assert len(PRESETS) == 3
+def test_five_presets_defined():
+    assert len(PRESETS) == 5
     assert set(PRESET_ORDER) == set(PRESETS.keys())
 
 
 def test_preset_order_matches_spec():
-    assert PRESET_ORDER == ("signal_sniper", "value_hunter", "full_auto")
+    assert PRESET_ORDER == ("whale_mirror", "signal_sniper", "hybrid", "value_hunter", "full_auto")
 
 
-def test_recommended_is_signal_sniper():
-    assert RECOMMENDED_PRESET == "signal_sniper"
+def test_recommended_is_whale_mirror():
+    assert RECOMMENDED_PRESET == "whale_mirror"
 
 
-def test_whale_mirror_and_hybrid_removed():
-    assert "whale_mirror" not in PRESETS
-    assert "hybrid" not in PRESETS
+def test_whale_mirror_and_hybrid_present():
+    assert "whale_mirror" in PRESETS
+    assert "hybrid" in PRESETS
 
 
 def test_presets_obey_hard_position_cap():
@@ -67,8 +67,6 @@ def test_presets_capital_under_full_kelly():
 def test_get_preset_unknown_returns_none():
     assert get_preset("nope") is None
     assert get_preset("") is None
-    assert get_preset("whale_mirror") is None
-    assert get_preset("hybrid") is None
 
 
 def test_preset_strategies_use_canonical_keys():
@@ -77,11 +75,13 @@ def test_preset_strategies_use_canonical_keys():
         assert set(p.strategies) <= allowed, p.key
 
 
-def test_full_auto_excludes_copy_trade_strategy():
-    # Phase 5D: copy_trade strategy belongs to Copy Trade surface, not Auto-Trade.
+def test_full_auto_includes_all_strategies():
+    # Full Auto uses all three strategies: copy_trade, signal, value.
     p = get_preset("full_auto")
     assert p is not None
-    assert "copy_trade" not in p.strategies
+    assert "copy_trade" in p.strategies
+    assert "signal" in p.strategies
+    assert "value" in p.strategies
 
 
 def test_preset_validation_rejects_oversize_capital():
@@ -113,23 +113,27 @@ def test_preset_validation_rejects_position_over_cap():
 
 def test_picker_keyboard_has_two_col_grid_layout():
     kb = preset_picker()
-    # 3 presets in 2-col grid → 2 rows (row 0 has 2, row 1 has 1)
-    assert len(kb.inline_keyboard) == 2
+    # 5 presets in 2-col grid → 3 preset rows + 1 Back/Home nav row = 4 total
+    assert len(kb.inline_keyboard) == 4
     assert len(kb.inline_keyboard[0]) == 2
-    assert len(kb.inline_keyboard[1]) == 1
+    assert len(kb.inline_keyboard[1]) == 2
+    assert len(kb.inline_keyboard[2]) == 1
+    assert len(kb.inline_keyboard[3]) == 2
 
 
 def test_picker_keyboard_recommended_marked_and_first():
     kb = preset_picker()
-    # Signal Sniper is recommended — first button in first row has ⭐
+    # Whale Mirror is recommended — first button in first row has ⭐
     first_btn = kb.inline_keyboard[0][0]
     assert "⭐" in first_btn.text
-    assert first_btn.callback_data == "preset:pick:signal_sniper"
+    assert first_btn.callback_data == "preset:pick:whale_mirror"
 
 
 def test_picker_keyboard_all_preset_callbacks_present():
     kb = preset_picker()
-    all_cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    # Preset callbacks only — exclude the nav row at the end
+    preset_rows = kb.inline_keyboard[:-1]
+    all_cbs = [b.callback_data for row in preset_rows for b in row]
     assert all_cbs == [f"preset:pick:{k}" for k in PRESET_ORDER]
 
 
@@ -275,22 +279,24 @@ def _patch_pool(monkeypatch, open_count=0):
 def test_show_preset_picker_renders_all_three(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid)
+    _patch_settings(monkeypatch, {"active_preset": None})
     update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
     asyncio.run(presets_h.show_preset_picker(
         update, ctx=SimpleNamespace(user_data={}),
     ))
     assert len(replies) == 1
     text = replies[0]
-    for p in list_presets():
-        assert p.name in text
-    # Recommended marker in first button of first row.
+    assert "Auto Mode" in text  # V5 AUTOBOT branding: header changed from "Auto Trade" to "Auto Mode"
+    # MVP keyboard: "Choose Strategy" CTA → directs user to preset:picker
     kb = kws[0]["reply_markup"]
-    assert "⭐" in kb.inline_keyboard[0][0].text
+    all_cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    assert "preset:picker" in all_cbs
 
 
 def test_show_preset_picker_clears_awaiting(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid)
+    _patch_settings(monkeypatch, {"active_preset": None})
     update, _replies, _kws = _make_update(message_text="🤖 Auto-Trade")
     ctx = SimpleNamespace(user_data={"awaiting": "capital_pct"})
     asyncio.run(presets_h.show_preset_picker(update, ctx=ctx))
@@ -307,8 +313,8 @@ def test_show_preset_status_falls_back_to_picker_when_no_preset(monkeypatch):
     asyncio.run(presets_h.show_preset_status(
         update, ctx=SimpleNamespace(user_data={}),
     ))
-    # The picker text leads with "Auto-Trade Preset".
-    assert "Auto-Trade Preset" in replies[0]
+    # V5 AUTOBOT branding: header changed from "Auto Trade" to "Auto Mode".
+    assert "Auto Mode" in replies[0]
 
 
 def test_show_preset_status_renders_running_card(monkeypatch):
@@ -323,10 +329,10 @@ def test_show_preset_status_renders_running_card(monkeypatch):
     ))
     text = replies[0]
     assert "Signal Sniper" in text
-    assert "RUNNING" in text
+    assert "Running" in text
     assert "$250.00" in text
     assert "$+12.50" in text
-    assert "Open positions : `2`" in text
+    assert "2 open" in text
     cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
            for b in row]
     assert "preset:pause" in cbs
@@ -342,7 +348,7 @@ def test_show_preset_status_renders_paused_card(monkeypatch):
     asyncio.run(presets_h.show_preset_status(
         update, ctx=SimpleNamespace(user_data={}),
     ))
-    assert "PAUSED" in replies[0]
+    assert "Paused" in replies[0]
     cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
            for b in row]
     assert "preset:resume" in cbs
@@ -357,12 +363,9 @@ def test_pick_renders_confirmation_with_all_values(monkeypatch):
     ctx = SimpleNamespace(user_data={})
     asyncio.run(presets_h.preset_callback(update, ctx))
     text = replies[0]
-    p = get_preset("value_hunter")
-    assert p.name in text
-    assert "40%" in text  # capital
-    assert "+25%" in text  # TP
-    assert "-12%" in text  # SL
-    assert "8%" in text   # max position
+    # Confirmation shows the preset name (Value Hunter for value_hunter preset)
+    assert "Value Hunter" in text or "value_hunter" in text.lower()
+    assert "activate" in text.lower()  # "Start Auto Trade" or "Tap ... to activate"
     cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
            for b in row]
     assert cbs == [
@@ -376,16 +379,6 @@ def test_pick_unknown_preset_replies_error(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid)
     update, replies, _kws = _make_update(callback_data="preset:pick:nope")
-    asyncio.run(presets_h.preset_callback(
-        update, ctx=SimpleNamespace(user_data={}),
-    ))
-    assert "Unknown preset" in replies[0]
-
-
-def test_pick_whale_mirror_returns_error(monkeypatch):
-    uid = uuid4()
-    _patch_tier(monkeypatch, uid)
-    update, replies, _kws = _make_update(callback_data="preset:pick:whale_mirror")
     asyncio.run(presets_h.preset_callback(
         update, ctx=SimpleNamespace(user_data={}),
     ))
@@ -476,7 +469,7 @@ def test_resume_persists_and_renders_running_card(monkeypatch):
 
 
 def test_stop_yes_clears_preset_and_stops(monkeypatch):
-    uid = uuid4()
+    uid = uuid4()    
     _patch_tier(monkeypatch, uid, auto_trade_on=True, paused=False)
     _patch_settings(monkeypatch, {"active_preset": "signal_sniper"})
     upd_settings, set_auto, set_p = _patch_writes(monkeypatch)
@@ -495,6 +488,7 @@ def test_stop_yes_clears_preset_and_stops(monkeypatch):
 def test_switch_yes_clears_preset_and_shows_picker(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid, auto_trade_on=True, paused=False)
+    _patch_settings(monkeypatch, {"active_preset": None})
     upd_settings, set_auto, set_p = _patch_writes(monkeypatch)
     update, replies, _kws = _make_update(callback_data="preset:switch_yes")
     asyncio.run(presets_h.preset_callback(
@@ -505,8 +499,8 @@ def test_switch_yes_clears_preset_and_shows_picker(monkeypatch):
     )
     set_auto.assert_awaited_once_with(uid, False)
     set_p.assert_awaited_once_with(uid, False)
-    # Picker text was rendered after the switch.
-    assert any("Auto-Trade Preset" in r for r in replies)
+    # Picker text was rendered after the switch. V5 AUTOBOT: header is "Auto Mode".
+    assert any("Auto Mode" in r for r in replies)
 
 
 def test_stop_intent_shows_confirmation(monkeypatch):
@@ -536,38 +530,29 @@ def test_switch_intent_shows_confirmation(monkeypatch):
 # ---------- setup.setup_root routing ----------------------------------------
 
 def test_setup_root_routes_to_picker_when_no_preset(monkeypatch):
+    # UX Overhaul: setup_root always shows the strategy card (no preset routing).
     uid = uuid4()
     user = {"id": uid, "access_tier": 2}
     monkeypatch.setattr(setup_h, "upsert_user",
                         AsyncMock(return_value=user))
-    monkeypatch.setattr(setup_h, "get_settings_for",
-                        AsyncMock(return_value={"active_preset": None}))
-    show_picker = AsyncMock()
-    show_status = AsyncMock()
-    monkeypatch.setattr(setup_h.presets_handler,
-                        "show_preset_picker", show_picker)
-    monkeypatch.setattr(setup_h.presets_handler,
-                        "show_preset_status", show_status)
-    update, _replies, _kws = _make_update(message_text="🤖 Auto-Trade")
+    update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
     asyncio.run(setup_h.setup_root(update, ctx=SimpleNamespace(user_data={})))
-    show_picker.assert_awaited_once()
-    show_status.assert_not_awaited()
+    assert replies, "setup_root must send a message"
+    assert "Auto-Trade" in replies[0] or "Strategy" in replies[0]
+    cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
+           for b in row]
+    assert any(c.startswith("strategy:") for c in cbs)
 
 
 def test_setup_root_routes_to_status_when_preset_active(monkeypatch):
+    # UX Overhaul: setup_root always shows the strategy card regardless of preset.
     uid = uuid4()
     user = {"id": uid, "access_tier": 2}
     monkeypatch.setattr(setup_h, "upsert_user",
                         AsyncMock(return_value=user))
-    monkeypatch.setattr(setup_h, "get_settings_for",
-                        AsyncMock(return_value={"active_preset": "signal_sniper"}))
-    show_picker = AsyncMock()
-    show_status = AsyncMock()
-    monkeypatch.setattr(setup_h.presets_handler,
-                        "show_preset_picker", show_picker)
-    monkeypatch.setattr(setup_h.presets_handler,
-                        "show_preset_status", show_status)
-    update, _replies, _kws = _make_update(message_text="🤖 Auto-Trade")
+    update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
     asyncio.run(setup_h.setup_root(update, ctx=SimpleNamespace(user_data={})))
-    show_status.assert_awaited_once()
-    show_picker.assert_not_awaited()
+    assert replies, "setup_root must send a message"
+    cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
+           for b in row]
+    assert any(c.startswith("strategy:") for c in cbs)

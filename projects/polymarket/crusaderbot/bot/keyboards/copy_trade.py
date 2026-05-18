@@ -19,6 +19,7 @@ from __future__ import annotations
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from . import grid_rows
+from ._common import home_back_row
 
 _DISCOVER_FILTERS: list[tuple[str, str]] = [
     ("🪙 Crypto",    "crypto"),
@@ -69,8 +70,7 @@ def copy_trade_add_wallet_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton("📋 Paste Address", callback_data="copytrade:paste"),
         InlineKeyboardButton("🔍 Discover",      callback_data="copytrade:discover"),
     ])
-    bottom = [[InlineKeyboardButton("← Back", callback_data="copytrade:dashboard")]]
-    return InlineKeyboardMarkup(top + bottom)
+    return InlineKeyboardMarkup(top + [home_back_row("copytrade:dashboard")])
 
 
 def wallet_stats_kb(address: str) -> InlineKeyboardMarkup:
@@ -93,8 +93,7 @@ def discover_filter_kb(active_filter: str = "top_pnl") -> InlineKeyboardMarkup:
         )
         for label, f in _DISCOVER_FILTERS
     ]
-    back = InlineKeyboardButton("← Back", callback_data="copytrade:add")
-    return InlineKeyboardMarkup(grid_rows(buttons) + [[back]])
+    return InlineKeyboardMarkup(grid_rows(buttons) + [home_back_row("copytrade:add")])
 
 
 def discover_wallet_kb(address: str) -> InlineKeyboardMarkup:
@@ -218,6 +217,88 @@ def wizard_custom_cancel_kb(back_data: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("✕ Cancel", callback_data=back_data),
     ]])
+
+
+# ---------------------------------------------------------------------------
+# 8-step wizard keyboards (CRUSADERBOT-STRATEGY-RISK-COPY)
+# ---------------------------------------------------------------------------
+
+
+def wizard_nickname_kb() -> InlineKeyboardMarkup:
+    """Step 1/8: nickname text input — Cancel only."""
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("✕ Cancel", callback_data="nwizard:cancel"),
+    ]])
+
+
+def wizard_stats_confirm_kb() -> InlineKeyboardMarkup:
+    """Step 2/8: shown after wallet stats — Add or Cancel."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Yes, Add Target", callback_data="nwizard:wallet:confirm"),
+            InlineKeyboardButton("✕ Cancel",           callback_data="nwizard:cancel"),
+        ],
+    ])
+
+
+def wizard_direction_kb() -> InlineKeyboardMarkup:
+    """Step 3/8: copy direction — buys only or buys & sells."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📈 Buys Only",      callback_data="nwizard:dir:buys_only")],
+        [InlineKeyboardButton("🔄 Buys & Sells",   callback_data="nwizard:dir:buys_and_sells")],
+        [InlineKeyboardButton("✕ Cancel",          callback_data="nwizard:cancel")],
+    ])
+
+
+def wizard_copy_type_kb() -> InlineKeyboardMarkup:
+    """Step 4/8: copy type — Fixed $ | Percentage % | RM Mirror."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💵 Fixed $",         callback_data="nwizard:type:fixed")],
+        [InlineKeyboardButton("📊 Percentage %",    callback_data="nwizard:type:percentage")],
+        [InlineKeyboardButton("🪞 RM Mirror",       callback_data="nwizard:type:rm")],
+        [InlineKeyboardButton("✕ Cancel",           callback_data="nwizard:cancel")],
+    ])
+
+
+def wizard_mode_kb() -> InlineKeyboardMarkup:
+    """Step 6/8: execution mode — Auto or Manual."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⚡ Auto (Instant)",   callback_data="nwizard:mode:auto")],
+        [InlineKeyboardButton("✋ Manual (Confirm)", callback_data="nwizard:mode:manual")],
+        [InlineKeyboardButton("✕ Cancel",            callback_data="nwizard:cancel")],
+    ])
+
+
+def wizard_slippage_kb() -> InlineKeyboardMarkup:
+    """Step 7/8: slippage tolerance."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("5%",  callback_data="nwizard:slip:5"),
+            InlineKeyboardButton("10%", callback_data="nwizard:slip:10"),
+        ],
+        [InlineKeyboardButton("✕ Cancel", callback_data="nwizard:cancel")],
+    ])
+
+
+def wizard_topups_kb() -> InlineKeyboardMarkup:
+    """Step 8/8: allow top-ups on existing positions."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Yes", callback_data="nwizard:topups:yes"),
+            InlineKeyboardButton("❌ No",  callback_data="nwizard:topups:no"),
+        ],
+        [InlineKeyboardButton("✕ Cancel", callback_data="nwizard:cancel")],
+    ])
+
+
+def wizard_new_confirm_kb() -> InlineKeyboardMarkup:
+    """New wizard confirm screen — Start or Cancel."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🚀 Start Copying", callback_data="nwizard:confirm"),
+            InlineKeyboardButton("✕ Cancel",         callback_data="nwizard:cancel"),
+        ],
+    ])
 
 
 # ---------------------------------------------------------------------------

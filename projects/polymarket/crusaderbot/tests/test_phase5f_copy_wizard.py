@@ -76,6 +76,7 @@ from projects.polymarket.crusaderbot.bot.handlers.copy_trade import (
     COPY_EDIT,
     COPY_RISK,
     _init_wizard,
+    build_new_copy_wizard_handler,
     build_wizard_handler,
     custom_input_handler,
     edit_delete_ask,
@@ -306,6 +307,11 @@ def _fake_db_row(**overrides) -> MagicMock:
         "reverse_copy": False,
         "created_at": now,
         "updated_at": now,
+        # migration 035 columns (always present via COALESCE in _SELECT)
+        "nickname": None,
+        "copy_direction": "buys_only",
+        "execution_mode": "auto",
+        "allow_topups": True,
         **overrides,
     }[k])
     return row
@@ -568,3 +574,89 @@ def test_33_build_wizard_handler_returns_conversation_handler():
     from telegram.ext import ConversationHandler
     handler = build_wizard_handler()
     assert isinstance(handler, ConversationHandler)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 34–38: per-task P&L (edit_pnl) + dead-code regression
+# ─────────────────────────────────────────────────────────────────────────────
+
+_ZERO_PNL = {
+    "open_count": 0, "closed_count": 0, "realized_pnl": 0.0,
+    "unrealized_pnl": 0.0, "total_pnl": 0.0, "total_invested": 0.0,
+    "win_count": 0, "loss_count": 0,
+}
+
+
+def test_34_edit_pnl_zero_fills_shows_no_trades():
+    update = _make_update(callback_data=f"wizard:epnl:{_FAKE_TASK_ID}")
+    ctx = _make_ctx()
+    with _mock_resolve_user(), patch.object(
+        repo_mod, "task_pnl_summary", new=AsyncMock(return_value=_ZERO_PNL),
+    ):
+        state = run(ct_mod.edit_pnl(update, ctx))
+    assert state == COPY_EDIT
+    body = update.callback_query.message.reply_text.call_args[0][0]
+    assert "No copied trades yet" in body
+
+
+def test_35_edit_pnl_realized_and_open_renders_totals():
+    summary = {
+        "open_count": 1, "closed_count": 2, "realized_pnl": 12.50,
+        "unrealized_pnl": -3.25, "total_pnl": 9.25, "total_invested": 40.0,
+        "win_count": 1, "loss_count": 1,
+    }
+    update = _make_update(callback_data=f"wizard:epnl:{_FAKE_TASK_ID}")
+    ctx = _make_ctx()
+    with _mock_resolve_user(), patch.object(
+        repo_mod, "task_pnl_summary", new=AsyncMock(return_value=summary),
+    ):
+        state = run(ct_mod.edit_pnl(update, ctx))
+    assert state == COPY_EDIT
+    body = update.callback_query.message.reply_text.call_args[0][0]
+    assert "$+9.25" in body
+    assert "$+12.50" in body
+    assert "marks pending" in body  # open position → unrealized caveat
+
+
+def test_36_edit_pnl_invalid_task_id_answers_not_found():
+    update = _make_update(callback_data="wizard:epnl:not-a-uuid")
+    ctx = _make_ctx()
+    with _mock_resolve_user():
+        state = run(ct_mod.edit_pnl(update, ctx))
+    assert state == COPY_EDIT
+    update.callback_query.answer.assert_any_call(
+        "Task not found.", show_alert=True,
+    )
+
+
+def test_37_edit_pnl_db_error_shows_truthful_unavailable():
+    update = _make_update(callback_data=f"wizard:epnl:{_FAKE_TASK_ID}")
+    ctx = _make_ctx()
+    with _mock_resolve_user(), patch.object(
+        repo_mod, "task_pnl_summary",
+        new=AsyncMock(side_effect=RuntimeError("db down")),
+    ):
+        state = run(ct_mod.edit_pnl(update, ctx))
+    assert state == COPY_EDIT
+    body = update.callback_query.message.reply_text.call_args[0][0]
+    assert "temporarily unavailable" in body
+    assert "engine" not in body.lower()  # never the old fake message
+
+
+def test_38_copytrade_copy_and_edit_route_to_wizard_not_placeholder():
+    # Regression: the dead 'Phase 5F placeholder' alerts were removed.
+    # Post-bundle, copytrade:copy: is owned by the NEW 8-step wizard
+    # (build_new_copy_wizard_handler); copytrade:edit: stays on the legacy
+    # wizard (build_wizard_handler).
+    import inspect
+    src = inspect.getsource(ct_mod)
+    assert "wizard placeholder" not in src
+    assert "coming in Phase 5F" not in src
+
+    new_handler = build_new_copy_wizard_handler()
+    new_patterns = [ep.pattern.pattern for ep in new_handler.entry_points]
+    assert any("copytrade:copy:" in p for p in new_patterns)
+
+    edit_handler = build_wizard_handler()
+    edit_patterns = [ep.pattern.pattern for ep in edit_handler.entry_points]
+    assert any("copytrade:edit:" in p for p in edit_patterns)

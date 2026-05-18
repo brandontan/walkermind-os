@@ -123,7 +123,7 @@ def _make_callback_update(data: str, replies: list[str]) -> SimpleNamespace:
 def _patch_tier_ok(user_id: UUID | None = None):
     uid = user_id or uuid4()
     return patch.object(
-        mt, "_ensure_tier", AsyncMock(return_value=({"id": uid}, True))
+        mt, "_ensure_user", AsyncMock(return_value=({"id": uid}, True))
     )
 
 
@@ -137,10 +137,13 @@ def test_my_trades_renders_with_positions():
     pos = _make_position(entry_price=0.42, size_usdc=5.00)
     activity = [_make_activity(pnl_usdc=2.10)]
 
+    _settings = {"tp_pct": None, "sl_pct": None}
     with _patch_tier_ok(), \
          patch.object(mt.repo, "get_open_positions", AsyncMock(return_value=[pos])), \
          patch.object(mt.repo, "get_recent_activity", AsyncMock(return_value=activity)), \
-         patch.object(mt, "_fetch_mark", AsyncMock(return_value=0.48)):
+         patch.object(mt, "_fetch_mark", AsyncMock(return_value=0.48)), \
+         patch("projects.polymarket.crusaderbot.bot.handlers.my_trades.get_settings_for",
+               AsyncMock(return_value=_settings)):
         asyncio.run(mt.my_trades(update, ctx=None))
 
     assert replies, "reply_text was never called"
@@ -158,9 +161,12 @@ def test_my_trades_renders_empty_state():
     replies: list[str] = []
     update = _make_message_update(replies)
 
+    _settings = {"tp_pct": None, "sl_pct": None}
     with _patch_tier_ok(), \
          patch.object(mt.repo, "get_open_positions", AsyncMock(return_value=[])), \
-         patch.object(mt.repo, "get_recent_activity", AsyncMock(return_value=[])):
+         patch.object(mt.repo, "get_recent_activity", AsyncMock(return_value=[])), \
+         patch("projects.polymarket.crusaderbot.bot.handlers.my_trades.get_settings_for",
+               AsyncMock(return_value=_settings)):
         asyncio.run(mt.my_trades(update, ctx=None))
 
     assert replies
@@ -280,7 +286,7 @@ def test_close_confirm_yes_calls_paper_close():
 
     mock_result = {"pnl_usdc": Decimal("0.71"), "exit_price": 0.48}
 
-    with patch.object(mt, "_ensure_tier",
+    with patch.object(mt, "_ensure_user",
                       AsyncMock(return_value=({"id": user_id}, True))), \
          patch.object(mt.repo, "get_open_position_for_user",
                       AsyncMock(return_value=pos)), \
@@ -321,23 +327,29 @@ def test_format_positions_section_hierarchy():
     pos2 = _make_position(entry_price=0.65, size_usdc=3.50, side="no",
                           question="GDP Q2 above 3%?")
     marks = [0.48, 0.61]
-    text = mt._format_positions_section([pos1, pos2], marks)
+    text = mt._format_positions_section([pos1, pos2], marks, tp_pct=None, sl_pct=None)
 
     assert "Open Positions (2)" in text
     assert "1." in text and "2." in text
-    assert "YES at $0.42" in text
-    assert "NO at $0.65" in text
-    assert "$5.00" in text and "$3.50" in text
+    assert "YES @ $0.420" in text
+    assert "NO @ $0.650" in text
+    assert "TP: —" in text and "SL: —" in text
 
 
 # ---------- Test 11: Global menu works during close flow -------------------
 
 
 def test_main_menu_routes_my_trades_registered():
-    """MAIN_MENU_ROUTES maps 📈 My Trades to the new my_trades_h.my_trades."""
-    handler = MAIN_MENU_ROUTES.get("📈 My Trades")
-    assert handler is not None
-    assert handler is mt.my_trades
+    """V6: My Trades is accessed via Portfolio nav, not a dedicated root button.
+
+    In V6 main menu, 💼 Portfolio is the entry point to trades/positions.
+    This test verifies the handler exists and is importable, and that the
+    portfolio entry point is registered in MAIN_MENU_ROUTES.
+    """
+    # my_trades handler must be importable and callable
+    assert callable(mt.my_trades)
+    # Portfolio route must be registered (V6 gateway to trades)
+    assert MAIN_MENU_ROUTES.get("💼 Portfolio") is not None
 
 
 # ---------- Test 12: my_trades_main_kb 2-col close buttons -----------------
@@ -358,7 +370,8 @@ def test_my_trades_main_kb_two_col_close_buttons():
     # Last row is the nav row.
     nav_labels = [btn.text for btn in rows[-1]]
     assert any("Full History" in l for l in nav_labels)
-    assert any("Dashboard" in l for l in nav_labels)
+    # Dashboard button removed from My Trades nav in UX overhaul (Part 9).
+    assert not any("Dashboard" in l for l in nav_labels)
 
 
 # ---------- Test 13: close_confirm_kb structure ----------------------------

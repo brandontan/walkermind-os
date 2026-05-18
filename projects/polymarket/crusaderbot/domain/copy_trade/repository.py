@@ -14,7 +14,11 @@ _SELECT = """
     SELECT id, user_id, wallet_address, task_name, status,
            copy_mode, copy_amount, copy_pct,
            tp_pct, sl_pct, max_daily_spend, slippage_pct,
-           min_trade_size, reverse_copy, created_at, updated_at
+           min_trade_size, reverse_copy, created_at, updated_at,
+           nickname,
+           COALESCE(copy_direction, 'buys_only')  AS copy_direction,
+           COALESCE(execution_mode, 'auto')        AS execution_mode,
+           COALESCE(allow_topups, true)            AS allow_topups
       FROM copy_trade_tasks
 """
 
@@ -43,6 +47,10 @@ def _row_to_task(row: object) -> CopyTradeTask:
         reverse_copy=row["reverse_copy"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        nickname=row["nickname"],
+        copy_direction=row["copy_direction"],
+        execution_mode=row["execution_mode"],
+        allow_topups=bool(row["allow_topups"]),
     )
 
 
@@ -154,3 +162,55 @@ async def toggle_pause(task_id: UUID, user_id: UUID) -> str | None:
             task_id, user_id,
         )
     return row["status"] if row else None
+
+
+async def task_pnl_summary(task_id: UUID, user_id: UUID) -> dict[str, float | int]:
+    """Aggregate realized + unrealized P&L for one copy task.
+
+    Copy orders persist with ``orders.idempotency_key =
+    'copy_{task_id}_{leader_trade_id}'`` (see services/copy_trade/monitor.py)
+    and ``positions`` join ``orders`` via ``positions.order_id``. Scoped by
+    ``user_id`` so the aggregate can never bleed across tenants. Read-only,
+    single round trip, no transaction.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT
+              COUNT(*) FILTER (WHERE p.status = 'open')   AS open_count,
+              COUNT(*) FILTER (WHERE p.status = 'closed') AS closed_count,
+              COALESCE(SUM(p.pnl_usdc)
+                       FILTER (WHERE p.status = 'closed'), 0) AS realized_pnl,
+              COALESCE(SUM(
+                CASE WHEN p.status = 'open'
+                          AND p.current_price IS NOT NULL
+                          AND p.entry_price > 0
+                     THEN (p.current_price - p.entry_price)
+                          / p.entry_price * p.size_usdc
+                     ELSE 0 END
+              ), 0) AS unrealized_pnl,
+              COALESCE(SUM(p.size_usdc), 0) AS total_invested,
+              COUNT(*) FILTER (
+                WHERE p.status = 'closed' AND p.pnl_usdc > 0) AS win_count,
+              COUNT(*) FILTER (
+                WHERE p.status = 'closed' AND p.pnl_usdc < 0) AS loss_count
+              FROM positions p
+              JOIN orders o ON o.id = p.order_id
+             WHERE o.user_id = $1
+               AND o.idempotency_key LIKE $2 ESCAPE '\\'
+            """,
+            user_id, "copy\\_" + str(task_id) + "\\_%",
+        )
+    realized = float(row["realized_pnl"])
+    unrealized = float(row["unrealized_pnl"])
+    return {
+        "open_count": int(row["open_count"]),
+        "closed_count": int(row["closed_count"]),
+        "realized_pnl": realized,
+        "unrealized_pnl": unrealized,
+        "total_pnl": realized + unrealized,
+        "total_invested": float(row["total_invested"]),
+        "win_count": int(row["win_count"]),
+        "loss_count": int(row["loss_count"]),
+    }

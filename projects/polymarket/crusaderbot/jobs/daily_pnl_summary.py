@@ -22,6 +22,7 @@ batch always returns aggregate stats and writes one ``job_runs`` row.
 """
 from __future__ import annotations
 
+import html
 import logging
 from datetime import datetime
 from decimal import Decimal
@@ -30,6 +31,7 @@ from uuid import UUID
 
 from .. import notifications
 from ..database import get_pool
+from ..users import user_notifications_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -218,19 +220,19 @@ def format_summary(*, date_label: str, realized: Decimal, unrealized: Decimal,
     if (opened_today == 0 and closed_today == 0 and open_count == 0
             and realized == 0 and unrealized == 0 and fees == 0):
         return (
-            f"📊 *Daily Summary — {date_label}*\n"
-            f"No paper trades today. Mode: `{mode}`."
+            f"📊 <b>Daily Summary — {html.escape(date_label)}</b>\n"
+            f"No paper trades today. Mode: <code>{html.escape(mode)}</code>."
         )
     return (
-        f"📊 *Daily Summary — {date_label}*\n"
-        f"Realized P&L  : `{_fmt_signed(realized)}`\n"
-        f"Unrealized P&L: `{_fmt_signed(unrealized)}`\n"
-        f"Fees paid     : `${fees:.2f}`\n"
-        f"Trades opened : `{opened_today}`\n"
-        f"Trades closed : `{closed_today}` (W:{wins_today} L:{losses_today})\n"
-        f"Open positions: `{open_count}`\n"
-        f"Exposure      : `{exposure_pct:.1f}%`\n"
-        f"Mode          : `{mode}`"
+        f"📊 <b>Daily Summary — {html.escape(date_label)}</b>\n"
+        f"Realized P&amp;L  : <code>{_fmt_signed(realized)}</code>\n"
+        f"Unrealized P&amp;L: <code>{_fmt_signed(unrealized)}</code>\n"
+        f"Fees paid     : <code>${fees:.2f}</code>\n"
+        f"Trades opened : <code>{opened_today}</code>\n"
+        f"Trades closed : <code>{closed_today}</code> (W:{wins_today} L:{losses_today})\n"
+        f"Open positions: <code>{open_count}</code>\n"
+        f"Exposure      : <code>{exposure_pct:.1f}%</code>\n"
+        f"Mode          : <code>{html.escape(mode)}</code>"
     )
 
 
@@ -247,8 +249,7 @@ async def _list_recipient_users() -> list[dict]:
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT id, telegram_user_id FROM users "
-            "WHERE access_tier >= 2 ORDER BY id",
+            "SELECT id, telegram_user_id FROM users ORDER BY id",
         )
     return [dict(r) for r in rows]
 
@@ -283,6 +284,9 @@ async def run_once() -> dict:
         tg_id = u["telegram_user_id"]
         try:
             if not await is_summary_enabled(user_id):
+                skipped_disabled += 1
+                continue
+            if not await user_notifications_enabled(user_id):
                 skipped_disabled += 1
                 continue
             if tg_id is None:

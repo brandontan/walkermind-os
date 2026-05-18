@@ -44,10 +44,24 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
+from ...core import event_bus as _event_bus
 from ...domain.execution.router import execute as _router_execute
 from ...domain.risk.gate import GateContext, GateResult, evaluate as _risk_evaluate
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ExecutionDryRun:
+    """Result of a dry_run_execute() call — full pipeline, no submission."""
+
+    market_id: str
+    side: str
+    size_usdc: Optional[Decimal]
+    entry_price: Optional[float]
+    risk_decision: str
+    would_be_rejected: bool
+    rejection_reason: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -100,6 +114,12 @@ class TradeResult:
     final_size_usdc: Optional[Decimal] = None
 
 
+def _blocked_reason_display(reason: str, market_liquidity: float) -> str:
+    if reason == "insufficient_liquidity":
+        return f"liquidity below ${market_liquidity:,.0f} threshold"
+    return "slippage exceeded limit"
+
+
 class TradeEngine:
     """Signal-to-position paper trade engine for Track A.
 
@@ -126,6 +146,14 @@ class TradeEngine:
                 signal.user_id, signal.market_id,
                 gate_result.reason, gate_result.failed_step,
             )
+            if gate_result.reason in ("insufficient_liquidity", "market_impact_cap"):
+                await _event_bus.emit(
+                    "trade.blocked",
+                    telegram_user_id=signal.telegram_user_id,
+                    market_id=signal.market_id,
+                    market_question=signal.market_question,
+                    reason=_blocked_reason_display(gate_result.reason, signal.market_liquidity),
+                )
             return TradeResult(
                 approved=False,
                 mode=None,
@@ -175,7 +203,7 @@ class TradeEngine:
         # router evaluation).
         actual_mode = raw.get("mode") or gate_result.chosen_mode
 
-        return TradeResult(
+        result = TradeResult(
             approved=True,
             mode=out_mode,
             order_id=UUID(str(raw_order_id)) if raw_order_id else None,
@@ -184,6 +212,60 @@ class TradeEngine:
             failed_gate_step=None,
             chosen_mode=actual_mode,
             final_size_usdc=final_size,
+        )
+
+        # Emit position.opened for non-copy-trade fills only.
+        # Copy-trade monitor emits copy_trade.executed separately.
+        if out_mode != "duplicate" and signal.strategy_type != "copy_trade":
+            await _event_bus.emit(
+                "position.opened",
+                telegram_user_id=signal.telegram_user_id,
+                market_id=signal.market_id,
+                market_question=signal.market_question,
+                side=signal.side,
+                size_usdc=final_size,
+                price=signal.price,
+                tp_pct=signal.tp_pct,
+                sl_pct=signal.sl_pct,
+                strategy_type=signal.strategy_type,
+                position_id=str(raw_position_id) if raw_position_id else None,
+                mode=out_mode,
+            )
+
+        return result
+
+    async def dry_run_execute(self, signal: TradeSignal) -> ExecutionDryRun:
+        """Run the full pipeline (signal → risk → sizing) but stop before submission.
+
+        Validates that the paper path and live path produce identical risk decisions
+        for the same input.  No DB writes occur (risk_log aside from gate internal
+        logging); no orders are submitted; no positions are created.
+
+        Returns ExecutionDryRun describing what WOULD happen if execute() were called.
+        """
+        gate_ctx = self._build_gate_context(signal)
+        gate_result: GateResult = await _risk_evaluate(gate_ctx)
+
+        if not gate_result.approved:
+            return ExecutionDryRun(
+                market_id=signal.market_id,
+                side=signal.side,
+                size_usdc=None,
+                entry_price=None,
+                risk_decision=gate_result.reason,
+                would_be_rejected=True,
+                rejection_reason=gate_result.reason,
+            )
+
+        final_size = gate_result.final_size_usdc or signal.proposed_size_usdc
+        return ExecutionDryRun(
+            market_id=signal.market_id,
+            side=signal.side,
+            size_usdc=final_size,
+            entry_price=signal.price,
+            risk_decision="approved",
+            would_be_rejected=False,
+            rejection_reason=None,
         )
 
     # ------------------------------------------------------------------

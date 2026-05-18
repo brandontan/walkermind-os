@@ -24,37 +24,33 @@ from telegram.ext import (
 
 from ...database import get_pool
 from ...domain.preset import Preset, get_preset, list_presets
+from ...domain.preset.presets import capital_for_risk_profile
 from ...users import (
     get_settings_for, set_auto_trade, set_paused, update_settings, upsert_user,
 )
 from ...wallet.ledger import daily_pnl, get_balance
+from ..keyboards import mvp_auto_trade_kb
 from ..keyboards.presets import (
     preset_confirm, preset_picker, preset_status, preset_stop_confirm,
     preset_switch_confirm,
     wizard_capital_kb, wizard_custom_input_kb, wizard_done_kb,
     wizard_review_kb, wizard_sl_kb, wizard_tp_kb,
 )
-from ..tier import Tier, has_tier, tier_block_message
+
 
 logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Tier gate — preset activation is configuration only, so allowlist (Tier 2)
-# is enough. Live trading still requires the dashboard toggle's full gate.
+# Preset activation is paper configuration only and open to every user.
+# Live trading still requires the dashboard toggle's full activation gate.
 # ---------------------------------------------------------------------------
 
 async def _ensure_tier2(update: Update) -> Tuple[dict | None, bool]:
+    """All registered users pass — no tier gate. Calls local upsert_user for testability."""
     if update.effective_user is None:
         return None, False
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
-        msg = tier_block_message(Tier.ALLOWLISTED)
-        if update.message:
-            await update.message.reply_text(msg)
-        elif update.callback_query:
-            await update.callback_query.answer(msg, show_alert=True)
-        return None, False
     return user, True
 
 
@@ -70,37 +66,86 @@ async def _reply(update: Update, text: str, **kw) -> None:
 # Card renderers
 # ---------------------------------------------------------------------------
 
-def _preset_picker_text() -> str:
-    lines = ["*🤖 Auto-Trade Preset*\n",
-             "Pick a preset to bundle strategy + risk + sizing in one tap."
-             " ⭐ marks the recommended starting preset.\n"]
+# Maps internal preset key → display label
+_MVP_LABELS: dict[str, tuple[str, str]] = {
+    "whale_mirror":  ("🐋",    "Whale Mirror"),
+    "signal_sniper": ("📡",    "Signal Sniper"),
+    "hybrid":        ("🐋📡",  "Hybrid"),
+    "value_hunter":  ("🎯",    "Value Hunter"),
+    "full_auto":     ("🚀",    "Full Auto"),
+}
+
+_MVP_DESCRIPTIONS: dict[str, str] = {
+    "whale_mirror": (
+        "🐋 Whale Mirror\n"
+        "Risk: Balanced\n"
+        "Capital: from risk profile\n"
+        "Follow proven Polymarket wallets. Low effort, steady returns."
+    ),
+    "signal_sniper": (
+        "📡 Signal Sniper\n"
+        "Risk: Safe\n"
+        "Capital: from risk profile\n"
+        "Auto-trade from curated signal feeds. Lower frequency, higher conviction."
+    ),
+    "hybrid": (
+        "🐋📡 Hybrid\n"
+        "Risk: Balanced\n"
+        "Capital: from risk profile\n"
+        "Whale Mirror + Signal Sniper combined. More opportunities."
+    ),
+    "value_hunter": (
+        "🎯 Value Hunter\n"
+        "Risk: Advanced\n"
+        "Capital: from risk profile\n"
+        "Finds mispriced markets using edge model. Higher reward, requires patience."
+    ),
+    "full_auto": (
+        "🚀 Full Auto\n"
+        "Risk: Aggressive\n"
+        "Capital: from risk profile\n"
+        "All strategies active. Max exposure. For experienced traders."
+    ),
+}
+
+
+def _preset_picker_text(active_preset_key: str | None = None) -> str:
+    """Auto Trade screen — 5-preset picker with descriptions."""
+    active_label = "None selected"
+    if active_preset_key and active_preset_key in _MVP_LABELS:
+        emoji, label = _MVP_LABELS[active_preset_key]
+        active_label = f"{emoji} {label}"
+
+    lines = [
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧 — Auto Mode</b>",
+        "",
+        f"Active: {active_label}",
+        "",
+    ]
     for p in list_presets():
-        lines.append(
-            f"{p.emoji} *{p.name}* ({p.badge.value})\n"
-            f"   _{p.description}_"
-        )
-    return "\n\n".join(lines)
+        desc = _MVP_DESCRIPTIONS.get(p.key, "")
+        lines.append(desc)
+        lines.append("")
+
+    lines.append("Choose your strategy below.")
+    return "\n".join(lines)
 
 
 def _preset_confirm_text(p: Preset) -> str:
-    strategies = ", ".join(s.replace("_", " ").title() for s in p.strategies)
+    """Confirmation card — shows preset details before activation."""
+    emoji, label = _MVP_LABELS.get(p.key, (p.emoji, p.name))
+    desc = _MVP_DESCRIPTIONS.get(p.key, "")
     return (
-        f"*{p.emoji} {p.name}* — {p.badge.value}\n\n"
-        f"_{p.description}_\n\n"
-        "*Configuration*\n"
-        f"├ Strategies     : `{strategies}`\n"
-        f"├ Capital        : `{p.capital_pct * 100:.0f}%` of balance\n"
-        f"├ Take-profit    : `+{p.tp_pct * 100:.0f}%`\n"
-        f"├ Stop-loss      : `-{p.sl_pct * 100:.0f}%`\n"
-        f"└ Max position   : `{p.max_position_pct * 100:.0f}%` per trade\n\n"
-        "Activate to apply these settings and turn auto-trade ON "
-        "(paper mode). Customize is coming in Phase 5D."
+        f"<b>{emoji} {label}</b>\n\n"
+        f"{desc}\n\n"
+        "Tap <b>Start Auto Trade</b> to activate, or <b>Customize</b> to adjust TP/SL."
     )
 
 
 async def _preset_status_text(user: dict, p: Preset) -> str:
     bal = await get_balance(user["id"])
     pnl = await daily_pnl(user["id"])
+    s = await get_settings_for(user["id"])
     pool = get_pool()
     async with pool.acquire() as conn:
         open_count = await conn.fetchval(
@@ -111,22 +156,28 @@ async def _preset_status_text(user: dict, p: Preset) -> str:
     auto_on = bool(user["auto_trade_on"])
     paused = bool(user.get("paused"))
     if not auto_on:
-        state = "🛑 STOPPED"
+        state = "🔴 Disabled"
     elif paused:
-        state = "⏸ PAUSED"
+        state = "⏸ Paused"
     else:
-        state = "✅ RUNNING"
+        state = "🟢 Running"
+    pnl_icon = "📈" if float(pnl) >= 0 else "📉"
+    capital_pct = float(s.get("capital_alloc_pct") or p.capital_pct) * 100
+    tp_pct = float(s.get("tp_pct") or p.tp_pct) * 100
+    sl_pct = float(s.get("sl_pct") or p.sl_pct) * 100
     return (
-        f"*{p.emoji} {p.name}* — {p.badge.value}\n"
-        f"State: *{state}*\n\n"
-        "*Live stats*\n"
-        f"├ Balance        : `${float(bal):.2f}`\n"
-        f"├ Today's P&L    : `${float(pnl):+.2f}`\n"
-        f"└ Open positions : `{int(open_count)}`\n\n"
-        "*Active config*\n"
-        f"├ Capital        : `{p.capital_pct * 100:.0f}%`\n"
-        f"├ TP / SL        : `+{p.tp_pct * 100:.0f}% / -{p.sl_pct * 100:.0f}%`\n"
-        f"└ Max position   : `{p.max_position_pct * 100:.0f}%`"
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧 — Auto Mode</b>\n\n"
+        "<b>Strategy</b>\n"
+        f"├─ {p.emoji} {p.name}\n"
+        f"└─ State: {state}\n\n"
+        "<b>Performance</b>\n"
+        f"├─ Balance: ${float(bal):.2f} USDC\n"
+        f"├─ Today P&amp;L: {pnl_icon} ${float(pnl):+.2f}\n"
+        f"└─ Positions: {int(open_count)} open\n\n"
+        "<b>Config</b>\n"
+        f"├─ Capital: {capital_pct:.0f}%\n"
+        f"├─ TP / SL: +{tp_pct:.0f}% / -{sl_pct:.0f}%\n"
+        "└─ Mode: 📝 Paper"
     )
 
 
@@ -136,17 +187,17 @@ async def _preset_status_text(user: dict, p: Preset) -> str:
 
 async def show_preset_picker(update: Update,
                              ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Render the preset picker card."""
+    """Render the MVP Auto Trade screen."""
     user, ok = await _ensure_tier2(update)
     if not ok:
         return
-    # Clear any half-finished setup prompt so the picker isn't fighting an
-    # awaiting capital_pct / tpsl input from the legacy flow.
     if ctx.user_data:
         ctx.user_data.pop("awaiting", None)
+    s = await get_settings_for(user["id"])
+    active_preset = s.get("active_preset")
     await _reply(
-        update, _preset_picker_text(),
-        parse_mode=ParseMode.MARKDOWN, reply_markup=preset_picker(),
+        update, _preset_picker_text(active_preset),
+        reply_markup=mvp_auto_trade_kb(),
     )
 
 
@@ -168,7 +219,7 @@ async def show_preset_status(update: Update,
     text = await _preset_status_text(user, p)
     await _reply(
         update, text,
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=preset_status(paused=bool(user.get("paused"))),
     )
 
@@ -251,14 +302,14 @@ async def _on_pick(update: Update, preset_key: str) -> None:
         return
     await _reply(
         update, _preset_confirm_text(p),
-        parse_mode=ParseMode.MARKDOWN, reply_markup=preset_confirm(p.key),
+        parse_mode=ParseMode.HTML, reply_markup=preset_confirm(p.key),
     )
 
 
 async def _on_activate(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
                        user: dict, preset_key: str) -> None:
     if user.get("locked", False):
-        await _reply(update, "🔒 Account locked. Contact an operator to unlock.")
+        await _reply(update, "🔒 Account locked. Contact admin.")
         return
     p = get_preset(preset_key)
     if p is None:
@@ -277,11 +328,12 @@ async def _on_activate(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
             "checklist.",
         )
         return
+    capital_pct = capital_for_risk_profile(s.get("risk_profile", "balanced"))
     await update_settings(
         user["id"],
         active_preset=p.key,
         strategy_types=list(p.strategies),
-        capital_alloc_pct=p.capital_pct,
+        capital_alloc_pct=capital_pct,
         tp_pct=p.tp_pct,
         sl_pct=p.sl_pct,
         max_position_pct=p.max_position_pct,
@@ -289,8 +341,8 @@ async def _on_activate(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
     await set_auto_trade(user["id"], True)
     await set_paused(user["id"], False)
     logger.info(
-        "preset.activate user=%s preset=%s strategies=%s",
-        user["id"], p.key, list(p.strategies),
+        "preset.activate user=%s preset=%s strategies=%s capital=%.2f",
+        user["id"], p.key, list(p.strategies), capital_pct,
     )
     # Reload the user row so the status card reflects the freshly flipped
     # auto_trade_on / paused fields instead of the stale snapshot.
@@ -298,13 +350,13 @@ async def _on_activate(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
         update.effective_user.id, update.effective_user.username,
     )
     text = (
-        f"✅ *{p.emoji} {p.name}* activated.\n"
-        f"Auto-trade is now *ON* (paper mode).\n\n"
+        f"<b>✅ {p.emoji} {p.name} activated.</b>\n"
+        f"Auto-trade is now ON (paper mode).\n\n"
         + await _preset_status_text(refreshed, p)
     )
     await _reply(
         update, text,
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=preset_status(paused=False),
     )
 
@@ -312,17 +364,15 @@ async def _on_activate(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
 async def _on_customize(update: Update) -> None:
     await _reply(
         update,
-        "✏️ Customize wizard ships in Phase 5G. For now the preset values "
-        "are activated as-is.",
+        "❌ Unknown preset for customize. Please pick a preset first.",
     )
 
 
 async def _on_edit(update: Update) -> None:
     await _reply(
         update,
-        "✏️ Inline edit ships in Phase 5G. To change settings now, *Switch* "
-        "to a different preset or *Stop* and re-pick.",
-        parse_mode=ParseMode.MARKDOWN,
+        "To change settings, use the <b>🛠 Edit</b> button on the status card.",
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -341,7 +391,7 @@ async def _on_switch_yes(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
 
 async def _on_pause(update: Update, user: dict, *, paused: bool) -> None:
     if not paused and user.get("locked", False):
-        await _reply(update, "🔒 Account locked. Contact an operator to unlock.")
+        await _reply(update, "🔒 Account locked. Contact admin.")
         return
     await set_paused(user["id"], paused)
     logger.info("preset.pause user=%s paused=%s", user["id"], paused)
@@ -358,7 +408,7 @@ async def _on_pause(update: Update, user: dict, *, paused: bool) -> None:
             + await _preset_status_text(refreshed, p))
     await _reply(
         update, text,
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=preset_status(paused=paused),
     )
 
@@ -391,9 +441,10 @@ CUSTOM_SL = 2
 CUSTOM_REVIEW = 3
 CUSTOM_INPUT = 4
 
+# State-driven menu labels for wizard exit detection
 _MENU_BUTTONS_CUSTOMIZE = {
-    "📊 Dashboard", "🐋 Copy Trade", "🤖 Auto-Trade",
-    "📈 My Trades", "💰 Wallet", "🚨 Emergency",
+    "📊 Dashboard", "🤖 Auto-Trade", "💼 Portfolio", "📈 My Trades", "🚨 Emergency",
+    "⚙️ Configure Strategy", "🚀 Start Autobot", "⚙️ Settings",
 }
 
 
@@ -407,25 +458,27 @@ def _cwz(ctx: ContextTypes.DEFAULT_TYPE) -> dict:
 
 def _step1_text(p: Preset) -> str:
     return (
-        f"*Step 1/5 — Capital Allocation*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"Preset: {p.emoji} *{p.name}*\n\n"
-        "How much of your balance to deploy?"
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Capital\n"
+        "\n"
+        "Preset\n"
+        f"└ {p.emoji} {p.name}\n"
+        "\n"
+        "Choose capital allocation:"
     )
 
 
 def _step2_text() -> str:
     return (
-        "*Step 2/5 — Take Profit*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Take Profit\n"
+        "\n"
         "Auto-close winning positions at:"
     )
 
 
 def _step3_text() -> str:
     return (
-        "*Step 3/5 — Stop Loss*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Stop Loss\n"
+        "\n"
         "Auto-close losing positions at:"
     )
 
@@ -435,14 +488,18 @@ def _step5_text(wz: dict, p: Preset) -> str:
     tp = round(wz["tp_pct"] * 100)
     sl = round(wz["sl_pct"] * 100)
     return (
-        "*Step 5/5 — Review*\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"├ Preset         : {p.emoji} *{p.name}*\n"
-        f"├ Capital        : `{cap}%`\n"
-        f"├ Take Profit    : `+{tp}%`\n"
-        f"├ Stop Loss      : `-{sl}%`\n"
-        "└ Mode           : `Paper`\n\n"
-        "Tap *Save* to apply."
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Review\n"
+        "\n"
+        "Preset\n"
+        f"└ {p.emoji} {p.name}\n"
+        "\n"
+        "Configuration\n"
+        f"├ Capital: {cap}%\n"
+        f"├ Take Profit: +{tp}%\n"
+        f"├ Stop Loss: -{sl}%\n"
+        "└ Mode: 📝 Paper\n"
+        "\n"
+        "Looks good?"
     )
 
 
@@ -480,7 +537,7 @@ async def wizard_enter_customize(
     if q.message:
         await q.message.edit_text(
             _step1_text(p),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_capital_kb(),
         )
     return CUSTOM_CAPITAL
@@ -517,7 +574,7 @@ async def wizard_enter_edit(
     if q.message:
         await q.message.edit_text(
             _step1_text(p),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_capital_kb(),
         )
     return CUSTOM_CAPITAL
@@ -543,7 +600,7 @@ async def step1_capital_select(
     if q.message:
         await q.message.edit_text(
             _step2_text(),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_tp_kb(),
         )
     return CUSTOM_TP
@@ -569,7 +626,7 @@ async def step2_tp_select(
     if q.message:
         await q.message.edit_text(
             _step3_text(),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_sl_kb(),
         )
     return CUSTOM_SL
@@ -585,9 +642,9 @@ async def step2_tp_custom(
     _cwz(ctx)["custom_field"] = "tp"
     if q.message:
         await q.message.edit_text(
-            "*Take Profit — Custom Value*\n\n"
-            "Enter a number between 1 and 200 (e.g. `25` for +25%):",
-            parse_mode=ParseMode.MARKDOWN,
+            "<b>Take Profit — Custom Value</b>\n\n"
+            "Enter a number between 1 and 200 (e.g. 25 for +25%):",
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_custom_input_kb("tp"),
         )
     return CUSTOM_INPUT
@@ -614,8 +671,8 @@ async def step3_sl_select(
     p = get_preset(wz.get("preset_key", ""))
     if q.message:
         await q.message.edit_text(
-            _step5_text(wz, p) if p else "*Step 5/5 — Review*",
-            parse_mode=ParseMode.MARKDOWN,
+            _step5_text(wz, p) if p else "Step 5/5 — Review",
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_review_kb(),
         )
     return CUSTOM_REVIEW
@@ -631,9 +688,9 @@ async def step3_sl_custom(
     _cwz(ctx)["custom_field"] = "sl"
     if q.message:
         await q.message.edit_text(
-            "*Stop Loss — Custom Value*\n\n"
-            "Enter a number between 1 and 50 (e.g. `12` for -12%):",
-            parse_mode=ParseMode.MARKDOWN,
+            "<b>Stop Loss — Custom Value</b>\n\n"
+            "Enter a number between 1 and 50 (e.g. 12 for -12%):",
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_custom_input_kb("sl"),
         )
     return CUSTOM_INPUT
@@ -662,8 +719,7 @@ async def custom_input_handler(
         value = float(raw)
     except ValueError:
         await update.message.reply_text(
-            "⚠️ Please enter a number (e.g. `15` for 15%).",
-            parse_mode=ParseMode.MARKDOWN,
+            "⚠️ Please enter a number (e.g. 15 for 15%).",
         )
         return CUSTOM_INPUT
 
@@ -677,7 +733,7 @@ async def custom_input_handler(
         wz["custom_field"] = None
         await update.message.reply_text(
             _step3_text(),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_sl_kb(),
         )
         return CUSTOM_SL
@@ -692,8 +748,8 @@ async def custom_input_handler(
         wz["custom_field"] = None
         p = get_preset(wz.get("preset_key", ""))
         await update.message.reply_text(
-            _step5_text(wz, p) if p else "*Step 5/5 — Review*",
-            parse_mode=ParseMode.MARKDOWN,
+            _step5_text(wz, p) if p else "Step 5/5 — Review",
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_review_kb(),
         )
         return CUSTOM_REVIEW
@@ -728,7 +784,7 @@ async def step_save(
         if user.get("locked", False):
             if q.message:
                 await q.message.reply_text(
-                    "🔒 Account locked. Contact an operator to unlock.",
+                    "🔒 Account locked. Contact admin.",
                 )
             return ConversationHandler.END
         s = await get_settings_for(user["id"])
@@ -791,8 +847,8 @@ async def step_back_to_capital(
     p = get_preset(wz.get("preset_key", ""))
     if q.message:
         await q.message.edit_text(
-            _step1_text(p) if p else "*Step 1/5 — Capital Allocation*",
-            parse_mode=ParseMode.MARKDOWN,
+            _step1_text(p) if p else "Step 1/5 — Capital Allocation",
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_capital_kb(),
         )
     return CUSTOM_CAPITAL
@@ -808,7 +864,7 @@ async def step_back_to_tp(
     if q.message:
         await q.message.edit_text(
             _step2_text(),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_tp_kb(),
         )
     return CUSTOM_TP
@@ -824,7 +880,7 @@ async def step_back_to_sl(
     if q.message:
         await q.message.edit_text(
             _step3_text(),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=wizard_sl_kb(),
         )
     return CUSTOM_SL
@@ -947,7 +1003,7 @@ def build_customize_handler() -> ConversationHandler:
         fallbacks=[
             CommandHandler("menu", wizard_fallback_menu),
             MessageHandler(
-                filters.Regex(r"^(📊|🐋|🤖|📈|💰|🚨)"), wizard_menu_tap,
+                filters.Regex(r"^(📊|🤖|💼|📈|🚨|⚙️|🚀)"), wizard_menu_tap,
             ),
             MessageHandler(
                 filters.TEXT & ~filters.COMMAND, wizard_fallback_text,

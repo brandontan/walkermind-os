@@ -22,6 +22,7 @@ Rate limit:
 """
 from __future__ import annotations
 
+import html
 import json
 import logging
 import time
@@ -59,24 +60,24 @@ def _reset_demo_rate_limit_for_tests() -> None:
 # ---------------------------------------------------------------------------
 
 _ABOUT_TEXT = (
-    "*⚔️ About CrusaderBot*\n\n"
+    "<b>⚔️ About CrusaderBot</b>\n\n"
     "CrusaderBot is an autonomous trading service for Polymarket, "
     "controlled entirely through Telegram. Users configure their "
     "strategy preferences and risk profile; the bot scans markets, "
     "manages entries and exits, and auto-redeems winning positions.\n\n"
-    "*How it works*\n"
+    "<b>How it works</b>\n"
     "• You pick a strategy (copy a wallet, follow a curated signal feed).\n"
     "• You set a risk profile (Conservative / Balanced / Aggressive).\n"
     "• The bot watches markets and executes trades on your behalf, "
     "always within hard-wired risk limits.\n"
     "• You stay in control — pause, close, or withdraw at any time.\n\n"
-    "*Safety posture*\n"
-    "📄 *Paper-trading mode is the default.* Live trading requires "
-    "explicit operator activation across multiple guards.\n"
+    "<b>Safety posture</b>\n"
+    "📄 <b>Paper-trading mode is the default.</b> Live trading requires "
+    "explicit admin activation across multiple guards.\n"
     "• Hard daily-loss stop and max-drawdown circuit breaker.\n"
     "• Fractional Kelly sizing capped at 25% — never full Kelly.\n"
     "• Independent kill switch reachable over Telegram.\n\n"
-    "*Try it now*\n"
+    "<b>Try it now</b>\n"
     "• /demo — preview the live signals the bot is watching.\n"
     "• /status — see the current health and trading mode.\n"
     "• /help — full command reference.\n"
@@ -87,7 +88,7 @@ async def about_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message is None:
         return
     await update.message.reply_text(
-        _ABOUT_TEXT, parse_mode=ParseMode.MARKDOWN,
+        _ABOUT_TEXT, parse_mode=ParseMode.HTML,
     )
 
 
@@ -121,24 +122,18 @@ def _check_emoji(state: str) -> str:
 def _format_status(health: dict[str, Any], mode: str, version: str,
                    uptime_s: int) -> str:
     mode_banner = (
-        "📄 *PAPER MODE* — no real capital at risk"
+        "📄 <b>PAPER MODE</b> — no real capital at risk"
         if mode == "paper"
-        else "⚡ *LIVE MODE* — real capital is deployed"
+        else "⚡ <b>LIVE MODE</b> — real capital is deployed"
     )
     overall_emoji = _check_emoji(health.get("status", "unknown"))
-    overall = (health.get("status") or "unknown").upper()
+    overall = html.escape((health.get("status") or "unknown").upper())
     ready = "✅ ready" if health.get("ready") else "⚠️ not ready"
     checks = health.get("checks") or {}
-    # ``state`` may be a free-form ``error: ...`` string from
-    # ``monitoring.health._with_timeout`` (e.g. ``error: TimeoutError:
-    # alchemy_ws_unreachable``). Underscores in that text would break the
-    # surrounding ``ParseMode.MARKDOWN`` reply if interpolated raw, so
-    # escape before joining. Check ``name`` is a bounded vocab from
-    # ``monitoring.health`` and stays inside its backtick code wrapper.
     checks_block = "\n".join(
-        f"  {_check_emoji(state)} `{name}` — {_escape_md(state)}"
+        f"  {_check_emoji(state)} <code>{html.escape(name)}</code> — {html.escape(state)}"
         for name, state in sorted(checks.items())
-    ) or "  _(no dependency checks reported)_"
+    ) or "  <i>no dependency checks reported</i>"
     # Demo phase line: derived from mode + ready, not invented.
     if mode == "paper" and health.get("ready"):
         phase_line = "Closed-beta build • paper trading active"
@@ -148,11 +143,11 @@ def _format_status(health: dict[str, Any], mode: str, version: str,
         phase_line = "Live trading active"
     return (
         f"{mode_banner}\n\n"
-        f"*Overall:* {overall_emoji} {overall} — {ready}\n"
-        f"*Phase:* {phase_line}\n"
-        f"*Version:* `{version}`\n"
-        f"*Uptime:* {_format_uptime(uptime_s)}\n\n"
-        f"*Dependency checks*\n{checks_block}"
+        f"<b>Overall:</b> {overall_emoji} {overall} — {ready}\n"
+        f"<b>Phase:</b> {phase_line}\n"
+        f"<b>Version:</b> <code>{html.escape(version)}</code>\n"
+        f"<b>Uptime:</b> {_format_uptime(uptime_s)}\n\n"
+        f"<b>Dependency checks</b>\n{checks_block}"
     )
 
 
@@ -164,9 +159,9 @@ async def status_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     except Exception as exc:  # noqa: BLE001 — surface as friendly error
         logger.warning("status_health_check_failed", exc_info=exc)
         await update.message.reply_text(
-            "📄 *PAPER MODE*\n\n"
+            "📄 <b>PAPER MODE</b>\n\n"
             "Health check is temporarily unavailable. Try again in a moment.",
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
         )
         return
     text = _format_status(
@@ -175,7 +170,7 @@ async def status_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         version=_resolve_version(),
         uptime_s=_uptime_seconds(),
     )
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
 
 # ---------------------------------------------------------------------------
@@ -265,28 +260,6 @@ def _extract_confidence(payload: Any) -> str:
     return "—"
 
 
-# Telegram Markdown (V1) metacharacters. Operator / DB-supplied strings flow
-# through ``ParseMode.MARKDOWN``, so an unbalanced ``_`` or stray backtick
-# causes Telegram to reject the entire message — escape before interpolation.
-_MARKDOWN_METACHARS = ("_", "*", "`", "[")
-
-
-def _escape_md(text: str | None) -> str:
-    """Escape Telegram Markdown V1 metacharacters in DB-supplied text.
-
-    Same shape as ``bot.handlers.signal_following._escape_md`` so both
-    investor surfaces handle operator-supplied feed names + market
-    questions identically. Backslash is escaped first so the metachar
-    loop does not double-escape.
-    """
-    if not text:
-        return ""
-    out = text.replace("\\", "\\\\")
-    for ch in _MARKDOWN_METACHARS:
-        out = out.replace(ch, "\\" + ch)
-    return out
-
-
 def _truncate(s: str, limit: int = 80) -> str:
     s = (s or "").strip()
     if len(s) <= limit:
@@ -297,18 +270,13 @@ def _truncate(s: str, limit: int = 80) -> str:
 def _format_demo(rows: list[dict[str, Any]]) -> str:
     if not rows:
         return (
-            "*🔍 Demo signal scan*\n\n"
-            "📄 _Paper mode_ — no active signals are currently published.\n\n"
-            "Once operators publish signals to active feeds, the top three "
+            "<b>🔍 Demo signal scan</b>\n\n"
+            "📄 <i>Paper mode</i> — no active signals are currently published.\n\n"
+            "Once signals are published to active feeds, the top three "
             "will appear here."
         )
-    lines = ["*🔍 Demo signal scan — top 3 live signals*\n"]
+    lines = ["<b>🔍 Demo signal scan — top 3 live signals</b>\n"]
     for i, row in enumerate(rows, start=1):
-        # DB-derived strings (market_question, feed_name) flow into a
-        # ParseMode.MARKDOWN reply — escape AT the interpolation site so
-        # the f-string template makes the escape obviously co-located with
-        # the Markdown wrapper. _truncate runs first so the ellipsis math
-        # operates on visible characters, not escape sequences.
         question_raw = _truncate(
             str(row.get("market_question") or row.get("market_id") or "—")
         )
@@ -318,12 +286,12 @@ def _format_demo(rows: list[dict[str, Any]]) -> str:
         target = row.get("target_price")
         target_str = f"{float(target):.2f}" if isinstance(target, (int, float)) else "—"
         lines.append(
-            f"*{i}.* {_escape_md(question_raw)}\n"
-            f"   • Side: *{side}*  • Confidence: *{confidence}*  • Target: *{target_str}*\n"
-            f"   • Feed: _{_escape_md(feed_raw)}_"
+            f"<b>{i}.</b> {html.escape(question_raw)}\n"
+            f"   • Side: <b>{html.escape(side)}</b>  • Confidence: <b>{html.escape(confidence)}</b>  • Target: <b>{html.escape(target_str)}</b>\n"
+            f"   • Feed: <i>{html.escape(feed_raw)}</i>"
         )
     lines.append(
-        "\n_📄 Paper mode — these signals are observed only; no orders are placed._"
+        "\n<i>📄 Paper mode — these signals are observed only; no orders are placed.</i>"
     )
     return "\n".join(lines)
 
@@ -355,7 +323,7 @@ async def demo_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         logger.warning("demo_fetch_signals_failed", exc_info=exc)
         rows = []
     await update.message.reply_text(
-        _format_demo(rows), parse_mode=ParseMode.MARKDOWN,
+        _format_demo(rows), parse_mode=ParseMode.HTML,
     )
 
 

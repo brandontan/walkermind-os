@@ -1,72 +1,93 @@
 """Strategy / risk / capital / TP-SL / copy-target setup flow."""
 from __future__ import annotations
 
+import html
 import logging
 
 from telegram import Update
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from ...database import get_pool
 from ...users import get_settings_for, update_settings, upsert_user
 from ..keyboards import (
     autoredeem_picker, category_picker, mode_picker, risk_picker,
-    setup_menu, strategy_picker,
+    setup_menu, strategy_card_kb, strategy_picker,
 )
-from ..tier import Tier, has_tier, tier_block_message
 from . import presets as presets_handler
 
 logger = logging.getLogger(__name__)
 
+STRATEGY_DISPLAY_NAMES: dict[str, str] = {
+    "signal":            "Signal",
+    "value":             "Edge Finder",
+    "edge_finder":       "Edge Finder",
+    "momentum_reversal": "Momentum Reversal",
+    "momentum":          "Momentum Reversal",
+    "all":               "All Strategies",
+}
 
-async def _ensure_tier2(update: Update) -> tuple[dict | None, bool]:
+
+async def _ensure_user(update: Update) -> tuple[dict | None, bool]:
+    """Resolve (and lazily create) the calling user. Auto-trade setup is
+    open to every user — there is no access gate on paper configuration."""
     if update.effective_user is None:
         return None, False
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    if not has_tier(user["access_tier"], Tier.ALLOWLISTED):
-        msg = tier_block_message(Tier.ALLOWLISTED)
-        if update.message:
-            await update.message.reply_text(msg)
-        elif update.callback_query:
-            await update.callback_query.answer(msg, show_alert=True)
-        return None, False
     return user, True
 
 
-async def setup_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Phase 5C entry point: route to preset status card or preset picker.
+_AUTOTRADE_TEXT = (
+    "<b>🤖 Auto-Trade Strategy</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "Pick your trading strategy:\n\n"
+    "📡 <b>Signal</b>\n"
+    "Reacts to market momentum shifts.\n"
+    "<i>Best for: short-term moves.</i>\n\n"
+    "🔍 <b>Edge Finder</b>\n"
+    "Finds underpriced contracts.\n"
+    "<i>Best for: medium-term holds.</i>\n\n"
+    "🔄 <b>Momentum Reversal</b>\n"
+    "Detects overreaction, trades the bounce.\n"
+    "<i>Best for: contrarian plays.</i>\n\n"
+    "⚡ <b>All Strategies</b>\n"
+    "Runs all three in parallel."
+)
 
-    The legacy raw-strategy menu is preserved at ``setup_legacy_root`` so the
-    advanced surface (categories, mode picker, autoredeem mode) remains
-    reachable for power users.
-    """
-    user, ok = await _ensure_tier2(update)
+
+async def setup_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """🤖 Auto-Trade reply-keyboard button → strategy card picker (single render)."""
+    user, ok = await _ensure_user(update)
     if not ok or update.message is None:
         return
-    s = await get_settings_for(user["id"])
-    if s.get("active_preset"):
-        await presets_handler.show_preset_status(update, ctx)
-    else:
-        await presets_handler.show_preset_picker(update, ctx)
+    await update.message.reply_text(
+        _AUTOTRADE_TEXT,
+        parse_mode=ParseMode.HTML,
+        reply_markup=strategy_card_kb(),
+    )
 
 
 async def setup_legacy_root(update: Update,
                             ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Legacy raw-strategy setup menu (pre-Phase 5C)."""
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok or update.message is None:
         return
     s = await get_settings_for(user["id"])
+    strategy_display = html.escape(', '.join(
+        STRATEGY_DISPLAY_NAMES.get(t, t) for t in (s['strategy_types'] or [])
+    ))
     text = (
-        "*🤖 Setup*\n\n"
-        f"Strategy: `{', '.join(s['strategy_types'])}`\n"
-        f"Risk profile: `{s['risk_profile']}`\n"
-        f"Capital alloc: `{float(s['capital_alloc_pct']) * 100:.0f}%`\n"
-        f"TP/SL: `{s['tp_pct'] or '—'} / {s['sl_pct'] or '—'}`\n"
-        f"Mode: `{s['trading_mode']}`\n"
-        f"Auto-redeem: `{s['auto_redeem_mode']}`\n"
+        "<b>🤖 Setup</b>\n\n"
+        f"Strategy: <code>{strategy_display}</code>\n"
+        f"Risk profile: <code>{html.escape(str(s['risk_profile']))}</code>\n"
+        f"Capital alloc: <code>{float(s['capital_alloc_pct']) * 100:.0f}%</code>\n"
+        f"TP/SL: <code>{s['tp_pct'] or '—'} / {s['sl_pct'] or '—'}</code>\n"
+        f"Mode: <code>{html.escape(str(s['trading_mode']))}</code>\n"
+        f"Auto-redeem: <code>{html.escape(str(s['auto_redeem_mode']))}</code>\n"
     )
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN,
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML,
                                     reply_markup=setup_menu())
 
 
@@ -75,7 +96,7 @@ async def setup_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     if q is None:
         return
     await q.answer()
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     sub = (q.data or "").split(":", 1)[-1]
@@ -85,60 +106,74 @@ async def setup_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         await q.message.edit_reply_markup(reply_markup=setup_menu())
         return
     if sub == "strategy":
-        await q.message.reply_text("Pick strategies:",
-                                   reply_markup=strategy_picker(s["strategy_types"]))
+        # Route to the new strategy card UI.
+        await q.message.reply_text(
+            _AUTOTRADE_TEXT,
+            parse_mode=ParseMode.HTML,
+            reply_markup=strategy_card_kb(),
+        )
+        return
+    elif sub == "capital":
+        # Remap legacy setup:capital → new settings capital preset flow.
+        from ..keyboards.settings import capital_preset_kb as _cap_kb
+        from ...wallet.ledger import get_balance as _get_balance
+        bal = float(await _get_balance(user["id"]))
+        mode = s.get("trading_mode", "paper")
+        await q.message.reply_text(
+            "<b>💰 Capital Allocation Per Trade</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"Balance: ${bal:.2f} ({'Live' if mode == 'live' else 'Paper'})\n\n"
+            "⚠️ Max 95% — full allocation forbidden.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=_cap_kb(bal, mode),
+        )
+    elif sub == "tpsl":
+        # Remap legacy setup:tpsl → new settings TP/SL preset flow (step 1).
+        from ..keyboards.settings import tp_preset_kb as _tp_kb
+        current_tp = float(s["tp_pct"]) if s.get("tp_pct") is not None else None
+        current_str = f"+{current_tp * 100:.0f}%" if current_tp is not None else "not set"
+        await q.message.reply_text(
+            f"<b>📊 Take Profit</b>\nCurrent: {html.escape(current_str)}\n\nSelect your take-profit target:",
+            parse_mode=ParseMode.HTML,
+            reply_markup=_tp_kb(current_tp * 100 if current_tp else None),
+        )
     elif sub == "risk":
         await q.message.reply_text("Pick risk profile:",
                                    reply_markup=risk_picker(s["risk_profile"]))
     elif sub == "categories":
         await q.message.reply_text("Pick categories:",
                                    reply_markup=category_picker(s["category_filters"]))
-    elif sub == "capital":
-        ctx.user_data["awaiting"] = "capital_pct"
-        await q.message.reply_text(
-            "Enter capital allocation percentage (1-95). Example: `50` = use up to "
-            "50% of balance per trade. Max 95% — full allocation is forbidden. "
-            "Send the number now.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-    elif sub == "tpsl":
-        ctx.user_data["awaiting"] = "tpsl"
-        await q.message.reply_text(
-            "Enter `TP SL` as two percentages separated by a space. Example: `15 8` "
-            "= take profit at +15%, stop loss at -8%. Send `skip` to clear.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
     elif sub == "copy":
         ctx.user_data["awaiting"] = "copy_target"
         await q.message.reply_text(
-            "Send a Polygon wallet address (0x…) to copy-trade. Send `list` to see "
-            "current targets, or `remove 0x…` to remove one.",
-            parse_mode=ParseMode.MARKDOWN,
+            "Send a Polygon wallet address (0x…) to copy-trade. Send <code>list</code> to see "
+            "current targets, or <code>remove 0x…</code> to remove one.",
+            parse_mode=ParseMode.HTML,
         )
     elif sub == "mode":
         await q.message.reply_text(
-            "Pick trading mode. *Paper* is the safe default; *Live* requires Tier 4 "
-            "+ all activation guards.",
-            parse_mode=ParseMode.MARKDOWN,
+            "Pick trading mode. <b>Paper</b> is the safe default; <b>Live</b> requires all activation guards.",
+            parse_mode=ParseMode.HTML,
             reply_markup=mode_picker(s["trading_mode"]),
         )
     elif sub == "redeem":
         await q.message.reply_text(
             "Pick auto-redeem mode.\n\n"
-            "*Instant* — settle winning markets the moment they resolve "
+            "<b>Instant</b> — settle winning markets the moment they resolve "
             "(live trades are gas-spike guarded).\n"
-            "*Hourly* — wait for the hourly batch (default).",
-            parse_mode=ParseMode.MARKDOWN,
+            "<b>Hourly</b> — wait for the hourly batch (default).",
+            parse_mode=ParseMode.HTML,
             reply_markup=autoredeem_picker(s["auto_redeem_mode"]),
         )
 
 
 async def set_strategy(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Legacy checkbox strategy toggle — used by presets and /setup_advanced."""
     q = update.callback_query
     if q is None:
         return
     await q.answer()
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     choice = (q.data or "").split(":", 1)[-1]
@@ -154,19 +189,77 @@ async def set_strategy(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await q.message.edit_reply_markup(reply_markup=strategy_picker(cur))
 
 
+# Internal mapping: user-facing card label → backend strategy name(s).
+_CARD_TO_BACKEND: dict[str, list[str]] = {
+    "signal":              ["signal"],
+    "edge_finder":         ["value"],
+    "momentum_reversal":   ["momentum_reversal"],
+    "all":                 ["signal", "value", "momentum_reversal"],
+}
+
+_CARD_CONFIRM: dict[str, str] = {
+    "signal":            "Signal",
+    "edge_finder":       "Edge Finder",
+    "momentum_reversal": "Momentum Reversal",
+    "all":               "All Strategies",
+}
+
+
+async def set_strategy_card(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle strategy:<card> callbacks from the Auto-Trade strategy card menu."""
+    q = update.callback_query
+    if q is None:
+        return
+    await q.answer()
+    user, ok = await _ensure_user(update)
+    if not ok:
+        return
+    card = (q.data or "").split(":", 1)[-1]
+
+    if card == "back":
+        from ..keyboards import main_menu
+        await q.message.reply_text("Main menu:", reply_markup=main_menu())
+        return
+
+    backend = _CARD_TO_BACKEND.get(card)
+    if backend is None:
+        return
+
+    await update_settings(user["id"], strategy_types=backend)
+    label = _CARD_CONFIRM.get(card, card)
+    await q.message.reply_text(
+        f"✅ Strategy set to <b>{html.escape(label)}</b>.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=strategy_card_kb(),
+    )
+
+
 async def set_risk(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     if q is None:
         return
     await q.answer()
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     choice = (q.data or "").split(":", 1)[-1]
-    if choice not in ("conservative", "balanced", "aggressive"):
+    if choice not in ("conservative", "balanced", "aggressive", "custom"):
+        return
+    if choice == "custom":
+        if ctx.user_data is not None:
+            ctx.user_data["awaiting"] = "risk_custom_capital"
+        await q.message.reply_text(
+            "<b>⚙️ Custom Risk — Step 1/3</b>\n\n"
+            "Enter capital allocation % (1–80):\n"
+            "<i>e.g. 30 for 30% of balance per trade</i>",
+            parse_mode="HTML",
+        )
         return
     await update_settings(user["id"], risk_profile=choice)
-    await q.message.edit_reply_markup(reply_markup=risk_picker(choice))
+    try:
+        await q.message.edit_reply_markup(reply_markup=risk_picker(choice))
+    except BadRequest:
+        pass  # already showing selected choice
 
 
 async def set_category(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -174,7 +267,7 @@ async def set_category(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if q is None:
         return
     await q.answer()
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     choice = (q.data or "").split(":", 1)[-1]
@@ -196,7 +289,7 @@ async def set_mode(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if q is None:
         return
     await q.answer()
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     choice = (q.data or "").split(":", 1)[-1]
@@ -226,15 +319,15 @@ async def set_redeem_mode(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     if q is None:
         return
     await q.answer()
-    user, ok = await _ensure_tier2(update)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     choice = (q.data or "").split(":", 1)[-1]
     if choice not in ("instant", "hourly"):
         return
     await update_settings(user["id"], auto_redeem_mode=choice)
-    await q.message.reply_text(f"Auto-redeem mode set to *{choice}*.",
-                               parse_mode=ParseMode.MARKDOWN)
+    await q.message.reply_text(f"Auto-redeem mode set to <b>{html.escape(choice)}</b>.",
+                               parse_mode=ParseMode.HTML)
 
 
 async def text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -268,18 +361,6 @@ async def text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
             await update.message.reply_text(
                 f"✅ Capital allocation set to {pct:.0f}%."
             )
-        elif awaiting == "tpsl":
-            if text.lower() == "skip":
-                await update_settings(user["id"], tp_pct=None, sl_pct=None)
-                await update.message.reply_text("✅ TP / SL cleared.")
-            else:
-                tp_s, sl_s = text.split()
-                tp = float(tp_s) / 100.0
-                sl = float(sl_s) / 100.0
-                await update_settings(user["id"], tp_pct=tp, sl_pct=sl)
-                await update.message.reply_text(
-                    f"✅ TP set to +{tp*100:.1f}%, SL set to -{sl*100:.1f}%."
-                )
         elif awaiting == "copy_target":
             await _handle_copy_target_input(update, user, text)
         else:
@@ -310,10 +391,10 @@ async def _handle_copy_target_input(update: Update, user: dict, text: str) -> No
         if not rows:
             await update.message.reply_text("No copy targets yet.")
             return
-        lines = [f"`{r['wallet_address']}` x{float(r['scale_factor'])} "
+        lines = [f"<code>{html.escape(r['wallet_address'])}</code> x{float(r['scale_factor'])} "
                  f"{'✅' if r['enabled'] else '❌'}" for r in rows]
         await update.message.reply_text("\n".join(lines),
-                                        parse_mode=ParseMode.MARKDOWN)
+                                        parse_mode=ParseMode.HTML)
         return
     if text.lower().startswith("remove "):
         addr = text.split(" ", 1)[1].strip()
@@ -334,5 +415,5 @@ async def _handle_copy_target_input(update: Update, user: dict, text: str) -> No
             "ON CONFLICT (user_id, wallet_address) DO NOTHING",
             user["id"], addr,
         )
-    await update.message.reply_text(f"✅ Added copy target `{addr}`",
-                                    parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(f"✅ Added copy target <code>{html.escape(addr)}</code>",
+                                    parse_mode=ParseMode.HTML)

@@ -246,12 +246,9 @@ def test_render_telegram_failed_message_lists_each_failure_in_order():
     assert "1." in out and "2." in out
 
 
-def test_render_telegram_wraps_gate_names_in_backticks_for_markdown_safety():
-    # Codex P2: gate identifiers contain underscores; legacy Telegram
-    # Markdown reads `*name_with_underscore*` as a botched italic and
-    # rejects the message. Backticks (code spans) preserve underscores
-    # literally. The render must wrap gate names in backticks, not
-    # asterisks.
+def test_render_telegram_wraps_gate_names_in_code_tags():
+    # Gate identifiers contain underscores; HTML <code> tags preserve them
+    # literally and are safe in Telegram HTML mode.
     failed = [lc.GATE_ACTIVE_SUBACCOUNT, lc.GATE_TWO_FACTOR_SETUP]
     outcomes = [
         lc.GateOutcome(name=n, ok=(n not in failed))
@@ -263,7 +260,7 @@ def test_render_telegram_wraps_gate_names_in_backticks_for_markdown_safety():
     )
     out = lc.render_telegram(result)
     for name in failed:
-        assert f"`{name}`" in out
+        assert f"<code>{name}</code>" in out
         assert f"*{name}*" not in out
 
 

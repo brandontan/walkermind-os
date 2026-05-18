@@ -67,8 +67,7 @@ def _base_data(**overrides) -> dict:
 def test_format_insights_empty_state():
     data = _base_data(total_closed=0)
     out = format_insights(data)
-    assert "No closed trades yet" in out
-    assert "PNL Insights" in out
+    assert "Not enough data" in out
     assert "Performance" not in out
 
 
@@ -80,7 +79,7 @@ def test_format_insights_wins_only():
                       worst_pnl=None, worst_title=None)
     out = format_insights(data)
     assert "∞" in out
-    assert "Win Rate: 100%" in out
+    assert "Win Rate" in out and "100%" in out
 
 
 # ---------- 3. format_insights losses-only (zero wins) -------------------------
@@ -97,7 +96,7 @@ def test_format_insights_losses_only():
         avg_win=Decimal("0"),
     )
     out = format_insights(data)
-    assert "Win Rate: 0%" in out
+    assert "Win Rate" in out and "0%" in out
     assert "N/A" in out
 
 
@@ -193,12 +192,15 @@ def test_compute_streak_breakeven_counts_as_loss():
 def test_insights_kb_structure():
     kb = insights_kb()
     rows = kb.inline_keyboard
-    assert len(rows) == 1
-    btns = rows[0]
-    assert len(btns) == 2
-    callbacks = {b.callback_data for b in btns}
-    assert "insights:refresh" in callbacks
-    assert "dashboard:main" in callbacks
+    # Row 0: action buttons (Refresh + Full Report)
+    # Row 1: nav_row (Back + Home + Refresh)
+    assert len(rows) == 2
+    action_callbacks = {b.callback_data for b in rows[0]}
+    assert "insights:refresh" in action_callbacks
+    assert "insights:full_report" in action_callbacks
+    # Nav row added to prevent dead-end (BUG 1C fix)
+    nav_callbacks = {b.callback_data for b in rows[1]}
+    assert "dashboard:main" in nav_callbacks
 
 
 # ---------- 13. dashboard_nav includes Insights button when has_trades ---------
@@ -254,14 +256,14 @@ def test_safe_md_leaves_plain_text_unchanged():
 
 
 def test_format_insights_safe_md_applied_to_titles():
+    # format_insights uses html.escape() — underscores and asterisks are preserved verbatim
     data = _base_data(
         best_title="Market_with_underscores",
         worst_title="Market*with*asterisks",
     )
     out = format_insights(data)
-    assert "_" not in out.split("Best Trade")[1].split("Worst Trade")[0] or True
-    assert "Market with underscores" in out
-    assert "Marketwithasterisks" in out
+    assert "Market_with_underscores" in out
+    assert "Market*with*asterisks" in out
 
 
 def test_my_trades_main_kb_includes_insights():

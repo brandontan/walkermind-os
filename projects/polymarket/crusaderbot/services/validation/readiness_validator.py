@@ -101,10 +101,10 @@ class ReadinessValidator:
         s = get_settings()
         issues: list[str] = []
 
-        # ENABLE_LIVE_TRADING code default is True (known deferred issue in
-        # KNOWN ISSUES); fly.toml overrides to False.  We check the resolved
-        # settings value rather than the code default.  A resolved True here
-        # means the override is NOT in place — surface as FAIL.
+        # ENABLE_LIVE_TRADING code default is now False (paper-safe).  We
+        # check the resolved settings value rather than the code default.  A
+        # resolved True here means an env override explicitly armed live
+        # trading without the full guard sequence — surface as FAIL.
         if s.ENABLE_LIVE_TRADING:
             issues.append("ENABLE_LIVE_TRADING=True (must be False in paper posture)")
         if s.EXECUTION_PATH_VALIDATED:

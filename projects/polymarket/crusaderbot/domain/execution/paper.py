@@ -111,10 +111,10 @@ async def close_position(*, position: dict, exit_price: float,
                 UPDATE positions
                    SET status='closed', exit_reason=$2, current_price=$3,
                        pnl_usdc=$4, closed_at=NOW()
-                 WHERE id=$1 AND status='open'
+                 WHERE id=$1 AND status='open' AND user_id=$5
                  RETURNING id
                 """,
-                position["id"], exit_reason, exit_price, pnl,
+                position["id"], exit_reason, exit_price, pnl, position["user_id"],
             )
             if updated is None:
                 logger.info("paper.close skip (already closed) id=%s",

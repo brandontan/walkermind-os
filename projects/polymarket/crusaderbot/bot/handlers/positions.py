@@ -30,18 +30,23 @@ next tick and drives the close pipeline via the priority chain
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
+from decimal import Decimal
 from typing import Optional
 
 from telegram import Update
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from ...database import get_pool
 from ...integrations.polymarket import get_book
 from ...users import upsert_user
+from ...wallet.ledger import daily_pnl, get_balance
+from ..keyboards import main_menu, portfolio_kb
 from ..keyboards.positions import force_close_confirm_kb, positions_list_kb
-from ..tier import Tier, has_tier, tier_block_message
+
 from .emergency import mark_force_close_intent_for_position
 
 logger = logging.getLogger(__name__)
@@ -50,21 +55,11 @@ PRICE_FETCH_TIMEOUT_SEC = 3.0
 MARKET_TITLE_MAX = 40
 
 
-async def _ensure_tier(update: Update, min_tier: int) -> tuple[Optional[dict], bool]:
-    """Resolve the user, enforce the minimum tier, route the rejection text
-    onto whichever surface the update came in on (message vs callback)."""
+async def _ensure_tier(update: Update, _min_tier: int = 0) -> tuple[Optional[dict], bool]:
+    """All registered users pass — no tier gate. Calls local upsert_user for testability."""
     if update.effective_user is None:
         return None, False
-    user = await upsert_user(
-        update.effective_user.id, update.effective_user.username
-    )
-    if not has_tier(user["access_tier"], min_tier):
-        msg = tier_block_message(min_tier)
-        if update.callback_query is not None:
-            await update.callback_query.answer(msg, show_alert=True)
-        elif update.message is not None:
-            await update.message.reply_text(msg)
-        return None, False
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
     return user, True
 
 
@@ -155,9 +150,103 @@ async def _load_open_positions(user_id) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def _pnl_fmt(val: Decimal) -> str:
+    sign = "+" if val >= 0 else ""
+    return f"{sign}${val:.2f}"
+
+
+async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refresh: bool = False) -> None:
+    """Portfolio overview screen — handles both message and callback paths."""
+    is_cb = update.callback_query is not None
+    if is_cb:
+        q = update.callback_query
+        await q.answer()
+
+    user, ok = await _ensure_tier(update)
+    if not ok:
+        return
+    if not is_cb and update.message is None:
+        return
+
+    from .dashboard import _fetch_stats
+    bal = await get_balance(user["id"])
+    pnl_today = await daily_pnl(user["id"])
+    st = await _fetch_stats(user["id"])
+
+    open_count = st.get("open_positions", 0)  # populated by _fetch_stats open_count column
+
+    if open_count == 0:
+        footer = "No open positions. Use Auto Trade to start."
+    else:
+        footer = "Tap Positions for full details."
+
+    pnl_today_str = _pnl_fmt(pnl_today)
+    stats = (
+        "<b>💼 Portfolio</b>\n\n"
+        "<blockquote>"
+        f"Balance   ${bal:.2f} USDC\n"
+        f"Today     {html.escape(pnl_today_str)}\n"
+        f"Open      {open_count} position{'s' if open_count != 1 else ''}"
+        "</blockquote>\n\n"
+        f"{html.escape(footer)}"
+    )
+
+    if is_cb:
+        try:
+            await update.callback_query.edit_message_text(
+                stats,
+                parse_mode=ParseMode.HTML,
+                reply_markup=portfolio_kb(),
+            )
+        except BadRequest as exc:
+            if "Message is not modified" not in str(exc):
+                await update.callback_query.message.reply_text(
+                    stats,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=portfolio_kb(),
+                )
+    else:
+        await update.message.reply_text(
+            stats,
+            parse_mode=ParseMode.HTML,
+            reply_markup=portfolio_kb(),
+        )
+
+
+async def portfolio_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle portfolio:* callbacks from the Portfolio screen keyboard."""
+    q = update.callback_query
+    if q is None:
+        return
+    await q.answer()
+    sub = (q.data or "").split(":", 1)[-1]
+
+    if sub == "positions":
+        await show_positions(update, ctx)
+        return
+
+    if sub == "chart":
+        from .portfolio_chart import chart_command
+        await chart_command(update, ctx)
+        return
+
+    if sub == "insights":
+        from .pnl_insights import pnl_insights_command
+        await pnl_insights_command(update, ctx)
+        return
+
+    if sub == "trades":
+        from .trades import my_trades_cb
+        await my_trades_cb(update, ctx)
+        return
+
+    # portfolio:portfolio — fallback to portfolio screen itself
+    await show_portfolio(update, ctx)
+
+
 async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Render the live position monitor (Tier 2+)."""
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_tier(update)
     if not ok or update.message is None:
         return
 
@@ -177,10 +266,12 @@ async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return_exceptions=False,
     )
 
-    lines = ["*📈 Open positions*\n"]
-    for pos, mark in zip(positions, marks):
-        title = _truncate(pos["question"] or pos["market_id"], MARKET_TITLE_MAX)
-        side = pos["side"].upper()
+    lines = ["<b>📌 Open Positions</b>\n"]
+    n = len(positions)
+    for i, (pos, mark) in enumerate(zip(positions, marks)):
+        connector = "└─" if i == n - 1 else "├─"
+        title = html.escape(_truncate(pos["question"] or pos["market_id"], MARKET_TITLE_MAX))
+        side = html.escape(pos["side"].upper())
         entry = float(pos["entry_price"])
         size = float(pos["size_usdc"])
         if mark is None:
@@ -188,19 +279,18 @@ async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             mark_str = "N/A"
         else:
             pnl, pct = _unrealized_pnl(pos["side"], entry, mark, size)
-            pnl_str = _format_pnl(pnl, pct)
+            pnl_str = html.escape(_format_pnl(pnl, pct))
             mark_str = f"{mark:.3f}"
-        tp_sl = _format_tp_sl(pos["applied_tp_pct"], pos["applied_sl_pct"])
+        tp_sl = html.escape(_format_tp_sl(pos["applied_tp_pct"], pos["applied_sl_pct"]))
         lines.append(
-            f"`{str(pos['id'])[:8]}` *{side}* — _{title}_\n"
+            f"{connector} <code>{str(pos['id'])[:8]}</code> <b>{side}</b> — <i>{title}</i>\n"
             f"  size ${size:.2f} · entry {entry:.3f} · mark {mark_str}\n"
-            f"  P&L {pnl_str}\n"
-            f"  {tp_sl}"
+            f"  P&amp;L {pnl_str} · {tp_sl}"
         )
 
     await update.message.reply_text(
         "\n\n".join(lines),
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=positions_list_kb([p["id"] for p in positions]),
     )
 
@@ -212,7 +302,7 @@ async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     5 closed/filled orders. Users who need live P&L or force-close can reach
     the full view via /positions.
     """
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_tier(update)
     if not ok or update.message is None:
         return
     pool = get_pool()
@@ -243,31 +333,31 @@ async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
     lines: list[str] = []
     if pos_rows:
-        lines.append(f"*📈 Open Positions ({len(pos_rows)}):*\n")
+        lines.append(f"<b>📈 Open Positions ({len(pos_rows)})</b>\n")
         for r in pos_rows:
-            title = _truncate(r["question"] or r["market_id"], MARKET_TITLE_MAX)
+            title = html.escape(_truncate(r["question"] or r["market_id"], MARKET_TITLE_MAX))
             lines.append(
-                f"`{str(r['id'])[:8]}` *{r['side'].upper()}* @ "
+                f"<code>{str(r['id'])[:8]}</code> <b>{html.escape(r['side'].upper())}</b> @ "
                 f"{float(r['entry_price']):.3f} · ${float(r['size_usdc']):.2f} "
-                f"[{r['mode']}]\n_{title}_"
+                f"[{html.escape(r['mode'])}]\n<i>{title}</i>"
             )
-        lines.append("\n_/positions for live P\\&L + force\\-close._")
+        lines.append("\n<i>/positions for live P&amp;L + force-close.</i>")
     else:
-        lines.append("*📈 Positions:* No open positions.")
+        lines.append("<b>📈 Positions:</b> No open positions.")
     lines.append("")
     if ord_rows:
-        lines.append("*📋 Recent Activity:*\n")
+        lines.append("<b>📋 Recent Activity</b>\n")
         for r in ord_rows:
-            title = _truncate(r["question"] or r["market_id"], 40)
+            title = html.escape(_truncate(r["question"] or r["market_id"], 40))
             lines.append(
                 f"{r['created_at'].strftime('%m-%d %H:%M')} · "
-                f"*{r['side'].upper()}* @ {float(r['price']):.3f} · "
-                f"${float(r['size_usdc']):.2f} [{r['mode']}/{r['status']}]\n_{title}_"
+                f"<b>{html.escape(r['side'].upper())}</b> @ {float(r['price']):.3f} · "
+                f"${float(r['size_usdc']):.2f} [{html.escape(r['mode'])}/{html.escape(r['status'])}]\n<i>{title}</i>"
             )
     else:
-        lines.append("*📋 Recent Activity:* No activity yet.")
+        lines.append("<b>📋 Recent Activity:</b> No activity yet.")
     await update.message.reply_text(
-        "\n\n".join(lines), parse_mode=ParseMode.MARKDOWN,
+        "\n\n".join(lines), parse_mode=ParseMode.HTML,
     )
 
 
@@ -295,7 +385,7 @@ async def force_close_ask(update: Update,
     q = update.callback_query
     if q is None:
         return
-    user, ok = await _ensure_tier(update, Tier.FUNDED)
+    user, ok = await _ensure_tier(update)
     if not ok:
         return
     await q.answer()
@@ -304,10 +394,10 @@ async def force_close_ask(update: Update,
     if row is None:
         await q.message.reply_text("Position not found or already closed.")
         return
-    title = _truncate(row["question"] or row["market_id"], MARKET_TITLE_MAX)
+    title = html.escape(_truncate(row["question"] or row["market_id"], MARKET_TITLE_MAX))
     await q.message.reply_text(
-        f"Close *{title}*?\nThis cannot be undone.",
-        parse_mode=ParseMode.MARKDOWN,
+        f"Close <b>{title}</b>?\nThis cannot be undone.",
+        parse_mode=ParseMode.HTML,
         reply_markup=force_close_confirm_kb(position_id),
     )
 
@@ -332,7 +422,7 @@ async def force_close_confirm(update: Update,
         return
 
     # action == "fc_yes" past this point
-    user, ok = await _ensure_tier(update, Tier.FUNDED)
+    user, ok = await _ensure_tier(update)
     if not ok:
         return
     await q.answer("Queueing…")

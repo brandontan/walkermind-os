@@ -9,7 +9,7 @@ DAILY_LOSS_HARD_STOP = -2_000.0
 MAX_DRAWDOWN_HALT = 0.08
 MIN_LIQUIDITY = 10_000.0
 MIN_EDGE_BPS = 200
-SIGNAL_STALE_SECONDS = 300
+SIGNAL_STALE_SECONDS = 14400  # 4h: matches SIGNAL_EXPIRY_HOURS — gate uses expires_at as primary guard
 DEDUP_WINDOW_SECONDS = 300
 
 # Slippage / market-impact guardrails (gate step 14).
@@ -19,6 +19,11 @@ MAX_MARKET_IMPACT_PCT = 0.05
 # MAX_SLIPPAGE_PCT: maximum tolerated price deviation from mid for live orders.
 # Not enforced in paper mode; validated by the readiness check before live activation.
 MAX_SLIPPAGE_PCT = 0.03
+# SLIPPAGE_GUARD_PCT: hard pre-submission slippage fence (Track D Live Gate Hardening).
+# Before any order submission, abs(intended_price - market_price) / market_price
+# must not exceed this value. Orders breaching this threshold are rejected with
+# SLIPPAGE_REJECTED and never reach the CLOB. Applies to live path only.
+SLIPPAGE_GUARD_PCT = 0.05
 
 PROFILES: dict[str, dict] = {
     "conservative": {
@@ -36,21 +41,30 @@ PROFILES: dict[str, dict] = {
         "daily_loss": -1_000.0, "min_edge_bps": 200,
         "min_liquidity": 10_000.0, "max_days": 90,
     },
+    # Custom profile: user sets capital_pct / tp_pct / sl_pct in user_settings.
+    # Gate risk limits fall back to balanced floor until custom values are confirmed.
+    "custom": {
+        "kelly": 0.20, "max_pos_pct": 0.06, "max_concurrent": 5,
+        "daily_loss": -500.0, "min_edge_bps": 300,
+        "min_liquidity": 15_000.0, "max_days": 30,
+        "capital_pct": None, "tp_pct": None, "sl_pct": None,
+    },
 }
 
 STRATEGY_AVAILABILITY: dict[str, list[str]] = {
-    "copy_trade": ["conservative", "balanced", "aggressive"],
-    "signal":     ["conservative", "balanced", "aggressive"],
-    "signal_following": ["conservative", "balanced", "aggressive"],
-    "value":      ["balanced", "aggressive"],   # Phase R6b+
-    "momentum":   ["aggressive"],               # Phase R9+
-    "momentum_reversal": ["balanced", "aggressive"],
+    "copy_trade":       ["conservative", "balanced", "aggressive", "custom"],
+    "signal":           ["conservative", "balanced", "aggressive", "custom"],
+    "signal_following": ["conservative", "balanced", "aggressive", "custom"],
+    "value":            ["balanced", "aggressive", "custom"],   # Phase R6b+
+    "momentum":         ["aggressive", "custom"],               # Phase R9+
+    "momentum_reversal": ["balanced", "aggressive", "custom"],
 }
 
 
 def effective_daily_loss(profile: str, user_override: float | None = None) -> float:
     """Most restrictive of: system cap, profile cap, user lower override."""
-    caps = [DAILY_LOSS_HARD_STOP, PROFILES[profile]["daily_loss"]]
+    base = profile if profile in PROFILES else "balanced"
+    caps = [DAILY_LOSS_HARD_STOP, PROFILES[base]["daily_loss"]]
     if user_override is not None:
         caps.append(float(user_override))
     return max(caps)  # max of negatives = least negative = most restrictive

@@ -14,6 +14,7 @@ from uuid import UUID
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from . import grid_rows
+from ._common import home_back_row
 
 
 def my_trades_main_kb(position_ids: list[UUID | str]) -> InlineKeyboardMarkup:
@@ -38,9 +39,6 @@ def my_trades_main_kb(position_ids: list[UUID | str]) -> InlineKeyboardMarkup:
             ),
             InlineKeyboardButton(
                 "📊 Insights", callback_data="insights:refresh"
-            ),
-            InlineKeyboardButton(
-                "🏠 Dashboard", callback_data="dashboard:main"
             ),
         ]
     )
@@ -68,16 +66,7 @@ def close_confirm_kb(position_id: UUID | str) -> InlineKeyboardMarkup:
 def close_success_kb() -> InlineKeyboardMarkup:
     """Navigation buttons shown after a successful position close."""
     return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton(
-                    "📈 My Trades", callback_data="mytrades:back"
-                ),
-                InlineKeyboardButton(
-                    "📊 Dashboard", callback_data="dashboard:main"
-                ),
-            ]
-        ]
+        [home_back_row("mytrades:back")]
     )
 
 
@@ -99,11 +88,5 @@ def history_nav_kb(page: int, has_prev: bool, has_next: bool) -> InlineKeyboardM
     rows: list[list[InlineKeyboardButton]] = []
     if nav:
         rows.append(nav)
-    rows.append(
-        [
-            InlineKeyboardButton(
-                "📈 My Trades", callback_data="mytrades:back"
-            )
-        ]
-    )
+    rows.append(home_back_row("mytrades:back"))
     return InlineKeyboardMarkup(rows)

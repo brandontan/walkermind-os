@@ -206,7 +206,8 @@ def test_require_access_tier_blocks_when_below():
     assert called == []
     upd.effective_message.reply_text.assert_awaited_once()
     call_kwargs = upd.effective_message.reply_text.await_args[0][0]
-    assert "PREMIUM" in call_kwargs
+    # Tier wording is hidden from users (Chunk N cleanup); message says "not available"
+    assert "not available" in call_kwargs
 
 
 def test_require_access_tier_admin_blocks_premium():
@@ -356,7 +357,7 @@ def test_admin_root_shows_help_for_admin_tier_no_args():
 
     upd.message.reply_text.assert_awaited_once()
     text = upd.message.reply_text.await_args[0][0]
-    assert "Admin panel" in text or "admin panel" in text.lower()
+    assert "Admin" in text
 
 
 def test_admin_root_routes_users_subcommand():
@@ -407,7 +408,7 @@ def test_admin_root_settier_invalid_tier():
         _run(admin_h.admin_root(upd, _ctx("settier", "12345", "GODMODE")))
 
     text = upd.message.reply_text.await_args[0][0]
-    assert "Invalid tier" in text
+    assert "Invalid role" in text
 
 
 def test_admin_root_settier_success():
@@ -426,11 +427,11 @@ def test_admin_root_settier_success():
         "projects.polymarket.crusaderbot.bot.handlers.admin.audit.write",
         new=AsyncMock(),
     ):
-        _run(admin_h.admin_root(upd, _ctx("settier", "99999", "PREMIUM")))
+        _run(admin_h.admin_root(upd, _ctx("settier", "99999", "admin")))
 
     text = upd.message.reply_text.await_args[0][0]
     assert "99999" in text
-    assert "PREMIUM" in text
+    assert "admin" in text
 
 
 def test_admin_root_routes_stats():

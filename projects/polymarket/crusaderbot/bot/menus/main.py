@@ -2,19 +2,21 @@
 
 The reply-keyboard layout itself lives in ``bot.keyboards.main_menu`` —
 this module owns the *button-text → handler* mapping that the dispatcher
-text router consumes. Centralising the mapping keeps button registration
-and handler wiring in one place: adding a new top-level menu surface is a
-one-line change here.
+text router consumes.
 
-Phase 5A reduces the main menu from 8 to 5 buttons.
-Phase 5D expands to 6 buttons (adds 🐋 Copy Trade, separates it from Auto-Trade):
+State-driven layout (3 states):
 
-  📊 Dashboard   🐋 Copy Trade
-  🤖 Auto-Trade  📈 My Trades
-  💰 Wallet      🚨 Emergency
+  No strategy:     ⚙️ Configure Strategy
+                   💼 Portfolio   ⚙️ Settings
+                   🚨 Emergency
 
-Settings and Help are now /settings and /help commands only.
-Positions + Activity are merged into My Trades (📈 My Trades).
+  Strategy set:    🚀 Start Autobot
+                   💼 Portfolio   ⚙️ Settings
+                   🚨 Emergency
+
+  Bot running:     📊 Active Monitor
+                   💼 Portfolio   ⚙️ Settings
+                   🚨 Emergency
 """
 from __future__ import annotations
 
@@ -24,21 +26,46 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from ..handlers import (
-    copy_trade, dashboard, emergency, my_trades as my_trades_h,
-    setup, wallet,
+    autotrade,
+    dashboard,
+    onboarding,
+    positions,
+    presets, settings as settings_handler,
 )
 
 HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
 
 
-# Order mirrors keyboards.main_menu() rows for easy diffing.
+async def _group0_noop(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Sentinel for buttons whose response is already sent by a group=-1
+    MessageHandler in dispatcher.py.
+
+    Registered in MAIN_MENU_ROUTES so that _text_router still:
+      (a) clears ctx.user_data['awaiting'] before returning, and
+      (b) short-circuits before reaching wizard text-input handlers
+          (copy_trade / settings / setup).
+
+    Without this sentinel a Dashboard tap during an active wizard would fall
+    through to e.g. copy_trade.text_input and trigger a stale-state error
+    message even though the dashboard response was already sent by group=-1.
+    """
+
+
 MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
-    "📊 Dashboard":  dashboard.dashboard,
-    "🐋 Copy Trade": copy_trade.menu_copytrade_handler,
-    "🤖 Auto-Trade": setup.setup_root,
-    "📈 My Trades":  my_trades_h.my_trades,
-    "💰 Wallet":     wallet.wallet_root,
-    "🚨 Emergency":  emergency.emergency_root,
+    # V5 AUTOBOT fixed menu
+    # "📊 Dashboard" maps to _group0_noop — the visible response is sent by the
+    # group=-1 MessageHandler in dispatcher.py (fires first).  The noop entry
+    # here lets _text_router clear ctx.user_data['awaiting'] and return early,
+    # preventing wizard text handlers from misprocessing the Dashboard tap.
+    "📊 Dashboard":          _group0_noop,
+    "💼 Portfolio":          positions.show_portfolio,
+    "🤖 Auto Mode":          autotrade.show_autotrade,
+    "⚙️ Settings":           settings_handler.settings_hub_root,
+    "❓ Help":               onboarding.help_handler,
+    # Backward-compat aliases (old state-driven labels)
+    "📊 Active Monitor":     dashboard.dashboard,
+    "🚀 Start Autobot":      presets.show_preset_picker,
+    "⚙️ Configure Strategy": presets.show_preset_picker,
 }
 
 

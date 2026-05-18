@@ -368,7 +368,7 @@ def test_bootstrap_registers_copy_trade():
     assert reg.get("copy_trade").name == "copy_trade"
     assert reg.get("copy_trade").version == "1.0.0"
     assert set(reg.get("copy_trade").risk_profile_compatibility) == {
-        "conservative", "balanced", "aggressive",
+        "conservative", "balanced", "aggressive", "custom",
     }
 
 
@@ -1354,3 +1354,281 @@ def test_copy_targets_list_kb_one_button_per_target():
     assert all(len(row) == 1 for row in kb.inline_keyboard)
     for row, addr in zip(kb.inline_keyboard, addrs):
         assert row[0].callback_data == f"copytrade:remove:{addr}"
+
+
+# ---------------------------------------------------------------------------
+# Monitor filter tests (migration 035): copy_direction, allow_topups,
+# execution_mode. All tests exercise _process_one() directly via the
+# monitor module's internal function, mocking DB and event_bus.
+# ---------------------------------------------------------------------------
+
+
+def _make_task(**kwargs):
+    """Build a minimal CopyTradeTask for monitor tests."""
+    from decimal import Decimal
+    from uuid import uuid4
+    from datetime import datetime, timezone
+    from projects.polymarket.crusaderbot.domain.copy_trade.models import CopyTradeTask
+
+    defaults = dict(
+        id=uuid4(),
+        user_id=uuid4(),
+        wallet_address="0x" + "a" * 40,
+        task_name="Test Target",
+        copy_mode="fixed",
+        copy_amount=Decimal("10"),
+        copy_pct=None,
+        tp_pct=Decimal("0.25"),
+        sl_pct=Decimal("0.10"),
+        slippage_pct=Decimal("0.05"),
+        min_trade_size=Decimal("1"),
+        max_daily_spend=Decimal("100"),
+        reverse_copy=False,
+        status="active",
+        nickname=None,
+        copy_direction="buys_only",
+        execution_mode="auto",
+        allow_topups=True,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    defaults.update(kwargs)
+    return CopyTradeTask(**defaults)
+
+
+def _make_leader_trade(side: str = "BUY", usdc_size: float = 20.0) -> dict:
+    """Minimal leader trade dict as returned by wallet_watcher."""
+    from datetime import datetime, timezone
+
+    return {
+        "transactionHash": "0x" + "1" * 64,
+        "conditionId": "cond_test",
+        "market": "mkt_test",
+        "market_id": "mkt_test",
+        "side": side,
+        "outcome": "Yes",
+        "usdcSize": usdc_size,
+        "price": 0.50,
+        "timestamp": int(datetime.now(timezone.utc).timestamp()),
+    }
+
+
+def _patch_monitor_preamble(mon):
+    """Patch the get_pool-backed helpers that run BEFORE the migration-035
+    filter gates in _process_one (idempotency check + daily spend). Returns a
+    list of context managers the caller enters via contextlib.ExitStack."""
+    from unittest.mock import patch
+
+    async def _not_processed(*_):
+        return False
+
+    async def _zero_spend(*_):
+        return 0.0
+
+    return [
+        patch.object(mon, "_is_already_processed", side_effect=_not_processed),
+        patch.object(mon, "_get_daily_spend", side_effect=_zero_spend),
+    ]
+
+
+def test_monitor_copy_direction_buys_only_skips_sell():
+    """copy_direction='buys_only' + SELL leader trade → _process_one returns
+    at the copy_direction gate without calling TradeEngine.execute."""
+    import asyncio
+    import contextlib
+    from unittest.mock import AsyncMock, patch
+    from projects.polymarket.crusaderbot.services.copy_trade import monitor as mon
+
+    task = _make_task(copy_direction="buys_only")
+    trade = _make_leader_trade(side="sell")
+
+    with contextlib.ExitStack() as stack:
+        for cm in _patch_monitor_preamble(mon):
+            stack.enter_context(cm)
+        mock_exec = stack.enter_context(
+            patch.object(mon._engine, "execute", new_callable=AsyncMock)
+        )
+        mock_ctx = stack.enter_context(
+            patch.object(mon, "_load_user_context", new_callable=AsyncMock)
+        )
+        asyncio.run(mon._process_one(task, trade, task.wallet_address))
+
+    mock_exec.assert_not_called()
+    # Gate is BEFORE _load_user_context — it must never be reached.
+    mock_ctx.assert_not_called()
+
+
+def test_monitor_copy_direction_buys_and_sells_allows_sell():
+    """copy_direction='buys_and_sells' must NOT short-circuit at the
+    copy_direction gate — flow proceeds to _load_user_context."""
+    import asyncio
+    import contextlib
+    from unittest.mock import AsyncMock, patch
+    from projects.polymarket.crusaderbot.services.copy_trade import monitor as mon
+
+    task = _make_task(copy_direction="buys_and_sells")
+    trade = _make_leader_trade(side="sell", usdc_size=50.0)
+
+    reached = {"ctx": False}
+
+    async def fake_load_user(user_id):
+        reached["ctx"] = True
+        return None  # stop here — proves the direction gate did NOT block
+
+    with contextlib.ExitStack() as stack:
+        for cm in _patch_monitor_preamble(mon):
+            stack.enter_context(cm)
+        stack.enter_context(
+            patch.object(mon, "_load_user_context", side_effect=fake_load_user)
+        )
+        asyncio.run(mon._process_one(task, trade, task.wallet_address))
+
+    assert reached["ctx"] is True, "copy_direction gate must not block buys_and_sells SELL"
+
+
+def test_monitor_allow_topups_false_skips_when_position_exists():
+    """allow_topups=False + open position on same market → skip, no execute."""
+    import asyncio
+    import contextlib
+    from unittest.mock import AsyncMock, patch
+    from projects.polymarket.crusaderbot.services.copy_trade import monitor as mon
+
+    task = _make_task(allow_topups=False, copy_direction="buys_and_sells")
+    trade = _make_leader_trade(side="BUY", usdc_size=20.0)
+
+    async def fake_load_user(user_id):
+        return {
+            "telegram_user_id": 12345,
+            "access_tier": "basic",
+            "auto_trade_on": True,
+            "paused": False,
+            "risk_profile": "balanced",
+            "trading_mode": "paper",
+        }
+
+    async def fake_fetchval(sql, *args):
+        return 1  # an open position exists → allow_topups gate must skip
+
+    fake_conn = AsyncMock()
+    fake_conn.fetchval = fake_fetchval
+
+    class _PoolCM:
+        async def __aenter__(self): return fake_conn
+        async def __aexit__(self, *_): return False
+
+    class _Pool:
+        def acquire(self): return _PoolCM()
+
+    with contextlib.ExitStack() as stack:
+        for cm in _patch_monitor_preamble(mon):
+            stack.enter_context(cm)
+        stack.enter_context(
+            patch.object(mon, "_load_user_context", side_effect=fake_load_user)
+        )
+        stack.enter_context(patch.object(mon, "get_pool", return_value=_Pool()))
+        mock_exec = stack.enter_context(
+            patch.object(mon._engine, "execute", new_callable=AsyncMock)
+        )
+        asyncio.run(mon._process_one(task, trade, task.wallet_address))
+
+    mock_exec.assert_not_called()
+
+
+def test_monitor_execution_mode_manual_emits_event_not_execute():
+    """execution_mode='manual' → emits copy_trade.pending_confirm and does
+    NOT call TradeEngine.execute."""
+    import asyncio
+    import contextlib
+    from unittest.mock import AsyncMock, patch
+    from projects.polymarket.crusaderbot.services.copy_trade import monitor as mon
+
+    task = _make_task(
+        copy_direction="buys_and_sells",
+        execution_mode="manual",
+        allow_topups=True,
+    )
+    trade = _make_leader_trade(side="BUY", usdc_size=20.0)
+
+    emitted: list[dict] = []
+
+    async def fake_load_user(user_id):
+        return {
+            "telegram_user_id": 99999,
+            "access_tier": "basic",
+            "auto_trade_on": True,
+            "paused": False,
+            "risk_profile": "balanced",
+            "trading_mode": "paper",
+        }
+
+    async def fake_emit(event_type, **kwargs):
+        emitted.append({"event_type": event_type, **kwargs})
+
+    with contextlib.ExitStack() as stack:
+        for cm in _patch_monitor_preamble(mon):
+            stack.enter_context(cm)
+        stack.enter_context(
+            patch.object(mon, "_load_user_context", side_effect=fake_load_user)
+        )
+        stack.enter_context(
+            patch.object(mon.event_bus, "emit", side_effect=fake_emit)
+        )
+        mock_exec = stack.enter_context(
+            patch.object(mon._engine, "execute", new_callable=AsyncMock)
+        )
+        asyncio.run(mon._process_one(task, trade, task.wallet_address))
+
+    mock_exec.assert_not_called()
+    assert len(emitted) == 1
+    assert emitted[0]["event_type"] == "copy_trade.pending_confirm"
+    assert emitted[0]["telegram_user_id"] == 99999
+
+
+def test_monitor_execution_mode_auto_calls_engine():
+    """execution_mode='auto' (default) proceeds to TradeEngine.execute for an
+    otherwise-valid trade."""
+    import asyncio
+    import contextlib
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from projects.polymarket.crusaderbot.services.copy_trade import monitor as mon
+
+    task = _make_task(
+        copy_direction="buys_and_sells",
+        execution_mode="auto",
+        allow_topups=True,
+    )
+    trade = _make_leader_trade(side="BUY", usdc_size=20.0)
+
+    async def fake_load_user(user_id):
+        return {
+            "telegram_user_id": 77777,
+            "access_tier": "basic",
+            "auto_trade_on": True,
+            "paused": False,
+            "risk_profile": "balanced",
+            "trading_mode": "paper",
+        }
+
+    fake_result = MagicMock()
+    fake_result.approved = False
+    fake_result.rejection_reason = "test_path"
+    fake_result.failed_gate_step = None
+
+    mock_exec = AsyncMock(return_value=fake_result)
+
+    async def _noop(*_, **__):
+        return None
+
+    with contextlib.ExitStack() as stack:
+        for cm in _patch_monitor_preamble(mon):
+            stack.enter_context(cm)
+        stack.enter_context(
+            patch.object(mon, "_load_user_context", side_effect=fake_load_user)
+        )
+        stack.enter_context(patch.object(mon._engine, "execute", mock_exec))
+        stack.enter_context(
+            patch.object(mon, "_mark_processed", side_effect=_noop)
+        )
+        asyncio.run(mon._process_one(task, trade, task.wallet_address))
+
+    mock_exec.assert_called_once()

@@ -48,7 +48,7 @@ jobs:
       - name: Install lint and test tooling
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ruff pytest
+          python -m pip install ruff pytest cffi
 
       - name: Install runtime dependencies (from pyproject.toml)
         # Tests in tests/test_health.py import the monitoring package, which
@@ -61,7 +61,7 @@ jobs:
           import subprocess, sys, tomllib
           with open("pyproject.toml", "rb") as f:
               deps = tomllib.load(f)["project"]["dependencies"]
-          subprocess.check_call([sys.executable, "-m", "pip", "install", *deps])
+          subprocess.check_call([sys.executable, "-m", "pip", "install", "--ignore-installed", *deps])
           PY
 
       - name: Lint (ruff)

@@ -23,13 +23,14 @@ from __future__ import annotations
 
 import asyncio
 import enum
+import html
 import logging
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
 import structlog
-from telegram import InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 
 from ... import notifications
@@ -63,7 +64,7 @@ async def _edit_or_resend(chat_id: int, message_id: int, text: str) -> None:
             chat_id=chat_id,
             message_id=message_id,
             text=text,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
         )
     except Exception:
         await notifications.send(chat_id, text)
@@ -109,6 +110,46 @@ def _fmt_pnl(pnl_usdc: float) -> str:
     return f"{sign}${abs(pnl_usdc):.2f}"
 
 
+_SEP = "━━━━━━━━━━━━━━━━━━━━"
+
+_STRAT_LABELS = {
+    "whale_mirror":  "🐋 Whale Mirror",
+    "signal_sniper": "📡 Signal Sniper",
+    "hybrid":        "🐋📡 Hybrid",
+    "value_hunter":  "🎯 Value Hunter",
+    "full_auto":     "🚀 Full Auto",
+    "copy_trade":    "🐋 Copy Trade",
+    "signal":        "📡 Signal",
+    "value":         "🎯 Value",
+    "manual":        "Manual",
+}
+
+# Human-readable reasoning labels for signal_reason values
+_SIGNAL_REASON_LABELS: dict[str, str] = {
+    "yes_edge":        "Strong YES momentum signal",
+    "no_edge":         "Strong NO momentum signal",
+    "value_misprice":  "Mispriced market detected",
+    "whale_entry":     "Whale wallet entry observed",
+    "momentum":        "Momentum breakout",
+}
+
+
+def _build_reasoning(
+    signal_reason: Optional[str],
+    copy_wallet: Optional[str],
+    copy_win_rate: Optional[float],
+) -> str:
+    """Build reasoning block string (with trailing newline) or empty string."""
+    if copy_wallet:
+        short = f"{copy_wallet[:6]}…{copy_wallet[-4:]}" if len(copy_wallet) > 10 else copy_wallet
+        wr = f" · Win rate {copy_win_rate:.0f}%" if copy_win_rate is not None else ""
+        return f"💡 Copying {html.escape(short)}{html.escape(wr)}\n"
+    if signal_reason:
+        label = _SIGNAL_REASON_LABELS.get(signal_reason, signal_reason)
+        return f"💡 Reasoning: {html.escape(label)}\n"
+    return ""
+
+
 class TradeNotifier:
     """Stateless notification dispatcher for paper-mode trade lifecycle events.
 
@@ -128,28 +169,47 @@ class TradeNotifier:
         sl_pct: Optional[float],
         mode: str = "paper",
         strategy_type: Optional[str] = None,
+        signal_reason: Optional[str] = None,
+        copy_wallet: Optional[str] = None,
+        copy_win_rate: Optional[float] = None,
+        position_id: Optional[str] = None,
     ) -> None:
-        """Send ENTRY notification when a paper position is opened."""
+        """Send trade OPEN receipt card with optional reasoning block."""
         label = _market_label(market_question, market_id)
-        tag = _mode_tag(mode)
-        icon = "\U0001f4c8" if side.lower() == "yes" else "\U0001f4c9"
+        strat = _STRAT_LABELS.get(strategy_type or "", strategy_type or "Auto")
         side_upper = side.upper()
 
-        lines = [
-            f"{icon} *{tag} ENTRY — {side_upper}*",
-            label,
-            f"Size: ${size_usdc:.2f} | Price: {price:.3f}",
-            f"TP: {_fmt_tp(tp_pct)} | SL: {_fmt_sl(sl_pct)}",
-            "Paper mode",
-        ]
-        if strategy_type and strategy_type != "manual":
-            lines.append(f"Strategy: {strategy_type}")
+        reasoning = _build_reasoning(signal_reason, copy_wallet, copy_win_rate)
 
+        text = (
+            f"{_SEP}\n"
+            "📋  TRADE OPENED\n"
+            f"{_SEP}\n"
+            f"<pre>Market  │ {html.escape(label[:28])}\n"
+            f"Side    │ {html.escape(side_upper)}\n"
+            f"Size    │ ${size_usdc:.2f}\n"
+            f"Entry   │ ${price:.4f}\n"
+            f"TP      │ {_fmt_tp(tp_pct)}\n"
+            f"SL      │ {_fmt_sl(sl_pct)}</pre>\n"
+            f"{_SEP}\n"
+            f"Strategy: {html.escape(strat)}\n"
+            f"{reasoning}"
+            f"{_SEP}"
+        )
+        if position_id:
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("📋 View Trade", callback_data=f"mytrades:open:{position_id}"),
+                InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+            ]])
+        else:
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+            ]])
         await self._send(
-            telegram_user_id,
-            "\n".join(lines),
+            telegram_user_id, text,
             event=NotificationEvent.ENTRY,
             market_id=market_id,
+            reply_markup=kb,
         )
 
     async def animated_entry_sequence(
@@ -165,6 +225,9 @@ class TradeNotifier:
         sl_pct: Optional[float],
         mode: str = "paper",
         strategy_type: Optional[str] = None,
+        signal_reason: Optional[str] = None,
+        copy_wallet: Optional[str] = None,
+        copy_win_rate: Optional[float] = None,
     ) -> None:
         """4-step animated trade execution sequence via in-place message edits.
 
@@ -187,6 +250,9 @@ class TradeNotifier:
                 sl_pct=sl_pct,
                 mode=mode,
                 strategy_type=strategy_type,
+                signal_reason=signal_reason,
+                copy_wallet=copy_wallet,
+                copy_win_rate=copy_win_rate,
             )
             return
 
@@ -195,7 +261,7 @@ class TradeNotifier:
         await asyncio.sleep(_ANIM_DELAY)
         await _edit_or_resend(
             chat_id, msg_id,
-            f"📡 Signal found: {label} — {side.upper()} @ {price:.3f}",
+            f"📡 Signal found: {html.escape(label)} — {html.escape(side.upper())} @ {price:.3f}",
         )
 
         await asyncio.sleep(_ANIM_DELAY)
@@ -206,14 +272,14 @@ class TradeNotifier:
         icon = "\U0001f4c8" if side.lower() == "yes" else "\U0001f4c9"
         side_upper = side.upper()
         lines = [
-            f"{icon} *{tag} ENTRY — {side_upper}*",
-            label,
+            f"{icon} <b>{html.escape(tag)} ENTRY — {html.escape(side_upper)}</b>",
+            html.escape(label),
             f"Size: ${size_usdc:.2f} | Price: {price:.3f}",
             f"TP: {_fmt_tp(tp_pct)} | SL: {_fmt_sl(sl_pct)}",
             "Paper mode",
         ]
         if strategy_type and strategy_type != "manual":
-            lines.append(f"Strategy: {strategy_type}")
+            lines.append(f"Strategy: {html.escape(strategy_type)}")
         await _edit_or_resend(chat_id, msg_id, "\n".join(lines))
 
     async def notify_tp_hit(
@@ -229,18 +295,23 @@ class TradeNotifier:
         trade_id: Optional[str] = None,
         reply_markup: Optional[InlineKeyboardMarkup] = None,
     ) -> None:
-        """Send TP_HIT notification when take-profit threshold is breached.
-
-        When pnl_usdc > 0 and trade_id is provided, callers should pass
-        share_trade_kb(trade_id) as reply_markup to show [Share] button.
-        """
         label = _market_label(market_question, market_id)
-        tag = _mode_tag(mode)
+        pnl_sign = "+" if pnl_usdc >= 0 else ""
         text = (
-            f"\U0001f3af *{tag} TP HIT — {side.upper()}*\n"
-            f"{label}\n"
-            f"Exit: {exit_price:.3f} | P&L: *{_fmt_pnl(pnl_usdc)}*"
+            f"{_SEP}\n"
+            "🎯  TAKE-PROFIT HIT\n"
+            f"{_SEP}\n"
+            f"<pre>Market  │ {html.escape(label[:28])}\n"
+            f"Side    │ {html.escape(side.upper())}\n"
+            f"Exit    │ ${exit_price:.4f}\n"
+            f"P&amp;L     │ {pnl_sign}${abs(pnl_usdc):.2f}</pre>\n"
+            f"{_SEP}"
         )
+        if reply_markup is None:
+            reply_markup = InlineKeyboardMarkup([[
+                InlineKeyboardButton("📈 My Trades", callback_data="menu:trades"),
+                InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+            ]])
         await self._send(
             telegram_user_id, text,
             event=NotificationEvent.TP_HIT, market_id=market_id,
@@ -259,14 +330,23 @@ class TradeNotifier:
         mode: str = "paper",
         reply_markup: Optional[InlineKeyboardMarkup] = None,
     ) -> None:
-        """Send SL_HIT notification when stop-loss threshold is breached."""
         label = _market_label(market_question, market_id)
-        tag = _mode_tag(mode)
+        pnl_sign = "+" if pnl_usdc >= 0 else ""
         text = (
-            f"\U0001f6d1 *{tag} SL HIT — {side.upper()}*\n"
-            f"{label}\n"
-            f"Exit: {exit_price:.3f} | P&L: *{_fmt_pnl(pnl_usdc)}*"
+            f"{_SEP}\n"
+            "🛑  STOP-LOSS HIT\n"
+            f"{_SEP}\n"
+            f"<pre>Market  │ {html.escape(label[:28])}\n"
+            f"Side    │ {html.escape(side.upper())}\n"
+            f"Exit    │ ${exit_price:.4f}\n"
+            f"P&amp;L     │ {pnl_sign}${abs(pnl_usdc):.2f}</pre>\n"
+            f"{_SEP}"
         )
+        if reply_markup is None:
+            reply_markup = InlineKeyboardMarkup([[
+                InlineKeyboardButton("📈 My Trades", callback_data="menu:trades"),
+                InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+            ]])
         await self._send(
             telegram_user_id, text,
             event=NotificationEvent.SL_HIT, market_id=market_id,
@@ -289,10 +369,15 @@ class TradeNotifier:
         label = _market_label(market_question, market_id)
         tag = _mode_tag(mode)
         text = (
-            f"✅ *{tag} MANUAL CLOSE — {side.upper()}*\n"
-            f"{label}\n"
-            f"Exit: {exit_price:.3f} | P&L: *{_fmt_pnl(pnl_usdc)}*"
+            f"✅ <b>{html.escape(tag)} MANUAL CLOSE — {html.escape(side.upper())}</b>\n"
+            f"{html.escape(label)}\n"
+            f"Exit: {exit_price:.3f} | P&amp;L: <b>{html.escape(_fmt_pnl(pnl_usdc))}</b>"
         )
+        if reply_markup is None:
+            reply_markup = InlineKeyboardMarkup([[
+                InlineKeyboardButton("📈 My Trades", callback_data="menu:trades"),
+                InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+            ]])
         await self._send(
             telegram_user_id, text,
             event=NotificationEvent.MANUAL, market_id=market_id,
@@ -314,13 +399,18 @@ class TradeNotifier:
         label = _market_label(market_question, market_id)
         tag = _mode_tag(mode)
         text = (
-            f"\U0001f6a8 *{tag} EMERGENCY CLOSE — {side.upper()}*\n"
-            f"{label}\n"
-            f"Exit: {exit_price:.3f} | P&L: *{_fmt_pnl(pnl_usdc)}*"
+            f"\U0001f6a8 <b>{html.escape(tag)} EMERGENCY CLOSE — {html.escape(side.upper())}</b>\n"
+            f"{html.escape(label)}\n"
+            f"Exit: {exit_price:.3f} | P&amp;L: <b>{html.escape(_fmt_pnl(pnl_usdc))}</b>"
         )
+        emergency_kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("📈 My Trades", callback_data="menu:trades"),
+            InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+        ]])
         await self._send(
             telegram_user_id, text,
             event=NotificationEvent.EMERGENCY, market_id=market_id,
+            reply_markup=emergency_kb,
         )
 
     async def notify_copy_trade_entry(
@@ -349,12 +439,12 @@ class TradeNotifier:
         wallet_str = ""
         if target_wallet:
             wallet_str = (
-                f"\nCopying: `{target_wallet[:6]}…{target_wallet[-4:]}`"
+                f"\nCopying: <code>{html.escape(target_wallet[:6])}…{html.escape(target_wallet[-4:])}</code>"
             )
 
         text = (
-            f"{icon} *{tag} COPY TRADE — {side.upper()}*\n"
-            f"{label}\n"
+            f"{icon} <b>{html.escape(tag)} COPY TRADE — {html.escape(side.upper())}</b>\n"
+            f"{html.escape(label)}\n"
             f"Size: ${size_usdc:.2f} | Price: {price:.3f}\n"
             f"TP: {_fmt_tp(tp_pct)} | SL: {_fmt_sl(sl_pct)}"
             f"{wallet_str}\n"
@@ -379,6 +469,15 @@ class TradeNotifier:
         reply_markup: Optional[InlineKeyboardMarkup] = None,
     ) -> None:
         """Send text to user. Catches all failures — runtime must not be interrupted."""
+        from ...users import notifications_enabled_by_telegram_id
+
+        if not await notifications_enabled_by_telegram_id(telegram_user_id):
+            logging.getLogger(__name__).info(
+                "trade_notification.suppressed notification_event=%s "
+                "telegram_user_id=%s reason=user_opted_out",
+                event.value, telegram_user_id,
+            )
+            return
         try:
             await notifications.send(telegram_user_id, text, reply_markup=reply_markup)
         except Exception as exc:  # noqa: BLE001 — must not propagate

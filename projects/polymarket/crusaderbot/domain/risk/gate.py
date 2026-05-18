@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -126,8 +126,8 @@ async def _recent_dup_market_trade(user_id: UUID, market_id: str) -> bool:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT 1 FROM orders WHERE user_id=$1 AND market_id=$2 "
-            "AND created_at > NOW() - $3::interval",
-            user_id, market_id, f"{K.DEDUP_WINDOW_SECONDS} seconds",
+            "AND created_at > NOW() - ($3 * INTERVAL '1 second')",
+            user_id, market_id, int(K.DEDUP_WINDOW_SECONDS),
         )
         return row is not None
 
@@ -142,11 +142,77 @@ def _passes_live_guards(ctx: GateContext, settings) -> bool:
     )
 
 
+async def validate_risk_caps(user_id: UUID, proposed_size: Decimal) -> GateResult:
+    """Hard caps applied before any order — Track D additions.
+
+    These are absolute per-user ceilings independent of risk profile.
+    Returns GateResult(approved=False, ...) on the first cap violation,
+    GateResult(approved=True, "caps_ok") when all four pass.
+    """
+    from ...config import get_settings
+    settings = get_settings()
+
+    balance = await get_balance(user_id)
+
+    # Cap 0: Available balance must be positive — no zero-balance trading
+    if balance <= 0:
+        return GateResult(
+            False,
+            "balance_zero_or_negative",
+            0,
+        )
+
+    # Cap 1: Single position size (10% of balance)
+    max_single = balance * Decimal(str(settings.MAX_SINGLE_POSITION_PCT))
+    if proposed_size > max_single:
+        return GateResult(
+            False,
+            f"position_size ${float(proposed_size):.2f} exceeds "
+            f"{settings.MAX_SINGLE_POSITION_PCT*100:.0f}% cap "
+            f"(${float(max_single):.2f})",
+            0,
+        )
+
+    # Cap 2: Total exposure (80% of balance)
+    open_exp = await _open_exposure(user_id)
+    max_exp = balance * Decimal(str(settings.MAX_TOTAL_EXPOSURE_PCT))
+    if open_exp + proposed_size > max_exp:
+        return GateResult(False, "total_exposure_cap_80pct", 0)
+
+    # Cap 3: Daily loss floor (default -$50, env-configurable)
+    today_pnl = await daily_pnl(user_id)
+    if today_pnl <= Decimal(str(settings.MAX_DAILY_LOSS_USD)):
+        return GateResult(
+            False,
+            f"daily_loss_cap_usd ${float(today_pnl):.2f} <= "
+            f"${settings.MAX_DAILY_LOSS_USD:.2f}",
+            0,
+        )
+
+    # Cap 4: Open positions count (hard cap 20)
+    open_count = await _open_position_count(user_id)
+    if open_count >= settings.MAX_OPEN_POSITIONS:
+        return GateResult(
+            False,
+            f"max_open_positions_{settings.MAX_OPEN_POSITIONS}_reached",
+            0,
+        )
+
+    return GateResult(True, "caps_ok")
+
+
 async def evaluate(ctx: GateContext) -> GateResult:
     """Run the 13 gates. Default chosen_mode is paper unless live guards pass."""
     from ...config import get_settings
     settings = get_settings()
     profile = K.profile_or_default(ctx.risk_profile)
+
+    # 0. Hard risk caps (Track D) — fail fast before any gate logging
+    caps_result = await validate_risk_caps(ctx.user_id, ctx.proposed_size_usdc)
+    if not caps_result.approved:
+        await _log(ctx.user_id, ctx.market_id, 0, False, caps_result.reason)
+        return caps_result
+    await _log(ctx.user_id, ctx.market_id, 0, True, "ok")
 
     # 1. Kill switch — read goes through the domain module so we hit the
     # 30s in-process cache instead of the DB on every signal evaluation.
@@ -169,8 +235,11 @@ async def evaluate(ctx: GateContext) -> GateResult:
         return GateResult(False, "auto_trade_off_or_paused", 2)
     await _log(ctx.user_id, ctx.market_id, 2, True, "ok")
 
-    # 3. Tier check (Tier 3+ to trade)
-    if ctx.access_tier < 3:
+    # 3. Paper trading is open to every user (no gate). Live retains a
+    #    funded-account check as defence-in-depth; the authoritative live
+    #    safety boundary is assert_live_guards (Tier 4 + activation guards)
+    #    at order submission, which is intentionally left intact.
+    if ctx.trading_mode == "live" and ctx.access_tier < 3:
         await _log(ctx.user_id, ctx.market_id, 3, False, f"tier_{ctx.access_tier}")
         return GateResult(False, "insufficient_tier", 3)
     await _log(ctx.user_id, ctx.market_id, 3, True, "ok")
@@ -183,6 +252,17 @@ async def evaluate(ctx: GateContext) -> GateResult:
         await _log(ctx.user_id, ctx.market_id, 4, False,
                    f"strategy_{ctx.strategy_type}_not_for_{ctx.risk_profile}")
         return GateResult(False, "strategy_unavailable_for_profile", 4)
+    # Custom profile requires capital_alloc_pct to be configured in user_settings.
+    if ctx.risk_profile == "custom":
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            cap_alloc = await conn.fetchval(
+                "SELECT capital_alloc_pct FROM user_settings WHERE user_id = $1",
+                ctx.user_id,
+            )
+        if cap_alloc is None:
+            await _log(ctx.user_id, ctx.market_id, 4, False, "custom_risk_not_configured")
+            return GateResult(False, "custom_risk_not_configured", 4)
     await _log(ctx.user_id, ctx.market_id, 4, True, "ok")
 
     # 5. Daily loss limit
@@ -281,15 +361,6 @@ async def evaluate(ctx: GateContext) -> GateResult:
     if ctx.trading_mode == "live" and chosen_mode == "paper":
         await _log(ctx.user_id, ctx.market_id, 13, True,
                    "live_requested_but_guards_failed_falling_back_to_paper")
-        # R12 live-to-paper: when the user is configured for live but the
-        # global activation guards (ENABLE_LIVE_TRADING / EXECUTION_PATH_VALIDATED
-        # / CAPITAL_MODE_CONFIRMED) or Tier 4 are not satisfied, the gate
-        # silently downgrades the chosen mode to paper. Without this
-        # trigger the user's ``user_settings.trading_mode`` would remain
-        # 'live' and re-enabling the global flags later would silently
-        # resume live routing without forcing /live_checklist + CONFIRM.
-        # The fallback is idempotent so firing every signal scan during a
-        # guard-down window is safe (first call flips, rest are no-ops).
         try:
             await live_fallback.trigger_for_live_guard_unset(ctx.user_id)
         except Exception as fb_exc:  # noqa: BLE001
@@ -308,3 +379,8 @@ async def evaluate(ctx: GateContext) -> GateResult:
 
     await _record_idempotency(ctx.user_id, ctx.idempotency_key)
     return GateResult(True, "approved", None, final_size, chosen_mode)
+
+
+
+
+

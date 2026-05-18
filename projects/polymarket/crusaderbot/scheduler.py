@@ -1,9 +1,12 @@
 """APScheduler jobs — single async loop, all background work."""
 from __future__ import annotations
 
+import html
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 import asyncio
 from apscheduler.events import (
@@ -27,9 +30,11 @@ from .domain.activation.auto_fallback import (
     LOOKBACK_SECONDS as AUTO_FALLBACK_INTERVAL,
     run_auto_fallback_check,
 )
-from .jobs import daily_pnl_summary, weekly_insights
+from .jobs import daily_pnl_summary, hourly_report, market_signal_scanner, market_sync, weekly_insights
+from .services.daily_report_service import daily_pnl_report_job, JOB_ID as DAILY_REPORT_JOB_ID
 from .services.signal_scan import signal_scan_job as sf_scan_job
 from .services.copy_trade import monitor as copy_trade_monitor
+from .services.copy_trade import leaderboard_sync
 from .services.redeem import hourly_worker as redeem_hourly_worker
 from .services.redeem import redeem_router
 from .wallet import ledger
@@ -52,10 +57,16 @@ async def sync_markets() -> None:
     async with pool.acquire() as conn:
         for m in markets:
             try:
-                mid = str(m.get("id") or m.get("conditionId") or "")
+                mid = str(m.get("conditionId") or m.get("id") or "")  # prefer conditionId (hex) — matches markets.id PK
                 if not mid:
                     continue
                 outcomes = m.get("outcomePrices") or m.get("outcome_prices") or [None, None]
+                if isinstance(outcomes, str):
+                    import json as _json
+                    try:
+                        outcomes = _json.loads(outcomes)
+                    except Exception:
+                        outcomes = [None, None]
                 yes_p = float(outcomes[0]) if outcomes and outcomes[0] is not None else None
                 no_p = float(outcomes[1]) if len(outcomes) > 1 and outcomes[1] is not None else None
                 tokens = m.get("clobTokenIds") or m.get("tokenIds") or [None, None]
@@ -115,8 +126,6 @@ async def watch_deposits() -> None:
     persisted (or non-credited because the address belongs to no user).
     """
     pool = get_pool()
-    settings = get_settings()
-    min_deposit = Decimal(str(settings.MIN_DEPOSIT_USDC))
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT user_id, deposit_address FROM wallets",
@@ -135,7 +144,7 @@ async def watch_deposits() -> None:
         logger.warning("watch_deposits scan failed (no cursor advance): %s", exc)
         return
 
-    notify_after: list[tuple[int, Decimal, str, bool]] = []
+    notify_after: list[tuple[int, Decimal, str]] = []
     all_ok = True
     for t in transfers:
         to_addr = t["to"].lower()
@@ -168,35 +177,6 @@ async def watch_deposits() -> None:
                         conn, user_id, amount, ledger.T_DEPOSIT,
                         ref_id=row["id"], note=t["tx_hash"],
                     )
-                    # Tier 3 promotion gated on cumulative confirmed deposits
-                    # >= MIN_DEPOSIT_USDC. Dust deposits must not bypass the
-                    # funded-beta tier gate.
-                    total_balance = Decimal(str(await conn.fetchval(
-                        "SELECT COALESCE(SUM(amount_usdc), 0) FROM deposits "
-                        "WHERE user_id = $1 AND confirmed_at IS NOT NULL",
-                        user_id,
-                    ) or 0))
-                    tier_promoted = total_balance >= min_deposit
-                    if tier_promoted:
-                        await conn.execute(
-                            "UPDATE users SET access_tier = GREATEST(access_tier, 3) "
-                            "WHERE id = $1",
-                            user_id,
-                        )
-                        logger.info(
-                            "user promoted to Tier 3: user_id=%s "
-                            "total_balance=%s min_required=%s",
-                            user_id, float(total_balance),
-                            float(settings.MIN_DEPOSIT_USDC),
-                        )
-                    else:
-                        logger.info(
-                            "deposit credited but below MIN_DEPOSIT_USDC — "
-                            "Tier 3 not granted: user_id=%s total_balance=%s "
-                            "min_required=%s",
-                            user_id, float(total_balance),
-                            float(settings.MIN_DEPOSIT_USDC),
-                        )
                     u = await conn.fetchrow(
                         "SELECT telegram_user_id FROM users WHERE id=$1",
                         user_id,
@@ -204,11 +184,10 @@ async def watch_deposits() -> None:
             await audit.write(actor_role="bot", action="deposit_confirmed",
                               user_id=user_id,
                               payload={"tx_hash": t["tx_hash"],
-                                       "amount": str(amount),
-                                       "tier_promoted": tier_promoted})
+                                       "amount": str(amount)})
             if u:
                 notify_after.append(
-                    (u["telegram_user_id"], amount, t["tx_hash"], tier_promoted)
+                    (u["telegram_user_id"], amount, t["tx_hash"])
                 )
         except Exception as exc:
             logger.error("deposit credit failed for %s: %s — cursor will not advance",
@@ -218,18 +197,16 @@ async def watch_deposits() -> None:
     if all_ok:
         await _write_cursor("usdc_deposits", scanned_to)
 
-    for tg_id, amt, tx, tier_promoted in notify_after:
-        if tier_promoted:
-            tail = "You're now Tier 3 — auto-trade unlocked."
-        else:
-            tail = (
-                f"Below minimum (${float(min_deposit):.2f} USDC) — "
-                "Tier 3 not yet unlocked. Top up to enable auto-trade."
-            )
+    deposit_kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("💰 Wallet", callback_data="menu:wallet"),
+        InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+    ]])
+    for tg_id, amt, tx in notify_after:
         await notifications.send(
             tg_id,
-            f"✅ *Deposit confirmed:* ${float(amt):.2f} USDC\n"
-            f"`{tx}`\n{tail}",
+            f"✅ <b>Deposit confirmed:</b> ${float(amt):.2f} USDC\n"
+            f"<code>{html.escape(tx)}</code>",
+            reply_markup=deposit_kb,
         )
 
 
@@ -270,7 +247,6 @@ async def run_signal_scan() -> None:
               JOIN wallets w ON w.user_id = u.id
               JOIN user_settings s ON s.user_id = u.id
              WHERE u.auto_trade_on = TRUE AND u.paused = FALSE
-               AND u.access_tier >= 3
             """
         )
     for u_row in users:
@@ -356,16 +332,20 @@ async def _process_candidate(user: dict, cand) -> None:
 
 # ---------------- Exit watcher ----------------
 
-async def check_exits() -> None:
-    """Drive the exit-watcher worker for one tick.
+async def check_exits() -> dict:
+    """Drive the exit-watcher worker for one tick. Returns RunResult as dict.
 
-    Priority chain (force_close_intent > tp_hit > sl_hit > strategy_exit >
-    hold), TP/SL snapshot enforcement, retry-once-on-CLOB-error, and the
-    per-position close_failure_count tracking all live in
-    ``domain.execution.exit_watcher``. This wrapper exists so APScheduler's
-    job table keeps its long-standing ``check_exits`` entry point.
+    The dict is captured by the APScheduler listener via ``event.retval`` and
+    written to ``job_runs.metadata`` so operators can inspect per-tick counts
+    (submitted/expired/held/errors) directly from the DB.
     """
-    await exit_watcher.run_once()
+    result = await exit_watcher.run_once()
+    return {
+        "submitted": result.submitted,
+        "expired": result.expired,
+        "held": result.held,
+        "errors": result.errors,
+    }
 
 
 # ---------------- Order lifecycle ----------------
@@ -476,17 +456,27 @@ async def redeem_hourly() -> None:
 
 
 async def sweep_deposits() -> None:
-    """Nightly batch sweep stub — would move per-user balances to hot pool.
+    """Nightly logical deposit sweep — marks confirmed deposits swept.
 
-    For MVP we only mark deposits as swept in DB (logical sweep, not on-chain).
-    Real on-chain sweep is gated behind EXECUTION_PATH_VALIDATED.
+    Accounting-only: flips ``deposits.swept`` so per-user balances are
+    reconciled. The on-chain hot-pool transfer is intentionally deferred
+    behind ``EXECUTION_PATH_VALIDATED`` (no real capital moves in paper
+    mode). Idempotent: a re-run only touches rows still ``swept=FALSE``.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
-        n = await conn.fetchval(
-            "UPDATE deposits SET swept=TRUE WHERE swept=FALSE RETURNING 1"
-        )
-    logger.info("sweep_deposits: %s deposits marked", n)
+        async with conn.transaction():
+            count = await conn.fetchval(
+                "WITH u AS ("
+                " UPDATE deposits SET swept=TRUE WHERE swept=FALSE RETURNING 1"
+                ") SELECT COUNT(*) FROM u"
+            )
+    logger.info("sweep_deposits: %s deposits marked swept", count)
+    await audit.write(
+        actor_role="bot",
+        action="deposit_sweep",
+        payload={"count": int(count)},
+    )
 
 
 def _job_tracker_listener(event) -> None:
@@ -517,9 +507,14 @@ def _job_tracker_listener(event) -> None:
     # create_task'd record_job_event reads it. This closes the race
     # Codex flagged on PR #874 (job_tracker.py:34).
     started_at = job_tracker.pop_job_start(event.job_id)
+    # Capture structured return value from jobs that return dicts.
+    # check_exits() returns RunResult-as-dict (submitted/expired/held/errors)
+    # which is stored in job_runs.metadata for operator dashboards.
+    retval = getattr(event, "retval", None) if success else None
+    metadata = retval if isinstance(retval, dict) else None
     coro = job_tracker.record_job_event(
         job_id=event.job_id, success=success, error=err,
-        started_at=started_at,
+        started_at=started_at, metadata=metadata,
     )
     try:
         loop = asyncio.get_running_loop()
@@ -542,12 +537,26 @@ def setup_scheduler() -> AsyncIOScheduler:
     sched.add_job(watch_deposits, "interval", seconds=s.DEPOSIT_WATCH_INTERVAL,
                   id="deposit_watch", max_instances=1, coalesce=True)
     sched.add_job(run_signal_scan, "interval", seconds=s.SIGNAL_SCAN_INTERVAL,
-                  id="signal_scan", max_instances=1, coalesce=True)
+                  id="signal_scan", max_instances=1, coalesce=True,
+                  next_run_time=datetime.now(timezone.utc))
     sched.add_job(sf_scan_job.run_once, "interval", seconds=s.SIGNAL_SCAN_INTERVAL,
-                  id="signal_following_scan", max_instances=1, coalesce=True)
+                  id="signal_following_scan", max_instances=1, coalesce=True,
+                  next_run_time=datetime.now(timezone.utc))
+    sched.add_job(market_signal_scanner.run_job, "interval",
+                  seconds=s.MARKET_SIGNAL_SCAN_INTERVAL,
+                  id=market_signal_scanner.JOB_ID, max_instances=1, coalesce=True,
+                  replace_existing=True,
+                  next_run_time=datetime.now(timezone.utc))
+    sched.add_job(market_sync.run_job, "interval",
+                  seconds=1800,
+                  id=market_sync.JOB_ID, max_instances=1, coalesce=True)
     sched.add_job(copy_trade_monitor.run_once, "interval",
                   seconds=s.COPY_TRADE_MONITOR_INTERVAL,
                   id="copy_trade_monitor", max_instances=1, coalesce=True)
+    sched.add_job(leaderboard_sync.run_job, "interval",
+                  seconds=1800,
+                  id="leaderboard_sync", max_instances=1, coalesce=True,
+                  next_run_time=datetime.now(timezone.utc))
     sched.add_job(check_exits, "interval", seconds=s.EXIT_WATCH_INTERVAL,
                   id="exit_watch", max_instances=1, coalesce=True)
     sched.add_job(poll_order_lifecycle, "interval",
@@ -580,6 +589,20 @@ def setup_scheduler() -> AsyncIOScheduler:
         weekly_insights.run_job, "cron",
         day_of_week="mon", hour=8, minute=0,
         id=weekly_insights.JOB_ID, max_instances=1, coalesce=True,
+    )
+    # Hourly system report → all ADMIN-tier users.
+    sched.add_job(
+        hourly_report.run_job, "cron",
+        minute=0,
+        id=hourly_report.JOB_ID, max_instances=1, coalesce=True,
+    )
+    # Track E — daily P&L report. Hour is configurable via DAILY_REPORT_HOUR
+    # env (default 23). Timezone is resolved from s.TIMEZONE (Asia/Jakarta).
+    sched.add_job(
+        daily_pnl_report_job, "cron",
+        hour=s.DAILY_REPORT_HOUR, minute=0,
+        id=DAILY_REPORT_JOB_ID, max_instances=1, coalesce=True,
+        replace_existing=True,
     )
     # Track F — auto-fallback monitor (60s poll).
     sched.add_job(

@@ -33,6 +33,8 @@ Per-position close flow:
 from __future__ import annotations
 
 import asyncio
+import datetime
+import html
 import logging
 import math
 from decimal import Decimal
@@ -47,14 +49,15 @@ from ...domain.execution import paper as paper_exec
 from ...domain.trading import repository as repo
 from ...integrations.polymarket import get_book
 from ...monitoring import alerts as monitoring_alerts
-from ...users import upsert_user
+from ...users import get_settings_for, upsert_user
+from ..keyboards import nav_row
 from ..keyboards.my_trades import (
     close_confirm_kb,
     close_success_kb,
     history_nav_kb,
     my_trades_main_kb,
 )
-from ..tier import Tier, has_tier, tier_block_message
+
 
 logger = logging.getLogger(__name__)
 
@@ -73,19 +76,12 @@ def _truncate(s: str, n: int) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
-async def _ensure_tier(update: Update, min_tier: int) -> tuple[Optional[dict], bool]:
+async def _ensure_user(update: Update) -> tuple[Optional[dict], bool]:
     if update.effective_user is None:
         return None, False
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username
     )
-    if not has_tier(user["access_tier"], min_tier):
-        msg = tier_block_message(min_tier)
-        if update.callback_query is not None:
-            await update.callback_query.answer(msg, show_alert=True)
-        elif update.message is not None:
-            await update.message.reply_text(msg)
-        return None, False
     return user, True
 
 
@@ -133,23 +129,27 @@ def _fmt_current(mark: Optional[float], side: str, entry: float,
 
 
 def _format_positions_section(
-    positions: list[dict], marks: list[Optional[float]]
+    positions: list[dict],
+    marks: list[Optional[float]],
+    tp_pct: Optional[float],
+    sl_pct: Optional[float],
 ) -> str:
     count = len(positions)
     if count == 0:
         return "Open Positions\n\nNo open positions."
+    tp_str = f"+{tp_pct * 100:.0f}%" if tp_pct is not None else "—"
+    sl_str = f"-{sl_pct * 100:.0f}%" if sl_pct is not None else "—"
     lines = [f"Open Positions ({count})\n"]
     for i, (pos, mark) in enumerate(zip(positions, marks), start=1):
-        title = _truncate(pos["question"] or pos["market_id"], _MARKET_MAX)
+        title = html.escape(_truncate(pos["question"] or pos["market_id"], _MARKET_MAX))
         entry = float(pos["entry_price"])
         size = float(pos["size_usdc"])
-        side_label = pos["side"].upper()
-        current_str = _fmt_current(mark, pos["side"], entry, size)
+        side_label = html.escape(pos["side"].upper())
+        current_str = html.escape(_fmt_current(mark, pos["side"], entry, size))
         lines.append(
             f"{i}. {title}\n"
-            f"   Side: {side_label} at ${entry:.2f}\n"
-            f"   Size: ${size:.2f}\n"
-            f"   Current: {current_str}"
+            f"   {side_label} @ ${entry:.3f} → {current_str}\n"
+            f"   TP: {tp_str} | SL: {sl_str}"
         )
     return "\n\n".join(lines)
 
@@ -159,7 +159,7 @@ def _format_activity_section(activity: list[dict]) -> str:
         return "Recent Activity (last 5)\n\nNo closed positions yet."
     lines = [f"Recent Activity (last {len(activity)})\n"]
     for row in activity:
-        title = _truncate(row["question"] or row["market_id"], _MARKET_MAX)
+        title = html.escape(_truncate(row["question"] or row["market_id"], _MARKET_MAX))
         pnl = float(row["pnl_usdc"])
         emoji = "✅" if pnl >= 0 else "❌"
         sign = "+" if pnl >= 0 else ""
@@ -171,12 +171,22 @@ def _build_main_text(
     positions: list[dict],
     marks: list[Optional[float]],
     activity: list[dict],
+    tp_pct: Optional[float] = None,
+    sl_pct: Optional[float] = None,
 ) -> str:
-    pos_section = _format_positions_section(positions, marks)
+    pos_section = _format_positions_section(positions, marks, tp_pct, sl_pct)
     act_section = _format_activity_section(activity)
+    today_count = len([a for a in activity if a.get("closed_at") and
+                       a["closed_at"].date() == datetime.date.today()])
+    today_pnl = sum(float(a.get("pnl_usdc", 0)) for a in activity
+                    if a.get("closed_at") and
+                    a["closed_at"].date() == datetime.date.today())
+    today_sign = "+" if today_pnl >= 0 else ""
+    today_line = f"Today: {today_count} trades · {today_sign}${abs(today_pnl):.2f}"
     return (
-        f"*My Trades*\n"
-        f"{_SEP}\n\n"
+        f"<b>📈 My Trades</b>\n"
+        f"{_SEP}\n"
+        f"<i>{html.escape(today_line)}</i>\n\n"
         f"{pos_section}\n\n"
         f"{_SEP}\n\n"
         f"{act_section}"
@@ -187,10 +197,10 @@ def _format_history_page(rows: list[dict], page: int, total: int) -> str:
     per_page = _HISTORY_PER_PAGE
     total_pages = max(1, math.ceil(total / per_page))
     if not rows:
-        return "*Full History*\n\nNo closed positions yet."
-    lines = [f"*Full History* — page {page + 1}/{total_pages}\n"]
+        return "<b>Full History</b>\n\nNo closed positions yet."
+    lines = [f"<b>Full History</b> — page {page + 1}/{total_pages}\n"]
     for row in rows:
-        title = _truncate(row["question"] or row["market_id"], _MARKET_MAX)
+        title = html.escape(_truncate(row["question"] or row["market_id"], _MARKET_MAX))
         pnl = float(row["pnl_usdc"])
         emoji = "✅" if pnl >= 0 else "❌"
         sign = "+" if pnl >= 0 else ""
@@ -208,13 +218,17 @@ def _format_history_page(rows: list[dict], page: int, total: int) -> str:
 
 
 async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Combined My Trades view (Tier 2+): open positions + recent activity."""
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    """Combined My Trades view: open positions + recent activity."""
+    user, ok = await _ensure_user(update)
     if not ok or update.message is None:
         return
 
     positions = await repo.get_open_positions(user["id"])
     activity = await repo.get_recent_activity(user["id"], limit=5)
+    s = await get_settings_for(user["id"])
+
+    tp_pct = float(s["tp_pct"]) if s.get("tp_pct") is not None else None
+    sl_pct = float(s["sl_pct"]) if s.get("sl_pct") is not None else None
 
     token_ids: list[Optional[str]] = [
         (p["yes_token_id"] if p["side"] == "yes" else p["no_token_id"])
@@ -224,19 +238,46 @@ async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await asyncio.gather(*(_fetch_mark(tid) for tid in token_ids))
     ) if token_ids else []
 
-    text = _build_main_text(positions, marks, activity)
+    text = _build_main_text(positions, marks, activity, tp_pct, sl_pct)
     kb = my_trades_main_kb([p["id"] for p in positions])
     await update.message.reply_text(
-        text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb
+        text, parse_mode=ParseMode.HTML, reply_markup=kb
     )
 
 
+async def my_trades_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callback-query-compatible entry point for the My Trades surface."""
+    q = update.callback_query
+    if q is None or q.message is None or update.effective_user is None:
+        return
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+
+    positions = await repo.get_open_positions(user["id"])
+    activity = await repo.get_recent_activity(user["id"], limit=5)
+    s = await get_settings_for(user["id"])
+
+    tp_pct = float(s["tp_pct"]) if s.get("tp_pct") is not None else None
+    sl_pct = float(s["sl_pct"]) if s.get("sl_pct") is not None else None
+
+    token_ids: list[Optional[str]] = [
+        (p["yes_token_id"] if p["side"] == "yes" else p["no_token_id"])
+        for p in positions
+    ]
+    marks: list[Optional[float]] = list(
+        await asyncio.gather(*(_fetch_mark(tid) for tid in token_ids))
+    ) if token_ids else []
+
+    text = _build_main_text(positions, marks, activity, tp_pct, sl_pct)
+    kb = my_trades_main_kb([p["id"] for p in positions])
+    await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+
 async def close_ask_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """First tap on [Close N] — show confirmation dialog (Tier 2+)."""
+    """First tap on [Close N] — show confirmation dialog."""
     q = update.callback_query
     if q is None:
         return
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     await q.answer()
@@ -253,10 +294,10 @@ async def close_ask_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await q.message.reply_text("Position not found or already closed.")
         return
 
-    title = _truncate(pos["question"] or pos["market_id"], _MARKET_MAX)
+    title = html.escape(_truncate(pos["question"] or pos["market_id"], _MARKET_MAX))
     entry = float(pos["entry_price"])
     size = float(pos["size_usdc"])
-    side_label = pos["side"].upper()
+    side_label = html.escape(pos["side"].upper())
 
     token_id = (
         pos["yes_token_id"] if pos["side"] == "yes" else pos["no_token_id"]
@@ -270,19 +311,19 @@ async def close_ask_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         pnl_str = "N/A"
 
     confirm_text = (
-        f"*Close position:* {title}\n"
-        f"Side: {side_label}, Size: ${size:.2f}, Current PnL: {pnl_str}\n"
-        f"This will sell at market price."
+        f"<b>Close position:</b> {title}\n"
+        f"Side: {side_label}, Size: ${size:.2f}, Current PnL: {html.escape(pnl_str)}\n"
+        "This will sell at market price."
     )
     await q.message.reply_text(
         confirm_text,
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
         reply_markup=close_confirm_kb(position_id),
     )
 
 
 async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle [Confirm Close] / [Cancel] (Tier 2+)."""
+    """Handle [Confirm Close] / [Cancel]."""
     q = update.callback_query
     if q is None:
         return
@@ -304,7 +345,7 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     # action == "close_yes"
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     await q.answer("Closing…")
@@ -345,7 +386,6 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         reply_markup=close_success_kb(),
     )
 
-    # Only notify on a real state transition; skip if position was already closed.
     if result.get("exit_reason") != "already_closed":
         try:
             await monitoring_alerts.alert_user_manual_close(
@@ -366,7 +406,7 @@ async def history_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     if q is None:
         return
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     await q.answer()
@@ -382,7 +422,6 @@ async def history_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
     total_pages = max(1, math.ceil(total / _HISTORY_PER_PAGE))
     page = min(page, total_pages - 1)
-    # Re-fetch if the original request was out of range (stale/crafted callback).
     if not rows and total > 0:
         rows, _ = await repo.get_activity_page(user["id"], page, _HISTORY_PER_PAGE)
 
@@ -393,7 +432,54 @@ async def history_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         has_next=(page + 1) < total_pages,
     )
     await q.message.edit_text(
-        text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb
+        text, parse_mode=ParseMode.HTML, reply_markup=kb
+    )
+
+
+async def trade_detail_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle mytrades:open:<uuid> — show brief trade detail card."""
+    q = update.callback_query
+    if q is None:
+        return
+    user, ok = await _ensure_user(update)
+    if not ok:
+        return
+    await q.answer()
+
+    raw_id = (q.data or "").split(":", 2)[-1]
+    try:
+        position_id = UUID(raw_id)
+    except ValueError:
+        await q.message.reply_text("Invalid trade ID.")
+        return
+
+    pos = await repo.get_open_position_for_user(user["id"], position_id)
+    if pos is None:
+        from telegram import InlineKeyboardMarkup as _IKM2
+        await q.message.reply_text(
+            "Position closed or not found. Check 📋 Full History.",
+            reply_markup=_IKM2([nav_row("mytrades:back")]),
+        )
+        return
+
+    title = html.escape(_truncate(pos["question"] or pos["market_id"], _MARKET_MAX))
+    entry = float(pos["entry_price"])
+    size = float(pos["size_usdc"])
+    token_id = pos["yes_token_id"] if pos["side"] == "yes" else pos["no_token_id"]
+    mark = await _fetch_mark(token_id)
+    pnl_str = html.escape(_fmt_current(mark, pos["side"], entry, size))
+
+    from telegram import InlineKeyboardMarkup as _IKM
+    await q.message.reply_text(
+        f"<b>Trade Detail</b>\n"
+        f"<i>{title}</i>\n\n"
+        f"Side: <b>{html.escape(pos['side'].upper())}</b>\n"
+        f"Size: ${size:.2f}\n"
+        f"Entry: ${entry:.3f}\n"
+        f"Current: {pnl_str}\n"
+        f"Mode: {html.escape(pos.get('mode', 'paper').title())}",
+        parse_mode=ParseMode.HTML,
+        reply_markup=_IKM([nav_row("mytrades:back")]),
     )
 
 
@@ -402,13 +488,17 @@ async def back_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     if q is None:
         return
-    user, ok = await _ensure_tier(update, Tier.ALLOWLISTED)
+    user, ok = await _ensure_user(update)
     if not ok:
         return
     await q.answer()
 
     positions = await repo.get_open_positions(user["id"])
     activity = await repo.get_recent_activity(user["id"], limit=5)
+    s = await get_settings_for(user["id"])
+
+    tp_pct = float(s["tp_pct"]) if s.get("tp_pct") is not None else None
+    sl_pct = float(s["sl_pct"]) if s.get("sl_pct") is not None else None
 
     token_ids: list[Optional[str]] = [
         (p["yes_token_id"] if p["side"] == "yes" else p["no_token_id"])
@@ -418,8 +508,8 @@ async def back_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await asyncio.gather(*(_fetch_mark(tid) for tid in token_ids))
     ) if token_ids else []
 
-    text = _build_main_text(positions, marks, activity)
+    text = _build_main_text(positions, marks, activity, tp_pct, sl_pct)
     kb = my_trades_main_kb([p["id"] for p in positions])
     await q.message.reply_text(
-        text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb
+        text, parse_mode=ParseMode.HTML, reply_markup=kb
     )

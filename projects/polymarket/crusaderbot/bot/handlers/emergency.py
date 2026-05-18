@@ -1,87 +1,275 @@
-"""Emergency menu — pause / pause+close-all / lock (per-user).
+"""Phase 5 UX Rebuild — Emergency menu (always accessible from any state).
 
-Per spec: emergency close uses the FORCE-CLOSE MARKER FLOW rather than
-liquidating directly. We set `force_close_intent=true` on each open position
-via the position registry and then trigger the exit watcher inline so the
-priority chain (force_close_intent > tp_hit > sl_hit > strategy_exit > hold)
-drives the close.
-
-R12d extension: ``mark_force_close_intent_for_position`` exposes the same
-marker flow scoped to a single position UUID so the live position monitor
-can offer a per-row [🛑 Force Close] button without touching every other
-open position. Mirrors the user-wide variant in domain.positions.registry —
-idempotent (already-set rows return 0) and ownership-checked at the SQL layer
-(``user_id = $2``) so a leaked or stale callback cannot mark someone else's
-position.
-
-Phase 5J: redesigned with action descriptions, per-action confirmation dialogs,
-and post-action feedback with nav buttons.
+Per spec: emergency close uses the FORCE-CLOSE MARKER FLOW — sets
+force_close_intent=true on each open position via position registry.
 """
 from __future__ import annotations
 
 import logging
 from uuid import UUID
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from ... import audit
 from ...database import get_pool
-from ...domain.positions import registry as position_registry
-from ...users import set_locked, set_paused, upsert_user
-from ..keyboards import emergency_confirm, emergency_feedback, emergency_menu
+from ...users import set_auto_trade, set_locked, set_paused, upsert_user
+from ..keyboards import emergency_confirm_p5_kb, emergency_done_p5_kb, emergency_p5_kb
+from ..messages import (
+    EMERGENCY_TEXT,
+    emergency_confirm_text,
+    emergency_feedback_text,
+    emergency_system_status_text,
+)
 
 logger = logging.getLogger(__name__)
 
-_EMERGENCY_INTRO = (
-    "*🚨 Emergency Controls*\n"
-    "_These actions take effect immediately._\n\n"
-    "⏸ *Pause Auto-Trade* — Stop new trades. Keep open positions.\n"
-    "🛑 *Pause + Close All* — Stop trading AND close every position at market.\n"
-    "🔒 *Lock Account* — Freeze everything. Requires operator unlock."
-)
 
-_CONFIRM_TEXT: dict[str, str] = {
-    "pause": (
-        "*Confirm: Pause Auto-Trade?*\n"
-        "This will stop all new trades immediately.\n"
-        "Open positions will remain active."
-    ),
-    "pause_close": (
-        "*Confirm: Pause + Close All?*\n"
-        "This will stop trading AND mark every open position for force-close.\n"
-        "Positions close at market on the next exit watcher tick."
-    ),
-    "lock": (
-        "*Confirm: Lock Account?*\n"
-        "This will freeze all trading immediately.\n"
-        "Your account must be unlocked by an operator to resume."
-    ),
-}
+async def _safe_edit(q, text: str, **kwargs) -> None:
+    try:
+        await q.edit_message_text(text, **kwargs)
+    except BadRequest as exc:
+        if "Message is not modified" not in str(exc):
+            await q.message.reply_text(text, **kwargs)
 
-_FEEDBACK_TEXT: dict[str, str] = {
-    "pause": (
-        "⏸ Auto-Trade paused.\n"
-        "Open positions are still active.\n"
-        "Resume anytime from Auto-Trade menu."
-    ),
-    "lock": (
-        "🔒 Account locked.\n"
-        "All trading is frozen. Contact an operator to unlock."
-    ),
-}
+
+async def _render_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    q = update.callback_query
+    if q is not None and q.message is not None:
+        await _safe_edit(
+            q, EMERGENCY_TEXT,
+            parse_mode=ParseMode.HTML, reply_markup=emergency_p5_kb(),
+        )
+    elif update.message is not None:
+        await update.message.reply_text(
+            EMERGENCY_TEXT, parse_mode=ParseMode.HTML, reply_markup=emergency_p5_kb(),
+        )
+
+
+async def emergency_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Command handler /emergency."""
+    await _render_menu(update, ctx)
+
+
+async def emergency_root_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callback handler — menu:emergency."""
+    q = update.callback_query
+    if q is not None:
+        await q.answer()
+    await _render_menu(update, ctx)
+
+
+async def emergency_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Routes all p5:emergency:* callbacks."""
+    q = update.callback_query
+    if q is None or update.effective_user is None:
+        return
+    await q.answer()
+    data = q.data or ""
+
+    if data.startswith("p5:emergency:ask:"):
+        action = data[len("p5:emergency:ask:"):]
+        text = emergency_confirm_text(action)
+        await _safe_edit(
+            q, text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=emergency_confirm_p5_kb(action),
+        )
+        return
+
+    if data.startswith("p5:emergency:confirm:"):
+        action = data[len("p5:emergency:confirm:"):]
+        await _execute_action(update, ctx, action)
+        return
+
+    # Legacy emergency:* pattern callbacks (backward compat)
+    if data.startswith("emergency:"):
+        await _handle_legacy_emergency(update, ctx, data)
+        return
+
+
+async def _system_status_text(user_id: UUID | str) -> str:
+    """Build a system status snapshot for the current user."""
+    pool = get_pool()
+    try:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT auto_trade_on, paused, locked,"
+                " (SELECT COUNT(*) FROM positions"
+                "   WHERE user_id=$1 AND status='open') AS open_count,"
+                " (SELECT COUNT(*) FROM copy_trade_tasks"
+                "   WHERE user_id=$1 AND status='active') AS copy_active"
+                " FROM users WHERE id=$1",
+                user_id,
+            )
+    except Exception as exc:
+        logger.error("system_status query failed: %s", exc)
+        return "⚠️ Could not retrieve system status."
+
+    auto_on = row["auto_trade_on"] if row else False
+    paused = row["paused"] if row else False
+    locked = row["locked"] if row else False
+
+    auto_icon = "🟢" if (auto_on and not paused and not locked) else "🔴"
+    lock_icon = "🔒" if locked else "🔓"
+
+    return emergency_system_status_text(
+        auto_icon=auto_icon,
+        auto_on=auto_on,
+        paused=paused,
+        lock_icon=lock_icon,
+        locked=locked,
+        open_positions=int(row["open_count"] if row else 0),
+        copy_active=int(row["copy_active"] if row else 0),
+    )
+
+
+async def _execute_action(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE, action: str,
+) -> None:
+    q = update.callback_query
+    if update.effective_user is None:
+        return
+
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+
+    # system_status is read-only — skip the try/except confirm flow
+    if action == "system_status":
+        text = await _system_status_text(user["id"])
+        if q is not None and q.message is not None:
+            await _safe_edit(
+                q, text, parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
+            )
+        elif update.message is not None:
+            await update.message.reply_text(
+                text, parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
+            )
+        return
+
+    try:
+        if action == "pause":
+            await set_paused(user["id"], True)
+            await audit.write(actor_role="user", action="emergency_pause", user_id=user["id"])
+
+        elif action == "pause_close":
+            await set_paused(user["id"], True)
+            try:
+                pool = get_pool()
+                async with pool.acquire() as conn:
+                    pos_ids = await conn.fetch(
+                        "SELECT id FROM positions WHERE user_id=$1 AND status='open'",
+                        user["id"],
+                    )
+                for row in pos_ids:
+                    await mark_force_close_intent_for_position(
+                        row["id"], user["id"],
+                    )
+            except Exception as exc:
+                logger.error("pause_close position marking failed: %s", exc)
+            await audit.write(actor_role="user", action="emergency_pause_close_all", user_id=user["id"])
+
+        elif action == "lock":
+            await set_paused(user["id"], True)
+            await set_locked(user["id"], True)
+            await audit.write(actor_role="user", action="self_lock_account", user_id=user["id"])
+
+        elif action == "stop_auto_trade":
+            await set_auto_trade(user["id"], False)
+            await audit.write(
+                actor_role="user", action="emergency_stop_auto_trade", user_id=user["id"],
+            )
+
+        elif action == "kill_all_positions":
+            try:
+                pool = get_pool()
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "UPDATE positions SET force_close_intent = TRUE"
+                        " WHERE user_id = $1 AND status = 'open'"
+                        " AND force_close_intent = FALSE",
+                        user["id"],
+                    )
+            except Exception as exc:
+                logger.error("kill_all_positions bulk update failed: %s", exc)
+            await audit.write(
+                actor_role="user", action="emergency_kill_all_positions", user_id=user["id"],
+            )
+
+        elif action == "lock_bot":
+            await set_paused(user["id"], True)
+            await set_auto_trade(user["id"], False)
+            await set_locked(user["id"], True)
+            await audit.write(
+                actor_role="user", action="emergency_lock_bot", user_id=user["id"],
+            )
+
+    except Exception as exc:
+        logger.error("emergency action=%s failed: %s", action, exc)
+        if q is not None and q.message is not None:
+            await _safe_edit(
+                q, "⚠️ Action failed. Please try again.",
+                parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
+            )
+        return
+
+    text = emergency_feedback_text(action)
+    if q is not None and q.message is not None:
+        await _safe_edit(
+            q, text, parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
+        )
+    elif update.message is not None:
+        await update.message.reply_text(
+            text, parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
+        )
+
+
+async def _handle_legacy_emergency(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE, data: str,
+) -> None:
+    """Backward compat for legacy emergency:pause / emergency:pause_close / emergency:lock."""
+    q = update.callback_query
+    sub = data.split(":", 1)[-1]
+
+    if sub in ("pause", "pause_close", "lock"):
+        text = emergency_confirm_text(sub)
+        # Use legacy callback data so legacy tests and any existing keyboards keep working
+        legacy_kb = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ Confirm", callback_data=f"emergency:confirm:{sub}"),
+                InlineKeyboardButton("← Cancel",  callback_data="emergency:cancel"),
+            ],
+        ])
+        if q is not None and q.message is not None:
+            await _safe_edit(q, text, parse_mode=ParseMode.HTML, reply_markup=legacy_kb)
+    elif sub.startswith("confirm:"):
+        action = sub[len("confirm:"):]
+        await _execute_action(update, ctx, action)
+    elif sub in ("back", "cancel"):
+        # Legacy callers expect emergency:pause / emergency:back in the returned menu
+        legacy_menu_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("⏸ Pause Auto-Trade",    callback_data="emergency:pause")],
+            [InlineKeyboardButton("⏸🛑 Pause + Close All", callback_data="emergency:pause_close")],
+            [InlineKeyboardButton("🔒 Lock Account",        callback_data="emergency:lock")],
+            [InlineKeyboardButton("← Back",                 callback_data="emergency:back")],
+        ])
+        if q is not None and q.message is not None:
+            await _safe_edit(
+                q, EMERGENCY_TEXT,
+                parse_mode=ParseMode.HTML, reply_markup=legacy_menu_kb,
+            )
 
 
 async def mark_force_close_intent_for_position(
     position_id: UUID | str,
     user_id: UUID | str,
 ) -> int:
-    """Set ``force_close_intent = TRUE`` on a single open position.
+    """Set force_close_intent=TRUE on a single open position owned by user_id.
 
-    Returns 1 if newly flagged, 0 if the row was already flagged, missing,
-    closed, or owned by a different user. The exit watcher consumes the
-    flag on its next tick — same priority chain as the pause+close-all path.
+    Returns 1 if newly flagged, 0 if already flagged, missing, closed, or
+    owned by a different user. Imported by positions.py for per-position
+    force-close button. Same priority chain as the pause+close-all path.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -103,89 +291,3 @@ async def mark_force_close_intent_for_position(
             payload={"position_id": str(position_id)},
         )
     return flipped
-
-
-async def emergency_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message is None:
-        return
-    await update.message.reply_text(
-        _EMERGENCY_INTRO,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=emergency_menu(),
-    )
-
-
-async def emergency_callback(update: Update,
-                             ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    q = update.callback_query
-    if q is None or update.effective_user is None:
-        return
-    await q.answer()
-    sub = (q.data or "").split(":", 1)[-1]
-
-    # Step 1 — show confirmation dialog
-    if sub in ("pause", "pause_close", "lock"):
-        await q.edit_message_text(
-            _CONFIRM_TEXT[sub],
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=emergency_confirm(sub),
-        )
-        return
-
-    # Back / cancel — return to intro menu
-    if sub in ("cancel", "back"):
-        await q.edit_message_text(
-            _EMERGENCY_INTRO,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=emergency_menu(),
-        )
-        return
-
-    # Step 2 — confirmed; execute action
-    if sub.startswith("confirm:"):
-        action = sub.split(":", 1)[-1]
-        user = await upsert_user(
-            update.effective_user.id, update.effective_user.username,
-        )
-
-        if action == "pause":
-            await set_paused(user["id"], True)
-            await audit.write(
-                actor_role="user", action="self_pause", user_id=user["id"],
-            )
-            await q.edit_message_text(
-                _FEEDBACK_TEXT["pause"],
-                reply_markup=emergency_feedback(),
-            )
-
-        elif action == "pause_close":
-            await set_paused(user["id"], True)
-            marked = await position_registry.mark_force_close_intent_for_user(
-                user["id"],
-            )
-            await audit.write(
-                actor_role="user", action="self_pause_close",
-                user_id=user["id"],
-                payload={"marked_force_close_intent": marked},
-            )
-            try:
-                from ...scheduler import check_exits
-                await check_exits()
-            except Exception as exc:
-                logger.error("emergency inline check_exits failed: %s", exc)
-            await q.edit_message_text(
-                f"🛑 Paused + flagged {marked} position(s) for force-close.\n"
-                "Exit watcher just ran — see your dashboard for results.",
-                reply_markup=emergency_feedback(),
-            )
-
-        elif action == "lock":
-            await set_paused(user["id"], True)
-            await set_locked(user["id"], True)
-            await audit.write(
-                actor_role="user", action="self_lock_account", user_id=user["id"],
-            )
-            await q.edit_message_text(
-                _FEEDBACK_TEXT["lock"],
-                reply_markup=emergency_feedback(),
-            )

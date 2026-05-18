@@ -44,12 +44,12 @@ def test_format_summary_positive_amounts():
         exposure_pct=Decimal("23.4"),
         mode="LIVE",
     )
-    assert "Realized P&L  : `+$12.34`" in out
-    assert "Unrealized P&L: `+$4.50`" in out
-    assert "Fees paid     : `$0.75`" in out
-    assert "Open positions: `2`" in out
-    assert "Exposure      : `23.4%`" in out
-    assert "Mode          : `LIVE`" in out
+    assert "Realized P&amp;L  : <code>+$12.34</code>" in out
+    assert "Unrealized P&amp;L: <code>+$4.50</code>" in out
+    assert "Fees paid     : <code>$0.75</code>" in out
+    assert "Open positions: <code>2</code>" in out
+    assert "Exposure      : <code>23.4%</code>" in out
+    assert "Mode          : <code>LIVE</code>" in out
     assert "2026-05-05" in out
 
 
@@ -68,8 +68,8 @@ def test_format_summary_negative_amounts():
         closed_today=1,
         losses_today=1,
     )
-    assert "`-$7.10`" in out
-    assert "`-$2.00`" in out
+    assert "<code>-$7.10</code>" in out
+    assert "<code>-$2.00</code>" in out
 
 
 def test_format_summary_zero_amounts_when_activity_present():
@@ -85,7 +85,7 @@ def test_format_summary_zero_amounts_when_activity_present():
         exposure_pct=Decimal("0"),
         mode="PAPER",
     )
-    assert "`+$0.00`" in out
+    assert "<code>+$0.00</code>" in out
     assert "No paper trades today" not in out
 
 
@@ -229,7 +229,7 @@ def test_build_summary_for_user_assembles_lines():
              "current_price": Decimal("0.6")},
             # NO position. Entry/current are side-specific (NO price) —
             # registry.update_current_price persists the NO mark for NO
-            # rows. Bought NO at 0.4, NO market dropped to 0.3 → loss.
+            # rows. Bought NO at 0.40, NO market dropped to 0.3 → loss.
             # ret = (0.3 - 0.4) / 0.4 = -0.25 → -$2.50
             {"side": "no", "size_usdc": Decimal("10"),
              "entry_price": Decimal("0.4"),
@@ -240,8 +240,8 @@ def test_build_summary_for_user_assembles_lines():
         out = asyncio.run(dp.build_summary_for_user(USER_A, "2026-05-05"))
     assert "+$10.00" in out  # realized
     assert "$0.50" in out  # fees (abs)
-    assert "Open positions: `2`" in out
-    assert "Exposure      : `30.0%`" in out
+    assert "Open positions: <code>2</code>" in out
+    assert "Exposure      : <code>30.0%</code>" in out
     assert "PAPER" in out
     # Unrealized = $4.00 (YES gain) + (-$2.50) (NO loss) = +$1.50
     assert "+$1.50" in out
@@ -270,7 +270,7 @@ def test_no_side_unrealized_gain_when_no_price_rises():
     with patch.object(dp, "get_pool", return_value=_Pool(conn)):
         out = asyncio.run(dp.build_summary_for_user(USER_A, "2026-05-05"))
     # Expected unrealized = (0.60 - 0.40) / 0.40 * 40 = +$20.00
-    assert "Unrealized P&L: `+$20.00`" in out, out
+    assert "Unrealized P&amp;L: <code>+$20.00</code>" in out, out
 
 
 def test_realized_pnl_query_targets_positions_pnl_usdc_not_ledger():
@@ -326,8 +326,8 @@ def test_build_summary_handles_missing_balance_zero_exposure():
     )
     with patch.object(dp, "get_pool", return_value=_Pool(conn)):
         out = asyncio.run(dp.build_summary_for_user(USER_A, "2026-05-05"))
-    assert "Exposure      : `0.0%`" in out
-    assert "Mode          : `LIVE`" in out
+    assert "Exposure      : <code>0.0%</code>" in out
+    assert "Mode          : <code>LIVE</code>" in out
 
 
 # ---------- run_once batch behaviour ----------------------------------------
@@ -440,6 +440,8 @@ def test_scheduler_registers_daily_pnl_summary_job():
         ORDER_POLL_INTERVAL_SECONDS = 30
         WS_WATCHDOG_INTERVAL_SECONDS = 60
         COPY_TRADE_MONITOR_INTERVAL = 60
+        MARKET_SIGNAL_SCAN_INTERVAL = 60
+        DAILY_REPORT_HOUR = 23
 
     with patch.object(scheduler, "get_settings", return_value=_SettingsStub()):
         sched = scheduler.setup_scheduler()
@@ -470,9 +472,9 @@ def test_format_summary_no_trade_state_renders_compact_line():
         losses_today=0,
     )
     assert "No paper trades today" in out
-    assert "Mode: `PAPER`" in out
+    assert "Mode: <code>PAPER</code>" in out
     # Full-format rows must NOT leak into the compact form.
-    assert "Realized P&L" not in out
+    assert "Realized P&amp;L" not in out
     assert "Exposure" not in out
 
 
@@ -489,9 +491,9 @@ def test_format_summary_no_trade_state_skipped_when_position_open():
         opened_today=0,
         closed_today=0,
     )
-    assert "Realized P&L" in out
-    assert "Trades opened : `0`" in out
-    assert "Trades closed : `0` (W:0 L:0)" in out
+    assert "Realized P&amp;L" in out
+    assert "Trades opened : <code>0</code>" in out
+    assert "Trades closed : <code>0</code> (W:0 L:0)" in out
     assert "No paper trades today" not in out
 
 
@@ -510,11 +512,11 @@ def test_format_summary_includes_trade_counts_with_wl_breakdown():
         wins_today=2,
         losses_today=1,
     )
-    assert "Trades opened : `4`" in out
-    assert "Trades closed : `3` (W:2 L:1)" in out
+    assert "Trades opened : <code>4</code>" in out
+    assert "Trades closed : <code>3</code> (W:2 L:1)" in out
     # Existing R12 lines remain.
-    assert "Realized P&L  : `+$8.00`" in out
-    assert "Open positions: `2`" in out
+    assert "Realized P&amp;L  : <code>+$8.00</code>" in out
+    assert "Open positions: <code>2</code>" in out
 
 
 def test_build_summary_paper_counts_aggregated_via_counts_row():
@@ -542,8 +544,8 @@ def test_build_summary_paper_counts_aggregated_via_counts_row():
     )
     with patch.object(dp, "get_pool", return_value=_Pool(conn)):
         out = asyncio.run(dp.build_summary_for_user(USER_A, "2026-05-05"))
-    assert "Trades opened : `3`" in out
-    assert "Trades closed : `2` (W:1 L:1)" in out
+    assert "Trades opened : <code>3</code>" in out
+    assert "Trades closed : <code>2</code> (W:1 L:1)" in out
 
 
 def test_build_summary_no_trade_state_on_empty_paper_history():
@@ -562,7 +564,7 @@ def test_build_summary_no_trade_state_on_empty_paper_history():
     with patch.object(dp, "get_pool", return_value=_Pool(conn)):
         out = asyncio.run(dp.build_summary_for_user(USER_A, "2026-05-05"))
     assert "No paper trades today" in out
-    assert "Realized P&L" not in out
+    assert "Realized P&amp;L" not in out
 
 
 def test_build_summary_counts_query_filters_paper_mode():
@@ -615,6 +617,8 @@ def test_scheduler_registers_run_job_as_daily_callable():
         ORDER_POLL_INTERVAL_SECONDS = 30
         WS_WATCHDOG_INTERVAL_SECONDS = 60
         COPY_TRADE_MONITOR_INTERVAL = 60
+        MARKET_SIGNAL_SCAN_INTERVAL = 60
+        DAILY_REPORT_HOUR = 23
 
     with patch.object(scheduler, "get_settings", return_value=_SettingsStub()):
         sched = scheduler.setup_scheduler()
@@ -639,7 +643,7 @@ def test_format_summary_no_trade_branch_skipped_when_realized_nonzero():
         mode="LIVE",
         opened_today=0, closed_today=0,
     )
-    assert "Realized P&L  : `+$5.00`" in out
+    assert "Realized P&amp;L  : <code>+$5.00</code>" in out
     assert "No paper trades today" not in out
 
 
@@ -655,7 +659,7 @@ def test_format_summary_no_trade_branch_skipped_when_fees_nonzero():
         exposure_pct=Decimal("0"),
         mode="LIVE",
     )
-    assert "Fees paid     : `$0.25`" in out
+    assert "Fees paid     : <code>$0.25</code>" in out
     assert "No paper trades today" not in out
 
 

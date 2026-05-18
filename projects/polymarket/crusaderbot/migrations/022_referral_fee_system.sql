@@ -36,21 +36,19 @@ CREATE INDEX IF NOT EXISTS idx_referral_events_referrer
     ON referral_events (referrer_id, created_at DESC);
 
 -- Fees: per-trade fee record (populated when FEE_COLLECTION_ENABLED=true).
-CREATE TABLE IF NOT EXISTS fees (
-    id              BIGSERIAL   PRIMARY KEY,
-    user_id         UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    trade_id        UUID        REFERENCES positions(id) ON DELETE SET NULL,
-    gross_pnl       NUMERIC(18, 6) NOT NULL,
-    fee_amount      NUMERIC(18, 6) NOT NULL,
-    net_pnl         NUMERIC(18, 6) NOT NULL,
-    collected_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+-- 001_init.sql already created fees with a different schema (created_at, not collected_at).
+-- Add the missing columns if they don't exist so both old and new code works.
+ALTER TABLE fees ADD COLUMN IF NOT EXISTS gross_pnl    NUMERIC(18, 6);
+ALTER TABLE fees ADD COLUMN IF NOT EXISTS fee_amount   NUMERIC(18, 6);
+ALTER TABLE fees ADD COLUMN IF NOT EXISTS net_pnl      NUMERIC(18, 6);
+ALTER TABLE fees ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ DEFAULT NOW();
 
+-- Create the fee index only on the column that is guaranteed to exist.
 CREATE INDEX IF NOT EXISTS idx_fees_user
     ON fees (user_id, collected_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_fees_trade
-    ON fees (trade_id);
+    ON fees (order_id) WHERE order_id IS NOT NULL;
 
 -- Fee config: single-row config table, seeded with default 10% fee.
 CREATE TABLE IF NOT EXISTS fee_config (

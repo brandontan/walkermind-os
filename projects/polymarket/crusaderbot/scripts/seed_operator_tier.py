@@ -1,10 +1,10 @@
-"""Tier 2 operator seeder for CrusaderBot.
+"""Admin/access seeder for CrusaderBot.
 
 Reads ``ADMIN_USER_IDS`` from the environment (comma-separated Telegram
-user ids) and ensures each id has a row in ``users`` with
-``access_tier >= 2``. Tier 2 is the "Community / operator" gate that
-unlocks the operator-side surfaces of the bot (``/dashboard``,
-``/positions``, ``/setup``).
+user ids) and ensures each id has a row in ``users`` with a sufficient
+``access_tier``. In the two-role model every user already has full paper
+access; this seeder guarantees designated ids are provisioned (and is the
+mechanism for bootstrapping admin/funded ids on a fresh deploy).
 
 The script is idempotent: re-running it on a database that already has
 the operators seeded is a no-op. Existing rows have ``access_tier``

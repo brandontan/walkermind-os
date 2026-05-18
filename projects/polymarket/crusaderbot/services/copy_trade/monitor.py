@@ -41,11 +41,13 @@ from uuid import UUID
 
 import structlog
 
+from ...core import event_bus
 from ...database import get_pool
 from ...domain.copy_trade.models import CopyTradeTask
 from ...domain.copy_trade.repository import list_active_tasks
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
 from ..trade_engine import TradeEngine, TradeSignal
+from ..trade_notifications import TradeNotifier
 from .scaler import MIN_TRADE_SIZE_USDC, mirror_size_direct, scale_size
 from .wallet_watcher import WalletWatcherUnavailable, fetch_recent_wallet_trades
 
@@ -54,8 +56,9 @@ logger = structlog.get_logger(__name__)
 _STRATEGY_TYPE = "copy_trade"
 # How many recent leader trades to fetch per wallet per tick
 _LEADER_FETCH_LIMIT = 20
-# Module-level TradeEngine singleton — stateless; safe to share across ticks
+# Module-level singletons — stateless; safe to share across ticks
 _engine: TradeEngine = TradeEngine()
+_notifier: TradeNotifier = TradeNotifier()
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +208,16 @@ async def _process_one(
             raw_side=raw_side,
         )
         return
+
+    # --- copy_direction filter (migration 035) ---
+    if task.copy_direction == "buys_only" and raw_side in ("sell", "no"):
+        log.info(
+            "copy_trade_monitor: SKIPPED — copy_direction=buys_only, leader SELL",
+            reason="copy_direction_filter",
+            raw_side=raw_side,
+        )
+        return
+
     outcome = (leader_trade.get("outcome") or "").strip().lower() or None
     side = _resolve_side(raw_side, task.reverse_copy, outcome)
 
@@ -232,9 +245,44 @@ async def _process_one(
         )
         return
 
+    # --- allow_topups filter (migration 035) ---
+    if not task.allow_topups:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            already_held = await conn.fetchval(
+                "SELECT 1 FROM positions WHERE user_id=$1 AND market_id=$2 AND status='open' LIMIT 1",
+                task.user_id, market_id,
+            )
+        if already_held:
+            log.info(
+                "copy_trade_monitor: SKIPPED — allow_topups=false, open position exists",
+                reason="allow_topups_filter",
+                market_id=market_id,
+            )
+            return
+
     market_question: str | None = leader_trade.get("market_question") or leader_trade.get("title")
     price = _extract_price(leader_trade, side)
     idempotency_key = _make_idempotency_key(task.id, leader_trade_id)
+
+    # --- execution_mode filter (migration 035) ---
+    if task.execution_mode == "manual":
+        log.info(
+            "copy_trade_monitor: PENDING — execution_mode=manual, skipping auto-exec",
+            reason="execution_mode_manual",
+            market_id=market_id,
+            side=side,
+        )
+        await event_bus.emit(
+            "copy_trade.pending_confirm",
+            telegram_user_id=user_ctx["telegram_user_id"],
+            task_id=str(task.id),
+            wallet_address=wallet_address,
+            market_id=market_id,
+            side=side,
+            proposed_size_usdc=str(round(copy_size, 2)),
+        )
+        return
 
     signal = TradeSignal(
         user_id=task.user_id,
@@ -291,6 +339,37 @@ async def _process_one(
             # Record spend and persist idempotency row
             actual_size = float(result.final_size_usdc) if result.final_size_usdc else copy_size
             await _record_spend(task.user_id, task.id, actual_size)
+            # Persist copy_trade_events row + emit event. Failures here are
+            # non-fatal: the paper fill already landed atomically; log and
+            # continue so _mark_processed still runs on this tick.
+            try:
+                await _record_copy_trade_event(
+                    user_id=task.user_id,
+                    position_id=result.position_id,
+                    target_wallet=wallet_address,
+                    market_id=market_id,
+                    size_usdc=actual_size,
+                )
+                # Emit OUTSIDE the transaction — fire-and-forget via event bus.
+                # Track C notification handlers subscribe to "copy_trade.executed".
+                await event_bus.emit(
+                    "copy_trade.executed",
+                    telegram_user_id=user_ctx["telegram_user_id"],
+                    market_id=market_id,
+                    market_question=market_question,
+                    target_wallet=wallet_address,
+                    side=side,
+                    size_usdc=actual_size,
+                    price=price,
+                    position_id=str(result.position_id) if result.position_id else None,
+                    copy_task_id=str(task.id),
+                )
+            except Exception:
+                log.exception(
+                    "copy_trade_monitor: post-fill audit/emit failed (non-fatal)",
+                    position_id=str(result.position_id) if result.position_id else None,
+                    market_id=market_id,
+                )
         await _mark_processed(task.user_id, task.id, leader_trade_id)
     else:
         log.info(
@@ -368,6 +447,27 @@ async def _record_spend(user_id: UUID, task_id: UUID, spend_usdc: float) -> None
             DO UPDATE SET spend_usdc = copy_trade_daily_spend.spend_usdc + EXCLUDED.spend_usdc
             """,
             user_id, task_id, today, spend_usdc,
+        )
+
+
+async def _record_copy_trade_event(
+    *,
+    user_id: UUID,
+    position_id: UUID | None,
+    target_wallet: str,
+    market_id: str,
+    size_usdc: float,
+) -> None:
+    """Insert a copy_trade_events row for the mirrored position."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO copy_trade_events
+                (user_id, position_id, target_wallet, market_id, size_usdc)
+            VALUES ($1, $2, $3, $4, $5)
+            """,
+            user_id, position_id, target_wallet, market_id, size_usdc,
         )
 
 
