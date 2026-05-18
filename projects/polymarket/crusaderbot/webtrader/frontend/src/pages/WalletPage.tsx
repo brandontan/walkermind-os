@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AddressCard } from "../components/AddressCard";
-import { AdvancedOnly } from "../components/AdvancedGate";
+import { CollapsibleSection } from "../components/CollapsibleSection";
+import { DepositModal } from "../components/DepositModal";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { EmptyState } from "../components/EmptyState";
 import { PositionCard } from "../components/PositionCard";
 import { TopBar } from "../components/TopBar";
 import { WalletCard } from "../components/WalletCard";
+import { WithdrawModal } from "../components/WithdrawModal";
 import { makeApi, type LedgerEntry, type WalletInfo } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
@@ -14,16 +16,37 @@ export function WalletPage() {
   const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
   const [info, setInfo] = useState<WalletInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showDeposit, setShowDeposit] = useState(false);
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const [ledgerAll, setLedgerAll] = useState<LedgerEntry[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      setInfo(await api.getWallet());
+      const w = await api.getWallet();
+      setInfo(w);
+      setLedgerAll(w.ledger_recent);
+      setHasMore(w.ledger_recent.length >= 20);
     } catch (e) {
       setError(String(e));
     }
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const loadMore = useCallback(async () => {
+    setLoadingMore(true);
+    try {
+      const page = await api.getLedger(ledgerAll.length);
+      setLedgerAll((prev) => [...prev, ...page.entries]);
+      setHasMore(page.has_more);
+    } catch {
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [api, ledgerAll.length]);
 
   if (error) return (
     <>
@@ -38,20 +61,16 @@ export function WalletPage() {
     </>
   );
 
+  const paperMode = info.paper_mode !== false;
   const balanceStr = info.balance_usdc.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 
-  // Essential view shows only the most recent entry; advanced shows full ledger.
-  const essentialLedger = info.ledger_recent.slice(0, 1);
-  const advancedLedger = info.ledger_recent.slice(1);
-
   return (
     <>
       <TopBar />
       <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
-        {/* Desktop page header — hidden on mobile */}
         <DesktopPageHeader
           title={<>WAL<span className="text-gold">LET</span></>}
           subtitle="BALANCE · DEPOSITS · LEDGER"
@@ -59,10 +78,40 @@ export function WalletPage() {
         <div className="md:grid md:grid-cols-2 md:gap-4">
           <div>
             <WalletCard
-              label="Paper Balance"
+              label={paperMode ? "Paper Balance" : "Wallet Balance"}
               balance={balanceStr}
-              mode="Paper Mode · No real funds at risk"
+              mode={paperMode ? "Paper Mode · No real funds at risk" : "Live Mode · Polygon USDC"}
             />
+
+            {/* Deposit / Withdraw action row */}
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => setShowDeposit(true)}
+                className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors"
+                style={{
+                  background: "rgba(0,255,156,0.08)",
+                  border: "1px solid rgba(0,255,156,0.3)",
+                  color: "#00FF9C",
+                }}
+              >
+                ↓ Deposit
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowWithdraw(true)}
+                className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors"
+                style={{
+                  background: "rgba(245,200,66,0.06)",
+                  border: `1px solid rgba(245,200,66,${paperMode ? "0.15" : "0.3"})`,
+                  color: `rgba(245,200,66,${paperMode ? "0.45" : "1"})`,
+                }}
+                title={paperMode ? "Withdraw unavailable in Paper Mode" : undefined}
+              >
+                ↑ Withdraw
+              </button>
+            </div>
+
             <AddressCard
               label="Deposit Address · Polygon USDC"
               address={info.deposit_address}
@@ -70,34 +119,52 @@ export function WalletPage() {
           </div>
 
           <div>
-            <div className="flex items-center justify-between mt-3.5 mb-2 mx-0.5 md:mt-0">
-              <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
-                <span className="w-3 h-px bg-gold" aria-hidden />
-                Recent Activity
-              </div>
-            </div>
-
-            {info.ledger_recent.length === 0 ? (
-              <EmptyState
-                icon="📥"
-                title="No Activity Yet"
-                text="Credits and debits will appear here once trading starts."
-              />
-            ) : (
-              <>
-                {essentialLedger.map((entry, i) => (
-                  <LedgerCard key={i} entry={entry} />
-                ))}
-                <AdvancedOnly>
-                  {advancedLedger.map((entry, i) => (
-                    <LedgerCard key={`adv-${i}`} entry={entry} />
+            <CollapsibleSection id="wallet_recent_activity" label="Recent Activity">
+              {ledgerAll.length === 0 ? (
+                <EmptyState
+                  icon="📥"
+                  title="No Activity Yet"
+                  text="Credits and debits will appear here once trading starts."
+                />
+              ) : (
+                <>
+                  {ledgerAll.map((entry, i) => (
+                    <LedgerCard key={`${entry.created_at}-${i}`} entry={entry} />
                   ))}
-                </AdvancedOnly>
-              </>
-            )}
+                  {hasMore && (
+                    <button
+                      type="button"
+                      onClick={() => void loadMore()}
+                      disabled={loadingMore}
+                      className="w-full mt-2 py-2 font-hud text-[9px] font-bold tracking-[1.5px] uppercase text-ink-3 border border-border-1 clip-btn transition-colors hover:border-border-2 disabled:opacity-50"
+                      style={{ background: "rgba(255,255,255,0.02)" }}
+                    >
+                      {loadingMore ? "Loading…" : "Load more"}
+                    </button>
+                  )}
+                </>
+              )}
+            </CollapsibleSection>
           </div>
         </div>
       </div>
+
+      {showDeposit && (
+        <DepositModal
+          address={info.deposit_address}
+          paperMode={paperMode}
+          balance={info.balance_usdc}
+          onClose={() => setShowDeposit(false)}
+        />
+      )}
+
+      {showWithdraw && (
+        <WithdrawModal
+          paperMode={paperMode}
+          balance={info.balance_usdc}
+          onClose={() => setShowWithdraw(false)}
+        />
+      )}
     </>
   );
 }
@@ -109,12 +176,13 @@ function LedgerCard({ entry }: { entry: LedgerEntry }) {
   return (
     <PositionCard
       market={entry.note ?? entry.type}
-      positionValue={Math.abs(entry.amount_usdc) < 0.005 ? { value: "$0.00", tone: "zero" } : { value: `${sign}$${Math.abs(entry.amount_usdc).toFixed(2)}`, tone }}
+      positionValue={
+        Math.abs(entry.amount_usdc) < 0.005
+          ? { value: "$0.00", tone: "zero" }
+          : { value: `${sign}$${Math.abs(entry.amount_usdc).toFixed(2)}`, tone }
+      }
       side={isCredit ? "credit" : "debit"}
-      meta={[
-        <>USDC</>,
-        <>{formatDate(entry.created_at)}</>,
-      ]}
+      meta={[<>USDC</>, <>{formatDate(entry.created_at)}</>]}
     />
   );
 }

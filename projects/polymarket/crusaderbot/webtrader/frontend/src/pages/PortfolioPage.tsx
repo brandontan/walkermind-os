@@ -8,11 +8,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { CollapsibleSection } from "../components/CollapsibleSection";
+import { DepositModal } from "../components/DepositModal";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { EmptyState } from "../components/EmptyState";
 import { FilterTabs, type FilterTab } from "../components/FilterTabs";
 import { PositionCard } from "../components/PositionCard";
 import { TopBar } from "../components/TopBar";
+import { WithdrawModal } from "../components/WithdrawModal";
 import {
   makeApi,
   type ChartPoint,
@@ -54,6 +57,12 @@ export function PortfolioPage() {
   const [cashOutTarget, setCashOutTarget] = useState<PositionItem | null>(null);
   const [cashOutLoading, setCashOutLoading] = useState(false);
   const [cashOutError, setCashOutError] = useState<string | null>(null);
+
+  // Deposit / Withdraw modal state
+  const [showDeposit, setShowDeposit] = useState(false);
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const [depositAddress, setDepositAddress] = useState<string | null>(null);
+  const [isPaperMode, setIsPaperMode] = useState(true);
 
   const loadPositions = useCallback(async () => {
     try {
@@ -160,6 +169,46 @@ export function PortfolioPage() {
         />
         {summary && <PortfolioHeader summary={summary} />}
 
+        {/* Deposit / Withdraw on Portfolio money surface */}
+        <div className="flex gap-2 mb-3">
+          <button
+            type="button"
+            onClick={async () => {
+              if (depositAddress === null) {
+                try {
+                  const w = await api.getWallet();
+                  setDepositAddress(w.deposit_address);
+                  setIsPaperMode(w.paper_mode !== false);
+                } catch {
+                  setDepositAddress("");
+                }
+              }
+              setShowDeposit(true);
+            }}
+            className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2 transition-colors"
+            style={{
+              background: "rgba(0,255,156,0.08)",
+              border: "1px solid rgba(0,255,156,0.3)",
+              color: "#00FF9C",
+            }}
+          >
+            ↓ Deposit
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowWithdraw(true)}
+            className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2 transition-colors"
+            style={{
+              background: "rgba(245,200,66,0.06)",
+              border: "1px solid rgba(245,200,66,0.2)",
+              color: "rgba(245,200,66,0.5)",
+            }}
+            title={isPaperMode ? "Withdraw unavailable in Paper Mode" : undefined}
+          >
+            ↑ Withdraw
+          </button>
+        </div>
+
         <PnlChart
           data={chartData}
           period={chartPeriod}
@@ -170,67 +219,95 @@ export function PortfolioPage() {
 
         <FilterTabs tabs={tabs} active={tab} onChange={setTab} />
 
-        {tab === "open" &&
-          (open.length === 0 ? (
-            <EmptyState
-              icon="📭"
-              title="No Open Positions"
-              text="When auto-trade opens a position, it will appear here in real-time."
-            />
-          ) : (
-            <div className="md:grid md:grid-cols-2 md:gap-3">
-              {open.map((p) => (
-                <PositionRow
-                  key={p.id}
-                  p={p}
-                  onCashOut={() => { setCashOutTarget(p); setCashOutError(null); }}
-                />
-              ))}
-            </div>
-          ))}
+        {tab === "open" && (
+          <CollapsibleSection id="portfolio_open_positions" label={`Open Positions (${open.length})`}>
+            {open.length === 0 ? (
+              <EmptyState
+                icon="📭"
+                title="No Open Positions"
+                text="When auto-trade opens a position, it will appear here in real-time."
+              />
+            ) : (
+              <div className="md:grid md:grid-cols-2 md:gap-3">
+                {open.map((p) => (
+                  <PositionRow
+                    key={p.id}
+                    p={p}
+                    onCashOut={() => { setCashOutTarget(p); setCashOutError(null); }}
+                  />
+                ))}
+              </div>
+            )}
+          </CollapsibleSection>
+        )}
 
-        {tab === "closed" &&
-          (closed.length === 0 ? (
-            <EmptyState
-              icon="📦"
-              title="No Closed Trades"
-              text="Closed trades, expiries, and force-exits land here."
-            />
-          ) : (
-            <div className="md:grid md:grid-cols-2 md:gap-3">
-              {closed.map((p) => <PositionRow key={p.id} p={p} />)}
-            </div>
-          ))}
+        {tab === "closed" && (
+          <CollapsibleSection id="portfolio_closed_positions" label={`Closed Trades (${closed.length})`}>
+            {closed.length === 0 ? (
+              <EmptyState
+                icon="📦"
+                title="No Closed Trades"
+                text="Closed trades, expiries, and force-exits land here."
+              />
+            ) : (
+              <div className="md:grid md:grid-cols-2 md:gap-3">
+                {closed.map((p) => <PositionRow key={p.id} p={p} />)}
+              </div>
+            )}
+          </CollapsibleSection>
+        )}
 
-        {tab === "all" &&
-          (allPositions.length === 0 ? (
-            <EmptyState
-              icon="📭"
-              title="No Positions"
-              text="Your trades will appear here once auto-trade opens a position."
-            />
-          ) : (
-            <div className="md:grid md:grid-cols-2 md:gap-3">
-              {allPositions.map((p) => <PositionRow key={p.id} p={p} />)}
-            </div>
-          ))}
+        {tab === "all" && (
+          <CollapsibleSection id="portfolio_all_positions" label={`All Positions (${allPositions.length})`}>
+            {allPositions.length === 0 ? (
+              <EmptyState
+                icon="📭"
+                title="No Positions"
+                text="Your trades will appear here once auto-trade opens a position."
+              />
+            ) : (
+              <div className="md:grid md:grid-cols-2 md:gap-3">
+                {allPositions.map((p) => <PositionRow key={p.id} p={p} />)}
+              </div>
+            )}
+          </CollapsibleSection>
+        )}
 
         {tab === "orders" && (
-          orders.length === 0 ? (
-            <EmptyState
-              icon="🧾"
-              title="No Orders"
-              text="Limit orders from auto-trading will appear here."
-            />
-          ) : (
-            <div className="space-y-2">
-              {orders.map((o) => <OrderRow key={o.id} o={o} />)}
-            </div>
-          )
+          <CollapsibleSection id="portfolio_orders" label={`Orders (${orders.length})`}>
+            {orders.length === 0 ? (
+              <EmptyState
+                icon="🧾"
+                title="No Orders"
+                text="Limit orders from auto-trading will appear here."
+              />
+            ) : (
+              <div className="space-y-2">
+                {orders.map((o) => <OrderRow key={o.id} o={o} />)}
+              </div>
+            )}
+          </CollapsibleSection>
         )}
 
         {tab === "analytics" && <AnalyticsPanel api={api} />}
       </div>
+
+      {showDeposit && (
+        <DepositModal
+          address={depositAddress ?? ""}
+          paperMode={isPaperMode}
+          balance={summary?.available_usdc}
+          onClose={() => setShowDeposit(false)}
+        />
+      )}
+
+      {showWithdraw && (
+        <WithdrawModal
+          paperMode={isPaperMode}
+          balance={summary?.available_usdc ?? 0}
+          onClose={() => setShowWithdraw(false)}
+        />
+      )}
 
       {/* Cash Out confirm modal */}
       {cashOutTarget && (
