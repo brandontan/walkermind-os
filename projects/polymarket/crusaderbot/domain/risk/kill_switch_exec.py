@@ -23,7 +23,7 @@ async def _set_system_flag(key: str, value: str) -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO system_flags (key, value, updated_at) VALUES ($1, $2, NOW()) "
+            "INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, NOW()) "
             "ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()",
             key, value,
         )
@@ -80,7 +80,7 @@ async def execute_kill_switch(reason: str, triggered_by: str) -> None:
     except Exception as exc:
         logger.error("kill_switch_exec: pending order cancel failed: %s", exc)
 
-    # 3. Set system_flags record (Track D flag table)
+    # 3. Set system_settings record (kill_switch_active key)
     try:
         await _set_system_flag("kill_switch_active", "true")
     except Exception as exc:

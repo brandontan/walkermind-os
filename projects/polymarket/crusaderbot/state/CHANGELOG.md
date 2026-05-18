@@ -27,3 +27,4 @@
 2026-05-17 18:30 | WARP/CRUSADERBOT-PRICE-FETCH-FIX | get_live_market_price 422 fix: Gamma ?conditionId= query param + CLOB /price primary source + Gamma outcomePrices fallback; STANDARD, NARROW INTEGRATION
 2026-05-17 18:00 | WARP/CRUSADERBOT-SSE-AUTH-FIX | SSE auth query-param confirmed wired; useSSE returns { connected }; SSEStatusContext + TopBar green/red dot; MINOR, NARROW INTEGRATION
 2026-05-17 17:30 | WARP/CRUSADERBOT-WEBTRADER-WS | SSE real-time push: polling removed from DashboardPage + PortfolioPage; event_bus bridge wired to SSE broadcaster (position.opened/closed/scanner.tick); four new SSE event types; scanner.tick emit added to market_signal_scanner; STANDARD, NARROW INTEGRATION
+2026-05-19 09:01 | claude/fix-warpforge-kill-switch-4A9Gy | WARP-17: fix kill_switch_exec.py _set_system_flag() system_flags → system_settings; MAJOR, FULL RUNTIME INTEGRATION

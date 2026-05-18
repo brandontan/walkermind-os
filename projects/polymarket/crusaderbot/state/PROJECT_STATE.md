@@ -1,7 +1,8 @@
-Last Updated : 2026-05-19 09:00
+Last Updated : 2026-05-19 09:01
 Status       : Multiple PRs open. WARP/CRUSADERBOT-SIGNAL-FRESHNESS-GATE-CLEAN awaiting WARP🔹CMD review. WARP/webtrader-wallet-qr-activity-pagination (wallet QR, deposit/withdraw, collapsibles, pagination) open. WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE and other lanes queued.
 
 [COMPLETED]
+- WARP-17 claude/fix-warpforge-kill-switch-4A9Gy: fixed kill_switch_exec.py _set_system_flag() to target system_settings (was system_flags); MAJOR, FULL RUNTIME INTEGRATION. SENTINEL required before merge.
 - WARP/crusaderbot-realtime-pipeline-runtime MERGED PR #1141 (2026-05-18 23:55): pipeline MONITORING events (scan_started/strategy_scan_done/scan_completed/risk_gate_evaluated), /status endpoint, 14/14 hermetic pipeline ordering tests, WebTrader TopBar dynamic trading_mode pill, Paper Mode banners, analytics trust guard, config IA reorder, mobile nav readability, leaderboard data source note; Promise.allSettled AutoTrade load decoupled from dashboard failures. SENTINEL APPROVED 89/100. MAJOR, FULL RUNTIME INTEGRATION.
 - CRU-12 WARP/CRUSADERBOT-UX-PHASE1 PR open (2026-05-17): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel. Vite build clean. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-UI-RESPONSIVE-POLISH MERGED PR #1115 (2026-05-18 02:30): 6-page responsive layout (md: breakpoint), market filter UI (9 categories + 3 dropdowns), auto redeem setting (toggle + mode), copy trade UX (empty state + helper text + stats); migration 036 (min_liquidity, max_resolution_days, min_volume_24h, auto_redeem) applied to Supabase. STANDARD, NARROW INTEGRATION.
@@ -67,6 +68,7 @@ Status       : Multiple PRs open. WARP/CRUSADERBOT-SIGNAL-FRESHNESS-GATE-CLEAN a
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for fix-warpforge-kill-switch (WARP-17: _set_system_flag system_settings fix). Source: projects/polymarket/crusaderbot/reports/forge/fix-warpforge-kill-switch.md. Tier: MAJOR.
 - WARP🔹CMD review required for WARP/webtrader-wallet-qr-activity-pagination (Deposit/Withdraw flows, QR code, collapsible sections, ledger pagination). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-wallet-qr-activity-pagination.md. Tier: STANDARD. No migration required.
 - WARP🔹CMD review required for signal-freshness-gate (step 1c: reject stale signal_publications older than 30 min). Tier: STANDARD.
 - WARP🔹CMD: apply migration 041 to Supabase production, then review+merge WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-sentry-hotfix-bundle.md. Tier: STANDARD.
