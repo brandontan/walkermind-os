@@ -44,9 +44,18 @@ const PERIOD_API: Record<Period, string> = {
 export function PortfolioPage() {
   const { user } = useAuth();
   const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
+  const CLOSED_PAGE_SIZE = 20;
+  const ORDERS_PAGE_SIZE = 20;
+
   const [open, setOpen] = useState<PositionItem[]>([]);
   const [closed, setClosed] = useState<PositionItem[]>([]);
+  const [closedOffset, setClosedOffset] = useState(0);
+  const [closedHasMore, setClosedHasMore] = useState(false);
+  const [closedLoadingMore, setClosedLoadingMore] = useState(false);
   const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [ordersOffset, setOrdersOffset] = useState(0);
+  const [ordersHasMore, setOrdersHasMore] = useState(false);
+  const [ordersLoadingMore, setOrdersLoadingMore] = useState(false);
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [chartData, setChartData] = useState<ChartPoint[]>([]);
   const [chartPeriod, setChartPeriod] = useState<Period>("7D");
@@ -69,11 +78,13 @@ export function PortfolioPage() {
     try {
       const [o, c, summ] = await Promise.all([
         api.getPositions("open"),
-        api.getPositions("closed"),
+        api.getPositions("closed", CLOSED_PAGE_SIZE, 0),
         api.getPortfolioSummary(),
       ]);
       setOpen(o);
       setClosed(c);
+      setClosedOffset(c.length);
+      setClosedHasMore(c.length >= CLOSED_PAGE_SIZE);
       setSummary(summ);
     } catch (e) {
       setError(String(e));
@@ -82,12 +93,50 @@ export function PortfolioPage() {
 
   const loadOrders = useCallback(async () => {
     try {
-      const ords = await api.getOrders(50);
+      const ords = await api.getOrders(ORDERS_PAGE_SIZE, 0);
       setOrders(ords);
+      setOrdersOffset(ords.length);
+      setOrdersHasMore(ords.length >= ORDERS_PAGE_SIZE);
     } catch {
       // non-critical — orders list stays stale
     }
   }, [api]);
+
+  const loadMoreClosed = useCallback(async () => {
+    setClosedLoadingMore(true);
+    try {
+      const page = await api.getPositions("closed", CLOSED_PAGE_SIZE, closedOffset);
+      setClosedOffset((prev) => prev + page.length);
+      setClosed((prev) => {
+        const seen = new Set(prev.map((p) => p.id));
+        const fresh = page.filter((p) => !seen.has(p.id));
+        return [...prev, ...fresh];
+      });
+      setClosedHasMore(page.length >= CLOSED_PAGE_SIZE);
+    } catch {
+      // leave closedHasMore unchanged so the button stays and user can retry
+    } finally {
+      setClosedLoadingMore(false);
+    }
+  }, [api, closedOffset]);
+
+  const loadMoreOrders = useCallback(async () => {
+    setOrdersLoadingMore(true);
+    try {
+      const page = await api.getOrders(ORDERS_PAGE_SIZE, ordersOffset);
+      setOrdersOffset((prev) => prev + page.length);
+      setOrders((prev) => {
+        const seen = new Set(prev.map((o) => o.id));
+        const fresh = page.filter((o) => !seen.has(o.id));
+        return [...prev, ...fresh];
+      });
+      setOrdersHasMore(page.length >= ORDERS_PAGE_SIZE);
+    } catch {
+      // leave ordersHasMore unchanged so the button stays and user can retry
+    } finally {
+      setOrdersLoadingMore(false);
+    }
+  }, [api, ordersOffset]);
 
   const loadChart = useCallback(
     async (period: Period) => {
@@ -268,9 +317,22 @@ export function PortfolioPage() {
                 text="Closed trades, expiries, and force-exits land here."
               />
             ) : (
-              <div className="md:grid md:grid-cols-2 md:gap-3">
-                {closed.map((p) => <PositionRow key={p.id} p={p} />)}
-              </div>
+              <>
+                <div className="md:grid md:grid-cols-2 md:gap-3">
+                  {closed.map((p) => <PositionRow key={p.id} p={p} />)}
+                </div>
+                {closedHasMore && (
+                  <button
+                    type="button"
+                    onClick={() => void loadMoreClosed()}
+                    disabled={closedLoadingMore}
+                    className="w-full mt-2 py-2 font-hud text-[9px] font-bold tracking-[1.5px] uppercase text-ink-3 border border-border-1 clip-btn transition-colors hover:border-border-2 disabled:opacity-50"
+                    style={{ background: "rgba(255,255,255,0.02)" }}
+                  >
+                    {closedLoadingMore ? "Loading…" : "Load more"}
+                  </button>
+                )}
+              </>
             )}
           </CollapsibleSection>
         )}
@@ -300,9 +362,22 @@ export function PortfolioPage() {
                 text="Limit orders from auto-trading will appear here."
               />
             ) : (
-              <div className="space-y-2">
-                {orders.map((o) => <OrderRow key={o.id} o={o} />)}
-              </div>
+              <>
+                <div className="space-y-2">
+                  {orders.map((o) => <OrderRow key={o.id} o={o} />)}
+                </div>
+                {ordersHasMore && (
+                  <button
+                    type="button"
+                    onClick={() => void loadMoreOrders()}
+                    disabled={ordersLoadingMore}
+                    className="w-full mt-2 py-2 font-hud text-[9px] font-bold tracking-[1.5px] uppercase text-ink-3 border border-border-1 clip-btn transition-colors hover:border-border-2 disabled:opacity-50"
+                    style={{ background: "rgba(255,255,255,0.02)" }}
+                  >
+                    {ordersLoadingMore ? "Loading…" : "Load more"}
+                  </button>
+                )}
+              </>
             )}
           </CollapsibleSection>
         )}

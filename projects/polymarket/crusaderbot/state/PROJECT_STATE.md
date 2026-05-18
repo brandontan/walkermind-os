@@ -1,5 +1,5 @@
-Last Updated : 2026-05-18 23:00
-Status       : Multiple PRs open. WARP/tg-ux-redesign (WARP-24: Dashboard HUD <pre> redesign, Auto Mode wizard compact picker + in-place detail view + Back/Home nav, Last Scan heartbeat) open for WARP🔹CMD review. WARP/truth-integration-mock-cleanup (WARP-21) and others awaiting WARP🔹CMD review.
+Last Updated : 2026-05-18 23:30
+Status       : Multiple PRs open. WARP/expand-webtrader-pagination (WARP-19: Load More pagination for Live Market Feed, Leaderboard, Closed Trades, Orders) open for WARP🔹CMD review. WARP/tg-ux-redesign (WARP-24) and others awaiting WARP🔹CMD review.
 
 [COMPLETED]
 - WARP-17 WARP/fix-kill-switch-db-table: fixed kill_switch_exec.py _set_system_flag() to target system_settings (was system_flags); MAJOR, FULL RUNTIME INTEGRATION. SENTINEL APPROVED 93/100.
@@ -14,6 +14,7 @@ Status       : Multiple PRs open. WARP/tg-ux-redesign (WARP-24: Dashboard HUD <p
 - crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.
 
 [IN PROGRESS]
+- WARP/expand-webtrader-pagination PR open — WARP-19: Load More pagination for Live Market Feed (DashboardPage), Leaderboard Rankings (CopyTradePage), Closed Trades (PortfolioPage), Orders (PortfolioPage). offset param added to getRecentSignals, getLeaderboard, getPositions, getOrders in api.ts. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/tg-ux-redesign PR open — WARP-24: Dashboard HUD redesigned as tactical terminal (<pre> blocks + DIV dividers + Last Scan heartbeat + 🟢/🔴 P&L indicator). Auto Mode wizard: compact picker grid → in-place detail view → Back/Home nav. Main menu 🤖 Auto Mode routes directly to preset picker. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/truth-integration-mock-cleanup PR open — WARP-21: Live Market Feed 30s poll→SSE, scanner.tick ts broadcast, Discover case-insensitive category + SSE auto-refresh, mock audit (clean). STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/webtrader-wallet-qr-activity-pagination PR open — Deposit/Withdraw flows, QR code (qrcode.react), CollapsibleSection across 5 pages, ledger Load More pagination, /wallet/ledger backend endpoint, paper_mode in WalletInfo. Vite build clean. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
@@ -55,6 +56,7 @@ Status       : Multiple PRs open. WARP/tg-ux-redesign (WARP-24: Dashboard HUD <p
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for WARP/expand-webtrader-pagination (WARP-19: Load More pagination — Live Market Feed, Leaderboard, Closed Trades, Orders). Source: projects/polymarket/crusaderbot/reports/forge/expand-webtrader-pagination.md. Tier: STANDARD. No migration required.
 - WARP🔹CMD review required for WARP/tg-ux-redesign (WARP-24: Dashboard HUD redesign + Auto Mode wizard). Source: projects/polymarket/crusaderbot/reports/forge/tg-ux-redesign.md. Tier: STANDARD. No migration required.
 - WARP🔹CMD review required for WARP/truth-integration-mock-cleanup (WARP-21: SSE feed migration, scanner heartbeat, Discover category fix). Source: projects/polymarket/crusaderbot/reports/forge/truth-integration-mock-cleanup.md. Tier: STANDARD. No migration required.
 - WARP•SENTINEL APPROVED 93/100 for WARP/fix-kill-switch-db-table (WARP-17). P1 finding: cache invalidation missing in _set_system_flag(). Source: projects/polymarket/crusaderbot/reports/sentinel/fix-kill-switch-db-table.md. Awaiting WARP🔹CMD final merge decision.
