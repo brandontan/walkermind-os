@@ -34,7 +34,13 @@ async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,
         try:
             live_engine.assert_live_guards(access_tier, trading_mode)
         except Exception as exc:
-            logger.warning("router live→paper fallback (guard fail): %s", exc)
+            # CRITICAL: live path was requested but guards are not all SET.
+            # This is a guard bypass attempt — operator must investigate.
+            logger.critical(
+                "GUARD_BYPASS_ATTEMPT: live execution blocked, falling back to paper. "
+                "reason=%s user=%s market=%s",
+                exc, user_id, market_id,
+            )
             await audit.write(actor_role="bot",
                               action="live_blocked_fallback_paper",
                               user_id=user_id,
