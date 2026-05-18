@@ -75,6 +75,12 @@ _STRATEGY_NAME = "signal_following"
 # to support feed UI history display, NOT to gate execution.
 _MAX_SIGNAL_AGE_SECONDS: int = 1800  # 30 minutes
 
+# Maximum allowed drift between a signal's target_price and the current
+# cached market price before the candidate is rejected. 25% tolerates
+# normal intra-day volatility while blocking 300–1000% stale fills.
+# No API call required — uses market data already loaded in step 2.
+_MAX_TARGET_DRIFT_PCT: float = 0.25  # 25%
+
 # ---------------------------------------------------------------------------
 # Preset → lib strategy name mapping
 # ---------------------------------------------------------------------------
@@ -534,7 +540,36 @@ async def _process_candidate(
         log.info("scan_outcome", outcome="skipped_market_not_synced")
         return
 
-    # 2b. Liquidity filter — skip markets below the user's configured threshold.
+    # 2b. Target price drift guard — compare signal's target_price against
+    #     current cached DB price for this side. If drift exceeds
+    #     _MAX_TARGET_DRIFT_PCT the market has moved too far since the
+    #     signal was published; executing would produce an unrealistic fill.
+    #     Guard only applies to feed signals (pub_uuid is not None) because
+    #     lib-strategy candidates always carry fresh prices (signal_ts=now).
+    #     Skipped silently when target_price or DB price is missing/zero.
+    if pub_uuid is not None:
+        _target = float(cand.metadata.get("target_price") or 0.0)
+        _current = float(market.get(f"{side}_price") or 0.0)
+        if _target > 0 and _current > 0:
+            _drift = abs(_current - _target) / _target
+            if _drift > _MAX_TARGET_DRIFT_PCT:
+                log.info(
+                    "scan_outcome",
+                    outcome="skipped_price_drifted",
+                    side=side,
+                    target_price=_target,
+                    current_price=_current,
+                    drift_pct=round(_drift * 100, 1),
+                    threshold_pct=round(_MAX_TARGET_DRIFT_PCT * 100, 1),
+                    message=(
+                        f"Price drifted {round(_drift * 100, 1)}% "
+                        f"(target={_target:.4f} current={_current:.4f}) "
+                        f"> {round(_MAX_TARGET_DRIFT_PCT * 100)}% threshold"
+                    ),
+                )
+                return
+
+    # 2c. Liquidity filter — skip markets below the user's configured threshold.
     min_liquidity = float(row.get("min_liquidity_threshold") or 0.0)
     if min_liquidity > 0:
         market_liquidity = float(market.get("liquidity_usdc") or 0.0)
