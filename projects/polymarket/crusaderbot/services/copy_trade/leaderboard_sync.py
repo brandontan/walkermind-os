@@ -118,16 +118,27 @@ async def sync_leaderboard(pool: Any) -> None:
             roi_pct = roi_pct / 100.0
         volume_usdc = _safe_float(r.get("total_volume_15d"))
 
-        _pre_roi, _pre_pnl, _pre_vol = roi_pct, total_pnl, volume_usdc
+        # --- schema clamps ---
+        _clamped = False
         if roi_pct is not None:
-            roi_pct = max(-9999.9999, min(9999.9999, roi_pct))
+            capped = max(-9999.9999, min(9999.9999, roi_pct))
+            if capped != roi_pct:
+                _clamped = True
+            roi_pct = capped
         if total_pnl is not None:
-            total_pnl = max(-999999999999.0, min(999999999999.0, total_pnl))
+            capped = max(-999999999999.0, min(999999999999.0, total_pnl))
+            if capped != total_pnl:
+                _clamped = True
+            total_pnl = capped
         if volume_usdc is not None:
-            volume_usdc = max(0.0, min(999999999999.0, volume_usdc))
-        if roi_pct != _pre_roi or total_pnl != _pre_pnl or volume_usdc != _pre_vol:
+            capped = max(0.0, min(999999999999.0, volume_usdc))
+            if capped != volume_usdc:
+                _clamped = True
+            volume_usdc = capped
+        if _clamped:
             log.warning(
-                "leaderboard sync: clamped extreme value wallet=%s roi_pct=%s total_pnl=%s volume_usdc=%s",
+                "leaderboard sync: clamped extreme value wallet=%s roi_pct=%s "
+                "total_pnl=%s volume_usdc=%s",
                 wallet, roi_pct, total_pnl, volume_usdc,
             )
 
