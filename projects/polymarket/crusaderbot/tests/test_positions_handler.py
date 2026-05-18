@@ -133,13 +133,17 @@ def test_fetch_mark_price_one_side_only():
 
 # ---------- Keyboard builders -----------------------------------------------
 
-def test_positions_list_kb_nav_only_no_force_close_rows():
+def test_positions_list_kb_close_rows_plus_nav():
     pids = [uuid4() for _ in range(3)]
     kb = positions_list_kb(pids)
     rows = kb.inline_keyboard
-    assert len(rows) == 1
-    assert [btn.text for btn in rows[0]] == ["⬅ Back", "🏠 Home"]
-    assert [btn.callback_data for btn in rows[0]] == ["portfolio:portfolio", "nav:home"]
+    # One close-button row per position + one back/home nav row
+    assert len(rows) == 4
+    for i, pid in enumerate(pids):
+        assert rows[i][0].text == "🛑 Close"
+        assert rows[i][0].callback_data == f"close_position:{pid}"
+    assert [btn.text for btn in rows[-1]] == ["⬅ Back", "🏠 Home"]
+    assert [btn.callback_data for btn in rows[-1]] == ["portfolio:portfolio", "nav:home"]
 
 
 def test_force_close_confirm_kb_yes_no_pair():

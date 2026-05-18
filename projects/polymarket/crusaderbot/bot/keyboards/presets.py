@@ -11,11 +11,14 @@ from ._common import home_back_row
 def preset_picker() -> InlineKeyboardMarkup:
     """Render presets in a 2-column grid; recommended preset gets a ⭐ tag.
 
-    Button label: Emoji + Name + Risk badge (not capital %).
+    Label uses first word of name + badge emoji only to avoid truncation on
+    mobile 375px grids.
     """
     buttons = []
     for p in list_presets():
-        label = f"{p.emoji} {p.name} · {p.badge.value}"
+        short_name = p.name.split()[0]
+        badge_emoji = p.badge.value.split()[0]
+        label = f"{p.emoji} {short_name} · {badge_emoji}"
         if p.key == RECOMMENDED_PRESET:
             label = f"{label} ⭐"
         buttons.append(InlineKeyboardButton(
