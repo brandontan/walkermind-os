@@ -63,6 +63,7 @@ export function PortfolioPage() {
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [depositAddress, setDepositAddress] = useState<string | null>(null);
   const [isPaperMode, setIsPaperMode] = useState(true);
+  const [walletLoading, setWalletLoading] = useState(false);
 
   const loadPositions = useCallback(async () => {
     try {
@@ -173,46 +174,54 @@ export function PortfolioPage() {
         <div className="flex gap-2 mb-3">
           <button
             type="button"
+            disabled={walletLoading}
             onClick={async () => {
-              if (depositAddress === null) {
+              if (depositAddress === null && !walletLoading) {
+                setWalletLoading(true);
                 try {
                   const w = await api.getWallet();
                   setDepositAddress(w.deposit_address);
                   setIsPaperMode(w.paper_mode !== false);
                 } catch {
                   // leave depositAddress null so the next click retries
+                } finally {
+                  setWalletLoading(false);
                 }
               }
               setShowDeposit(true);
             }}
-            className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2 transition-colors"
+            className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2 transition-colors disabled:opacity-50"
             style={{
               background: "rgba(0,255,156,0.08)",
               border: "1px solid rgba(0,255,156,0.3)",
               color: "#00FF9C",
             }}
           >
-            ↓ Deposit
+            {walletLoading ? "…" : "↓ Deposit"}
           </button>
           <button
             type="button"
+            disabled={walletLoading}
             onClick={async () => {
-              if (depositAddress === null) {
+              if (depositAddress === null && !walletLoading) {
+                setWalletLoading(true);
                 try {
                   const w = await api.getWallet();
                   setDepositAddress(w.deposit_address);
                   setIsPaperMode(w.paper_mode !== false);
                 } catch {
                   // leave depositAddress null so the next click retries
+                } finally {
+                  setWalletLoading(false);
                 }
               }
               setShowWithdraw(true);
             }}
-            className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2 transition-colors"
+            className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2 transition-colors disabled:opacity-50"
             style={{
               background: "rgba(245,200,66,0.06)",
-              border: "1px solid rgba(245,200,66,0.2)",
-              color: "rgba(245,200,66,0.5)",
+              border: `1px solid rgba(245,200,66,${isPaperMode ? "0.15" : "0.3"})`,
+              color: `rgba(245,200,66,${isPaperMode ? "0.45" : "1"})`,
             }}
             title={isPaperMode ? "Withdraw unavailable in Paper Mode" : undefined}
           >
@@ -378,7 +387,7 @@ export function PortfolioPage() {
   );
 }
 
-// ── Portfolio Header ────────────────────────────────────────────────────────
+// ── Portfolio Header ──────────────────────────────────────────────────────────────
 
 function PortfolioHeader({ summary }: { summary: PortfolioSummary }) {
   const fmtSigned = (v: number) => {
@@ -444,7 +453,7 @@ function PortfolioHeader({ summary }: { summary: PortfolioSummary }) {
   );
 }
 
-// ── P&L Chart ───────────────────────────────────────────────────────────────
+// ── P&L Chart ─────────────────────────────────────────────────────────────────
 
 // Custom tooltip: equity + date/time + PnL delta from period start
 function ChartTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ChartEntry }> }) {
@@ -604,7 +613,7 @@ function PnlChart({
   );
 }
 
-// ── Position Row ────────────────────────────────────────────────────────────
+// ── Position Row ──────────────────────────────────────────────────────────────
 
 const EXIT_LABEL: Record<string, string> = {
   tp_hit: "TP",
@@ -774,7 +783,7 @@ function OrderRow({ o }: { o: OrderItem }) {
   );
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtChartTime(ts: string, period: Period): string {
   try {
@@ -800,7 +809,7 @@ function fmtDate(ts: string): string {
   }
 }
 
-// ── Analytics Panel ──────────────────────────────────────────────────────────
+// ── Analytics Panel ────────────────────────────────────────────────────────────────
 
 function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
   const [data, setData] = useState<PortfolioAnalytics | null>(null);
