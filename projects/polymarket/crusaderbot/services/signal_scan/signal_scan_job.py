@@ -53,6 +53,7 @@ from ...domain.strategy.types import MarketFilters, SignalCandidate, UserContext
 from ...integrations import polymarket as _polymarket
 from ..trade_engine import TradeEngine, TradeResult, TradeSignal
 from .lib_strategy_runner import ENABLED_STRATEGIES, DEFERRED_STRATEGIES, run_lib_strategy
+from ..signal_feed.signal_evaluator import evaluate_publications_for_user
 
 logger = structlog.get_logger(__name__)
 
@@ -664,6 +665,34 @@ async def run_once() -> None:
                         strategy=lib_name,
                         error=str(exc),
                     )
+
+        # Phase C: evaluate signal_publications feed for this user.
+        # Uses signal_evaluator which reads user's subscribed feeds and
+        # returns SignalCandidates with metadata["publication_id"] set.
+        # _process_candidate handles dedup via (user_id, publication_id) unique key.
+        try:
+            user_ctx = _build_user_context(row)
+            market_filters = _build_market_filters()
+            feed_candidates = await evaluate_publications_for_user(
+                user_context=user_ctx,
+                market_filters=market_filters,
+                strategy_name=_STRATEGY_NAME,
+            )
+        except Exception as exc:
+            user_log.warning("signal_feed_eval_failed", error=str(exc))
+            feed_candidates = []
+
+        for cand in feed_candidates:
+            try:
+                await _process_candidate(row, cand)
+                candidates_processed += 1
+            except Exception as exc:
+                candidates_errored += 1
+                user_log.error(
+                    "signal_scan_feed_candidate_unhandled",
+                    market_id=cand.market_id,
+                    error=str(exc),
+                )
 
     await _event_bus.emit(
         "pipeline.scan_completed",
