@@ -22,7 +22,11 @@ Crash recovery:
     paper engine completed. This path resumes via router_execute directly
     (bypassing TradeEngine / re-running the risk gate) because:
       * Gate step 10 rejects the same idempotency_key for 30 min.
-      * Gate step 9 rejects stale signals after the 5-min staleness window.
+      * Gate step 9 rejects stale signals after the 4h staleness window
+        (SIGNAL_STALE_SECONDS=14400). Step 1c in _process_candidate enforces
+        a tighter 30-min window for feed publications before gate execution.
+      * Crash-recovery re-fetches current market prices at resume time, so
+        stale entry prices are not a concern on this path.
     The crash-recovery router call is the ONLY place router_execute is used
     directly in this module. All normal execution paths go through TradeEngine.
 
@@ -38,6 +42,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -62,6 +67,13 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 _STRATEGY_NAME = "signal_following"
+
+# Maximum age of a signal_publication before it is rejected for execution.
+# Signals older than this window have stale entry prices — the market has
+# already moved, making fills unrealistic. 30 minutes is conservative;
+# the signal_publications.expires_at window (4h) is intentionally longer
+# to support feed UI history display, NOT to gate execution.
+_MAX_SIGNAL_AGE_SECONDS: int = 1800  # 30 minutes
 
 # ---------------------------------------------------------------------------
 # Preset → lib strategy name mapping
@@ -164,8 +176,10 @@ async def _load_stale_queued_row(
     A 'queued' row means a prior tick inserted the queue entry and approved
     the gate but crashed before router_execute completed.  The row must be
     resumed without re-running the gate because: (a) gate step 10 rejects
-    the same idempotency_key for 30 min, and (b) gate step 9 permanently
-    rejects the original signal after the 5-min staleness window expires.
+    the same idempotency_key for 30 min, and (b) gate step 9 rejects the
+    original signal after the 4h staleness window (SIGNAL_STALE_SECONDS=14400).
+    Current market prices are re-fetched at resume time, so stale entry prices
+    are not a concern on this path.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -317,8 +331,6 @@ def _build_idempotency_key(
     side: str,
     publication_id: UUID | None,  # retained for signature compat; no longer in hash
 ) -> str:
-    from datetime import datetime, timezone
-
     # UTC calendar day prevents same-day re-entry on the same market.
     # Without this, distinct publication_ids for the same market produce distinct
     # keys, each passing the 30-min gate independently → duplicate open positions.
@@ -407,7 +419,7 @@ async def _process_candidate(
     # 0. Crash-recovery resume — a prior tick inserted a 'queued' row but
     #    crashed before the paper engine completed. Re-running the gate would
     #    fail at step 10 (idempotency_key already recorded for 30 min) or
-    #    step 9 (signal stale after 5 min), so router_execute is called
+    #    step 9 (signal stale after 4h / SIGNAL_STALE_SECONDS=14400), so router_execute is called
     #    directly from the stored row. This is the ONLY direct router call
     #    in this module; all normal execution paths go through TradeEngine.
     if pub_uuid is not None:
@@ -496,6 +508,25 @@ async def _process_candidate(
     except Exception as exc:
         log.warning("open_position_market_check_failed", error=str(exc))
         # On DB error fall through — gate step 10 remains the safety net.
+
+    # 1c. Signal freshness gate — reject publication-backed signals older than
+    #     _MAX_SIGNAL_AGE_SECONDS. signal_publications.expires_at allows 4h for
+    #     feed UI history; the execution engine enforces a tighter window so it
+    #     never fills at a 3-hour-old market price that has already moved past
+    #     the TP target. Gate is skipped for lib-strategy candidates (pub_uuid
+    #     is None) because those always carry signal_ts=now (see
+    #     lib_strategy_runner.py) and must not be affected by user processing order.
+    if pub_uuid is not None:
+        _signal_age = (datetime.now(timezone.utc) - cand.signal_ts).total_seconds()
+        if _signal_age > _MAX_SIGNAL_AGE_SECONDS:
+            log.info(
+                "scan_outcome",
+                outcome="skipped_signal_stale",
+                age_seconds=round(_signal_age),
+                threshold=_MAX_SIGNAL_AGE_SECONDS,
+                message=f"Signal too old ({round(_signal_age)}s > {_MAX_SIGNAL_AGE_SECONDS}s threshold)",
+            )
+            return
 
     # 2. Market lookup.
     market = await _load_market(cand.market_id)

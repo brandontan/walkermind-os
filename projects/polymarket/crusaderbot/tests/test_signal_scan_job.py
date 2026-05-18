@@ -100,7 +100,7 @@ def _candidate(
         confidence=0.7,
         suggested_size_usdc=size,
         strategy_name="signal_following",
-        signal_ts=_NOW,
+        signal_ts=datetime.now(timezone.utc),
         metadata={
             "feed_id": str(uuid4()),
             "publication_id": str(pub_uuid),
