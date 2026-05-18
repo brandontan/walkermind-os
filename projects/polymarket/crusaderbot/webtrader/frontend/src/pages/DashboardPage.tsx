@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, NavLink } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { AdvancedOnly } from "../components/AdvancedGate";
-import { CollapsibleSection } from "../components/CollapsibleSection";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { HeroCard, type RiskLevel } from "../components/HeroCard";
 import { KillSwitchButton } from "../components/KillSwitchButton";
-import { PositionCard } from "../components/PositionCard";
 import { StatCard } from "../components/StatCard";
 import { StatsGrid } from "../components/StatsGrid";
 import { Terminal, type TerminalLine } from "../components/Terminal";
 import { Ticker } from "../components/Ticker";
 import { TopBar } from "../components/TopBar";
 import { useAlertCenter } from "../App";
-import { makeApi, type AlertItem, type DashboardSummary, type PositionItem } from "../lib/api";
+import { makeApi, type AlertItem, type DashboardSummary, type FeedSignal } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 
@@ -37,7 +35,7 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
   const [data, setData] = useState<DashboardSummary | null>(null);
-  const [recentActivity, setRecentActivity] = useState<PositionItem[]>([]);
+  const [feedSignals, setFeedSignals] = useState<FeedSignal[]>([]);
   const [error, setError] = useState<string | null>(null);
   // Alerts come from the global AlertCenterContext (fetched once at AppShell level)
   const { alerts: ctxAlerts } = useAlertCenter();
@@ -45,18 +43,27 @@ export function DashboardPage() {
 
   const load = useCallback(async () => {
     try {
-      const [summary, recentPositions] = await Promise.all([
-        api.getDashboard(),
-        api.getPositions(undefined, 5),
-      ]);
+      const summary = await api.getDashboard();
       setData(summary);
-      setRecentActivity(recentPositions);
     } catch (e) {
       setError(String(e));
     }
   }, [api]);
 
+  const loadFeedSignals = useCallback(async () => {
+    try {
+      const data = await api.getRecentSignals(10);
+      setFeedSignals(data);
+    } catch { /* silent */ }
+  }, [api]);
+
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    void loadFeedSignals();
+    const t = setInterval(() => void loadFeedSignals(), 30_000);
+    return () => clearInterval(t);
+  }, [loadFeedSignals]);
 
   useSSE(user?.token ?? null, {
     positions:        () => void load(),
@@ -65,16 +72,6 @@ export function DashboardPage() {
     settings:         () => void load(),
     position_opened:  () => void load(),
     position_closed:  () => void load(),
-    position_updated: (raw) => {
-      const ev = raw as { position_id: string; current_price: number; pnl_usdc: number };
-      setRecentActivity((prev: PositionItem[]) =>
-        prev.map((p: PositionItem) =>
-          p.id === ev.position_id
-            ? { ...p, current_price: ev.current_price, pnl_usdc: ev.pnl_usdc }
-            : p,
-        ),
-      );
-    },
     portfolio_update: () => void load(),
     scanner_tick:     () => void load(),
   });
@@ -243,46 +240,50 @@ export function DashboardPage() {
               <Terminal lines={buildScannerLines(alerts, data)} />
             </AdvancedOnly>
 
-            <CollapsibleSection
-              id="dashboard_recent_activity"
-              label="Recent Activity"
-              defaultOpen={true}
-              action={
-                <NavLink
-                  to="/portfolio"
-                  className="font-mono text-[10px] text-gold cursor-pointer tracking-[1px] font-semibold"
-                >
-                  View all →
-                </NavLink>
-              }
-            >
-              {recentActivity.length === 0 ? (
-                <div className="text-[12px] text-ink-3 px-1 py-3 font-mono">
-                  No activity yet.
+            <div className="flex items-center justify-between mt-3.5 mb-2 mx-0.5 md:mt-0">
+              <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2
+                              uppercase flex items-center gap-2">
+                <span className="w-3 h-px bg-gold" aria-hidden />
+                Live Market Feed
+              </div>
+              <span className="font-mono text-[9px] text-ink-4">
+                signals · auto-refresh
+              </span>
+            </div>
+
+            {feedSignals.length === 0 ? (
+              <div className="text-[12px] text-ink-3 px-1 py-3 font-mono">
+                Awaiting signals…
+              </div>
+            ) : (
+              feedSignals.map((s) => (
+                <div key={`${s.market_id}-${s.published_at}`} className="p-2.5 mb-1.5 rounded-lg border border-surface-3
+                                        bg-surface-1 flex items-center gap-2.5">
+                  <span className={`flex-shrink-0 font-hud text-[9px] font-bold px-1.5 py-0.5
+                                   rounded border tracking-widest uppercase
+                                   ${s.side === "YES"
+                                     ? "text-grn border-grn/30 bg-grn/10"
+                                     : "text-red border-red/30 bg-red/10"}`}>
+                    {s.side}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-hud text-[10px] font-bold text-ink-1 leading-snug truncate">
+                      {s.market_question}
+                    </p>
+                    <p className="font-mono text-[9px] text-ink-4 mt-0.5">
+                      {s.target_price ? `${(s.target_price * 100).toFixed(1)}¢` : "—"}
+                      {" · "}
+                      {new Date(s.published_at).toLocaleTimeString([], {
+                        hour: "2-digit", minute: "2-digit"
+                      })}
+                    </p>
+                  </div>
+                  <span className="flex-shrink-0 font-mono text-[9px] text-gold">
+                    SIGNAL
+                  </span>
                 </div>
-              ) : (
-                recentActivity.map((p) => {
-                  const val = activityValueFor(p);
-                  const tone = val.tone;
-                  return (
-                    <PositionCard
-                      key={p.id}
-                      market={p.market_question ?? `${p.market_id.slice(0, 16)}…`}
-                      positionValue={val}
-                      side={positionSide(p)}
-                      borderTone={tone}
-                      meta={[
-                        <>${p.size_usdc.toFixed(2)}</>,
-                        <>{p.status === "open" ? "LIVE" : formatTime(p.closed_at ?? p.opened_at)}</>,
-                      ]}
-                      metaAdvanced={[
-                        <>{p.side.toUpperCase()} @ {(p.entry_price * 100).toFixed(1)}¢</>,
-                      ]}
-                    />
-                  );
-                })
-              )}
-            </CollapsibleSection>
+              ))
+            )}
 
             <div className="mt-4">
               <KillSwitchButton
@@ -298,45 +299,6 @@ export function DashboardPage() {
       </div>
     </>
   );
-}
-
-function activityValueFor(p: PositionItem): { value: string; tone: "zero" | "up" | "dn" } {
-  if (p.status === "open") {
-    // Show current market value; fall back to "—" when price is unavailable
-    if (p.current_price === null || p.current_price === undefined) {
-      return { value: "—", tone: "zero" };
-    }
-    const curVal =
-      p.entry_price > 0
-        ? (p.current_price / p.entry_price) * p.size_usdc
-        : p.size_usdc;
-    const diff = curVal - p.size_usdc;
-    if (Math.abs(diff) < 0.005) return { value: "±$0.00", tone: "zero" };
-    const tone: "up" | "dn" = diff > 0 ? "up" : "dn";
-    const sign = diff > 0 ? "+" : "−";
-    return { value: `${sign}$${Math.abs(diff).toFixed(2)}`, tone };
-  }
-  // Closed position: show P&L; "—" when null
-  if (p.pnl_usdc === null || p.pnl_usdc === undefined) {
-    return { value: "—", tone: "zero" };
-  }
-  const v = p.pnl_usdc;
-  if (Math.abs(v) < 0.005) return { value: "±$0.00", tone: "zero" };
-  const sign = v >= 0 ? "+" : "−";
-  return { value: `${sign}$${Math.abs(v).toFixed(2)}`, tone: v >= 0 ? "up" : "dn" };
-}
-
-function positionSide(p: PositionItem): "yes" | "no" | "exp" {
-  if (p.status === "expired") return "exp";
-  return p.side === "no" ? "no" : "yes";
-}
-
-function formatTime(ts: string): string {
-  try {
-    return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return ts.slice(11, 16);
-  }
 }
 
 function buildScannerLines(alerts: AlertItem[], data: DashboardSummary): TerminalLine[] {

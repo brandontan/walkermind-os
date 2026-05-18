@@ -84,6 +84,38 @@ async def get_me(user: _CurrentUser):
     return {"user_id": user["user_id"], "first_name": user["first_name"]}
 
 
+@router.get("/signals/recent")
+async def get_recent_signals(user: _CurrentUser, limit: int = 10):
+    """Recent signal publications for the live market feed on dashboard."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT sp.market_id, sp.side, sp.target_price,
+                   sp.signal_type, sp.published_at,
+                   m.question AS market_question
+            FROM signal_publications sp
+            LEFT JOIN markets m ON m.id = sp.market_id
+            WHERE sp.exit_signal = FALSE
+              AND sp.published_at >= NOW() - INTERVAL '4 hours'
+            ORDER BY sp.published_at DESC
+            LIMIT $1
+            """,
+            min(limit, 20),
+        )
+    return [
+        {
+            "market_id": r["market_id"],
+            "market_question": r["market_question"] or r["market_id"][:24] + "…",
+            "side": r["side"],
+            "target_price": float(r["target_price"]) if r["target_price"] else None,
+            "signal_type": r["signal_type"],
+            "published_at": r["published_at"].isoformat(),
+        }
+        for r in rows
+    ]
+
+
 @router.get("/dashboard", response_model=DashboardSummary)
 async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
     pool = get_pool()
