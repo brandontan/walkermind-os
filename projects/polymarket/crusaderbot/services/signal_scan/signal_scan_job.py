@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -62,6 +63,13 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 _STRATEGY_NAME = "signal_following"
+
+# Maximum age of a signal_publication before it is rejected for execution.
+# Signals older than this window have stale entry prices — the market has
+# already moved, making fills unrealistic. 30 minutes is conservative;
+# the signal_publications.expires_at window (4h) is intentionally longer
+# to support feed UI history display, NOT to gate execution.
+_MAX_SIGNAL_AGE_SECONDS: int = 1800  # 30 minutes
 
 # ---------------------------------------------------------------------------
 # Preset → lib strategy name mapping
@@ -317,8 +325,6 @@ def _build_idempotency_key(
     side: str,
     publication_id: UUID | None,  # retained for signature compat; no longer in hash
 ) -> str:
-    from datetime import datetime, timezone
-
     # UTC calendar day prevents same-day re-entry on the same market.
     # Without this, distinct publication_ids for the same market produce distinct
     # keys, each passing the 30-min gate independently → duplicate open positions.
@@ -496,6 +502,25 @@ async def _process_candidate(
     except Exception as exc:
         log.warning("open_position_market_check_failed", error=str(exc))
         # On DB error fall through — gate step 10 remains the safety net.
+
+    # 1c. Signal freshness gate — reject publication-backed signals older than
+    #     _MAX_SIGNAL_AGE_SECONDS. signal_publications.expires_at allows 4h for
+    #     feed UI history; the execution engine enforces a tighter window so it
+    #     never fills at a 3-hour-old market price that has already moved past
+    #     the TP target. Gate is skipped for lib-strategy candidates (pub_uuid
+    #     is None) because those always carry signal_ts=now (see
+    #     lib_strategy_runner.py) and must not be affected by user processing order.
+    if pub_uuid is not None:
+        _signal_age = (datetime.now(timezone.utc) - cand.signal_ts).total_seconds()
+        if _signal_age > _MAX_SIGNAL_AGE_SECONDS:
+            log.info(
+                "scan_outcome",
+                outcome="skipped_signal_stale",
+                age_seconds=round(_signal_age),
+                threshold=_MAX_SIGNAL_AGE_SECONDS,
+                message=f"Signal too old ({round(_signal_age)}s > {_MAX_SIGNAL_AGE_SECONDS}s threshold)",
+            )
+            return
 
     # 2. Market lookup.
     market = await _load_market(cand.market_id)
