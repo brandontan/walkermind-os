@@ -29,27 +29,83 @@ jobs:
   warp-gate:
     name: WARP Auto Gate
     runs-on: ubuntu-latest
-    # Skip gate check when triggered by GATE direct commits to main.
-    # warp-gate[bot] commits (post-merge sync, fly.toml fixes, state sync)
-    # are NOT associated with any open PR — gate check would always fail.
     if: |
       github.event_name == 'pull_request_target' ||
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.head_commit.author.name != 'warp-gate[bot]')
+
     steps:
-      # Check out base-branch code (pull_request_target safety model).
-      # The gate script fetches all PR data via API — no checkout of
-      # untrusted head code is required.
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Run WARP Auto Gate
+        id: gate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # PR_NUMBER: set for pull_request_target and workflow_dispatch events.
-          # For workflow_run events, WR_HEAD_SHA is set and the script looks
-          # up the matching open PR itself.
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           WR_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: python3 scripts/warp_auto_gate.py
+
+      - name: Telegram Notification
+        if: always()
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GATE_RESULT: ${{ steps.gate.outcome }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref || github.event.workflow_run.head_branch || '' }}
+          PR_URL: ${{ github.event.pull_request.html_url || '' }}
+        run: |
+          python3 << 'EOF'
+          import os, json, urllib.request
+
+          bot_token   = os.environ["BOT_TOKEN"]
+          chat_id     = os.environ["CHAT_ID"]
+          gate_result = os.environ.get("GATE_RESULT", "unknown")
+          pr_number   = os.environ.get("PR_NUMBER", "")
+          pr_branch   = os.environ.get("PR_BRANCH", "")
+          pr_url      = os.environ.get("PR_URL", "")
+
+          # Route emoji
+          if gate_result == "success":
+              icon = "✅"
+              route = "PASSED"
+          elif gate_result == "failure":
+              icon = "🛑"
+              route = "BLOCKED"
+          else:
+              icon = "⚠️"
+              route = gate_result.upper()
+
+          # Inline mention by user ID — reliable in any chat type
+          # [walk3r69](tg://user?id=5642722297)
+          pr_line = f"PR [\\#{pr_number}]({pr_url})" if pr_url else f"PR \\#{pr_number}"
+          branch_line = f"`{pr_branch}`" if pr_branch else "\\-"
+
+          text = (
+              f"{icon} *WARP AUTO GATE — {route}*\n\n"
+              f"[walk3r69](tg://user?id=5642722297)\n\n"
+              f"{pr_line}\n"
+              f"Branch: {branch_line}"
+          )
+
+          payload = json.dumps({
+              "chat_id": chat_id,
+              "text": text,
+              "parse_mode": "MarkdownV2",
+              "disable_web_page_preview": True,
+          }).encode("utf-8")
+
+          req = urllib.request.Request(
+              f"https://api.telegram.org/bot{bot_token}/sendMessage",
+              data=payload,
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=15) as resp:
+                  print(f"Telegram OK {resp.status}")
+          except Exception as e:
+              print(f"Telegram WARN: {e}")
+          EOF
