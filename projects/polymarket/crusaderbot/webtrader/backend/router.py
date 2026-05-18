@@ -605,7 +605,8 @@ async def update_trading_settings(body: TradingSettingsUpdate, user: _CurrentUse
     if body.slippage_tolerance_pct is not None:
         if not (0.0 <= body.slippage_tolerance_pct <= 1.0):
             raise HTTPException(status_code=422, detail="slippage_tolerance_pct must be between 0 and 1")
-        params.append(body.slippage_tolerance_pct)
+        slippage = min(max(body.slippage_tolerance_pct, 0.0), 0.9999)
+        params.append(slippage)
         updates.append(f"slippage_tolerance_pct=${len(params)}")
 
     if not updates:

@@ -188,7 +188,7 @@ class Settings(BaseSettings):
     EXIT_WATCH_INTERVAL: int = 30  # Track A: TP/SL poll cadence (30s per spec)
     REDEEM_INTERVAL: int = 3600
     RESOLUTION_CHECK_INTERVAL: int = 300
-    DB_POOL_MAX: int = 5
+    DB_POOL_MAX: int = 4
     TIMEZONE: str = "Asia/Jakarta"
     DAILY_REPORT_HOUR: int = 23  # env: DAILY_REPORT_HOUR (0-23 UTC)
 

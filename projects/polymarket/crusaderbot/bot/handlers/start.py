@@ -167,11 +167,11 @@ async def wallet_next_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         return ConversationHandler.END
     await q.answer()
     from ..messages import PRESET_PICKER_TEXT
-    from ..keyboards import preset_picker_kb
+    from ..keyboards import preset_picker
     await q.edit_message_text(
         PRESET_PICKER_TEXT,
         parse_mode=ParseMode.HTML,
-        reply_markup=preset_picker_kb(),
+        reply_markup=preset_picker(),
     )
     ctx.user_data["onboard_in_preset_step"] = True
     ctx.user_data["_onboard_at_deposit"] = False  # still on preset picker, not deposit yet
