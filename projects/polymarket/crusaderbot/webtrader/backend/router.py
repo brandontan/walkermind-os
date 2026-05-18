@@ -566,30 +566,35 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
 @router.get("/wallet/ledger", response_model=LedgerPage)
 async def get_wallet_ledger(
     user: _CurrentUser,
-    offset: int = 0,
+    before_ts: str | None = None,
+    before_id: str | None = None,
     limit: int = 20,
 ) -> LedgerPage:
-    """Paginated ledger entries for wallet recent activity."""
+    """Keyset-paginated ledger entries — stable under concurrent inserts."""
     pool = get_pool()
     user_id = user["user_id"]
     limit = min(max(limit, 1), 100)
-    offset = max(offset, 0)
 
     async with pool.acquire() as conn:
-        total_row = await conn.fetchrow(
-            "SELECT COUNT(*) AS cnt FROM ledger WHERE user_id=$1::uuid",
-            user_id,
-        )
-        rows = await conn.fetch(
-            """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
-               WHERE user_id=$1::uuid ORDER BY created_at DESC, id DESC
-               LIMIT $2 OFFSET $3""",
-            user_id,
-            limit,
-            offset,
-        )
+        if before_ts and before_id:
+            rows = await conn.fetch(
+                """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
+                   WHERE user_id=$1::uuid
+                     AND (created_at, id) < ($2::timestamptz, $3::uuid)
+                   ORDER BY created_at DESC, id DESC
+                   LIMIT $4""",
+                user_id, before_ts, before_id, limit + 1,
+            )
+        else:
+            rows = await conn.fetch(
+                """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
+                   WHERE user_id=$1::uuid
+                   ORDER BY created_at DESC, id DESC
+                   LIMIT $2""",
+                user_id, limit + 1,
+            )
 
-    total = int(total_row["cnt"]) if total_row else 0
+    has_more = len(rows) > limit
     entries = [
         LedgerEntry(
             id=r["id"],
@@ -598,13 +603,9 @@ async def get_wallet_ledger(
             note=r["note"],
             created_at=r["created_at"],
         )
-        for r in rows
+        for r in rows[:limit]
     ]
-    return LedgerPage(
-        entries=entries,
-        has_more=(offset + len(entries)) < total,
-        total=total,
-    )
+    return LedgerPage(entries=entries, has_more=has_more, total=0)
 
 
 @router.get("/settings")

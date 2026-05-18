@@ -43,8 +43,11 @@ export function makeApi(token: string | null) {
     setRiskProfile: (params: RiskProfileParams) => patch<{ risk_profile: string }>("/autotrade/risk-profile", params),
     customizeStrategy: (params: CustomizeParams) => post<{ updated: boolean }>("/autotrade/customize", params),
     getWallet: () => get<WalletInfo>("/wallet"),
-    getLedger: (offset: number, limit = 20) =>
-      get<LedgerPage>(`/wallet/ledger?offset=${offset}&limit=${limit}`),
+    getLedger: (cursor: { ts: string; id: string } | null, limit = 20) => {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (cursor) { params.set("before_ts", cursor.ts); params.set("before_id", cursor.id); }
+      return get<LedgerPage>(`/wallet/ledger?${params}`);
+    },
     getSettings: () => get<UserSettings>("/settings"),
     updateSettings: (data: Partial<UserSettings>) => patch<{ updated: boolean }>("/settings", data),
     getAlerts: () => get<AlertItem[]>("/alerts"),
@@ -78,7 +81,7 @@ export function makeApi(token: string | null) {
   };
 }
 
-// ── Types mirroring backend schemas ──────────────────────────────────────────
+// ── Types mirroring backend schemas ───────────────────────────────────────────────
 
 export interface DashboardSummary {
   balance_usdc: number;

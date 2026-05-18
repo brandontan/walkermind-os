@@ -136,19 +136,20 @@ export function DiscoverPage() {
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState<Category>("All");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(
         `${API_BASE}/markets?limit=50${category !== "All" ? `&category=${encodeURIComponent(category)}` : ""}`,
-        { headers: { Accept: "application/json" } }
+        { headers: { Accept: "application/json" }, signal }
       );
       if (!res.ok) throw new Error(`markets ${res.status}`);
       const data: GammaMarket[] = await res.json();
       const parsed = data.map(parseGammaMarket);
       setMarkets(parsed);
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError("Market data unavailable.");
       setMarkets([]);
     } finally {
@@ -156,7 +157,11 @@ export function DiscoverPage() {
     }
   }, [category]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
 
   const handleDeploy = useCallback((m: MarketCard) => {
     navigate(`/autotrade?market_id=${encodeURIComponent(m.id)}&market_name=${encodeURIComponent(m.title)}`);
