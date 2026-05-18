@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FilterTabs, type FilterTab } from "../components/FilterTabs";
 import { TopBar } from "../components/TopBar";
 import { TxHash } from "../components/TxHash";
-import { makeApi, type LeaderboardEntry } from "../lib/api";
+import { makeApi, type LeaderboardEntry, type Wallet360 } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
 type CopyTab = "manual" | "leaderboard";
@@ -172,6 +172,7 @@ export function CopyTradePage() {
           <LeaderboardPanel
             entries={leaderboard}
             loading={lbLoading}
+            api={api}
             onCopyWallet={(w) => { setWallet(w); setCopyTab("manual"); setShowForm(true); }}
           />
         )}
@@ -448,15 +449,132 @@ function truncateWallet(wallet: string): string {
   return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
 }
 
+function Wallet360Panel({
+  data,
+  loading,
+  onCopy,
+}: {
+  data: Wallet360 | null;
+  loading: boolean;
+  onCopy: () => void;
+}) {
+  if (loading) {
+    return (
+      <div className="mt-2 space-y-1">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-5 rounded bg-surface-2 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!data || !data.available) {
+    return (
+      <div className="mt-2 p-2 rounded border border-surface-3 bg-surface text-[10px] font-mono text-ink-3">
+        Profile data unavailable. You can still copy this wallet.
+        <button
+          onClick={onCopy}
+          className="ml-2 text-[9px] font-bold text-gold px-2 py-0.5 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
+        >
+          Copy Trader
+        </button>
+      </div>
+    );
+  }
+
+  const isHighRisk = data.sybil_risk_flag || data.risk_level === "HIGH";
+
+  return (
+    <div className="mt-2 p-2 rounded border border-surface-3 bg-surface space-y-1.5">
+      {isHighRisk && (
+        <div className="px-2 py-1 rounded border border-yellow-500/40 bg-yellow-500/10 text-[10px] font-mono text-yellow-400">
+          ⚠️ {data.sybil_risk_flag ? "Sybil risk detected." : ""} {data.risk_level === "HIGH" ? "High risk profile." : ""}
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-1 text-[9px] font-mono">
+        <div className="bg-surface-1 rounded px-1.5 py-1">
+          <span className="text-ink-4">Sharpe </span>
+          <span className="text-ink-1 font-bold">{data.sharpe_ratio != null ? data.sharpe_ratio.toFixed(2) : "—"}</span>
+        </div>
+        <div className="bg-surface-1 rounded px-1.5 py-1">
+          <span className="text-ink-4">Max DD </span>
+          <span className="text-red font-bold">{data.max_drawdown != null ? `${(data.max_drawdown * 100).toFixed(1)}%` : "—"}</span>
+        </div>
+        <div className="bg-surface-1 rounded px-1.5 py-1">
+          <span className="text-ink-4">Markets </span>
+          <span className="text-ink-1 font-bold">{data.markets_traded ?? "—"}</span>
+        </div>
+        <div className="bg-surface-1 rounded px-1.5 py-1">
+          <span className="text-ink-4">Trades </span>
+          <span className="text-ink-1 font-bold">{data.total_trades ?? "—"}</span>
+        </div>
+        <div className="bg-surface-1 rounded px-1.5 py-1">
+          <span className="text-ink-4">Trend </span>
+          <span className="text-ink-1 font-bold">{data.performance_trend ?? "—"}</span>
+        </div>
+        <div className="bg-surface-1 rounded px-1.5 py-1">
+          <span className="text-ink-4">Risk </span>
+          <span className={`font-bold ${data.risk_level === "HIGH" ? "text-red" : data.risk_level === "LOW" ? "text-grn" : "text-ink-1"}`}>
+            {data.risk_level ?? "—"}
+          </span>
+        </div>
+        <div className="bg-surface-1 rounded px-1.5 py-1 col-span-2">
+          <span className="text-ink-4">Sybil </span>
+          <span className={`font-bold ${data.sybil_risk_flag ? "text-red" : "text-grn"}`}>
+            {data.sybil_risk_flag ? `⚠️ Flagged (score: ${data.sybil_risk_score?.toFixed(2) ?? "?"})` : "Clean"}
+          </span>
+        </div>
+        {data.last_active && (
+          <div className="bg-surface-1 rounded px-1.5 py-1 col-span-2">
+            <span className="text-ink-4">Last Active </span>
+            <span className="text-ink-1 font-bold">{data.last_active}</span>
+          </div>
+        )}
+      </div>
+      <button
+        onClick={onCopy}
+        className="w-full py-1 rounded border border-gold/40 bg-gold/10 text-gold text-[9px] font-bold hover:bg-gold/20"
+      >
+        Copy Trader
+      </button>
+    </div>
+  );
+}
+
 function LeaderboardPanel({
   entries,
   loading,
+  api,
   onCopyWallet,
 }: {
   entries: LeaderboardEntry[];
   loading: boolean;
+  api: ReturnType<typeof makeApi>;
   onCopyWallet: (wallet: string) => void;
 }) {
+  const [expandedWallet, setExpandedWallet] = useState<string | null>(null);
+  const [wallet360Data, setWallet360Data] = useState<Wallet360 | null>(null);
+  const [wallet360Loading, setWallet360Loading] = useState(false);
+
+  const handleExpand = useCallback(async (wallet: string) => {
+    if (expandedWallet === wallet) {
+      setExpandedWallet(null);
+      setWallet360Data(null);
+      return;
+    }
+    setExpandedWallet(wallet);
+    setWallet360Data(null);
+    setWallet360Loading(true);
+    try {
+      const data = await api.getWallet360(wallet);
+      setWallet360Data(data);
+    } catch {
+      setWallet360Data(null);
+    } finally {
+      setWallet360Loading(false);
+    }
+  }, [expandedWallet, api]);
+
   if (loading) {
     return (
       <div className="space-y-2 mt-2">
@@ -480,56 +598,68 @@ function LeaderboardPanel({
   return (
     <div className="space-y-2 mt-2">
       {entries.map((e) => (
-        <div key={e.wallet} className="p-3 rounded-lg border border-surface-3 bg-surface-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className="text-gold font-bold font-mono text-[11px] flex-shrink-0">#{e.rank}</span>
-              <div className="min-w-0">
-                <div className="font-hud text-[11px] font-bold text-ink-1">
-                  {e.alias || truncateWallet(e.wallet)}
+        <div key={e.wallet} className="rounded-lg border border-surface-3 bg-surface-1 overflow-hidden">
+          <button
+            className="w-full p-3 text-left"
+            onClick={() => void handleExpand(e.wallet)}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="text-gold font-bold font-mono text-[11px] flex-shrink-0">#{e.rank}</span>
+                <div className="min-w-0">
+                  <div className="font-hud text-[11px] font-bold text-ink-1">
+                    {e.alias || truncateWallet(e.wallet)}
+                  </div>
+                  {e.alias && (
+                    <div className="text-[9px] font-mono text-ink-4">{truncateWallet(e.wallet)}</div>
+                  )}
                 </div>
-                {e.alias && (
-                  <div className="text-[9px] font-mono text-ink-4">{truncateWallet(e.wallet)}</div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {e.badge && (
+                  <span className={`text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded border ${badgeClass(e.badge)}`}>
+                    {badgeLabel(e.badge)}
+                  </span>
                 )}
+                <span className="text-[9px] text-ink-4">{expandedWallet === e.wallet ? "▲" : "▼"}</span>
               </div>
             </div>
-            {e.badge && (
-              <span className={`text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded border flex-shrink-0 ${badgeClass(e.badge)}`}>
-                {badgeLabel(e.badge)}
+
+            <div className="mt-2 grid grid-cols-3 gap-1 text-[9px] font-mono">
+              <div className="bg-surface rounded px-1.5 py-1">
+                <div className="text-ink-4">Win Rate</div>
+                <div className="text-ink-1 font-bold">{e.win_rate != null ? `${(e.win_rate * 100).toFixed(0)}%` : "—"}</div>
+              </div>
+              <div className="bg-surface rounded px-1.5 py-1">
+                <div className="text-ink-4">Total PnL</div>
+                <div className={`font-bold ${e.total_pnl != null && e.total_pnl >= 0 ? "text-grn" : "text-red"}`}>
+                  {e.total_pnl != null ? `${e.total_pnl >= 0 ? "+" : ""}$${e.total_pnl.toFixed(0)}` : "—"}
+                </div>
+              </div>
+              <div className="bg-surface rounded px-1.5 py-1">
+                <div className="text-ink-4">ROI</div>
+                <div className={`font-bold ${e.roi_pct != null && e.roi_pct >= 0 ? "text-grn" : "text-red"}`}>
+                  {e.roi_pct != null ? `${(e.roi_pct * 100).toFixed(1)}%` : "—"}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-1.5 flex items-center justify-between">
+              <span className="text-[9px] font-mono text-ink-4">
+                Vol: {e.volume_usdc != null ? `$${(e.volume_usdc / 1000).toFixed(1)}k` : "—"}
               </span>
-            )}
-          </div>
+            </div>
+          </button>
 
-          <div className="mt-2 grid grid-cols-3 gap-1 text-[9px] font-mono">
-            <div className="bg-surface rounded px-1.5 py-1">
-              <div className="text-ink-4">Win Rate</div>
-              <div className="text-ink-1 font-bold">{e.win_rate != null ? `${(e.win_rate * 100).toFixed(0)}%` : "—"}</div>
+          {expandedWallet === e.wallet && (
+            <div className="px-3 pb-3">
+              <Wallet360Panel
+                data={wallet360Data}
+                loading={wallet360Loading}
+                onCopy={() => onCopyWallet(e.wallet)}
+              />
             </div>
-            <div className="bg-surface rounded px-1.5 py-1">
-              <div className="text-ink-4">Total PnL</div>
-              <div className={`font-bold ${e.total_pnl != null && e.total_pnl >= 0 ? "text-grn" : "text-red"}`}>
-                {e.total_pnl != null ? `${e.total_pnl >= 0 ? "+" : ""}$${e.total_pnl.toFixed(0)}` : "—"}
-              </div>
-            </div>
-            <div className="bg-surface rounded px-1.5 py-1">
-              <div className="text-ink-4">ROI</div>
-              <div className={`font-bold ${e.roi_pct != null && e.roi_pct >= 0 ? "text-grn" : "text-red"}`}>
-                {e.roi_pct != null ? `${(e.roi_pct * 100).toFixed(1)}%` : "—"}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-1.5 flex items-center justify-between">
-            <span className="text-[9px] font-mono text-ink-4">
-              Vol: {e.volume_usdc != null ? `$${(e.volume_usdc / 1000).toFixed(1)}k` : "—"}
-            </span>
-            <button
-              onClick={() => onCopyWallet(e.wallet)}
-              className="text-[9px] font-bold text-gold px-2 py-0.5 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
-            >
-              Copy Trader
-            </button>
-          </div>
+          )}
         </div>
       ))}
     </div>
