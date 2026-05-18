@@ -1,170 +1,133 @@
 """Isolation audit test suite — Track J.
 
-Tests user_id isolation across all major DB query surfaces
-supporting the CRU-16 audit claim: 120+ queries audited,
-zero cross-user data leaks.
+Tests user_id isolation across all major DB query surfaces.
 
-Hermetic: no real DB, no Telegram, no network.
-Pool/connection interactions handled via _UserScopedConn fake.
+PART 2 — Runtime isolation:
+  Verifies that every user-facing query function passes user_id as a
+  positional parameter and that the SQL WHERE clause contains user_id.
+  Uses a RecordingConn mock that captures the SQL + params on every call,
+  then asserts user_A's queries never contain user_B's id.
 
-Parts:
-  1 — Position query isolation (fetch/fetchrow/fetchval)
-  2 — Order query isolation
-  3 — Risk gate query isolation
-  4 — Exit watcher query isolation
-  5 — Copy trade query isolation
-  6 — Wallet / ledger query isolation
-  7 — Settings query isolation
-  8 — Admin boundary (operator all-user queries)
+PART 3 — Concurrent stress test:
+  10 asyncio tasks across 3 users run in parallel via asyncio.gather.
+  Verifies that concurrent query routing does not bleed data across users.
+
+PART 4 — Admin boundary:
+  Verifies /admin commands are gated by _is_admin_user.
+  FREE/PREMIUM users receive "Admin access required" and cannot trigger
+  _admin_settier or other subcommands.
+
+No real DB.  No Telegram network.  All pool/conn interactions mocked.
 """
 from __future__ import annotations
 
 import asyncio
+import re
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
-# ---------------------------------------------------------------------------
-# Test users
-# ---------------------------------------------------------------------------
-
-_UID_A = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
-_UID_B = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
-_UID_C = UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")
+import pytest
 
 # ---------------------------------------------------------------------------
-# Position store
+# Shared test users (paper mode, isolated data sets)
 # ---------------------------------------------------------------------------
 
-_POS_A_ID = uuid4()
-_POS_B_ID = uuid4()
+_UID_A = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")  # telegram_id 9000001
+_UID_B = UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")  # telegram_id 9000002
+_UID_C = UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")  # telegram_id 9000003
 
-_POS_STORE: dict[UUID, list[dict]] = {
-    _UID_A: [
-        {"id": _POS_A_ID, "user_id": _UID_A, "market_id": "mkt-a",
-         "side": "yes", "size_usdc": Decimal("50"), "status": "open",
-         "entry_price": Decimal("0.6"), "current_price": Decimal("0.65"),
-         "pnl_usdc": Decimal("2.5")},
-    ],
-    _UID_B: [
-        {"id": _POS_B_ID, "user_id": _UID_B, "market_id": "mkt-b",
-         "side": "no", "size_usdc": Decimal("30"), "status": "open",
-         "entry_price": Decimal("0.4"), "current_price": Decimal("0.35"),
-         "pnl_usdc": Decimal("1.5")},
-    ],
-    _UID_C: [],
-}
+_TG_A = 9000001
+_TG_B = 9000002
+_TG_C = 9000003
 
-_WALLET_STORE: dict[UUID, dict] = {
-    _UID_A: {"user_id": _UID_A, "balance_usdc": Decimal("1000")},
-    _UID_B: {"user_id": _UID_B, "balance_usdc": Decimal("800")},
-    _UID_C: {"user_id": _UID_C, "balance_usdc": Decimal("0")},
-}
+# Position fixtures per user
+_POS_A = [
+    {"id": uuid4(), "user_id": _UID_A, "market_id": "mkt-001", "side": "yes",
+     "size_usdc": Decimal("50"), "entry_price": Decimal("0.60"),
+     "status": "open", "mode": "paper"},
+    {"id": uuid4(), "user_id": _UID_A, "market_id": "mkt-002", "side": "no",
+     "size_usdc": Decimal("30"), "entry_price": Decimal("0.40"),
+     "status": "open", "mode": "paper"},
+    {"id": uuid4(), "user_id": _UID_A, "market_id": "mkt-003", "side": "yes",
+     "size_usdc": Decimal("20"), "entry_price": Decimal("0.55"),
+     "status": "open", "mode": "paper"},
+]
 
-_SETTINGS_STORE: dict[UUID, dict] = {
-    _UID_A: {"user_id": _UID_A, "capital_alloc_pct": Decimal("0.1"),
-             "tp_pct": Decimal("0.2"), "sl_pct": Decimal("0.1"),
-             "notifications_on": True, "auto_trade_on": True,
-             "active_preset": "conservative"},
-    _UID_B: {"user_id": _UID_B, "capital_alloc_pct": Decimal("0.05"),
-             "tp_pct": Decimal("0.15"), "sl_pct": Decimal("0.08"),
-             "notifications_on": False, "auto_trade_on": False,
-             "active_preset": "balanced"},
-    _UID_C: {"user_id": _UID_C, "capital_alloc_pct": Decimal("0.1"),
-             "tp_pct": Decimal("0.2"), "sl_ptype": Decimal("0.1"),
-             "notifications_on": True, "auto_trade_on": False,
-             "active_preset": None},
-}
+_POS_B = [
+    {"id": uuid4(), "user_id": _UID_B, "market_id": "mkt-004", "side": "yes",
+     "size_usdc": Decimal("40"), "entry_price": Decimal("0.70"),
+     "status": "open", "mode": "paper"},
+    {"id": uuid4(), "user_id": _UID_B, "market_id": "mkt-005", "side": "no",
+     "size_usdc": Decimal("25"), "entry_price": Decimal("0.35"),
+     "status": "open", "mode": "paper"},
+]
+
+_ALL_POSITIONS = _POS_A + _POS_B  # user_C has zero positions
 
 
 # ---------------------------------------------------------------------------
-# _UserScopedConn — routes queries to per-user fixture data
+# RecordingConn — captures every SQL string + parameters
 # ---------------------------------------------------------------------------
 
-class _UserScopedConn:
-    """asyncpg connection stand-in.
+class _RecordingConn:
+    """Simulates asyncpg connection.  Routes fetch/fetchrow/fetchval by user_id param."""
 
-    Routes queries to per-user fixture data by inspecting which UUID
-    appears in the args. Only returns data for that user's store.
-    """
-
-    def __init__(
-        self,
-        pos_store: dict[UUID, list[dict]] | None = None,
-        wallet_store: dict[UUID, dict] | None = None,
-        settings_store: dict[UUID, dict] | None = None,
-    ) -> None:
-        self._pos = pos_store or _POS_STORE
-        self._wal = wallet_store or _WALLET_STORE
-        self._set = settings_store or _SETTINGS_STORE
+    def __init__(self, position_store: dict[UUID, list[dict]]):
+        self._store = position_store
         self.calls: list[tuple[str, tuple]] = []
 
-    def _uid_from_args(self, args: tuple) -> UUID | None:
-        return next((a for a in args if isinstance(a, UUID)), None)
+    def _filter(self, sql: str, args: tuple) -> list[dict]:
+        """Return rows scoped to the user_id that appears in args.
 
-    def _positions_for(self, uid: UUID | None) -> list[dict]:
+        When multiple UUIDs are present (e.g. position_id + user_id), the
+        user_id is the UUID that is a key in the store — not necessarily the
+        first positional arg.  This mirrors queries like
+          WHERE p.id = $1 AND p.user_id = $2
+        where args = (position_id, user_id).
+        """
+        uuids = [a for a in args if isinstance(a, UUID)]
+        # Prefer the UUID that is a known store key (= user_id)
+        uid = next((u for u in uuids if u in self._store), None)
+        if uid is None:
+            uid = uuids[0] if uuids else None
         if uid is None:
             return []
-        return [p for p in self._pos.get(uid, []) if p["status"] == "open"]
+        return [row for row in self._store.get(uid, [])
+                if "status" not in row or row["status"] == "open"]
 
     async def fetch(self, sql: str, *args: Any) -> list[dict]:
         self.calls.append((sql, args))
-        sql_lower = sql.lower()
-        uid = self._uid_from_args(args)
-        if "from wallets" in sql_lower or "from ledger" in sql_lower:
-            if uid and uid in self._wal:
-                return [self._wal[uid]]
-            return []
-        if "from orders" in sql_lower or "join orders" in sql_lower:
-            # Return empty orders — isolation is still scoped by uid
-            return []
-        if "from positions" in sql_lower or "join positions" in sql_lower:
-            return self._positions_for(uid)
-        if "from copy_trade" in sql_lower:
-            return []
-        return []
+        return self._filter(sql, args)
 
     async def fetchrow(self, sql: str, *args: Any) -> dict | None:
         self.calls.append((sql, args))
-        sql_lower = sql.lower()
-        uid = self._uid_from_args(args)
-        if "from wallets" in sql_lower:
-            return self._wal.get(uid) if uid else None
-        if "from user_settings" in sql_lower:
-            return self._set.get(uid) if uid else None
-        if "from users" in sql_lower:
-            if uid:
-                return {"id": uid, "telegram_user_id": 1001,
-                        "auto_trade_on": True, "paused": False,
-                        "locked": False, "access_tier": 3}
+        rows = self._filter(sql, args)
+        if not rows:
             return None
-        if "from positions" in sql_lower:
-            rows = self._positions_for(uid)
-            pos_id = next(
-                (a for a in args if isinstance(a, UUID) and a != uid), None
-            )
-            if pos_id:
-                rows = [r for r in rows if r["id"] == pos_id]
-            return rows[0] if rows else None
-        return None
+        # For ownership queries with two UUIDs, filter by the position_id
+        # (the UUID that is NOT a store key, i.e. not a user_id).
+        pos_id = next(
+            (a for a in args if isinstance(a, UUID) and a not in self._store),
+            None,
+        )
+        if pos_id:
+            rows = [r for r in rows if r["id"] == pos_id]
+        return rows[0] if rows else None
 
     async def fetchval(self, sql: str, *args: Any) -> Any:
         self.calls.append((sql, args))
-        sql_lower = sql.lower()
-        uid = self._uid_from_args(args)
-        if "count(*)" in sql_lower:
-            if "from positions" in sql_lower:
-                return len(self._positions_for(uid))
-            return 0
-        if "balance_usdc" in sql_lower:
-            w = self._wal.get(uid) if uid else None
-            return w["balance_usdc"] if w else None
-        return None
+        rows = self._filter(sql, args)
+        if "COUNT(*)" in sql.upper():
+            return len(rows)
+        if rows:
+            return rows[0].get("balance_usdc", Decimal("0"))
+        return Decimal("0")
 
-    async def execute(self, sql: str, *args: Any) -> str:
+    async def execute(self, sql: str, *args: Any) -> None:
         self.calls.append((sql, args))
-        return "UPDATE 1"
 
     def transaction(self):
         ctx = MagicMock()
@@ -173,7 +136,7 @@ class _UserScopedConn:
         return ctx
 
 
-def _make_pool(conn: _UserScopedConn) -> MagicMock:
+def _make_pool(conn: _RecordingConn) -> MagicMock:
     pool = MagicMock()
     acm = MagicMock()
     acm.__aenter__ = AsyncMock(return_value=conn)
@@ -183,387 +146,153 @@ def _make_pool(conn: _UserScopedConn) -> MagicMock:
 
 
 # ---------------------------------------------------------------------------
-# Part 1 — Position query isolation
+# PART 2 — Runtime isolation
 # ---------------------------------------------------------------------------
 
-class TestPositionIsolation:
-    def test_user_a_sees_own_positions(self):
-        conn = _UserScopedConn()
+class TestRuntimeIsolation:
+    """Verify that each query function returns only the requesting user's data."""
+
+    def _setup(self):
+        store = {_UID_A: _POS_A, _UID_B: _POS_B, _UID_C: []}
+        conn = _RecordingConn(store)
         pool = _make_pool(conn)
+        return pool, conn
 
-        async def _go():
-            async with pool.acquire() as c:
-                rows = await c.fetch(
-                    "SELECT * FROM positions WHERE user_id=$1 AND status='open'",
-                    _UID_A,
-                )
-            return rows
+    # 2-A: user_A positions — returns exactly 3
+    def test_user_a_sees_only_own_positions(self):
+        from projects.polymarket.crusaderbot.domain.trading.repository import (
+            get_open_positions,
+        )
+        pool, conn = self._setup()
+        with patch(
+            "projects.polymarket.crusaderbot.domain.trading.repository.get_pool",
+            return_value=pool,
+        ):
+            rows = asyncio.run(get_open_positions(_UID_A))
+        assert len(rows) == 3, f"Expected 3 positions for user_A, got {len(rows)}"
+        for r in rows:
+            assert r["user_id"] == _UID_A, "Cross-user bleed detected in user_A fetch"
 
-        rows = asyncio.run(_go())
-        assert len(rows) == 1
-        assert rows[0]["user_id"] == _UID_A
+    # 2-B: user_B positions — returns exactly 2
+    def test_user_b_sees_only_own_positions(self):
+        from projects.polymarket.crusaderbot.domain.trading.repository import (
+            get_open_positions,
+        )
+        pool, conn = self._setup()
+        with patch(
+            "projects.polymarket.crusaderbot.domain.trading.repository.get_pool",
+            return_value=pool,
+        ):
+            rows = asyncio.run(get_open_positions(_UID_B))
+        assert len(rows) == 2, f"Expected 2 positions for user_B, got {len(rows)}"
+        for r in rows:
+            assert r["user_id"] == _UID_B, "Cross-user bleed detected in user_B fetch"
 
-    def test_user_b_sees_own_positions(self):
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
-
-        async def _go():
-            async with pool.acquire() as c:
-                return await c.fetch(
-                    "SELECT * FROM positions WHERE user_id=$1 AND status='open'",
-                    _UID_B,
-                )
-
-        rows = asyncio.run(_go())
-        assert len(rows) == 1
-        assert rows[0]["user_id"] == _UID_B
-
+    # 2-C: user_C positions — returns 0
     def test_user_c_sees_zero_positions(self):
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
+        from projects.polymarket.crusaderbot.domain.trading.repository import (
+            get_open_positions,
+        )
+        pool, conn = self._setup()
+        with patch(
+            "projects.polymarket.crusaderbot.domain.trading.repository.get_pool",
+            return_value=pool,
+        ):
+            rows = asyncio.run(get_open_positions(_UID_C))
+        assert rows == [], "user_C should have zero positions"
 
-        async def _go():
-            async with pool.acquire() as c:
-                return await c.fetch(
-                    "SELECT * FROM positions WHERE user_id=$1 AND status='open'",
-                    _UID_C,
+    # 2-D: user_A cannot access user_B's position by id
+    def test_user_a_cannot_fetch_user_b_position(self):
+        from projects.polymarket.crusaderbot.domain.trading.repository import (
+            get_open_position_for_user,
+        )
+        pool, conn = self._setup()
+        b_pos_id = _POS_B[0]["id"]
+        with patch(
+            "projects.polymarket.crusaderbot.domain.trading.repository.get_pool",
+            return_value=pool,
+        ):
+            result = asyncio.run(get_open_position_for_user(_UID_A, b_pos_id))
+        assert result is None, (
+            f"user_A should NOT be able to fetch user_B's position {b_pos_id}"
+        )
+
+    # 2-E: user_B cannot access user_A's position by id
+    def test_user_b_cannot_fetch_user_a_position(self):
+        from projects.polymarket.crusaderbot.domain.trading.repository import (
+            get_open_position_for_user,
+        )
+        pool, conn = self._setup()
+        a_pos_id = _POS_A[0]["id"]
+        with patch(
+            "projects.polymarket.crusaderbot.domain.trading.repository.get_pool",
+            return_value=pool,
+        ):
+            result = asyncio.run(get_open_position_for_user(_UID_B, a_pos_id))
+        assert result is None, (
+            f"user_B should NOT be able to fetch user_A's position {a_pos_id}"
+        )
+
+    # 2-F: every SQL call from get_open_positions contains the correct user_id param
+    def test_sql_always_contains_requesting_user_id(self):
+        from projects.polymarket.crusaderbot.domain.trading.repository import (
+            get_open_positions,
+        )
+        pool, conn = self._setup()
+        with patch(
+            "projects.polymarket.crusaderbot.domain.trading.repository.get_pool",
+            return_value=pool,
+        ):
+            asyncio.run(get_open_positions(_UID_A))
+        for sql, args in conn.calls:
+            # Every query that touches user-scoped tables must have _UID_A in args
+            if any(tbl in sql.upper() for tbl in ("POSITIONS", "LEDGER", "WALLETS",
+                                                    "USER_SETTINGS", "ORDERS")):
+                assert _UID_A in args, (
+                    f"Query missing user_id param:\n  SQL: {sql}\n  args: {args}"
                 )
 
-        rows = asyncio.run(_go())
-        assert rows == []
-
-    def test_user_a_cannot_see_user_b_positions(self):
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
-
-        async def _go():
-            async with pool.acquire() as c:
-                return await c.fetch(
-                    "SELECT * FROM positions WHERE user_id=$1 AND status='open'",
-                    _UID_A,
-                )
-
-        rows = asyncio.run(_go())
-        b_ids = {p["id"] for p in _POS_STORE[_UID_B]}
-        assert not any(r["id"] in b_ids for r in rows), "user_A leaked user_B positions"
-
-    def test_user_b_cannot_fetch_user_a_position_by_id(self):
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
-
-        async def _go():
-            async with pool.acquire() as c:
-                return await c.fetchrow(
-                    "SELECT * FROM positions WHERE id=$1 AND user_id=$2 AND status='open'",
-                    _POS_A_ID, _UID_B,
-                )
-
-        result = asyncio.run(_go())
-        assert result is None, "user_B should not access user_A's position"
-
-    def test_owner_can_fetch_own_position_by_id(self):
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
-
-        async def _go():
-            async with pool.acquire() as c:
-                return await c.fetchrow(
-                    "SELECT * FROM positions WHERE id=$1 AND user_id=$2 AND status='open'",
-                    _POS_A_ID, _UID_A,
-                )
-
-        result = asyncio.run(_go())
-        assert result is not None
-        assert result["user_id"] == _UID_A
-
-
-# ---------------------------------------------------------------------------
-# Part 2 — Wallet / ledger query isolation
-# ---------------------------------------------------------------------------
-
-class TestWalletIsolation:
-    def test_user_a_wallet_balance(self):
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
-
-        async def _go():
-            async with pool.acquire() as c:
-                return await c.fetchrow(
-                    "SELECT balance_usdc FROM wallets WHERE user_id=$1", _UID_A
-                )
-
-        row = asyncio.run(_go())
-        assert row is not None
-        assert row["user_id"] == _UID_A
-        assert row["balance_usdc"] == Decimal("1000")
-
-    def test_user_b_wallet_balance(self):
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
-
-        async def _go():
-            async with pool.acquire() as c:
-                return await c.fetchrow(
-                    "SELECT balance_usdc FROM wallets WHERE user_id=$1", _UID_B
-                )
-
-        row = asyncio.run(_go())
-        assert row is not None
-        assert row["user_id"] == _UID_B
-        assert row["balance_usdc"] == Decimal("800")
-
-    def test_user_a_wallet_does_not_return_user_b_data(self):
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
-
-        async def _go():
-            async with pool.acquire() as c:
-                return await c.fetchrow(
-                    "SELECT balance_usdc FROM wallets WHERE user_id=$1", _UID_A
-                )
-
-        row = asyncio.run(_go())
-        assert row is not None
-        assert row["user_id"] != _UID_B
-
-
-# ---------------------------------------------------------------------------
-# Part 3 — Settings query isolation
-# ---------------------------------------------------------------------------
-
-class TestSettingsIsolation:
-    def test_user_a_settings(self):
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
-
-        async def _go():
-            async with pool.acquire() as c:
-                return await c.fetchrow(
-                    "SELECT * FROM user_settings WHERE user_id=$1", _UID_A
-                )
-
-        row = asyncio.run(_go())
-        assert row is not None
-        assert row["user_id"] == _UID_A
-        assert row["auto_trade_on"] is True
-
-    def test_user_b_settings_not_visible_to_user_a(self):
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
-
-        async def _run_a():
-            async with pool.acquire() as c:
-                return await c.fetchrow(
-                    "SELECT * FROM user_settings WHERE user_id=$1", _UID_A
-                )
-
-        row = asyncio.run(_run_a())
-        assert row is not None
-        assert row["user_id"] != _UID_B
-
-
-# ---------------------------------------------------------------------------
-# Part 4 — Execute isolation (UPDATE must carry user_id)
-# ---------------------------------------------------------------------------
-
-class TestExecuteIsolation:
-    def test_update_carries_correct_uid(self):
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
-
-        async def _go():
-            async with pool.acquire() as c:
-                await c.execute(
-                    "UPDATE positions SET pnl_usdc=$2 WHERE id=$1 AND user_id=$3",
-                    _POS_A_ID, Decimal("5.0"), _UID_A,
-                )
-
-        asyncio.run(_go())
-        sql, args = conn.calls[-1]
-        assert _UID_A in args, "UPDATE missing user_id=$N guard"
-        assert _UID_B not in args, "cross-contamination: user_B found in user_A UPDATE"
-
-    def test_update_for_user_b_does_not_include_user_a_uid(self):
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
-
-        async def _go():
-            async with pool.acquire() as c:
-                await c.execute(
-                    "UPDATE positions SET pnl_usdc=$2 WHERE id=$1 AND user_id=$3",
-                    _POS_B_ID, Decimal("3.0"), _UID_B,
-                )
-
-        asyncio.run(_go())
-        sql, args = conn.calls[-1]
-        assert _UID_B in args
-        assert _UID_A not in args
-
-
-# ---------------------------------------------------------------------------
-# Part 5 — COUNT isolation
-# ---------------------------------------------------------------------------
-
-class TestCountIsolation:
-    def test_count_for_user_a(self):
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
-
-        async def _go():
-            async with pool.acquire() as c:
-                return await c.fetchval(
-                    "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status='open'",
-                    _UID_A,
-                )
-
-        count = asyncio.run(_go())
-        assert count == 1
-
-    def test_count_for_user_c_is_zero(self):
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
-
-        async def _go():
-            async with pool.acquire() as c:
-                return await c.fetchval(
-                    "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status='open'",
-                    _UID_C,
-                )
-
-        count = asyncio.run(_go())
-        assert count == 0
-
-
-# ---------------------------------------------------------------------------
-# Part 6 — Concurrent isolation stress
-# ---------------------------------------------------------------------------
-
-class TestConcurrentIsolation:
-    def test_concurrent_fetches_no_bleed(self):
-        """10 concurrent tasks across 3 users — each must get own data only."""
-        schedule = [
-            (_UID_A, 1), (_UID_B, 1), (_UID_C, 0),
-            (_UID_A, 1), (_UID_B, 1),
-            (_UID_A, 1), (_UID_C, 0),
-            (_UID_B, 1), (_UID_A, 1), (_UID_B, 1),
+    # 2-G: get_recent_activity returns only user_A's closed positions
+    def test_recent_activity_scoped_to_user(self):
+        from projects.polymarket.crusaderbot.domain.trading.repository import (
+            get_recent_activity,
+        )
+        # Build a store with closed positions
+        closed_a = [
+            {"id": uuid4(), "user_id": _UID_A, "market_id": "mkt-c01",
+             "side": "yes", "size_usdc": Decimal("10"), "pnl_usdc": Decimal("2"),
+             "status": "closed", "mode": "paper"},
+        ]
+        closed_b = [
+            {"id": uuid4(), "user_id": _UID_B, "market_id": "mkt-c02",
+             "side": "no", "size_usdc": Decimal("15"), "pnl_usdc": Decimal("-1"),
+             "status": "closed", "mode": "paper"},
         ]
 
-        async def _fetch_for(uid: UUID, expected: int):
-            conn = _UserScopedConn()
-            pool = _make_pool(conn)
-            async with pool.acquire() as c:
-                rows = await c.fetch(
-                    "SELECT * FROM positions WHERE user_id=$1 AND status='open'", uid
-                )
-            assert len(rows) == expected, (
-                f"user {uid}: expected {expected} positions, got {len(rows)}"
-            )
-            for row in rows:
-                assert row["user_id"] == uid, (
-                    f"cross-user bleed: query for {uid} returned {row['user_id']}"
-                )
+        class _ClosedConn(_RecordingConn):
+            def _filter(self, sql: str, args: tuple) -> list[dict]:
+                uid = next((a for a in args if isinstance(a, UUID)), None)
+                if uid is None:
+                    return []
+                store = {_UID_A: closed_a, _UID_B: closed_b, _UID_C: []}
+                return [r for r in store.get(uid, []) if r["status"] == "closed"]
 
-        async def _run_all():
-            await asyncio.gather(*[_fetch_for(uid, exp) for uid, exp in schedule])
-
-        asyncio.run(_run_all())
-
-    def test_concurrent_updates_no_cross_contamination(self):
-        """Concurrent UPDATE calls for user A and user B must not touch each other."""
-        updated_by: dict[UUID, list[UUID]] = {_UID_A: [], _UID_B: []}
-
-        async def _update_for(uid: UUID, pos_id: UUID) -> None:
-            conn = _UserScopedConn()
-            pool = _make_pool(conn)
-            async with pool.acquire() as c:
-                await c.execute(
-                    "UPDATE positions SET pnl_usdc=$3 WHERE id=$1 AND user_id=$2",
-                    pos_id, uid, Decimal("0.50"),
-                )
-                for sql, args in c.calls:
-                    if "UPDATE" in sql.upper():
-                        updated_by[uid].extend(
-                            a for a in args if isinstance(a, UUID)
-                        )
-
-        async def _run():
-            await asyncio.gather(
-                *[_update_for(_UID_A, _POS_A_ID) for _ in range(5)],
-                *[_update_for(_UID_B, _POS_B_ID) for _ in range(5)],
-            )
-
-        asyncio.run(_run())
-
-        for uid_arg in updated_by[_UID_A]:
-            assert uid_arg != _UID_B, "cross-contamination: _UID_B in user_A update args"
-        for uid_arg in updated_by[_UID_B]:
-            assert uid_arg != _UID_A, "cross-contamination: _UID_A in user_B update args"
-
-
-# ---------------------------------------------------------------------------
-# Part 7 — Admin boundary (operator all-user queries)
-# ---------------------------------------------------------------------------
-
-class TestAdminBoundary:
-    """Operator queries that intentionally have no user_id scope.
-
-    These are documented with INTENTIONAL comments in production code.
-    Tests verify:
-    - The query returns data for ALL users (admin sees everything)
-    - No user-scoped query accidentally picks up another user's data
-    """
-
-    def test_admin_all_users_position_count(self):
-        """Admin COUNT(*) across all positions — intentionally no user_id filter."""
-        all_positions = [
-            p for uid_positions in _POS_STORE.values() for p in uid_positions
-            if p["status"] == "open"
-        ]
-
-        async def _go():
-            # Simulate admin-level pool that has all data
-            conn = _UserScopedConn()
-            pool = _make_pool(conn)
-            async with pool.acquire() as c:
-                # Direct count of all open positions in the fixture
-                return sum(
-                    1 for uid_positions in _POS_STORE.values()
-                    for p in uid_positions if p["status"] == "open"
-                )
-
-        total = asyncio.run(_go())
-        assert total == 2  # user_A: 1, user_B: 1, user_C: 0
-        assert total == len(all_positions)
-
-    def test_user_scoped_queries_do_not_see_other_users(self):
-        """User-scoped queries must never return other users' data."""
-        conn = _UserScopedConn()
+        conn = _ClosedConn({})
         pool = _make_pool(conn)
+        with patch(
+            "projects.polymarket.crusaderbot.domain.trading.repository.get_pool",
+            return_value=pool,
+        ):
+            rows_a = asyncio.run(get_recent_activity(_UID_A))
+            rows_b = asyncio.run(get_recent_activity(_UID_B))
 
-        async def _go():
-            results: dict[UUID, list] = {}
-            async with pool.acquire() as c:
-                for uid in [_UID_A, _UID_B, _UID_C]:
-                    rows = await c.fetch(
-                        "SELECT * FROM positions WHERE user_id=$1 AND status='open'",
-                        uid,
-                    )
-                    results[uid] = rows
-            return results
+        assert len(rows_a) >= 1, "rows_a is empty — mock or get_recent_activity not returning results"
+        assert len(rows_b) >= 1, "rows_b is empty — mock or get_recent_activity not returning results"
+        for r in rows_a:
+            assert r["user_id"] == _UID_A
+        for r in rows_b:
+            assert r["user_id"] == _UID_B
 
-        results = asyncio.run(_go())
-        for uid, rows in results.items():
-            for row in rows:
-                assert row["user_id"] == uid, (
-                    f"cross-user bleed: query for {uid} returned row owned by {row['user_id']}"
-                )
-
-
-# ---------------------------------------------------------------------------
-# Part 2-H — Dashboard _fetch_stats isolation (regression)
-# ---------------------------------------------------------------------------
-
-class TestDashboardFetchStats:
     # 2-H: /pnl — dashboard _fetch_stats passes user_id to every query
     def test_dashboard_fetch_stats_passes_user_id(self):
         from projects.polymarket.crusaderbot.bot.handlers.dashboard import _fetch_stats
@@ -595,136 +324,615 @@ class TestDashboardFetchStats:
                             "pnl_30d": Decimal("0"),
                             "pnl_all": Decimal("0"),
                         }
-                    if "balance_usdc" in sql:
-                        return {"balance_usdc": Decimal("1000")}
-                    return {}
-
-                async def fetchval(self, sql: str, *args: Any) -> Any:
-                    calls.append((sql, args))
-                    return None
+                    # user_settings row
+                    return {
+                        "risk_profile": "moderate",
+                        "strategy_types": [],
+                        "trading_mode": "paper",
+                    }
 
             conn = _StatsConn()
-            pool = MagicMock()
-            acm = MagicMock()
-            acm.__aenter__ = AsyncMock(return_value=conn)
-            acm.__aexit__ = AsyncMock(return_value=False)
-            pool.acquire.return_value = acm
-
+            pool = _make_pool(conn)
             with patch(
                 "projects.polymarket.crusaderbot.bot.handlers.dashboard.get_pool",
                 return_value=pool,
             ):
                 await _fetch_stats(_UID_A)
 
-            return calls
-
-        calls = asyncio.run(_run())
-        assert len(calls) > 0, "_fetch_stats made no DB calls"
-        for sql, args in calls:
-            uuids_in_args = [a for a in args if isinstance(a, UUID)]
-            if uuids_in_args:
-                assert _UID_A in uuids_in_args, (
-                    f"_fetch_stats call missing _UID_A:\n  sql={sql!r}\n  args={args}"
+            assert len(calls) == 4, (
+                f"_fetch_stats should make exactly 4 fetchrow calls, got {len(calls)}"
+            )
+            for sql, args in calls:
+                assert _UID_A in args, (
+                    f"_fetch_stats query missing user_id _UID_A:\n"
+                    f"  SQL: {sql[:120]}\n  args: {args}"
                 )
-                assert _UID_B not in uuids_in_args, "cross-user: _UID_B in _UID_A stats call"
+                assert _UID_B not in args, "Cross-user: _UID_B found in _fetch_stats call"
+                assert _UID_C not in args, "Cross-user: _UID_C found in _fetch_stats call"
 
+        asyncio.run(_run())
 
-# ---------------------------------------------------------------------------
-# Part 3 — mark_force_close_intent isolation
-# ---------------------------------------------------------------------------
-
-class TestMarkForceCloseIntentIsolation:
-    def test_mark_force_close_intent_scoped_to_user(self):
-        """mark_force_close_intent_for_user must only UPDATE positions for the calling user."""
-        from projects.polymarket.crusaderbot.domain.execution.exit_watcher import (
-            mark_force_close_intent_for_user,
+    # 2-I: /insights — _fetch_insights passes user_id to every query
+    def test_insights_fetch_passes_user_id(self):
+        from projects.polymarket.crusaderbot.bot.handlers.pnl_insights import (
+            _fetch_insights,
         )
 
-        conn = _UserScopedConn()
-        pool = _make_pool(conn)
-
         async def _run():
+            calls: list[tuple[str, tuple]] = []
+
+            class _InsightConn:
+                async def fetchrow(self, sql: str, *args: Any):
+                    calls.append((sql, args))
+                    # stats query returns a row with all zero values
+                    if "COUNT(*)" in sql.upper():
+                        return {k: 0 for k in (
+                            "total_closed", "wins", "losses", "gross_wins",
+                            "gross_losses", "best_pnl", "worst_pnl",
+                            "avg_win", "avg_loss", "trades_7d", "pnl_7d",
+                        )}
+                    # best/worst title queries — return None (no trades yet)
+                    return None
+
+                async def fetch(self, sql: str, *args: Any) -> list:
+                    calls.append((sql, args))
+                    return []
+
+            conn = _InsightConn()
+            pool = _make_pool(conn)
             with patch(
-                "projects.polymarket.crusaderbot.domain.execution.exit_watcher.get_pool",
+                "projects.polymarket.crusaderbot.bot.handlers.pnl_insights.get_pool",
                 return_value=pool,
             ):
-                await mark_force_close_intent_for_user(_UID_A)
+                await _fetch_insights(_UID_B)
+
+            assert any("positions" in sql.lower() for sql, _ in calls), (
+                "_fetch_insights made no positions query — insights path broken"
+            )
+            for sql, args in calls:
+                if "positions" in sql.lower():
+                    assert _UID_B in args, (
+                        f"insights._fetch_insights missing user_id in query:\n"
+                        f"  SQL: {sql[:120]}\n  args: {args}"
+                    )
 
         asyncio.run(_run())
 
-        for sql, args in conn.calls:
-            if "UPDATE" in sql.upper():
-                uuids_in_args = [a for a in args if isinstance(a, UUID)]
-                assert _UID_A in uuids_in_args, "UPDATE missing _UID_A"
-                assert _UID_B not in uuids_in_args, "cross-user: _UID_B in user_A UPDATE"
-
-    def test_mark_force_close_does_not_affect_user_b(self):
-        from projects.polymarket.crusaderbot.domain.execution.exit_watcher import (
-            mark_force_close_intent_for_user,
+    # 2-J: /chart — portfolio_chart passes user_id
+    def test_portfolio_chart_passes_user_id(self):
+        from projects.polymarket.crusaderbot.services.portfolio_chart import (
+            _fetch_daily_balance_series,
         )
 
-        conn_a = _UserScopedConn()
-        conn_b = _UserScopedConn()
-        pool_a = _make_pool(conn_a)
-        pool_b = _make_pool(conn_b)
-
         async def _run():
+            calls: list[tuple[str, tuple]] = []
+
+            class _ChartConn:
+                async def fetch(self, sql: str, *args: Any) -> list:
+                    calls.append((sql, args))
+                    return []
+
+            conn = _ChartConn()
+            pool = _make_pool(conn)
+            # portfolio_chart uses a local `from ..database import get_pool` inside
+            # the function body — patch at the crusaderbot.database level.
             with patch(
-                "projects.polymarket.crusaderbot.domain.execution.exit_watcher.get_pool",
-                return_value=pool_a,
+                "projects.polymarket.crusaderbot.database.get_pool",
+                return_value=pool,
             ):
-                await mark_force_close_intent_for_user(_UID_A)
+                await _fetch_daily_balance_series(_UID_A, cutoff_date=None)
+
+            assert any("ledger" in sql.lower() for sql, _ in calls), (
+                "_fetch_daily_balance_series made no ledger query — chart path broken"
+            )
+            for sql, args in calls:
+                if "ledger" in sql.lower():
+                    assert _UID_A in args, (
+                        f"portfolio_chart missing user_id:\n"
+                        f"  SQL: {sql[:120]}\n  args: {args}"
+                    )
 
         asyncio.run(_run())
 
-        # user_B's connection must have received 0 UPDATE calls
-        assert len(conn_b.calls) == 0, "user_B conn received unexpected calls"
+    # 2-K: /trades — activity_page query is user-scoped
+    def test_activity_page_scoped_to_user(self):
+        """get_activity_page must only return data for the requesting user_id."""
+        from projects.polymarket.crusaderbot.domain.trading.repository import (
+            get_activity_page,
+        )
+
+        class _PageConn:
+            calls: list[tuple[str, tuple]] = []
+
+            async def fetchval(self, sql: str, *args: Any) -> int:
+                self.calls.append((sql, args))
+                return 0
+
+            async def fetch(self, sql: str, *args: Any) -> list:
+                self.calls.append((sql, args))
+                return []
+
+        conn = _PageConn()
+        pool = _make_pool(conn)
+        with patch(
+            "projects.polymarket.crusaderbot.domain.trading.repository.get_pool",
+            return_value=pool,
+        ):
+            asyncio.run(get_activity_page(_UID_A, page=0))
+
+        assert any("positions" in sql.lower() for sql, _ in conn.calls), (
+            "get_activity_page made no positions query — activity path broken"
+        )
+        for sql, args in conn.calls:
+            if "positions" in sql.lower():
+                assert _UID_A in args, (
+                    f"get_activity_page missing user_id:\n"
+                    f"  SQL: {sql[:120]}\n  args: {args}"
+                )
+                assert _UID_B not in args, "Cross-user: _UID_B found in _UID_A activity page"
 
 
 # ---------------------------------------------------------------------------
-# Part 4 — Admin boundary: PREMIUM vs ADMIN tier check
+# PART 3 — Concurrent stress test
 # ---------------------------------------------------------------------------
 
-class TestAdminTierBoundary:
-    def test_premium_user_cannot_trigger_admin_handler(self):
-        """Verify ADMIN tier check rejects PREMIUM users from admin-only paths."""
-        import asyncio
-        from unittest.mock import AsyncMock, MagicMock
-        from projects.polymarket.crusaderbot.services.allowlist import is_admin
+class TestConcurrentIsolation:
+    """10 asyncio tasks across 3 users — verify no cross-user data bleed."""
 
-        called = False
+    def test_concurrent_10_tasks_no_data_bleed(self):
+        """Run 10 concurrent position fetches across 3 users, verify isolation."""
+        from projects.polymarket.crusaderbot.domain.trading.repository import (
+            get_open_positions,
+        )
 
-        async def _admin_handler(update, ctx):
-            nonlocal called
-            # is_admin gate
-            if not await is_admin(update.effective_user.id):
-                return
-            called = True
+        # Assign tasks to users in round-robin: [A,B,C,A,B,C,A,B,A,B]
+        task_users = [
+            (_UID_A, 3), (_UID_B, 2), (_UID_C, 0),
+            (_UID_A, 3), (_UID_B, 2), (_UID_C, 0),
+            (_UID_A, 3), (_UID_B, 2),
+            (_UID_A, 3), (_UID_B, 2),
+        ]
 
-        class _FakeUser:
-            id = 99999  # unknown / non-admin
+        store = {_UID_A: _POS_A, _UID_B: _POS_B, _UID_C: []}
 
-        class _FakeUpdate:
-            effective_user = _FakeUser()
+        async def _run_all():
+            results = []
 
-        update = _FakeUpdate()
+            async def _fetch_for(uid: UUID, expected: int):
+                conn = _RecordingConn(store)
+                pool = _make_pool(conn)
+                with patch(
+                    "projects.polymarket.crusaderbot.domain.trading.repository.get_pool",
+                    return_value=pool,
+                ):
+                    rows = await get_open_positions(uid)
+                return uid, rows, expected
+
+            tasks = [_fetch_for(uid, exp) for uid, exp in task_users]
+            results = await asyncio.gather(*tasks)
+            return results
+
+        results = asyncio.run(_run_all())
+
+        assert len(results) == 10, "Expected 10 task results"
+
+        for uid, rows, expected_count in results:
+            assert len(rows) == expected_count, (
+                f"user {uid}: expected {expected_count} positions, got {len(rows)}"
+            )
+            for row in rows:
+                assert row["user_id"] == uid, (
+                    f"Cross-user bleed: query for {uid} returned row owned by {row['user_id']}"
+                )
+
+    def test_concurrent_mixed_queries_no_bleed(self):
+        """Concurrent open + closed position queries across A and B don't cross."""
+        from projects.polymarket.crusaderbot.domain.trading.repository import (
+            get_open_positions,
+            get_recent_activity,
+        )
+
+        closed_store = {
+            _UID_A: [{"id": uuid4(), "user_id": _UID_A, "market_id": "cl-a",
+                      "side": "yes", "size_usdc": Decimal("10"),
+                      "pnl_usdc": Decimal("2"), "status": "closed"}],
+            _UID_B: [{"id": uuid4(), "user_id": _UID_B, "market_id": "cl-b",
+                      "side": "no", "size_usdc": Decimal("8"),
+                      "pnl_usdc": Decimal("-1"), "status": "closed"}],
+            _UID_C: [],
+        }
+        open_store = {_UID_A: _POS_A, _UID_B: _POS_B, _UID_C: []}
+
+        # Build one pool per (user, query_type) combo so each coroutine has
+        # its own captured-user-id pool before gather runs.
+        def _pool_for(uid: UUID, is_closed: bool) -> MagicMock:
+            store = closed_store if is_closed else open_store
+
+            class _Conn:
+                async def fetch(self, sql: str, *a: Any) -> list:
+                    # Use the UUID the production code actually passed as arg,
+                    # not the closure uid — catches wrong-user query bugs.
+                    queried_uid = next(
+                        (arg for arg in a if isinstance(arg, UUID) and arg in store),
+                        None,
+                    )
+                    if queried_uid is None:
+                        return []
+                    return [r for r in store.get(queried_uid, [])
+                            if r.get("user_id") == queried_uid]
+
+                async def fetchrow(self, sql: str, *a: Any):
+                    return None
+
+                async def fetchval(self, sql: str, *a: Any) -> int:
+                    return 0
+
+            conn = _Conn()
+            pool = MagicMock()
+            acm = MagicMock()
+            acm.__aenter__ = AsyncMock(return_value=conn)
+            acm.__aexit__ = AsyncMock(return_value=False)
+            pool.acquire.return_value = acm
+            return pool
+
+        # Start patches for each coroutine before gather.
+        # We use side_effect to rotate through per-task pools.
+        calls_open = [_pool_for(uid, False)
+                      for uid in [_UID_A, _UID_B, _UID_C, _UID_A, _UID_B]]
+        calls_closed = [_pool_for(uid, True)
+                        for uid in [_UID_A, _UID_B, _UID_C, _UID_A, _UID_B]]
+
+        pool_iter_open = iter(calls_open)
+        pool_iter_closed = iter(calls_closed)
+
+        async def _run():
+            import itertools
+            open_pools = list(calls_open)
+            closed_pools = list(calls_closed)
+            uids = [_UID_A, _UID_B, _UID_C, _UID_A, _UID_B]
+
+            async def _fetch_open(uid: UUID, pool: MagicMock) -> list:
+                with patch(
+                    "projects.polymarket.crusaderbot.domain.trading.repository.get_pool",
+                    return_value=pool,
+                ):
+                    return await get_open_positions(uid)
+
+            async def _fetch_closed(uid: UUID, pool: MagicMock) -> list:
+                with patch(
+                    "projects.polymarket.crusaderbot.domain.trading.repository.get_pool",
+                    return_value=pool,
+                ):
+                    return await get_recent_activity(uid)
+
+            tasks = []
+            for uid, op, cp in zip(uids, open_pools, closed_pools):
+                tasks.append(_fetch_open(uid, op))
+                tasks.append(_fetch_closed(uid, cp))
+            return await asyncio.gather(*tasks)
+
+        results = asyncio.run(_run())
+        # tasks were appended as [A_open, A_closed, B_open, B_closed, ...] so
+        # expected uid and minimum row count follow the same interleaved order.
+        # _UID_C has no positions, so its tasks return 0 rows (correct).
+        _open_counts = {_UID_A: 3, _UID_B: 2, _UID_C: 0}
+        _closed_counts = {_UID_A: 1, _UID_B: 1, _UID_C: 0}
+        expected_uids: list[UUID] = []
+        expected_min_counts: list[int] = []
+        for uid in [_UID_A, _UID_B, _UID_C, _UID_A, _UID_B]:
+            expected_uids.append(uid)
+            expected_min_counts.append(_open_counts[uid])
+            expected_uids.append(uid)
+            expected_min_counts.append(_closed_counts[uid])
+
+        for expected_uid, min_count, result in zip(expected_uids, expected_min_counts, results):
+            assert len(result) >= min_count, (
+                f"query for {expected_uid} returned {len(result)} rows, "
+                f"expected >= {min_count} — wrong-user binding may have caused empty result"
+            )
+            for row in result:
+                assert row.get("user_id") == expected_uid, (
+                    f"Cross-user bleed: query for {expected_uid} "
+                    f"returned row owned by {row.get('user_id')}"
+                )
+
+    def test_10_concurrent_risk_gate_queries_isolated(self):
+        """_open_position_count scopes its SQL query to the requesting user_id."""
+        from projects.polymarket.crusaderbot.domain.risk.gate import _open_position_count
+
+        uids = [uuid4() for _ in range(10)]
+
+        async def _check_one(uid: UUID) -> list[tuple[str, tuple]]:
+            calls: list[tuple[str, tuple]] = []
+
+            class _RiskConn:
+                async def fetchval(self, sql: str, *args: Any) -> int:
+                    calls.append((sql, args))
+                    return 0
+
+            conn = _RiskConn()
+            pool = _make_pool(conn)
+            with patch(
+                "projects.polymarket.crusaderbot.domain.risk.gate.get_pool",
+                return_value=pool,
+            ):
+                await _open_position_count(uid)
+            return calls
+
+        async def _run_all():
+            return await asyncio.gather(*[_check_one(u) for u in uids])
+
+        per_task_calls = asyncio.run(_run_all())
+
+        for uid, calls in zip(uids, per_task_calls):
+            assert len(calls) == 1, (
+                f"Expected 1 DB call for _open_position_count, got {len(calls)}"
+            )
+            sql, args = calls[0]
+            assert "user_id" in sql.lower() or "$1" in sql, (
+                f"_open_position_count SQL missing user_id scope: {sql!r}"
+            )
+            assert uid in args, (
+                f"_open_position_count called with wrong uid: expected {uid}, args={args}"
+            )
+            for arg in args:
+                if isinstance(arg, UUID) and arg != uid:
+                    raise AssertionError(
+                        f"Foreign UUID {arg} in _open_position_count call for user {uid}"
+                    )
+
+
+# ---------------------------------------------------------------------------
+# PART 4 — Admin boundary
+# ---------------------------------------------------------------------------
+
+class TestAdminBoundary:
+    """Verify /admin commands are gated — FREE/PREMIUM users cannot execute them."""
+
+    def _update_for(self, user_id: int, args: list[str]) -> tuple:
+        msg = MagicMock()
+        msg.reply_text = AsyncMock()
+        user = SimpleNamespace(id=user_id)
+        upd = MagicMock()
+        upd.effective_user = user
+        upd.message = msg
+        upd.callback_query = None
+        ctx = MagicMock()
+        ctx.args = args
+        return upd, ctx
+
+    # 4-A: FREE user is blocked from /admin
+    def test_free_user_blocked_from_admin_root(self):
+        from projects.polymarket.crusaderbot.bot.handlers.admin import admin_root
+        upd, ctx = self._update_for(user_id=9999001, args=[])
+        with (
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.get_settings",
+                return_value=SimpleNamespace(OPERATOR_CHAT_ID=1),
+            ),
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.get_user_tier",
+                new=AsyncMock(return_value="FREE"),
+            ),
+        ):
+            asyncio.run(admin_root(upd, ctx))
+        upd.message.reply_text.assert_called_once()
+        reply = upd.message.reply_text.call_args[0][0]
+        assert "Admin access required" in reply or "⛔" in reply, (
+            f"FREE user should be blocked. Got: {reply!r}"
+        )
+
+    # 4-B: PREMIUM user is blocked from /admin
+    def test_premium_user_blocked_from_admin_root(self):
+        from projects.polymarket.crusaderbot.bot.handlers.admin import admin_root
+        upd, ctx = self._update_for(user_id=9999002, args=[])
+        with (
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.get_settings",
+                return_value=SimpleNamespace(OPERATOR_CHAT_ID=1),
+            ),
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.get_user_tier",
+                new=AsyncMock(return_value="PREMIUM"),
+            ),
+        ):
+            asyncio.run(admin_root(upd, ctx))
+        upd.message.reply_text.assert_called_once()
+        reply = upd.message.reply_text.call_args[0][0]
+        assert "Admin access required" in reply or "⛔" in reply, (
+            f"PREMIUM user should be blocked. Got: {reply!r}"
+        )
+
+    # 4-C: ADMIN tier user CAN access /admin (sees help menu)
+    def test_admin_tier_can_access_admin_root(self):
+        from projects.polymarket.crusaderbot.bot.handlers.admin import admin_root
+        upd, ctx = self._update_for(user_id=9999003, args=[])
+        with (
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.get_settings",
+                return_value=SimpleNamespace(OPERATOR_CHAT_ID=1),
+            ),
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.get_user_tier",
+                new=AsyncMock(return_value="ADMIN"),
+            ),
+        ):
+            asyncio.run(admin_root(upd, ctx))
+        upd.message.reply_text.assert_called_once()
+        reply = upd.message.reply_text.call_args[0][0]
+        # ADMIN user should NOT be blocked
+        assert "Admin access required" not in reply, (
+            f"ADMIN user should not be blocked. Got: {reply!r}"
+        )
+
+    # 4-D: Operator (OPERATOR_CHAT_ID match) bypasses tier check
+    def test_operator_bypasses_tier_check(self):
+        from projects.polymarket.crusaderbot.bot.handlers.admin import admin_root
+        upd, ctx = self._update_for(user_id=1, args=[])  # user_id == OPERATOR_CHAT_ID
+        with (
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.get_settings",
+                return_value=SimpleNamespace(OPERATOR_CHAT_ID=1),
+            ),
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.is_kill_switch_active",
+                new=AsyncMock(return_value=False),
+            ),
+        ):
+            asyncio.run(admin_root(upd, ctx))
+        # Operator sees kill-switch panel, no blocking
+        upd.message.reply_text.assert_called_once()
+
+    # 4-E: FREE user cannot trigger /admin settier
+    def test_free_user_cannot_trigger_settier(self):
+        from projects.polymarket.crusaderbot.bot.handlers.admin import admin_root
+        upd, ctx = self._update_for(
+            user_id=9999001, args=["settier", "9000001", "ADMIN"]
+        )
+        with (
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.get_settings",
+                return_value=SimpleNamespace(OPERATOR_CHAT_ID=1),
+            ),
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.get_user_tier",
+                new=AsyncMock(return_value="FREE"),
+            ),
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.set_user_tier",
+                new=AsyncMock(),
+            ) as mock_settier,
+        ):
+            asyncio.run(admin_root(upd, ctx))
+        mock_settier.assert_not_called(), "set_user_tier must not be called by FREE user"
+
+    # 4-F: PREMIUM user cannot trigger /admin settier
+    def test_premium_user_cannot_trigger_settier(self):
+        from projects.polymarket.crusaderbot.bot.handlers.admin import admin_root
+        upd, ctx = self._update_for(
+            user_id=9999002, args=["settier", "9000002", "ADMIN"]
+        )
+        with (
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.get_settings",
+                return_value=SimpleNamespace(OPERATOR_CHAT_ID=1),
+            ),
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.get_user_tier",
+                new=AsyncMock(return_value="PREMIUM"),
+            ),
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.set_user_tier",
+                new=AsyncMock(),
+            ) as mock_settier,
+        ):
+            asyncio.run(admin_root(upd, ctx))
+        mock_settier.assert_not_called(), "set_user_tier must not be called by PREMIUM user"
+
+    # 4-G: /admin users shows ALL users (correct — admin scope, not a leak)
+    def test_admin_users_subcommand_allowed_for_admin_tier(self):
+        from projects.polymarket.crusaderbot.bot.handlers.admin import admin_root
+        upd, ctx = self._update_for(user_id=9999003, args=["users"])
+        with (
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.get_settings",
+                return_value=SimpleNamespace(OPERATOR_CHAT_ID=1),
+            ),
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.get_user_tier",
+                new=AsyncMock(return_value="ADMIN"),
+            ),
+            patch(
+                "projects.polymarket.crusaderbot.bot.handlers.admin.list_all_user_tiers",
+                new=AsyncMock(return_value=[
+                    {"user_id": _TG_A, "tier": "FREE",
+                     "assigned_at": None, "assigned_by": None},
+                    {"user_id": _TG_B, "tier": "PREMIUM",
+                     "assigned_at": None, "assigned_by": None},
+                ]),
+            ),
+        ):
+            asyncio.run(admin_root(upd, ctx))
+        upd.message.reply_text.assert_called_once()
+
+    # 4-H: require_access_tier decorator — FREE blocked from PREMIUM handler
+    def test_require_access_tier_blocks_free_from_premium(self):
+        from projects.polymarket.crusaderbot.bot.middleware.access_tier import (
+            require_access_tier,
+        )
+
+        called = []
+
+        @require_access_tier("PREMIUM")
+        async def _premium_handler(update, context):
+            called.append("executed")
+
+        msg = MagicMock()
+        msg.reply_text = AsyncMock()
+        upd = MagicMock()
+        upd.effective_user = SimpleNamespace(id=9999010)
+        upd.effective_message = msg
         ctx = MagicMock()
 
         with patch(
-            "projects.polymarket.crusaderbot.services.allowlist.get_pool",
-            return_value=MagicMock(
-                acquire=MagicMock(
-                    return_value=MagicMock(
-                        __aenter__=AsyncMock(
-                            return_value=MagicMock(
-                                fetchval=AsyncMock(return_value=None)  # not admin
-                            )
-                        ),
-                        __aexit__=AsyncMock(return_value=False),
-                    )
-                )
-            ),
+            "projects.polymarket.crusaderbot.bot.middleware.access_tier.get_user_tier",
+            new=AsyncMock(return_value="FREE"),
         ):
-            asyncio.run(_admin_handler(update, ctx))
+            asyncio.run(_premium_handler(upd, ctx))
+
+        assert not called, "PREMIUM handler should not execute for FREE user"
+        msg.reply_text.assert_called_once()
+
+    # 4-I: require_access_tier — PREMIUM can access PREMIUM handler
+    def test_require_access_tier_allows_premium(self):
+        from projects.polymarket.crusaderbot.bot.middleware.access_tier import (
+            require_access_tier,
+        )
+
+        called = []
+
+        @require_access_tier("PREMIUM")
+        async def _premium_handler(update, context):
+            called.append("executed")
+
+        msg = MagicMock()
+        msg.reply_text = AsyncMock()
+        upd = MagicMock()
+        upd.effective_user = SimpleNamespace(id=9999011)
+        upd.effective_message = msg
+        ctx = MagicMock()
+
+        with patch(
+            "projects.polymarket.crusaderbot.bot.middleware.access_tier.get_user_tier",
+            new=AsyncMock(return_value="PREMIUM"),
+        ):
+            asyncio.run(_premium_handler(upd, ctx))
+
+        assert "executed" in called, "PREMIUM handler should execute for PREMIUM user"
+
+    # 4-J: require_access_tier — ADMIN tier blocked from ADMIN handler if not ADMIN
+    def test_require_access_tier_blocks_premium_from_admin(self):
+        from projects.polymarket.crusaderbot.bot.middleware.access_tier import (
+            require_access_tier,
+        )
+
+        called = []
+
+        @require_access_tier("ADMIN")
+        async def _admin_handler(update, context):
+            called.append("executed")
+
+        msg = MagicMock()
+        msg.reply_text = AsyncMock()
+        upd = MagicMock()
+        upd.effective_user = SimpleNamespace(id=9999012)
+        upd.effective_message = msg
+        ctx = MagicMock()
+
+        with patch(
+            "projects.polymarket.crusaderbot.bot.middleware.access_tier.get_user_tier",
+            new=AsyncMock(return_value="PREMIUM"),
+        ):
+            asyncio.run(_admin_handler(upd, ctx))
 
         assert not called, "ADMIN handler should not execute for PREMIUM user"
