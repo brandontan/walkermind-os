@@ -141,13 +141,15 @@ async def dry_run(request: dict, authorization: str | None = Header(default=None
     """Shadow-execute the full pipeline for a signal without submitting any order.
 
     Operator-only. Runs signal → risk gate → sizing and returns the decision
-    that WOULD be made if execute() were called, with no DB mutations and
-    no CLOB submission.  Use to validate that paper and live paths produce
-    identical decisions for the same input.
+    that WOULD be made if execute() were called.  Fully read-only: no DB
+    mutations, no idempotency key consumption, no CLOB submission.
 
-    Request body keys (all required):
-      user_id, market_id, side, proposed_size_usdc, price,
-      market_liquidity, strategy_type, risk_profile
+    Required fields: user_id, market_id, side, proposed_size_usdc, price,
+                     market_liquidity, strategy_type, risk_profile
+    Optional fields: signal_ts (ISO-8601), telegram_user_id, access_tier,
+                     auto_trade_on, paused, market_question, yes_token_id,
+                     no_token_id, market_status, idempotency_key,
+                     trading_mode, edge_bps, tp_pct, sl_pct
     """
     token = authorization.removeprefix("Bearer ").strip() if authorization else None
     _check(token)
@@ -155,36 +157,68 @@ async def dry_run(request: dict, authorization: str | None = Header(default=None
     import uuid
     from decimal import Decimal
     from datetime import datetime, timezone
+    from fastapi import HTTPException
     from ..services.trade_engine.engine import TradeEngine, TradeSignal, ExecutionDryRun
+
+    # Enforce required fields explicitly — do not silently use defaults that
+    # would produce a result based on arbitrary placeholder values.
+    _REQUIRED = ("user_id", "market_id", "side", "proposed_size_usdc",
+                 "price", "market_liquidity", "strategy_type", "risk_profile")
+    missing = [k for k in _REQUIRED if k not in request or request[k] is None]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"dry-run missing required fields: {missing}",
+        )
+
+    # Optional signal_ts: accept ISO-8601 string so operators can replay
+    # historical signals and exercise the staleness gate (step 9) correctly.
+    _raw_ts = request.get("signal_ts")
+    if _raw_ts is not None:
+        try:
+            _signal_ts: datetime | None = datetime.fromisoformat(str(_raw_ts))
+            if _signal_ts.tzinfo is None:
+                _signal_ts = _signal_ts.replace(tzinfo=timezone.utc)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"invalid signal_ts (expected ISO-8601): {exc}",
+            ) from exc
+    else:
+        _signal_ts = datetime.now(timezone.utc)
 
     try:
         signal = TradeSignal(
-            user_id=uuid.UUID(str(request.get("user_id", ""))),
+            user_id=uuid.UUID(str(request["user_id"])),
             telegram_user_id=int(request.get("telegram_user_id", 0)),
             access_tier=int(request.get("access_tier", 2)),
             auto_trade_on=bool(request.get("auto_trade_on", True)),
             paused=bool(request.get("paused", False)),
-            market_id=str(request.get("market_id", "")),
+            market_id=str(request["market_id"]),
             market_question=request.get("market_question"),
             yes_token_id=request.get("yes_token_id"),
             no_token_id=request.get("no_token_id"),
-            side=str(request.get("side", "yes")),
-            proposed_size_usdc=Decimal(str(request.get("proposed_size_usdc", "10"))),
-            price=float(request.get("price", 0.5)),
-            market_liquidity=float(request.get("market_liquidity", 10000.0)),
+            side=str(request["side"]),
+            proposed_size_usdc=Decimal(str(request["proposed_size_usdc"])),
+            price=float(request["price"]),
+            market_liquidity=float(request["market_liquidity"]),
             market_status=str(request.get("market_status", "active")),
             idempotency_key=str(request.get(
                 "idempotency_key",
                 f"dryrun-{uuid.uuid4()}",
             )),
-            strategy_type=str(request.get("strategy_type", "signal")),
-            risk_profile=str(request.get("risk_profile", "balanced")),
+            strategy_type=str(request["strategy_type"]),
+            risk_profile=str(request["risk_profile"]),
             trading_mode=str(request.get("trading_mode", "paper")),
-            signal_ts=datetime.now(timezone.utc),
+            signal_ts=_signal_ts,
+            edge_bps=float(request["edge_bps"]) if "edge_bps" in request else None,
+            tp_pct=float(request["tp_pct"]) if "tp_pct" in request else None,
+            sl_pct=float(request["sl_pct"]) if "sl_pct" in request else None,
         )
-    except Exception as exc:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=422, detail=f"invalid dry-run payload: {exc}") from exc
+    except (KeyError, ValueError, TypeError) as exc:
+        raise HTTPException(
+            status_code=422, detail=f"invalid dry-run payload: {exc}",
+        ) from exc
 
     result: ExecutionDryRun = await TradeEngine().dry_run_execute(signal)
     return {

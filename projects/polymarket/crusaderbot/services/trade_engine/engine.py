@@ -237,14 +237,33 @@ class TradeEngine:
     async def dry_run_execute(self, signal: TradeSignal) -> ExecutionDryRun:
         """Run the full pipeline (signal → risk → sizing) but stop before submission.
 
-        Validates that the paper path and live path produce identical risk decisions
-        for the same input.  No DB writes occur (risk_log aside from gate internal
-        logging); no orders are submitted; no positions are created.
+        Truly read-only: all gate DB side effects are suppressed via the same
+        patching pattern used by parity.validate_gate_parity().  Specifically:
+          - risk_log writes (_log) → noop
+          - idempotency key recording (_record_idempotency) → noop
+          - idempotency duplicate reads → always False (never seen)
+          - dedup window reads → always False
+          - live fallback triggers → noop (no user_settings mutations)
 
-        Returns ExecutionDryRun describing what WOULD happen if execute() were called.
+        This guarantees that a dry run with a real signal's idempotency key
+        cannot block the subsequent actual trade by consuming the key.
         """
+        from unittest.mock import AsyncMock, patch as _patch
+
         gate_ctx = self._build_gate_context(signal)
-        gate_result: GateResult = await _risk_evaluate(gate_ctx)
+        _noop = AsyncMock(return_value=None)
+        _GATE = "projects.polymarket.crusaderbot.domain.risk.gate"
+
+        with (
+            _patch(f"{_GATE}._log", _noop),
+            _patch(f"{_GATE}._record_idempotency", _noop),
+            _patch(f"{_GATE}._idempotent_already_seen", AsyncMock(return_value=False)),
+            _patch(f"{_GATE}._recent_dup_market_trade", AsyncMock(return_value=False)),
+            _patch(f"{_GATE}.live_fallback.trigger_for_kill_switch_halt", _noop),
+            _patch(f"{_GATE}.live_fallback.trigger_for_drawdown_halt", _noop),
+            _patch(f"{_GATE}.live_fallback.trigger_for_live_guard_unset", _noop),
+        ):
+            gate_result: GateResult = await _risk_evaluate(gate_ctx)
 
         if not gate_result.approved:
             return ExecutionDryRun(
