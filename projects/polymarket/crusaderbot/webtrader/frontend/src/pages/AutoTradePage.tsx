@@ -350,7 +350,7 @@ export function AutoTradePage() {
                 <div>
                   <div className="font-hud text-sm font-bold text-ink-2 flex items-center gap-2">
                     {cs.name}
-                    <span className="text-[9px] font-bold tracking-widest text-ink-3 uppercase px-1.5 py-0.5 rounded border border-ink-4/40 bg-surface-2">
+                    <span className="text-[9px] font-bold tracking-widest text-ink-3 uppercase px-1.5 py-0.5 rounded border border-surface-3/40 bg-surface-2">
                       COMING SOON
                     </span>
                   </div>
@@ -420,7 +420,7 @@ export function AutoTradePage() {
                             max={99}
                             value={val}
                             onChange={e => set(e.target.value)}
-                            className="w-full bg-surface-3 border border-ink-4 rounded px-1.5 py-1 text-xs font-mono text-ink-1 placeholder:text-ink-3 focus:border-gold focus:outline-none"
+                            className="w-full bg-surface-3 border border-surface-3 rounded px-1.5 py-1 text-xs font-mono text-ink-1 placeholder:text-ink-3 focus:border-gold focus:outline-none"
                             style={{ color: "white" }}
                           />
                         </div>
@@ -486,7 +486,7 @@ export function AutoTradePage() {
               <select
                 value={filterLiquidity}
                 onChange={e => setFilterLiquidity(e.target.value)}
-                className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                className="w-full bg-surface-3 border border-surface-3 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
               >
                 <option value="1000">$1k</option>
                 <option value="5000">$5k</option>
@@ -499,7 +499,7 @@ export function AutoTradePage() {
               <select
                 value={filterResolution}
                 onChange={e => setFilterResolution(e.target.value)}
-                className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                className="w-full bg-surface-3 border border-surface-3 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
               >
                 <option value="0">Any</option>
                 <option value="1">1 day</option>
@@ -513,7 +513,7 @@ export function AutoTradePage() {
               <select
                 value={filterVolume}
                 onChange={e => setFilterVolume(e.target.value)}
-                className="w-full bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                className="w-full bg-surface-3 border border-surface-3 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
               >
                 <option value="100">$100</option>
                 <option value="500">$500</option>
@@ -536,7 +536,7 @@ export function AutoTradePage() {
                 step={0.5}
                 value={filterSlippage}
                 onChange={e => setFilterSlippage(e.target.value)}
-                className="w-20 bg-surface-3 border border-ink-4 rounded px-2 py-1.5 text-xs font-mono text-ink-1 placeholder:text-ink-3 focus:border-gold focus:outline-none"
+                className="w-20 bg-surface-3 border border-surface-3 rounded px-2 py-1.5 text-xs font-mono text-ink-1 placeholder:text-ink-3 focus:border-gold focus:outline-none"
                 style={{ color: "white" }}
                 placeholder="3"
               />
