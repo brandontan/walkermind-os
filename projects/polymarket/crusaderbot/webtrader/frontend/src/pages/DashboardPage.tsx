@@ -256,8 +256,8 @@ export function DashboardPage() {
                 Awaiting signals…
               </div>
             ) : (
-              feedSignals.map((s, i) => (
-                <div key={i} className="p-2.5 mb-1.5 rounded-lg border border-surface-3
+              feedSignals.map((s) => (
+                <div key={`${s.market_id}-${s.published_at}`} className="p-2.5 mb-1.5 rounded-lg border border-surface-3
                                         bg-surface-1 flex items-center gap-2.5">
                   <span className={`flex-shrink-0 font-hud text-[9px] font-bold px-1.5 py-0.5
                                    rounded border tracking-widest uppercase
