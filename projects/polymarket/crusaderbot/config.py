@@ -99,7 +99,7 @@ class Settings(BaseSettings):
     APP_VERSION: Optional[str] = None
 
     # --- Heisenberg / Falcon API (market data + signal enrichment) ---
-    HEISENBERG_API_KEY: Optional[str] = None
+    HEISENBERG_API_TOKEN: Optional[str] = None
 
     # --- Polymarket (only required for LIVE trading) ---
     POLYMARKET_API_KEY: Optional[str] = None

@@ -60,9 +60,9 @@ None introduced by this fix. Pre-existing known issues in PROJECT_STATE.md are u
 ## 6. What Is Next
 
 - WARP🔹CMD review and merge decision
-- After merge: set `HEISENBERG_API_KEY` Fly secret (already named correctly in existing leaderboard + wallet_360 code; this PR aligns config.py to that name)
+- **DEPLOY GATE — verify Fly secret name before deploying:** all three files now use `HEISENBERG_API_TOKEN`. Run `fly secrets list | grep HEISENBERG` — if secret is named `HEISENBERG_API_KEY`, rename it to `HEISENBERG_API_TOKEN` first. Deploying without this check causes leaderboard sync and wallet 360 to silently skip every tick.
 - No migrations required
 
 ---
 
-**Suggested Next Step:** WARP🔹CMD review → merge → verify `HEISENBERG_API_KEY` Fly secret is set
+**Suggested Next Step:** WARP🔹CMD review → verify Fly secret name (`HEISENBERG_API_TOKEN` or `HEISENBERG_API_KEY`) → rename secret if needed → merge

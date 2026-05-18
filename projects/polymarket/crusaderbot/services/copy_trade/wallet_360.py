@@ -106,9 +106,9 @@ async def get_wallet_360(address: str, window_days: str = "7") -> Wallet360:
 
 
 async def _fetch(address: str, window_days: str) -> Wallet360:
-    api_key = os.environ.get("HEISENBERG_API_KEY", "")
+    api_key = os.environ.get("HEISENBERG_API_TOKEN", "")
     if not api_key:
-        log.warning("wallet_360: HEISENBERG_API_KEY not set")
+        log.warning("wallet_360: HEISENBERG_API_TOKEN not set")
         return _unavailable(address)
 
     headers = {
