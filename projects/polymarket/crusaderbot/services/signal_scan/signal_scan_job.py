@@ -608,18 +608,16 @@ async def run_once() -> None:
     Each user is processed independently — an exception for one user does
     not prevent other users from being scanned on the same tick.
     """
-    await _event_bus.emit("pipeline.strategy_scan_started", user_count=0)
-
     try:
         users = await _load_enrolled_users()
     except Exception as exc:
         logger.error("signal_scan_load_users_failed", error=str(exc))
         return
 
+    await _event_bus.emit("pipeline.strategy_scan_started", user_count=len(users))
+
     if not users:
         return
-
-    await _event_bus.emit("pipeline.strategy_scan_started", user_count=len(users))
 
     # Phase A: fetch markets once, run each lib strategy, collect by name.
     markets = await _fetch_markets_for_lib_strategies()
@@ -645,8 +643,8 @@ async def run_once() -> None:
     )
 
     # Phase B: distribute signals to users based on their active_preset.
-    accepted = 0
-    rejected = 0
+    candidates_processed = 0
+    candidates_errored = 0
     for row in users:
         active_preset = row.get("active_preset")
         user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
@@ -657,9 +655,9 @@ async def run_once() -> None:
             for cand in candidates:
                 try:
                     await _process_candidate(row, cand)
-                    accepted += 1
+                    candidates_processed += 1
                 except Exception as exc:
-                    rejected += 1
+                    candidates_errored += 1
                     user_log.error(
                         "signal_scan_candidate_unhandled",
                         market_id=cand.market_id,
@@ -670,8 +668,8 @@ async def run_once() -> None:
     await _event_bus.emit(
         "pipeline.scan_completed",
         user_count=len(users),
-        candidates_accepted=accepted,
-        candidates_rejected=rejected,
+        candidates_processed=candidates_processed,
+        candidates_errored=candidates_errored,
     )
 
 

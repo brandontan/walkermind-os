@@ -115,6 +115,7 @@ export function AutoTradePage() {
   const [searchParams] = useSearchParams();
   const marketName = searchParams.get("market_name") ?? null;
   const [state, setState] = useState<AutoTradeState | null>(null);
+  const [tradingMode, setTradingMode] = useState<string>("paper");
   const [loading, setLoading] = useState(false);
 
   // Custom risk inputs
@@ -134,8 +135,9 @@ export function AutoTradePage() {
   const [filterSaved, setFilterSaved]         = useState(false);
 
   const load = useCallback(async () => {
-    const s = await api.getAutotrade();
+    const [s, dash] = await Promise.all([api.getAutotrade(), api.getDashboard()]);
     setState(s);
+    setTradingMode(dash.trading_mode);
     if (s.risk_profile === "custom") {
       setCustomCapital(String(Math.round(s.capital_alloc_pct * 100)));
       setCustomTp(String(Math.round(s.tp_pct * 100)));
@@ -258,19 +260,21 @@ export function AutoTradePage() {
           </div>
         )}
 
-        {/* Paper Mode reassurance — auto-trade page is trading-sensitive */}
-        <div
-          className="mb-3 px-3 py-2 flex items-center gap-2 text-[10px] font-mono font-bold tracking-[1.5px] clip-card border"
-          style={{
-            background: "rgba(245,200,66,0.04)",
-            borderColor: "rgba(245,200,66,0.15)",
-            color: "var(--gold,#F5C842)",
-          }}
-          role="status"
-        >
-          <span style={{ fontSize: "12px" }}>🛡</span>
-          PAPER MODE — No real funds at risk · all trades are simulated
-        </div>
+        {/* Paper Mode reassurance — only shown when backend confirms paper mode */}
+        {tradingMode !== "live" && (
+          <div
+            className="mb-3 px-3 py-2 flex items-center gap-2 text-[10px] font-mono font-bold tracking-[1.5px] clip-card border"
+            style={{
+              background: "rgba(245,200,66,0.04)",
+              borderColor: "rgba(245,200,66,0.15)",
+              color: "var(--gold,#F5C842)",
+            }}
+            role="status"
+          >
+            <span style={{ fontSize: "12px" }}>🛡</span>
+            PAPER MODE — No real funds at risk · all trades are simulated
+          </div>
+        )}
 
         {/* Desktop page header — hidden on mobile */}
         <DesktopPageHeader
