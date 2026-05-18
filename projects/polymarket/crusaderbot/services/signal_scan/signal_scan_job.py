@@ -546,11 +546,17 @@ async def _process_candidate(
     #     signal was published; executing would produce an unrealistic fill.
     #     Guard only applies to feed signals (pub_uuid is not None) because
     #     lib-strategy candidates always carry fresh prices (signal_ts=now).
-    #     Skipped silently when target_price or DB price is missing/zero.
+    #     Uses same primary→fallback→0.5 resolution as _build_trade_signal so
+    #     the guard evaluates the identical price the trade engine will use.
     if pub_uuid is not None:
         _target = float(cand.metadata.get("target_price") or 0.0)
-        _current = float(market.get(f"{side}_price") or 0.0)
-        if _target > 0 and _current > 0:
+        _price_primary = market.get(f"{side}_price")
+        _price_fallback = market.get("no_price" if side == "yes" else "yes_price")
+        _current = float(
+            _price_primary if _price_primary is not None
+            else (_price_fallback if _price_fallback is not None else 0.5)
+        )
+        if _target > 0:
             _drift = abs(_current - _target) / _target
             if _drift > _MAX_TARGET_DRIFT_PCT:
                 log.info(
