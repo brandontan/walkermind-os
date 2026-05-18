@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
@@ -12,6 +13,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from ...database import get_pool
 from ...domain.execution import router as exec_router
+from ...services.copy_trade.wallet_360 import get_wallet_360
 from ...domain.ops import kill_switch
 from ... import notifications as notif_module
 from . import sse as webtrader_sse
@@ -906,16 +908,13 @@ async def get_leaderboard(user: _CurrentUser) -> list[LeaderboardEntry]:
     ]
 
 
-import re as _re  # noqa: E402
-
-_WALLET_RE = _re.compile(r"^0x[0-9a-fA-F]{40}$")
+_WALLET_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 
 
 @router.get("/copy-trade/wallet-360/{address}")
 async def get_wallet_360_endpoint(address: str, user: _CurrentUser):
     if not _WALLET_RE.match(address):
         raise HTTPException(status_code=422, detail="Invalid wallet address format")
-    from ...services.copy_trade.wallet_360 import get_wallet_360
     result = await get_wallet_360(address, window_days="7")
     return {
         "address": result.address,
