@@ -11,7 +11,7 @@ from fastapi import Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from ...config import get_settings
-from ...database import get_pool
+from ...users import upsert_user
 from .schemas import TelegramAuthPayload, TokenResponse
 
 _MAX_AUTH_AGE = 86400  # 24 hours
@@ -43,22 +43,16 @@ async def authenticate_telegram(data: TelegramAuthPayload) -> TokenResponse:
     if not settings.WEBTRADER_JWT_SECRET:
         raise HTTPException(status_code=503, detail="web dashboard not configured — JWT_SECRET missing")
 
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT id FROM users WHERE telegram_user_id = $1",
-            data.id,
-        )
-
-    if row is None:
-        raise HTTPException(
-            status_code=403,
-            detail="user not registered — start the Telegram bot first",
-        )
+    # Auto-register via upsert_user — same as /start bot flow.
+    # New users: creates users row, user_settings, wallet ($1000 paper),
+    # signal_following enrollment, demo feed subscription.
+    # Existing users: no-op (idempotent).
+    user_row = await upsert_user(data.id, data.username)
+    user_db_id = user_row["id"]
 
     now = int(time.time())
     token_payload = {
-        "user_id": str(row["id"]),
+        "user_id": str(user_db_id),
         "telegram_id": data.id,
         "first_name": data.first_name,
         "iat": now,
@@ -67,7 +61,7 @@ async def authenticate_telegram(data: TelegramAuthPayload) -> TokenResponse:
     token = jwt.encode(token_payload, settings.WEBTRADER_JWT_SECRET, algorithm="HS256")
     return TokenResponse(
         access_token=token,
-        user_id=str(row["id"]),
+        user_id=str(user_db_id),
         first_name=data.first_name,
     )
 
