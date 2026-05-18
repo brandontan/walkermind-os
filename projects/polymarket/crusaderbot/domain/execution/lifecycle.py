@@ -616,16 +616,17 @@ class OrderLifecycleManager:
         slippage_retry_count=1 so the next timeout triggers _on_slippage_cancel.
         """
         s = self._settings or get_settings()
+        pool = self._pool_override or get_pool()
         if not s.ENABLE_LIVE_TRADING:
-            logger.warning(
-                "lifecycle slippage_retry skipped: ENABLE_LIVE_TRADING=false "
-                "order=%s — marking stale for manual reconciliation",
+            # Skip broker calls. Still advance counter so order progresses to stale.
+            await pool.execute(
+                "UPDATE orders SET slippage_retry_count=1, poll_attempts=poll_attempts+1,"
+                " last_polled_at=NOW() WHERE id=$1",
                 order["id"],
             )
-            await self._mark_stale(
-                order=order,
-                attempts=attempts,
-                reason="ENABLE_LIVE_TRADING=false during slippage retry window",
+            logger.info(
+                "lifecycle slippage_retry deferred: gate inactive, counter advanced order=%s",
+                order["id"],
             )
             return
         broker_id = str(order.get("polymarket_order_id") or "")
@@ -647,8 +648,6 @@ class OrderLifecycleManager:
         else:
             new_limit = round(max(0.01, original_price - tick_size), 4)
         shares = float(order["size_usdc"]) / max(new_limit, 0.0001)
-
-        pool = self._pool_override or get_pool()
         async with pool.acquire() as conn:
             mkt = await conn.fetchrow(
                 "SELECT yes_token_id, no_token_id FROM markets WHERE id=$1",
