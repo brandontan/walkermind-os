@@ -101,7 +101,7 @@ async def execute_kill_switch(reason: str, triggered_by: str) -> None:
     try:
         from ...notifications import notify_operator
         await notify_operator(
-            f"\U0001f6a8 KILL SWITCH ACTIVATED\nReason: {reason}\nBy: {triggered_by}"
+            f"🚨 KILL SWITCH ACTIVATED\nReason: {reason}\nBy: {triggered_by}"
         )
     except Exception as exc:
         logger.error("kill_switch_exec: admin notify failed (non-blocking): %s", exc)

@@ -184,19 +184,14 @@ async def lifespan(_: FastAPI):
         if _notif_suppressed:
             log.info("startup notification suppressed (duplicate within 60s)")
         else:
-            _guard_line = (
-                "✅ activation guards OPEN — live trading enabled"
-                if all_guards_ready
-                else "\U0001f512 activation guards LOCKED — all trades route to paper"
-            )
             _delivered = await notifications.send(
                 settings.OPERATOR_CHAT_ID,
-                f"\U0001f7e2 CrusaderBot up\nenv: {settings.APP_ENV}\n"
+                f"🟢 CrusaderBot up\nenv: {settings.APP_ENV}\n"
                 f"mode: {'webhook' if use_webhook else 'polling'}\n"
                 f"live_trading_enabled: {settings.ENABLE_LIVE_TRADING}\n"
                 f"execution_path_validated: {settings.EXECUTION_PATH_VALIDATED}\n"
                 f"capital_mode_confirmed: {settings.CAPITAL_MODE_CONFIRMED}\n"
-                f"{_guard_line}",
+                f"{'✅ activation guards OPEN — live trading enabled' if all_guards_ready else '🔒 activation guards LOCKED — all trades route to paper'}",
                 parse_mode=None,
             )
             if _delivered:
