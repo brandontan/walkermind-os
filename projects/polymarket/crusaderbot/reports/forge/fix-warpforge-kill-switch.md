@@ -31,8 +31,9 @@ correctly mirrors that table rather than targeting a non-existent `system_flags`
 
 Modified:
 - `projects/polymarket/crusaderbot/domain/risk/kill_switch_exec.py`
-  - line 27: `system_flags` → `system_settings` in INSERT query
+  - line 26: `system_flags` → `system_settings` in INSERT query
   - line 83: comment updated — "system_flags record (Track D flag table)" → "system_settings record (kill_switch_active key)"
+  - lines 87, 121: error log messages updated — "system_flags write failed" → "system_settings write failed"
 
 ## 4. What is working
 
@@ -49,9 +50,8 @@ Modified:
 
 ## 5. Known issues
 
-- Branch `claude/fix-warpforge-kill-switch-4A9Gy` does not conform to `WARP/{feature}`
-  naming rule (GATE 1 P0 in automated review). Branch was harness-assigned for this session.
-  WARP🔹CMD should rename or re-target to a compliant branch before merge.
+- None at this time. Branch `WARP/fix-kill-switch-db-table` conforms to naming rules.
+- [DEFERRED] Step 3 in `execute_kill_switch()` (`_set_system_flag`) writes `kill_switch_active` to `system_settings`, which is also written by step 1 (`ops_kill_switch.set_active()`). The duplication is an existing design decision (defense-in-depth) and is outside this fix's scope. Removal requires explicit WARP🔹CMD direction.
 
 ## 6. What is next
 

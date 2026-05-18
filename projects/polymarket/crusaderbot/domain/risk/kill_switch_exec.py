@@ -84,7 +84,7 @@ async def execute_kill_switch(reason: str, triggered_by: str) -> None:
     try:
         await _set_system_flag("kill_switch_active", "true")
     except Exception as exc:
-        logger.error("kill_switch_exec: system_flags write failed: %s", exc)
+        logger.error("kill_switch_exec: system_settings write failed: %s", exc)
 
     # 4. Audit log (mandatory — no silent activations)
     try:
@@ -118,7 +118,7 @@ async def reset_kill_switch(triggered_by: str) -> None:
     try:
         await _set_system_flag("kill_switch_active", "false")
     except Exception as exc:
-        logger.error("kill_switch_exec: reset system_flags write failed: %s", exc)
+        logger.error("kill_switch_exec: reset system_settings write failed: %s", exc)
 
     try:
         await _write_audit_log(

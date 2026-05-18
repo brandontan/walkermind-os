@@ -28,3 +28,4 @@
 2026-05-17 18:00 | WARP/CRUSADERBOT-SSE-AUTH-FIX | SSE auth query-param confirmed wired; useSSE returns { connected }; SSEStatusContext + TopBar green/red dot; MINOR, NARROW INTEGRATION
 2026-05-17 17:30 | WARP/CRUSADERBOT-WEBTRADER-WS | SSE real-time push: polling removed from DashboardPage + PortfolioPage; event_bus bridge wired to SSE broadcaster (position.opened/closed/scanner.tick); four new SSE event types; scanner.tick emit added to market_signal_scanner; STANDARD, NARROW INTEGRATION
 2026-05-19 09:01 | claude/fix-warpforge-kill-switch-4A9Gy | WARP-17: fix kill_switch_exec.py _set_system_flag() system_flags → system_settings; MAJOR, FULL RUNTIME INTEGRATION
+2026-05-19 09:02 | WARP/fix-kill-switch-db-table | WARP-17: branch renamed to WARP-compliant name; log messages aligned to system_settings; supersedes claude/fix-warpforge-kill-switch-4A9Gy
