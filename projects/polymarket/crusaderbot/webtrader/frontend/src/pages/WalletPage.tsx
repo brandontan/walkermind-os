@@ -39,7 +39,11 @@ export function WalletPage() {
     setLoadingMore(true);
     try {
       const page = await api.getLedger(ledgerAll.length);
-      setLedgerAll((prev) => [...prev, ...page.entries]);
+      setLedgerAll((prev) => {
+        const existingIds = new Set(prev.map((e) => e.id));
+        const fresh = page.entries.filter((e) => !existingIds.has(e.id));
+        return [...prev, ...fresh];
+      });
       setHasMore(page.has_more);
     } catch {
       setHasMore(false);
@@ -128,8 +132,8 @@ export function WalletPage() {
                 />
               ) : (
                 <>
-                  {ledgerAll.map((entry, i) => (
-                    <LedgerCard key={`${entry.created_at}-${i}`} entry={entry} />
+                  {ledgerAll.map((entry) => (
+                    <LedgerCard key={entry.id} entry={entry} />
                   ))}
                   {hasMore && (
                     <button

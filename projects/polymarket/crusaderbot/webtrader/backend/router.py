@@ -513,7 +513,7 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
             user_id,
         )
         ledger_rows = await conn.fetch(
-            """SELECT type, amount_usdc, note, created_at FROM ledger
+            """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
                WHERE user_id=$1::uuid ORDER BY created_at DESC LIMIT 20""",
             user_id,
         )
@@ -532,6 +532,7 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
         balance_usdc=float(w_row["balance_usdc"]),
         ledger_recent=[
             LedgerEntry(
+                id=r["id"],
                 type=r["type"],
                 amount_usdc=float(r["amount_usdc"]),
                 note=r["note"],
@@ -562,7 +563,7 @@ async def get_wallet_ledger(
             user_id,
         )
         rows = await conn.fetch(
-            """SELECT type, amount_usdc, note, created_at FROM ledger
+            """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
                WHERE user_id=$1::uuid ORDER BY created_at DESC
                LIMIT $2 OFFSET $3""",
             user_id,
@@ -573,6 +574,7 @@ async def get_wallet_ledger(
     total = int(total_row["cnt"]) if total_row else 0
     entries = [
         LedgerEntry(
+            id=r["id"],
             type=r["type"],
             amount_usdc=float(r["amount_usdc"]),
             note=r["note"],

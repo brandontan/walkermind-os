@@ -168,6 +168,7 @@ export interface LedgerPage {
 }
 
 export interface LedgerEntry {
+  id: string;
   type: string;
   amount_usdc: number;
   note: string | null;

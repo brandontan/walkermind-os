@@ -59,7 +59,7 @@ export function CollapsibleSection({
         </button>
         {action && <div>{action}</div>}
       </div>
-      {open && children}
+      <div style={{ display: open ? "block" : "none" }}>{children}</div>
     </div>
   );
 }

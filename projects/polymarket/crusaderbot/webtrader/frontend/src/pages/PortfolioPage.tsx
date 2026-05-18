@@ -196,7 +196,18 @@ export function PortfolioPage() {
           </button>
           <button
             type="button"
-            onClick={() => setShowWithdraw(true)}
+            onClick={async () => {
+              if (depositAddress === null) {
+                try {
+                  const w = await api.getWallet();
+                  setDepositAddress(w.deposit_address);
+                  setIsPaperMode(w.paper_mode !== false);
+                } catch {
+                  setDepositAddress("");
+                }
+              }
+              setShowWithdraw(true);
+            }}
             className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2 transition-colors"
             style={{
               background: "rgba(245,200,66,0.06)",

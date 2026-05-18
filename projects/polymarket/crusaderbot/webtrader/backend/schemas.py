@@ -123,6 +123,7 @@ class RiskProfileRequest(BaseModel):
 # ── Wallet ────────────────────────────────────────────────────────────────────
 
 class LedgerEntry(BaseModel):
+    id: str
     type: str
     amount_usdc: float
     note: Optional[str] = None

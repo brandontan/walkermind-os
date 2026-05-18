@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
 interface Props {
@@ -11,6 +11,13 @@ interface Props {
 export function DepositModal({ address, paperMode, balance, onClose }: Props) {
   const [copied, setCopied] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   const hasAddress = Boolean(address);
 
@@ -31,7 +38,8 @@ export function DepositModal({ address, paperMode, balance, onClose }: Props) {
         document.body.removeChild(ta);
       }
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
+      if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
     } catch {}
   };
 
