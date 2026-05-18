@@ -1,0 +1,4 @@
+BEGIN;
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS active_strategy VARCHAR(50) NOT NULL DEFAULT 'signal_following';
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS paper_mode_override BOOLEAN NOT NULL DEFAULT TRUE;
+COMMIT;

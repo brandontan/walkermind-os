@@ -3,10 +3,10 @@ import type { AlertItem } from "../lib/api";
 type Category = "TRADE" | "RISK" | "COPY" | "SYSTEM";
 
 const CATEGORY_STYLE: Record<Category, { color: string; bg: string; border: string }> = {
-  TRADE:  { color: "var(--gold)",  bg: "rgba(245,200,66,0.10)",  border: "rgba(245,200,66,0.30)" },
-  RISK:   { color: "var(--red)",   bg: "rgba(255,45,85,0.10)",   border: "rgba(255,45,85,0.30)" },
-  COPY:   { color: "var(--cyan)",  bg: "rgba(0,229,255,0.10)",   border: "rgba(0,229,255,0.30)" },
-  SYSTEM: { color: "var(--ink-2)", bg: "rgba(143,163,196,0.08)", border: "rgba(143,163,196,0.20)" },
+  TRADE:  { color: "var(--gold)",  bg: "var(--gold-10)",  border: "var(--gold-30)"  },
+  RISK:   { color: "var(--red)",   bg: "var(--red-10)",   border: "var(--red-30)"   },
+  COPY:   { color: "var(--cyan)",  bg: "var(--cyan-10)",  border: "var(--cyan-30)"  },
+  SYSTEM: { color: "var(--ink-2)", bg: "var(--ink-2-08)", border: "var(--ink-2-20)" },
 };
 
 function deriveCategory(alert: AlertItem): Category {
@@ -49,7 +49,7 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
       {isOpen && (
         <div
           className="fixed inset-0 z-[200]"
-          style={{ background: "rgba(2,5,11,0.5)", backdropFilter: "blur(2px)" }}
+          style={{ background: "var(--overlay-bg)", backdropFilter: "blur(2px)" }}
           onClick={onClose}
           aria-hidden
         />
@@ -66,7 +66,7 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
           borderLeft: "1px solid var(--border-2)",
           transform: isOpen ? "translateX(0)" : "translateX(100%)",
           transition: "transform 0.25s cubic-bezier(0.22,1,0.36,1)",
-          boxShadow: isOpen ? "-8px 0 32px rgba(0,0,0,0.6)" : "none",
+          boxShadow: isOpen ? `-8px 0 32px var(--shadow-deep)` : "none",
         }}
       >
         {/* Header */}

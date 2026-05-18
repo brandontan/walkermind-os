@@ -174,4 +174,11 @@ def bootstrap_default_strategies(
     return reg
 
 
-__all__ = ["StrategyRegistry", "bootstrap_default_strategies"]
+def seed_defaults(
+    registry: "StrategyRegistry | None" = None,
+) -> "StrategyRegistry":
+    """Alias for bootstrap_default_strategies; called from main.py lifespan."""
+    return bootstrap_default_strategies(registry)
+
+
+__all__ = ["StrategyRegistry", "bootstrap_default_strategies", "seed_defaults"]

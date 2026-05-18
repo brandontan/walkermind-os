@@ -17,7 +17,7 @@ from .handlers import (
     health as health_h, live_gate, market_card,
     pnl_insights as pnl_insights_h, portfolio_chart as portfolio_chart_h,
     positions, referral, settings as settings_handler, setup,
-    share_card, signal_following,
+    share_card, signal_following, strategy as strategy_handler,
 )
 from .handlers.autotrade import autotrade_callback, show_autotrade
 from .handlers.dashboard import (
@@ -190,6 +190,10 @@ def register(app: Application) -> None:
     # use canonical commands (/signals, /dashboard, /positions, /activity,
     # /settings). One alias kept for back-compat:
     app.add_handler(CommandHandler("trades",          my_trades))
+    app.add_handler(CommandHandler("strategy",        strategy_handler.strategy_cmd))
+    app.add_handler(CommandHandler("risk",            strategy_handler.risk_cmd))
+    app.add_handler(CommandHandler("paper",           strategy_handler.paper_cmd))
+    app.add_handler(CommandHandler("config",          strategy_handler.config_cmd))
 
     # ── 8-step copy-trade wizard (registered BEFORE the 3-step wizard) ──────────
     app.add_handler(copy_trade.build_new_copy_wizard_handler())
@@ -304,6 +308,9 @@ def register(app: Application) -> None:
 
     # Telegram Power Mode — trade notification inline buttons
     app.add_handler(CallbackQueryHandler(tg_power_mode_cb, pattern=r"^tgnotif:"))
+
+    # R5 strategy config callbacks
+    app.add_handler(CallbackQueryHandler(strategy_handler.strategy_callback, pattern=r"^r5cfg:"))
 
     # Free text — must be last
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, _text_router))

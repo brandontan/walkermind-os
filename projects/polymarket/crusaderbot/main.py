@@ -24,7 +24,7 @@ from .services.notification_service import register_handlers as register_notific
 from .cache import close_cache, get_cache, init_cache, set_cache
 from .config import get_settings, validate_required_env
 from .database import close_pool, init_pool, run_migrations
-from .domain.strategy import bootstrap_default_strategies
+from .domain.strategy import bootstrap_default_strategies, seed_defaults
 from .monitoring import alerts as monitoring_alerts
 from .monitoring import sentry as monitoring_sentry
 from .monitoring.health import run_health_checks
@@ -73,6 +73,7 @@ async def lifespan(_: FastAPI):
     await run_migrations()
     await init_cache()
     bootstrap_default_strategies()
+    seed_defaults()
     await webtrader_sse.start_listener(settings.DATABASE_URL, pool)
 
     use_webhook = bool(settings.TELEGRAM_WEBHOOK_URL)
