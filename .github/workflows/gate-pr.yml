@@ -57,7 +57,7 @@ jobs:
           PR_BRANCH: ${{ github.head_ref }}
           PR_AUTHOR: ${{ github.actor }}
         run: |
-          TEXT="🚀 *WARP GATE ALERT*%0A%0APR Ready for Review @@wingman_hub_assistant_bot: [#${PR_NUM}](${PR_URL})%0ABranch: \`${PR_BRANCH}\`%0AAuthor: ${PR_AUTHOR}"
+          TEXT="🚀 *WARP GATE ALERT*%0A%0APR Ready for Review @wingman_hub_assistant_bot: [#${PR_NUM}](${PR_URL})%0ABranch: \`${PR_BRANCH}\`%0AAuthor: ${PR_AUTHOR}"
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d "chat_id=${CHAT_ID}" \
             -d "text=${TEXT}" \
