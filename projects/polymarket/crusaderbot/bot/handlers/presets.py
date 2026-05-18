@@ -31,6 +31,7 @@ from ...users import (
     get_settings_for, set_auto_trade, set_paused, update_settings, upsert_user,
 )
 from ...wallet.ledger import daily_pnl, get_balance
+from ..messages import DIV as _DIV
 from ..keyboards.presets import (
     preset_confirm, preset_picker, preset_status, preset_stop_confirm,
     preset_switch_confirm,
@@ -69,48 +70,45 @@ async def _reply(update: Update, text: str, **kw) -> None:
 
 # Maps internal preset key → display label
 _MVP_LABELS: dict[str, tuple[str, str]] = {
-    "whale_mirror":  ("🐋",    "Whale Mirror"),
-    "signal_sniper": ("📡",    "Signal Sniper"),
-    "hybrid":        ("🐋📡",  "Hybrid"),
-    "value_hunter":  ("🎯",    "Value Hunter"),
-    "full_auto":     ("🚀",    "Full Auto"),
+    "whale_mirror":  ("\U0001f433",    "Whale Mirror"),
+    "signal_sniper": ("\U0001f4e1",    "Signal Sniper"),
+    "hybrid":        ("\U0001f433\U0001f4e1",  "Hybrid"),
+    "value_hunter":  ("\U0001f3af",    "Value Hunter"),
+    "full_auto":     ("\U0001f680",    "Full Auto"),
 }
 
 _MVP_DESCRIPTIONS: dict[str, str] = {
     "whale_mirror": (
-        "🐋 Whale Mirror\n"
+        "\U0001f433 Whale Mirror\n"
         "Risk: Balanced\n"
         "Capital: from risk profile\n"
         "Follow proven Polymarket wallets. Low effort, steady returns."
     ),
     "signal_sniper": (
-        "📡 Signal Sniper\n"
+        "\U0001f4e1 Signal Sniper\n"
         "Risk: Safe\n"
         "Capital: from risk profile\n"
         "Auto-trade from curated signal feeds. Lower frequency, higher conviction."
     ),
     "hybrid": (
-        "🐋📡 Hybrid\n"
+        "\U0001f433\U0001f4e1 Hybrid\n"
         "Risk: Balanced\n"
         "Capital: from risk profile\n"
         "Whale Mirror + Signal Sniper combined. More opportunities."
     ),
     "value_hunter": (
-        "🎯 Value Hunter\n"
+        "\U0001f3af Value Hunter\n"
         "Risk: Advanced\n"
         "Capital: from risk profile\n"
         "Finds mispriced markets using edge model. Higher reward, requires patience."
     ),
     "full_auto": (
-        "🚀 Full Auto\n"
+        "\U0001f680 Full Auto\n"
         "Risk: Aggressive\n"
         "Capital: from risk profile\n"
         "All strategies active. Max exposure. For experienced traders."
     ),
 }
-
-
-_DIV = "━" * 26
 
 
 def _preset_picker_text(active_preset_key: str | None = None) -> str:
@@ -125,7 +123,7 @@ def _preset_picker_text(active_preset_key: str | None = None) -> str:
             if p:
                 active_label = f"{p.emoji} {p.name}"
     return (
-        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧 — Auto Mode</b>\n"
+        "\U0001f3db️ <b>\U0001d407\U0001d41e\U0001d41c\U0001d42c\U0001d41a\U0001d403\U0001d404\U0001d40e | \U0001d41a\U0001d41c\U0001d42c\U0001d40e\U0001d402\U0001d40e\U0001d413 — Auto Mode</b>\n"
         f"{_DIV}\n\n"
         f"Active: <b>{html.escape(active_label)}</b>\n\n"
         "Choose your trading strategy:"
@@ -143,18 +141,18 @@ def _preset_confirm_text(p: Preset) -> str:
     tp_gain = int(deployed * p.tp_pct)
     sl_loss = int(deployed * p.sl_pct)
     return (
-        f"🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
+        f"\U0001f3db️ <b>\U0001d407\U0001d41e\U0001d41c\U0001d42c\U0001d41a\U0001d403\U0001d404\U0001d40e | \U0001d41a\U0001d41c\U0001d42c\U0001d40e\U0001d402\U0001d40e\U0001d413</b>\n"
         f"{_DIV}\n"
         f"<b>{html.escape(emoji)} {html.escape(label)}</b>\n"
         f"{html.escape(desc)}\n\n"
         f"{_DIV}\n"
-        "<b>📊 Config</b>\n"
+        "<b>\U0001f4ca Config</b>\n"
         f"<pre>Capital:  {cap_pct}%\n"
         f"TP:       +{tp_pct}%\n"
         f"SL:       -{sl_pct}%\n"
-        f"Mode:     📝 Paper</pre>\n\n"
+        f"Mode:     \U0001f4dd Paper</pre>\n\n"
         f"{_DIV}\n"
-        "<b>💡 Example on $1,000</b>\n"
+        "<b>\U0001f4a1 Example on $1,000</b>\n"
         f"<pre>Deployed: ${deployed}\n"
         f"TP hit:   +${tp_gain}\n"
         f"SL hit:   -${sl_loss}</pre>"
@@ -175,17 +173,17 @@ async def _preset_status_text(user: dict, p: Preset) -> str:
     auto_on = bool(user["auto_trade_on"])
     paused = bool(user.get("paused"))
     if not auto_on:
-        state = "🔴 Disabled"
+        state = "\U0001f534 Disabled"
     elif paused:
         state = "⏸ Paused"
     else:
-        state = "🟢 Running"
-    pnl_icon = "📈" if float(pnl) >= 0 else "📉"
+        state = "\U0001f7e2 Running"
+    pnl_icon = "\U0001f4c8" if float(pnl) >= 0 else "\U0001f4c9"
     capital_pct = float(s.get("capital_alloc_pct") or p.capital_pct) * 100
     tp_pct = float(s.get("tp_pct") or p.tp_pct) * 100
     sl_pct = float(s.get("sl_pct") or p.sl_pct) * 100
     return (
-        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧 — Auto Mode</b>\n\n"
+        "\U0001f3db️ <b>\U0001d407\U0001d41e\U0001d41c\U0001d42c\U0001d41a\U0001d403\U0001d404\U0001d40e | \U0001d41a\U0001d41c\U0001d42c\U0001d40e\U0001d402\U0001d40e\U0001d413 — Auto Mode</b>\n\n"
         "<b>Strategy</b>\n"
         f"├─ {p.emoji} {p.name}\n"
         f"└─ State: {state}\n\n"
@@ -196,7 +194,7 @@ async def _preset_status_text(user: dict, p: Preset) -> str:
         "<b>Config</b>\n"
         f"├─ Capital: {capital_pct:.0f}%\n"
         f"├─ TP / SL: +{tp_pct:.0f}% / -{sl_pct:.0f}%\n"
-        "└─ Mode: 📝 Paper"
+        "└─ Mode: \U0001f4dd Paper"
     )
 
 
@@ -336,7 +334,7 @@ async def _on_pick(update: Update, preset_key: str) -> None:
 async def _on_activate(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
                        user: dict, preset_key: str) -> None:
     if user.get("locked", False):
-        await _reply(update, "🔒 Account locked. Contact admin.")
+        await _reply(update, "\U0001f512 Account locked. Contact admin.")
         return
     p = get_preset(preset_key)
     if p is None:
@@ -398,7 +396,7 @@ async def _on_customize(update: Update) -> None:
 async def _on_edit(update: Update) -> None:
     await _reply(
         update,
-        "To change settings, use the <b>🛠 Edit</b> button on the status card.",
+        "To change settings, use the <b>\U0001f6e0 Edit</b> button on the status card.",
         parse_mode=ParseMode.HTML,
     )
 
@@ -418,7 +416,7 @@ async def _on_switch_yes(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
 
 async def _on_pause(update: Update, user: dict, *, paused: bool) -> None:
     if not paused and user.get("locked", False):
-        await _reply(update, "🔒 Account locked. Contact admin.")
+        await _reply(update, "\U0001f512 Account locked. Contact admin.")
         return
     await set_paused(user["id"], paused)
     logger.info("preset.pause user=%s paused=%s", user["id"], paused)
@@ -452,7 +450,7 @@ async def _on_stop_yes(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
     logger.info("preset.stop user=%s", user["id"])
     await _reply(
         update,
-        "🛑 Auto-trade stopped. Active preset cleared. Open positions are "
+        "\U0001f6d1 Auto-trade stopped. Active preset cleared. Open positions are "
         "untouched — close them via /positions if needed.",
     )
 
@@ -470,8 +468,8 @@ CUSTOM_INPUT = 4
 
 # State-driven menu labels for wizard exit detection
 _MENU_BUTTONS_CUSTOMIZE = {
-    "📊 Dashboard", "🤖 Auto-Trade", "💼 Portfolio", "📈 My Trades", "🚨 Emergency",
-    "⚙️ Configure Strategy", "🚀 Start Autobot", "⚙️ Settings",
+    "\U0001f4ca Dashboard", "\U0001f916 Auto-Trade", "\U0001f4bc Portfolio", "\U0001f4c8 My Trades", "\U0001f6a8 Emergency",
+    "⚙️ Configure Strategy", "\U0001f680 Start Autobot", "⚙️ Settings",
 }
 
 
@@ -485,7 +483,7 @@ def _cwz(ctx: ContextTypes.DEFAULT_TYPE) -> dict:
 
 def _step1_text(p: Preset) -> str:
     return (
-        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Capital\n"
+        "\U0001f3db️ <b>\U0001d407\U0001d41e\U0001d41c\U0001d42c\U0001d41a\U0001d403\U0001d404\U0001d40e | \U0001d41a\U0001d41c\U0001d42c\U0001d40e\U0001d402\U0001d40e\U0001d413</b> / Configure / Capital\n"
         "\n"
         "Preset\n"
         f"└ {p.emoji} {p.name}\n"
@@ -496,7 +494,7 @@ def _step1_text(p: Preset) -> str:
 
 def _step2_text() -> str:
     return (
-        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Take Profit\n"
+        "\U0001f3db️ <b>\U0001d407\U0001d41e\U0001d41c\U0001d42c\U0001d41a\U0001d403\U0001d404\U0001d40e | \U0001d41a\U0001d41c\U0001d42c\U0001d40e\U0001d402\U0001d40e\U0001d413</b> / Configure / Take Profit\n"
         "\n"
         "Auto-close winning positions at:"
     )
@@ -504,7 +502,7 @@ def _step2_text() -> str:
 
 def _step3_text() -> str:
     return (
-        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Stop Loss\n"
+        "\U0001f3db️ <b>\U0001d407\U0001d41e\U0001d41c\U0001d42c\U0001d41a\U0001d403\U0001d404\U0001d40e | \U0001d41a\U0001d41c\U0001d42c\U0001d40e\U0001d402\U0001d40e\U0001d413</b> / Configure / Stop Loss\n"
         "\n"
         "Auto-close losing positions at:"
     )
@@ -515,7 +513,7 @@ def _step5_text(wz: dict, p: Preset) -> str:
     tp = round(wz["tp_pct"] * 100)
     sl = round(wz["sl_pct"] * 100)
     return (
-        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Review\n"
+        "\U0001f3db️ <b>\U0001d407\U0001d41e\U0001d41c\U0001d42c\U0001d41a\U0001d403\U0001d404\U0001d40e | \U0001d41a\U0001d41c\U0001d42c\U0001d40e\U0001d402\U0001d40e\U0001d413</b> / Configure / Review\n"
         "\n"
         "Preset\n"
         f"└ {p.emoji} {p.name}\n"
@@ -524,7 +522,7 @@ def _step5_text(wz: dict, p: Preset) -> str:
         f"├ Capital: {cap}%\n"
         f"├ Take Profit: +{tp}%\n"
         f"├ Stop Loss: -{sl}%\n"
-        "└ Mode: 📝 Paper\n"
+        "└ Mode: \U0001f4dd Paper\n"
         "\n"
         "Looks good?"
     )
@@ -811,7 +809,7 @@ async def step_save(
         if user.get("locked", False):
             if q.message:
                 await q.message.reply_text(
-                    "🔒 Account locked. Contact admin.",
+                    "\U0001f512 Account locked. Contact admin.",
                 )
             return ConversationHandler.END
         s = await get_settings_for(user["id"])
@@ -1030,7 +1028,7 @@ def build_customize_handler() -> ConversationHandler:
         fallbacks=[
             CommandHandler("menu", wizard_fallback_menu),
             MessageHandler(
-                filters.Regex(r"^(📊|🤖|💼|📈|🚨|⚙️|🚀)"), wizard_menu_tap,
+                filters.Regex(r"^(\U0001f4ca|\U0001f916|\U0001f4bc|\U0001f4c8|\U0001f6a8|⚙️|\U0001f680)"), wizard_menu_tap,
             ),
             MessageHandler(
                 filters.TEXT & ~filters.COMMAND, wizard_fallback_text,

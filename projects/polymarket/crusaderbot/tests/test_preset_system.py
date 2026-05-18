@@ -140,18 +140,20 @@ def test_picker_keyboard_all_preset_callbacks_present():
 def test_confirm_keyboard_carries_preset_key():
     kb = preset_confirm("signal_sniper")
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+    # Row 0: Start + Customize; Row 1: Back (preset:picker) + Home (nav:home)
     assert cbs == [
         "preset:activate:signal_sniper",
         "preset:customize:signal_sniper",
         "preset:picker",
+        "nav:home",
     ]
 
 
 def test_confirm_keyboard_is_two_col():
     kb = preset_confirm("value_hunter")
-    # 3 buttons → row 0 has 2, row 1 has 1
+    # Row 0: Start + Customize (2); Row 1: Back + Home (2)
     assert len(kb.inline_keyboard[0]) == 2
-    assert len(kb.inline_keyboard[1]) == 1
+    assert len(kb.inline_keyboard[1]) == 2
 
 
 def test_status_keyboard_swaps_pause_resume():
@@ -280,24 +282,24 @@ def test_show_preset_picker_renders_all_three(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid)
     _patch_settings(monkeypatch, {"active_preset": None})
-    update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
+    update, replies, kws = _make_update(message_text="\U0001f916 Auto-Trade")
     asyncio.run(presets_h.show_preset_picker(
         update, ctx=SimpleNamespace(user_data={}),
     ))
     assert len(replies) == 1
     text = replies[0]
     assert "Auto Mode" in text  # V5 AUTOBOT branding: header changed from "Auto Trade" to "Auto Mode"
-    # MVP keyboard: "Choose Strategy" CTA → directs user to preset:picker
+    # WARP-24: picker now shows direct preset grid (preset:pick:*) instead of CTA
     kb = kws[0]["reply_markup"]
     all_cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    assert "preset:picker" in all_cbs
+    assert any(cb.startswith("preset:pick:") for cb in all_cbs)
 
 
 def test_show_preset_picker_clears_awaiting(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid)
     _patch_settings(monkeypatch, {"active_preset": None})
-    update, _replies, _kws = _make_update(message_text="🤖 Auto-Trade")
+    update, _replies, _kws = _make_update(message_text="\U0001f916 Auto-Trade")
     ctx = SimpleNamespace(user_data={"awaiting": "capital_pct"})
     asyncio.run(presets_h.show_preset_picker(update, ctx=ctx))
     assert "awaiting" not in ctx.user_data
@@ -309,7 +311,7 @@ def test_show_preset_status_falls_back_to_picker_when_no_preset(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid)
     _patch_settings(monkeypatch, {"active_preset": None})
-    update, replies, _kws = _make_update(message_text="🤖 Auto-Trade")
+    update, replies, _kws = _make_update(message_text="\U0001f916 Auto-Trade")
     asyncio.run(presets_h.show_preset_status(
         update, ctx=SimpleNamespace(user_data={}),
     ))
@@ -323,7 +325,7 @@ def test_show_preset_status_renders_running_card(monkeypatch):
     _patch_settings(monkeypatch, {"active_preset": "signal_sniper"})
     _patch_ledger(monkeypatch, balance=250.0, pnl=12.5)
     _patch_pool(monkeypatch, open_count=2)
-    update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
+    update, replies, kws = _make_update(message_text="\U0001f916 Auto-Trade")
     asyncio.run(presets_h.show_preset_status(
         update, ctx=SimpleNamespace(user_data={}),
     ))
@@ -344,7 +346,7 @@ def test_show_preset_status_renders_paused_card(monkeypatch):
     _patch_settings(monkeypatch, {"active_preset": "value_hunter"})
     _patch_ledger(monkeypatch, balance=10.0, pnl=-1.0)
     _patch_pool(monkeypatch, open_count=0)
-    update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
+    update, replies, kws = _make_update(message_text="\U0001f916 Auto-Trade")
     asyncio.run(presets_h.show_preset_status(
         update, ctx=SimpleNamespace(user_data={}),
     ))
@@ -535,7 +537,7 @@ def test_setup_root_routes_to_picker_when_no_preset(monkeypatch):
     user = {"id": uid, "access_tier": 2}
     monkeypatch.setattr(setup_h, "upsert_user",
                         AsyncMock(return_value=user))
-    update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
+    update, replies, kws = _make_update(message_text="\U0001f916 Auto-Trade")
     asyncio.run(setup_h.setup_root(update, ctx=SimpleNamespace(user_data={})))
     assert replies, "setup_root must send a message"
     assert "Auto-Trade" in replies[0] or "Strategy" in replies[0]
@@ -550,7 +552,7 @@ def test_setup_root_routes_to_status_when_preset_active(monkeypatch):
     user = {"id": uid, "access_tier": 2}
     monkeypatch.setattr(setup_h, "upsert_user",
                         AsyncMock(return_value=user))
-    update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
+    update, replies, kws = _make_update(message_text="\U0001f916 Auto-Trade")
     asyncio.run(setup_h.setup_root(update, ctx=SimpleNamespace(user_data={})))
     assert replies, "setup_root must send a message"
     cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard

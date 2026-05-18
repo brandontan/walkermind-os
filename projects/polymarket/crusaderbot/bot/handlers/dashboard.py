@@ -117,13 +117,13 @@ async def _fetch_last_trade_action(user_id) -> str:
                 user_id,
             )
         if row is None:
-            return "📡 Scanning Polymarket liquidity..."
+            return "\U0001f4e1 Scanning Polymarket liquidity..."
         q = html.escape((row["market_question"] or "")[:35])
         if row["status"] == "open":
-            return f"📈 Last: Bought — {q}"
-        return f"📉 Last: Closed — {q}"
+            return f"\U0001f4c8 Last: Bought — {q}"
+        return f"\U0001f4c9 Last: Closed — {q}"
     except Exception:
-        return "📡 Scanning Polymarket liquidity..."
+        return "\U0001f4e1 Scanning Polymarket liquidity..."
 
 
 def _preset_display(preset_key: str | None) -> tuple[str, str, str, str]:
@@ -143,7 +143,8 @@ def _build_last_scan() -> str:
     ts_epoch = state.get("last_tick_ts")
     if not ts_epoch:
         return "—"
-    ts = datetime.fromtimestamp(ts_epoch, tz=timezone.utc) + timedelta(hours=7)
+    wib = timezone(timedelta(hours=7))
+    ts = datetime.fromtimestamp(ts_epoch, tz=timezone.utc).astimezone(wib)
     return ts.strftime("%H:%M:%S")
 
 
@@ -205,7 +206,7 @@ async def _build_dashboard_message(user: dict) -> tuple[str, bool]:
     return text, bool(preset_key)
 
 
-# ── Public entry points ────────────────────────────────────────────────────────
+# ── Public entry points ──────────────────────────────────────────────
 
 async def show_dashboard(
     update: Update,
@@ -265,13 +266,13 @@ async def show_dashboard_for_cb(
         )
 
 
-# ── Command handler alias ──────────────────────────────────────────────────────
+# ── Command handler alias ──────────────────────────────────────────────
 
 async def dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await show_dashboard(update, ctx)
 
 
-# ── Legacy callback shim — routes dashboard:* callbacks ───────────────────────
+# ── Legacy callback shim — routes dashboard:* callbacks ─────────────────
 
 async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Routes legacy dashboard:* callbacks from non-rewritten handlers."""
