@@ -17,7 +17,7 @@ from telegram.ext import ContextTypes
 from ...database import get_pool
 from ...users import set_auto_trade, set_paused, upsert_user, update_settings
 from ...wallet.ledger import daily_pnl
-from ..keyboards import auto_trade_menu_kb, preset_active_kb, preset_confirm_kb, preset_picker_kb
+from ..keyboards import auto_trade_menu_kb, preset_active_kb, preset_confirm_kb, preset_picker
 from ..messages import (
     PRESET_PICKER_TEXT,
     preset_activated_success_text,
@@ -93,13 +93,13 @@ async def _show_preset_picker(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
     if q is not None and q.message is not None:
         await _safe_edit(
             q, PRESET_PICKER_TEXT,
-            parse_mode=ParseMode.HTML, reply_markup=preset_picker_kb(),
+            parse_mode=ParseMode.HTML, reply_markup=preset_picker(),
         )
     elif update.message is not None:
         await update.message.reply_text(
             PRESET_PICKER_TEXT,
             parse_mode=ParseMode.HTML,
-            reply_markup=preset_picker_kb(),
+            reply_markup=preset_picker(),
         )
 
 

@@ -361,7 +361,7 @@ def p5_dashboard_kb(has_preset: bool = False) -> InlineKeyboardMarkup:
     ])
 
 
-def preset_picker_kb() -> InlineKeyboardMarkup:
+def preset_picker() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🐋 Whale Mirror",   callback_data="p5:preset:whale_mirror")],
         [InlineKeyboardButton("📈 Trend Breakout", callback_data="p5:preset:trend_breakout")],
