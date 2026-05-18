@@ -46,7 +46,7 @@ class _BackfillConn:
         self._missing = missing_ids
 
     async def fetch(self, sql: str, *args: Any) -> list[dict]:
-        if "NOT IN" in sql and "wallets" in sql:
+        if "wallets" in sql.lower():
             return [{"id": uid} for uid in self._missing]
         return []
 

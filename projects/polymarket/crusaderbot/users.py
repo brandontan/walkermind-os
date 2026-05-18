@@ -314,7 +314,8 @@ async def backfill_missing_wallets(pool) -> int:
     try:
         async with pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT id FROM users WHERE id NOT IN (SELECT user_id FROM wallets)"
+                "SELECT id FROM users u "
+                "WHERE NOT EXISTS (SELECT 1 FROM wallets w WHERE w.user_id = u.id)"
             )
         count = 0
         for row in rows:
