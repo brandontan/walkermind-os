@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { TopBar } from "../components/TopBar";
 
 const GAMMA_URL = "https://gamma-api.polymarket.com/markets";
-const CACHE_KEY = "discover_cache";
-const CACHE_TS_KEY = "discover_cache_ts";
 const CACHE_TTL_MS = 5 * 60 * 1000;
+
+let _cache: MarketCard[] | null = null;
+let _cacheTsMs = 0;
 
 const ALL_CATEGORIES = ["All", "Politics", "Sports", "Crypto", "Economy", "World Events"] as const;
 type Category = (typeof ALL_CATEGORIES)[number];
@@ -33,13 +34,6 @@ interface MarketCard {
   noPrice: number;
 }
 
-const MOCK_MARKETS: MarketCard[] = [
-  { id: "mock-1", title: "Will the Fed cut rates before December 2026?", category: "Economy", volume: 84200, liquidity: 32100, endDate: new Date(Date.now() + 14 * 86400000).toISOString(), yesPrice: 0.62, noPrice: 0.38 },
-  { id: "mock-2", title: "Will Bitcoin exceed $120,000 in 2026?", category: "Crypto", volume: 142500, liquidity: 58000, endDate: new Date(Date.now() + 45 * 86400000).toISOString(), yesPrice: 0.41, noPrice: 0.59 },
-  { id: "mock-3", title: "Will the US presidential approval rating exceed 50%?", category: "Politics", volume: 29800, liquidity: 11200, endDate: new Date(Date.now() + 7 * 86400000).toISOString(), yesPrice: 0.35, noPrice: 0.65 },
-  { id: "mock-4", title: "Will the NBA Finals go to Game 7?", category: "Sports", volume: 67400, liquidity: 22000, endDate: new Date(Date.now() + 3 * 86400000).toISOString(), yesPrice: 0.28, noPrice: 0.72 },
-  { id: "mock-5", title: "Will there be a major AI regulation bill passed in 2026?", category: "World Events", volume: 18600, liquidity: 7400, endDate: new Date(Date.now() + 90 * 86400000).toISOString(), yesPrice: 0.55, noPrice: 0.45 },
-];
 
 function fmtVolume(v: number): string {
   if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
@@ -147,38 +141,27 @@ export function DiscoverPage() {
   const [category, setCategory] = useState<Category>("All");
 
   const load = useCallback(async () => {
-    // Check cache first
-    const cachedTs = localStorage.getItem(CACHE_TS_KEY);
-    const now = Date.now();
-    if (cachedTs && now - parseInt(cachedTs, 10) < CACHE_TTL_MS) {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (cached) {
-        try {
-          setMarkets(JSON.parse(cached) as MarketCard[]);
-          setLoading(false);
-          return;
-        } catch {
-          // fall through to fetch
-        }
-      }
-    }
-
     setLoading(true);
     setError(null);
     try {
+      if (_cache && Date.now() - _cacheTsMs < CACHE_TTL_MS) {
+        setMarkets(_cache);
+        return;
+      }
       const res = await fetch(
-        `${GAMMA_URL}?active=true&order=volume&limit=20`,
+        `${GAMMA_URL}?active=true&order=volume&limit=50`,
         { headers: { Accept: "application/json" } }
       );
       if (!res.ok) throw new Error(`Gamma API ${res.status}`);
-      const data = await res.json() as GammaMarket[];
-      const parsed = data.map(parseGammaMarket);
+      const raw = await res.json();
+      const data = Array.isArray(raw) ? raw : [];
+      const parsed = (data as GammaMarket[]).map(parseGammaMarket);
+      _cache = parsed;
+      _cacheTsMs = Date.now();
       setMarkets(parsed);
-      localStorage.setItem(CACHE_KEY, JSON.stringify(parsed));
-      localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
     } catch {
-      setMarkets(MOCK_MARKETS);
-      setError("Live data unavailable — showing demo markets.");
+      setError("Market data unavailable.");
+      setMarkets([]);
     } finally {
       setLoading(false);
     }
@@ -244,6 +227,18 @@ export function DiscoverPage() {
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-32 rounded-lg border border-surface-3 bg-surface-1 animate-pulse" />
             ))}
+          </div>
+        ) : markets.length === 0 ? (
+          <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+            <div className="text-2xl mb-2">📊</div>
+            <p className="font-hud text-sm font-bold text-ink-2 mb-1">No markets available.</p>
+            <p className="text-ink-3 text-xs font-mono mb-3">Market data unavailable. Check your connection.</p>
+            <button
+              onClick={() => void load()}
+              className="font-hud text-[9px] font-bold tracking-widest text-gold uppercase px-3 py-1.5 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
+            >
+              Retry
+            </button>
           </div>
         ) : (
           <>

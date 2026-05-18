@@ -34,6 +34,7 @@ from .jobs import daily_pnl_summary, hourly_report, market_signal_scanner, marke
 from .services.daily_report_service import daily_pnl_report_job, JOB_ID as DAILY_REPORT_JOB_ID
 from .services.signal_scan import signal_scan_job as sf_scan_job
 from .services.copy_trade import monitor as copy_trade_monitor
+from .services.copy_trade import leaderboard_sync
 from .services.redeem import hourly_worker as redeem_hourly_worker
 from .services.redeem import redeem_router
 from .wallet import ledger
@@ -552,6 +553,10 @@ def setup_scheduler() -> AsyncIOScheduler:
     sched.add_job(copy_trade_monitor.run_once, "interval",
                   seconds=s.COPY_TRADE_MONITOR_INTERVAL,
                   id="copy_trade_monitor", max_instances=1, coalesce=True)
+    sched.add_job(leaderboard_sync.run_job, "interval",
+                  seconds=1800,
+                  id="leaderboard_sync", max_instances=1, coalesce=True,
+                  next_run_time=datetime.now(timezone.utc))
     sched.add_job(check_exits, "interval", seconds=s.EXIT_WATCH_INTERVAL,
                   id="exit_watch", max_instances=1, coalesce=True)
     sched.add_job(poll_order_lifecycle, "interval",

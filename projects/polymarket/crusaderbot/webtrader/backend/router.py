@@ -886,7 +886,8 @@ async def get_leaderboard(user: _CurrentUser) -> list[LeaderboardEntry]:
         rows = await conn.fetch(
             """SELECT wallet, alias, win_rate, total_pnl, volume_usdc, roi_pct, badge
                FROM leaderboard_stats
-               ORDER BY total_pnl DESC
+               WHERE updated_at > NOW() - INTERVAL '2 hours'
+               ORDER BY total_pnl DESC NULLS LAST
                LIMIT 50"""
         )
 
@@ -903,6 +904,37 @@ async def get_leaderboard(user: _CurrentUser) -> list[LeaderboardEntry]:
         )
         for i, r in enumerate(rows)
     ]
+
+
+import re as _re  # noqa: E402
+
+_WALLET_RE = _re.compile(r"^0x[0-9a-fA-F]{40}$")
+
+
+@router.get("/copy-trade/wallet-360/{address}")
+async def get_wallet_360_endpoint(address: str, user: _CurrentUser):
+    if not _WALLET_RE.match(address):
+        raise HTTPException(status_code=422, detail="Invalid wallet address format")
+    from ...services.copy_trade.wallet_360 import get_wallet_360
+    result = await get_wallet_360(address, window_days="7")
+    return {
+        "address": result.address,
+        "win_rate": result.win_rate,
+        "roi": result.roi,
+        "total_pnl": result.total_pnl,
+        "sharpe_ratio": result.sharpe_ratio,
+        "max_drawdown": result.max_drawdown,
+        "markets_traded": result.markets_traded,
+        "total_trades": result.total_trades,
+        "performance_trend": result.performance_trend,
+        "risk_level": result.risk_level,
+        "sybil_risk_flag": result.sybil_risk_flag,
+        "sybil_risk_score": result.sybil_risk_score,
+        "combined_risk_score": result.combined_risk_score,
+        "flagged_metrics": result.flagged_metrics,
+        "last_active": result.last_active,
+        "available": result.available,
+    }
 
 
 # ── Copy Trade ────────────────────────────────────────────────────────────────

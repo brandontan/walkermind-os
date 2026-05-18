@@ -70,6 +70,8 @@ export function makeApi(token: string | null) {
       post<ClosePositionResult>(`/positions/${positionId}/close`),
     getPortfolioAnalytics: () => get<PortfolioAnalytics>("/portfolio/analytics"),
     getLeaderboard: () => get<LeaderboardEntry[]>("/leaderboard"),
+    getWallet360: (address: string) =>
+      get<Wallet360>(`/copy-trade/wallet-360/${address}`),
   };
 }
 
@@ -274,4 +276,23 @@ export interface LeaderboardEntry {
   volume_usdc: number | null;
   roi_pct: number | null;
   badge: string | null;
+}
+
+export interface Wallet360 {
+  address: string;
+  win_rate: number | null;
+  roi: number | null;
+  total_pnl: number | null;
+  sharpe_ratio: number | null;
+  max_drawdown: number | null;
+  markets_traded: number | null;
+  total_trades: number | null;
+  performance_trend: string | null;
+  risk_level: string | null;
+  sybil_risk_flag: boolean;
+  sybil_risk_score: number | null;
+  combined_risk_score: number | null;
+  flagged_metrics: string[] | null;
+  last_active: string | null;
+  available: boolean;
 }

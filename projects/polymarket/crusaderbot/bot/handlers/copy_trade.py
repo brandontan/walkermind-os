@@ -74,9 +74,9 @@ from ...domain.copy_trade import repository as repo
 from ...domain.copy_trade.models import CopyTradeTask
 from ...services.copy_trade.wallet_stats import (
     WalletStats,
-    fetch_top_wallets,
     fetch_wallet_stats,
 )
+from ...database import get_pool as _get_pool
 
 logger = logging.getLogger(__name__)
 
@@ -304,7 +304,28 @@ async def copy_trade_callback(
         await q.answer()
         category = action[len("discover:"):] if ":" in action else "top_pnl"
         try:
-            wallets = await fetch_top_wallets(category or None)
+            pool = _get_pool()
+            async with pool.acquire() as _conn:
+                _rows = await _conn.fetch(
+                    """SELECT wallet, win_rate, total_pnl
+                       FROM leaderboard_stats
+                       WHERE updated_at > NOW() - INTERVAL '2 hours'
+                       ORDER BY total_pnl DESC NULLS LAST
+                       LIMIT 10"""
+                )
+            wallets = [
+                WalletStats(
+                    address=r["wallet"],
+                    pnl_30d=float(r["total_pnl"]) if r["total_pnl"] is not None else None,
+                    win_rate=float(r["win_rate"]) if r["win_rate"] is not None else None,
+                    avg_trade=None,
+                    trades_count=0,
+                    active_positions=0,
+                    category="Leaderboard",
+                    available=True,
+                )
+                for r in _rows
+            ]
         except Exception as exc:
             logger.warning("copy trade leaderboard fetch failed: %s", exc)
             wallets = []
