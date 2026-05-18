@@ -14,6 +14,7 @@ from ...database import get_pool
 from ...domain.execution import router as exec_router
 from ...domain.ops import kill_switch
 from ... import notifications as notif_module
+from ...integrations import polymarket as _polymarket
 from . import sse as webtrader_sse
 from .auth import authenticate_telegram, get_current_user
 from .schemas import (
@@ -54,6 +55,23 @@ _CurrentUser = Annotated[dict, Depends(get_current_user)]
 @router.get("/health")
 async def web_health():
     return {"ok": True}
+
+
+@router.get("/markets")
+async def get_markets_list(
+    category: str | None = None,
+    limit: int = 50,
+):
+    """Proxy Gamma API market list — avoids browser CORS restriction."""
+    try:
+        markets = await _polymarket.get_markets(
+            category=category,
+            limit=min(limit, 200),
+        )
+        return markets
+    except Exception as exc:
+        log.warning("get_markets_list failed: %s", exc)
+        return []
 
 
 @router.post("/auth/telegram", response_model=TokenResponse)
@@ -271,7 +289,7 @@ async def close_position_endpoint(
         try:
             await notif_module.send(
                 int(tg_id),
-                f"🔴 <b>Position Manually Closed</b>\n"
+                f"\U0001f534 <b>Position Manually Closed</b>\n"
                 f"Market: {market_label}\n"
                 f"Exit: ${exit_price:.3f}\n"
                 f"PnL: {pnl_sign}${abs(pnl):.2f}",
