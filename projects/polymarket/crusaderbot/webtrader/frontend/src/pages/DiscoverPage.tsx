@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { TopBar } from "../components/TopBar";
+import { useAuth } from "../lib/auth";
+import { useSSE } from "../lib/sse";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/web";
 
@@ -58,6 +60,21 @@ function categoryBadge(cat: string): string {
   return map[cat] ?? "text-ink-3 bg-surface-2 border-border-2";
 }
 
+const CATEGORY_NORMALIZE: Record<string, string> = {
+  politics: "Politics",
+  sports: "Sports",
+  crypto: "Crypto",
+  economy: "Economy",
+  "world events": "World Events",
+  "world_events": "World Events",
+};
+
+function normalizeCategory(raw: string | undefined): string {
+  if (!raw) return "World Events";
+  const lower = raw.toLowerCase().trim();
+  return CATEGORY_NORMALIZE[lower] ?? raw;
+}
+
 function parseGammaMarket(m: GammaMarket): MarketCard {
   let yesPrice = 0.5;
   let noPrice = 0.5;
@@ -72,7 +89,7 @@ function parseGammaMarket(m: GammaMarket): MarketCard {
   } catch {
     // use defaults
   }
-  const cat = m.category ?? "World Events";
+  const cat = normalizeCategory(m.category);
   return {
     id: m.id,
     title: m.question,
@@ -131,6 +148,7 @@ function MarketCardRow({ market, onDeploy }: { market: MarketCard; onDeploy: (m:
 
 export function DiscoverPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [markets, setMarkets] = useState<MarketCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -158,13 +176,17 @@ export function DiscoverPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  useSSE(user?.token ?? null, {
+    scanner_tick: () => void load(),
+  });
+
   const handleDeploy = useCallback((m: MarketCard) => {
     navigate(`/autotrade?market_id=${encodeURIComponent(m.id)}&market_name=${encodeURIComponent(m.title)}`);
   }, [navigate]);
 
   const filtered = category === "All"
     ? markets
-    : markets.filter((m) => m.category === category);
+    : markets.filter((m) => m.category.toLowerCase() === category.toLowerCase());
 
   const trending = [...filtered].sort((a, b) => b.volume - a.volume).slice(0, 5);
   const highestVolume = [...filtered].sort((a, b) => b.volume - a.volume).slice(0, 5);

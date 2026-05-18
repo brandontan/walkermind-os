@@ -525,6 +525,7 @@ async def run_job() -> tuple[int, int]:
             "scanner.tick",
             markets=total_scanned,
             signals=total_published,
+            ts=time.time(),
         )
     except Exception as exc:
         log.warning("scanner_tick_emit_failed", error=str(exc))

@@ -276,10 +276,11 @@ async def _on_scanner_tick_sse(
     *,
     markets: int = 0,
     signals: int = 0,
+    ts: float = 0.0,
     **_: Any,
 ) -> None:
     log.info("SSE push: scanner.tick → %d users connected", len(_user_queues))
-    _push_broadcast("scanner_tick", {"markets": markets, "signals": signals})
+    _push_broadcast("scanner_tick", {"markets": markets, "signals": signals, "ts": ts})
 
 
 def push_position_updated(user_id: str, position_id: str, current_price: float, pnl_usdc: float) -> None:
