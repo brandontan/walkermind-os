@@ -1,5 +1,5 @@
-Last Updated : 2026-05-19 00:30
-Status       : WARP/CRUSADERBOT-SIGNAL-FRESHNESS-GATE-CLEAN PR open — signal freshness gate (step 1c) added to _process_candidate(), rejects signal_publications older than 30 minutes.
+Last Updated : 2026-05-18 21:00
+Status       : WARP/CRUSADERBOT-PRICE-GUARD PR open — live price divergence guard (step 2b) added to _process_candidate(); rejects publication-backed signals where Gamma live/DB ratio > 2.0x; market_sync interval 1800→300s.
 
 [COMPLETED]
 - WARP/crusaderbot-realtime-pipeline-runtime MERGED PR #1141 (2026-05-18 23:55): pipeline MONITORING events (scan_started/strategy_scan_done/scan_completed/risk_gate_evaluated), /status endpoint, 14/14 hermetic pipeline ordering tests, WebTrader TopBar dynamic trading_mode pill, Paper Mode banners, analytics trust guard, config IA reorder, mobile nav readability, leaderboard data source note; Promise.allSettled AutoTrade load decoupled from dashboard failures. SENTINEL APPROVED 89/100. MAJOR, FULL RUNTIME INTEGRATION.
@@ -28,6 +28,7 @@ Status       : WARP/CRUSADERBOT-SIGNAL-FRESHNESS-GATE-CLEAN PR open — signal f
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- WARP/CRUSADERBOT-PRICE-GUARD PR open — _MAX_PRICE_DIVERGENCE_RATIO=2.0 + step 2b price divergence guard in _process_candidate(); skips publication-backed signals where live/DB price ratio > 2.0x with outcome="skipped_price_moved"; market_sync interval 1800→300s. Awaiting WARP🔹CMD review. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-SIGNAL-FRESHNESS-GATE-CLEAN PR open — _MAX_SIGNAL_AGE_SECONDS=1800 + step 1c freshness gate in _process_candidate(); skips publication-backed signals older than 30 min with outcome="skipped_signal_stale". Awaiting WARP🔹CMD review. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE PR open — 6 active Sentry errors fixed: scheduler metadata json.dumps, preset_picker_kb→preset_picker rename, migration 041 (strategy_type+market_question on positions), slippage NUMERIC clamp, DB pool 4. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-UI-FIXES-BATCH2 PR open — SettingsPage liquidity+slippage removed, AutoTradePage custom risk text color fix, Weather Arb+Market Making COMING SOON removed, FilterTabs mobile scroll. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
@@ -66,6 +67,7 @@ Status       : WARP/CRUSADERBOT-SIGNAL-FRESHNESS-GATE-CLEAN PR open — signal f
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for crusaderbot-price-guard (step 2b: live price divergence guard + market_sync 1800→300s). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-price-guard.md. Tier: STANDARD.
 - WARP🔹CMD review required for signal-freshness-gate (step 1c: reject stale signal_publications older than 30 min). Tier: STANDARD.
 - WARP🔹CMD: apply migration 041 to Supabase production, then review+merge WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-sentry-hotfix-bundle.md. Tier: STANDARD.
 - WARP🔹CMD review required for crusaderbot-ui-fixes-batch2 (4 UI fixes: SettingsPage liquidity+slippage removal, custom risk text color, COMING SOON removal, mobile scroll tabs). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ui-fixes-batch2.md. Tier: STANDARD.
