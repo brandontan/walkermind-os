@@ -541,37 +541,29 @@ async def _process_candidate(
         log.info("scan_outcome", outcome="skipped_market_not_synced")
         return
 
-    # 2b. Live price divergence guard — fetch Gamma price and compare
-    #     against the cached DB price. Skips candidates where DB price
-    #     is so stale that a fill would be unrealistic (entry << market).
-    #     Falls through silently on any API/network error so a Gamma
-    #     outage does not block all trading.
+    # 2b. Live price divergence guard — fetch live price and compare against
+    #     the cached DB price. Skips candidates where DB price is so stale
+    #     that a fill would be unrealistic (entry << market). Side-aware:
+    #     uses no_price/outcomePrices[1] for NO signals. Falls through
+    #     silently on any API/network error so a Gamma outage does not block
+    #     all trading.
     if pub_uuid is not None:  # only publication-backed signals; lib strategies use fresh prices
-        _db_price = float(market.get("yes_price") or 0.0)
+        _price_key = "no_price" if side == "no" else "yes_price"
+        _db_price = float(market.get(_price_key) or 0.0)
         if _db_price > 0:
             try:
-                _live_markets = await _polymarket.get_markets(
-                    limit=1,
-                    condition_id=cand.market_id,
-                )
-                if _live_markets:
-                    _lm = _live_markets[0]
-                    _outcomes = _lm.get("outcomePrices") or _lm.get("outcome_prices") or []
-                    if isinstance(_outcomes, str):
-                        import json as _json
-                        _outcomes = _json.loads(_outcomes)
-                    _live_price = float(_outcomes[0]) if _outcomes else 0.0
-                    if _live_price > 0 and (_live_price / _db_price) > _MAX_PRICE_DIVERGENCE_RATIO:
-                        log.info(
-                            "scan_outcome",
-                            outcome="skipped_price_moved",
-                            db_price=_db_price,
-                            live_price=_live_price,
-                            ratio=round(_live_price / _db_price, 2),
-                            threshold=_MAX_PRICE_DIVERGENCE_RATIO,
-                            message=f"Price moved: DB={_db_price:.4f} live={_live_price:.4f} ratio={_live_price / _db_price:.1f}x > {_MAX_PRICE_DIVERGENCE_RATIO}x",
-                        )
-                        return
+                _live_price = await _polymarket.get_live_market_price(cand.market_id, side)
+                if _live_price is not None and _live_price > 0 and (_live_price / _db_price) > _MAX_PRICE_DIVERGENCE_RATIO:
+                    log.info(
+                        "scan_outcome",
+                        outcome="skipped_price_moved",
+                        db_price=_db_price,
+                        live_price=_live_price,
+                        ratio=round(_live_price / _db_price, 2),
+                        threshold=_MAX_PRICE_DIVERGENCE_RATIO,
+                        message=f"Price moved: DB={_db_price:.4f} live={_live_price:.4f} ratio={_live_price / _db_price:.1f}x > {_MAX_PRICE_DIVERGENCE_RATIO}x",
+                    )
+                    return
             except Exception as exc:
                 log.debug("price_divergence_check_failed", error=str(exc))
                 # Fall through — don't block trading on API error
