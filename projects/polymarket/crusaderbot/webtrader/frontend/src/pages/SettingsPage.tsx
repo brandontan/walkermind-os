@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AdvancedOnly } from "../components/AdvancedGate";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
@@ -22,35 +22,18 @@ export function SettingsPage() {
   const [redeemMode, setRedeemMode] = useState<"instant" | "hourly">("hourly");
   const [savingRedeem, setSavingRedeem] = useState(false);
 
-  // Risk profile settings
-  const [minLiquidity, setMinLiquidity] = useState<string>("10000");
-  const [slippagePct, setSlippagePct] = useState<string>("3");
-  const [savingRisk, setSavingRisk] = useState(false);
-  const slippageNum = parseFloat(slippagePct) || 0;
-  const liquidityDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const slippageDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const load = useCallback(async () => {
-    const [s, dash, autotrade] = await Promise.all([
+    const [s, dash] = await Promise.all([
       api.getSettings(),
       api.getDashboard(),
-      api.getAutotrade(),
     ]);
     setSettings(s);
     setTradingMode(dash.trading_mode);
     if (s.auto_redeem != null) setAutoRedeem(s.auto_redeem);
     if (s.redeem_mode) setRedeemMode(s.redeem_mode);
-    if (autotrade.min_liquidity != null) setMinLiquidity(String(autotrade.min_liquidity));
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
-
-  useEffect(() => {
-    return () => {
-      if (liquidityDebounce.current) clearTimeout(liquidityDebounce.current);
-      if (slippageDebounce.current) clearTimeout(slippageDebounce.current);
-    };
-  }, []);
 
   // All three notification toggles bind to the single `notifications_on` flag.
   async function handleNotifToggle(next: boolean) {
@@ -90,40 +73,6 @@ export function SettingsPage() {
         setSavingRedeem(false);
       }
     }
-  }
-
-  function handleLiquidityChange(val: string) {
-    setMinLiquidity(val);
-    if (liquidityDebounce.current) clearTimeout(liquidityDebounce.current);
-    liquidityDebounce.current = setTimeout(async () => {
-      const num = parseFloat(val);
-      if (isNaN(num) || num < 0) return;
-      setSavingRisk(true);
-      try {
-        await api.updateTradingSettings({ min_liquidity_usd: num });
-      } catch (e) {
-        console.error("min_liquidity save failed", e);
-      } finally {
-        setSavingRisk(false);
-      }
-    }, 800);
-  }
-
-  function handleSlippageChange(val: string) {
-    setSlippagePct(val);
-    if (slippageDebounce.current) clearTimeout(slippageDebounce.current);
-    slippageDebounce.current = setTimeout(async () => {
-      const num = parseFloat(val);
-      if (isNaN(num) || num < 0 || num > 100) return;
-      setSavingRisk(true);
-      try {
-        await api.updateTradingSettings({ slippage_tolerance_pct: num / 100 });
-      } catch (e) {
-        console.error("slippage save failed", e);
-      } finally {
-        setSavingRisk(false);
-      }
-    }, 800);
   }
 
   function handleLogout() {
@@ -237,54 +186,6 @@ export function SettingsPage() {
 
           {/* Right column */}
           <div>
-            {/* Risk Profile */}
-            <SettingsGroup title="Risk Profile">
-              <SettingsRow
-                name="Min Market Liquidity"
-                desc={`Conservative: $25,000 · Balanced: $10,000 · Aggressive: $2,500`}
-                control={
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-ink-3 font-mono text-xs">$</span>
-                    <input
-                      type="number"
-                      min={0}
-                      step={500}
-                      value={minLiquidity}
-                      onChange={(e) => handleLiquidityChange(e.target.value)}
-                      className="w-24 bg-surface-2 border border-border-1 rounded px-2 py-1 text-xs font-mono text-ink-1 focus:outline-none focus:border-gold"
-                      placeholder="10000"
-                    />
-                    {savingRisk && <span className="text-ink-4 text-[9px]">saving…</span>}
-                  </div>
-                }
-              />
-              <SettingsRow
-                name="Slippage Tolerance"
-                desc="Warn when your tolerance exceeds 3%"
-                control={
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.5}
-                      value={slippagePct}
-                      onChange={(e) => handleSlippageChange(e.target.value)}
-                      className="w-16 bg-surface-2 border border-border-1 rounded px-2 py-1 text-xs font-mono text-ink-1 focus:outline-none focus:border-gold"
-                      placeholder="3"
-                    />
-                    <span className="text-ink-3 font-mono text-xs">%</span>
-                  </div>
-                }
-              />
-              {slippageNum > 3 && (
-                <div className="mx-3 mb-3 px-2.5 py-2 rounded text-[10px] font-mono"
-                  style={{ background: "rgba(255,200,0,0.08)", border: "1px solid rgba(255,200,0,0.25)", color: "#F5C842" }}>
-                  ⚠ High slippage tolerance. You may experience poor execution prices on thin markets.
-                </div>
-              )}
-            </SettingsGroup>
-
             {/* Account */}
             <SettingsGroup title="Account">
               <SettingsRow

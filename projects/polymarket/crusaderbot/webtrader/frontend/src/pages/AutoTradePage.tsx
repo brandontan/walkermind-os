@@ -87,10 +87,8 @@ const STRATEGY_PRESETS = [
 ] as const;
 
 const COMING_SOON = [
-  { name: "Logic Arb",     emoji: "🧠", note: "Needs LLM API" },
-  { name: "Sentiment",     emoji: "📰", note: "Needs social API" },
-  { name: "Weather Arb",   emoji: "🌦️", note: "Needs NOAA API" },
-  { name: "Market Making", emoji: "🏦", note: "Needs WebSocket" },
+  { name: "Logic Arb",  emoji: "🧠", note: "Needs LLM API" },
+  { name: "Sentiment",  emoji: "📰", note: "Needs social API" },
 ];
 
 // ── Section B: Risk Profiles ──────────────────────────────────────────────────
@@ -411,7 +409,8 @@ export function AutoTradePage() {
                             max={99}
                             value={val}
                             onChange={e => set(e.target.value)}
-                            className="w-full bg-surface-3 border border-ink-4 rounded px-1.5 py-1 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                            className="w-full bg-surface-3 border border-ink-4 rounded px-1.5 py-1 text-xs font-mono text-ink-1 placeholder:text-ink-3 focus:border-gold focus:outline-none"
+                            style={{ color: "white" }}
                           />
                         </div>
                       ))}

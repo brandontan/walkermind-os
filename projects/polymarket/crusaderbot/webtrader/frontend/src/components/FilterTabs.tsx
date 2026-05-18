@@ -16,14 +16,14 @@ type Props<K extends string> = {
 
 export function FilterTabs<K extends string>({ tabs, active, onChange }: Props<K>) {
   return (
-    <div className="flex gap-1 mb-3 bg-surface p-1 border border-border-1 clip-card-sm">
+    <div className="flex gap-1 mb-3 bg-surface p-1 border border-border-1 clip-card-sm overflow-x-auto whitespace-nowrap">
       {tabs.map((tab) => {
         const node = (
           <button
             type="button"
             key={tab.key}
             onClick={() => onChange(tab.key)}
-            className={`flex-1 py-[7px] px-2.5 font-hud text-[10px] font-bold tracking-[1.5px] text-center cursor-pointer uppercase transition-colors ${
+            className={`flex-shrink-0 whitespace-nowrap py-[7px] px-2.5 font-hud text-[10px] font-bold tracking-[1.5px] text-center cursor-pointer uppercase transition-colors ${
               active === tab.key
                 ? "text-gold"
                 : "text-ink-3 hover:text-ink-2"
