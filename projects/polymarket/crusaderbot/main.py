@@ -75,11 +75,11 @@ async def lifespan(_: FastAPI):
     bootstrap_default_strategies()
     seed_defaults()
     from .domain.strategy.registry import StrategyRegistry
-    catalog = StrategyRegistry.instance().catalog()
+    catalog = StrategyRegistry.instance().list_available()
     log.info(
         "strategy registry ready: %d strategies registered: %s",
         len(catalog),
-        list(catalog.keys()),
+        [s["name"] for s in catalog],
     )
     await webtrader_sse.start_listener(settings.DATABASE_URL, pool)
 
