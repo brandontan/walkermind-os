@@ -140,6 +140,16 @@ class TradeEngine:
 
         gate_result: GateResult = await _risk_evaluate(gate_ctx)
 
+        # MONITORING: emit risk gate result so every pipeline stage is observable.
+        await _event_bus.emit(
+            "pipeline.risk_gate_evaluated",
+            user_id=str(signal.user_id),
+            market_id=signal.market_id,
+            approved=gate_result.approved,
+            reason=gate_result.reason if not gate_result.approved else None,
+            failed_step=gate_result.failed_step if not gate_result.approved else None,
+        )
+
         if not gate_result.approved:
             logger.info(
                 "trade_engine: gate rejected user=%s market=%s reason=%s step=%s",

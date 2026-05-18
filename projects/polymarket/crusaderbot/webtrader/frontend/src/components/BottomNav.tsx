@@ -52,8 +52,8 @@ export function BottomNav() {
               <span
                 className="text-[18px] transition-all"
                 style={{
-                  opacity: isActive ? 1 : 0.5,
-                  filter: isActive ? "grayscale(0%)" : "grayscale(80%)",
+                  opacity: isActive ? 1 : 0.65,
+                  filter: isActive ? "grayscale(0%)" : "grayscale(40%)",
                   transform: isActive ? "translateY(-2px)" : "translateY(0)",
                 }}
               >
@@ -61,7 +61,7 @@ export function BottomNav() {
               </span>
               <span
                 className={`font-hud text-[8px] font-bold tracking-[1.5px] uppercase transition-colors ${
-                  isActive ? "text-gold" : "text-ink-3"
+                  isActive ? "text-gold" : "text-ink-2"
                 }`}
               >
                 {label}

@@ -748,19 +748,37 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
     );
   }
 
+  // Max drawdown is only meaningful once equity has moved through multiple trades.
+  // 100% drawdown from a single expired position is misleading — suppress it.
+  const settledTrades = data.wins + data.losses;
+  const drawdownValue = data.max_drawdown_pct != null && settledTrades >= 2
+    ? `${data.max_drawdown_pct.toFixed(1)}%`
+    : settledTrades < 2 ? "Not enough data" : "—";
+  const drawdownColor = data.max_drawdown_pct != null && data.max_drawdown_pct > 10 && settledTrades >= 2
+    ? "var(--red,#FF2D55)"
+    : "var(--ink-1)";
+
+  // Win/loss ratio: only show when there are actual settled (non-expired) trades.
+  const ratioValue = settledTrades > 0 && data.win_loss_ratio != null
+    ? `${data.win_loss_ratio.toFixed(2)}`
+    : settledTrades === 0 ? "Not enough data" : "—";
+
   return (
     <div className="space-y-3 mt-2">
+      <div className="text-[9px] font-mono text-ink-4 tracking-[1.5px] uppercase mb-1">
+        Settled trades only · market_expired excluded
+      </div>
       {/* Row 1: key metrics */}
       <div className="grid grid-cols-2 gap-2">
         <AnalyticCard
           label="Max Drawdown"
-          value={data.max_drawdown_pct != null ? `${data.max_drawdown_pct.toFixed(1)}%` : "—"}
-          color={data.max_drawdown_pct != null && data.max_drawdown_pct > 10 ? "var(--red,#FF2D55)" : "var(--ink-1)"}
+          value={drawdownValue}
+          color={drawdownColor}
         />
         <AnalyticCard
           label="Win / Loss Ratio"
-          value={data.win_loss_ratio != null ? `${data.win_loss_ratio.toFixed(2)}` : "—"}
-          sub={`${data.wins}W · ${data.losses}L`}
+          value={ratioValue}
+          sub={settledTrades > 0 ? `${data.wins}W · ${data.losses}L` : undefined}
           color="var(--ink-1)"
         />
         <AnalyticCard

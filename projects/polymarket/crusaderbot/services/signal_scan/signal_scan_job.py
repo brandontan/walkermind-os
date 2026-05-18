@@ -44,6 +44,7 @@ from uuid import UUID
 
 import structlog
 
+from ...core import event_bus as _event_bus
 from ...database import get_pool
 from ...domain.execution.router import execute as router_execute
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
@@ -607,6 +608,8 @@ async def run_once() -> None:
     Each user is processed independently — an exception for one user does
     not prevent other users from being scanned on the same tick.
     """
+    await _event_bus.emit("pipeline.strategy_scan_started", user_count=0)
+
     try:
         users = await _load_enrolled_users()
     except Exception as exc:
@@ -615,6 +618,8 @@ async def run_once() -> None:
 
     if not users:
         return
+
+    await _event_bus.emit("pipeline.strategy_scan_started", user_count=len(users))
 
     # Phase A: fetch markets once, run each lib strategy, collect by name.
     markets = await _fetch_markets_for_lib_strategies()
@@ -633,8 +638,15 @@ async def run_once() -> None:
     total_signals = sum(len(v) for v in all_candidates.values())
     logger.info("lib_strategy_phase_a_done", strategies=len(strategies_to_run),
                 total_signals=total_signals)
+    await _event_bus.emit(
+        "pipeline.strategy_scan_done",
+        strategy_count=len(strategies_to_run),
+        total_signals=total_signals,
+    )
 
     # Phase B: distribute signals to users based on their active_preset.
+    accepted = 0
+    rejected = 0
     for row in users:
         active_preset = row.get("active_preset")
         user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
@@ -645,13 +657,22 @@ async def run_once() -> None:
             for cand in candidates:
                 try:
                     await _process_candidate(row, cand)
+                    accepted += 1
                 except Exception as exc:
+                    rejected += 1
                     user_log.error(
                         "signal_scan_candidate_unhandled",
                         market_id=cand.market_id,
                         strategy=lib_name,
                         error=str(exc),
                     )
+
+    await _event_bus.emit(
+        "pipeline.scan_completed",
+        user_count=len(users),
+        candidates_accepted=accepted,
+        candidates_rejected=rejected,
+    )
 
 
 __all__ = ["run_once"]

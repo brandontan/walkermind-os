@@ -25,6 +25,7 @@ export function makeApi(token: string | null) {
     request<T>(path, token, { method: "PATCH", body: body ? JSON.stringify(body) : undefined });
 
   return {
+    getRuntimeStatus: () => get<RuntimeStatus>("/status"),
     getDashboard: () => get<DashboardSummary>("/dashboard"),
     getPositions: (status?: string, limit?: number) => {
       const params = new URLSearchParams();
@@ -276,6 +277,18 @@ export interface LeaderboardEntry {
   volume_usdc: number | null;
   roi_pct: number | null;
   badge: string | null;
+}
+
+export interface RuntimeStatus {
+  trading_mode: string;
+  paper_mode: boolean;
+  active_preset: string | null;
+  risk_profile: string;
+  kill_switch_active: boolean;
+  open_positions: number;
+  scanner_scanned: number;
+  scanner_published: number;
+  scanner_last_tick: number | null;
 }
 
 export interface Wallet360 {

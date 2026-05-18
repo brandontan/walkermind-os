@@ -101,44 +101,9 @@ export function SettingsPage() {
         />
 
         <div className="md:grid md:grid-cols-2 md:gap-4 md:items-start">
-          {/* Left column */}
+          {/* Left column — trading safety first */}
           <div>
-            {/* Display — master Advanced Mode toggle */}
-            <SettingsGroup title="Display">
-              <SettingsRow
-                emphasis
-                name={<>⚡ Advanced Mode</>}
-                desc="Show technical data, terminal logs, market IDs, and full diagnostics"
-                control={
-                  <Toggle
-                    checked={advanced}
-                    onChange={toggleAdvanced}
-                    ariaLabel="Toggle advanced mode"
-                  />
-                }
-              />
-            </SettingsGroup>
-
-            {/* Notifications */}
-            <SettingsGroup title="Notifications">
-              <SettingsRow
-                name="Trade Opened"
-                desc="Alert when a position opens"
-                control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle trade-opened alerts" />}
-              />
-              <SettingsRow
-                name="Trade Closed"
-                desc="Alert on TP / SL / expiry"
-                control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle trade-closed alerts" />}
-              />
-              <SettingsRow
-                name="Daily Report"
-                desc="End-of-day P&L summary"
-                control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle daily report" />}
-              />
-            </SettingsGroup>
-
-            {/* Trading — auto redeem */}
+            {/* Trading — safety-critical settings first */}
             <SettingsGroup title="Trading">
               <SettingsRow
                 emphasis
@@ -181,6 +146,41 @@ export function SettingsPage() {
                   ))}
                 </div>
               )}
+            </SettingsGroup>
+
+            {/* Notifications */}
+            <SettingsGroup title="Notifications">
+              <SettingsRow
+                name="Trade Opened"
+                desc="Alert when a position opens"
+                control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle trade-opened alerts" />}
+              />
+              <SettingsRow
+                name="Trade Closed"
+                desc="Alert on TP / SL / expiry"
+                control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle trade-closed alerts" />}
+              />
+              <SettingsRow
+                name="Daily Report"
+                desc="End-of-day P&L summary"
+                control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle daily report" />}
+              />
+            </SettingsGroup>
+
+            {/* Display — advanced diagnostics last */}
+            <SettingsGroup title="Display">
+              <SettingsRow
+                emphasis
+                name={<>⚡ Advanced Mode</>}
+                desc="Show technical data, terminal logs, market IDs, and full diagnostics"
+                control={
+                  <Toggle
+                    checked={advanced}
+                    onChange={toggleAdvanced}
+                    ariaLabel="Toggle advanced mode"
+                  />
+                }
+              />
             </SettingsGroup>
           </div>
 

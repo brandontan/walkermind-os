@@ -34,6 +34,7 @@ from .schemas import (
     PositionItem,
     PresetActivateRequest,
     RiskProfileRequest,
+    RuntimeStatus,
     StrategyPnl,
     TelegramAuthPayload,
     TokenResponse,
@@ -662,6 +663,37 @@ async def web_kill(user: _CurrentUser):
         log.error("web kill switch failed: %s", exc)
         raise HTTPException(status_code=500, detail="kill switch failed")
     return {"ok": True, "kill_switch_active": True}
+
+
+@router.get("/status", response_model=RuntimeStatus)
+async def get_runtime_status(user: _CurrentUser) -> RuntimeStatus:
+    """Realtime backend runtime state — scanner, trading mode, risk, positions."""
+    from ...jobs.market_signal_scanner import get_scanner_state
+    pool = get_pool()
+    user_id = user["user_id"]
+    async with pool.acquire() as conn:
+        settings_row = await conn.fetchrow(
+            "SELECT risk_profile, trading_mode, active_preset FROM user_settings WHERE user_id=$1::uuid",
+            user_id,
+        )
+        open_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND status='open'",
+            user_id,
+        )
+    scanner = get_scanner_state()
+    ks_active = await kill_switch.is_active()
+    trading_mode = settings_row["trading_mode"] if settings_row else "paper"
+    return RuntimeStatus(
+        trading_mode=trading_mode,
+        paper_mode=trading_mode != "live",
+        active_preset=settings_row["active_preset"] if settings_row else None,
+        risk_profile=settings_row["risk_profile"] if settings_row else "balanced",
+        kill_switch_active=ks_active,
+        open_positions=int(open_count or 0),
+        scanner_scanned=scanner.get("scanned", 0),
+        scanner_published=scanner.get("published", 0),
+        scanner_last_tick=scanner.get("last_tick_ts"),
+    )
 
 
 @router.get("/portfolio/summary", response_model=PortfolioSummary)

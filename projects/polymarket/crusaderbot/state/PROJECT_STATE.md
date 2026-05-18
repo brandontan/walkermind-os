@@ -1,5 +1,5 @@
-Last Updated : 2026-05-18 21:00
-Status       : WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE PR open — 6 Sentry production fixes: job_runs metadata serialization, preset_picker_kb rename, migration 041 (market_question+strategy_type), slippage clamp, DB pool 5→4. STANDARD. Awaiting WARP🔹CMD review.
+Last Updated : 2026-05-18 22:30
+Status       : WARP/crusaderbot-realtime-pipeline-runtime PR open — backend pipeline runtime hardening (pipeline MONITORING events, /status endpoint, 14 tests) + WebTrader operator trust UX (TopBar dynamic mode, Paper Mode banners, analytics trust, config IA reorder, mobile nav readability). MAJOR. WARP•SENTINEL validation required before merge.
 
 [COMPLETED]
 - CRU-12 WARP/CRUSADERBOT-UX-PHASE1 PR open (2026-05-17): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel. Vite build clean. STANDARD, NARROW INTEGRATION.
@@ -27,6 +27,7 @@ Status       : WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE PR open — 6 Sentry produc
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- WARP/crusaderbot-realtime-pipeline-runtime PR open — pipeline MONITORING events (scan_started/strategy_scan_done/scan_completed/risk_gate_evaluated), /status endpoint, 14 hermetic tests, WebTrader operator trust UX (TopBar trading_mode, Paper Mode banners on Dashboard+AutoTrade, analytics trust guard, config IA reorder, mobile nav readability, leaderboard data source note). MAJOR, FULL RUNTIME INTEGRATION. WARP•SENTINEL validation required.
 - WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE PR open — 6 active Sentry errors fixed: scheduler metadata json.dumps, preset_picker_kb→preset_picker rename, migration 041 (strategy_type+market_question on positions), slippage NUMERIC clamp, DB pool 4. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-UI-FIXES-BATCH2 PR open — SettingsPage liquidity+slippage removed, AutoTradePage custom risk text color fix, Weather Arb+Market Making COMING SOON removed, FilterTabs mobile scroll. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-RUNTIME-FIXES PR open — HEISENBERG_API_KEY alignment (config.py), asyncpg command_timeout=30 + _warn_if_supavisor_transaction_pool (database.py), StrategyRegistry startup log (main.py). STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
@@ -64,6 +65,7 @@ Status       : WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE PR open — 6 Sentry produc
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for crusaderbot-realtime-pipeline-runtime (pipeline ordering, /status endpoint, analytics trust, Paper Mode banners, WebTrader runtime truth). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-realtime-pipeline-runtime.md. Tier: MAJOR.
 - WARP🔹CMD: apply migration 041 to Supabase production, then review+merge WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-sentry-hotfix-bundle.md. Tier: STANDARD.
 - WARP🔹CMD review required for crusaderbot-ui-fixes-batch2 (4 UI fixes: SettingsPage liquidity+slippage removal, custom risk text color, COMING SOON removal, mobile scroll tabs). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ui-fixes-batch2.md. Tier: STANDARD.
 - WARP🔹CMD review required for crusaderbot-runtime-fixes (HEISENBERG key alignment, asyncpg timeout, startup log). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-runtime-fixes.md. Tier: STANDARD. Set HEISENBERG_API_KEY Fly secret before deploy.

@@ -229,3 +229,18 @@ class LeaderboardEntry(BaseModel):
     volume_usdc: Optional[float]
     roi_pct: Optional[float]
     badge: Optional[str]
+
+
+# ── Runtime Status ────────────────────────────────────────────────────────────
+
+class RuntimeStatus(BaseModel):
+    """Realtime backend runtime state for operator trust surface."""
+    trading_mode: str
+    paper_mode: bool
+    active_preset: Optional[str]
+    risk_profile: str
+    kill_switch_active: bool
+    open_positions: int
+    scanner_scanned: int
+    scanner_published: int
+    scanner_last_tick: Optional[float]
