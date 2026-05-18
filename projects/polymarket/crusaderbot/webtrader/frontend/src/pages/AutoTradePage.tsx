@@ -468,7 +468,7 @@ export function AutoTradePage() {
         </div>
 
         {/* ── SECTION C: Market Filter ── */}
-        <CollapsibleSection id="autotrade_market_filter" label="Market Filter" defaultOpen={true}>
+        <CollapsibleSection id="autotrade_market_filter" label="Market Filter">
         <p className="text-ink-3 text-xs font-mono mb-3 mx-0.5">
           Choose which market categories and liquidity thresholds the bot scans.
         </p>
