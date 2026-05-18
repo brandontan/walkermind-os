@@ -9,10 +9,13 @@ from ._common import home_back_row
 
 
 def preset_picker() -> InlineKeyboardMarkup:
-    """Render presets in a 2-column grid; recommended preset gets a ⭐ tag."""
+    """Render presets in a 2-column grid; recommended preset gets a ⭐ tag.
+
+    Button label: Emoji + Name + Risk badge (not capital %).
+    """
     buttons = []
     for p in list_presets():
-        label = f"{p.emoji} {p.name} · {int(p.capital_pct * 100)}%"
+        label = f"{p.emoji} {p.name} · {p.badge.value}"
         if p.key == RECOMMENDED_PRESET:
             label = f"{label} ⭐"
         buttons.append(InlineKeyboardButton(
@@ -22,7 +25,7 @@ def preset_picker() -> InlineKeyboardMarkup:
 
 
 def preset_confirm(preset_key: str) -> InlineKeyboardMarkup:
-    """Confirm screen: Activate + Customize (2-col) + Cancel below."""
+    """Detail view: Start + Customize (2-col) + Back/Home nav row."""
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("▶ Start Auto Trade",
@@ -30,7 +33,7 @@ def preset_confirm(preset_key: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton("🛠 Customize",
                                  callback_data=f"preset:customize:{preset_key}"),
         ],
-        [InlineKeyboardButton("❌ Cancel", callback_data="preset:picker")],
+        home_back_row("preset:picker"),
     ])
 
 

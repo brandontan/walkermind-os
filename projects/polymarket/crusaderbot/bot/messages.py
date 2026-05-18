@@ -286,33 +286,58 @@ def dashboard_text(
     risk_emoji: str,
     risk_label: str,
     pulse_line: str = "📡 Scanning Polymarket liquidity...",
+    last_scan: str = "—",
 ) -> str:
     status_emoji = "🟢" if autotrade_on else "⚫"
     status_label = "RUNNING" if autotrade_on else "OFF"
+    today_icon = "🟢" if float(pnl_today) >= 0 else "🔴"
+    preset_display = (
+        f"{html.escape(preset_emoji)} {html.escape(preset_name)}"
+        if preset_key else "Not configured"
+    )
 
     return (
         "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"{pulse_line}\n\n"
-        "<b>💼 Portfolio</b>\n"
-        f"├─ Balance:   <code>{_fmt(balance)}</code>\n"
-        f"├─ Exposure:  <code>{_fmt(positions_value)}</code>\n"
-        f"├─ Equity:    <code>{_fmt(total_equity)}</code>\n"
-        f"└─ W/L: {wins}W / {losses}L\n\n"
-        "<b>💰 Profit &amp; Loss</b>\n"
-        f"├─ Today:    <code>{_signed(pnl_today)}</code> ({_pct(pnl_today_pct)}%)\n"
-        f"├─ 7 Day:    <code>{_signed(pnl_7d)}</code> ({_pct(pnl_7d_pct)}%)\n"
-        f"├─ 30 Day:   <code>{_signed(pnl_30d)}</code> ({_pct(pnl_30d_pct)}%)\n"
-        f"└─ All-Time: <code>{_signed(pnl_alltime)}</code>\n\n"
-        "<b>📈 Trading Stats</b>\n"
-        f"├─ Trades:   {total_trades} ({float(win_rate):.1f}% WR)\n"
-        f"├─ Volume:   <code>{_fmt(total_volume)}</code>\n"
-        f"└─ Markets:  {markets_count}\n\n"
-        "<b>🤖 Auto Mode</b>\n"
-        f"├─ Status: {status_emoji} {status_label}\n"
-        f"├─ Preset: {html.escape(preset_emoji)} {html.escape(preset_name) if preset_key else 'Not configured'}\n"
-        f"├─ Risk:   {html.escape(risk_emoji)} {html.escape(risk_label)}\n"
-        f"└─ Mode:   📝 Paper"
+        f"{DIV}\n"
+        f"📡 Last Scan: <code>{html.escape(last_scan)}</code>\n\n"
+        "<b>💼 PORTFOLIO</b>\n"
+        "<pre>"
+        + _table([
+            ("Equity:",   _fmt(total_equity)),
+            ("Balance:",  _fmt(balance)),
+            ("Exposure:", _fmt(positions_value)),
+            ("W/L:",      f"{wins}W / {losses}L"),
+        ], width=10)
+        + "</pre>\n"
+        f"{DIV}\n"
+        "<b>💰 P&amp;L</b>\n"
+        "<pre>"
+        + _table([
+            ("Today:",    f"{today_icon} {_signed(pnl_today)} ({_pct(pnl_today_pct)}%)"),
+            ("7-Day:",    f"{_signed(pnl_7d)} ({_pct(pnl_7d_pct)}%)"),
+            ("30-Day:",   f"{_signed(pnl_30d)} ({_pct(pnl_30d_pct)}%)"),
+            ("All-Time:", _signed(pnl_alltime)),
+        ], width=10)
+        + "</pre>\n"
+        f"{DIV}\n"
+        "<b>📈 STATS</b>\n"
+        "<pre>"
+        + _table([
+            ("Trades:",  f"{total_trades}  WR: {float(win_rate):.1f}%"),
+            ("Volume:",  _fmt(total_volume)),
+            ("Markets:", str(markets_count)),
+        ], width=9)
+        + "</pre>\n"
+        f"{DIV}\n"
+        "<b>🤖 AUTO MODE</b>\n"
+        "<pre>"
+        + _table([
+            ("Status:", f"{status_emoji} {status_label}"),
+            ("Preset:", preset_display),
+            ("Risk:",   f"{html.escape(risk_emoji)} {html.escape(risk_label)}"),
+            ("Mode:",   "📝 Paper"),
+        ], width=8)
+        + "</pre>"
     )
 
 
