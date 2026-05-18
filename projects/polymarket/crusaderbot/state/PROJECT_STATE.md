@@ -1,5 +1,5 @@
-Last Updated : 2026-05-18 23:59
-Status       : WARP/CRUSADERBOT-FAST-ISOLATION-AUDIT MERGED — CRU-16: Track J isolation audit, wallet startup backfill, qrcode dep removal. MAJOR. Merged by WARP🔹CMD.
+Last Updated : 2026-05-18 21:00
+Status       : WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE PR open — 6 Sentry production fixes: job_runs metadata serialization, preset_picker_kb rename, migration 041 (market_question+strategy_type), slippage clamp, DB pool 5→4. STANDARD. Awaiting WARP🔹CMD review.
 
 [COMPLETED]
 - CRU-12 WARP/CRUSADERBOT-UX-PHASE1 PR open (2026-05-17): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel. Vite build clean. STANDARD, NARROW INTEGRATION.
