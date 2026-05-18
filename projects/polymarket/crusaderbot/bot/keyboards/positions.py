@@ -15,9 +15,12 @@ from ._common import confirm_cancel_row, home_back_row
 
 
 def positions_list_kb(position_ids: Iterable[UUID | str]) -> InlineKeyboardMarkup:
-    """Navigation-only keyboard for portfolio surfaces (no manual close CTA)."""
-    _ = list(position_ids)  # keep signature stable for existing call sites
+    """Per-position [🛑 Close] rows + back/home nav row."""
     rows: list[list[InlineKeyboardButton]] = []
+    for pid in position_ids:
+        rows.append([InlineKeyboardButton(
+            "🛑 Close", callback_data=f"close_position:{pid}",
+        )])
     rows.append(home_back_row("portfolio:portfolio"))
     return InlineKeyboardMarkup(rows)
 

@@ -245,14 +245,32 @@ async def portfolio_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Render the live position monitor (Tier 2+)."""
+    """Render the live position monitor — handles both Message and CallbackQuery."""
+    is_cb = update.callback_query is not None
+    if is_cb:
+        await update.callback_query.answer()
+
     user, ok = await _ensure_tier(update)
-    if not ok or update.message is None:
+    if not ok:
+        return
+    if not is_cb and update.message is None:
         return
 
     positions = await _load_open_positions(user["id"])
+
     if not positions:
-        await update.message.reply_text("No open positions.")
+        text = "No open positions."
+        kb = positions_list_kb([])
+        if is_cb:
+            try:
+                await update.callback_query.edit_message_text(
+                    text, reply_markup=kb,
+                )
+            except BadRequest as exc:
+                if "Message is not modified" not in str(exc):
+                    await update.callback_query.message.reply_text(text, reply_markup=kb)
+        else:
+            await update.message.reply_text(text, reply_markup=kb)
         return
 
     # Fetch mark prices in parallel — total wall-clock capped at the per-call
@@ -288,11 +306,23 @@ async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             f"  P&amp;L {pnl_str} · {tp_sl}"
         )
 
-    await update.message.reply_text(
-        "\n\n".join(lines),
-        parse_mode=ParseMode.HTML,
-        reply_markup=positions_list_kb([p["id"] for p in positions]),
-    )
+    text = "\n\n".join(lines)
+    kb = positions_list_kb([p["id"] for p in positions])
+
+    if is_cb:
+        try:
+            await update.callback_query.edit_message_text(
+                text, parse_mode=ParseMode.HTML, reply_markup=kb,
+            )
+        except BadRequest as exc:
+            if "Message is not modified" not in str(exc):
+                await update.callback_query.message.reply_text(
+                    text, parse_mode=ParseMode.HTML, reply_markup=kb,
+                )
+    else:
+        await update.message.reply_text(
+            text, parse_mode=ParseMode.HTML, reply_markup=kb,
+        )
 
 
 async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
