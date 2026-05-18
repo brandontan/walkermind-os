@@ -14,6 +14,7 @@ from pathlib import Path
 
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import notifications
 from .api import admin as api_admin, health as api_health, ops as api_ops
@@ -268,10 +269,28 @@ app.include_router(api_admin.router)
 app.include_router(api_ops.router)
 app.include_router(web_router, prefix="/api/web")
 
+class SPAStaticFiles(StaticFiles):
+    """Serve React SPA — falls back to index.html for navigation routes only.
+
+    StaticFiles(html=True) only serves index.html for the mount root.
+    This override catches 404s on extensionless paths (/dashboard/discover,
+    etc.) and returns the SPA shell so browser-side routes work on hard
+    refresh. Asset requests (.js/.css/.png/…) propagate as real 404s so
+    stale or missing hashed bundles surface correctly in the browser.
+    """
+    async def get_response(self, path: str, scope: dict):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404 and not Path(path).suffix:
+                return await super().get_response("index.html", scope)
+            raise
+
+
 # Serve the React frontend from /dashboard (static files from the Docker build)
 _frontend_dist = Path(__file__).parent / "webtrader" / "frontend" / "dist"
 if _frontend_dist.exists():
-    app.mount("/dashboard", StaticFiles(directory=str(_frontend_dist), html=True), name="webtrader")
+    app.mount("/dashboard", SPAStaticFiles(directory=str(_frontend_dist), html=True), name="webtrader")
 else:
     log.warning("WebTrader dist not found at %s — /dashboard will not serve the UI", _frontend_dist)
 

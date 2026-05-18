@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 
 declare global {
@@ -12,6 +13,7 @@ const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME ?? "CrusaderPolybot";
 export function TelegramAuth() {
   const ref = useRef<HTMLDivElement>(null);
   const { login } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     window.onTelegramAuth = async (userData) => {
@@ -28,6 +30,7 @@ export function TelegramAuth() {
           first_name: string;
         };
         login(access_token, user_id, first_name);
+        navigate("/", { replace: true });
       } catch (err) {
         console.error("Telegram auth error:", err);
       }
