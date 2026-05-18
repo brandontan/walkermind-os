@@ -10,6 +10,7 @@ const config: Config = {
         "bg-1":      "#060A14",
         "bg-2":      "#0A0F1C",
         "surface":   "#0D1322",
+        "surface-1": "#101828",
         "surface-2": "#121A2D",
         "surface-3": "#1A2540",
 
@@ -20,7 +21,7 @@ const config: Config = {
         "ink-1": "#F0F5FF",
         "ink-2": "#8FA3C4",
         "ink-3": "#455370",
-        "ink-4": "#2A3550",
+        "ink-4": "#3D5278",
 
         "gold":   "#F5C842",
         "gold-2": "#FFE066",
