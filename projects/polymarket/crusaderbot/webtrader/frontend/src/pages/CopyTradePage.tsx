@@ -597,6 +597,12 @@ function LeaderboardPanel({
 
   return (
     <div className="space-y-2 mt-2">
+      <div
+        className="px-2.5 py-1.5 text-[8.5px] font-mono text-ink-4 tracking-[1px] border rounded"
+        style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.02)" }}
+      >
+        Realtime Polymarket data · null fields shown as — · badges from backend only
+      </div>
       {entries.map((e) => (
         <div key={e.wallet} className="rounded-lg border border-surface-3 bg-surface-1 overflow-hidden">
           <button

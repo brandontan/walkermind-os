@@ -13,17 +13,20 @@ const TOPNAV = [
 ] as const;
 
 type Props = {
+  /** Actual trading mode from backend. Defaults to "paper" when not yet loaded. */
+  tradingMode?: string;
   /** Kept for backward-compat; superseded by AlertCenterContext.unreadCount */
   notifCount?: number;
   /** Kept for backward-compat; superseded by AlertCenterContext.openAlertCenter */
   onBellClick?: () => void;
 };
 
-export function TopBar({ notifCount: _notifCount, onBellClick: _onBellClick }: Props) {
+export function TopBar({ tradingMode = "paper", notifCount: _notifCount, onBellClick: _onBellClick }: Props) {
   const sseConnected = useSSEStatus();
   const location = useLocation();
   const navigate = useNavigate();
   const { unreadCount, openAlertCenter } = useAlertCenter();
+  const isLive = tradingMode === "live";
 
   return (
     <div
@@ -106,14 +109,18 @@ export function TopBar({ notifCount: _notifCount, onBellClick: _onBellClick }: P
           title={sseConnected ? "Live stream connected" : "Reconnecting…"}
           aria-label={sseConnected ? "Stream connected" : "Stream reconnecting"}
         />
-        <StatusPill kind="paper">PAPER</StatusPill>
-        <AdvancedOnly>
+        {isLive ? (
           <StatusPill kind="live">
-            <span className="inline-block w-[5px] h-[5px] rounded-full bg-current animate-status-pulse"
-              style={{ boxShadow: "0 0 8px currentColor" }} aria-hidden />
+            <span
+              className="inline-block w-[5px] h-[5px] rounded-full bg-current animate-status-pulse"
+              style={{ boxShadow: "0 0 8px currentColor" }}
+              aria-hidden
+            />
             LIVE
           </StatusPill>
-        </AdvancedOnly>
+        ) : (
+          <StatusPill kind="paper">PAPER</StatusPill>
+        )}
         <button
           onClick={() => navigate("/discover")}
           className="w-8 h-8 rounded-[4px] bg-surface border border-border-2 flex items-center justify-center text-[13px] transition-colors hover:border-gold hover:bg-surface-2"

@@ -86,7 +86,7 @@ export function DashboardPage() {
   );
   if (!data) return (
     <>
-      <TopBar />
+      <TopBar tradingMode="paper" />
       <div className="p-4 text-ink-3 text-sm font-mono">Loading…</div>
     </>
   );
@@ -109,23 +109,41 @@ export function DashboardPage() {
     ? `${((data.wins / data.total_trades) * 100).toFixed(0)}%`
     : "—";
 
+  const modeLabel = data.trading_mode === "live" ? "LIVE" : "PAPER MODE";
+
   return (
     <>
-      <TopBar />
+      <TopBar tradingMode={data.trading_mode} />
       <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
+
+        {/* Paper Mode reassurance — visible on trading pages when not in live mode */}
+        {data.trading_mode !== "live" && (
+          <div
+            className="mb-3 px-3 py-2 flex items-center gap-2 text-[10px] font-mono font-bold tracking-[1.5px] clip-card border"
+            style={{
+              background: "rgba(245,200,66,0.04)",
+              borderColor: "rgba(245,200,66,0.15)",
+              color: "var(--gold,#F5C842)",
+            }}
+            role="status"
+          >
+            <span style={{ fontSize: "12px" }}>🛡</span>
+            PAPER MODE — No real funds at risk
+          </div>
+        )}
 
         {/* Desktop page header — hidden on mobile */}
         <DesktopPageHeader
           title={<>DASH<span className="text-gold">BOARD</span></>}
-          subtitle={`PAPER MODE · ${data.active_preset ? (presetCode ?? "STRATEGY") + " ACTIVE" : "STRATEGY IDLE"} · EDGE-FINDER`}
+          subtitle={`${modeLabel} · ${data.active_preset ? (presetCode ?? "STRATEGY") + " ACTIVE" : "STRATEGY IDLE"} · EDGE-FINDER`}
         />
 
         <AdvancedOnly>
           <Ticker items={[
-            { symbol: "SIGNAL FEED", value: "EDGE-FINDER", delta: "● ACTIVE", dir: "up" },
-            { symbol: "SCANNER",     value: `${alerts.length} ALERTS`, delta: "● SYNC", dir: "up" },
-            { symbol: "EXIT WATCH",  value: "90s TICK", delta: "● OK", dir: "up" },
-            { symbol: "GUARDS",      value: data.trading_mode === "live" ? "ARMED" : "LOCKED", delta: data.trading_mode === "live" ? "● LIVE" : "● PAPER", dir: data.trading_mode === "live" ? "up" : "neutral" },
+            { symbol: "SIGNAL FEED", value: data.active_preset ? (presetCode ?? "STRATEGY") : "MARKET WATCH", delta: data.active_preset ? "● ACTIVE" : "● MONITORING", dir: "up" },
+            { symbol: "SCANNER",     value: `${alerts.length} ALERTS`, delta: alerts.length > 0 ? "● SIGNALS" : "● WATCHING", dir: alerts.length > 0 ? "up" : "neutral" },
+            { symbol: "MODE",        value: data.trading_mode === "live" ? "LIVE" : "PAPER", delta: data.trading_mode === "live" ? "● ARMED" : "● SAFE", dir: data.trading_mode === "live" ? "up" : "neutral" },
+            { symbol: "GUARDS",      value: data.trading_mode === "live" ? "ARMED" : "LOCKED", delta: data.kill_switch_active ? "● HALTED" : "● READY", dir: data.kill_switch_active ? "dn" : "neutral" },
           ]} />
         </AdvancedOnly>
 
@@ -176,7 +194,7 @@ export function DashboardPage() {
                     label="Balance"
                     value={data.balance_usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                     unit="USDC"
-                    sub="Paper Mode"
+                    sub={data.trading_mode === "live" ? "Live Mode" : "Paper Mode"}
                   />
                   <StatCard
                     color="gold"
@@ -330,7 +348,7 @@ function buildScannerLines(alerts: AlertItem[], data: DashboardSummary): Termina
     {
       parts: [
         { type: "out",  text: "scanning markets " },
-        { type: "warn", text: data.open_positions > 0 ? `${data.open_positions} open` : "(idle)" },
+        { type: "warn", text: data.open_positions > 0 ? `${data.open_positions} open` : "monitoring markets" },
       ],
     },
     {
@@ -348,7 +366,7 @@ function buildScannerLines(alerts: AlertItem[], data: DashboardSummary): Termina
     },
     {
       parts: [
-        { type: "out", text: data.kill_switch_active ? "kill_switch ARMED " : "awaiting next tick" },
+        { type: "out", text: data.kill_switch_active ? "kill_switch ARMED " : data.open_positions > 0 ? "managing open positions" : "awaiting signal" },
       ],
       cursor: true,
     },

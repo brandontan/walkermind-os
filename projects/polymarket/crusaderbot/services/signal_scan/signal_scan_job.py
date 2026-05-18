@@ -44,6 +44,7 @@ from uuid import UUID
 
 import structlog
 
+from ...core import event_bus as _event_bus
 from ...database import get_pool
 from ...domain.execution.router import execute as router_execute
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
@@ -613,6 +614,8 @@ async def run_once() -> None:
         logger.error("signal_scan_load_users_failed", error=str(exc))
         return
 
+    await _event_bus.emit("pipeline.strategy_scan_started", user_count=len(users))
+
     if not users:
         return
 
@@ -633,8 +636,15 @@ async def run_once() -> None:
     total_signals = sum(len(v) for v in all_candidates.values())
     logger.info("lib_strategy_phase_a_done", strategies=len(strategies_to_run),
                 total_signals=total_signals)
+    await _event_bus.emit(
+        "pipeline.strategy_scan_done",
+        strategy_count=len(strategies_to_run),
+        total_signals=total_signals,
+    )
 
     # Phase B: distribute signals to users based on their active_preset.
+    candidates_processed = 0
+    candidates_errored = 0
     for row in users:
         active_preset = row.get("active_preset")
         user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
@@ -645,13 +655,22 @@ async def run_once() -> None:
             for cand in candidates:
                 try:
                     await _process_candidate(row, cand)
+                    candidates_processed += 1
                 except Exception as exc:
+                    candidates_errored += 1
                     user_log.error(
                         "signal_scan_candidate_unhandled",
                         market_id=cand.market_id,
                         strategy=lib_name,
                         error=str(exc),
                     )
+
+    await _event_bus.emit(
+        "pipeline.scan_completed",
+        user_count=len(users),
+        candidates_processed=candidates_processed,
+        candidates_errored=candidates_errored,
+    )
 
 
 __all__ = ["run_once"]
