@@ -117,6 +117,20 @@ async def sync_leaderboard(pool: Any) -> None:
         if roi_pct is not None and roi_pct > 1.0:
             roi_pct = roi_pct / 100.0
         volume_usdc = _safe_float(r.get("total_volume_15d"))
+
+        _pre_roi, _pre_pnl, _pre_vol = roi_pct, total_pnl, volume_usdc
+        if roi_pct is not None:
+            roi_pct = max(-9999.9999, min(9999.9999, roi_pct))
+        if total_pnl is not None:
+            total_pnl = max(-999999999999.0, min(999999999999.0, total_pnl))
+        if volume_usdc is not None:
+            volume_usdc = max(0.0, min(999999999999.0, volume_usdc))
+        if roi_pct != _pre_roi or total_pnl != _pre_pnl or volume_usdc != _pre_vol:
+            log.warning(
+                "leaderboard sync: clamped extreme value wallet=%s roi_pct=%s total_pnl=%s volume_usdc=%s",
+                wallet, roi_pct, total_pnl, volume_usdc,
+            )
+
         tier = r.get("tier")
         badge = _badge_from_tier(tier, win_rate, total_pnl)
         rows.append((wallet, None, win_rate, total_pnl, volume_usdc, roi_pct, badge))
