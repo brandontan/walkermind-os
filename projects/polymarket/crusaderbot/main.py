@@ -270,17 +270,19 @@ app.include_router(api_ops.router)
 app.include_router(web_router, prefix="/api/web")
 
 class SPAStaticFiles(StaticFiles):
-    """Serve React SPA — falls back to index.html for any unknown path.
+    """Serve React SPA — falls back to index.html for navigation routes only.
 
     StaticFiles(html=True) only serves index.html for the mount root.
-    This override catches 404s on deep paths (/dashboard/discover, etc.)
-    and returns the SPA shell so browser-side routes work on hard refresh.
+    This override catches 404s on extensionless paths (/dashboard/discover,
+    etc.) and returns the SPA shell so browser-side routes work on hard
+    refresh. Asset requests (.js/.css/.png/…) propagate as real 404s so
+    stale or missing hashed bundles surface correctly in the browser.
     """
     async def get_response(self, path: str, scope: dict):
         try:
             return await super().get_response(path, scope)
         except StarletteHTTPException as exc:
-            if exc.status_code == 404:
+            if exc.status_code == 404 and not Path(path).suffix:
                 return await super().get_response("index.html", scope)
             raise
 
