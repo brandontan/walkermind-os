@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { CollapsibleSection } from "../components/CollapsibleSection";
 import { FilterTabs, type FilterTab } from "../components/FilterTabs";
 import { TopBar } from "../components/TopBar";
 import { TxHash } from "../components/TxHash";
@@ -169,12 +170,14 @@ export function CopyTradePage() {
         <FilterTabs tabs={copyTabs} active={copyTab} onChange={setCopyTab} />
 
         {copyTab === "leaderboard" && (
-          <LeaderboardPanel
-            entries={leaderboard}
-            loading={lbLoading}
-            api={api}
-            onCopyWallet={(w) => { setWallet(w); setCopyTab("manual"); setShowForm(true); }}
-          />
+          <CollapsibleSection id="copytrade_leaderboard" label="Leaderboard">
+            <LeaderboardPanel
+              entries={leaderboard}
+              loading={lbLoading}
+              api={api}
+              onCopyWallet={(w) => { setWallet(w); setCopyTab("manual"); setShowForm(true); }}
+            />
+          </CollapsibleSection>
         )}
 
         {copyTab === "manual" && (
@@ -196,6 +199,7 @@ export function CopyTradePage() {
           </div>
         ) : (
           <>
+          <CollapsibleSection id="copytrade_targets" label={`Active Targets (${tasks.length})`}>
             <div className="space-y-2 mb-3">
               {tasks.map((t) => {
                 const stats = taskStats[t.id];
@@ -264,7 +268,6 @@ export function CopyTradePage() {
                 );
               })}
             </div>
-
             {!showForm && (
               <button
                 onClick={() => setShowForm(true)}
@@ -273,6 +276,7 @@ export function CopyTradePage() {
                 + Add Target
               </button>
             )}
+          </CollapsibleSection>
           </>
         )}
 

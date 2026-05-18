@@ -1,5 +1,5 @@
-Last Updated : 2026-05-19 00:30
-Status       : WARP/CRUSADERBOT-SIGNAL-FRESHNESS-GATE-CLEAN PR open — signal freshness gate (step 1c) added to _process_candidate(), rejects signal_publications older than 30 minutes.
+Last Updated : 2026-05-19 09:00
+Status       : Multiple PRs open. WARP/CRUSADERBOT-SIGNAL-FRESHNESS-GATE-CLEAN awaiting WARP🔹CMD review. WARP/webtrader-wallet-qr-activity-pagination (wallet QR, deposit/withdraw, collapsibles, pagination) open. WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE and other lanes queued.
 
 [COMPLETED]
 - WARP/crusaderbot-realtime-pipeline-runtime MERGED PR #1141 (2026-05-18 23:55): pipeline MONITORING events (scan_started/strategy_scan_done/scan_completed/risk_gate_evaluated), /status endpoint, 14/14 hermetic pipeline ordering tests, WebTrader TopBar dynamic trading_mode pill, Paper Mode banners, analytics trust guard, config IA reorder, mobile nav readability, leaderboard data source note; Promise.allSettled AutoTrade load decoupled from dashboard failures. SENTINEL APPROVED 89/100. MAJOR, FULL RUNTIME INTEGRATION.
@@ -28,6 +28,7 @@ Status       : WARP/CRUSADERBOT-SIGNAL-FRESHNESS-GATE-CLEAN PR open — signal f
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- WARP/webtrader-wallet-qr-activity-pagination PR open — Deposit/Withdraw flows, QR code (qrcode.react), CollapsibleSection across 5 pages, ledger Load More pagination, /wallet/ledger backend endpoint, paper_mode in WalletInfo. Vite build clean. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-SIGNAL-FRESHNESS-GATE-CLEAN PR open — _MAX_SIGNAL_AGE_SECONDS=1800 + step 1c freshness gate in _process_candidate(); skips publication-backed signals older than 30 min with outcome="skipped_signal_stale". Awaiting WARP🔹CMD review. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE PR open — 6 active Sentry errors fixed: scheduler metadata json.dumps, preset_picker_kb→preset_picker rename, migration 041 (strategy_type+market_question on positions), slippage NUMERIC clamp, DB pool 4. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-UI-FIXES-BATCH2 PR open — SettingsPage liquidity+slippage removed, AutoTradePage custom risk text color fix, Weather Arb+Market Making COMING SOON removed, FilterTabs mobile scroll. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
@@ -66,6 +67,7 @@ Status       : WARP/CRUSADERBOT-SIGNAL-FRESHNESS-GATE-CLEAN PR open — signal f
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for WARP/webtrader-wallet-qr-activity-pagination (Deposit/Withdraw flows, QR code, collapsible sections, ledger pagination). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-wallet-qr-activity-pagination.md. Tier: STANDARD. No migration required.
 - WARP🔹CMD review required for signal-freshness-gate (step 1c: reject stale signal_publications older than 30 min). Tier: STANDARD.
 - WARP🔹CMD: apply migration 041 to Supabase production, then review+merge WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-sentry-hotfix-bundle.md. Tier: STANDARD.
 - WARP🔹CMD review required for crusaderbot-ui-fixes-batch2 (4 UI fixes: SettingsPage liquidity+slippage removal, custom risk text color, COMING SOON removal, mobile scroll tabs). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ui-fixes-batch2.md. Tier: STANDARD.

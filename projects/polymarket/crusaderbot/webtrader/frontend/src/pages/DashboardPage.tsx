@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { AdvancedOnly } from "../components/AdvancedGate";
+import { CollapsibleSection } from "../components/CollapsibleSection";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { HeroCard, type RiskLevel } from "../components/HeroCard";
 import { KillSwitchButton } from "../components/KillSwitchButton";
@@ -242,45 +243,46 @@ export function DashboardPage() {
               <Terminal lines={buildScannerLines(alerts, data)} />
             </AdvancedOnly>
 
-            <div className="flex items-center justify-between mt-3.5 mb-2 mx-0.5 md:mt-0">
-              <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
-                <span className="w-3 h-px bg-gold" aria-hidden />
-                Recent Activity
-              </div>
-              <NavLink
-                to="/portfolio"
-                className="font-mono text-[10px] text-gold cursor-pointer tracking-[1px] font-semibold"
-              >
-                View all →
-              </NavLink>
-            </div>
-
-            {recentActivity.length === 0 ? (
-              <div className="text-[12px] text-ink-3 px-1 py-3 font-mono">
-                No activity yet.
-              </div>
-            ) : (
-              recentActivity.map((p) => {
-                const val = activityValueFor(p);
-                const tone = val.tone;
-                return (
-                  <PositionCard
-                    key={p.id}
-                    market={p.market_question ?? `${p.market_id.slice(0, 16)}…`}
-                    positionValue={val}
-                    side={positionSide(p)}
-                    borderTone={tone}
-                    meta={[
-                      <>${p.size_usdc.toFixed(2)}</>,
-                      <>{p.status === "open" ? "LIVE" : formatTime(p.closed_at ?? p.opened_at)}</>,
-                    ]}
-                    metaAdvanced={[
-                      <>{p.side.toUpperCase()} @ {(p.entry_price * 100).toFixed(1)}¢</>,
-                    ]}
-                  />
-                );
-              })
-            )}
+            <CollapsibleSection
+              id="dashboard_recent_activity"
+              label="Recent Activity"
+              defaultOpen={true}
+              action={
+                <NavLink
+                  to="/portfolio"
+                  className="font-mono text-[10px] text-gold cursor-pointer tracking-[1px] font-semibold"
+                >
+                  View all →
+                </NavLink>
+              }
+            >
+              {recentActivity.length === 0 ? (
+                <div className="text-[12px] text-ink-3 px-1 py-3 font-mono">
+                  No activity yet.
+                </div>
+              ) : (
+                recentActivity.map((p) => {
+                  const val = activityValueFor(p);
+                  const tone = val.tone;
+                  return (
+                    <PositionCard
+                      key={p.id}
+                      market={p.market_question ?? `${p.market_id.slice(0, 16)}…`}
+                      positionValue={val}
+                      side={positionSide(p)}
+                      borderTone={tone}
+                      meta={[
+                        <>${p.size_usdc.toFixed(2)}</>,
+                        <>{p.status === "open" ? "LIVE" : formatTime(p.closed_at ?? p.opened_at)}</>,
+                      ]}
+                      metaAdvanced={[
+                        <>{p.side.toUpperCase()} @ {(p.entry_price * 100).toFixed(1)}¢</>,
+                      ]}
+                    />
+                  );
+                })
+              )}
+            </CollapsibleSection>
 
             <div className="mt-4">
               <KillSwitchButton

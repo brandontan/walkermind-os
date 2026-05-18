@@ -28,6 +28,7 @@ from .schemas import (
     KillSwitchStatus,
     LeaderboardEntry,
     LedgerEntry,
+    LedgerPage,
     MarketFilterUpdate,
     OrderItem,
     PortfolioAnalytics,
@@ -288,7 +289,7 @@ async def close_position_endpoint(
         try:
             await notif_module.send(
                 int(tg_id),
-                f"🔴 <b>Position Manually Closed</b>\n"
+                f"\U0001f534 <b>Position Manually Closed</b>\n"
                 f"Market: {market_label}\n"
                 f"Exit: ${exit_price:.3f}\n"
                 f"PnL: {pnl_sign}${abs(pnl):.2f}",
@@ -530,19 +531,26 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
             user_id,
         )
         ledger_rows = await conn.fetch(
-            """SELECT type, amount_usdc, note, created_at FROM ledger
-               WHERE user_id=$1::uuid ORDER BY created_at DESC LIMIT 20""",
+            """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
+               WHERE user_id=$1::uuid ORDER BY created_at DESC, id DESC LIMIT 20""",
+            user_id,
+        )
+        settings_row = await conn.fetchrow(
+            "SELECT trading_mode FROM user_settings WHERE user_id=$1::uuid",
             user_id,
         )
 
     if not w_row:
         raise HTTPException(status_code=404, detail="wallet not found")
 
+    trading_mode = settings_row["trading_mode"] if settings_row else "paper"
+
     return WalletInfo(
         deposit_address=w_row["deposit_address"],
         balance_usdc=float(w_row["balance_usdc"]),
         ledger_recent=[
             LedgerEntry(
+                id=r["id"],
                 type=r["type"],
                 amount_usdc=float(r["amount_usdc"]),
                 note=r["note"],
@@ -550,6 +558,52 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
             )
             for r in ledger_rows
         ],
+        trading_mode=trading_mode,
+        paper_mode=trading_mode != "live",
+    )
+
+
+@router.get("/wallet/ledger", response_model=LedgerPage)
+async def get_wallet_ledger(
+    user: _CurrentUser,
+    offset: int = 0,
+    limit: int = 20,
+) -> LedgerPage:
+    """Paginated ledger entries for wallet recent activity."""
+    pool = get_pool()
+    user_id = user["user_id"]
+    limit = min(max(limit, 1), 100)
+    offset = max(offset, 0)
+
+    async with pool.acquire() as conn:
+        total_row = await conn.fetchrow(
+            "SELECT COUNT(*) AS cnt FROM ledger WHERE user_id=$1::uuid",
+            user_id,
+        )
+        rows = await conn.fetch(
+            """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
+               WHERE user_id=$1::uuid ORDER BY created_at DESC, id DESC
+               LIMIT $2 OFFSET $3""",
+            user_id,
+            limit,
+            offset,
+        )
+
+    total = int(total_row["cnt"]) if total_row else 0
+    entries = [
+        LedgerEntry(
+            id=r["id"],
+            type=r["type"],
+            amount_usdc=float(r["amount_usdc"]),
+            note=r["note"],
+            created_at=r["created_at"],
+        )
+        for r in rows
+    ]
+    return LedgerPage(
+        entries=entries,
+        has_more=(offset + len(entries)) < total,
+        total=total,
     )
 
 

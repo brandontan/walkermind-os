@@ -43,6 +43,8 @@ export function makeApi(token: string | null) {
     setRiskProfile: (params: RiskProfileParams) => patch<{ risk_profile: string }>("/autotrade/risk-profile", params),
     customizeStrategy: (params: CustomizeParams) => post<{ updated: boolean }>("/autotrade/customize", params),
     getWallet: () => get<WalletInfo>("/wallet"),
+    getLedger: (offset: number, limit = 20) =>
+      get<LedgerPage>(`/wallet/ledger?offset=${offset}&limit=${limit}`),
     getSettings: () => get<UserSettings>("/settings"),
     updateSettings: (data: Partial<UserSettings>) => patch<{ updated: boolean }>("/settings", data),
     getAlerts: () => get<AlertItem[]>("/alerts"),
@@ -155,9 +157,18 @@ export interface WalletInfo {
   deposit_address: string;
   balance_usdc: number;
   ledger_recent: LedgerEntry[];
+  paper_mode?: boolean;
+  trading_mode?: string;
+}
+
+export interface LedgerPage {
+  entries: LedgerEntry[];
+  has_more: boolean;
+  total: number;
 }
 
 export interface LedgerEntry {
+  id: string;
   type: string;
   amount_usdc: number;
   note: string | null;

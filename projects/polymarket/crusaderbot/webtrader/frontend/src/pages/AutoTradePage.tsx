@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { CollapsibleSection } from "../components/CollapsibleSection";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { HeroCard } from "../components/HeroCard";
 import { TopBar } from "../components/TopBar";
@@ -467,7 +468,7 @@ export function AutoTradePage() {
         </div>
 
         {/* ── SECTION C: Market Filter ── */}
-        <SectionTitle>Market Filter</SectionTitle>
+        <CollapsibleSection id="autotrade_market_filter" label="Market Filter" defaultOpen={false}>
         <p className="text-ink-3 text-xs font-mono mb-3 mx-0.5">
           Choose which market categories and liquidity thresholds the bot scans.
         </p>
@@ -580,6 +581,7 @@ export function AutoTradePage() {
             {filterSaved ? "✓ Saved" : savingFilters ? "Saving…" : "Save Market Filters"}
           </button>
         </div>
+        </CollapsibleSection>
 
       </div>
     </>

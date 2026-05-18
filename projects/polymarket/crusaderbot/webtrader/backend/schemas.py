@@ -123,6 +123,7 @@ class RiskProfileRequest(BaseModel):
 # ── Wallet ────────────────────────────────────────────────────────────────────
 
 class LedgerEntry(BaseModel):
+    id: str
     type: str
     amount_usdc: float
     note: Optional[str] = None
@@ -133,6 +134,14 @@ class WalletInfo(BaseModel):
     deposit_address: str
     balance_usdc: float
     ledger_recent: list[LedgerEntry]
+    paper_mode: bool = True
+    trading_mode: str = "paper"
+
+
+class LedgerPage(BaseModel):
+    entries: list[LedgerEntry]
+    has_more: bool
+    total: int
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────
