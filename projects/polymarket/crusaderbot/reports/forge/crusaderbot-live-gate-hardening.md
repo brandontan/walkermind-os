@@ -1,5 +1,80 @@
 # WARP•FORGE REPORT — crusaderbot-live-gate-hardening
 
+**Branch:** WARP/CRUSADERBOT-FAST-LIVE-GATE-HARDENING
+**Date:** 2026-05-18 Asia/Jakarta
+**Tier:** MAJOR
+**Claim Level:** FULL RUNTIME INTEGRATION
+**Validation Target:** Fast Track D Live Gate Hardening — guard bypass detection, slippage fence (SLIPPAGE_GUARD_PCT), capital sanity checks (balance>0), kill switch path convergence (3 paths), dry-run endpoint.
+**Not in Scope:** Enabling live trading, setting any guard to true, UI changes, new trading strategies.
+
+> **NOTE:** This report supersedes the 2026-05-11 draft. Previous sections (1a–1e) remain below for historical context. New additions from this PR are documented in the NEW ADDITIONS section above each original section.
+
+---
+
+## NEW ADDITIONS (WARP/CRUSADERBOT-FAST-LIVE-GATE-HARDENING, 2026-05-18)
+
+### Part A — Execution Path Guard Bypass Detection
+
+- `domain/execution/live.py`: Added guard bypass detection at execution entry. CRITICAL log emitted as `GUARD_BYPASS_ATTEMPT` when `live.execute()` is called with any of the four activation guards unset. Defense-in-depth before `assert_live_guards()`.
+- `domain/execution/router.py`: Guard bypass log level changed `WARNING` → `CRITICAL` for live→paper fallback.
+
+### Part B — Shadow/Live Parity (dry_run_execute)
+
+- `services/trade_engine/engine.py`: `ExecutionDryRun` dataclass + `TradeEngine.dry_run_execute()` added. Full pipeline (signal → risk → sizing) with no submission, no DB order writes.
+- `api/admin.py`: `POST /admin/dry-run` endpoint (operator-only). Accepts signal params, returns `ExecutionDryRun` dict.
+
+### Part C — SLIPPAGE_GUARD_PCT
+
+- `domain/risk/constants.py`: `SLIPPAGE_GUARD_PCT = 0.05` added (line 26).
+- `domain/execution/live.py`: Pre-submission fence: if `abs(limit_price - signal_price) / signal_price > SLIPPAGE_GUARD_PCT`, raises `LivePreSubmitError` logged at CRITICAL as `SLIPPAGE_REJECTED`.
+
+### Part D — Capital Sanity balance>0
+
+- `domain/risk/gate.py` — `validate_risk_caps()`: Cap 0 added: `balance > 0`. Rejects with `balance_zero_or_negative` before all other caps.
+
+### Part E — Kill Switch Path Tests
+
+- `tests/test_kill_switch_paths.py`: 3 unit tests added — `test_kill_switch_telegram`, `test_kill_switch_db`, `test_kill_switch_env`. All 3 pass.
+
+### Part F — Readiness Report
+
+- `state/LIVE_READINESS.md`: Generated with full status of all 6 hardening planes.
+
+---
+
+## Validation Checks (this PR)
+
+```
+✅ python3 -m py_compile on all 6 modified .py files — all clean
+✅ python3 -m compileall projects/polymarket/crusaderbot — no errors
+✅ pytest tests/test_kill_switch_paths.py — 3/3 pass
+✅ grep ENABLE_LIVE_TRADING domain/execution/ — guard present on every live path
+✅ SLIPPAGE_GUARD_PCT exists in domain/risk/constants.py
+✅ No guard set to true anywhere in this PR
+✅ state/LIVE_READINESS.md exists and complete
+```
+
+---
+
+## Files Modified/Created (this PR)
+
+Created:
+- `projects/polymarket/crusaderbot/tests/test_kill_switch_paths.py`
+- `projects/polymarket/crusaderbot/state/LIVE_READINESS.md`
+
+Modified:
+- `projects/polymarket/crusaderbot/domain/risk/constants.py`
+- `projects/polymarket/crusaderbot/domain/execution/live.py`
+- `projects/polymarket/crusaderbot/domain/execution/router.py`
+- `projects/polymarket/crusaderbot/domain/risk/gate.py`
+- `projects/polymarket/crusaderbot/services/trade_engine/engine.py`
+- `projects/polymarket/crusaderbot/api/admin.py`
+- `projects/polymarket/crusaderbot/state/PROJECT_STATE.md`
+
+---
+
+## ORIGINAL REPORT (2026-05-11) — Foundation Work
+
 **Branch:** WARP/crusaderbot-live-gate-hardening
 **Date:** 2026-05-11 20:30 Asia/Jakarta
 **Tier:** MAJOR

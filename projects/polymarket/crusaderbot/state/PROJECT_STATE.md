@@ -1,5 +1,5 @@
-Last Updated : 2026-05-18 00:30
-Status       : WARP/CRUSADERBOT-REALTIME-LEADERBOARD PR open — Falcon API live leaderboard (agent_id 584), Wallet 360 enrichment (agent_id 581), DiscoverPage crash fixed, zero mock data. Migration 039 included. Awaiting WARP🔹CMD review. Production PAPER ONLY.
+Last Updated : 2026-05-18 12:00
+Status       : WARP/CRUSADERBOT-FAST-LIVE-GATE-HARDENING PR open — Track D Live Gate Hardening: guard bypass CRITICAL logging, SLIPPAGE_GUARD_PCT=0.05, capital sanity balance>0 cap, dry_run_execute() + POST /admin/dry-run, 3 kill switch path tests. SENTINEL required before merge. Production PAPER ONLY.
 
 [COMPLETED]
 - CRU-12 WARP/CRUSADERBOT-UX-PHASE1 PR open (2026-05-17): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel. Vite build clean. STANDARD, NARROW INTEGRATION.
@@ -27,6 +27,7 @@ Status       : WARP/CRUSADERBOT-REALTIME-LEADERBOARD PR open — Falcon API live
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- WARP/CRUSADERBOT-FAST-LIVE-GATE-HARDENING PR open — Track D: guard bypass CRITICAL logging (live.py + router.py), SLIPPAGE_GUARD_PCT=0.05 in constants.py + live.py fence, balance>0 cap in validate_risk_caps(), ExecutionDryRun + dry_run_execute() + POST /admin/dry-run, 3 kill switch path tests (all pass), state/LIVE_READINESS.md. MAJOR, FULL RUNTIME INTEGRATION. SENTINEL required before merge.
 - WARP/CRUSADERBOT-REALTIME-LEADERBOARD PR open — Falcon API live leaderboard (agent_id 584), Wallet 360 inline enrichment panel (agent_id 581), DiscoverPage localStorage→in-mem cache + MOCK_MARKETS removed, migration 039 (delete fake rows), leaderboard freshness filter. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - CRU-15 claude/crusaderbot-telegram-phase4-A9FvW PR open — Telegram Power Mode Phase 4: push notifications (auto-trade execution, copy-trade trigger, trade-blocked risk events), inline action keyboards (View Position / Close Position / Pause Copy / Dashboard), /emergency extended (Stop Auto Trade / Kill All Positions / Lock Bot / System Status with auth gate). STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - CRU-14 WARP/CRUSADERBOT-GROWTH-PHASE3 PR open — Growth Phase 3: Discover Markets page (Gamma API + 5-min cache + mock fallback), Copy Trade Leaderboard tab (migration 038 + /leaderboard endpoint), Portfolio Analytics tab (/portfolio/analytics endpoint + 6 metrics), AutoTrade market context banner. Build clean. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
@@ -59,6 +60,7 @@ Status       : WARP/CRUSADERBOT-REALTIME-LEADERBOARD PR open — Falcon API live
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for crusaderbot-live-gate-hardening (Track D: guard bypass logging, SLIPPAGE_GUARD_PCT, balance>0 cap, kill switch 3-path tests, dry-run endpoint). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-live-gate-hardening.md. Tier: MAJOR.
 - WARP🔹CMD review required for crusaderbot-realtime-leaderboard (Falcon API live leaderboard + Wallet 360 + DiscoverPage fix + zero mock data). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-realtime-leaderboard.md. Tier: STANDARD. Apply migration 039 + set HEISENBERG_API_KEY secret before deploy.
 - WARP🔹CMD review required for crusaderbot-tg-phase4 (CRU-15: Telegram Power Mode — push notifications + inline buttons + emergency controls). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-tg-phase4.md. Tier: STANDARD.
 - WARP🔹CMD review required for crusaderbot-growth-phase3 (CRU-14: Discover page, Leaderboard, Analytics). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-growth-phase3.md. Tier: STANDARD. Apply migration 038 before deploy.

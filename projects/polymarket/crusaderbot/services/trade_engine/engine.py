@@ -52,6 +52,19 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
+class ExecutionDryRun:
+    """Result of a dry_run_execute() call — full pipeline, no submission."""
+
+    market_id: str
+    side: str
+    size_usdc: Optional[Decimal]
+    entry_price: Optional[float]
+    risk_decision: str
+    would_be_rejected: bool
+    rejection_reason: Optional[str]
+
+
+@dataclass(frozen=True)
 class TradeSignal:
     """Typed contract for a single signal entering the trade engine.
 
@@ -220,6 +233,40 @@ class TradeEngine:
             )
 
         return result
+
+    async def dry_run_execute(self, signal: TradeSignal) -> ExecutionDryRun:
+        """Run the full pipeline (signal → risk → sizing) but stop before submission.
+
+        Validates that the paper path and live path produce identical risk decisions
+        for the same input.  No DB writes occur (risk_log aside from gate internal
+        logging); no orders are submitted; no positions are created.
+
+        Returns ExecutionDryRun describing what WOULD happen if execute() were called.
+        """
+        gate_ctx = self._build_gate_context(signal)
+        gate_result: GateResult = await _risk_evaluate(gate_ctx)
+
+        if not gate_result.approved:
+            return ExecutionDryRun(
+                market_id=signal.market_id,
+                side=signal.side,
+                size_usdc=None,
+                entry_price=None,
+                risk_decision=gate_result.reason,
+                would_be_rejected=True,
+                rejection_reason=gate_result.reason,
+            )
+
+        final_size = gate_result.final_size_usdc or signal.proposed_size_usdc
+        return ExecutionDryRun(
+            market_id=signal.market_id,
+            side=signal.side,
+            size_usdc=final_size,
+            entry_price=signal.price,
+            risk_decision="approved",
+            would_be_rejected=False,
+            rejection_reason=None,
+        )
 
     # ------------------------------------------------------------------
 

@@ -19,6 +19,11 @@ MAX_MARKET_IMPACT_PCT = 0.05
 # MAX_SLIPPAGE_PCT: maximum tolerated price deviation from mid for live orders.
 # Not enforced in paper mode; validated by the readiness check before live activation.
 MAX_SLIPPAGE_PCT = 0.03
+# SLIPPAGE_GUARD_PCT: hard pre-submission slippage fence (Track D Live Gate Hardening).
+# Before any order submission, abs(intended_price - market_price) / market_price
+# must not exceed this value. Orders breaching this threshold are rejected with
+# SLIPPAGE_REJECTED and never reach the CLOB. Applies to live path only.
+SLIPPAGE_GUARD_PCT = 0.05
 
 PROFILES: dict[str, dict] = {
     "conservative": {

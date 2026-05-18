@@ -154,6 +154,14 @@ async def validate_risk_caps(user_id: UUID, proposed_size: Decimal) -> GateResul
 
     balance = await get_balance(user_id)
 
+    # Cap 0: Available balance must be positive — no zero-balance trading
+    if balance <= 0:
+        return GateResult(
+            False,
+            "balance_zero_or_negative",
+            0,
+        )
+
     # Cap 1: Single position size (10% of balance)
     max_single = balance * Decimal(str(settings.MAX_SINGLE_POSITION_PCT))
     if proposed_size > max_single:

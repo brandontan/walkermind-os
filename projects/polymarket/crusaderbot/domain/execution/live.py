@@ -34,6 +34,7 @@ from ...integrations.clob import (
 )
 from ...wallet import ledger
 from .slippage import compute_aggressive_limit_price
+from ..risk.constants import SLIPPAGE_GUARD_PCT
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,26 @@ async def execute(
     """
     s = get_settings()
 
+    # Guard bypass detection (Track D Part A defense-in-depth).
+    # live.execute() must ONLY be reached when ALL four activation guards are
+    # SET. If this assertion fails, someone bypassed the router guard — log
+    # CRITICAL before the regular assert_live_guards() raises.
+    _all_guards_set = (
+        s.ENABLE_LIVE_TRADING
+        and s.EXECUTION_PATH_VALIDATED
+        and s.CAPITAL_MODE_CONFIRMED
+        and s.USE_REAL_CLOB
+    )
+    if not _all_guards_set:
+        logger.critical(
+            "GUARD_BYPASS_ATTEMPT: live.execute() called with incomplete guards "
+            "ENABLE_LIVE_TRADING=%s EXECUTION_PATH_VALIDATED=%s "
+            "CAPITAL_MODE_CONFIRMED=%s USE_REAL_CLOB=%s — "
+            "routing via assert_live_guards for safe rejection",
+            s.ENABLE_LIVE_TRADING, s.EXECUTION_PATH_VALIDATED,
+            s.CAPITAL_MODE_CONFIRMED, s.USE_REAL_CLOB,
+        )
+
     # Dry-run intercept: USE_REAL_CLOB=True but ENABLE_LIVE_TRADING not set.
     # Log intent for credential/workflow testing; do not touch DB or broker.
     if s.USE_REAL_CLOB and not s.ENABLE_LIVE_TRADING:
@@ -133,6 +154,24 @@ async def execute(
         if best_ask is not None and best_bid is not None
         else price
     )
+
+    # SLIPPAGE_GUARD_PCT fence (Track D Part C).
+    # Hard rejection: if intended price deviates from signal price by > 5%,
+    # the market has moved too far since signal generation — never submit.
+    if price > 0:
+        _slippage_pct = abs(limit_price - price) / price
+        if _slippage_pct > SLIPPAGE_GUARD_PCT:
+            logger.critical(
+                "SLIPPAGE_REJECTED: limit_price=%.4f signal_price=%.4f "
+                "deviation=%.4f > SLIPPAGE_GUARD_PCT=%.4f "
+                "market=%s side=%s user=%s",
+                limit_price, price, _slippage_pct, SLIPPAGE_GUARD_PCT,
+                market_id, side, user_id,
+            )
+            raise LivePreSubmitError(
+                f"SLIPPAGE_REJECTED: deviation {_slippage_pct:.4f} "
+                f"> SLIPPAGE_GUARD_PCT {SLIPPAGE_GUARD_PCT}"
+            )
 
     # Shares computed from limit_price so notional at entry is exact.
     shares = float(size_usdc) / max(limit_price, 0.0001)
