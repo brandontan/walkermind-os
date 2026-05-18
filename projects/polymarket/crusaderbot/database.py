@@ -29,8 +29,8 @@ _last_ping_error: Optional[str] = None
 _POOLER_HOST_HINT = "pooler.supabase.com"
 
 
-def _log_connection_type(dsn: str) -> None:
-    """Log whether DATABASE_URL points at a Supabase pooler or direct connection.
+def _warn_if_supavisor_transaction_pool(dsn: str) -> None:
+    """Detect and log whether DATABASE_URL points at a Supabase pooler or direct connection.
 
     Logs WARNING when host contains 'pooler.supabase.com' (any port).
     Logs INFO when host is a Supabase direct host (contains 'supabase'
@@ -75,7 +75,7 @@ async def init_pool() -> asyncpg.Pool:
     if _pool is not None:
         return _pool
     settings = get_settings()
-    _log_connection_type(settings.DATABASE_URL)
+    _warn_if_supavisor_transaction_pool(settings.DATABASE_URL)
     # statement_cache_size=0 disables asyncpg's per-connection
     # server-side prepared statement cache. Required when DATABASE_URL
     # points at a transaction-pooled proxy (Supabase Supavisor, Fly
@@ -97,7 +97,7 @@ async def init_pool() -> asyncpg.Pool:
         min_size=1,
         max_size=settings.DB_POOL_MAX,
         max_inactive_connection_lifetime=60.0,
-        command_timeout=10.0,
+        command_timeout=30,
         statement_cache_size=0,
         init=_init_connection,
         server_settings={"application_name": "crusaderbot"},
