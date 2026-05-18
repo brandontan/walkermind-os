@@ -145,7 +145,8 @@ export function DiscoverPage() {
         { headers: { Accept: "application/json" }, signal }
       );
       if (!res.ok) throw new Error(`markets ${res.status}`);
-      const data: GammaMarket[] = await res.json();
+      const raw = await res.json();
+      const data = Array.isArray(raw) ? (raw as GammaMarket[]) : [];
       const parsed = data.map(parseGammaMarket);
       setMarkets(parsed);
     } catch (err) {

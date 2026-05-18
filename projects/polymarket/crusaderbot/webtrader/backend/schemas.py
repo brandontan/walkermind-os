@@ -6,7 +6,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-# ── Auth ──────────────────────────────────────────────────────────────────────
+# ── Auth ────────────────────────────────────────────────────────────────
 
 class TelegramAuthPayload(BaseModel):
     id: int
@@ -25,7 +25,7 @@ class TokenResponse(BaseModel):
     first_name: str
 
 
-# ── Dashboard ─────────────────────────────────────────────────────────────────
+# ── Dashboard ────────────────────────────────────────────────────────────
 
 class DashboardSummary(BaseModel):
     balance_usdc: float
@@ -42,7 +42,7 @@ class DashboardSummary(BaseModel):
     active_preset: Optional[str] = None
 
 
-# ── Positions / Orders ────────────────────────────────────────────────────────
+# ── Positions / Orders ────────────────────────────────────────────
 
 class PositionItem(BaseModel):
     id: str
@@ -81,7 +81,7 @@ class ClosePositionResponse(BaseModel):
     status: str
 
 
-# ── Auto-Trade ────────────────────────────────────────────────────────────────
+# ── Auto-Trade ────────────────────────────────────────────────────────────
 
 class AutoTradeState(BaseModel):
     auto_trade_on: bool
@@ -120,7 +120,7 @@ class RiskProfileRequest(BaseModel):
     sl_pct: Optional[float] = None             # required when profile='custom'
 
 
-# ── Wallet ────────────────────────────────────────────────────────────────────
+# ── Wallet ────────────────────────────────────────────────────────────────
 
 class LedgerEntry(BaseModel):
     id: str
@@ -141,10 +141,9 @@ class WalletInfo(BaseModel):
 class LedgerPage(BaseModel):
     entries: list[LedgerEntry]
     has_more: bool
-    total: int
 
 
-# ── Settings ──────────────────────────────────────────────────────────────────
+# ── Settings ────────────────────────────────────────────────────────────
 
 class UserSettingsUpdate(BaseModel):
     risk_profile: Optional[str] = None
@@ -165,7 +164,7 @@ class MarketFilterUpdate(BaseModel):
     min_volume_24h: Optional[float] = None
 
 
-# ── Alerts ───────────────────────────────────────────────────────────────────
+# ── Alerts ────────────────────────────────────────────────────────────────
 
 class AlertItem(BaseModel):
     id: str
@@ -175,7 +174,7 @@ class AlertItem(BaseModel):
     created_at: datetime
 
 
-# ── Portfolio ─────────────────────────────────────────────────────────────────
+# ── Portfolio ─────────────────────────────────────────────────────────────
 
 class PortfolioSummary(BaseModel):
     available_usdc: float
@@ -190,20 +189,20 @@ class ChartPoint(BaseModel):
     equity: float
 
 
-# ── Kill Switch ───────────────────────────────────────────────────────────────
+# ── Kill Switch ─────────────────────────────────────────────────────────────
 
 class KillSwitchStatus(BaseModel):
     active: bool
 
 
-# ── SSE ──────────────────────────────────────────────────────────────────────
+# ── SSE ────────────────────────────────────────────────────────────────
 
 class SSEEvent(BaseModel):
     type: str
     payload: dict
 
 
-# ── Portfolio Analytics ───────────────────────────────────────────────────────
+# ── Portfolio Analytics ─────────────────────────────────────────────────────
 
 class StrategyPnl(BaseModel):
     strategy: str
@@ -227,7 +226,7 @@ class PortfolioAnalytics(BaseModel):
     avg_hold_hours: Optional[float]
 
 
-# ── Leaderboard ───────────────────────────────────────────────────────────────
+# ── Leaderboard ─────────────────────────────────────────────────────────────
 
 class LeaderboardEntry(BaseModel):
     rank: int
@@ -240,7 +239,7 @@ class LeaderboardEntry(BaseModel):
     badge: Optional[str]
 
 
-# ── Runtime Status ────────────────────────────────────────────────────────────
+# ── Runtime Status ─────────────────────────────────────────────────────────────
 
 class RuntimeStatus(BaseModel):
     """Realtime backend runtime state for operator trust surface."""

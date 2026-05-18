@@ -167,7 +167,6 @@ export interface WalletInfo {
 export interface LedgerPage {
   entries: LedgerEntry[];
   has_more: boolean;
-  total: number;
 }
 
 export interface LedgerEntry {

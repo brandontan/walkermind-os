@@ -66,7 +66,7 @@ async def get_markets_list(
     try:
         markets = await _polymarket.get_markets(
             category=category,
-            limit=min(limit, 200),
+            limit=max(1, min(limit, 200)),
         )
         return markets
     except Exception as exc:
@@ -605,7 +605,7 @@ async def get_wallet_ledger(
         )
         for r in rows[:limit]
     ]
-    return LedgerPage(entries=entries, has_more=has_more, total=0)
+    return LedgerPage(entries=entries, has_more=has_more)
 
 
 @router.get("/settings")

@@ -37,8 +37,8 @@ Four scoped features delivered in this lane:
   - AutoTradePage: Market Filter section (`id=autotrade_market_filter`, collapsed by default)
 
 **Transaction/activity pagination**
-- WalletPage: initial load returns up to 20 ledger entries from existing `/wallet` endpoint. "Load more" button appears when exactly 20 returned (may have more). On click, calls `GET /wallet/ledger?offset=N&limit=20`. Entries append without duplicates. Button hidden once `has_more=false`.
-- Backend: new `GET /wallet/ledger` endpoint with `offset` + `limit` query params; returns `LedgerPage { entries, has_more, total }`. Total from `COUNT(*)`, has_more computed by `(offset + page_size) < total`. Limits clamped 1–100.
+- WalletPage: initial load returns up to 20 ledger entries from existing `/wallet` endpoint. "Load more" button appears when exactly 20 returned (may have more). On click, calls `GET /wallet/ledger?before_ts=T&before_id=ID&limit=20`. Entries append without duplicates (dedup by id). Button hidden once `has_more=false`.
+- Backend: new `GET /wallet/ledger` endpoint with keyset cursor params `before_ts` + `before_id` (optional) + `limit`; returns `LedgerPage { entries, has_more }`. Uses `(created_at, id) < (before_ts::timestamptz, before_id::uuid)` keyset predicate; fetches `limit+1` rows to determine `has_more` without `COUNT(*)`. Stable under concurrent inserts (offset-based would skip rows). Limits clamped 1–100.
 
 ---
 
