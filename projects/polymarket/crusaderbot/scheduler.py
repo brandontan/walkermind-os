@@ -548,7 +548,7 @@ def setup_scheduler() -> AsyncIOScheduler:
                   replace_existing=True,
                   next_run_time=datetime.now(timezone.utc))
     sched.add_job(market_sync.run_job, "interval",
-                  seconds=1800,
+                  seconds=300,   # was 1800 — 5 min for price freshness
                   id=market_sync.JOB_ID, max_instances=1, coalesce=True)
     sched.add_job(copy_trade_monitor.run_once, "interval",
                   seconds=s.COPY_TRADE_MONITOR_INTERVAL,

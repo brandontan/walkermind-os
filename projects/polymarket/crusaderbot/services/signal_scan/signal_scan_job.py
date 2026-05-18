@@ -56,6 +56,7 @@ from ...domain.ops.kill_switch import is_active as kill_switch_is_active
 from ...domain.strategy.registry import StrategyRegistry
 from ...domain.strategy.types import MarketFilters, SignalCandidate, UserContext
 from ...integrations import polymarket as _polymarket
+from ...integrations.polymarket import get_live_market_price
 from ..trade_engine import TradeEngine, TradeResult, TradeSignal
 from .lib_strategy_runner import ENABLED_STRATEGIES, DEFERRED_STRATEGIES, run_lib_strategy
 from ..signal_feed.signal_evaluator import evaluate_publications_for_user
@@ -353,17 +354,25 @@ def _build_trade_signal(
     cand: SignalCandidate,
     market: dict[str, Any],
     idempotency_key: str,
+    live_price_override: float | None = None,
 ) -> TradeSignal:
     """Build a typed TradeSignal from scan-loop data for TradeEngine.execute()."""
     _side = cand.side.lower()
-    if _side == "no":
-        _primary, _fallback = market.get("no_price"), market.get("yes_price")
+    if live_price_override is not None:
+        # Use live price from Gamma/CLOB — same source as exit_watcher.
+        # This keeps paper entry consistent with exit evaluation so
+        # return_pct reflects real market movement, not a DB cache gap.
+        # is-not-None (not > 0) so a live price of exactly 0.0 is honoured.
+        _price = live_price_override
     else:
-        _primary, _fallback = market.get("yes_price"), market.get("no_price")
-    # Use is-not-None so a cached price of exactly 0 is not discarded.
-    _price = float(
-        _primary if _primary is not None else (_fallback if _fallback is not None else 0.5)
-    )
+        # Fallback: cached DB price when live fetch unavailable.
+        if _side == "no":
+            _primary, _fallback = market.get("no_price"), market.get("yes_price")
+        else:
+            _primary, _fallback = market.get("yes_price"), market.get("no_price")
+        _price = float(
+            _primary if _primary is not None else (_fallback if _fallback is not None else 0.5)
+        )
     return TradeSignal(
         user_id=UUID(str(row["user_id"])),
         telegram_user_id=int(row["telegram_user_id"]),
@@ -591,9 +600,20 @@ async def _process_candidate(
 
     # 3. Build TradeSignal — typed contract for TradeEngine (gate + paper fill).
     idem_key = _build_idempotency_key(user_id, cand.market_id, side, pub_uuid)
+
+    # 3b. Fetch live price so paper fill uses same source as exit_watcher.
+    #     Falls back to DB cached price silently on any API error so a
+    #     Gamma outage does not block all trading.
+    _live_fill_price: float | None = None
+    try:
+        _live_fill_price = await get_live_market_price(cand.market_id, side)
+    except Exception:
+        pass  # DB price fallback handled inside _build_trade_signal
+
     try:
         signal = _build_trade_signal(
             row=row, cand=cand, market=market, idempotency_key=idem_key,
+            live_price_override=_live_fill_price,
         )
     except Exception as exc:
         log.warning("trade_signal_build_failed", error=str(exc))
