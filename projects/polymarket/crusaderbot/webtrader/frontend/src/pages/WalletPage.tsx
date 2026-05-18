@@ -19,6 +19,7 @@ export function WalletPage() {
   const [showDeposit, setShowDeposit] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [ledgerAll, setLedgerAll] = useState<LedgerEntry[]>([]);
+  const [ledgerCursor, setLedgerCursor] = useState<{ ts: string; id: string } | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
 
@@ -27,6 +28,8 @@ export function WalletPage() {
       const w = await api.getWallet();
       setInfo(w);
       setLedgerAll(w.ledger_recent);
+      const last = w.ledger_recent[w.ledger_recent.length - 1];
+      setLedgerCursor(last ? { ts: last.created_at, id: last.id } : null);
       setHasMore(w.ledger_recent.length >= 20);
     } catch (e) {
       setError(String(e));
@@ -38,19 +41,21 @@ export function WalletPage() {
   const loadMore = useCallback(async () => {
     setLoadingMore(true);
     try {
-      const page = await api.getLedger(ledgerAll.length);
+      const page = await api.getLedger(ledgerCursor);
       setLedgerAll((prev) => {
         const existingIds = new Set(prev.map((e) => e.id));
         const fresh = page.entries.filter((e) => !existingIds.has(e.id));
         return [...prev, ...fresh];
       });
+      const last = page.entries[page.entries.length - 1];
+      if (last) setLedgerCursor({ ts: last.created_at, id: last.id });
       setHasMore(page.has_more);
     } catch {
-      setHasMore(false);
+      // Leave hasMore unchanged so the button stays and the user can retry
     } finally {
       setLoadingMore(false);
     }
-  }, [api, ledgerAll.length]);
+  }, [api, ledgerCursor]);
 
   if (error) return (
     <>

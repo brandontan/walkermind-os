@@ -14,6 +14,7 @@ from ...database import get_pool
 from ...domain.execution import router as exec_router
 from ...domain.ops import kill_switch
 from ... import notifications as notif_module
+from ...integrations import polymarket as _polymarket
 from . import sse as webtrader_sse
 from .auth import authenticate_telegram, get_current_user
 from .schemas import (
@@ -54,6 +55,23 @@ _CurrentUser = Annotated[dict, Depends(get_current_user)]
 @router.get("/health")
 async def web_health():
     return {"ok": True}
+
+
+@router.get("/markets")
+async def get_markets_list(
+    category: str | None = None,
+    limit: int = 50,
+):
+    """Proxy Gamma API market list — avoids browser CORS restriction."""
+    try:
+        markets = await _polymarket.get_markets(
+            category=category,
+            limit=min(limit, 200),
+        )
+        return markets
+    except Exception as exc:
+        log.warning("get_markets_list failed: %s", exc)
+        return []
 
 
 @router.post("/auth/telegram", response_model=TokenResponse)
@@ -271,7 +289,7 @@ async def close_position_endpoint(
         try:
             await notif_module.send(
                 int(tg_id),
-                f"🔴 <b>Position Manually Closed</b>\n"
+                f"\U0001f534 <b>Position Manually Closed</b>\n"
                 f"Market: {market_label}\n"
                 f"Exit: ${exit_price:.3f}\n"
                 f"PnL: {pnl_sign}${abs(pnl):.2f}",
@@ -514,7 +532,7 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
         )
         ledger_rows = await conn.fetch(
             """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
-               WHERE user_id=$1::uuid ORDER BY created_at DESC LIMIT 20""",
+               WHERE user_id=$1::uuid ORDER BY created_at DESC, id DESC LIMIT 20""",
             user_id,
         )
         settings_row = await conn.fetchrow(
@@ -548,30 +566,35 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
 @router.get("/wallet/ledger", response_model=LedgerPage)
 async def get_wallet_ledger(
     user: _CurrentUser,
-    offset: int = 0,
+    before_ts: str | None = None,
+    before_id: str | None = None,
     limit: int = 20,
 ) -> LedgerPage:
-    """Paginated ledger entries for wallet recent activity."""
+    """Keyset-paginated ledger entries — stable under concurrent inserts."""
     pool = get_pool()
     user_id = user["user_id"]
     limit = min(max(limit, 1), 100)
-    offset = max(offset, 0)
 
     async with pool.acquire() as conn:
-        total_row = await conn.fetchrow(
-            "SELECT COUNT(*) AS cnt FROM ledger WHERE user_id=$1::uuid",
-            user_id,
-        )
-        rows = await conn.fetch(
-            """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
-               WHERE user_id=$1::uuid ORDER BY created_at DESC
-               LIMIT $2 OFFSET $3""",
-            user_id,
-            limit,
-            offset,
-        )
+        if before_ts and before_id:
+            rows = await conn.fetch(
+                """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
+                   WHERE user_id=$1::uuid
+                     AND (created_at, id) < ($2::timestamptz, $3::uuid)
+                   ORDER BY created_at DESC, id DESC
+                   LIMIT $4""",
+                user_id, before_ts, before_id, limit + 1,
+            )
+        else:
+            rows = await conn.fetch(
+                """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
+                   WHERE user_id=$1::uuid
+                   ORDER BY created_at DESC, id DESC
+                   LIMIT $2""",
+                user_id, limit + 1,
+            )
 
-    total = int(total_row["cnt"]) if total_row else 0
+    has_more = len(rows) > limit
     entries = [
         LedgerEntry(
             id=r["id"],
@@ -580,13 +603,9 @@ async def get_wallet_ledger(
             note=r["note"],
             created_at=r["created_at"],
         )
-        for r in rows
+        for r in rows[:limit]
     ]
-    return LedgerPage(
-        entries=entries,
-        has_more=(offset + len(entries)) < total,
-        total=total,
-    )
+    return LedgerPage(entries=entries, has_more=has_more, total=0)
 
 
 @router.get("/settings")

@@ -2,11 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { TopBar } from "../components/TopBar";
 
-const GAMMA_URL = "https://gamma-api.polymarket.com/markets";
-const CACHE_TTL_MS = 5 * 60 * 1000;
-
-let _cache: MarketCard[] | null = null;
-let _cacheTsMs = 0;
+const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/web";
 
 const ALL_CATEGORIES = ["All", "Politics", "Sports", "Crypto", "Economy", "World Events"] as const;
 type Category = (typeof ALL_CATEGORIES)[number];
@@ -140,34 +136,32 @@ export function DiscoverPage() {
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState<Category>("All");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
-      if (_cache && Date.now() - _cacheTsMs < CACHE_TTL_MS) {
-        setMarkets(_cache);
-        return;
-      }
       const res = await fetch(
-        `${GAMMA_URL}?active=true&order=volume&limit=50`,
-        { headers: { Accept: "application/json" } }
+        `${API_BASE}/markets?limit=50${category !== "All" ? `&category=${encodeURIComponent(category)}` : ""}`,
+        { headers: { Accept: "application/json" }, signal }
       );
-      if (!res.ok) throw new Error(`Gamma API ${res.status}`);
-      const raw = await res.json();
-      const data = Array.isArray(raw) ? raw : [];
-      const parsed = (data as GammaMarket[]).map(parseGammaMarket);
-      _cache = parsed;
-      _cacheTsMs = Date.now();
+      if (!res.ok) throw new Error(`markets ${res.status}`);
+      const data: GammaMarket[] = await res.json();
+      const parsed = data.map(parseGammaMarket);
       setMarkets(parsed);
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError("Market data unavailable.");
       setMarkets([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [category]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
 
   const handleDeploy = useCallback((m: MarketCard) => {
     navigate(`/autotrade?market_id=${encodeURIComponent(m.id)}&market_name=${encodeURIComponent(m.title)}`);
