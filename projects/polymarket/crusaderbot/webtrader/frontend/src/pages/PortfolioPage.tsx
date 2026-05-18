@@ -176,19 +176,18 @@ export function PortfolioPage() {
             type="button"
             disabled={walletLoading}
             onClick={async () => {
-              if (depositAddress === null && !walletLoading) {
-                setWalletLoading(true);
-                try {
-                  const w = await api.getWallet();
-                  setDepositAddress(w.deposit_address);
-                  setIsPaperMode(w.paper_mode !== false);
-                } catch {
-                  // leave depositAddress null so the next click retries
-                } finally {
-                  setWalletLoading(false);
-                }
+              if (depositAddress !== null) { setShowDeposit(true); return; }
+              setWalletLoading(true);
+              try {
+                const w = await api.getWallet();
+                setDepositAddress(w.deposit_address);
+                setIsPaperMode(w.paper_mode !== false);
+                setShowDeposit(true);
+              } catch {
+                // leave depositAddress null so the next click retries
+              } finally {
+                setWalletLoading(false);
               }
-              setShowDeposit(true);
             }}
             className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2 transition-colors disabled:opacity-50"
             style={{
@@ -203,19 +202,18 @@ export function PortfolioPage() {
             type="button"
             disabled={walletLoading}
             onClick={async () => {
-              if (depositAddress === null && !walletLoading) {
-                setWalletLoading(true);
-                try {
-                  const w = await api.getWallet();
-                  setDepositAddress(w.deposit_address);
-                  setIsPaperMode(w.paper_mode !== false);
-                } catch {
-                  // leave depositAddress null so the next click retries
-                } finally {
-                  setWalletLoading(false);
-                }
+              if (depositAddress !== null) { setShowWithdraw(true); return; }
+              setWalletLoading(true);
+              try {
+                const w = await api.getWallet();
+                setDepositAddress(w.deposit_address);
+                setIsPaperMode(w.paper_mode !== false);
+                setShowWithdraw(true);
+              } catch {
+                // leave depositAddress null so the next click retries
+              } finally {
+                setWalletLoading(false);
               }
-              setShowWithdraw(true);
             }}
             className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2 transition-colors disabled:opacity-50"
             style={{
