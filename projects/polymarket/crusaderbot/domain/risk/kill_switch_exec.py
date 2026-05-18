@@ -47,7 +47,6 @@ async def _cancel_pending_orders() -> int:
     """Mark all pending orders cancelled. Returns count affected."""
     pool = get_pool()
     async with pool.acquire() as conn:
-        # INTENTIONAL: operator-scoped, all-user access — kill switch cancels all pending orders.
         result = await conn.execute(
             "UPDATE orders SET status='cancelled', updated_at=NOW() "
             "WHERE status='pending'"
