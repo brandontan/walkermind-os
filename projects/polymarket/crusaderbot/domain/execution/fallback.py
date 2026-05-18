@@ -159,6 +159,7 @@ async def trigger_all_live_users(reason: str) -> dict:
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            # INTENTIONAL: operator-scoped, all-user access — operator cascade flips all live users to paper.
             affected = await conn.fetch(
                 "UPDATE user_settings s SET trading_mode='paper', updated_at=NOW() "
                 "FROM users u "

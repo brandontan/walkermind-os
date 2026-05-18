@@ -103,6 +103,8 @@ class OrderLifecycleManager:
         max_attempts = int(s.ORDER_POLL_MAX_ATTEMPTS)
 
         async with pool.acquire() as conn:
+            # INTENTIONAL: operator-scoped, all-user access — system poller processes every
+            # in-flight live order. Per-order mutations always re-verify user_id from the row.
             rows = await conn.fetch(
                 """
                 SELECT id, user_id, market_id, side, size_usdc, price,

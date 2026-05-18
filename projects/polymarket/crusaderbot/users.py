@@ -300,3 +300,34 @@ async def update_settings(user_id: UUID, **fields) -> None:
             f"UPDATE user_settings SET {cols}, updated_at=NOW() WHERE user_id=$1",
             user_id, *fields.values(),
         )
+
+
+async def backfill_missing_wallets(pool) -> int:
+    """Idempotent startup backfill: create wallet rows for any user missing one.
+
+    Runs on every restart. Safe to call repeatedly — create_wallet_for_user uses
+    ON CONFLICT DO NOTHING and seed_paper_capital checks balance before crediting.
+    Never raises; logs and returns 0 on failure.
+    """
+    from .wallet.vault import create_wallet_for_user
+
+    try:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT id FROM users u "
+                "WHERE NOT EXISTS (SELECT 1 FROM wallets w WHERE w.user_id = u.id)"
+            )
+        count = 0
+        for row in rows:
+            uid = row["id"]
+            try:
+                await create_wallet_for_user(uid)
+                await seed_paper_capital(uid)
+                count += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("wallet backfill: failed for user %s: %s", uid, exc)
+        logger.info("wallet backfill: %d wallets created", count)
+        return count
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("wallet backfill: startup check failed: %s", exc)
+        return 0
