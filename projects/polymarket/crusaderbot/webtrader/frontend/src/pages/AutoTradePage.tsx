@@ -247,7 +247,7 @@ export function AutoTradePage() {
 
   return (
     <>
-      <TopBar />
+      <TopBar tradingMode={tradingMode} />
       <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
 
         {/* Market context banner — shown when navigated from Discover page */}

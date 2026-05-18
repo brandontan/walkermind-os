@@ -1,5 +1,5 @@
-Last Updated : 2026-05-18 22:30
-Status       : WARP/crusaderbot-realtime-pipeline-runtime PR open — backend pipeline runtime hardening (pipeline MONITORING events, /status endpoint, 14 tests) + WebTrader operator trust UX (TopBar dynamic mode, Paper Mode banners, analytics trust, config IA reorder, mobile nav readability). MAJOR. WARP•SENTINEL validation required before merge.
+Last Updated : 2026-05-18 23:30
+Status       : WARP/crusaderbot-realtime-pipeline-runtime SENTINEL APPROVED (89/100, 0 critical) — pipeline MONITORING events, /status endpoint, 14/14 tests pass, WebTrader operator trust UX. WARP🔹CMD merge decision required.
 
 [COMPLETED]
 - CRU-12 WARP/CRUSADERBOT-UX-PHASE1 PR open (2026-05-17): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel. Vite build clean. STANDARD, NARROW INTEGRATION.
@@ -27,7 +27,7 @@ Status       : WARP/crusaderbot-realtime-pipeline-runtime PR open — backend pi
 - trading-unblock MERGED PR #1065 (2026-05-16). exit_watcher two-phase MARKET_EXPIRED sweep: Phase A None-price retry, Phase B list_open_on_resolved_markets(); close_as_expired() atomic tx; alert_user_market_expired(); RunResult; signal scan next_run_time=now; job_runs metadata JSONB. MAJOR, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- WARP/crusaderbot-realtime-pipeline-runtime PR open — pipeline MONITORING events (scan_started/strategy_scan_done/scan_completed/risk_gate_evaluated), /status endpoint, 14 hermetic tests, WebTrader operator trust UX (TopBar trading_mode, Paper Mode banners on Dashboard+AutoTrade, analytics trust guard, config IA reorder, mobile nav readability, leaderboard data source note). MAJOR, FULL RUNTIME INTEGRATION. WARP•SENTINEL validation required.
+- WARP/crusaderbot-realtime-pipeline-runtime PR open — SENTINEL APPROVED 89/100, 0 critical. Pipeline MONITORING events (scan_started/strategy_scan_done/scan_completed/risk_gate_evaluated), /status endpoint, 14/14 tests, WebTrader operator trust UX. TopBar tradingMode prop fix applied during SENTINEL. WARP🔹CMD merge decision required.
 - WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE PR open — 6 active Sentry errors fixed: scheduler metadata json.dumps, preset_picker_kb→preset_picker rename, migration 041 (strategy_type+market_question on positions), slippage NUMERIC clamp, DB pool 4. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-UI-FIXES-BATCH2 PR open — SettingsPage liquidity+slippage removed, AutoTradePage custom risk text color fix, Weather Arb+Market Making COMING SOON removed, FilterTabs mobile scroll. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-RUNTIME-FIXES PR open — HEISENBERG_API_KEY alignment (config.py), asyncpg command_timeout=30 + _warn_if_supavisor_transaction_pool (database.py), StrategyRegistry startup log (main.py). STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
@@ -39,14 +39,14 @@ Status       : WARP/crusaderbot-realtime-pipeline-runtime PR open — backend pi
 - CRU-13 claude/crusaderbot-safety-phase2-2hY1C PR open — Trading Safety Phase 2: liquidity filter, slippage protection, partial fill handling, manual close position. MAJOR, NARROW INTEGRATION. WARP•SENTINEL audit required before merge.
 - WARP/CRUSADERBOT-UX-PHASE1 PR #1119 open (CRU-12) — 5-item UX Phase 1 bundle. Awaiting WARP🔹CMD review. STANDARD, NARROW INTEGRATION.
 - claude/crusaderbot-responsive-layout-ZyDip PR open — WebTrader desktop responsive layout V2: DesktopSidebar (220px fixed, nav+system+status card), TopBar center topnav pills, BottomNav md:hidden, 2-col home grid (Hero+Stats LEFT / Scanner+Activity RIGHT), desktop page headers on all 5 pages. STANDARD, NARROW INTEGRATION.
-- WARP/CRUSADERBOT-REALTIME-PNL-UI PR #1111 open — Home Recent Activity real-time + color coded; price null guard ($0.00→"—"); SSE position_updated; Portfolio borderTone. Awaiting WARP🔹CMD review.
+- WARP/CRUSADERBOT-REALTIME-PNL-UI PR #1111 open — Home Recent Activity real-time + color coded; price null guard ($0.00→“—”); SSE position_updated; Portfolio borderTone. Awaiting WARP🔹CMD review.
 - portfolio-ui-polish PR open — WebTrader Portfolio tab: equity header, P&L chart (period selector), exit_reason badges, enhanced position rows, /portfolio/summary + /portfolio/chart endpoints. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-TG-KB-CLEANUP PR open — inline KB ghost fix: show_portfolio and _render_hub edit message in-place on callback; eliminates stale p5_dashboard_kb floating above Portfolio/Settings screens. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-SCANNER-SYNC-FIX PR open — skipped_market_not_synced root cause fixed: scheduler.sync_markets outcomePrices JSON string parse + scanner self-seeding markets table via _upsert_market(). Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-PRICE-FETCH-FIX PR open — get_live_market_price 422 fix: GET /markets?conditionId= query param (not path segment); CLOB /price primary; Gamma outcomePrices fallback. Awaiting WARP🔹CMD review.
 - crusaderbot-webtrader-ws PR open — SSE push implemented: polling removed from DashboardPage + PortfolioPage, event_bus bridge (position.opened/closed/scanner.tick) wired to SSE broadcaster, four new SSE event types added. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-SSE-AUTH-FIX PR open — SSE query-param auth confirmed wired; useSSE returns { connected }; SSEStatusContext propagates to TopBar dot. Awaiting WARP🔹CMD review.
-- webtrader-build-fix PR open — build pipeline verified intact (Dockerfile Stage 1 npm run build confirmed); BottomNav label "Folio"→"Portfolio" fixed. Awaiting WARP🔹CMD review + Fly.io redeploy.
+- webtrader-build-fix PR open — build pipeline verified intact (Dockerfile Stage 1 npm run build confirmed); BottomNav label “Folio”→“Portfolio” fixed. Awaiting WARP🔹CMD review + Fly.io redeploy.
 - Closed beta observation / paper-mode runtime monitoring active.
 - Current production posture: Telegram @CrusaderPolybot live, Fly.io app running, PAPER ONLY.
 - Activation guards remain OFF: ENABLE_LIVE_TRADING=false, EXECUTION_PATH_VALIDATED=false, CAPITAL_MODE_CONFIRMED=false, RISK_CONTROLS_VALIDATED=false.
@@ -65,7 +65,7 @@ Status       : WARP/crusaderbot-realtime-pipeline-runtime PR open — backend pi
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for crusaderbot-realtime-pipeline-runtime (pipeline ordering, /status endpoint, analytics trust, Paper Mode banners, WebTrader runtime truth). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-realtime-pipeline-runtime.md. Tier: MAJOR.
+- WARP🔹CMD merge decision required for crusaderbot-realtime-pipeline-runtime. SENTINEL APPROVED 89/100. Source: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-realtime-pipeline-runtime.md.
 - WARP🔹CMD: apply migration 041 to Supabase production, then review+merge WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-sentry-hotfix-bundle.md. Tier: STANDARD.
 - WARP🔹CMD review required for crusaderbot-ui-fixes-batch2 (4 UI fixes: SettingsPage liquidity+slippage removal, custom risk text color, COMING SOON removal, mobile scroll tabs). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ui-fixes-batch2.md. Tier: STANDARD.
 - WARP🔹CMD review required for crusaderbot-runtime-fixes (HEISENBERG key alignment, asyncpg timeout, startup log). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-runtime-fixes.md. Tier: STANDARD. Set HEISENBERG_API_KEY Fly secret before deploy.
@@ -116,3 +116,4 @@ Status       : WARP/crusaderbot-realtime-pipeline-runtime PR open — backend pi
 - R13 backlog is post-MVP growth work and not required for current paper-safe runtime.
 - [DEFERRED] No asyncio.timeout on polymarket.get_markets() in market_signal_scanner.py; scanner stall risk on hung HTTP call; P2, no capital impact.
 - [DEFERRED] Migration 024 blast radius understated as test-user-only in forge report; SQL promotes all users; documentation drift, code is correct.
+- [DEFERRED] PortfolioPage analytics UI note "market_expired excluded" may not match /portfolio/analytics backend query (pre-existing behavior, not introduced by this PR). Separate analytics backend cleanup lane required.
