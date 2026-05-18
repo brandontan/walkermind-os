@@ -1,3 +1,4 @@
+2026-05-19 | WARP/CRUSADERBOT-UI-COLLAPSIBLE-FIX | all CollapsibleSection defaultOpen=true; SHOW/HIDE labeled toggle button; pagination scoped to ledger + market list only; STANDARD, NARROW INTEGRATION
 2026-05-19 | WARP/CRUSADERBOT-UI-FEED-CASHOUT | Dashboard Recent Activity replaced with Live Market Feed (signal_publications, 30s refresh); Cash Out button green=profit / red=loss; STANDARD, NARROW INTEGRATION
 2026-05-19 | WARP/CRUSADERBOT-SPA-AUTH-FIX | SPAStaticFiles 404→index.html fallback; navigate("/") post-login redirect; upsert_user replaces 403 gate — webtrader login works without prior /start; STANDARD, NARROW
 2026-05-19 | WARP/CRUSADERBOT-MARKET-SYNC-FIX | market_sync 1800s→300s; paper fill now uses get_live_market_price() matching exit_watcher source — eliminates entry/exit price gap that caused instant TP; live_price_override is-not-None guard (handles price=0.0); STANDARD, NARROW INTEGRATION
