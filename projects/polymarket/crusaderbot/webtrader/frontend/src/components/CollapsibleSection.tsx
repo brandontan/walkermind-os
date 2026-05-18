@@ -42,7 +42,7 @@ export function CollapsibleSection({
         <button
           type="button"
           onClick={toggle}
-          className="flex items-center gap-2 cursor-pointer"
+          className="flex items-center gap-2 cursor-pointer group"
           aria-expanded={open}
         >
           <span className="w-3 h-px bg-gold flex-shrink-0" aria-hidden />
@@ -50,11 +50,15 @@ export function CollapsibleSection({
             {label}
           </span>
           <span
-            className="text-ink-3 text-[10px] transition-transform duration-150 flex-shrink-0"
-            style={{ display: "inline-block", transform: open ? "rotate(0deg)" : "rotate(-90deg)" }}
-            aria-hidden
+            className={[
+              "font-hud text-[8px] font-bold tracking-[1.5px] uppercase px-1.5 py-0.5",
+              "rounded border transition-colors ml-1",
+              open
+                ? "text-ink-3 border-border-2 bg-surface-2 group-hover:border-ink-3"
+                : "text-gold border-gold/40 bg-gold/10 group-hover:bg-gold/20",
+            ].join(" ")}
           >
-            ▾
+            {open ? "HIDE" : "SHOW"}
           </span>
         </button>
         {action && <div>{action}</div>}
