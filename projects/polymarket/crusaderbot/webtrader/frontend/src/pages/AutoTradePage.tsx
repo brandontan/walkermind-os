@@ -135,9 +135,14 @@ export function AutoTradePage() {
   const [filterSaved, setFilterSaved]         = useState(false);
 
   const load = useCallback(async () => {
-    const [s, dash] = await Promise.all([api.getAutotrade(), api.getDashboard()]);
+    const [autotradeResult, dashResult] = await Promise.allSettled([
+      api.getAutotrade(),
+      api.getDashboard(),
+    ]);
+    if (autotradeResult.status === "rejected") throw autotradeResult.reason;
+    const s = autotradeResult.value;
     setState(s);
-    setTradingMode(dash.trading_mode);
+    if (dashResult.status === "fulfilled") setTradingMode(dashResult.value.trading_mode);
     if (s.risk_profile === "custom") {
       setCustomCapital(String(Math.round(s.capital_alloc_pct * 100)));
       setCustomTp(String(Math.round(s.tp_pct * 100)));
