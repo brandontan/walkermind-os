@@ -824,7 +824,7 @@ async def get_portfolio_analytics(user: _CurrentUser) -> PortfolioAnalytics:
         if running > peak:
             peak = running
         if peak > 0:
-            dd = (peak - running) / peak
+            dd = min((peak - running) / peak, 1.0)
         elif running < 0:
             dd = 1.0  # 100% drawdown from zero starting point
         else:
