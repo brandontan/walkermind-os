@@ -64,8 +64,8 @@ Status       : WARP-33 public-readiness-gate PR open — Phase 4 Public Readines
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for WARP-33 public-readiness-gate (Phase 4: README/KNOWLEDGE_BASE narrow polish, logo path verified, smoke walkthrough, state sync). Source: projects/polymarket/crusaderbot/reports/forge/public-readiness-gate.md. Tier: MINOR. Action item: deliver crusaderbot-logo.png binary to complete the branding sub-task.
 - WARP🔹CMD review + URGENT MERGE required for WARP-28 dashboard-corruption-fix (deployment blocker). Source: projects/polymarket/crusaderbot/reports/forge/dashboard-corruption-fix.md. Tier: STANDARD. After merge: Fly.io redeploy required.
+- WARP🔹CMD review required for WARP-33 public-readiness-gate (Phase 4: README/KNOWLEDGE_BASE narrow polish, logo path verified, smoke walkthrough, state sync). Source: projects/polymarket/crusaderbot/reports/forge/public-readiness-gate.md. Tier: MINOR. Action item: deliver crusaderbot-logo.png binary to complete the branding sub-task.
 - WARP🔹CMD review required for WARP-25 telegram-functional-routing-fix (Positions callback fix + Close buttons + Trades history separation + preset label fix). Source: projects/polymarket/crusaderbot/reports/forge/telegram-functional-routing-fix.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/expand-webtrader-pagination (WARP-19: Load More pagination — Live Market Feed, Leaderboard, Closed Trades, Orders). Source: projects/polymarket/crusaderbot/reports/forge/expand-webtrader-pagination.md. Tier: STANDARD. No migration required.
 - WARP🔹CMD review required for WARP/tg-ux-redesign (WARP-24: Dashboard HUD redesign + Auto Mode wizard). Source: projects/polymarket/crusaderbot/reports/forge/tg-ux-redesign.md. Tier: STANDARD. No migration required.
