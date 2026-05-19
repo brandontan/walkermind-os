@@ -226,7 +226,6 @@ async def show_dashboard(
     nav_kb = main_menu(
         auto_on=user.get("auto_trade_on", False),
         paused=user.get("paused", False),
-        has_preset=has_preset,
         open_count=open_count,
     )
     await target.reply_text(
@@ -252,7 +251,6 @@ async def show_dashboard_for_cb(
     nav_kb = main_menu(
         auto_on=user.get("auto_trade_on", False),
         paused=user.get("paused", False),
-        has_preset=has_preset,
         open_count=open_count,
     )
     if q is not None and q.message is not None:

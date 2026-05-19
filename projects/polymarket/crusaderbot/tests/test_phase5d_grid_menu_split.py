@@ -123,15 +123,20 @@ def test_main_menu_contains_settings_not_old_autotrade():
 
 
 def test_main_menu_dynamic_auto_label():
-    # V6: auto_label is dynamic — changes based on auto_on state
+    # V6: auto_label is dynamic — changes based on auto_on / paused state
     kb_off = main_menu(auto_on=False)
     kb_on = main_menu(auto_on=True)
+    kb_paused = main_menu(auto_on=True, paused=True)
     labels_off = {btn.text for row in kb_off.keyboard for btn in row}
     labels_on = {btn.text for row in kb_on.keyboard for btn in row}
+    labels_paused = {btn.text for row in kb_paused.keyboard for btn in row}
     assert "🤖 Setup Auto" in labels_off
     assert "🤖 Auto Mode" not in labels_off
     assert "🤖 Auto Mode" in labels_on
     assert "🤖 Setup Auto" not in labels_on
+    assert "▶️ Resume" in labels_paused
+    assert "🤖 Auto Mode" not in labels_paused
+    assert "🤖 Setup Auto" not in labels_paused
     # Structural buttons always present
     assert {"📊 Dashboard", "💼 Portfolio", "⚙️ Settings", "❓ Help"} <= labels_off
 

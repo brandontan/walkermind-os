@@ -29,7 +29,6 @@ def main_menu_keyboard(
     *,
     auto_on: bool = False,
     paused: bool = False,
-    has_preset: bool = False,
     open_count: int = 0,
 ) -> ReplyKeyboardMarkup:
     """State-aware persistent nav keyboard.
@@ -63,14 +62,12 @@ def main_menu(
     *,
     auto_on: bool = False,
     paused: bool = False,
-    has_preset: bool = False,
     open_count: int = 0,
 ) -> ReplyKeyboardMarkup:
     """Alias for main_menu_keyboard()."""
     return main_menu_keyboard(
         auto_on=auto_on,
         paused=paused,
-        has_preset=has_preset,
         open_count=open_count,
     )
 

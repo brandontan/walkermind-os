@@ -61,6 +61,7 @@ MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     "💼 Portfolio":          positions.show_portfolio,
     "🤖 Auto Mode":          presets.show_preset_picker,
     "🤖 Setup Auto":         presets.show_preset_picker,
+    "▶️ Resume":             presets.show_preset_picker,
     "⚙️ Settings":           settings_handler.settings_hub_root,
     "❓ Help":               onboarding.help_handler,
     # Backward-compat aliases (old state-driven labels)
