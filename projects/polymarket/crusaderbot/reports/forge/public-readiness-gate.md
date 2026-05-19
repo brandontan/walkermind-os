@@ -37,7 +37,7 @@ beta, PAPER-ONLY posture unchanged.
 
 No runtime architecture changed. Documentation/branding/state only:
 
-```
+```text
 README.md            repo-structure tree → matches actual repo root layout
 docs/KNOWLEDGE_BASE   header block refreshed (name/URL/owner/audience/date)
 WebTrader logo path   /crusaderbot-logo.png  ← AuthPage.tsx, TopBar.tsx
