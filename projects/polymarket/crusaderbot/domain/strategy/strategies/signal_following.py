@@ -107,7 +107,7 @@ class SignalFollowingStrategy(BaseStrategy):
                     signal_ts=c.signal_ts,
                     metadata=c.metadata,
                     reasoning=(
-                        f"Signal: Heisenberg feed breakout — "
+                        f"Signal: {c.metadata.get('feed_name', 'feed')} candidate — "
                         f"market {c.market_id[:8]}… "
                         f"conf={c.confidence:.0%}."
                     ),

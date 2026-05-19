@@ -39,7 +39,7 @@ Full divider standardization complete.
 
 ## 2. Current System Architecture
 
-```
+```text
 copy_trade_tasks (DB) ←── NEW source for CopyTradeStrategy
     │  wallet_address, copy_mode, copy_amount, copy_pct,
     │  copy_direction, min_trade_size, status='active'
@@ -125,6 +125,11 @@ Modified:
   Added explicit `rm_mirror` path: uses `mirror_size_direct` (same as proportional
   with no pct), capping at the user's position cap. Unknown modes now log a warning
   and skip rather than silently mis-sizing.
+- `copy_trade.py` — `proportional` mode with `copy_pct=0` or `None` fell through
+  to the else branch and would have triggered the unknown-mode warning. Now
+  explicitly validated: skips with a warning when `pct <= 0`.
+- `_normalise_side` — unvalidated `side` and `copy_direction` inputs could produce
+  silent incorrect routing. Now guards both fields before any logic executes.
 
 ---
 
