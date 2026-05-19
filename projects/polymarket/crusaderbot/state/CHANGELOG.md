@@ -1,3 +1,4 @@
+2026-05-19 10:30 | WARP/master-cleanup-v5-beta | WARP-26 follow-up: test_copy_trade.py + test_signal_following.py aligned to new schema; rm_mirror sizing regression fixed (mirror_size_direct); unknown mode guard added
 2026-05-19 09:21 | WARP/master-cleanup-v5-beta | WARP-26: copy_trade.py reads copy_trade_tasks + copy_trade_idempotency dedup; SignalCandidate.reasoning added; all 3 strategies injected; messages.py 32-char dividers; MAJOR, FULL RUNTIME INTEGRATION
 2026-05-19 08:55 | WARP-28/dashboard-corruption-fix | EMERGENCY: restored 3 Base64-corrupted Python files + DIV 26→32 in messages.py; compileall clean; deployment blocker resolved
 2026-05-18 23:45 | WARP/telegram-functional-routing-fix | WARP-25: show_positions() callback fix + Positions Close buttons + Trades history-only nav + preset label shortening; STANDARD, FULL RUNTIME INTEGRATION

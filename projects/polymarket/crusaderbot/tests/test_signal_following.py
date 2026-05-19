@@ -565,11 +565,24 @@ def test_strategy_scan_delegates_to_evaluator():
         metadata={"feed_id": str(_FEED_UUID),
                   "publication_id": str(_PUB_UUID),
                   "market_id": "mkt_1"},
+        reasoning="Signal: feed candidate — market mkt_1… conf=70%.",
     )
 
     async def fake_eval(**kwargs):
         assert kwargs["strategy_name"] == "signal_following"
-        return [expected]
+        # Return a candidate without reasoning so scan() injects it.
+        from projects.polymarket.crusaderbot.domain.strategy.types import SignalCandidate as SC
+        bare = SC(
+            market_id=expected.market_id,
+            condition_id=expected.condition_id,
+            side=expected.side,
+            confidence=expected.confidence,
+            suggested_size_usdc=expected.suggested_size_usdc,
+            strategy_name=expected.strategy_name,
+            signal_ts=expected.signal_ts,
+            metadata=expected.metadata,
+        )
+        return [bare]
 
     # Patch the symbol that signal_following.py imported, not the source
     # module — function references are bound at import time.

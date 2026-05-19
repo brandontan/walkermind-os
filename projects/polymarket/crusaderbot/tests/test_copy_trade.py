@@ -482,9 +482,9 @@ def test_scan_emits_signal_for_fresh_buy():
     target_row = {
         "id": _TARGET_UUID,
         "user_id": _USER_UUID,
-        "target_wallet_address": "0x" + "a" * 40,
-        "scale_factor": 1.0,
-        "trades_mirrored": 0,
+        "wallet_address": "0x" + "a" * 40,
+        "copy_mode": "rm_mirror",
+        "copy_amount": None, "copy_pct": None, "copy_direction": "buys_only", "min_trade_size": 0.5,
         "created_at": datetime.now(timezone.utc),
     }
     fresh_trade = {
@@ -520,12 +520,12 @@ def test_scan_emits_signal_for_fresh_buy():
     assert sig.confidence == 0.75
     assert sig.suggested_size_usdc > 0.0
     assert sig.metadata["source_tx_hash"] == fresh_trade["transactionHash"]
-    assert sig.metadata["copy_target_id"] == str(_TARGET_UUID)
-    assert sig.metadata["leader_wallet"] == target_row["target_wallet_address"]
+    assert sig.metadata["copy_task_id"] == str(_TARGET_UUID)
+    assert sig.metadata["leader_wallet"] == target_row["wallet_address"]
 
 
 def test_already_mirrored_scopes_query_per_follower():
-    """The dedup query must filter on (copy_target_id, source_tx_hash) so the
+    """The dedup query must filter on (user_id, task_id, leader_trade_id) so the
     same leader transaction can be mirrored independently by every follower."""
     from projects.polymarket.crusaderbot.domain.strategy.strategies import (
         copy_trade as ct_mod,
@@ -554,15 +554,17 @@ def test_already_mirrored_scopes_query_per_follower():
 
     with patch.object(ct_mod, "get_pool", return_value=_CapturingPool()):
         out = asyncio.run(
-            ct_mod._already_mirrored(_TARGET_UUID, "0x" + "a" * 64),
+            ct_mod._already_mirrored(_USER_UUID, _TARGET_UUID, "0x" + "a" * 64),
         )
     assert out is False
-    assert "copy_target_id = $1" in captured["sql"]
-    assert "source_tx_hash = $2" in captured["sql"]
+    assert "user_id = $1" in captured["sql"]
+    assert "task_id = $2" in captured["sql"]
+    assert "leader_trade_id = $3" in captured["sql"]
     # asyncpg coerces the UUID at the protocol layer; the strategy passes the
     # parsed UUID, not the raw string, so the queries can use the index.
-    assert captured["args"][0] == _TARGET_UUID
-    assert captured["args"][1] == "0x" + "a" * 64
+    assert captured["args"][0] == _USER_UUID
+    assert captured["args"][1] == _TARGET_UUID
+    assert captured["args"][2] == "0x" + "a" * 64
 
 
 def test_already_mirrored_returns_false_on_blank_inputs():
@@ -570,9 +572,9 @@ def test_already_mirrored_returns_false_on_blank_inputs():
         copy_trade as ct_mod,
     )
 
-    out = asyncio.run(ct_mod._already_mirrored(None, "0xabc"))
+    out = asyncio.run(ct_mod._already_mirrored(None, None, "0xabc"))
     assert out is False
-    out = asyncio.run(ct_mod._already_mirrored(_TARGET_UUID, ""))
+    out = asyncio.run(ct_mod._already_mirrored(_USER_UUID, _TARGET_UUID, ""))
     assert out is False
 
 
@@ -580,9 +582,9 @@ def test_scan_dedupes_already_mirrored_trades():
     target_row = {
         "id": _TARGET_UUID,
         "user_id": _USER_UUID,
-        "target_wallet_address": "0x" + "a" * 40,
-        "scale_factor": 1.0,
-        "trades_mirrored": 0,
+        "wallet_address": "0x" + "a" * 40,
+        "copy_mode": "rm_mirror",
+        "copy_amount": None, "copy_pct": None, "copy_direction": "buys_only", "min_trade_size": 0.5,
         "created_at": datetime.now(timezone.utc),
     }
     seen_trade = {
@@ -617,9 +619,9 @@ def test_scan_drops_stale_trades_outside_window():
     target_row = {
         "id": _TARGET_UUID,
         "user_id": _USER_UUID,
-        "target_wallet_address": "0x" + "a" * 40,
-        "scale_factor": 1.0,
-        "trades_mirrored": 0,
+        "wallet_address": "0x" + "a" * 40,
+        "copy_mode": "rm_mirror",
+        "copy_amount": None, "copy_pct": None, "copy_direction": "buys_only", "min_trade_size": 0.5,
         "created_at": datetime.now(timezone.utc),
     }
     stale = {
@@ -658,9 +660,9 @@ def test_scan_skips_trade_when_size_below_floor():
     target_row = {
         "id": _TARGET_UUID,
         "user_id": _USER_UUID,
-        "target_wallet_address": "0x" + "a" * 40,
-        "scale_factor": 1.0,
-        "trades_mirrored": 0,
+        "wallet_address": "0x" + "a" * 40,
+        "copy_mode": "rm_mirror",
+        "copy_amount": None, "copy_pct": None, "copy_direction": "buys_only", "min_trade_size": 0.5,
         "created_at": datetime.now(timezone.utc),
     }
     fresh = {
@@ -829,12 +831,11 @@ def _build_target_row():
     return {
         "id": _TARGET_UUID,
         "user_id": _USER_UUID,
-        "target_wallet_address": "0x" + "a" * 40,
-        "scale_factor": 1.0,
-        "trades_mirrored": 0,
+        "wallet_address": "0x" + "a" * 40,
+        "copy_mode": "rm_mirror",
+        "copy_amount": None, "copy_pct": None, "copy_direction": "buys_only", "min_trade_size": 0.5,
         "created_at": datetime.now(timezone.utc),
-        # leader_bankroll_estimate is intentionally absent — column not yet
-        # backfilled. The strategy must fall back to mirror_size_direct.
+        # leader_bankroll_estimate absent by design; copy_mode="rm_mirror" takes the explicit rm_mirror path via mirror_size_direct.
     }
 
 
@@ -1103,9 +1104,9 @@ def test_scan_blacklisted_market_id_yields_no_signal():
     target_row = {
         "id": _TARGET_UUID,
         "user_id": _USER_UUID,
-        "target_wallet_address": "0x" + "a" * 40,
-        "scale_factor": 1.0,
-        "trades_mirrored": 0,
+        "wallet_address": "0x" + "a" * 40,
+        "copy_mode": "rm_mirror",
+        "copy_amount": None, "copy_pct": None, "copy_direction": "buys_only", "min_trade_size": 0.5,
         "created_at": datetime.now(timezone.utc),
     }
     fresh_trade = {
