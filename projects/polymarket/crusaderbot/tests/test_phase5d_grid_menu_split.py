@@ -60,8 +60,8 @@ V5_MENU_BUTTONS = {
 
 
 def test_main_menu_has_five_buttons():
-    # V5 fixed grid: 5 buttons regardless of bot state
-    kb = main_menu(strategy_key="signal_sniper", auto_on=True)
+    # fixed grid: 5 buttons regardless of bot state
+    kb = main_menu(auto_on=True)
     all_buttons = [btn for row in kb.keyboard for btn in row]
     assert len(all_buttons) == 5
 
@@ -81,8 +81,8 @@ def test_main_menu_row0_is_dashboard_and_portfolio():
 
 
 def test_main_menu_row1_is_automode_and_settings():
-    # V5: row1=[Auto Mode, Settings]
-    kb = main_menu()
+    # row1=[Auto Mode label, Settings] — use auto_on=True to get "🤖 Auto Mode"
+    kb = main_menu(auto_on=True)
     assert len(kb.keyboard[1]) == 2
     labels_row1 = {btn.text for btn in kb.keyboard[1]}
     assert labels_row1 == {"🤖 Auto Mode", "⚙️ Settings"}
@@ -96,7 +96,7 @@ def test_main_menu_last_row_is_help():
 
 
 def test_main_menu_v5_buttons():
-    kb = main_menu(strategy_key="signal_sniper", auto_on=True)
+    kb = main_menu(auto_on=True)
     labels = {btn.text for row in kb.keyboard for btn in row}
     assert labels == V5_MENU_BUTTONS
 
@@ -114,21 +114,26 @@ def test_main_menu_contains_portfolio_button():
 
 
 def test_main_menu_contains_settings_not_old_autotrade():
-    # V5: Settings present; old "🤖 Auto-Trade" label gone
-    kb = main_menu(strategy_key="signal_sniper", auto_on=True)
+    # Settings present; old "🤖 Auto-Trade" label gone
+    kb = main_menu(auto_on=True)
     labels = [btn.text for row in kb.keyboard for btn in row]
     assert "⚙️ Settings" in labels
     assert "📈 My Trades" not in labels
     assert "🤖 Auto-Trade" not in labels
 
 
-def test_main_menu_fixed_layout_ignores_state():
-    # V5: layout is identical regardless of auto_on / strategy_key
-    kb_off = main_menu(strategy_key=None, auto_on=False)
-    kb_on = main_menu(strategy_key="full_auto", auto_on=True)
+def test_main_menu_dynamic_auto_label():
+    # V6: auto_label is dynamic — changes based on auto_on state
+    kb_off = main_menu(auto_on=False)
+    kb_on = main_menu(auto_on=True)
     labels_off = {btn.text for row in kb_off.keyboard for btn in row}
     labels_on = {btn.text for row in kb_on.keyboard for btn in row}
-    assert labels_off == labels_on == V5_MENU_BUTTONS
+    assert "🤖 Setup Auto" in labels_off
+    assert "🤖 Auto Mode" not in labels_off
+    assert "🤖 Auto Mode" in labels_on
+    assert "🤖 Setup Auto" not in labels_on
+    # Structural buttons always present
+    assert {"📊 Dashboard", "💼 Portfolio", "⚙️ Settings", "❓ Help"} <= labels_off
 
 
 # ---------- MAIN_MENU_ROUTES V5 -------------------------------------------

@@ -27,21 +27,23 @@ def nav_row(back_data: str = "dashboard:main") -> list[InlineKeyboardButton]:
 
 def main_menu_keyboard(
     *,
-    auto_on: bool = True,
+    auto_on: bool = False,
     paused: bool = False,
-    has_preset: bool = True,
+    has_preset: bool = False,
     open_count: int = 0,
 ) -> ReplyKeyboardMarkup:
     """State-aware persistent nav keyboard.
 
     Labels adapt to user state:
-    - auto_label: "▶️ Resume" if paused, else "🤖 Auto Mode"
+    - auto_label: "▶️ Resume" if paused, "🤖 Auto Mode" if auto_on, else "🤖 Setup Auto"
     - portfolio_label: includes open position count when non-zero
     """
     if paused:
         auto_label = "▶️ Resume"
-    else:
+    elif auto_on:
         auto_label = "🤖 Auto Mode"
+    else:
+        auto_label = "🤖 Setup Auto"
 
     portfolio_label = f"💼 Trades ({open_count})" if open_count > 0 else "💼 Portfolio"
 
@@ -58,14 +60,13 @@ def main_menu_keyboard(
 
 
 def main_menu(
-    strategy_key: str | None = None,
-    auto_on: bool = True,
     *,
+    auto_on: bool = False,
     paused: bool = False,
-    has_preset: bool = True,
+    has_preset: bool = False,
     open_count: int = 0,
 ) -> ReplyKeyboardMarkup:
-    """Alias for main_menu_keyboard() with backward-compatible positional args."""
+    """Alias for main_menu_keyboard()."""
     return main_menu_keyboard(
         auto_on=auto_on,
         paused=paused,
