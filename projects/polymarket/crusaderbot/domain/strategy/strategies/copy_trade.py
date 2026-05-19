@@ -132,22 +132,30 @@ class CopyTradeStrategy(BaseStrategy):
                 ):
                     continue
 
-                if copy_mode == "proportional":
+                if copy_mode in ("proportional", "rm_mirror"):
                     pct = _coerce_float(target.get("copy_pct"))
-                    if pct > 0:
+                    if pct > 0 and copy_mode == "proportional":
                         sized = min(
                             user_context.available_balance_usdc * float(pct),
                             cap_usdc,
                         )
                     else:
+                        # rm_mirror and proportional-with-no-pct both use
+                        # direct mirror sizing: min(leader_size, user_cap).
                         sized = mirror_size_direct(
                             leader_size=leader_size_usdc,
                             user_available=user_context.available_balance_usdc,
                             max_position_pct=user_context.capital_allocation_pct,
                         )
-                else:
+                elif copy_mode == "fixed":
                     fixed_amount = _coerce_float(target.get("copy_amount") or 5.0)
                     sized = min(fixed_amount, cap_usdc) if fixed_amount > 0 else 0.0
+                else:
+                    logger.warning(
+                        "copy_trade scan: unknown copy_mode=%s task=%s — skipping",
+                        copy_mode, target.get("id"),
+                    )
+                    continue
 
                 min_size = _coerce_float(target.get("min_trade_size") or 0.50)
                 if sized <= 0.0 or sized < min_size:
