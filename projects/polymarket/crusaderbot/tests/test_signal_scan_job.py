@@ -781,14 +781,15 @@ def test_process_candidate_allows_fresh_publication_signal():
         rejection_reason=None, failed_gate_step=None,
     )
 
+    execute_mock = AsyncMock(return_value=approved)
     with patch.object(job, "_load_stale_queued_row", return_value=None), \
             patch.object(job, "_publication_already_queued", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
-            patch.object(job._engine, "execute", new=AsyncMock(return_value=approved)), \
+            patch.object(job._engine, "execute", new=execute_mock), \
             patch.object(job, "_insert_execution_queue", new=AsyncMock(return_value=True)), \
             patch.object(job, "_mark_executed", new=AsyncMock()):
         asyncio.run(job._process_candidate(row, cand))
-    # No assertion needed — reaching here without exception confirms gate passed.
+    execute_mock.assert_awaited_once()
 
 
 def test_process_candidate_freshness_gate_skips_exact_boundary():
