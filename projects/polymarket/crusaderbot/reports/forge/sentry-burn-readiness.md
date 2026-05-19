@@ -37,7 +37,7 @@ Updated both notification paths to inject `[ 📈 View Position ]`, `[ 🛑 Clos
 
 No structural changes. Notification pipeline unchanged:
 
-```
+```text
 TradeEngine.execute()
   → paper.execute()          ← notify_entry(position_id=str(position_id)) [UPDATED]
   → event_bus.emit(position.opened / copy_trade.executed)
@@ -87,7 +87,7 @@ Callback routing (unchanged, already wired in dispatcher):
 
 ## 6. What is next
 
-```
+```text
 WARP🔹CMD review required.
 Source: projects/polymarket/crusaderbot/reports/forge/sentry-burn-readiness.md
 Tier: STANDARD
