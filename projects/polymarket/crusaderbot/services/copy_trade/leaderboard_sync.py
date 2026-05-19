@@ -10,6 +10,7 @@ Never raises — logs warning on any error and returns.
 from __future__ import annotations
 
 import logging
+import math
 import os
 import time
 from typing import Any
@@ -49,9 +50,16 @@ def _safe_float(val: Any) -> float | None:
     if val is None:
         return None
     try:
-        return float(val)
+        f = float(val)
     except (TypeError, ValueError):
         return None
+    return f if math.isfinite(f) else None
+
+
+def _clamp(val: float | None, lo: float, hi: float) -> float | None:
+    if val is None:
+        return None
+    return max(lo, min(hi, val))
 
 
 async def sync_leaderboard(pool: Any) -> None:
@@ -118,27 +126,16 @@ async def sync_leaderboard(pool: Any) -> None:
             roi_pct = roi_pct / 100.0
         volume_usdc = _safe_float(r.get("total_volume_15d"))
 
-        # --- schema clamps ---
-        _clamped = False
-        if roi_pct is not None:
-            capped = max(-9999.9999, min(9999.9999, roi_pct))
-            if capped != roi_pct:
-                _clamped = True
-            roi_pct = capped
-        if total_pnl is not None:
-            capped = max(-999999999999.0, min(999999999999.0, total_pnl))
-            if capped != total_pnl:
-                _clamped = True
-            total_pnl = capped
-        if volume_usdc is not None:
-            capped = max(0.0, min(999999999999.0, volume_usdc))
-            if capped != volume_usdc:
-                _clamped = True
-            volume_usdc = capped
-        if _clamped:
+        # --- schema clamps (NUMERIC(8,4) / NUMERIC(18,6) column bounds) ---
+        # _safe_float already rejects NaN/infinity; _clamp handles large finite values.
+        roi_pct_raw, total_pnl_raw, volume_usdc_raw = roi_pct, total_pnl, volume_usdc
+        roi_pct    = _clamp(roi_pct,    -9999.9999,      9999.9999)
+        total_pnl  = _clamp(total_pnl,  -999999999999.0, 999999999999.0)
+        volume_usdc = _clamp(volume_usdc, 0.0,            999999999999.0)
+        if roi_pct != roi_pct_raw or total_pnl != total_pnl_raw or volume_usdc != volume_usdc_raw:
             log.warning(
-                "leaderboard sync: clamped extreme value wallet=%s roi_pct=%s "
-                "total_pnl=%s volume_usdc=%s",
+                "leaderboard sync: clamped extreme value wallet=%s "
+                "roi_pct=%s total_pnl=%s volume_usdc=%s",
                 wallet, roi_pct, total_pnl, volume_usdc,
             )
 
