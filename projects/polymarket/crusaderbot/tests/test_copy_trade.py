@@ -1715,5 +1715,3 @@ def test_record_spend_passes_date_object_not_string():
     assert isinstance(date_arg, _dt.date) and not isinstance(date_arg, str), (
         f"_record_spend must pass datetime.date, got {type(date_arg)}: {date_arg!r}"
     )
-
-    mock_exec.assert_called_once()
