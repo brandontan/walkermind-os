@@ -32,7 +32,7 @@ Prove the actual runtime spine is real end-to-end:
 Deliverables:
 - [ ] Runtime evidence matrix
 - [ ] Broken/fake/dead path map
-- [ ] Multi-user isolation verification
+- [x] Multi-user isolation verification
 - [ ] Proof PAPER ONLY posture unchanged
 
 ---

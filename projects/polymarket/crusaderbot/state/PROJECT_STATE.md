@@ -1,5 +1,5 @@
-Last Updated : 2026-05-19 19:05
-Status       : WARP-31 MERGED PR #1173 (8563d6b1) — 8-step concierge onboarding wizard, dynamic state-aware main menu, 32-char DIV standardization. STANDARD, NARROW INTEGRATION.
+Last Updated : 2026-05-19 19:30
+Status       : WARP-32 IN PROGRESS — Phase 3 multi-user isolation audit PASS, /admin status HUD built, migration 042 (drop sessions). STANDARD, NARROW INTEGRATION.
 
 [COMPLETED]
 - WARP-31 MERGED PR #1173 (8563d6b1): 8-step concierge onboarding wizard (Welcome→HowItWorks→Wallet→PaperCredit→Risk→PresetPick→Review→Launch), dynamic state-aware main_menu() with paused/open_count labels, 32-char DIV constant standardized across all messages.py screens. STANDARD, NARROW INTEGRATION. GATE conflict-resolved with main post PR #1172.
@@ -17,6 +17,7 @@ Status       : WARP-31 MERGED PR #1173 (8563d6b1) — 8-step concierge onboardin
 - crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.
 
 [IN PROGRESS]
+- WARP-32 multi-user-isolation-admin-hud PR open — SQL isolation audit PASS (no gaps), /admin status consolidated HUD, migration 042 (drop legacy sessions table), copy_targets cleanup deferred. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP-30 phase1-hardening-db-cleanup PR open — signal freshness gate tests (4 cases), SSE reliability audit PASS, migrations 030/031/041 applied to Supabase production. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP-25 telegram-functional-routing-fix PR open — show_positions() callback fix + Positions [🛑 Close] buttons + Trades history-only keyboard + preset picker short labels. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/expand-webtrader-pagination PR open — WARP-19: Load More pagination for Live Market Feed (DashboardPage), Leaderboard Rankings (CopyTradePage), Closed Trades (PortfolioPage), Orders (PortfolioPage). offset param added to getRecentSignals, getLeaderboard, getPositions, getOrders in api.ts. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
@@ -63,6 +64,7 @@ Status       : WARP-31 MERGED PR #1173 (8563d6b1) — 8-step concierge onboardin
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for WARP-32 multi-user-isolation-admin-hud (/admin status HUD + migration 042). Source: projects/polymarket/crusaderbot/reports/forge/multi-user-isolation-admin-hud.md. Tier: STANDARD. Apply migration 042 (DROP TABLE sessions) to Supabase production.
 - WARP🔹CMD review + URGENT MERGE required for WARP-28 dashboard-corruption-fix (deployment blocker). Source: projects/polymarket/crusaderbot/reports/forge/dashboard-corruption-fix.md. Tier: STANDARD. After merge: Fly.io redeploy required.
 - WARP🔹CMD review required for WARP-25 telegram-functional-routing-fix (Positions callback fix + Close buttons + Trades history separation + preset label fix). Source: projects/polymarket/crusaderbot/reports/forge/telegram-functional-routing-fix.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/expand-webtrader-pagination (WARP-19: Load More pagination — Live Market Feed, Leaderboard, Closed Trades, Orders). Source: projects/polymarket/crusaderbot/reports/forge/expand-webtrader-pagination.md. Tier: STANDARD. No migration required.
