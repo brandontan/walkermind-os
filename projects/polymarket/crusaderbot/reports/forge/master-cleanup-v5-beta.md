@@ -39,7 +39,7 @@ Full divider standardization complete.
 
 ## 2. Current System Architecture
 
-```
+```text
 copy_trade_tasks (DB) ←── NEW source for CopyTradeStrategy
     │  wallet_address, copy_mode, copy_amount, copy_pct,
     │  copy_direction, min_trade_size, status='active'
@@ -109,6 +109,31 @@ Modified:
   (historical rows, no FK violation). Cleanup deferred to a dedicated
   schema migration lane.
 - Reasoning strings are English-only. i18n is post-MVP scope.
+
+### Post-merge CI fixes (same branch)
+
+- `test_copy_trade.py` — 8 test functions used legacy `target_row` schema
+  (`target_wallet_address`, `scale_factor`, `trades_mirrored`); `_already_mirrored`
+  calls used 2-arg signature; metadata assertions checked `copy_target_id`.
+  All updated to new schema (`wallet_address`, `copy_mode`, `copy_amount`, etc.)
+  and 3-arg `_already_mirrored(user_id, task_id, tx_hash)`.
+- `test_signal_following.py` — `test_strategy_scan_delegates_to_evaluator`
+  built expected candidate without `reasoning`; updated to include the injected
+  reasoning string so the equality assertion holds. Subsequent CI pass revealed
+  the expected string `"Signal: Heisenberg feed breakout …"` did not match the
+  code template (`"{feed_name} candidate"`). Corrected to
+  `"Signal: feed candidate — market mkt_1… conf=70%."` (metadata carries no
+  `feed_name` key → default `'feed'` fallback applies).
+- `copy_trade.py` — `rm_mirror` mode (persisted by Telegram wizard and WebTrader
+  router) fell into the fixed-amount else branch, ignoring leader trade size.
+  Added explicit `rm_mirror` path: uses `mirror_size_direct` (same as proportional
+  with no pct), capping at the user's position cap. Unknown modes now log a warning
+  and skip rather than silently mis-sizing.
+- `copy_trade.py` — `proportional` mode with `copy_pct=0` or `None` fell through
+  to the else branch and would have triggered the unknown-mode warning. Now
+  explicitly validated: skips with a warning when `pct <= 0`.
+- `_normalise_side` — unvalidated `side` and `copy_direction` inputs could produce
+  silent incorrect routing. Now guards both fields before any logic executes.
 
 ---
 
