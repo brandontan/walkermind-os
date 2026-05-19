@@ -1,5 +1,5 @@
-Last Updated : 2026-05-19 19:25
-Status       : WARP-32 MERGED PR #1174 (c34a4276) — SQL isolation audit PASS, /admin status HUD, Migration 042 DROP sessions. STANDARD, NARROW INTEGRATION.
+Last Updated : 2026-05-19 20:20
+Status       : WARP-33 MERGED (direct-apply fdc2367a) — Phase 4 Public Readiness Gate complete. README tree fix, KNOWLEDGE_BASE refresh, forge report. MINOR, FOUNDATION.
 
 [COMPLETED]
 - WARP-32 MERGED PR #1174 (c34a4276): SQL isolation audit PASS (zero user_id leaks across all handlers/services), /admin status HUD added to admin_root() (DB+cache health, user counts, pool USDC, open positions paper/live, paper PnL, kill switch, 4 guards, last 3 jobs), Migration 042 DROP TABLE sessions (stateless JWT confirmed, zero refs). STANDARD, NARROW INTEGRATION.
