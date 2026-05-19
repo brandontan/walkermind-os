@@ -1,5 +1,5 @@
-Last Updated : 2026-05-19 22:00
-Status       : WARP-31 PR open — Phase 2 Power Mode UX: 8-step concierge onboarding wizard, dynamic state-aware main menu, 32-char DIV standardization. STANDARD, NARROW INTEGRATION.
+Last Updated : 2026-05-19 18:30
+Status       : WARP-31 Phase 2 Power Mode UX — 8-step concierge onboarding, dynamic menu, DIV standardization. STANDARD, NARROW INTEGRATION. PR #1173 open, awaiting merge.
 
 [COMPLETED]
 - WARP-26 MERGED PR #1169 (rebase, superseded #1168): copy_trade.py reads copy_trade_tasks (was copy_targets), dedup via copy_trade_idempotency, copy_direction + sizing via copy_mode + rm_mirror explicit sizing path (mirror_size_direct, unknown mode guard). SignalCandidate.reasoning added; all 3 strategies populate it. messages.py all dividers 32-char. test_copy_trade.py + test_signal_following.py aligned to new schema. compileall + CI + SonarQube clean. MAJOR, FULL RUNTIME INTEGRATION. WARP🔹CMD merged directly without SENTINEL run.
@@ -16,7 +16,7 @@ Status       : WARP-31 PR open — Phase 2 Power Mode UX: 8-step concierge onboa
 - crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.
 
 [IN PROGRESS]
-- WARP-31 WARP/phase-2-power-mode-ux PR open — 8-step concierge onboarding wizard, dynamic state-aware main menu, 32-char DIV standardization. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
+- WARP-30 phase1-hardening-db-cleanup PR open — signal freshness gate tests (4 cases), SSE reliability audit PASS, migrations 030/031/041 applied to Supabase production. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP-25 telegram-functional-routing-fix PR open — show_positions() callback fix + Positions [🛑 Close] buttons + Trades history-only keyboard + preset picker short labels. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/expand-webtrader-pagination PR open — WARP-19: Load More pagination for Live Market Feed (DashboardPage), Leaderboard Rankings (CopyTradePage), Closed Trades (PortfolioPage), Orders (PortfolioPage). offset param added to getRecentSignals, getLeaderboard, getPositions, getOrders in api.ts. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/tg-ux-redesign PR open — WARP-24: Dashboard HUD redesigned as tactical terminal (<pre> blocks + DIV dividers + Last Scan heartbeat + 🟢/🔴 P&L indicator). Auto Mode wizard: compact picker grid → in-place detail view → Back/Home nav. Main menu 🤖 Auto Mode routes directly to preset picker. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
