@@ -1,7 +1,8 @@
-Last Updated : 2026-05-19 18:30
-Status       : WARP-31 Phase 2 Power Mode UX — 8-step concierge onboarding, dynamic menu, DIV standardization. STANDARD, NARROW INTEGRATION. PR #1173 open, awaiting merge.
+Last Updated : 2026-05-19 19:05
+Status       : WARP-31 MERGED PR #1173 (8563d6b1) — 8-step concierge onboarding wizard, dynamic state-aware main menu, 32-char DIV standardization. STANDARD, NARROW INTEGRATION.
 
 [COMPLETED]
+- WARP-31 MERGED PR #1173 (8563d6b1): 8-step concierge onboarding wizard (Welcome→HowItWorks→Wallet→PaperCredit→Risk→PresetPick→Review→Launch), dynamic state-aware main_menu() with paused/open_count labels, 32-char DIV constant standardized across all messages.py screens. STANDARD, NARROW INTEGRATION. GATE conflict-resolved with main post PR #1172.
 - WARP-26 MERGED PR #1169 (rebase, superseded #1168): copy_trade.py reads copy_trade_tasks (was copy_targets), dedup via copy_trade_idempotency, copy_direction + sizing via copy_mode + rm_mirror explicit sizing path (mirror_size_direct, unknown mode guard). SignalCandidate.reasoning added; all 3 strategies populate it. messages.py all dividers 32-char. test_copy_trade.py + test_signal_following.py aligned to new schema. compileall + CI + SonarQube clean. MAJOR, FULL RUNTIME INTEGRATION. WARP🔹CMD merged directly without SENTINEL run.
 - WARP-28 dashboard-corruption-fix: repaired 3 Base64-corrupted files (dashboard.py 351L, copy_trade.py 462L, types.py 138L) + messages.py DIV 26→32. compileall clean. STANDARD, NARROW INTEGRATION.
 - WARP-17 WARP/fix-kill-switch-db-table: fixed kill_switch_exec.py _set_system_flag() to target system_settings (was system_flags); MAJOR, FULL RUNTIME INTEGRATION. SENTINEL APPROVED 93/100.
@@ -62,7 +63,6 @@ Status       : WARP-31 Phase 2 Power Mode UX — 8-step concierge onboarding, dy
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for WARP-31 power-mode-ux (8-step concierge onboarding, dynamic main menu, DIV standardization). Source: projects/polymarket/crusaderbot/reports/forge/power-mode-ux.md. Tier: STANDARD.
 - WARP🔹CMD review + URGENT MERGE required for WARP-28 dashboard-corruption-fix (deployment blocker). Source: projects/polymarket/crusaderbot/reports/forge/dashboard-corruption-fix.md. Tier: STANDARD. After merge: Fly.io redeploy required.
 - WARP🔹CMD review required for WARP-25 telegram-functional-routing-fix (Positions callback fix + Close buttons + Trades history separation + preset label fix). Source: projects/polymarket/crusaderbot/reports/forge/telegram-functional-routing-fix.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/expand-webtrader-pagination (WARP-19: Load More pagination — Live Market Feed, Leaderboard, Closed Trades, Orders). Source: projects/polymarket/crusaderbot/reports/forge/expand-webtrader-pagination.md. Tier: STANDARD. No migration required.
