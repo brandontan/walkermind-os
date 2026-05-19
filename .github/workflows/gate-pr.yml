@@ -82,7 +82,7 @@ jobs:
 
           text = (
               f"🔹 *WARP GATE ALERT*\n\n"
-              f"@wingman\\_hub\\_assistant\\_bot PR ready for review\n\n"
+              f"@walk3r69 PR ready for review\n\n"
               f"PR: [\\#{pr_num}]({pr_url})\n"
               f"Branch: `{pr_branch}`\n"
               f"Author: {pr_author}"
