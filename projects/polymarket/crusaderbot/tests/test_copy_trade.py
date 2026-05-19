@@ -835,8 +835,7 @@ def _build_target_row():
         "copy_mode": "rm_mirror",
         "copy_amount": None, "copy_pct": None, "copy_direction": "buys_only", "min_trade_size": 0.5,
         "created_at": datetime.now(timezone.utc),
-        # leader_bankroll_estimate is intentionally absent — column not yet
-        # backfilled. The strategy must fall back to mirror_size_direct.
+        # leader_bankroll_estimate absent by design; copy_mode="rm_mirror" takes the explicit rm_mirror path via mirror_size_direct.
     }
 
 

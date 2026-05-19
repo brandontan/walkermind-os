@@ -25,7 +25,7 @@ Sizing logic replaced: `leader_bankroll_estimate` / `scale_size` removed;
 `SignalCandidate` gains `reasoning: str = ""` field (backward-compatible
 default). All three active strategies populate it:
 - CopyTrade: "CopyTrade: Mirroring {task_name} ({wallet[:8]}…). Mode=…, Size=$…."
-- SignalFollowing: "Signal: Heisenberg feed breakout — market {id[:8]}… conf=X%."
+- SignalFollowing: "Signal: {feed_name} candidate — market {id[:8]}… conf=X%." (feed_name fallback = 'feed')
 - MomentumReversal: "Momentum: YES oversold — 24h drop X%, price Y, conf=Z%."
 Note: `confidence` already existed as a required field on `SignalCandidate`
 (added in an earlier phase). Only `reasoning` was missing; no duplicate added.
