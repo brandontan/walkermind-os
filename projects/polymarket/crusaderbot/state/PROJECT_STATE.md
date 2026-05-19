@@ -1,5 +1,5 @@
-Last Updated : 2026-05-19 20:20
-Status       : WARP-33 MERGED (direct-apply fdc2367a) — Phase 4 Public Readiness Gate complete. README tree fix, KNOWLEDGE_BASE refresh, forge report. MINOR, FOUNDATION.
+Last Updated : 2026-05-19 21:30
+Status       : WARP•FORGE fix task complete — 3 open GitHub issues fixed across 3 branches: TG edit-not-modified guard (PR #1179), leaderboard NUMERIC overflow clamp (PR #1180), date-str query arg regression tests (PR open). All STANDARD, NARROW INTEGRATION.
 
 [COMPLETED]
 - WARP-32 MERGED PR #1174 (c34a4276): SQL isolation audit PASS (zero user_id leaks across all handlers/services), /admin status HUD added to admin_root() (DB+cache health, user counts, pool USDC, open positions paper/live, paper PnL, kill switch, 4 guards, last 3 jobs), Migration 042 DROP TABLE sessions (stateless JWT confirmed, zero refs). STANDARD, NARROW INTEGRATION.
@@ -19,6 +19,9 @@ Status       : WARP-33 MERGED (direct-apply fdc2367a) — Phase 4 Public Readine
 
 [IN PROGRESS]
 
+- WARP/fix-tg-edit-not-modified PR #1179 open — BadRequest not-modified guard on 6 edit_reply_markup call sites (setup.py x5, settings.py x1); prevents traceback on double-tap. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
+- WARP/fix-leaderboard-numeric-overflow PR #1180 open — math.isfinite guard in _safe_float, _clamp helper, NUMERIC(8,4)/NUMERIC(18,6) bounds enforcement, raw+clamped warning log. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
+- WARP/fix-date-str-query-arg PR open — regression tests for _get_daily_spend + _record_spend asserting datetime.date (not str) passed to asyncpg. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP-30 phase1-hardening-db-cleanup PR open — signal freshness gate tests (4 cases), SSE reliability audit PASS, migrations 030/031/041 applied to Supabase production. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP-25 telegram-functional-routing-fix PR open — show_positions() callback fix + Positions [🛑 Close] buttons + Trades history-only keyboard + preset picker short labels. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/expand-webtrader-pagination PR open — WARP-19: Load More pagination for Live Market Feed (DashboardPage), Leaderboard Rankings (CopyTradePage), Closed Trades (PortfolioPage), Orders (PortfolioPage). offset param added to getRecentSignals, getLeaderboard, getPositions, getOrders in api.ts. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.

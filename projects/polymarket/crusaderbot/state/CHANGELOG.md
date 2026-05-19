@@ -1,3 +1,4 @@
+2026-05-19 21:30 | WARP/fix-date-str-query-arg | issue #1176 regression tests: _get_daily_spend + _record_spend assert datetime.date (not str) passed to asyncpg; STANDARD, NARROW INTEGRATION
 2026-05-19 20:20 | WARP/public-readiness-gate | WARP-33 MERGED direct-apply (f6525a5c→fdc2367a): README repo-structure tree fix, KNOWLEDGE_BASE header refresh (WalkerMind OS, walkermind-os URL, WARP CMD), Phase 4 forge report added; MINOR, FOUNDATION, PAPER-ONLY
 2026-05-19 19:25 | WARP-32/multi-user-isolation-admin-hud | WARP-32 MERGED PR #1174 (c34a4276): SQL isolation audit PASS, /admin status HUD, Migration 042 DROP TABLE sessions; STANDARD, NARROW INTEGRATION
 2026-05-19 19:05 | WARP/phase-2-power-mode-ux | WARP-31 MERGED PR #1173 (8563d6b1): 8-step concierge onboarding wizard, dynamic state-aware main menu (paused/open_count labels), 32-char DIV standardization across all Telegram screens; STANDARD, NARROW INTEGRATION
