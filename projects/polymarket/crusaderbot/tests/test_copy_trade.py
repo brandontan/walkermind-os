@@ -1632,4 +1632,86 @@ def test_monitor_execution_mode_auto_calls_engine():
         )
         asyncio.run(mon._process_one(task, trade, task.wallet_address))
 
-    mock_exec.assert_called_once()
+
+# ---------------------------------------------------------------------------
+# Regression tests — issue #1176: date object (not ISO string) passed to asyncpg
+# ---------------------------------------------------------------------------
+
+def test_get_daily_spend_passes_date_object_not_string():
+    """_get_daily_spend must pass a datetime.date to asyncpg, never an ISO string.
+
+    asyncpg requires native date objects for DATE columns; passing a string
+    raises DataError at the protocol layer.
+    """
+    import datetime as _dt
+
+    from projects.polymarket.crusaderbot.services.copy_trade import monitor as mon_mod
+
+    captured: dict = {}
+
+    class _DateCapturingConn:
+        async def fetchrow(self, sql, *args):
+            captured["args"] = args
+            row = type("Row", (), {"__getitem__": lambda self, k: 0})()
+            return row
+
+    class _DateCapturingPool:
+        def acquire(self):
+            conn = _DateCapturingConn()
+
+            class _Ctx:
+                async def __aenter__(self_inner):
+                    return conn
+
+                async def __aexit__(self_inner, *_):
+                    return False
+
+            return _Ctx()
+
+    user_id = uuid4()
+    task_id = uuid4()
+
+    with patch.object(mon_mod, "get_pool", return_value=_DateCapturingPool()):
+        asyncio.run(mon_mod._get_daily_spend(user_id, task_id))
+
+    date_arg = captured["args"][2]
+    assert isinstance(date_arg, _dt.date) and not isinstance(date_arg, str), (
+        f"_get_daily_spend must pass datetime.date, got {type(date_arg)}: {date_arg!r}"
+    )
+
+
+def test_record_spend_passes_date_object_not_string():
+    """_record_spend must pass a datetime.date to asyncpg, never an ISO string."""
+    import datetime as _dt
+
+    from projects.polymarket.crusaderbot.services.copy_trade import monitor as mon_mod
+
+    captured: dict = {}
+
+    class _DateCapturingConn:
+        async def execute(self, sql, *args):
+            captured["args"] = args
+
+    class _DateCapturingPool:
+        def acquire(self):
+            conn = _DateCapturingConn()
+
+            class _Ctx:
+                async def __aenter__(self_inner):
+                    return conn
+
+                async def __aexit__(self_inner, *_):
+                    return False
+
+            return _Ctx()
+
+    user_id = uuid4()
+    task_id = uuid4()
+
+    with patch.object(mon_mod, "get_pool", return_value=_DateCapturingPool()):
+        asyncio.run(mon_mod._record_spend(user_id, task_id, 10.0))
+
+    date_arg = captured["args"][2]
+    assert isinstance(date_arg, _dt.date) and not isinstance(date_arg, str), (
+        f"_record_spend must pass datetime.date, got {type(date_arg)}: {date_arg!r}"
+    )

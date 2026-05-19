@@ -166,8 +166,20 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
                 raw_clob = clob_resp.get("price")
                 if raw_clob is not None:
                     clob_price = float(raw_clob)
-                    if 0.0 <= clob_price <= 1.0:
+                    # CLOB /price returns the degenerate sentinels 1.0 (no
+                    # asks) / 0.0 (no bids) when that side of the book is
+                    # empty — common on thin longshot markets. Treating that
+                    # as a live mark prices an open 5.5c position as if it
+                    # resolved at $1.00, producing the +900% P&L bug. Accept
+                    # only a strictly-interior price; otherwise fall through
+                    # to the Gamma outcomePrices last-trade fallback.
+                    if 0.0 < clob_price < 1.0:
                         return clob_price
+                    logger.warning(
+                        "get_live_market_price CLOB empty-book sentinel "
+                        "price=%.4f market=%s side=%s — falling back to Gamma",
+                        clob_price, market_id, side,
+                    )
         except Exception as exc:
             logger.warning(
                 "get_live_market_price CLOB price failed market=%s side=%s: %s",
@@ -189,7 +201,11 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
         if raw is None:
             return None
         price = float(raw)
-        if not (0.0 <= price <= 1.0):
+        # Strictly-interior only: exactly 0.0/1.0 is the settled outcome
+        # value, not a live tradeable mark for a still-open position.
+        # Returning None here makes callers fall back to entry_price
+        # (unrealised P&L == 0 / "N/A") instead of a 1.0-inflated figure.
+        if not (0.0 < price < 1.0):
             logger.warning(
                 "get_live_market_price out-of-range price=%.4f market=%s side=%s",
                 price, market_id, side,
