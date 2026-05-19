@@ -66,9 +66,9 @@ Mr. Walker  →  WARP🔹CMD  →  WARP🔸CORE (WARP•FORGE / WARP•SENTINEL 
 walkermind-os/
 ├── AGENTS.md                           ← highest authority — global rules
 ├── PROJECT_REGISTRY.md                 ← active project registry
+├── CLAUDE.md                           ← Claude Code agent rules
+├── COMMANDER.md                        ← WARP🔹CMD operating reference
 ├── docs/
-│   ├── COMMANDER.md                    ← WARP🔹CMD operating reference
-│   ├── CLAUDE.md                       ← Claude Code agent rules
 │   ├── KNOWLEDGE_BASE.md               ← architecture, infra, API reference
 │   ├── workflow_and_execution_model.md ← W.A.R.P operational protocol
 │   ├── blueprint/                      ← target architecture guidance

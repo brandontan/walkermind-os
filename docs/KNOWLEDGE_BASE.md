@@ -1,7 +1,8 @@
-# KNOWLEDGE BASE — Walker AI Trading Team
-> Master reference file for COMMANDER
-> Repo: https://github.com/bayuewalker/walker-ai-team
-> Last Updated: 2026-03-30
+# KNOWLEDGE BASE — WalkerMind OS
+> Master reference file for WARP🔹CMD
+> Repo: https://github.com/bayuewalker/walkermind-os
+> Audience: experienced traders and platform developers
+> Last Updated: 2026-05-19
 
 ---
 
