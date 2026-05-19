@@ -35,7 +35,7 @@ Unchanged. Handler layer only — no DB, no scheduler, no core pipeline touched.
 
 ## 3. Files created / modified
 
-- `projects/polymarket/crusaderbot/bot/handlers/setup.py` — added not-modified guard to: `setup_dispatch` (menu sub), `set_strategy`, `set_risk`, `set_category`, `set_mode`
+- `projects/polymarket/crusaderbot/bot/handlers/setup.py` — added not-modified guard to: `setup_callback` (menu sub), `set_strategy`, `set_risk`, `set_category`, `set_mode`
 - `projects/polymarket/crusaderbot/bot/handlers/settings.py` — added not-modified guard to `autoredeem` redeem_set block
 
 ---
@@ -43,9 +43,9 @@ Unchanged. Handler layer only — no DB, no scheduler, no core pipeline touched.
 ## 4. What is working
 
 - `set_risk`: double-tap no longer logs BadRequest; genuine errors still surface
-- `set_strategy`, `set_category`, `set_mode`, `setup_dispatch:menu`: same guard applied
+- `set_strategy`, `set_category`, `set_mode`, `setup_callback:menu`: same guard applied
 - `settings.py:autoredeem`: same guard applied
-- `settings.py:_render_settings` (line 128): already had "Message is not modified" check — no change needed
+- `settings.py:_render_hub` (line 128): already had "Message is not modified" check — no change needed
 - compileall: clean
 
 ---
