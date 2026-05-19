@@ -50,12 +50,12 @@ from projects.polymarket.crusaderbot.bot.keyboards import main_menu
 
 
 def test_main_menu_button_count():
-    # V5 AUTOBOT: fixed 5-button grid regardless of bot state
+    # fixed 5-button grid regardless of bot state
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
     assert len(all_buttons) == 5
-    # Running state: also 5 buttons (fixed layout)
-    kb2 = main_menu(strategy_key="signal_sniper", auto_on=True)
+    # Running state: also 5 buttons
+    kb2 = main_menu(auto_on=True)
     assert len([btn for row in kb2.keyboard for btn in row]) == 5
 
 
@@ -76,8 +76,8 @@ def test_main_menu_has_help_not_emergency():
 
 
 def test_main_menu_v5_layout():
-    # V5: fixed 2-col grid — [Dashboard|Portfolio] / [Auto Mode|Settings] / [Help]
-    kb = main_menu(strategy_key="signal_sniper", auto_on=True)
+    # 2-col grid — [Dashboard|Portfolio] / [Auto Mode|Settings] / [Help]
+    kb = main_menu(auto_on=True)
     row0 = {btn.text for btn in kb.keyboard[0]}
     row1 = {btn.text for btn in kb.keyboard[1]}
     row2 = [btn.text for btn in kb.keyboard[2]]

@@ -38,6 +38,7 @@ from projects.polymarket.crusaderbot.bot.keyboards.onboarding import (
 import projects.polymarket.crusaderbot.bot.handlers.onboarding as ob_mod
 from projects.polymarket.crusaderbot.bot.handlers.onboarding import (
     ONBOARD_WELCOME,
+    ONBOARD_HOW_IT_WORKS,
     ONBOARD_WALLET,
     _entry,
     _start_cb,
@@ -225,16 +226,14 @@ def test_returning_any_tier_user_routes_to_dashboard():
 # 7: Get Started callback — seeds wallet, shows wallet text, returns ONBOARD_WALLET
 # ---------------------------------------------------------------------------
 
-def test_get_started_moves_to_wallet_step():
-    """V6: _start_cb handles onboard:get_started, shows wallet text, returns ONBOARD_WALLET."""
-    update, replies = _make_cb_update("onboard:get_started")
+def test_get_started_moves_to_how_it_works_step():
+    """8-step wizard: _start_cb shows how-it-works screen, returns ONBOARD_HOW_IT_WORKS."""
+    update, replies = _make_cb_update("onboard:start")
     ctx = _ctx()
-    mock_user = _make_user()
 
-    with patch.object(ob_mod, "upsert_user", AsyncMock(return_value=mock_user)):
-        result = asyncio.run(_start_cb(update, ctx))
+    result = asyncio.run(_start_cb(update, ctx))
 
-    assert result == ONBOARD_WALLET
+    assert result == ONBOARD_HOW_IT_WORKS
     assert len(replies) == 1
 
 

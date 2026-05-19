@@ -147,8 +147,8 @@ def _build_last_scan() -> str:
     return ts.strftime("%H:%M:%S")
 
 
-async def _build_dashboard_message(user: dict) -> tuple[str, bool]:
-    """Return (message_text, has_preset). All data live from DB."""
+async def _build_dashboard_message(user: dict) -> tuple[str, bool, int]:
+    """Return (message_text, has_preset, open_count). All data live from DB."""
     bal = await get_balance(user["id"])
     pnl_today = await daily_pnl(user["id"])
     st = await _fetch_stats(user["id"])
@@ -202,7 +202,7 @@ async def _build_dashboard_message(user: dict) -> tuple[str, bool]:
         pulse_line=pulse_line,
         last_scan=_build_last_scan(),
     )
-    return text, bool(preset_key)
+    return text, bool(preset_key), int(st["open_positions"])
 
 
 # ── Public entry points ────────────────────────────────────────────────────────
@@ -217,15 +217,16 @@ async def show_dashboard(
         return
     if user is None:
         user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    text, has_preset = await _build_dashboard_message(user)
+    text, has_preset, open_count = await _build_dashboard_message(user)
     target = update.message or (
         update.callback_query.message if update.callback_query else None
     )
     if target is None:
         return
     nav_kb = main_menu(
-        strategy_key="set" if has_preset else None,
         auto_on=user.get("auto_trade_on", False),
+        paused=user.get("paused", False),
+        open_count=open_count,
     )
     await target.reply_text(
         text,
@@ -244,12 +245,13 @@ async def show_dashboard_for_cb(
     if update.effective_user is None:
         return
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    text, has_preset = await _build_dashboard_message(user)
+    text, has_preset, open_count = await _build_dashboard_message(user)
     kb = p5_dashboard_kb(has_preset)
 
     nav_kb = main_menu(
-        strategy_key="set" if has_preset else None,
         auto_on=user.get("auto_trade_on", False),
+        paused=user.get("paused", False),
+        open_count=open_count,
     )
     if q is not None and q.message is not None:
         try:
@@ -325,7 +327,7 @@ async def autotrade_toggle_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
     new_state = not user.get("auto_trade_on", False)
     await set_auto_trade(user["id"], new_state)
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    text, has_preset = await _build_dashboard_message(user)
+    text, has_preset, _open_count = await _build_dashboard_message(user)
     try:
         await q.edit_message_text(
             text, parse_mode=ParseMode.HTML, reply_markup=p5_dashboard_kb(has_preset),
