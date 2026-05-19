@@ -25,12 +25,32 @@ def nav_row(back_data: str = "dashboard:main") -> list[InlineKeyboardButton]:
     ]
 
 
-def main_menu_keyboard() -> ReplyKeyboardMarkup:
-    """V5 AUTOBOT fixed 5-button persistent nav keyboard."""
+def main_menu_keyboard(
+    *,
+    auto_on: bool = False,
+    paused: bool = False,
+    has_preset: bool = False,
+    open_count: int = 0,
+) -> ReplyKeyboardMarkup:
+    """State-aware persistent nav keyboard.
+
+    Labels adapt to user state:
+    - auto_label: "▶️ Resume" if paused, "🤖 Setup Auto" if no preset, else "🤖 Auto Mode"
+    - portfolio_label: includes open position count when non-zero
+    """
+    if paused:
+        auto_label = "▶️ Resume"
+    elif not has_preset:
+        auto_label = "🤖 Setup Auto"
+    else:
+        auto_label = "🤖 Auto Mode"
+
+    portfolio_label = f"💼 Trades ({open_count})" if open_count > 0 else "💼 Portfolio"
+
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("📊 Dashboard"),  KeyboardButton("💼 Portfolio")],
-            [KeyboardButton("🤖 Auto Mode"),  KeyboardButton("⚙️ Settings")],
+            [KeyboardButton("📊 Dashboard"),       KeyboardButton(portfolio_label)],
+            [KeyboardButton(auto_label),            KeyboardButton("⚙️ Settings")],
             [KeyboardButton("❓ Help")],
         ],
         resize_keyboard=True,
@@ -39,18 +59,21 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-def main_menu(strategy_key: str | None = None, auto_on: bool = False) -> ReplyKeyboardMarkup:
-    """V5 AUTOBOT fixed 5-button 2-column persistent nav.
-
-    strategy_key and auto_on are kept for backward-compat with existing callers
-    but are no longer used to vary the layout.
-    """
-    rows = [
-        [KeyboardButton("📊 Dashboard"),  KeyboardButton("💼 Portfolio")],
-        [KeyboardButton("🤖 Auto Mode"),  KeyboardButton("⚙️ Settings")],
-        [KeyboardButton("❓ Help")],
-    ]
-    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
+def main_menu(
+    strategy_key: str | None = None,
+    auto_on: bool = False,
+    *,
+    paused: bool = False,
+    has_preset: bool = False,
+    open_count: int = 0,
+) -> ReplyKeyboardMarkup:
+    """Alias for main_menu_keyboard() with backward-compatible positional args."""
+    return main_menu_keyboard(
+        auto_on=auto_on,
+        paused=paused,
+        has_preset=has_preset,
+        open_count=open_count,
+    )
 
 
 def dashboard_kb() -> InlineKeyboardMarkup:

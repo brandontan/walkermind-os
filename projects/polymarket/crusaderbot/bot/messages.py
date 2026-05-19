@@ -201,13 +201,119 @@ def health_alert_text(
     return body
 
 
+# ── Concierge Onboarding (8-step wizard) ─────────────────────────────────────
+
+def onboard_welcome_text() -> str:
+    return (
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
+        + DIV + "\n\n"
+        "<b>Step 1 of 8 — Welcome</b>\n\n"
+        "Your autonomous Polymarket trading copilot.\n\n"
+        "<blockquote>📋 Paper Mode — safe sandbox, no real capital at risk.</blockquote>\n\n"
+        "Tap below to begin your 8-step setup."
+    )
+
+
+def onboard_how_it_works_text() -> str:
+    return (
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
+        + DIV + "\n\n"
+        "<b>Step 2 of 8 — How It Works</b>\n\n"
+        "1️⃣  <b>Wallet</b> — a deposit address is created for you\n"
+        "2️⃣  <b>Strategy</b> — you pick a risk profile and preset\n"
+        "3️⃣  <b>Auto-Trade</b> — the bot scans and trades 24/7\n\n"
+        "All new accounts start with $1,000 virtual USDC in paper mode.\n"
+        "No real funds are used until you explicitly go live."
+    )
+
+
+def onboard_wallet_text(address: str) -> str:
+    esc = html.escape(address)
+    return (
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
+        + DIV + "\n\n"
+        "<b>Step 3 of 8 — Your Wallet</b>\n\n"
+        "✅ Wallet created. Your deposit address:\n\n"
+        f"<pre>{esc}</pre>\n\n"
+        "This address accepts USDC on Polygon.\n"
+        "Minimum deposit to go live: $50"
+    )
+
+
+def onboard_paper_credit_text() -> str:
+    return (
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
+        + DIV + "\n\n"
+        "<b>Step 4 of 8 — Paper Credit</b>\n\n"
+        "<pre>"
+        + _table([
+            ("Balance:", "$1,000.00 USDC"),
+            ("Mode:",    "📝 Paper (Safe)"),
+        ], width=9)
+        + "</pre>\n\n"
+        "✅ $1,000 virtual USDC has been credited to your account.\n"
+        "All trades are simulated — zero financial risk."
+    )
+
+
+def onboard_risk_text() -> str:
+    return (
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
+        + DIV + "\n\n"
+        "<b>Step 5 of 8 — Risk Profile</b>\n\n"
+        "<b>📡 Conservative</b>  🟢 Low risk\n"
+        "Capital: 20% per trade · fewer, higher-conviction entries\n\n"
+        "<b>⚡ Balanced</b>  🟡 Medium risk  ⭐ Recommended\n"
+        "Capital: 40% per trade · steady daily opportunities\n\n"
+        "<b>🚀 Aggressive</b>  🔴 High risk\n"
+        "Capital: 60% per trade · all signals active, max exposure\n\n"
+        "Choose your trading style:"
+    )
+
+
+def onboard_preset_pick_text() -> str:
+    return (
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
+        + DIV + "\n\n"
+        "<b>Step 6 of 8 — Strategy Preset</b>\n\n"
+        "Each preset bundles a strategy, risk settings, and sizing.\n\n"
+        "<b>🐋 Whale Mirror</b> — follow proven Polymarket wallets\n"
+        "<b>📡 Signal Sniper</b> — trade from curated signal feeds\n"
+        "<b>🐋📡 Hybrid</b> — whale + signal combined\n"
+        "<b>🎯 Value Hunter</b> — edge model, mispriced markets\n"
+        "<b>📈 Trend Breakout</b> — momentum-based entries\n"
+        "<b>🔄 Contrarian</b> — fade the crowd strategy\n"
+        "<b>🤖 Ensemble</b> — multi-strategy, AI-weighted\n"
+        "<b>🚀 Full Auto</b> — all strategies, max exposure\n\n"
+        "Pick a preset to continue:"
+    )
+
+
+def onboard_review_text(risk_label: str, preset_emoji: str, preset_name: str) -> str:
+    return (
+        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
+        + DIV + "\n\n"
+        "<b>Step 7 of 8 — Review Your Setup</b>\n\n"
+        "<pre>"
+        + _table([
+            ("Risk:",    html.escape(risk_label)),
+            ("Preset:",  f"{html.escape(preset_emoji)} {html.escape(preset_name)}"),
+            ("Balance:", "$1,000.00 USDC"),
+            ("Mode:",    "📝 Paper (Safe)"),
+        ], width=9)
+        + "</pre>\n\n"
+        "Everything looks good? Tap <b>🚀 Start Trading</b> to activate.\n"
+        "You can change any setting from the menu at any time."
+    )
+
+
 # ── Screen 01 — Welcome ────────────────────────────────────────────────────────
 
 BRAND = "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>"
 
 WELCOME_TEXT = (
     "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    + DIV + "\n\n"
     "Your autonomous Polymarket trading copilot.\n\n"
     "Here's how it works:\n"
     "1️⃣  We create a wallet for you\n"
@@ -219,7 +325,7 @@ WELCOME_TEXT = (
 
 LEARN_MORE_TEXT = (
     "<b>ℹ️ About CrusaderBot</b>\n"
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    + DIV + "\n\n"
     "<b>What is CrusaderBot?</b>\n"
     "An autonomous trading bot for Polymarket prediction markets. "
     "It scans markets 24/7, identifies opportunities, and executes trades "
@@ -345,7 +451,7 @@ def dashboard_text(
 
 PRESET_PICKER_TEXT = (
     "<b>🤖 Auto-Trade Presets</b>\n"
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    + DIV + "\n\n"
     "Pick a trading style that fits you.\n"
     "Each preset bundles strategy + risk + sizing.\n\n"
     "<b>⭐ Recommended</b>\n\n"
@@ -353,7 +459,7 @@ PRESET_PICKER_TEXT = (
     "Follow proven Polymarket wallets with\n"
     "verified track records. Low effort,\n"
     "steady returns.\n\n"
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    + DIV + "\n\n"
     "<b>📡 Signal Sniper</b>  🟢 Safe\n"
     "Auto-trade from curated signal feeds.\n"
     "Lower frequency, higher conviction.\n\n"
@@ -384,7 +490,7 @@ def preset_confirm_text(
 ) -> str:
     return (
         "<b>🤖 Auto-Trade Setup</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        + DIV + "\n\n"
         f"📋 Preset: {html.escape(preset_emoji)} {html.escape(preset_name)}\n"
         f"├─ Strategy:      {html.escape(strategy_label)}\n"
         f"├─ Risk:          {html.escape(risk_emoji)} {html.escape(risk_label)}\n"
@@ -412,7 +518,7 @@ def preset_active_text(
 ) -> str:
     return (
         "<b>🤖 Auto-Trade Status</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        + DIV + "\n\n"
         f"📋 Active Preset: {html.escape(preset_emoji)} {html.escape(preset_name)}\n"
         f"├─ Status:        🟢 RUNNING\n"
         f"├─ Since:         {html.escape(activated_date)}\n"
@@ -441,7 +547,7 @@ def preset_activated_success_text(preset_emoji: str, preset_name: str) -> str:
 def trades_empty_text() -> str:
     return (
         "<b>📈 My Trades</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        + DIV + "\n\n"
         "No open positions yet.\n\n"
         "Start your auto-trade preset to\n"
         "begin building your portfolio."
@@ -454,7 +560,7 @@ def trades_text(
 ) -> str:
     lines = [
         "<b>📈 My Trades</b>",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        DIV,
         "",
         f"<b>📌 Open Positions ({len(open_positions)})</b>",
         "",
@@ -478,7 +584,7 @@ def trades_text(
         lines.append("")
 
     if recent_closed:
-        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        lines.append(DIV)
         lines.append("")
         lines.append("<b>📋 Recent Activity (last 5)</b>")
         for trade in recent_closed:
@@ -506,7 +612,7 @@ def close_confirm_text(market_question: str, pnl: float, pnl_pct: float) -> str:
 def wallet_text(balance: Decimal | float, address: str) -> str:
     return (
         "<b>💰 Wallet</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        + DIV + "\n\n"
         "<blockquote>📋 Paper Mode — sandbox balance</blockquote>\n\n"
         "<pre>"
         f"Balance:   {_fmt(balance)}\n"
@@ -521,7 +627,7 @@ def wallet_text(balance: Decimal | float, address: str) -> str:
 
 EMERGENCY_TEXT = (
     "<b>🚨 Emergency Controls</b>\n"
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    + DIV + "\n\n"
     "⚠️ These actions take effect immediately."
 )
 
@@ -586,7 +692,7 @@ def emergency_system_status_text(
     auto_label = "ON" if (auto_on and not paused and not locked) else "OFF"
     return (
         "<b>ℹ️ System Status</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        + DIV + "\n"
         f"{auto_icon} Auto-Trade: <b>{auto_label}</b>"
         + (" (paused)" if paused and not locked else "")
         + "\n"

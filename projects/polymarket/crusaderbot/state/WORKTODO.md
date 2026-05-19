@@ -80,8 +80,8 @@ Observe the runtime under real usage:
 
 - [ ] No dead buttons
 - [ ] No fake placeholder routes
-- [ ] State-driven keyboard
-- [ ] Concierge onboarding polish
+- [x] State-driven keyboard
+- [x] Concierge onboarding polish
 - [ ] Portfolio / Settings clarity
 - [ ] No legacy tier / operator wording
 
