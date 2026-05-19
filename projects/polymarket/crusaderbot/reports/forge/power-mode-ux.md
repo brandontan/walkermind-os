@@ -55,7 +55,7 @@ All hardcoded `━━━━━━━━━━━━━━━━━━━━━�
 
 ## 2. Current System Architecture
 
-```
+```text
 Telegram /start
   └─ build_onboard_handler() [ConversationHandler — 7 wait-states]
        ├─ Step 1: _entry() → ONBOARD_WELCOME
@@ -115,7 +115,7 @@ messages.py
 
 ## 6. What Is Next
 
-```
+```text
 WARP🔹CMD review required.
 Source: projects/polymarket/crusaderbot/reports/forge/power-mode-ux.md
 Tier: STANDARD

@@ -408,7 +408,10 @@ async def _launch_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     except Exception as exc:
         logger.error("onboard.auto_trade_activate_failed user=%s err=%s", user_id, exc)
 
-    await set_onboarding_complete(user_id)
+    try:
+        await set_onboarding_complete(user_id)
+    except Exception as exc:
+        logger.error("onboard.complete_flag_failed user=%s err=%s", user_id, exc)
     ctx.user_data.pop("onboard_address", None)
 
     from .dashboard import show_dashboard_for_cb

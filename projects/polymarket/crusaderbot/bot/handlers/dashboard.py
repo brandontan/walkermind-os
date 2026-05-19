@@ -329,7 +329,7 @@ async def autotrade_toggle_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
     new_state = not user.get("auto_trade_on", False)
     await set_auto_trade(user["id"], new_state)
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    text, has_preset = await _build_dashboard_message(user)
+    text, has_preset, _open_count = await _build_dashboard_message(user)
     try:
         await q.edit_message_text(
             text, parse_mode=ParseMode.HTML, reply_markup=p5_dashboard_kb(has_preset),

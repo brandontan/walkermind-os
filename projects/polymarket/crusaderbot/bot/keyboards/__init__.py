@@ -40,10 +40,10 @@ def main_menu_keyboard(
     """
     if paused:
         auto_label = "▶️ Resume"
-    elif not has_preset:
-        auto_label = "🤖 Setup Auto"
-    else:
+    elif auto_on and has_preset:
         auto_label = "🤖 Auto Mode"
+    else:
+        auto_label = "🤖 Setup Auto"
 
     portfolio_label = f"💼 Trades ({open_count})" if open_count > 0 else "💼 Portfolio"
 
