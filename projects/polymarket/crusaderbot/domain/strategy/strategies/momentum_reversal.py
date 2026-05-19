@@ -177,6 +177,11 @@ def _evaluate_market(
                 f"24h drop {drop:+.2f}, price {yes_price:.2f}, liq ${liquidity:.0f}"
             ),
         },
+        reasoning=(
+            f"Momentum: YES oversold — "
+            f"24h drop {drop:+.2%}, price {yes_price:.2f}, "
+            f"conf={confidence:.0%}."
+        ),
     )
 
 
