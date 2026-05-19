@@ -22,7 +22,7 @@ Four targeted bug fixes for active Sentry errors:
 
 No structural changes. Pipeline is unchanged:
 
-```
+```text
 DATA -> STRATEGY -> INTELLIGENCE -> RISK -> EXECUTION -> MONITORING
 ```
 
@@ -59,7 +59,7 @@ copy-trade monitor remains PAPER ONLY. All activation guards intact.
 
 ## 6. What is next
 
-```
+```text
 WARP🔹CMD review required.
 Source: projects/polymarket/crusaderbot/reports/forge/fix-sentry-issues.md
 Tier: STANDARD
