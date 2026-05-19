@@ -16,7 +16,7 @@ Pool access patched via asyncpg context manager fakes.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -732,7 +732,6 @@ def test_preset_allows_unknown_preset_defaults_to_all():
 
 def _stale_candidate(age_seconds: float, pub_uuid: UUID = _PUB_UUID) -> SignalCandidate:
     """Candidate with signal_ts set `age_seconds` in the past."""
-    from datetime import timedelta
     ts = datetime.now(timezone.utc) - timedelta(seconds=age_seconds)
     return SignalCandidate(
         market_id=_MARKET_ID,
@@ -758,12 +757,12 @@ def test_process_candidate_skips_stale_publication_signal():
 
     execute_called = {"called": False}
 
-    async def _fake_execute(*a, **kw):
+    def _fake_execute(*a, **kw):
         execute_called["called"] = True
 
     with patch.object(job, "_load_stale_queued_row", return_value=None), \
             patch.object(job, "_publication_already_queued", return_value=False), \
-            patch.object(job._engine, "execute", side_effect=_fake_execute):
+            patch.object(job._engine, "execute", new=AsyncMock(side_effect=_fake_execute)):
         asyncio.run(job._process_candidate(row, cand))
 
     assert not execute_called["called"], "stale signal must not reach trade engine"
@@ -793,24 +792,32 @@ def test_process_candidate_allows_fresh_publication_signal():
 
 
 def test_process_candidate_freshness_gate_skips_exact_boundary():
-    """Signal at exactly the threshold (1800s) is considered stale (> not >=)."""
+    """Signal at exactly 1800s must NOT be dropped (gate is strictly > threshold)."""
     bootstrap_default_strategies()
     row = _user_row()
     cand = _stale_candidate(age_seconds=1800)
 
+    from uuid import uuid4 as _uuid4
+    approved = TradeResult(
+        approved=True, mode="paper",
+        order_id=_uuid4(), position_id=_uuid4(),
+        rejection_reason=None, failed_gate_step=None,
+    )
     execute_called = {"called": False}
 
-    async def _fake_execute(*a, **kw):
+    def _fake_execute(*a, **kw):
         execute_called["called"] = True
+        return approved
 
     with patch.object(job, "_load_stale_queued_row", return_value=None), \
             patch.object(job, "_publication_already_queued", return_value=False), \
-            patch.object(job._engine, "execute", side_effect=_fake_execute):
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job._engine, "execute", new=AsyncMock(side_effect=_fake_execute)), \
+            patch.object(job, "_insert_execution_queue", new=AsyncMock(return_value=True)), \
+            patch.object(job, "_mark_executed", new=AsyncMock()):
         asyncio.run(job._process_candidate(row, cand))
 
-    # 1800s is NOT > 1800 so the gate does not fire — engine may be called
-    # (depends on downstream gates). What matters: no crash and stale-drop
-    # logic only applies to strictly > threshold.
+    assert execute_called["called"], "signal at exactly 1800s must not be dropped by freshness gate"
 
 
 def test_process_candidate_freshness_gate_bypassed_for_lib_strategy():
@@ -819,7 +826,7 @@ def test_process_candidate_freshness_gate_bypassed_for_lib_strategy():
     row = _user_row()
 
     # Build a candidate with no publication_id (lib-strategy path)
-    ts_old = datetime.now(timezone.utc).__class__.fromtimestamp(0, tz=timezone.utc)
+    ts_old = datetime.fromtimestamp(0, tz=timezone.utc)
     lib_cand = SignalCandidate(
         market_id=_MARKET_ID,
         condition_id=_MARKET_ID,
@@ -840,12 +847,12 @@ def test_process_candidate_freshness_gate_bypassed_for_lib_strategy():
 
     engine_called = {"called": False}
 
-    async def _track_execute(*a, **kw):
+    def _track_execute(*a, **kw):
         engine_called["called"] = True
         return approved
 
     with patch.object(job, "_load_market", return_value=_market_row()), \
-            patch.object(job._engine, "execute", side_effect=_track_execute), \
+            patch.object(job._engine, "execute", new=AsyncMock(side_effect=_track_execute)), \
             patch.object(job, "_insert_execution_queue", new=AsyncMock(return_value=True)), \
             patch.object(job, "_mark_executed", new=AsyncMock()):
         asyncio.run(job._process_candidate(row, lib_cand))
