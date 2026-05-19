@@ -119,7 +119,11 @@ Modified:
   and 3-arg `_already_mirrored(user_id, task_id, tx_hash)`.
 - `test_signal_following.py` — `test_strategy_scan_delegates_to_evaluator`
   built expected candidate without `reasoning`; updated to include the injected
-  reasoning string so the equality assertion holds.
+  reasoning string so the equality assertion holds. Subsequent CI pass revealed
+  the expected string `"Signal: Heisenberg feed breakout …"` did not match the
+  code template (`"{feed_name} candidate"`). Corrected to
+  `"Signal: feed candidate — market mkt_1… conf=70%."` (metadata carries no
+  `feed_name` key → default `'feed'` fallback applies).
 - `copy_trade.py` — `rm_mirror` mode (persisted by Telegram wizard and WebTrader
   router) fell into the fixed-amount else branch, ignoring leader trade size.
   Added explicit `rm_mirror` path: uses `mirror_size_direct` (same as proportional
