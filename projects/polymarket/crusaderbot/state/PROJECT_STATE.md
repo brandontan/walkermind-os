@@ -1,7 +1,8 @@
-Last Updated : 2026-05-19 20:15
-Status       : WARP-33 public-readiness-gate PR open — Phase 4 Public Readiness Gate: narrow docs polish (README tree accuracy, KNOWLEDGE_BASE header refresh), logo path verified, documented smoke walkthrough, state sync. MINOR, FOUNDATION. PAPER-ONLY posture unchanged.
+Last Updated : 2026-05-19 21:05
+Status       : WARP-33 public-readiness-gate PR reopened — Phase 4 Public Readiness Gate: narrow docs polish, crusaderbot-logo.png binary committed (branding sub-task closed), documented smoke walkthrough, state sync. MINOR, FOUNDATION. PAPER-ONLY posture unchanged.
 
 [COMPLETED]
+- WARP-33 WARP/public-readiness-gate PR reopened: Phase 4 Public Readiness Gate. crusaderbot-logo.png binary committed to webtrader/frontend/public/ (AuthPage.tsx 80×80 + TopBar.tsx 32×32 refs now resolve). README repo-structure tree corrected (CLAUDE.md/COMMANDER.md at repo root); KNOWLEDGE_BASE.md header refreshed + 4 legacy body refs synced (COMMANDER→WARP🔹CMD, walker-ai-team→walkermind-os); documented paper-mode smoke walkthrough. No badge/visibility flip, no LICENSE/CONTRIBUTING (narrow scope). MINOR, FOUNDATION.
 - WARP-32 MERGED PR #1174 (c34a4276): SQL isolation audit PASS (zero user_id leaks across all handlers/services), /admin status HUD added to admin_root() (DB+cache health, user counts, pool USDC, open positions paper/live, paper PnL, kill switch, 4 guards, last 3 jobs), Migration 042 DROP TABLE sessions (stateless JWT confirmed, zero refs). STANDARD, NARROW INTEGRATION.
 - WARP-31 MERGED PR #1173 (8563d6b1): 8-step concierge onboarding wizard (Welcome→HowItWorks→Wallet→PaperCredit→Risk→PresetPick→Review→Launch), dynamic state-aware main_menu() with paused/open_count labels, 32-char DIV constant standardized across all messages.py screens. STANDARD, NARROW INTEGRATION. GATE conflict-resolved with main post PR #1172.
 - WARP-26 MERGED PR #1169 (rebase, superseded #1168): copy_trade.py reads copy_trade_tasks (was copy_targets), dedup via copy_trade_idempotency, copy_direction + sizing via copy_mode + rm_mirror explicit sizing path (mirror_size_direct, unknown mode guard). SignalCandidate.reasoning added; all 3 strategies populate it. messages.py all dividers 32-char. test_copy_trade.py + test_signal_following.py aligned to new schema. compileall + CI + SonarQube clean. MAJOR, FULL RUNTIME INTEGRATION. WARP🔹CMD merged directly without SENTINEL run.
@@ -65,7 +66,7 @@ Status       : WARP-33 public-readiness-gate PR open — Phase 4 Public Readines
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for WARP-33 public-readiness-gate (Phase 4: README/KNOWLEDGE_BASE narrow polish, logo path verified, smoke walkthrough, state sync). Source: projects/polymarket/crusaderbot/reports/forge/public-readiness-gate.md. Tier: MINOR. Action item: deliver crusaderbot-logo.png binary to complete the branding sub-task.
+- WARP🔹CMD review required for WARP-33 public-readiness-gate (Phase 4: README/KNOWLEDGE_BASE narrow polish, crusaderbot-logo.png committed, smoke walkthrough, state sync). Source: projects/polymarket/crusaderbot/reports/forge/public-readiness-gate.md. Tier: MINOR. Branding sub-task closed — logo binary delivered.
 - WARP🔹CMD review + URGENT MERGE required for WARP-28 dashboard-corruption-fix (deployment blocker). Source: projects/polymarket/crusaderbot/reports/forge/dashboard-corruption-fix.md. Tier: STANDARD. After merge: Fly.io redeploy required.
 - WARP🔹CMD review required for WARP-25 telegram-functional-routing-fix (Positions callback fix + Close buttons + Trades history separation + preset label fix). Source: projects/polymarket/crusaderbot/reports/forge/telegram-functional-routing-fix.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/expand-webtrader-pagination (WARP-19: Load More pagination — Live Market Feed, Leaderboard, Closed Trades, Orders). Source: projects/polymarket/crusaderbot/reports/forge/expand-webtrader-pagination.md. Tier: STANDARD. No migration required.
@@ -109,7 +110,7 @@ Status       : WARP-33 public-readiness-gate PR open — Phase 4 Public Readines
 - Dual tier tables (users.access_tier integer + user_tiers string) retained by design (logic+UX collapse, no DB teardown). Internal-only; not user-visible. Full schema removal deferred to a separate migration lane if ever required.
 - New users before runtime-autotrade-fix deploy still receive $0 balance — two affected users (qwneer8, Maver1ch69) already backfilled via SQL; fix ships with this PR.
 - Fly.io deploy blocked until migration 030 (job_runs metadata JSONB) applied to production — trading-unblock MERGED PR #1065, live on main.
-- crusaderbot-logo.png binary not yet in repo — WARP-33 verified the img path /crusaderbot-logo.png in AuthPage.tsx + TopBar.tsx and the target webtrader/frontend/public/ dir; references render broken until the PNG binary is delivered and committed. Branding sub-task of Phase 4 gate remains gated on binary delivery.
+- [RESOLVED in WARP-33] crusaderbot-logo.png binary committed to webtrader/frontend/public/ — owner-delivered; AuthPage.tsx (80×80) + TopBar.tsx (32×32) refs now resolve. Branding sub-task of Phase 4 gate closed. Renders after Vite build + Fly.io deploy.
 - 5 positions stuck open — trading-unblock MERGED PR #1065. Will auto-close as MARKET_EXPIRED within 1 exit_watch tick (60s) after migration 030 applied and Fly.io deploy completes.
 - fly CLI not installed in cloud execution environment — deploy step requires WARP🔹CMD manual execution from fly CLI machine.
 - migration 027 (notifications_on) must be applied to production before deploying PR #1049 + PR #1055 code on Fly.io.

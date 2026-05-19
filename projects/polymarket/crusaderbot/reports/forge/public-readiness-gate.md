@@ -4,7 +4,7 @@ Validation Tier: MINOR
 Claim Level: FOUNDATION
 Validation Target: documentation accuracy/freshness, logo wiring verification, documented paper-mode smoke walkthrough, state-file sync for WARP-33 Phase 4 gate
 Not in Scope: runtime/trading code, badge or repo-visibility flip, LICENSE/CONTRIBUTING/SECURITY creation, logo PNG binary creation, live execution, WORKTODO runtime-spine checkboxes
-Suggested Next Step: WARP🔹CMD delivers crusaderbot-logo.png binary → commit to webtrader/frontend/public/ → review+merge MINOR PR
+Suggested Next Step: WARP🔹CMD review+merge MINOR PR → Vite build + Fly.io deploy renders the committed logo
 
 ---
 
@@ -22,10 +22,10 @@ beta, PAPER-ONLY posture unchanged.
   dead repo URL `walker-ai-team` → `walkermind-os`, added an Audience line
   ("experienced traders and platform developers"), bumped Last Updated to
   2026-05-19. Body PART sections left intact (out of narrow scope).
-- **Branding:** verified the WebTrader logo wiring — `/crusaderbot-logo.png`
-  referenced by `AuthPage.tsx` (80×80) and `TopBar.tsx` (32×32); target dir
-  `webtrader/frontend/public/` exists (.gitkeep only). The PNG binary is still
-  absent and is owner-delivered; branding sub-task remains gated on it.
+- **Branding:** owner-delivered `crusaderbot-logo.png` (PNG, 1536×1024)
+  committed to `webtrader/frontend/public/`. `AuthPage.tsx` (80×80) and
+  `TopBar.tsx` (32×32) `/crusaderbot-logo.png` refs now resolve. Branding
+  sub-task of the Phase 4 gate is closed; renders after Vite build + deploy.
 - **Smoke test:** documented paper-mode end-to-end user walkthrough (Section 4),
   cross-checked against `state/PRODUCTION_CHECKLIST.md`. No live run — cloud env
   has no running stack and posture is paper-only.
@@ -41,7 +41,7 @@ No runtime architecture changed. Documentation/branding/state only:
 README.md            repo-structure tree → matches actual repo root layout
 docs/KNOWLEDGE_BASE   header block refreshed (name/URL/owner/audience/date)
 WebTrader logo path   /crusaderbot-logo.png  ← AuthPage.tsx, TopBar.tsx
-                      served from webtrader/frontend/public/ (binary pending)
+                      crusaderbot-logo.png committed to webtrader/frontend/public/
 state/PROJECT_STATE   [COMPLETED] + Status + [NEXT PRIORITY] + logo known-issue
 state/CHANGELOG       +1 append-only lane-closure line
 ```
@@ -62,8 +62,8 @@ Verified only (no change):
 - `projects/polymarket/crusaderbot/webtrader/frontend/src/pages/AuthPage.tsx:21`
 - `projects/polymarket/crusaderbot/webtrader/frontend/src/components/TopBar.tsx:55`
 
-Pending (owner delivery, not in this commit):
-- `projects/polymarket/crusaderbot/webtrader/frontend/public/crusaderbot-logo.png`
+Added (binary, owner-delivered):
+- `projects/polymarket/crusaderbot/webtrader/frontend/public/crusaderbot-logo.png` (PNG 1536×1024)
 
 ## 4. What Is Working — Paper-Mode Smoke Walkthrough
 
@@ -91,8 +91,8 @@ surface; status reflects current merged state per PROJECT_STATE / PRODUCTION_CHE
    wallet/ledger consistent. WORKING.
 10. **Telegram receipt** — TradeNotifier ENTRY/TP/SL/MANUAL/COPY events
     (PR #951). WORKING.
-11. **WebTrader surfaces** — auth + dashboard render; logo img will 404 until
-    binary delivered (cosmetic, non-blocking). WORKING except logo asset.
+11. **WebTrader surfaces** — auth + dashboard render; crusaderbot-logo.png
+    committed, displays after next Vite build + deploy. WORKING.
 
 Doc/state outcomes also working:
 - README tree now matches actual repo layout.
@@ -101,9 +101,9 @@ Doc/state outcomes also working:
 
 ## 5. Known Issues
 
-- **Logo binary absent** — `crusaderbot-logo.png` not in repo; WebTrader logo
-  renders broken until owner delivers the PNG. Branding sub-task of WARP-33 is
-  gated on this; tracked in PROJECT_STATE [KNOWN ISSUES].
+- **Logo render pending deploy** — `crusaderbot-logo.png` is now committed;
+  it renders in WebTrader only after the next Vite build + Fly.io deploy
+  (cloud env has no Vite toolchain to verify the built bundle here).
 - **WORKTODO checkboxes intentionally unchanged** — WORKTODO P0/P1/P2 items are
   runtime-spine proofs (live end-to-end, realtime trust, migrations). A
   documentation/state lane does NOT prove the runtime spine; ticking them would
@@ -121,9 +121,7 @@ Doc/state outcomes also working:
 
 ## 6. What Is Next
 
-1. WARP🔹CMD delivers `crusaderbot-logo.png` → commit to
-   `projects/polymarket/crusaderbot/webtrader/frontend/public/` to close the
-   branding sub-task.
+1. `crusaderbot-logo.png` committed (owner-delivered) — branding sub-task closed.
 2. WARP🔹CMD reviews this MINOR PR (no SENTINEL — MINOR tier).
 3. Optional follow-up lane: KNOWLEDGE_BASE body legacy-reference cleanup.
 4. WARP🔹CMD merge decision (WARP•FORGE does not merge).
