@@ -1,3 +1,5 @@
+-- 032_copy_trade_events.sql
+-- Guarded: safe to re-run
 -- Migration 032: copy_trade_events — audit log for mirrored copy trades
 -- Fast Track B (copy-trade execution): records every position successfully
 -- opened via the copy-trade monitor so callers can query what has been
@@ -30,10 +32,19 @@ ALTER TABLE copy_trade_events
 ALTER TABLE copy_trade_events
     ADD COLUMN IF NOT EXISTS size_usdc     NUMERIC(18,6);
 
-CREATE INDEX IF NOT EXISTS idx_copy_trade_events_user_id
-    ON copy_trade_events (user_id);
-
-CREATE INDEX IF NOT EXISTS idx_copy_trade_events_market
-    ON copy_trade_events (user_id, target_wallet, market_id);
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'copy_trade_events'
+          AND column_name = 'user_id'
+    ) THEN
+        CREATE INDEX IF NOT EXISTS idx_copy_trade_events_user_id
+            ON copy_trade_events (user_id);
+        CREATE INDEX IF NOT EXISTS idx_copy_trade_events_market
+            ON copy_trade_events (user_id, target_wallet, market_id);
+    END IF;
+END $$;
 
 COMMIT;

@@ -1,4 +1,4 @@
-Last Updated : 2026-05-19 11:15
+Last Updated : 2026-05-19 12:50
 Status       : WARP-26 MERGED via PR #1169 (rebase) — copy trade engine sync + reasoning injection + DIV 32 + rm_mirror sizing fix + CI test alignment. MAJOR, FULL RUNTIME INTEGRATION. WARP🔹CMD merged directly.
 
 [COMPLETED]
@@ -23,6 +23,7 @@ Status       : WARP-26 MERGED via PR #1169 (rebase) — copy trade engine sync +
 - WARP/webtrader-wallet-qr-activity-pagination PR open — Deposit/Withdraw flows, QR code (qrcode.react), CollapsibleSection across 5 pages, ledger Load More pagination, /wallet/ledger backend endpoint, paper_mode in WalletInfo. Vite build clean. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-SIGNAL-FRESHNESS-GATE-CLEAN PR open — _MAX_SIGNAL_AGE_SECONDS=1800 + step 1c freshness gate in _process_candidate(); skips publication-backed signals older than 30 min with outcome="skipped_signal_stale". Awaiting WARP🔹CMD review. STANDARD, NARROW INTEGRATION.
 - WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE PR open — 6 active Sentry errors fixed: scheduler metadata json.dumps, preset_picker_kb→preset_picker rename, migration 041 (strategy_type+market_question on positions), slippage NUMERIC clamp, DB pool 4. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
+- claude/fix-sentry-issues-2g0es PR #1170 open — 4 Sentry fixes: date.isoformat→date object in monitor.py (DataError), job_runs $6::jsonb cast, migration 032 user_id guard, preset_picker_kb confirmed resolved. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-UI-FIXES-BATCH2 PR open — SettingsPage liquidity+slippage removed, AutoTradePage custom risk text color fix, Weather Arb+Market Making COMING SOON removed, FilterTabs mobile scroll. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-RUNTIME-FIXES PR open — HEISENBERG_API_KEY alignment (config.py), asyncpg command_timeout=30 + _warn_if_supavisor_transaction_pool (database.py), StrategyRegistry startup log (main.py). STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/CRUSADERBOT-R5-STRATEGY-CONFIG PR open — lifecycle slippage_retry deferred counter-advance, AlertCenter CSS var migration, R5 /strategy /risk /paper /config commands + migration 040. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
@@ -67,6 +68,7 @@ Status       : WARP-26 MERGED via PR #1169 (rebase) — copy trade engine sync +
 - WARP•SENTINEL APPROVED 93/100 for WARP/fix-kill-switch-db-table (WARP-17). P1 finding: cache invalidation missing in _set_system_flag(). Source: projects/polymarket/crusaderbot/reports/sentinel/fix-kill-switch-db-table.md. Awaiting WARP🔹CMD final merge decision.
 - WARP🔹CMD review required for WARP/webtrader-wallet-qr-activity-pagination (Deposit/Withdraw flows, QR code, collapsible sections, ledger pagination). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-wallet-qr-activity-pagination.md. Tier: STANDARD. No migration required.
 - WARP🔹CMD review required for signal-freshness-gate (step 1c: reject stale signal_publications older than 30 min). Tier: STANDARD.
+- WARP🔹CMD review required for claude/fix-sentry-issues-2g0es PR #1170 (4 Sentry fixes: date type, jsonb cast, migration 032 guard, preset_picker_kb confirmed). Source: projects/polymarket/crusaderbot/reports/forge/fix-sentry-issues.md. Tier: STANDARD.
 - WARP🔹CMD: apply migration 041 to Supabase production, then review+merge WARP/CRUSADERBOT-SENTRY-HOTFIX-BUNDLE. Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-sentry-hotfix-bundle.md. Tier: STANDARD.
 - WARP🔹CMD review required for crusaderbot-ui-fixes-batch2 (4 UI fixes: SettingsPage liquidity+slippage removal, custom risk text color, COMING SOON removal, mobile scroll tabs). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-ui-fixes-batch2.md. Tier: STANDARD.
 - WARP🔹CMD review required for crusaderbot-runtime-fixes (HEISENBERG key alignment, asyncpg timeout, startup log). Source: projects/polymarket/crusaderbot/reports/forge/crusaderbot-runtime-fixes.md. Tier: STANDARD. Set HEISENBERG_API_KEY Fly secret before deploy.

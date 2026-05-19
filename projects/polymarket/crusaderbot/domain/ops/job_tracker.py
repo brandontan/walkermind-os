@@ -84,7 +84,7 @@ async def record_job_event(
         async with pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO job_runs (job_name, status, started_at, "
-                "finished_at, error, metadata) VALUES ($1, $2, $3, $4, $5, $6)",
+                "finished_at, error, metadata) VALUES ($1, $2, $3, $4, $5, $6::jsonb)",
                 job_id, status, started, finished, err,
                 json.dumps(metadata) if metadata is not None else None,
             )
