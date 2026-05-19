@@ -1026,6 +1026,7 @@ Title: [WARP•FORGE / WARP•SENTINEL / WARP•ECHO] {short task name}
 
 ---
 **Branch:** `WARP/{feature}`
+> ⚠️ **FORGE standing rule (2026-05-19):** Claude Code session environments auto-assign `claude/...` branch names. FORGE MUST rename to `WARP/{feature}` format **before opening PR**. Failure to rename = branch naming violation. Branch name cannot be changed post-merge.
 **Tier:** MAJOR / STANDARD
 **Claim Level:** FOUNDATION / NARROW INTEGRATION / FULL RUNTIME INTEGRATION
 
