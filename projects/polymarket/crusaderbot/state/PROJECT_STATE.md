@@ -1,7 +1,8 @@
-Last Updated : 2026-05-19 08:55
-Status       : WARP-28 dashboard-corruption-fix PR open — deployment blocker repaired. Multiple other PRs awaiting WARP🔹CMD review.
+Last Updated : 2026-05-19 09:21
+Status       : WARP-26 master-cleanup-v5-beta PR open — copy trade engine sync + reasoning injection + DIV 32 standardization. MAJOR, FULL RUNTIME INTEGRATION. WARP•SENTINEL required before merge.
 
 [COMPLETED]
+- WARP-26 master-cleanup-v5-beta PR open: copy_trade.py reads copy_trade_tasks (was copy_targets), dedup via copy_trade_idempotency, copy_direction + sizing via copy_mode. SignalCandidate.reasoning added; all 3 strategies populate it. messages.py all dividers 32-char. compileall clean. MAJOR, FULL RUNTIME INTEGRATION.
 - WARP-28 dashboard-corruption-fix: repaired 3 Base64-corrupted files (dashboard.py 351L, copy_trade.py 462L, types.py 138L) + messages.py DIV 26→32. compileall clean. STANDARD, NARROW INTEGRATION.
 - WARP-17 WARP/fix-kill-switch-db-table: fixed kill_switch_exec.py _set_system_flag() to target system_settings (was system_flags); MAJOR, FULL RUNTIME INTEGRATION. SENTINEL APPROVED 93/100.
 - WARP/crusaderbot-realtime-pipeline-runtime MERGED PR #1141 (2026-05-18 23:55): pipeline MONITORING events (scan_started/strategy_scan_done/scan_completed/risk_gate_evaluated), /status endpoint, 14/14 hermetic pipeline ordering tests, WebTrader TopBar dynamic trading_mode pill, Paper Mode banners, analytics trust guard, config IA reorder, mobile nav readability, leaderboard data source note; Promise.allSettled AutoTrade load decoupled from dashboard failures. SENTINEL APPROVED 89/100. MAJOR, FULL RUNTIME INTEGRATION.
@@ -58,6 +59,7 @@ Status       : WARP-28 dashboard-corruption-fix PR open — deployment blocker r
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for WARP-26 master-cleanup-v5-beta (copy trade engine sync + reasoning injection). Source: projects/polymarket/crusaderbot/reports/forge/master-cleanup-v5-beta.md. Tier: MAJOR.
 - WARP🔹CMD review + URGENT MERGE required for WARP-28 dashboard-corruption-fix (deployment blocker). Source: projects/polymarket/crusaderbot/reports/forge/dashboard-corruption-fix.md. Tier: STANDARD. After merge: Fly.io redeploy required.
 - WARP🔹CMD review required for WARP-25 telegram-functional-routing-fix (Positions callback fix + Close buttons + Trades history separation + preset label fix). Source: projects/polymarket/crusaderbot/reports/forge/telegram-functional-routing-fix.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/expand-webtrader-pagination (WARP-19: Load More pagination — Live Market Feed, Leaderboard, Closed Trades, Orders). Source: projects/polymarket/crusaderbot/reports/forge/expand-webtrader-pagination.md. Tier: STANDARD. No migration required.
@@ -93,7 +95,7 @@ Status       : WARP-28 dashboard-corruption-fix PR open — deployment blocker r
 - Closed beta observation continues — no new feature PRs in Week 4.
 
 [KNOWN ISSUES]
-- CopyTradeStrategy (domain/strategy/strategies/copy_trade.py) still queries legacy `copy_targets` table while the new 8-step wizard and WebTrader CopyTradePage write to `copy_trade_tasks`. Tasks created via the new UI will not be picked up by the strategy scanner until copy_trade.py is updated to read from `copy_trade_tasks`. Separate fix lane required.
+- [RESOLVED in WARP-26] copy_trade.py now queries copy_trade_tasks — legacy copy_targets table is orphaned (schema cleanup deferred to a separate migration lane).
 - qwneer8 and Maver1ch69 have identical bad tp_hit positions from price bug #1105 (same 0.540–0.545 inflated exit_price). Not cleaned in this lane — WARP🔹CMD decision required to extend cleanup.
 - WARP🔹CMD requested removal of the internal Tier-4/activation-guard LIVE-trading safety gate; WARP•FORGE declined that sub-item only — CLAUDE.md forbids bypassing the live-trading guard. assert_live_guards is intentionally preserved (invisible to users; live remains owner-gated + OFF). All other role-model items delivered as requested.
 - Dual tier tables (users.access_tier integer + user_tiers string) retained by design (logic+UX collapse, no DB teardown). Internal-only; not user-visible. Full schema removal deferred to a separate migration lane if ever required.
