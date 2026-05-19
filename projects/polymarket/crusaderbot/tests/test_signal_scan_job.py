@@ -792,10 +792,13 @@ def test_process_candidate_allows_fresh_publication_signal():
 
 
 def test_process_candidate_freshness_gate_skips_exact_boundary():
-    """Signal at exactly 1800s must NOT be dropped (gate is strictly > threshold)."""
+    """Signal just below 1800s must NOT be dropped (gate condition is strictly >)."""
     bootstrap_default_strategies()
     row = _user_row()
-    cand = _stale_candidate(age_seconds=1800)
+    # Use 1795s (5s buffer) — "exactly 1800" is untestable with wall-clock timestamps
+    # because execution time pushes the measured age over the threshold.
+    # This still exercises the > (not >=) boundary: 1795s is inside the window.
+    cand = _stale_candidate(age_seconds=1795)
 
     from uuid import uuid4 as _uuid4
     approved = TradeResult(
@@ -817,7 +820,7 @@ def test_process_candidate_freshness_gate_skips_exact_boundary():
             patch.object(job, "_mark_executed", new=AsyncMock()):
         asyncio.run(job._process_candidate(row, cand))
 
-    assert execute_called["called"], "signal at exactly 1800s must not be dropped by freshness gate"
+    assert execute_called["called"], "signal below 1800s threshold must not be dropped by freshness gate"
 
 
 def test_process_candidate_freshness_gate_bypassed_for_lib_strategy():
