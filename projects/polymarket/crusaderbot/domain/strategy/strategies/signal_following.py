@@ -80,7 +80,7 @@ class SignalFollowingStrategy(BaseStrategy):
         to crash the whole user's scan loop on a single bad publication.
         """
         try:
-            return await evaluate_publications_for_user(
+            candidates = await evaluate_publications_for_user(
                 user_context=user_context,
                 market_filters=market_filters,
                 strategy_name=self.name,
@@ -91,6 +91,30 @@ class SignalFollowingStrategy(BaseStrategy):
                 user_context.user_id, exc,
             )
             return []
+
+        # Inject reasoning if not already set by the evaluator.
+        return [
+            (
+                c
+                if c.reasoning
+                else SignalCandidate(
+                    market_id=c.market_id,
+                    condition_id=c.condition_id,
+                    side=c.side,
+                    confidence=c.confidence,
+                    suggested_size_usdc=c.suggested_size_usdc,
+                    strategy_name=c.strategy_name,
+                    signal_ts=c.signal_ts,
+                    metadata=c.metadata,
+                    reasoning=(
+                        f"Signal: Heisenberg feed breakout — "
+                        f"market {c.market_id[:8]}… "
+                        f"conf={c.confidence:.0%}."
+                    ),
+                )
+            )
+            for c in candidates
+        ]
 
     async def evaluate_exit(self, position: dict) -> ExitDecision:
         """Close when the originating feed publishes an exit trigger.
