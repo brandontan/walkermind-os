@@ -110,6 +110,22 @@ Modified:
   schema migration lane.
 - Reasoning strings are English-only. i18n is post-MVP scope.
 
+### Post-merge CI fixes (same branch)
+
+- `test_copy_trade.py` — 8 test functions used legacy `target_row` schema
+  (`target_wallet_address`, `scale_factor`, `trades_mirrored`); `_already_mirrored`
+  calls used 2-arg signature; metadata assertions checked `copy_target_id`.
+  All updated to new schema (`wallet_address`, `copy_mode`, `copy_amount`, etc.)
+  and 3-arg `_already_mirrored(user_id, task_id, tx_hash)`.
+- `test_signal_following.py` — `test_strategy_scan_delegates_to_evaluator`
+  built expected candidate without `reasoning`; updated to include the injected
+  reasoning string so the equality assertion holds.
+- `copy_trade.py` — `rm_mirror` mode (persisted by Telegram wizard and WebTrader
+  router) fell into the fixed-amount else branch, ignoring leader trade size.
+  Added explicit `rm_mirror` path: uses `mirror_size_direct` (same as proportional
+  with no pct), capping at the user's position cap. Unknown modes now log a warning
+  and skip rather than silently mis-sizing.
+
 ---
 
 ## 6. What Is Next
