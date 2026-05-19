@@ -1,3 +1,4 @@
+2026-05-19 11:15 | WARP/master-cleanup-v5-beta-rebase | WARP-26 MERGED PR #1169: copy trade engine sync + reasoning injection + rm_mirror fix + CI test alignment; CodeRabbit fixes applied; CI + SonarQube green; WARP🔹CMD merged directly
 2026-05-19 | WARP/CRUSADERBOT-SENTRY-FIXES | fix date.isoformat→date object in monitor.py (DataError); job_runs metadata $6::jsonb cast; migration 032 user_id guard; preset_picker_kb→preset_picker alias; STANDARD, NARROW INTEGRATION
 2026-05-19 10:30 | WARP/master-cleanup-v5-beta | WARP-26 follow-up: test_copy_trade.py + test_signal_following.py aligned to new schema; rm_mirror sizing regression fixed (mirror_size_direct); unknown mode guard added
 2026-05-19 09:21 | WARP/master-cleanup-v5-beta | WARP-26: copy_trade.py reads copy_trade_tasks + copy_trade_idempotency dedup; SignalCandidate.reasoning added; all 3 strategies injected; messages.py 32-char dividers; MAJOR, FULL RUNTIME INTEGRATION

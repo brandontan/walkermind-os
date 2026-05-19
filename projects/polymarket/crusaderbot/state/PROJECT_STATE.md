@@ -1,8 +1,8 @@
 Last Updated : 2026-05-19 12:50
-Status       : WARP-26 PR open (rebase branch) — copy trade engine sync + reasoning injection + DIV 32 + rm_mirror sizing fix + CI test alignment. MAJOR, FULL RUNTIME INTEGRATION. WARP•SENTINEL required before merge.
+Status       : WARP-26 MERGED via PR #1169 (rebase) — copy trade engine sync + reasoning injection + DIV 32 + rm_mirror sizing fix + CI test alignment. MAJOR, FULL RUNTIME INTEGRATION. WARP🔹CMD merged directly.
 
 [COMPLETED]
-- WARP-26 copy trade engine sync + reasoning injection: copy_trade.py reads copy_trade_tasks (was copy_targets), dedup via copy_trade_idempotency, copy_direction + sizing via copy_mode + rm_mirror explicit sizing path (mirror_size_direct, unknown mode guard). SignalCandidate.reasoning added; all 3 strategies populate it. messages.py all dividers 32-char. test_copy_trade.py + test_signal_following.py aligned to new schema. compileall clean. MAJOR, FULL RUNTIME INTEGRATION.
+- WARP-26 MERGED PR #1169 (rebase, superseded #1168): copy_trade.py reads copy_trade_tasks (was copy_targets), dedup via copy_trade_idempotency, copy_direction + sizing via copy_mode + rm_mirror explicit sizing path (mirror_size_direct, unknown mode guard). SignalCandidate.reasoning added; all 3 strategies populate it. messages.py all dividers 32-char. test_copy_trade.py + test_signal_following.py aligned to new schema. compileall + CI + SonarQube clean. MAJOR, FULL RUNTIME INTEGRATION. WARP🔹CMD merged directly without SENTINEL run.
 - WARP-28 dashboard-corruption-fix: repaired 3 Base64-corrupted files (dashboard.py 351L, copy_trade.py 462L, types.py 138L) + messages.py DIV 26→32. compileall clean. STANDARD, NARROW INTEGRATION.
 - WARP-17 WARP/fix-kill-switch-db-table: fixed kill_switch_exec.py _set_system_flag() to target system_settings (was system_flags); MAJOR, FULL RUNTIME INTEGRATION. SENTINEL APPROVED 93/100.
 - WARP/crusaderbot-realtime-pipeline-runtime MERGED PR #1141 (2026-05-18 23:55): pipeline MONITORING events (scan_started/strategy_scan_done/scan_completed/risk_gate_evaluated), /status endpoint, 14/14 hermetic pipeline ordering tests, WebTrader TopBar dynamic trading_mode pill, Paper Mode banners, analytics trust guard, config IA reorder, mobile nav readability, leaderboard data source note; Promise.allSettled AutoTrade load decoupled from dashboard failures. SENTINEL APPROVED 89/100. MAJOR, FULL RUNTIME INTEGRATION.
@@ -60,8 +60,6 @@ Status       : WARP-26 PR open (rebase branch) — copy trade engine sync + reas
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for WARP-26 rebase PR (copy trade engine sync + reasoning injection + rm_mirror fix + CI test alignment). Source: projects/polymarket/crusaderbot/reports/forge/master-cleanup-v5-beta.md. Tier: MAJOR.
-- WARP🔹CMD: close old PR #1168 (conflict — superseded by rebase PR). New PR is clean forward-only diff from main.
 - WARP🔹CMD review + URGENT MERGE required for WARP-28 dashboard-corruption-fix (deployment blocker). Source: projects/polymarket/crusaderbot/reports/forge/dashboard-corruption-fix.md. Tier: STANDARD. After merge: Fly.io redeploy required.
 - WARP🔹CMD review required for WARP-25 telegram-functional-routing-fix (Positions callback fix + Close buttons + Trades history separation + preset label fix). Source: projects/polymarket/crusaderbot/reports/forge/telegram-functional-routing-fix.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/expand-webtrader-pagination (WARP-19: Load More pagination — Live Market Feed, Leaderboard, Closed Trades, Orders). Source: projects/polymarket/crusaderbot/reports/forge/expand-webtrader-pagination.md. Tier: STANDARD. No migration required.
