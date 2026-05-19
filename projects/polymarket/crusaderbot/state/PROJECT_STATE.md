@@ -1,7 +1,8 @@
-Last Updated : 2026-05-18 23:45
-Status       : Multiple PRs open. WARP-25 telegram-functional-routing-fix PR open for WARP🔹CMD review. WARP/expand-webtrader-pagination (WARP-19) and others also awaiting review.
+Last Updated : 2026-05-19 08:55
+Status       : WARP-28 dashboard-corruption-fix PR open — deployment blocker repaired. Multiple other PRs awaiting WARP🔹CMD review.
 
 [COMPLETED]
+- WARP-28 dashboard-corruption-fix: repaired 3 Base64-corrupted files (dashboard.py 351L, copy_trade.py 462L, types.py 138L) + messages.py DIV 26→32. compileall clean. STANDARD, NARROW INTEGRATION.
 - WARP-17 WARP/fix-kill-switch-db-table: fixed kill_switch_exec.py _set_system_flag() to target system_settings (was system_flags); MAJOR, FULL RUNTIME INTEGRATION. SENTINEL APPROVED 93/100.
 - WARP/crusaderbot-realtime-pipeline-runtime MERGED PR #1141 (2026-05-18 23:55): pipeline MONITORING events (scan_started/strategy_scan_done/scan_completed/risk_gate_evaluated), /status endpoint, 14/14 hermetic pipeline ordering tests, WebTrader TopBar dynamic trading_mode pill, Paper Mode banners, analytics trust guard, config IA reorder, mobile nav readability, leaderboard data source note; Promise.allSettled AutoTrade load decoupled from dashboard failures. SENTINEL APPROVED 89/100. MAJOR, FULL RUNTIME INTEGRATION.
 - CRU-12 WARP/CRUSADERBOT-UX-PHASE1 PR open (2026-05-17): 5-item UX bundle — TxHash truncate+copy, CopyTrade input visibility, portfolio chart hover+grid+periods, win rate expired fix (exit_reason IS DISTINCT FROM market_expired), AlertCenter slide-in panel. Vite build clean. STANDARD, NARROW INTEGRATION.
@@ -57,6 +58,7 @@ Status       : Multiple PRs open. WARP-25 telegram-functional-routing-fix PR ope
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review + URGENT MERGE required for WARP-28 dashboard-corruption-fix (deployment blocker). Source: projects/polymarket/crusaderbot/reports/forge/dashboard-corruption-fix.md. Tier: STANDARD. After merge: Fly.io redeploy required.
 - WARP🔹CMD review required for WARP-25 telegram-functional-routing-fix (Positions callback fix + Close buttons + Trades history separation + preset label fix). Source: projects/polymarket/crusaderbot/reports/forge/telegram-functional-routing-fix.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/expand-webtrader-pagination (WARP-19: Load More pagination — Live Market Feed, Leaderboard, Closed Trades, Orders). Source: projects/polymarket/crusaderbot/reports/forge/expand-webtrader-pagination.md. Tier: STANDARD. No migration required.
 - WARP🔹CMD review required for WARP/tg-ux-redesign (WARP-24: Dashboard HUD redesign + Auto Mode wizard). Source: projects/polymarket/crusaderbot/reports/forge/tg-ux-redesign.md. Tier: STANDARD. No migration required.

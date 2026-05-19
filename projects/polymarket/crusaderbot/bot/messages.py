@@ -37,7 +37,7 @@ EMOJI: dict[str, str] = {
 }
 
 # Heavy horizontal divider — width chosen to fit Telegram's mobile column.
-DIV = "━" * 26
+DIV = "━" * 32
 
 
 def _signed(val: Decimal | float) -> str:

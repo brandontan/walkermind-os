@@ -1,1 +1,138 @@
-IiIiU2hhcmVkIGRhdGFjbGFzc2VzIGZvciB0aGUgQ3J1c2FkZXJCb3Qgc3RyYXRlZ3kgcGxhbmUuCgpGb3VuZGF0aW9uLW9ubHkgdHlwZXMgY29uc3VtZWQgYnkgYEJhc2VTdHJhdGVneWAgaW1wbGVtZW50YXRpb25zIGFuZCB0aGUKYFN0cmF0ZWd5UmVnaXN0cnlgLiBObyBleGVjdXRpb24sIG5vIHJpc2sgZXZhbHVhdGlvbiwgbm8gc2lnbmFsIGdlbmVyYXRpb24uCgpWNSBjbGVhbnVwIChXQVJQLTI2KToKICAgIC0gQWRkZWQgYHJlYXNvbmluZ2AgZmllbGQgdG8gU2lnbmFsQ2FuZGlkYXRlIChvcHRpb25hbCwgZGVmYXVsdCAiIikKIiIiCgpmcm9tIF9fZnV0dXJlX18gaW1wb3J0IGFubm90YXRpb25zCgpmcm9tIGRhdGFjbGFzc2VzIGltcG9ydCBkYXRhYmFzcywgZmllbGQKZnJvbSBkYXRldGltZSBpbXBvcnQgZGF0ZXRpbWUKZnJvbSB0eXBpbmcgaW1wb3J0IEFueQoKVkFMSURfU0lERVM6IHR1cGxlW3N0ciwgLi4uXSA9ICgiWUVTIiwgIk5PIikKVkFMSURfUklTS19QUk9GSUxFUzogHR1wbGVbc3RyLCAuLi5dID0gKCJjb25zZXJ2YXRpdmUiLCAiYmFsYW5jZWQiLCAiYWdncmVzc2l2ZSIsICJjdXN0b20iKQpWQUxJRF9FWElUX1JFQVNPTlM6IHR1cGxlW3N0ciwgLi4uXSA9ICgic3RyYXRlZ3lfZXhpdCIsICJob2xkIikKCgpAZGF0YWNsYXNzKGZyb3plbj1UcnVlKQpjbGFzcyBTaWduYWxDYW5kaWRhdGU6CiAgICAiIiJBIHN0cmF0ZWd5LWVtaXR0ZWQgY2FuZGlkYXRlIGZvciBkb3duc3RyZWFtIHJpc2sgZXZhbHVhdGlvbi4iIiIKCiAgICBtYXJrZXRfaWQ6IHN0cgogICAgY29uZGl0aW9uX2lkOiBzdHIKICAgIHNpZGU6IHN0cgogICAgY29uZmlkZW5jZTogZmxvYXQKICAgIHN1Z2dlc3RlZF9zaXplX3VzZGM6IGZsb2F0CiAgICBzdHJhdGVneV9uYW1lOiBzdHIKICAgIHNpZ25hbF90czogZGF0ZXRpbWUKICAgIHJlYXNvbmluZzogc3RyID0gIiIKICAgIG1ldGFkYXRhOiBkaWN0W3N0ciwgQW55XSA9IGZpZWxkKGRlZmF1bHRfZmFjdG9yeT1kaWN0KQoKICAgIGRlZiBfX3Bvc3RfaW5pdF9fKHNlbGYpIC0+IE5vbmU6CiAgICAgICAgaWYgc2VsZi5zaWRlIG5vdCBpbiBWQUxJRF9TSURFUzoKICAgICAgICAgICAgcmFpc2UgVmFsdWVFcnJvcigKICAgICAgICAgICAgICAgIGYiU2lnbmFsQ2FuZGlkYXRlLnNpZGUgbXVzdCBiZSBvbmUgb2Yge1ZBTElEX1NJREVTfSwgZ290IHtzZWxmLnNpZGVhIXJ9IgogICAgICAgICAgICApCiAgICAgICAgaWYgbm90IDAuMCA8PSBzZWxmLmNvbmZpZGVuY2UgPD0gMS4wOgogICAgICAgICAgICByYWlzZSBWYWx1ZUVycm9yKAogICAgICAgICAgICAgICAgZiJTaWduYWxDYW5kaWRhdGUuY29uZmlkZW5jZSBtdXN0IGJlIGluIFswLjAsIDEuMF0sIGdvdCB7ZWxmLmNvbmZpZGVuY2V9IgogICAgICAgICAgICApCiAgICAgICAgaWYgc2VsZi5zdWdnZXN0ZWRfc2l6ZV91c2RjIDwgMC4wOgogICAgICAgICAgICByYWlzZSBWYWx1ZUVycm9yKAogICAgICAgICAgICAgICAgIlNpZ25hbENhbmRpZGF0ZS5zdWdnZXN0ZWRfc2l6ZV91c2RjIG11c3QgYmUgPj0gMCwgIgogICAgICAgICAgICAgICAgZiJnb3Qge3NlbGYuc3VnZ2VzdGVkX3NpemVfdXNkY30iCiAgICAgICAgICAgICApCiAgICAgICAgaWYgbm90IHNlbGYubWFya2V0X2lkOgogICAgICAgICAgICByYWlzZSBWYWx1ZUVycm9yKCJTaWduYWxDYW5kaWRhdGUubWFya2V0X2lkIG11c3QgYmUgbm9uLWVtcHR5IikKICAgICAgICBpZiBub3Qgc2VsZi5jb25kaXRpb25faWQ6CiAgICAgICAgICAgIHJhaXNlIFZhbHVlRXJyb3IoIlNpZ25hbENhbmRpZGF0ZS5jb25kaXRpb25faWQgbXVzdCBiZSBub24tZW1wdHkiKQogICAgICAgIGlmIG5vdCBzZWxmLnN0cmF0ZWd5X25hbWU6CiAgICAgICAgICAgIHJhaXNlIFZhbHVlRXJyb3IoIlNpZ25hbENhbmRpZGF0ZS5zdHJhdGVneV9uYW1lIG11c3QgYmUgbm9uLWVtcHR5IikKCgpAZGF0YWNsYXNzKGZyb3plbj1UcnVlKQpjbGFzcyBFeGl0RGVjaXNpb246CiAgICAiIiJSZXN1bHQgb2YgYSBwZXItcG9zaXRpb24gc3RyYXRlZ3kgZXhpdCBldmFsdWF0aW9uLiIiIgoKICAgIHNob3VsZF9leGl0OiBib29sCiAgICByZWFzb246IHN0cgogICAgbWV0YWRhdGE6IGRpY3Rbc3RyLCBBbnldID0gZmllbGQoZGVmYXVsdF9mYWN0b3J5PWRpY3QpCgogICAgZWZfX3Bvc3RfaW5pdF9fKHNlbGYpIC0+IE5vbmU6CiAgICAgICAgaWYgc2VsZi5yZWFzb24gbm90IGluIFZBTElEX0VYSVRfUkVBU09OUzoKICAgICAgICAgICAgcmFpc2UgVmFsdWVFcnJvcigKICAgICAgICAgICAgICAgIGYiRXhpdERlY2lzaW9uLnJlYXNvbiBtdXN0IGJlIG9uZSBvZiB7VkFMSURfRVhJVF9SRUFTT05TfSwgIgogICAgICAgICAgICAgICAgZiJnb3Qge3NlbGYucmVhc29uIXJ9IgogICAgICAgICAgICApCiAgICAgICAgaWYgc2VsZi5zaG91bGRfZXhpdCBhbmQgc2VsZi5yZWFzb24gIT0gInN0cmF0ZWd5X2V4aXQiOgogICAgICAgICAgICByYWlzZSBWYWx1ZUVycm9yKAogICAgICAgICAgICAgICAgIkV4aXREZWNpc2lvbi5zaG91bGRfZXhpdD1UcnVlIHJlcXVpcmVzIHJlYXNvbj0nc3RyYXRlZ3lfZXhpdCciCiAgICAgICAgICAgICkKICAgICAgICBpZiBub3Qgc2VsZi5zaG91bGRfZXhpdCBhbmQgc2VsZi5yZWFzb24gIT0gImhvbGQiOgogICAgICAgICAgICByYWlzZSBWYWx1ZUVycm9yKAogICAgICAgICAgICAgICAgIkV4aXREZWNpc2lvbi5zaG91bGRfZXhpdD1GYWxzZSByZXF1aXJlcyByZWFzb249J2hvbGQnIgogICAgICAgICAgICApCgoKQGRhdGFjbGFzcyhmcm96ZW49VHJ1ZSkKY2xhc3MgTWFya2V0RmlsdGVyczoKICAgICIiIlVzZXItbGV2ZWwgZmlsdGVycyBuYXJyb3dpbmcgdGhlIHVuaXZlcnNlIGEgc3RyYXRlZ3kgbWF5IGFjdCBvbi4iIiIKCiAgICBjYXRlZ29yaWVzOiBsaXN0W3N0cl0KICAgIG1pbl9saXF1aWRpdHk6IGZsb2F0CiAgICBtYXhfdGltZV90b19yZXNvbHV0aW9uX2RheXM6IGludAogICAgYmxhY2tsaXN0ZWRfbWFya2V0X2lkczogbGlzdFtzdHJdCgogICAgZGVmIF9fcG9zdF9pbml0X18oc2VsZikgLT4gTm9uZToKICAgICAgICBpZiBzZWxmLm1pbl9saXF1aWRpdHkgPCAwLjA6CiAgICAgICAgICAgIHJhaXNlIFZhbHVlRXJyb3IoCiAgICAgICAgICAgICAgICBmIk1hcmtldEZpbHRlcnMubWluX2xpcXVpZGl0eSBtdXN0IGJlID49IDAsIGdvdCB7c2VsZi5taW5fbGlxdWlkaXR5fSIKICAgICAgICAgICAgKQogICAgICAgIGlmIHNlbGYubWF4X3RpbWVfdG9fcmVzb2x1dGlvbl9kYXlzIDwgMDoKICAgICAgICAgICAgcmFpc2UgVmFsdWVFcnJvcigKICAgICAgICAgICAgICAgICJNYXJrZXRGaWx0ZXJzLm1heF90aW1lX3RvX3Jlc29sdXRpb25fZGF5cyBtdXN0IGJlID49IDAsICIKICAgICAgICAgICAgICAgIGYiZ290IHtzZWxmLm1heF90aW1lX3RvX3Jlc29sdXRpb25fZGF5c30iCiAgICAgICAgICAgICkKCgpAZGF0YWNsYXNzKGZyb3plbj1UcnVlKQpjbGFzcyBVc2VyQ29udGV4dDoKICAgICIiIlBlci11c2VyIGNvbnRleHQgaGFuZGVkIHRvIGEgc3RyYXRlZ3kgYXQgc2NhbiB0aW1lLiIiIgoKICAgIHVzZXJfaWQ6IHN0cgogICAgc3ViX2FjY2VudF9pZDogc3RyCiAgICByaXNrX3Byb2ZpbGU6IHN0cgogICAgY2FwaXRhbF9hbGxvY2F0aW9uX3BjdDogZmxvYXQKICAgIGF2YWlsYWJsZV9iYWxhbmNlX3VzZGM6IGZsb2F0CgogICAgZGVmIF9fcG9zdF9pbml0X18oc2VsZikgLT4gTm9uZToKICAgICAgICBpZiBzZWxmLnJpc2tfcHJvZmlsZSBub3QgaW4gVkFMSURfUklTS19QUk9GSUxFUzoKICAgICAgICAgICAgcmFpc2UgVmFsdWVFcnJvcigKICAgICAgICAgICAgICAgIGYiVXNlckNvbnRleHQucmlza19wcm9maWxlIG11c3QgYmUgb25lIG9mIHtWQUxJRF9SSVNLX1BST0ZJTEVTfSwgIgogICAgICAgICAgICAgICAgZiJnb3Qge3NlbGYucmlza19wcm9maWxlIXJ9IgogICAgICAgICAgICApCiAgICAgICAgaWYgbm90IDAuMCA8PSBzZWxmLmNhcGl0YWxfYWxsb2NhdGlvbl9wY3QgPD0gMS4wOgogICAgICAgICAgICByYWlzZSBWYWx1ZUVycm9yKAogICAgICAgICAgICAgICAgIlVzZXJDb250ZXh0LmNhcGl0YWxfYWxsb2NhdGlvbl9wY3QgbXVzdCBiZSBpbiBbMC4wLCAxLjBdLCAiCiAgICAgICAgICAgICAgICBmImdvdCB7c2VsZi5jYXBpdGFsX2FsbG9jYXRpb25fcGN0fSIKICAgICAgICAgICAgKQogICAgICAgIGlmIHNlbGYuYXZhaWxhYmxlX2JhbGFuY2VfdXNkYyA8IDAuMDoKICAgICAgICAgICByYWlzZSBWYWx1ZUVycm9yKAogICAgICAgICAgICAgICAgIlVzZXJDb250ZXh0LmF2YWlsYWJsZV9iYWxhbmNlX3VzZGMgbXVzdCBiZSA+PSAwLCAiCiAgICAgICAgICAgICAgICBmImdvdCB7c2VsZi5hdmFpbGFibGVfYmFsYW5jZV91c2RjfSIKICAgICAgICAgICAgKQogICAgICAgIGlmIG5vdCBzZWxmLnVzZXJfaWQ6CiAgICAgICAgICAgIHJhaXNlIFZhbHVlRXJyb3IoIlVzZXJDb250ZXh0LnVzZXJfaWQgbXVzdCBiZSBub24tZW1wdHkiKQogICAgICAgIGlmIG5vdCBzZWxmLnN1Yl9hY2NvdW50X2lkOgogICAgICAgICAgICByYWlzZSBWYWx1ZUVycm9yKCJVc2VyQ29udGV4dC5zdWJfYWNjb3VudF9pZCBtdXN0IGJlIG5vbi1lbVwdHkiKQoKCl9fYWxsX18gPSBbCiAgICAiU2lnbmFsQ2FuZGlkYXRlIiwKICAgICJFeGl0RGVjaXNpb24iLAogICAgIk1hcmtldEZpbHRlcnMiLAogICAgIlVzZXJDb250ZXh0IiwKICAgICJWQUxJRF9TSURFUyIsCiAgICAiVkFMSURfUklTS19QUk9GSUxFUyIsCiAgICAiVkFMSURfRVhJVF9SRUFTT05TIiwKXQo=
+"""Shared dataclasses for the CrusaderBot strategy plane.
+
+Foundation-only types consumed by `BaseStrategy` implementations and the
+`StrategyRegistry`. No execution, no risk evaluation, no signal generation.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
+
+VALID_SIDES: tuple[str, ...] = ("YES", "NO")
+VALID_RISK_PROFILES: tuple[str, ...] = ("conservative", "balanced", "aggressive", "custom")
+VALID_EXIT_REASONS: tuple[str, ...] = ("strategy_exit", "hold")
+
+
+@dataclass(frozen=True)
+class SignalCandidate:
+    """A strategy-emitted candidate for downstream risk evaluation."""
+
+    market_id: str
+    condition_id: str
+    side: str
+    confidence: float
+    suggested_size_usdc: float
+    strategy_name: str
+    signal_ts: datetime
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.side not in VALID_SIDES:
+            raise ValueError(
+                f"SignalCandidate.side must be one of {VALID_SIDES}, got {self.side!r}"
+            )
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError(
+                f"SignalCandidate.confidence must be in [0.0, 1.0], got {self.confidence}"
+            )
+        if self.suggested_size_usdc < 0.0:
+            raise ValueError(
+                "SignalCandidate.suggested_size_usdc must be >= 0, "
+                f"got {self.suggested_size_usdc}"
+            )
+        if not self.market_id:
+            raise ValueError("SignalCandidate.market_id must be non-empty")
+        if not self.condition_id:
+            raise ValueError("SignalCandidate.condition_id must be non-empty")
+        if not self.strategy_name:
+            raise ValueError("SignalCandidate.strategy_name must be non-empty")
+
+
+@dataclass(frozen=True)
+class ExitDecision:
+    """Result of a per-position strategy exit evaluation."""
+
+    should_exit: bool
+    reason: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.reason not in VALID_EXIT_REASONS:
+            raise ValueError(
+                f"ExitDecision.reason must be one of {VALID_EXIT_REASONS}, "
+                f"got {self.reason!r}"
+            )
+        if self.should_exit and self.reason != "strategy_exit":
+            raise ValueError(
+                "ExitDecision.should_exit=True requires reason='strategy_exit'"
+            )
+        if not self.should_exit and self.reason != "hold":
+            raise ValueError(
+                "ExitDecision.should_exit=False requires reason='hold'"
+            )
+
+
+@dataclass(frozen=True)
+class MarketFilters:
+    """User-level filters narrowing the universe a strategy may act on."""
+
+    categories: list[str]
+    min_liquidity: float
+    max_time_to_resolution_days: int
+    blacklisted_market_ids: list[str]
+
+    def __post_init__(self) -> None:
+        if self.min_liquidity < 0.0:
+            raise ValueError(
+                f"MarketFilters.min_liquidity must be >= 0, got {self.min_liquidity}"
+            )
+        if self.max_time_to_resolution_days < 0:
+            raise ValueError(
+                "MarketFilters.max_time_to_resolution_days must be >= 0, "
+                f"got {self.max_time_to_resolution_days}"
+            )
+
+
+@dataclass(frozen=True)
+class UserContext:
+    """Per-user context handed to a strategy at scan time."""
+
+    user_id: str
+    sub_account_id: str
+    risk_profile: str
+    capital_allocation_pct: float
+    available_balance_usdc: float
+
+    def __post_init__(self) -> None:
+        if self.risk_profile not in VALID_RISK_PROFILES:
+            raise ValueError(
+                f"UserContext.risk_profile must be one of {VALID_RISK_PROFILES}, "
+                f"got {self.risk_profile!r}"
+            )
+        if not 0.0 <= self.capital_allocation_pct <= 1.0:
+            raise ValueError(
+                "UserContext.capital_allocation_pct must be in [0.0, 1.0], "
+                f"got {self.capital_allocation_pct}"
+            )
+        if self.available_balance_usdc < 0.0:
+            raise ValueError(
+                "UserContext.available_balance_usdc must be >= 0, "
+                f"got {self.available_balance_usdc}"
+            )
+        if not self.user_id:
+            raise ValueError("UserContext.user_id must be non-empty")
+        if not self.sub_account_id:
+            raise ValueError("UserContext.sub_account_id must be non-empty")
+
+
+__all__ = [
+    "SignalCandidate",
+    "ExitDecision",
+    "MarketFilters",
+    "UserContext",
+    "VALID_SIDES",
+    "VALID_RISK_PROFILES",
+    "VALID_EXIT_REASONS",
+]
