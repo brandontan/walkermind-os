@@ -1,4 +1,4 @@
-Last Updated : 2026-05-20 01:32
+Last Updated : 2026-05-20 01:41
 
 [COMPLETED]
 - WARP-36 MERGED (e0771321): math.isfinite() guard in _safe_float + _clamp helper; NaN/Infinity rejected before DB write; NumericValueOutOfRangeError resolved. STANDARD, NARROW INTEGRATION.
@@ -104,6 +104,7 @@ Last Updated : 2026-05-20 01:32
 - Closed beta observation continues — no new feature PRs in Week 4.
 
 [KNOWN ISSUES]
+- SENTINEL System Audit V5 complete (2026-05-20 01:41 WIB): APPROVED 96/100. Report: projects/polymarket/crusaderbot/reports/sentinel/system-audit-v5.md. Deferred: bot commands not registered with BotFather; category filter needs larger sample verification; Sentry API not accessible.
 - [RESOLVED in WARP-26] copy_trade.py now queries copy_trade_tasks — legacy copy_targets table is orphaned (schema cleanup deferred to a separate migration lane).
 - qwneer8 and Maver1ch69 have identical bad tp_hit positions from price bug #1105 (same 0.540–0.545 inflated exit_price). Not cleaned in this lane — WARP🔹CMD decision required to extend cleanup.
 - WARP🔹CMD requested removal of the internal Tier-4/activation-guard LIVE-trading safety gate; WARP•FORGE declined that sub-item only — CLAUDE.md forbids bypassing the live-trading guard. assert_live_guards is intentionally preserved (invisible to users; live remains owner-gated + OFF). All other role-model items delivered as requested.
