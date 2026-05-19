@@ -37,7 +37,7 @@ the acceptance criteria in #1182.
 
 ## 2. Current system architecture
 
-```
+```text
 exit_watcher.run_once (30s tick)
   └─ get_live_market_price(market_id, side)        ← FIX HERE
        ├─ CLOB /price (primary)  accept iff 0<p<1  ← was 0<=p<=1
