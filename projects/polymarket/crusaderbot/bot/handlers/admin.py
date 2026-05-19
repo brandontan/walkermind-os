@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
-from telegram import Update
+from telegram import Message, Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
@@ -240,7 +240,7 @@ async def _admin_broadcast(message, args: list[str], ctx) -> None:
     )
 
 
-async def _admin_status_hud(message) -> None:
+async def _admin_status_hud(message: Message) -> None:
     """Consolidated /admin status — merges health, users, positions, guards, jobs."""
     from ...cache import ping_cache
     from ...database import ping
@@ -275,7 +275,8 @@ async def _admin_status_hud(message) -> None:
 
     try:
         recent_jobs = await job_tracker.fetch_recent(limit=3)
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        logger.error("admin status: recent jobs fetch failed: %s", exc)
         recent_jobs = []
 
     ks_label = "🔴 ACTIVE" if ks_active else "🟢 inactive"
