@@ -40,7 +40,7 @@ Unchanged. `leaderboard_sync.run_job` → `sync_leaderboard(pool)` → Falcon AP
 - NaN values from Falcon API are now converted to `None` before DB insert
 - Infinity values were already clamped by `min`/`max` but `_safe_float` now rejects them earlier
 - Large finite values are still clamped to column bounds
-- Warning log fires when any value was clamped or filtered
+- Warning log fires when any finite value was clamped; also fires when a non-None raw input is filtered to None (NaN/Inf detected); log includes both raw input and sanitized output for each field
 - compileall: clean
 
 ---

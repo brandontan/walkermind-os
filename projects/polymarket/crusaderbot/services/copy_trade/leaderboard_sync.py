@@ -120,23 +120,41 @@ async def sync_leaderboard(pool: Any) -> None:
             win_rate = win_rate / 100.0
         if win_rate is not None:
             win_rate = max(0.0, min(1.0, win_rate))
-        total_pnl = _safe_float(r.get("total_pnl_15d"))
-        roi_pct = _safe_float(r.get("roi_pct_15d"))
+        total_pnl_in = r.get("total_pnl_15d")
+        roi_pct_in = r.get("roi_pct_15d")
+        volume_usdc_in = r.get("total_volume_15d")
+
+        total_pnl = _safe_float(total_pnl_in)
+        roi_pct = _safe_float(roi_pct_in)
         if roi_pct is not None and roi_pct > 1.0:
             roi_pct = roi_pct / 100.0
-        volume_usdc = _safe_float(r.get("total_volume_15d"))
+        volume_usdc = _safe_float(volume_usdc_in)
 
         # --- schema clamps (NUMERIC(8,4) / NUMERIC(18,6) column bounds) ---
-        # _safe_float already rejects NaN/infinity; _clamp handles large finite values.
+        # _safe_float rejects NaN/infinity (→ None); _clamp handles large finite values.
+        # Capture pre-clamp values and track whether any non-None input was filtered.
         roi_pct_raw, total_pnl_raw, volume_usdc_raw = roi_pct, total_pnl, volume_usdc
-        roi_pct    = _clamp(roi_pct,    -9999.9999,      9999.9999)
-        total_pnl  = _clamp(total_pnl,  -999999999999.0, 999999999999.0)
-        volume_usdc = _clamp(volume_usdc, 0.0,            999999999999.0)
-        if roi_pct != roi_pct_raw or total_pnl != total_pnl_raw or volume_usdc != volume_usdc_raw:
+        roi_pct     = _clamp(roi_pct,     -9999.9999,            9999.9999)
+        total_pnl   = _clamp(total_pnl,   -999999999999.999999,  999999999999.999999)
+        volume_usdc = _clamp(volume_usdc,  0.0,                   999999999999.999999)
+        filtered_non_finite = (
+            (roi_pct_in is not None and roi_pct is None)
+            or (total_pnl_in is not None and total_pnl is None)
+            or (volume_usdc_in is not None and volume_usdc is None)
+        )
+        if (
+            roi_pct != roi_pct_raw
+            or total_pnl != total_pnl_raw
+            or volume_usdc != volume_usdc_raw
+            or filtered_non_finite
+        ):
             log.warning(
-                "leaderboard sync: clamped extreme value wallet=%s "
-                "roi_pct=%s total_pnl=%s volume_usdc=%s",
-                wallet, roi_pct, total_pnl, volume_usdc,
+                "leaderboard sync: numeric sanitation wallet=%s "
+                "roi_in=%r roi_out=%s pnl_in=%r pnl_out=%s vol_in=%r vol_out=%s",
+                wallet,
+                roi_pct_in, roi_pct,
+                total_pnl_in, total_pnl,
+                volume_usdc_in, volume_usdc,
             )
 
         tier = r.get("tier")
