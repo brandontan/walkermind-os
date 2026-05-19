@@ -121,24 +121,33 @@ def _portfolio_trades_kb() -> InlineKeyboardMarkup:
 def _auto_trade_kb(position_id: Optional[str]) -> InlineKeyboardMarkup:
     if not position_id:
         return _portfolio_trades_kb()
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton("📊 View Position", callback_data=f"mytrades:open:{position_id}"),
-        InlineKeyboardButton("❌ Close Position", callback_data=f"close_position:{position_id}"),
-        InlineKeyboardButton("🌐 Dashboard",      callback_data="tgnotif:dashboard"),
-    ]])
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📈 View Position",  callback_data=f"mytrades:open:{position_id}"),
+            InlineKeyboardButton("🛑 Close Position", callback_data=f"close_position:{position_id}"),
+        ],
+        [
+            InlineKeyboardButton("🌐 Dashboard", callback_data="tgnotif:dashboard"),
+        ],
+    ])
 
 
 def _copy_trade_kb(
     position_id: Optional[str],
     copy_task_id: Optional[str],
 ) -> InlineKeyboardMarkup:
-    row = []
+    rows: list[list[InlineKeyboardButton]] = []
     if position_id:
-        row.append(InlineKeyboardButton("📊 View Position", callback_data=f"mytrades:open:{position_id}"))
+        rows.append([
+            InlineKeyboardButton("📈 View Position",  callback_data=f"mytrades:open:{position_id}"),
+            InlineKeyboardButton("🛑 Close Position", callback_data=f"close_position:{position_id}"),
+        ])
+    action_row: list[InlineKeyboardButton] = []
     if copy_task_id:
-        row.append(InlineKeyboardButton("⏸ Pause Copy", callback_data=f"tgnotif:pause_copy:{copy_task_id}"))
-    row.append(InlineKeyboardButton("🌐 Dashboard", callback_data="tgnotif:dashboard"))
-    return InlineKeyboardMarkup([row])
+        action_row.append(InlineKeyboardButton("⏸️ Pause Copy", callback_data=f"tgnotif:pause_copy:{copy_task_id}"))
+    action_row.append(InlineKeyboardButton("🌐 Dashboard", callback_data="tgnotif:dashboard"))
+    rows.append(action_row)
+    return InlineKeyboardMarkup(rows)
 
 
 # ---------------------------------------------------------------------------

@@ -197,10 +197,15 @@ class TradeNotifier:
             f"{_SEP}"
         )
         if position_id:
-            kb = InlineKeyboardMarkup([[
-                InlineKeyboardButton("📋 View Trade", callback_data=f"mytrades:open:{position_id}"),
-                InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
-            ]])
+            kb = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📈 View Position",  callback_data=f"mytrades:open:{position_id}"),
+                    InlineKeyboardButton("🛑 Close Position", callback_data=f"close_position:{position_id}"),
+                ],
+                [
+                    InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
+                ],
+            ])
         else:
             kb = InlineKeyboardMarkup([[
                 InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
@@ -426,12 +431,14 @@ class TradeNotifier:
         sl_pct: Optional[float],
         target_wallet: Optional[str] = None,
         mode: str = "paper",
+        position_id: Optional[str] = None,
+        copy_task_id: Optional[str] = None,
     ) -> None:
-        """Scaffold: COPY_TRADE entry notification.
+        """COPY_TRADE entry notification with inline action keyboards.
 
-        Emitted when strategy_type == "copy_trade" and the position carries
-        copy-trade metadata. Target wallet is truncated for readability.
-        Track B (Copy Trade execution) will populate target_wallet.
+        Emitted when strategy_type == "copy_trade". Buttons:
+          [ 📈 View Position ]  [ 🛑 Close Position ]   (when position_id set)
+          [ ⏸️ Pause Copy ]                              (when copy_task_id set)
         """
         label = _market_label(market_question, market_id)
         tag = _mode_tag(mode)
@@ -450,9 +457,22 @@ class TradeNotifier:
             f"{wallet_str}\n"
             "Paper mode"
         )
+        kb_rows: list[list[InlineKeyboardButton]] = []
+        if position_id:
+            kb_rows.append([
+                InlineKeyboardButton("📈 View Position",  callback_data=f"mytrades:open:{position_id}"),
+                InlineKeyboardButton("🛑 Close Position", callback_data=f"close_position:{position_id}"),
+            ])
+        if copy_task_id:
+            kb_rows.append([
+                InlineKeyboardButton("⏸️ Pause Copy", callback_data=f"tgnotif:pause_copy:{copy_task_id}"),
+            ])
+        if not kb_rows:
+            kb_rows = [[InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard")]]
         await self._send(
             telegram_user_id, text,
             event=NotificationEvent.COPY_TRADE, market_id=market_id,
+            reply_markup=InlineKeyboardMarkup(kb_rows),
         )
 
     # ------------------------------------------------------------------

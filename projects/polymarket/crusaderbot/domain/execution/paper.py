@@ -85,6 +85,7 @@ async def execute(
         sl_pct=sl_pct,
         mode="paper",
         strategy_type=strategy_type,
+        position_id=str(position_id),
     )
     return {"order_id": order_id, "position_id": position_id, "mode": "paper"}
 
