@@ -1,7 +1,8 @@
-Last Updated : 2026-05-19 23:45
-Status       : WARP-36 fix-leaderboard-numeric-overflow PR open — NaN/isfinite guard + _clamp helper in leaderboard_sync.py. STANDARD, NARROW INTEGRATION.
+Last Updated : 2026-05-19 23:49
 
 [COMPLETED]
+- WARP-35 MERGED direct-apply (7f14c42d): regression tests for asyncpg date-object arg in _get_daily_spend/_record_spend. STANDARD, NARROW INTEGRATION.
+- WARP-37 MERGED direct-apply (088bad43): BadRequest not-modified guard across 6 inline-edit handlers (setup.py x5, settings.py x1). MINOR, NARROW INTEGRATION.
 - WARP-32 MERGED PR #1174 (c34a4276): SQL isolation audit PASS (zero user_id leaks across all handlers/services), /admin status HUD added to admin_root() (DB+cache health, user counts, pool USDC, open positions paper/live, paper PnL, kill switch, 4 guards, last 3 jobs), Migration 042 DROP TABLE sessions (stateless JWT confirmed, zero refs). STANDARD, NARROW INTEGRATION.
 - WARP-31 MERGED PR #1173 (8563d6b1): 8-step concierge onboarding wizard (Welcome→HowItWorks→Wallet→PaperCredit→Risk→PresetPick→Review→Launch), dynamic state-aware main_menu() with paused/open_count labels, 32-char DIV constant standardized across all messages.py screens. STANDARD, NARROW INTEGRATION. GATE conflict-resolved with main post PR #1172.
 - WARP-26 MERGED PR #1169 (rebase, superseded #1168): copy_trade.py reads copy_trade_tasks (was copy_targets), dedup via copy_trade_idempotency, copy_direction + sizing via copy_mode + rm_mirror explicit sizing path (mirror_size_direct, unknown mode guard). SignalCandidate.reasoning added; all 3 strategies populate it. messages.py all dividers 32-char. test_copy_trade.py + test_signal_following.py aligned to new schema. compileall + CI + SonarQube clean. MAJOR, FULL RUNTIME INTEGRATION. WARP🔹CMD merged directly without SENTINEL run.
