@@ -565,7 +565,7 @@ def test_strategy_scan_delegates_to_evaluator():
         metadata={"feed_id": str(_FEED_UUID),
                   "publication_id": str(_PUB_UUID),
                   "market_id": "mkt_1"},
-        reasoning="Signal: Heisenberg feed breakout — market mkt_1… conf=70%.",
+        reasoning="Signal: feed candidate — market mkt_1… conf=70%.",
     )
 
     async def fake_eval(**kwargs):
