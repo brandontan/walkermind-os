@@ -36,7 +36,9 @@ DO $$
 BEGIN
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'copy_trade_events' AND column_name = 'user_id'
+        WHERE table_schema = 'public'
+          AND table_name = 'copy_trade_events'
+          AND column_name = 'user_id'
     ) THEN
         CREATE INDEX IF NOT EXISTS idx_copy_trade_events_user_id
             ON copy_trade_events (user_id);
