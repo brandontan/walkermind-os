@@ -27,6 +27,7 @@ class SignalCandidate:
     strategy_name: str
     signal_ts: datetime
     metadata: dict[str, Any] = field(default_factory=dict)
+    reasoning: str = ""
 
     def __post_init__(self) -> None:
         if self.side not in VALID_SIDES:

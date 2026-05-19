@@ -1,4 +1,4 @@
-"""CopyTradeStrategy — mirror up to three Polymarket wallets per user.
+"""CopyTradeStrategy — mirror active copy_trade_tasks per user.
 
 Foundation contract (P3a):
     BaseStrategy.scan          — emit SignalCandidates, no execution side-effects
@@ -27,7 +27,7 @@ from uuid import UUID
 
 from ....database import get_pool
 from ....integrations import polymarket as pm
-from ....services.copy_trade.scaler import mirror_size_direct, scale_size
+from ....services.copy_trade.scaler import mirror_size_direct
 from ....services.copy_trade.wallet_watcher import (
     fetch_leader_open_condition_ids,
     fetch_recent_wallet_trades,
@@ -50,12 +50,11 @@ RESOLUTION_DISTANCE_DISABLED_DAYS = 365
 
 
 class CopyTradeStrategy(BaseStrategy):
-    """Mirror entries from up to 3 leader wallets, follow leader exits.
+    """Mirror entries from active copy_trade_tasks, follow leader exits.
 
-    Per-user state lives in the `copy_targets` table (max 3 active rows enforced
-    at the Telegram handler boundary). Per-trade dedup uses the unique
-    `copy_trade_events.source_tx_hash` index — re-scans of the same leader
-    trade will not emit duplicate signals.
+    Per-user state lives in the `copy_trade_tasks` table. Per-trade dedup uses
+    `copy_trade_idempotency` keyed on (user_id, task_id, leader_trade_id) —
+    re-scans of the same leader trade will not emit duplicate signals.
     """
 
     name = "copy_trade"
@@ -73,14 +72,13 @@ class CopyTradeStrategy(BaseStrategy):
         """Emit one SignalCandidate per fresh leader entry, deduped by tx hash.
 
         Pipeline:
-            1. load active copy_targets for user (max 3)
-            2. per target: poll Polymarket Data API for recent trades
+            1. load active copy_trade_tasks for user
+            2. per task: poll Polymarket Data API for recent trades
                (5s timeout, 1 req/s global rate limit — handled in watcher)
             3. drop trades older than 5 minutes
-            4. drop trades whose source_tx_hash is already in copy_trade_events
-            5. scale leader size to user bankroll (scaler.scale_size)
-            6. build SignalCandidate; metadata carries leader linkage so the
-               downstream consumer can persist the copy_trade_events row
+            4. drop trades already in copy_trade_idempotency
+            5. size trade from task copy_mode/copy_amount/copy_pct
+            6. build SignalCandidate with leader linkage + reasoning
         """
         targets = await _load_active_copy_targets(user_context.user_id)
         if not targets:
@@ -90,15 +88,18 @@ class CopyTradeStrategy(BaseStrategy):
         cutoff = datetime.now(timezone.utc) - RECENT_TRADE_WINDOW
 
         for target in targets:
-            wallet = target["target_wallet_address"]
+            wallet = target["wallet_address"]
+            copy_direction = target.get("copy_direction", "buys_only")
+            copy_mode = target.get("copy_mode", "fixed")
+            cap_usdc = (
+                user_context.available_balance_usdc
+                * user_context.capital_allocation_pct
+            )
             try:
                 trades = await fetch_recent_wallet_trades(
                     wallet, limit=MAX_TRADES_PER_WALLET,
                 )
             except Exception as exc:
-                # wallet_watcher swallows expected errors; this is a final
-                # belt-and-braces guard so a single rogue target can never
-                # crash the scan loop for the user's other targets.
                 logger.warning(
                     "copy_trade scan: wallet fetch failed wallet=%s err=%s",
                     wallet, exc,
@@ -110,10 +111,12 @@ class CopyTradeStrategy(BaseStrategy):
                 if ts is None or ts < cutoff:
                     continue
                 tx_hash = trade.get("transactionHash") or trade.get("tx_hash")
-                if not tx_hash or await _already_mirrored(target["id"], tx_hash):
+                if not tx_hash or await _already_mirrored(
+                    user_context.user_id, target["id"], tx_hash
+                ):
                     continue
 
-                side = _normalise_side(trade)
+                side = _normalise_side(trade, copy_direction)
                 if side is None:
                     continue
                 market_id = trade.get("market") or trade.get("market_id")
@@ -129,31 +132,32 @@ class CopyTradeStrategy(BaseStrategy):
                 ):
                     continue
 
-                leader_bankroll = _coerce_float(target.get("leader_bankroll_estimate"))
-                if leader_bankroll > 0:
-                    sized = scale_size(
-                        leader_size=leader_size_usdc,
-                        leader_bankroll=leader_bankroll,
-                        user_available=user_context.available_balance_usdc,
-                        max_position_pct=user_context.capital_allocation_pct,
-                    )
+                if copy_mode == "proportional":
+                    pct = _coerce_float(target.get("copy_pct"))
+                    if pct > 0:
+                        sized = min(
+                            user_context.available_balance_usdc * float(pct),
+                            cap_usdc,
+                        )
+                    else:
+                        sized = mirror_size_direct(
+                            leader_size=leader_size_usdc,
+                            user_available=user_context.available_balance_usdc,
+                            max_position_pct=user_context.capital_allocation_pct,
+                        )
                 else:
-                    # Bankroll unknown — proportional rule would synthesise a
-                    # bankroll equal to leader_size and collapse every signal
-                    # to the user's position cap regardless of the leader
-                    # trade notional. Fall back to a 1:1 mirror that is still
-                    # capped at user_available × max_position_pct.
-                    sized = mirror_size_direct(
-                        leader_size=leader_size_usdc,
-                        user_available=user_context.available_balance_usdc,
-                        max_position_pct=user_context.capital_allocation_pct,
-                    )
-                if sized <= 0.0:
-                    # scale_size returns 0.0 to signal "skip" (below $1 floor
-                    # or any degenerate input). Honour the skip — never emit
-                    # a SignalCandidate the risk gate would have to drop.
+                    fixed_amount = _coerce_float(target.get("copy_amount") or 5.0)
+                    sized = min(fixed_amount, cap_usdc) if fixed_amount > 0 else 0.0
+
+                min_size = _coerce_float(target.get("min_trade_size") or 0.50)
+                if sized <= 0.0 or sized < min_size:
                     continue
 
+                task_name = target.get("task_name") or wallet[:8]
+                reasoning = (
+                    f"CopyTrade: Mirroring {task_name} ({wallet[:8]}…). "
+                    f"Mode={copy_mode}, Size=${sized:.2f}."
+                )
                 candidates.append(
                     SignalCandidate(
                         market_id=str(market_id),
@@ -166,11 +170,12 @@ class CopyTradeStrategy(BaseStrategy):
                         metadata={
                             "source_tx_hash": str(tx_hash),
                             "leader_wallet": wallet,
-                            "copy_target_id": str(target["id"]),
+                            "copy_task_id": str(target["id"]),
                             "leader_size_usdc": leader_size_usdc,
                             "leader_price": _coerce_float(trade.get("price")),
                             "leader_trade_ts": ts.isoformat(),
                         },
+                        reasoning=reasoning,
                     )
                 )
 
@@ -218,12 +223,7 @@ class CopyTradeStrategy(BaseStrategy):
 
 
 async def _load_active_copy_targets(user_id: str) -> list[dict[str, Any]]:
-    """Return active copy_targets rows for ``user_id`` (≤3 by table cap).
-
-    Foundation cap: the Telegram handler refuses to insert a 4th active row,
-    so the LIMIT here is defensive against a manual DB row that bypassed the
-    handler.
-    """
+    """Return active copy_trade_tasks rows for ``user_id``."""
     pool = get_pool()
     user_uuid = _coerce_uuid(user_id)
     if user_uuid is None:
@@ -231,9 +231,10 @@ async def _load_active_copy_targets(user_id: str) -> list[dict[str, Any]]:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, user_id, target_wallet_address, scale_factor,
-                   trades_mirrored, created_at
-              FROM copy_targets
+            SELECT id, user_id, wallet_address, task_name,
+                   copy_mode, copy_amount, copy_pct,
+                   copy_direction, min_trade_size, created_at
+              FROM copy_trade_tasks
              WHERE user_id = $1 AND status = 'active'
              ORDER BY created_at ASC
              LIMIT $2
@@ -368,46 +369,54 @@ def _days_to_resolution(market_meta: dict) -> int | None:
     return max(days, 0)
 
 
-async def _already_mirrored(copy_target_id: Any, source_tx_hash: str) -> bool:
-    """Return True iff this follower has already mirrored this leader trade.
+async def _already_mirrored(
+    user_id: str, task_id: Any, source_tx_hash: str
+) -> bool:
+    """Return True iff this user+task has already processed this leader trade.
 
-    Dedup is per-follower: the unique boundary is the composite
-    `(copy_target_id, source_tx_hash)` index on `copy_trade_events`. The same
-    leader transaction may legitimately be mirrored by every follower of the
-    leader (each owns a distinct `copy_target_id`), but a single follower
-    must not double-mirror after a re-scan. The strategy reads here for
-    early-exit; the downstream consumer that persists the row catches the
-    constraint as the second line of defence against a concurrent re-scan.
+    Dedup key: (user_id, task_id, leader_trade_id) on copy_trade_idempotency.
+    Strategy checks here for early exit; the downstream execution consumer
+    re-asserts via INSERT ON CONFLICT as the second defence against concurrent
+    re-scans.
     """
-    target_uuid = _coerce_uuid(copy_target_id)
-    if target_uuid is None or not source_tx_hash:
+    user_uuid = _coerce_uuid(user_id)
+    task_uuid = _coerce_uuid(task_id)
+    if user_uuid is None or task_uuid is None or not source_tx_hash:
         return False
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT 1 FROM copy_trade_events "
-            "WHERE copy_target_id = $1 AND source_tx_hash = $2",
-            target_uuid, source_tx_hash,
+            "SELECT 1 FROM copy_trade_idempotency "
+            "WHERE user_id = $1 AND task_id = $2 AND leader_trade_id = $3",
+            user_uuid, task_uuid, source_tx_hash,
         )
     return row is not None
 
 
-def _normalise_side(trade: dict) -> str | None:
+def _normalise_side(
+    trade: dict, copy_direction: str = "buys_only"
+) -> str | None:
     """Map a Polymarket Data API trade row to our ('YES' | 'NO') side.
 
-    Polymarket exposes trade direction two ways:
-        * `outcome` == 'Yes' | 'No' (binary market outcome label)
-        * `side`    == 'BUY' | 'SELL' (taker direction on the outcome token)
-
-    Copy-trade only mirrors `BUY` legs — selling is captured by leader_exit.
+    copy_direction='buys_only': only BUY legs are mirrored (default).
+    copy_direction='buys_and_sells': SELL YES → bet NO, SELL NO → bet YES.
     """
     side = (trade.get("side") or "").upper()
-    if side and side != "BUY":
-        return None
     outcome = (trade.get("outcome") or "").upper()
-    if outcome in ("YES", "NO"):
-        return outcome
-    return None
+
+    if copy_direction == "buys_only":
+        if side and side != "BUY":
+            return None
+        return outcome if outcome in ("YES", "NO") else None
+
+    # buys_and_sells: invert side for SELL trades
+    if side == "SELL":
+        if outcome == "YES":
+            return "NO"
+        if outcome == "NO":
+            return "YES"
+        return None
+    return outcome if outcome in ("YES", "NO") else None
 
 
 def _parse_trade_timestamp(trade: dict) -> datetime | None:
