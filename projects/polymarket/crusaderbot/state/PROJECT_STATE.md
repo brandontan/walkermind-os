@@ -1,5 +1,5 @@
-Last Updated : 2026-05-19 20:20
-Status       : WARP-33 MERGED (direct-apply fdc2367a) — Phase 4 Public Readiness Gate complete. README tree fix, KNOWLEDGE_BASE refresh, forge report. MINOR, FOUNDATION.
+Last Updated : 2026-05-19 23:45
+Status       : WARP-36 fix-leaderboard-numeric-overflow PR open — NaN/isfinite guard + _clamp helper in leaderboard_sync.py. STANDARD, NARROW INTEGRATION.
 
 [COMPLETED]
 - WARP-32 MERGED PR #1174 (c34a4276): SQL isolation audit PASS (zero user_id leaks across all handlers/services), /admin status HUD added to admin_root() (DB+cache health, user counts, pool USDC, open positions paper/live, paper PnL, kill switch, 4 guards, last 3 jobs), Migration 042 DROP TABLE sessions (stateless JWT confirmed, zero refs). STANDARD, NARROW INTEGRATION.
@@ -19,6 +19,7 @@ Status       : WARP-33 MERGED (direct-apply fdc2367a) — Phase 4 Public Readine
 
 [IN PROGRESS]
 
+- WARP-36 fix-leaderboard-numeric-overflow PR open — math.isfinite() guard in _safe_float + _clamp helper; NaN no longer bypasses schema bounds in leaderboard_sync.py. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP-30 phase1-hardening-db-cleanup PR open — signal freshness gate tests (4 cases), SSE reliability audit PASS, migrations 030/031/041 applied to Supabase production. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP-25 telegram-functional-routing-fix PR open — show_positions() callback fix + Positions [🛑 Close] buttons + Trades history-only keyboard + preset picker short labels. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/expand-webtrader-pagination PR open — WARP-19: Load More pagination for Live Market Feed (DashboardPage), Leaderboard Rankings (CopyTradePage), Closed Trades (PortfolioPage), Orders (PortfolioPage). offset param added to getRecentSignals, getLeaderboard, getPositions, getOrders in api.ts. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
@@ -65,6 +66,7 @@ Status       : WARP-33 MERGED (direct-apply fdc2367a) — Phase 4 Public Readine
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for WARP-36 fix-leaderboard-numeric-overflow (NaN/isfinite guard prevents NumericValueOutOfRangeError on Falcon API data). Source: projects/polymarket/crusaderbot/reports/forge/fix-leaderboard-numeric-overflow.md. Tier: STANDARD.
 - WARP🔹CMD review + URGENT MERGE required for WARP-28 dashboard-corruption-fix (deployment blocker). Source: projects/polymarket/crusaderbot/reports/forge/dashboard-corruption-fix.md. Tier: STANDARD. After merge: Fly.io redeploy required.
 - WARP🔹CMD review required for WARP-25 telegram-functional-routing-fix (Positions callback fix + Close buttons + Trades history separation + preset label fix). Source: projects/polymarket/crusaderbot/reports/forge/telegram-functional-routing-fix.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/expand-webtrader-pagination (WARP-19: Load More pagination — Live Market Feed, Leaderboard, Closed Trades, Orders). Source: projects/polymarket/crusaderbot/reports/forge/expand-webtrader-pagination.md. Tier: STANDARD. No migration required.
