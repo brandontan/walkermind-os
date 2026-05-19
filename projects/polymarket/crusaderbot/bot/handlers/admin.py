@@ -65,7 +65,7 @@ _ROLE_MAP = {"USER": "FREE", "ADMIN": "ADMIN"}
 
 _ADMIN_HELP = (
     "<b>🛠 Admin</b>\n\n"
-    "• Runtime Health — /ops_dashboard, /health\n"
+    "• Runtime Health — /admin status, /ops_dashboard, /health\n"
     "• User Monitor — /admin users, /admin stats\n"
     "• Emergency Stop — /kill, /resume, /killswitch\n"
     "• Logs — /auditlog, /jobs\n"
@@ -106,6 +106,8 @@ async def admin_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             await _admin_settier(update.message, args[1:], actor_id)
         elif sub == "stats":
             await _admin_stats(update.message)
+        elif sub == "status":
+            await _admin_status_hud(update.message)
         elif sub == "broadcast":
             await _admin_broadcast(update.message, args[1:], ctx)
         else:
@@ -236,6 +238,75 @@ async def _admin_broadcast(message, args: list[str], ctx) -> None:
     await message.reply_text(
         f"✅ Broadcast sent: {sent} delivered, {failed} failed."
     )
+
+
+async def _admin_status_hud(message) -> None:
+    """Consolidated /admin status — merges health, users, positions, guards, jobs."""
+    from ...cache import ping_cache
+    from ...database import ping
+
+    pool = get_pool()
+    s = get_settings()
+
+    db_ok = await ping()
+    cache_ok = await ping_cache()
+
+    async with pool.acquire() as conn:
+        total_users = int(await conn.fetchval("SELECT COUNT(*) FROM users") or 0)
+        admin_n = int(await conn.fetchval(
+            "SELECT COUNT(*) FROM user_tiers WHERE tier='ADMIN'"
+        ) or 0)
+        auto_trade_n = int(await conn.fetchval(
+            "SELECT COUNT(*) FROM users WHERE auto_trade_on=TRUE AND paused=FALSE"
+        ) or 0)
+        open_paper = int(await conn.fetchval(
+            "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='paper'"
+        ) or 0)
+        open_live = int(await conn.fetchval(
+            "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='live'"
+        ) or 0)
+        paper_pnl = float(await conn.fetchval(
+            "SELECT COALESCE(SUM(pnl_usdc), 0) FROM positions WHERE mode='paper' AND status!='open'"
+        ) or 0.0)
+        total_usdc = float(await conn.fetchval(
+            "SELECT COALESCE(SUM(balance_usdc), 0) FROM wallets"
+        ) or 0.0)
+        ks_active = await is_kill_switch_active()
+
+    try:
+        recent_jobs = await job_tracker.fetch_recent(limit=3)
+    except Exception:  # noqa: BLE001
+        recent_jobs = []
+
+    ks_label = "🔴 ACTIVE" if ks_active else "🟢 inactive"
+    lines = [
+        "<b>🩺 Admin Status</b>",
+        "",
+        f"DB: {'✅' if db_ok else '❌'}  Cache: {'✅' if cache_ok else '❌'}",
+        "",
+        f"Users: {total_users} total · {admin_n} admin · {auto_trade_n} auto-trade",
+        f"Pool: ${total_usdc:,.2f} USDC",
+        f"Positions: {open_paper} paper · {open_live} live",
+        f"Paper PnL: ${paper_pnl:+,.2f}",
+        "",
+        f"Kill switch: {ks_label}",
+        "",
+        "<b>Guards:</b>",
+        f"  ENABLE_LIVE_TRADING={s.ENABLE_LIVE_TRADING}",
+        f"  EXECUTION_PATH_VALIDATED={s.EXECUTION_PATH_VALIDATED}",
+        f"  CAPITAL_MODE_CONFIRMED={s.CAPITAL_MODE_CONFIRMED}",
+        f"  AUTO_REDEEM_ENABLED={s.AUTO_REDEEM_ENABLED}",
+    ]
+    if recent_jobs:
+        lines.append("")
+        lines.append("<b>Recent jobs:</b>")
+        for j in recent_jobs:
+            status_icon = "✅" if j["status"] == "success" else "❌"
+            duration = _format_duration_ms(j.get("started_at"), j.get("finished_at"))
+            lines.append(
+                f"  {status_icon} <code>{html.escape(j['job_name'])}</code> · {duration}"
+            )
+    await message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
 
 
 async def resetonboard_command(update: Update,
