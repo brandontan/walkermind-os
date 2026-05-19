@@ -164,6 +164,7 @@ class CopyTradeStrategy(BaseStrategy):
                 if sized <= 0.0 or sized < min_size:
                     continue
 
+
                 task_name = target.get("task_name") or wallet[:8]
                 reasoning = (
                     f"CopyTrade: Mirroring {task_name} ({wallet[:8]}…). "
