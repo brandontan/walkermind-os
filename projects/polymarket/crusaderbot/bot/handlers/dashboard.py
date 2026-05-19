@@ -1,1 +1,351 @@
-IiIiUGhhc2UgNSBVWCBSZWJ1aWxkIOKAlCBEYXNoYm9hcmQgKFNjcmVlbiAwMikuCgpUcmlnZ2VyOiAvc3RhcnQgKHJldHVybmluZyB1c2VyKSwgL2Rhc2hib2FyZCwgREFTSEJPQVJEIGJ1dHRvbi4KIiIiCmZyb20gX19mdXR1cmVfXyBpbXBvcnQgYW5ub3RhdGlvbnMKCmZyb20gZGVjaW1hbCBpbXBvcnQgRGVjaW1hbApmcm9tIHR5cGluZyBpbXBvcnQgVFlQRV9DSEVDS0lORwoKZnJvbSB0ZWxlZ3JhbSBpbXBvcnQgVXBkYXRlCmZyb20gdGVsZWdyYW0uY29uc3RhbnRzIGltcG9ydCBQYXJzZU1vZGUKZnJvbSB0ZWxlZ3JhbS5leHQgaW1wb3J0IENvbnRleHRUeXBlcwoKZnJvbSAuLi5jb25maWcgaW1wb3J0IGdldF9zZXR0aW5ncwpmcm9tIC4uLndhbGxldC5sZWRnZXIgaW1wb3J0IGRhaWx5X3BubCwgZ2V0X2JhbGFuY2UKZnJvbSAuLi51c2VycyBpbXBvcnQgZ2V0X3NldHRpbmdzX2ZvciwgdXBzZXJ0X3VzZXIKZnJvbSAuLi5zZXJ2aWNlcy5wb3NpdGlvbi5yZXBvc2l0b3J5IGltcG9ydCBnZXRfdXNlcl9zdGF0cwpmcm9tIC4uLmludGVncmF0aW9ucy5wb2x5bWFya2V0IGltcG9ydCBnZXRfbWFya2V0CmZyb20gLi5rZXlib2FyZHMgaW1wb3J0IGRhc2hib2FyZF9rYgpmcm9tIC4ubWVzc2FnZXMgaW1wb3J0IGRhc2hib2FyZF90ZXh0CmZyb20gLnByZXNldHMgaW1wb3J0IFBSRVNFVF9NRVRBREFUQQoKaWYgVFlQRV9DSEVDS0lORzoKICAgIGZyb20gdXVpZCBpbXBvcnQgVVVJRAoKCmFzeW5jIGRlZiBzaG93X2Rhc2hib2FyZCh1cGRhdGU6IFVwZGF0ZSwgY3R4OiBDb250ZXh0VHlwZXMuREVGQVVMVF9UWVBFKSAtPiBOb25lOgogICAgIiIiTWFpbiBlbnRyeXBvaW50IGZvciB0aGUgVjUgZGFzaGJvYXJkLiIiIgogICAgdGcgPSB1cGRhdGUuZWZmZWN0aXZlX3VzZXIKICAgIGlmIG5vdCB0ZzoKICAgICAgICByZXR1cm4KCiAgICB1c2VyID0gYXdhaXQgdXBzZXJ0X3VzZXIodGcuaWQsIHRnLnVzZXJuYW1lKQogICAgYmFsID0gYXdhaXQgZ2V0X2JhbGFuY2UodXNlclsiaWQiXSkKICAgIHBuX3RvZGF5ID0gYXdhaXQgZGFpbHlfcG5sKHVzZXJbImlkIl0pCiAgICBzdGF0cyA9IGF3YWl0IGdldF91c2VyX3N0YXRzKHVzZXJbImlkIl0pCiAgICBzZXR0ID0gYXdhaXQgZ2V0X3NldHRpbmdzX2Zvcih1c2VyWyJpZCJdKQoKICAgICMgUHJlc2V0IG1ldGFkYXRhCiAgICBwayA9IHNldHQuZ2V0KCJwcmVzZXRfa2V5IikKICAgIG1ldGEgPSBQUkVTRVRfTUVUQURBVEEuZ2V0KHBrawogICAgICAgIGlmIHBayBlbHNlIHsgImVtb2ppIjogIuKEue+4jyIsICJuYW1lIjogIk5vdCBzZXQiIH0KICAgICkKCiAgICAjIFJpc2sgbWV0YWRhdGEKICAgIHJwID0gc2V0dC5nZXQoInJpc2tfcHJvZmlsZSIsICJiYWxhbmNlZCIpCiAgICByaXNrX2Vtb2ppID0geyJjb25zZXJ2YXRpdmUiOiAi8J+fbiIsICJiYWxhbmNlZCI6ICLwn5+hIiwgImFnZ3Jlc3NpdmUiOiAi8J+UtCJ9LmdldChycCwgIvCfn6EiKQoKICAgICMgRmxvYXQgY29lcmNpb24KICAgIGJhbF9mID0gZmxvYXQoYmFsKQogICAgZXF1aXR5X2YgPSBiYWxfZiArIGZsb2F0KHN0YXRzWyJwb3NpdGlvbnNfdmFsdWUiXSkKCiAgICAjIFN0YXR1cyBwdWxzZSAoTW9jayBmb3Igbm93KQogICAgcHVsc2UgPSAi4pSUIPCfpJYgU2Nhbm5pbmcgbGlxdWlkaXR5Li4uIgogICAgbGFzdF9zY2FuID0gImp1c3Qgbm93IgogICAgcG5sX3RfYmFzZSA9IGVxdWl0eV9mIC0gZmxvYXQocG5fdG9kYXkpCiAgICBwbmxfdF9wY3QgPSAoZmxvYXQocG5fdG9kYXkpIC8gcG5sX3RfYmFzZSAqIDEwMCkgaWYgcG5sX3RfYmFzZSA+IDAgZWxzZSAwLjAKCiAgICB0ZXh0ID0gZGFzaGJvYXJkX3RleHQoCiAgICAgICAgYmFsYW5jZT1iYWxfZiwKICAgICAgICBwb3NpdGlvbnNfdmFsdWU9ZmxvYXQoc3RhdHNbInBvc2l0aW9uc192YWx1ZSJdKSwKICAgICAgICB0b3RhbF9lcXVpdHk9ZXF1aXR5X2YsCiAgICAgICAgd2lucz1zdGF0c1sid2lucyJdLAogICAgICAgIGxvc3Nlcz1zdGF0c1sibG9zc2VzIl0sCiAgICAgICAgcG5sX3RvZGF5PWZsb2F0KHBuX3RvZGF5KSwKICAgICAgICBwbmxfdG9kYXlfcGN0PXBubF90X3BjdCwKICAgICAgICBwbmxfN2Q9ZmxvYXQoc3RhdHNbInBubF83ZCJdKSwKICAgICAgICBwbmxfN2RfcGN0PWZsb2F0KHN0YXRzWyJwbmxfN2RfcGN0Il0pLAogICAgICAgIHBubF8zMGQ9ZmxvYXQoc3RhdHNbInBubF8zMGQiXSwKICAgICAgICBwbmxfMzBkX3BjdD1mbG9hdChzdGF0c1sicG5sXzMwZF9wY3QiXSksCiAgICAgICAgcG5sX2FsbHRpbWU9ZmxvYXQoc3RhdHNbInBubF9hbGx0aW1lIl0pLAogICAgICAgIHRvdGFsX3RyYWRlcz1zdGF0c1sidG90YWxfdHJhZGVzIl0sCiAgICAgICAgd2luX3JhdGU9ZmxvYXQoc3RhdHNbIndpbl9yYXRlIl0pLAogICAgICAgIHRvdGFsX3ZvbHVtZT1mbG9hdChzdGF0c1sidG90YWxfdm9sdW1lIl0pLAogICAgICAgIG1hcmtldHNfY291bnQ9c3RhdHNbIm1hcmtldHNfdHJhZGVkIl0sCiAgICAgICAgYXV0b3RyYWRlX29uPXVzZXJbImF1dG9fdHJhZGUob24iXSwKICAgICAgICBwcmVzZXRfa2V5PXBrLAogICAgICAgIHByZXNldF9lbW9qaT1tZXRhWyJlbW9qaSJdLAogICAgICAgIHByZXNldF9uYW1lPW1ldGFbIm5hbWUiXSwKICAgICAgICByaXNrX2Vtb2ppPXJpc2tfZW1vamksCiAgICAgICAgcmlza19sYWJlbD1ycC50aXRsZSgpLAogICAgICAgIHB1bHNlX2xpbmU9cHVsc2UsCiAgICAgICAgbGFzdF9zY2FuPWxhc3Rfc2NhbiwKICAgICkKCiAgICBhd2FpdCB1cGRhdGUubWVzc2FnZS5yZXBseV90ZXh0KAogICAgICAgIHRleHQsCiAgICAgICAgcGFyc2VfbW9kZT1QYXJzZU1vZGUuSFRNTCwKICAgICAgICByZXBseV9tYXJrdXA9ZGFzaGJvYXJkX2tiKCksCiAgICApCgoKYXN5bmMgZGVmIGRhc2hib2FyZF9uYXZfYm90X2NiKHVwZGF0ZTogVXBkYXRlLCBjdHg6IENvbnRleHRUeXBlcy5ERUZBVUxUX1RZUEUpIC0+IE5vbmU6CiAgICAiIiJIYW5kbGVzIGFsbCBkYXNoYm9hcmQ6KiBpbmxpbmUgY2FsbGJhY2tzIGZvciB0aGUgbmV3IFVYLiIiIgogICAgcSA9IHVwZGF0ZS5jYWxsYmFja19xdWVyeQogICAgaWYgbm90IHE6CiAgICAgICAgcmV0dXJuCiAgICBhd2FpdCBxLmFuc3dlcigpCgogICAgdXNlciA9IGF3YWl0IHVwc2VydF91c2VyKHEuZnJvbV91c2VyLmlkLCBxLmZyb21fdXNlci51c2VybmFtZSkKICAgIHN1YiA9IChxLmRhdGEgb3IgIiIpLnNwbGl0KCI6IiwgMSlbLTFdCgogICAgaWYgc3ViID09ICJyZWZyZXNoIjoKICAgICAgICBiYWwgPSBhd2FpdCBnZXRfYmFsYW5jZSh1c2VyWyJpZCJdKQogICAgICAgIHBuX3RvZGF5ID0gYXdhaXQgZGFpbHlfcG5sKHVzZXJbImlkIl0pCiAgICAgICAgc3RhdHMgPSBhd2FpdCBnZXRfdXNlcl9zdGF0cyh1c2VyWyJpZCJdKQogICAgICAgIHNldHQgPSBhd2FpdCBnZXRfc2V0dGluZ3NfZm9yKHVzZXJbImlkIl0pCiAgICAgICAgcGsgPSBzZXR0LmdldCgicHJlc2V0X2tleSIpCiAgICAgICAgbWV0YSA9IFBSRVNFVF9NRVRBREFUQS5nZXQocGspIGlmIHBayBlbHNlIHsgImVtb2ppIjogIuKEue+4jyIsICJuYW1lIjogIk5vdCBzZXQiIH0KICAgICAgICBycCA9IHNldHQuZ2V0KCJyaXNrX3Byb2ZpbGUiLCAiYmFsYW5jZWQiKQogICAgICAgIHJpc2tfZW1vamkgPSB7ImNvbnNlcnZhdGl2ZSI6ICLwn5+iIiwgImJhbGFuY2VkIjogIvCfn6EiLCAiYWdncmVzc2l2ZSI6ICLwn5S0In0uZ2V0KHJwLCAi8J+foSIpCiAgICAgICAgYmFsX2YgPSBmbG9hdChiYWwpCiAgICAgICAgZXF1aXR5X2YgPSBiYWxfZiArIGZsb2F0KHN0YXRzWyJwb3NpdGlvbnNfdmFsdWUiXSkKICAgICAgICBwbmxfdF9iYXNlID0gZXF1aXR5X2YgLSBmbG9hdChwbl90b2RheSkKICAgICAgICBwbmxfdF9wY3QgPSAoZmxvYXQocG5fdG9kYXkpIC8gcG5sX3RfYmFzZSAqIDEwMCkgaWYgcG5sX3RfYmFzZSA+IDAgZWxzZSAwLjAKCiAgICAgICAgdGV4dCA9IGRhc2hib2FyZF90ZXh0KAogICAgICAgICAgICBiYWxhbmNlPWJhbF9mLAogICAgICAgICAgICBwb3NpdGlvbnNfdmFsdWU9ZmxvYXQoc3RhdHNbInBvc2l0aW9uc192YWx1ZSJdKSwKICAgICAgICAgICAgdG90YWxfZXF1aXR5PWVxdWl0eV9mLAogICAgICAgICAgICB3aW5zPXN0YXRzWyJ3aW5zIl0sCiAgICAgICAgICAgIGxvc3Nlcz1zdGF0c1sibG9zc2VzIl0sCiAgICAgICAgICAgIHBubF90b2RheT1mbG9hdChwbl90b2RheSksCiAgICAgICAgICAgIHBubF90b2RheV9wY3Q9cG5sX3RfcGN0LAogICAgICAgICAgICBwbmxfN2Q9ZmxvYXQoc3RhdHNbInBubF83ZCJdKSwKICAgICAgICAgICAgcG5sXzdkX3BjdD1mbG9hdChzdGF0c1sicG5sXzdkX3BjdCJdKSwKICAgICAgICAgICAgcG5sXzMwZD1mbG9hdChzdGF0c1sicG5sXzMwZCJdKSwKICAgICAgICAgICAgcG5sXzMwZF9wY3Q9mbG9hdChzdGF0c1sicG5sXzMwZF9wY3QiXSksCiAgICAgICAgICAgIHBubF9hbGx0aW1lPWZsb2F0KHN0YXRzWyJwbmxfYWxsdGltZSJdKSwKICAgICAgICAgICAgdG90YWxfdHJhZGVzPXN0YXRzWyJ0b3RhbF90cmFkZXMiXSwKICAgICAgICAgICAgd2luX3JhdGU9ZmxvYXQoc3RhdHNbIndpbl9yYXRlIl0pLAogICAgICAgICAgICB0b3RhbF92b2x1bWU9mbG9hdChzdGF0c1sidG90YWxfdm9sdW1lIl0pLAogICAgICAgICAgICBtYXJrZXRzX2NvdW50PXN0YXRzWyJtYXJrZXRzX3RyYWRlZCJdLAogICAgICAgICAgICBhdXRvdHJhZGU_b249dXNlclsiYXV0b190cmFkZV9vbiJdLAogICAgICAgICAgICBwcmVzZXRfa2V5PXBrLAogICAgICAgICAgICBwcmVzZXRfZW1vamk9bWV0YVsiZW1vamkiXSwKICAgICAgICAgICAgcHJlc2V0X25hbWU9bWV0YVsibmFtZSJdLAogICAgICAgICAgICByaXNrX2Vtb2ppPXJpc2tfZW1vamksCiAgICAgICAgICAgIHJpc2tfbGFiZWw9cnAudGl0bGUoKSwKICAgICAgICApCiAgICAgICAgdHJ5OgogICAgICAgICAgICBhd2FpdCBxLmVkaXRfbWVzc2FnZV90ZXh0KHRleHQsIHBhcnNlX21vZGU9UGFyc2VNb2RlLkhUTUwsIHJlcGx5X21hcmt1cD1kYXNoYm9hcmRfa2IoKSkKICAgICAgICBleGNlcHQgRXhjZXB0aW9uOgogICAgICAgICAgICBwYXNzCgogICAgZWxpZiBzdWIgPT0gImF1dG8iOgogICAgICAgIGZyb20gLmF1dG90cmFkZSBpbXBvcnQgc2hvd19wcmVzZXRfcGlja2VyCiAgICAgICAgYXdhaXQgc2hvd19wcmVzZXRfcGlja2VyKHVwZGF0ZSwgY3R4KQoKICAgIGVsaWYgc3ViID09ICJwb3J0Zm9saW8iOgogICAgICAgIGZyb20gLnRyYWRlcyBpbXBvcnQgc2hvd190cmFkZXMKICAgICAgICBhd2FpdCBzaG93X3RyYWRlcyh1cGRhdGUsIGN0eCkK
+"""Phase 5 UX Rebuild — Dashboard (Screen 02).
+
+Trigger: /start (returning user), menu:dashboard callback.
+All data live from DB.
+"""
+from __future__ import annotations
+
+import html
+import logging
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+
+from telegram import Update
+from telegram.constants import ParseMode
+from telegram.error import BadRequest
+from telegram.ext import ContextTypes
+
+from ...database import get_pool
+from ...jobs.market_signal_scanner import get_scanner_state
+from ...users import upsert_user
+from ...wallet.ledger import daily_pnl, get_balance
+from ..keyboards import main_menu, p5_dashboard_kb
+from ..messages import dashboard_text
+
+logger = logging.getLogger(__name__)
+
+
+async def _fetch_stats(user_id) -> dict:
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        pos = await conn.fetchrow(
+            """
+            SELECT
+                COALESCE(SUM(size_usdc), 0) AS positions_value,
+                COUNT(*) FILTER (WHERE current_price IS NOT NULL
+                                   AND current_price > entry_price) AS winning,
+                COUNT(*) FILTER (WHERE current_price IS NOT NULL
+                                   AND current_price < entry_price) AS losing,
+                COUNT(*) AS open_count
+            FROM positions
+            WHERE user_id = $1 AND status = 'open'
+            """,
+            user_id,
+        )
+        trades = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(*)                                        AS total_trades,
+                COUNT(*) FILTER (WHERE pnl_usdc > 0)           AS wins,
+                COUNT(*) FILTER (WHERE pnl_usdc IS NOT NULL
+                                   AND pnl_usdc < 0)           AS losses,
+                COALESCE(SUM(size_usdc), 0)                    AS total_volume,
+                COUNT(DISTINCT market_id)                       AS markets_traded
+            FROM positions
+            WHERE user_id = $1 AND status != 'open'
+            """,
+            user_id,
+        )
+        pnl = await conn.fetchrow(
+            """
+            SELECT
+                COALESCE(SUM(amount_usdc) FILTER (
+                    WHERE type IN ('trade_close','redeem','fee')
+                      AND created_at >= NOW() - INTERVAL '7 days'), 0)  AS pnl_7d,
+                COALESCE(SUM(amount_usdc) FILTER (
+                    WHERE type IN ('trade_close','redeem','fee')
+                      AND created_at >= NOW() - INTERVAL '30 days'), 0) AS pnl_30d,
+                COALESCE(SUM(amount_usdc) FILTER (
+                    WHERE type IN ('trade_close','redeem','fee')), 0)    AS pnl_all
+            FROM ledger
+            WHERE user_id = $1
+            """,
+            user_id,
+        )
+        sett = await conn.fetchrow(
+            "SELECT active_preset, risk_profile FROM user_settings WHERE user_id = $1",
+            user_id,
+        )
+    return {
+        "positions_value": Decimal(str(pos["positions_value"])),
+        "winning":         int(pos["winning"]),
+        "losing":          int(pos["losing"]),
+        "open_positions":  int(pos["open_count"]),
+        "total_trades":    int(trades["total_trades"]),
+        "wins":            int(trades["wins"]),
+        "losses":          int(trades["losses"]),
+        "total_volume":    Decimal(str(trades["total_volume"])),
+        "markets_traded":  int(trades["markets_traded"]),
+        "pnl_7d":          Decimal(str(pnl["pnl_7d"])),
+        "pnl_30d":         Decimal(str(pnl["pnl_30d"])),
+        "pnl_all":         Decimal(str(pnl["pnl_all"])),
+        "active_preset":   dict(sett).get("active_preset") if sett else None,
+        "risk_profile":    dict(sett).get("risk_profile", "balanced") if sett else "balanced",
+    }
+
+
+async def _fetch_last_trade_action(user_id) -> str:
+    """Return a pulse line describing the most recent trade action, or scanning fallback."""
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT
+                    p.status,
+                    m.question AS market_question,
+                    CASE WHEN p.status = 'open'
+                         THEN p.opened_at
+                         ELSE p.closed_at
+                    END AS action_time
+                FROM positions p
+                LEFT JOIN markets m ON m.id = p.market_id
+                WHERE p.user_id = $1
+                ORDER BY action_time DESC NULLS LAST
+                LIMIT 1
+                """,
+                user_id,
+            )
+        if row is None:
+            return "📡 Scanning Polymarket liquidity..."
+        q = html.escape((row["market_question"] or "")[:35])
+        if row["status"] == "open":
+            return f"📈 Last: Bought — {q}"
+        return f"📉 Last: Closed — {q}"
+    except Exception:
+        return "📡 Scanning Polymarket liquidity..."
+
+
+def _preset_display(preset_key: str | None) -> tuple[str, str, str, str]:
+    """Return (emoji, name, risk_emoji, risk_label) for a preset key."""
+    from ..presets import PRESET_CONFIG
+    if not preset_key:
+        return "⚙️", "Not configured", "⚫", "—"
+    cfg = PRESET_CONFIG.get(preset_key)
+    if not cfg:
+        return "⚙️", preset_key, "⚫", "—"
+    return cfg["emoji"], cfg["name"], cfg["risk_emoji"], cfg["risk_label"]
+
+
+def _build_last_scan() -> str:
+    """Return the scanner's last tick time in WIB (UTC+7) HH:MM:SS, or '—'."""
+    state = get_scanner_state()
+    ts_epoch = state.get("last_tick_ts")
+    if not ts_epoch:
+        return "—"
+    ts = datetime.fromtimestamp(ts_epoch, tz=timezone.utc) + timedelta(hours=7)
+    return ts.strftime("%H:%M:%S")
+
+
+async def _build_dashboard_message(user: dict) -> tuple[str, bool]:
+    """Return (message_text, has_preset). All data live from DB."""
+    bal = await get_balance(user["id"])
+    pnl_today = await daily_pnl(user["id"])
+    st = await _fetch_stats(user["id"])
+    pulse_line = await _fetch_last_trade_action(user["id"])
+
+    preset_key = st["active_preset"]
+    p_emoji, p_name, r_emoji, r_label = _preset_display(preset_key)
+
+    bal_d = Decimal(str(bal))
+    total_equity = bal_d + st["positions_value"]
+
+    pnl_today_d = Decimal(str(pnl_today))
+    pnl_today_pct = (
+        float(pnl_today_d) / float(bal_d) * 100 if bal_d > 0 else 0.0
+    )
+    pnl_7d_pct = (
+        float(st["pnl_7d"]) / float(bal_d) * 100 if bal_d > 0 else 0.0
+    )
+    pnl_30d_pct = (
+        float(st["pnl_30d"]) / float(bal_d) * 100 if bal_d > 0 else 0.0
+    )
+
+    win_rate = (
+        float(st["wins"]) / st["total_trades"] * 100
+        if st["total_trades"] > 0 else 0.0
+    )
+
+    text = dashboard_text(
+        balance=bal_d,
+        positions_value=st["positions_value"],
+        total_equity=total_equity,
+        wins=st["wins"],
+        losses=st["losses"],
+        pnl_today=pnl_today_d,
+        pnl_today_pct=pnl_today_pct,
+        pnl_7d=st["pnl_7d"],
+        pnl_7d_pct=pnl_7d_pct,
+        pnl_30d=st["pnl_30d"],
+        pnl_30d_pct=pnl_30d_pct,
+        pnl_alltime=st["pnl_all"],
+        total_trades=st["total_trades"],
+        win_rate=win_rate,
+        total_volume=st["total_volume"],
+        markets_count=st["markets_traded"],
+        autotrade_on=user.get("auto_trade_on", False),
+        preset_key=preset_key,
+        preset_emoji=p_emoji,
+        preset_name=p_name,
+        risk_emoji=r_emoji,
+        risk_label=r_label,
+        pulse_line=pulse_line,
+        last_scan=_build_last_scan(),
+    )
+    return text, bool(preset_key)
+
+
+# ── Public entry points ────────────────────────────────────────────────────────
+
+async def show_dashboard(
+    update: Update,
+    ctx: ContextTypes.DEFAULT_TYPE,
+    user: dict | None = None,
+) -> None:
+    """Message-based dashboard render (from /start or command)."""
+    if update.effective_user is None:
+        return
+    if user is None:
+        user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    text, has_preset = await _build_dashboard_message(user)
+    target = update.message or (
+        update.callback_query.message if update.callback_query else None
+    )
+    if target is None:
+        return
+    nav_kb = main_menu(
+        strategy_key="set" if has_preset else None,
+        auto_on=user.get("auto_trade_on", False),
+    )
+    await target.reply_text(
+        text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=nav_kb,
+    )
+
+
+async def show_dashboard_for_cb(
+    update: Update,
+    ctx: ContextTypes.DEFAULT_TYPE,
+    refresh: bool = False,
+) -> None:
+    """Callback-query-compatible dashboard render (edit or reply)."""
+    q = update.callback_query
+    if update.effective_user is None:
+        return
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    text, has_preset = await _build_dashboard_message(user)
+    kb = p5_dashboard_kb(has_preset)
+
+    nav_kb = main_menu(
+        strategy_key="set" if has_preset else None,
+        auto_on=user.get("auto_trade_on", False),
+    )
+    if q is not None and q.message is not None:
+        try:
+            await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        except BadRequest as exc:
+            if "Message is not modified" not in str(exc):
+                await q.message.reply_text(
+                    text, parse_mode=ParseMode.HTML, reply_markup=nav_kb,
+                )
+    elif update.message is not None:
+        await update.message.reply_text(
+            text, parse_mode=ParseMode.HTML, reply_markup=nav_kb,
+        )
+
+
+# ── Command handler alias ──────────────────────────────────────────────────────
+
+async def dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await show_dashboard(update, ctx)
+
+
+# ── Legacy callback shim — routes dashboard:* callbacks ───────────────────────
+
+async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Routes legacy dashboard:* callbacks from non-rewritten handlers."""
+    q = update.callback_query
+    if q is None:
+        return
+    await q.answer()
+    sub = (q.data or "").split(":", 1)[-1]
+
+    if sub in ("main", "refresh"):
+        await show_dashboard_for_cb(update, ctx)
+    elif sub in ("auto", "autotrade"):
+        from .autotrade import show_autotrade
+        await show_autotrade(update, ctx)
+    elif sub in ("portfolio", "trades"):
+        from .trades import show_trades
+        await show_trades(update, ctx)
+    elif sub == "wallet":
+        from .wallet import wallet_root_cb
+        await wallet_root_cb(update, ctx)
+    elif sub == "settings":
+        from .settings import settings_hub_root
+        await settings_hub_root(update, ctx)
+    elif sub == "insights":
+        from .pnl_insights import pnl_insights_command
+        await pnl_insights_command(update, ctx)
+    elif sub == "monitor":
+        await show_dashboard_for_cb(update, ctx, refresh=True)
+    elif sub == "start_auto":
+        from .autotrade import show_autotrade
+        await show_autotrade(update, ctx)
+    elif sub == "stop":
+        from ...users import set_auto_trade
+        if update.effective_user is None:
+            return
+        user = await upsert_user(update.effective_user.id, update.effective_user.username)
+        await set_auto_trade(user["id"], False)
+        await show_dashboard_for_cb(update, ctx)
+    else:
+        await show_dashboard_for_cb(update, ctx)
+
+
+async def autotrade_toggle_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Legacy autotrade:toggle callback — kept for backward compat."""
+    q = update.callback_query
+    if q is None or update.effective_user is None:
+        return
+    await q.answer()
+    from ...users import set_auto_trade
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    new_state = not user.get("auto_trade_on", False)
+    await set_auto_trade(user["id"], new_state)
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    text, has_preset = await _build_dashboard_message(user)
+    try:
+        await q.edit_message_text(
+            text, parse_mode=ParseMode.HTML, reply_markup=p5_dashboard_kb(has_preset),
+        )
+    except BadRequest as exc:
+        if "Message is not modified" not in str(exc):
+            raise
+
+
+async def close_position_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Legacy position:close:* callback handler."""
+    q = update.callback_query
+    if q is None or update.effective_user is None:
+        return
+    await q.answer()
+    from .trades import close_ask_cb
+    await close_ask_cb(update, ctx)
+
+
+async def activity(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Legacy /activity command — routes to trades screen."""
+    from .trades import show_trades
+    await show_trades(update, ctx)

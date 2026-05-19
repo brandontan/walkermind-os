@@ -1,3 +1,4 @@
+2026-05-19 08:55 | WARP-28/dashboard-corruption-fix | EMERGENCY: restored 3 Base64-corrupted Python files + DIV 26→32 in messages.py; compileall clean; deployment blocker resolved
 2026-05-18 23:45 | WARP/telegram-functional-routing-fix | WARP-25: show_positions() callback fix + Positions Close buttons + Trades history-only nav + preset label shortening; STANDARD, FULL RUNTIME INTEGRATION
 2026-05-18 23:30 | WARP/expand-webtrader-pagination | WARP-19: Load More pagination (offset-based) for Live Market Feed, Leaderboard, Closed Trades, Orders; api.ts offset param added; STANDARD, FULL RUNTIME INTEGRATION
 2026-05-18 21:00 | WARP/truth-integration-mock-cleanup | WARP-21: Live Market Feed 30s poll→SSE, scanner.tick ts payload, Discover case-insensitive category + SSE refresh, mock audit clean; STANDARD, FULL RUNTIME INTEGRATION
