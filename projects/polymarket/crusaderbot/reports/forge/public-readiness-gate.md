@@ -113,9 +113,11 @@ Doc/state outcomes also working:
   `claude/phase-4-readiness-gate-NYMZo`; CLAUDE.md forbids `claude/...` and
   mandates `WARP/{feature}`. Work is on `WARP/public-readiness-gate` per owner
   decision.
-- KNOWLEDGE_BASE body still contains legacy "COMMANDER" / old-repo references
-  at lines ~23/754/770/794 — left as-is (out of narrow header scope; separate
-  cleanup lane if desired).
+- KNOWLEDGE_BASE body legacy "COMMANDER" (×3) and old `walker-ai-team` repo
+  URL synced to WARP🔹CMD / walkermind-os per reviewer consensus (owner
+  approved scope extension). Older agent-name aliases (FORGE-X / BRIEFER /
+  SENTINEL) in §0.2 / §6.1 / §6.3 left as-is — not flagged, separate cleanup
+  lane if desired.
 
 ## 6. What Is Next
 

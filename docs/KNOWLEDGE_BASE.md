@@ -21,7 +21,7 @@ DATA → SIGNAL → RISK → EXECUTION → MONITORING
 
 ## 0.2 Agent Role Separation (CRITICAL)
 
-COMMANDER:
+WARP🔹CMD:
 - Planning, validation, decisions  
 
 FORGE-X:
@@ -752,7 +752,7 @@ END OF PART 5 — STRATEGIES
 
 ## 6.1 Team Structure
 
-COMMANDER  
+WARP🔹CMD  
 → Planning, validation, decision making  
 
 FORGE-X  
@@ -768,7 +768,7 @@ SENTINEL
 
 ## 6.2 Repository Structure
 
-https://github.com/bayuewalker/walker-ai-team  
+https://github.com/bayuewalker/walkermind-os  
 
 projects/polymarket/  
 → Python trading bot  
@@ -792,7 +792,7 @@ docs/
 
 ## 6.3 Workflow
 
-1. COMMANDER defines task  
+1. WARP🔹CMD defines task  
 2. FORGE-X builds system  
 3. BRIEFER supports (prompt/UI/report)  
 4. SENTINEL validates (ONLY if triggered)  
