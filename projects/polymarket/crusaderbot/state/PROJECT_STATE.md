@@ -1,7 +1,8 @@
-Last Updated : 2026-05-19 18:00
-Status       : WARP-30 Phase 1 Hardening — signal freshness gate tests added, SSE reliability audit PASS, migrations 030/031/041 applied to Supabase production. STANDARD, NARROW INTEGRATION. PR open, awaiting WARP🔹CMD review.
+Last Updated : 2026-05-19 18:15
+Status       : WARP-30 Phase 1 Hardening MERGED PR #1172 — signal freshness gate tests (4 cases), SSE reliability audit PASS, migrations 030/031/041 applied to Supabase production. STANDARD, NARROW INTEGRATION.
 
 [COMPLETED]
+- WARP-30 MERGED PR #1172: signal freshness gate tests (4 cases), SSE reliability audit PASS, migrations 030/031/041 applied to Supabase production. STANDARD, NARROW INTEGRATION.
 - WARP-26 MERGED PR #1169 (rebase, superseded #1168): copy_trade.py reads copy_trade_tasks (was copy_targets), dedup via copy_trade_idempotency, copy_direction + sizing via copy_mode + rm_mirror explicit sizing path (mirror_size_direct, unknown mode guard). SignalCandidate.reasoning added; all 3 strategies populate it. messages.py all dividers 32-char. test_copy_trade.py + test_signal_following.py aligned to new schema. compileall + CI + SonarQube clean. MAJOR, FULL RUNTIME INTEGRATION. WARP🔹CMD merged directly without SENTINEL run.
 - WARP-28 dashboard-corruption-fix: repaired 3 Base64-corrupted files (dashboard.py 351L, copy_trade.py 462L, types.py 138L) + messages.py DIV 26→32. compileall clean. STANDARD, NARROW INTEGRATION.
 - WARP-17 WARP/fix-kill-switch-db-table: fixed kill_switch_exec.py _set_system_flag() to target system_settings (was system_flags); MAJOR, FULL RUNTIME INTEGRATION. SENTINEL APPROVED 93/100.
@@ -16,7 +17,6 @@ Status       : WARP-30 Phase 1 Hardening — signal freshness gate tests added, 
 - crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.
 
 [IN PROGRESS]
-- WARP-30 phase1-hardening-db-cleanup PR open — signal freshness gate tests (4 cases), SSE reliability audit PASS, migrations 030/031/041 applied to Supabase production. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP-25 telegram-functional-routing-fix PR open — show_positions() callback fix + Positions [🛑 Close] buttons + Trades history-only keyboard + preset picker short labels. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/expand-webtrader-pagination PR open — WARP-19: Load More pagination for Live Market Feed (DashboardPage), Leaderboard Rankings (CopyTradePage), Closed Trades (PortfolioPage), Orders (PortfolioPage). offset param added to getRecentSignals, getLeaderboard, getPositions, getOrders in api.ts. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP/tg-ux-redesign PR open — WARP-24: Dashboard HUD redesigned as tactical terminal (<pre> blocks + DIV dividers + Last Scan heartbeat + 🟢/🔴 P&L indicator). Auto Mode wizard: compact picker grid → in-place detail view → Back/Home nav. Main menu 🤖 Auto Mode routes directly to preset picker. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
@@ -62,7 +62,6 @@ Status       : WARP-30 Phase 1 Hardening — signal freshness gate tests added, 
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for WARP-30 phase1-hardening-db-cleanup (signal freshness gate tests + SSE audit + migrations 030/031/041 applied). Source: projects/polymarket/crusaderbot/reports/forge/phase1-hardening-db-cleanup.md. Tier: STANDARD.
 - WARP🔹CMD review + URGENT MERGE required for WARP-28 dashboard-corruption-fix (deployment blocker). Source: projects/polymarket/crusaderbot/reports/forge/dashboard-corruption-fix.md. Tier: STANDARD. After merge: Fly.io redeploy required.
 - WARP🔹CMD review required for WARP-25 telegram-functional-routing-fix (Positions callback fix + Close buttons + Trades history separation + preset label fix). Source: projects/polymarket/crusaderbot/reports/forge/telegram-functional-routing-fix.md. Tier: STANDARD.
 - WARP🔹CMD review required for WARP/expand-webtrader-pagination (WARP-19: Load More pagination — Live Market Feed, Leaderboard, Closed Trades, Orders). Source: projects/polymarket/crusaderbot/reports/forge/expand-webtrader-pagination.md. Tier: STANDARD. No migration required.
