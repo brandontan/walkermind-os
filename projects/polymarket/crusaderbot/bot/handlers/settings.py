@@ -353,9 +353,13 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         if choice not in ("instant", "hourly"):
             return
         await update_settings(user["id"], auto_redeem_mode=choice)
-        await q.message.edit_reply_markup(
-            reply_markup=autoredeem_settings_picker(choice),
-        )
+        try:
+            await q.message.edit_reply_markup(
+                reply_markup=autoredeem_settings_picker(choice),
+            )
+        except BadRequest as e:
+            if "not modified" not in str(e).lower():
+                raise
         await q.message.reply_text(
             f"✅ Auto-redeem mode set to <b>{choice}</b>.",
             parse_mode=ParseMode.HTML,

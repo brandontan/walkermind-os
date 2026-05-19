@@ -103,7 +103,11 @@ async def setup_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     s = await get_settings_for(user["id"])
 
     if sub == "menu":
-        await q.message.edit_reply_markup(reply_markup=setup_menu())
+        try:
+            await q.message.edit_reply_markup(reply_markup=setup_menu())
+        except BadRequest as e:
+            if "not modified" not in str(e).lower():
+                raise
         return
     if sub == "strategy":
         # Route to the new strategy card UI.
@@ -186,7 +190,11 @@ async def set_strategy(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not cur:
         cur = ["copy_trade"]
     await update_settings(user["id"], strategy_types=cur)
-    await q.message.edit_reply_markup(reply_markup=strategy_picker(cur))
+    try:
+        await q.message.edit_reply_markup(reply_markup=strategy_picker(cur))
+    except BadRequest as e:
+        if "not modified" not in str(e).lower():
+            raise
 
 
 # Internal mapping: user-facing card label → backend strategy name(s).
@@ -258,8 +266,9 @@ async def set_risk(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await update_settings(user["id"], risk_profile=choice)
     try:
         await q.message.edit_reply_markup(reply_markup=risk_picker(choice))
-    except BadRequest:
-        pass  # already showing selected choice
+    except BadRequest as e:
+        if "not modified" not in str(e).lower():
+            raise
 
 
 async def set_category(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -281,7 +290,11 @@ async def set_category(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             cur.append(choice)
     await update_settings(user["id"], category_filters=cur)
-    await q.message.edit_reply_markup(reply_markup=category_picker(cur))
+    try:
+        await q.message.edit_reply_markup(reply_markup=category_picker(cur))
+    except BadRequest as e:
+        if "not modified" not in str(e).lower():
+            raise
 
 
 async def set_mode(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -311,7 +324,11 @@ async def set_mode(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if await trading_mode_live_pending_confirm(update, ctx):
             return
     await update_settings(user["id"], trading_mode=choice)
-    await q.message.edit_reply_markup(reply_markup=mode_picker(choice))
+    try:
+        await q.message.edit_reply_markup(reply_markup=mode_picker(choice))
+    except BadRequest as e:
+        if "not modified" not in str(e).lower():
+            raise
 
 
 async def set_redeem_mode(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
