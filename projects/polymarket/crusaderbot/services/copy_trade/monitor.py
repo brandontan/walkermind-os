@@ -421,7 +421,7 @@ async def _mark_processed(
 async def _get_daily_spend(user_id: UUID, task_id: UUID) -> float:
     """Return total USDC spend for (user_id, task_id) today (UTC date)."""
     pool = get_pool()
-    today = date.today().isoformat()
+    today = date.today()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
@@ -437,7 +437,7 @@ async def _get_daily_spend(user_id: UUID, task_id: UUID) -> float:
 async def _record_spend(user_id: UUID, task_id: UUID, spend_usdc: float) -> None:
     """Upsert today's spend for (user_id, task_id). Append-safe."""
     pool = get_pool()
-    today = date.today().isoformat()
+    today = date.today()
     async with pool.acquire() as conn:
         await conn.execute(
             """
