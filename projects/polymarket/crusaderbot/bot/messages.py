@@ -207,7 +207,7 @@ BRAND = "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢�
 
 WELCOME_TEXT = (
     "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     "Your autonomous Polymarket trading copilot.\n\n"
     "Here's how it works:\n"
     "1️⃣  We create a wallet for you\n"
@@ -219,7 +219,7 @@ WELCOME_TEXT = (
 
 LEARN_MORE_TEXT = (
     "<b>ℹ️ About CrusaderBot</b>\n"
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     "<b>What is CrusaderBot?</b>\n"
     "An autonomous trading bot for Polymarket prediction markets. "
     "It scans markets 24/7, identifies opportunities, and executes trades "
@@ -345,7 +345,7 @@ def dashboard_text(
 
 PRESET_PICKER_TEXT = (
     "<b>🤖 Auto-Trade Presets</b>\n"
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     "Pick a trading style that fits you.\n"
     "Each preset bundles strategy + risk + sizing.\n\n"
     "<b>⭐ Recommended</b>\n\n"
@@ -353,7 +353,7 @@ PRESET_PICKER_TEXT = (
     "Follow proven Polymarket wallets with\n"
     "verified track records. Low effort,\n"
     "steady returns.\n\n"
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     "<b>📡 Signal Sniper</b>  🟢 Safe\n"
     "Auto-trade from curated signal feeds.\n"
     "Lower frequency, higher conviction.\n\n"
@@ -384,7 +384,7 @@ def preset_confirm_text(
 ) -> str:
     return (
         "<b>🤖 Auto-Trade Setup</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"📋 Preset: {html.escape(preset_emoji)} {html.escape(preset_name)}\n"
         f"├─ Strategy:      {html.escape(strategy_label)}\n"
         f"├─ Risk:          {html.escape(risk_emoji)} {html.escape(risk_label)}\n"
@@ -412,7 +412,7 @@ def preset_active_text(
 ) -> str:
     return (
         "<b>🤖 Auto-Trade Status</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"📋 Active Preset: {html.escape(preset_emoji)} {html.escape(preset_name)}\n"
         f"├─ Status:        🟢 RUNNING\n"
         f"├─ Since:         {html.escape(activated_date)}\n"
@@ -441,7 +441,7 @@ def preset_activated_success_text(preset_emoji: str, preset_name: str) -> str:
 def trades_empty_text() -> str:
     return (
         "<b>📈 My Trades</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "No open positions yet.\n\n"
         "Start your auto-trade preset to\n"
         "begin building your portfolio."
@@ -454,7 +454,7 @@ def trades_text(
 ) -> str:
     lines = [
         "<b>📈 My Trades</b>",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         "",
         f"<b>📌 Open Positions ({len(open_positions)})</b>",
         "",
@@ -478,7 +478,7 @@ def trades_text(
         lines.append("")
 
     if recent_closed:
-        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         lines.append("")
         lines.append("<b>📋 Recent Activity (last 5)</b>")
         for trade in recent_closed:
@@ -506,7 +506,7 @@ def close_confirm_text(market_question: str, pnl: float, pnl_pct: float) -> str:
 def wallet_text(balance: Decimal | float, address: str) -> str:
     return (
         "<b>💰 Wallet</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "<blockquote>📋 Paper Mode — sandbox balance</blockquote>\n\n"
         "<pre>"
         f"Balance:   {_fmt(balance)}\n"
@@ -521,7 +521,7 @@ def wallet_text(balance: Decimal | float, address: str) -> str:
 
 EMERGENCY_TEXT = (
     "<b>🚨 Emergency Controls</b>\n"
-    "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     "⚠️ These actions take effect immediately."
 )
 
@@ -586,7 +586,7 @@ def emergency_system_status_text(
     auto_label = "ON" if (auto_on and not paused and not locked) else "OFF"
     return (
         "<b>ℹ️ System Status</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"{auto_icon} Auto-Trade: <b>{auto_label}</b>"
         + (" (paused)" if paused and not locked else "")
         + "\n"
