@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { AdvancedOnly } from "./AdvancedGate";
 import { useSSEStatus } from "../lib/sse";
-import { useAlertCenter } from "../App";
+import { useAlertCenter, useScannerStatus } from "../App";
 
 const TOPNAV = [
   { to: "/dashboard",  label: "Home" },
@@ -23,10 +23,14 @@ type Props = {
 
 export function TopBar({ tradingMode = "paper", notifCount: _notifCount, onBellClick: _onBellClick }: Props) {
   const sseConnected = useSSEStatus();
+  const { lastScanMs } = useScannerStatus();
   const location = useLocation();
   const navigate = useNavigate();
   const { unreadCount, openAlertCenter } = useAlertCenter();
   const isLive = tradingMode === "live";
+  const lastScanLabel = lastScanMs
+    ? new Date(lastScanMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : null;
 
   return (
     <div
@@ -109,6 +113,14 @@ export function TopBar({ tradingMode = "paper", notifCount: _notifCount, onBellC
           title={sseConnected ? "Live stream connected" : "Reconnecting…"}
           aria-label={sseConnected ? "Stream connected" : "Stream reconnecting"}
         />
+        {lastScanLabel && (
+          <span
+            className="hidden md:block font-mono text-[8px] tracking-[1.5px] text-ink-4"
+            title={`Last scanner tick: ${lastScanLabel}`}
+          >
+            scan {lastScanLabel}
+          </span>
+        )}
         {isLive ? (
           <StatusPill kind="live">
             <span
