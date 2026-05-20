@@ -19,7 +19,7 @@ from ...database import get_pool
 from ...jobs.market_signal_scanner import get_scanner_state
 from ...users import upsert_user
 from ...wallet.ledger import daily_pnl, get_balance
-from ..keyboards import main_menu, p5_dashboard_kb
+from ..keyboards import main_menu
 from ..messages import dashboard_text
 
 logger = logging.getLogger(__name__)
@@ -281,8 +281,7 @@ async def show_dashboard_for_cb(
     if update.effective_user is None:
         return
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    text, has_preset, open_count = await _build_dashboard_message(user)
-    kb = p5_dashboard_kb(has_preset)
+    text, _has_preset, open_count = await _build_dashboard_message(user)
 
     nav_kb = main_menu(
         auto_on=user.get("auto_trade_on", False),
@@ -291,10 +290,7 @@ async def show_dashboard_for_cb(
     )
     if q is not None and q.message is not None:
         try:
-            await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
-            # In-place edit replaces stale kb; track the live id so the next
-            # message-path render can clear it.
-            _track_inline(ctx, q.message.message_id)
+            await q.edit_message_text(text, parse_mode=ParseMode.HTML)
         except BadRequest as exc:
             if "Message is not modified" not in str(exc):
                 await _clear_tracked_inline(ctx, q.message.chat_id)
@@ -368,11 +364,9 @@ async def autotrade_toggle_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
     new_state = not user.get("auto_trade_on", False)
     await set_auto_trade(user["id"], new_state)
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
-    text, has_preset, _open_count = await _build_dashboard_message(user)
+    text, _has_preset, _open_count = await _build_dashboard_message(user)
     try:
-        await q.edit_message_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=p5_dashboard_kb(has_preset),
-        )
+        await q.edit_message_text(text, parse_mode=ParseMode.HTML)
     except BadRequest as exc:
         if "Message is not modified" not in str(exc):
             raise

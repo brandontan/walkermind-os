@@ -154,12 +154,15 @@ def register(app: Application) -> None:
         filters.Regex(r"^🤖 Auto-Trade$"), show_autotrade), group=-1)
     app.add_handler(MessageHandler(
         filters.Regex(r"^💰 Wallet$"), wallet_root), group=-1)
-    # 💼 Portfolio + dynamic 💼 Trades (N) — single group=-1 handler intercepts
-    # both labels before any ConversationHandler state, preventing duplicate
-    # sends from text-input wizards and routing the dynamic label correctly.
+    # 💼 Portfolio — group=-1 intercepts before any ConversationHandler state.
     app.add_handler(MessageHandler(
-        filters.Regex(r"^💼 (Portfolio|Trades \(\d+\))$"),
+        filters.Regex(r"^💼 Portfolio$"),
         positions.show_portfolio), group=-1)
+    # 💼 Trades (N) — routes directly to the live position monitor so tapping
+    # the dynamic open-count label immediately shows positions with Close buttons.
+    app.add_handler(MessageHandler(
+        filters.Regex(r"^💼 Trades \(\d+\)$"),
+        positions.show_positions), group=-1)
     app.add_handler(MessageHandler(
         filters.Regex(r"^🚨 Emergency$"), emergency_root), group=-1)
 

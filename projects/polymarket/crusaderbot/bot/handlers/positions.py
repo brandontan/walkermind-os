@@ -307,7 +307,7 @@ async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         )
 
     text = "\n\n".join(lines)
-    kb = positions_list_kb([p["id"] for p in positions])
+    kb = positions_list_kb(positions)
 
     if is_cb:
         try:
