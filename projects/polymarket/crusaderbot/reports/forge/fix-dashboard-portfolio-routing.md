@@ -1,6 +1,6 @@
 # Forge Report — fix-dashboard-portfolio-routing
 
-Branch: claude/fix-issue-1192-L9k9I
+Branch: WARP/fix-dashboard-portfolio-routing
 Date: 2026-05-20 10:46
 Issue: #1192 — dashboard:portfolio routes to show_trades instead of show_portfolio
 
