@@ -54,12 +54,12 @@ Validate and fix realtime trust gaps:
 
 Close production gaps before beta:
 
-- [ ] Apply pending migrations (027/029/030/031 as required)
-- [ ] Fly.io deploy validation
-- [ ] Scheduler health / retry check
+- [ ] Apply pending migrations (027/029/030/031) — audited, pending Supabase execution
+- [x] Fly.io deploy validation
+- [x] Scheduler health / retry check
 - [ ] Telegram notification reliability
 - [ ] Paper trading consistency (PNL, positions, ledger)
-- [ ] Logging and operational sanity
+- [x] Logging and operational sanity
 
 ---
 
