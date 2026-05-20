@@ -30,6 +30,7 @@ kill_timeout = "30s"
   FEE_COLLECTION_ENABLED        = "false"
   AUTO_REDEEM_ENABLED           = "false"
   HEISENBERG_API_TOKEN          = ""
+  ADMIN_API_TOKEN               = ""
 
 [http_service]
   internal_port = 8080
