@@ -381,17 +381,16 @@ def p5_dashboard_kb(has_preset: bool = False) -> InlineKeyboardMarkup:
 
 
 def preset_picker() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🐋 Whale Mirror",   callback_data="p5:preset:whale_mirror")],
-        [InlineKeyboardButton("📈 Trend Breakout", callback_data="p5:preset:trend_breakout")],
-        [InlineKeyboardButton("🔄 Contrarian",     callback_data="p5:preset:contrarian")],
-        [InlineKeyboardButton("🎯 Value Hunter",   callback_data="p5:preset:value_hunter")],
-        [InlineKeyboardButton("⏰ Close Sweep",    callback_data="p5:preset:close_sweep")],
-        [InlineKeyboardButton("💰 Pair Arb",       callback_data="p5:preset:pair_arb")],
-        [InlineKeyboardButton("🤖 Ensemble",       callback_data="p5:preset:ensemble")],
-        [InlineKeyboardButton("🚀 Full Auto",      callback_data="p5:preset:full_auto")],
-        [InlineKeyboardButton("← Back",            callback_data="auto_trade:back")],
-    ])
+    from ...domain.preset import RECOMMENDED_PRESET, list_presets
+    rows: list[list] = []
+    for p in list_presets():
+        name = p.name if len(p.name) <= 20 else p.name[:20]
+        label = f"{p.emoji} {name}"
+        if p.key == RECOMMENDED_PRESET:
+            label = f"{label} ⭐"
+        rows.append([InlineKeyboardButton(label, callback_data=f"p5:preset:{p.key}")])
+    rows.append([InlineKeyboardButton("← Back", callback_data="auto_trade:back")])
+    return InlineKeyboardMarkup(rows)
 
 
 def preset_confirm_kb() -> InlineKeyboardMarkup:
