@@ -1,4 +1,6 @@
-Last Updated : 2026-05-20 03:53[COMPLETED]
+Last Updated: 2026-05-20 10:52 WIB
+
+[COMPLETED]
 - WARP-43 (issue #1192): dashboard:portfolio callback routing fixed — split from trades branch, now dispatches to show_portfolio; test_dashboard_routing.py added; MINOR, NARROW INTEGRATION.
 - WARP-42 (PR #1191 c0597c4b): Full Telegram UX redesign — Dashboard inline KB removed, Close buttons labelled per-position, Settings TP/SL hub, Help Home button, Trades(N) routing; STANDARD MERGED 2026-05-20. Issues #1188+#1189 closed.
 - WARP-40 MERGED PR #1187 (e18279461): BUG-1+BUG-4 dynamic `💼 Trades (N)` routed at group=-1 + dead `📈 My Trades` handler removed; BUG-2 `🤖 Auto Mode` smart entry (auto_mode_entry) shows preset_active status when preset is active; BUG-3 ghost inline-keyboard cleared on dashboard render (_clear_tracked_inline + _track_inline); BUG-5 _unrealized_pnl strict-interior guard (0<cp<1) for stale CLOB-sentinel DB rows. STANDARD, NARROW INTEGRATION. Closes #1186.
@@ -69,7 +71,6 @@ Last Updated : 2026-05-20 03:53[COMPLETED]
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review required for WARP-43 fix-dashboard-portfolio-routing (dashboard:portfolio callback now routes to show_portfolio). Source: projects/polymarket/crusaderbot/reports/forge/fix-dashboard-portfolio-routing.md. Tier: MINOR.
 - Bot redeploy on Fly.io required — apply WARP-41+42 (PR #1191). No migration needed.
 - WARP🔹CMD review required for WARP-38 WARP/fix-pnl-current-price (#1182: open-position P&L inflation root-caused to CLOB empty-book 1.0 sentinel; strict-interior price guard). Source: projects/polymarket/crusaderbot/reports/forge/fix-pnl-current-price.md. Tier: STANDARD. No migration. After merge: redeploy so exit_watcher self-heals affected open positions on next tick.
 - WARP🔹CMD review + URGENT MERGE required for WARP-28 dashboard-corruption-fix (deployment blocker). Source: projects/polymarket/crusaderbot/reports/forge/dashboard-corruption-fix.md. Tier: STANDARD. After merge: Fly.io redeploy required.
