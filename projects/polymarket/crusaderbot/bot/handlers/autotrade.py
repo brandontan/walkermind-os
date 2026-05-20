@@ -88,6 +88,24 @@ async def show_autotrade(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         )
 
 
+async def auto_mode_entry(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Main-menu "🤖 Auto Mode" entry point.
+
+    The "🤖 Auto Mode" label only surfaces when auto_trade_on is True, so the
+    user expects to see their active preset status — not a picker. Route to
+    _show_active_status when an active preset exists; fall back to the picker
+    only when state is missing (recovery from corrupted state).
+    """
+    if update.effective_user is None:
+        return
+    user = await upsert_user(update.effective_user.id, update.effective_user.username)
+    preset_key, sett = await _get_active_preset(user["id"])
+    if user.get("auto_trade_on") and preset_key:
+        await _show_active_status(update, ctx, user, preset_key, sett)
+    else:
+        await _show_preset_picker(update, ctx)
+
+
 async def _show_preset_picker(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
     if q is not None and q.message is not None:

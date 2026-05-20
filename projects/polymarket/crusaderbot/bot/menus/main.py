@@ -53,13 +53,17 @@ async def _group0_noop(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     # V5 AUTOBOT fixed menu
-    # "📊 Dashboard" maps to _group0_noop — the visible response is sent by the
-    # group=-1 MessageHandler in dispatcher.py (fires first).  The noop entry
-    # here lets _text_router clear ctx.user_data['awaiting'] and return early,
-    # preventing wizard text handlers from misprocessing the Dashboard tap.
+    # "📊 Dashboard" and "💼 Portfolio" map to _group0_noop — the visible
+    # response is sent by the group=-1 MessageHandler in dispatcher.py (fires
+    # first).  The noop entry here lets _text_router clear ctx.user_data
+    # ['awaiting'] and return early, preventing wizard text handlers from
+    # misprocessing the tap (which would surface as a duplicate message).
     "📊 Dashboard":          _group0_noop,
-    "💼 Portfolio":          positions.show_portfolio,
-    "🤖 Auto Mode":          presets.show_preset_picker,
+    "💼 Portfolio":          _group0_noop,
+    # "🤖 Auto Mode" surfaces only when a preset is active. Route to the
+    # smart entry that shows preset_active status, falling back to the picker
+    # only when no active preset is present (state recovery).
+    "🤖 Auto Mode":          autotrade.auto_mode_entry,
     "🤖 Setup Auto":         presets.show_preset_picker,
     "▶️ Resume":             presets.show_preset_picker,
     "⚙️ Settings":           settings_handler.settings_hub_root,

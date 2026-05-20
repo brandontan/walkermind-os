@@ -840,7 +840,16 @@ def _unrealized_pnl(open_rows: list) -> float:
         ep = float(r["entry_price"])
         if ep <= 0:
             continue
-        cp = float(r["current_price"] if r["current_price"] is not None else r["entry_price"])
+        # Strict-interior guard: reject the CLOB empty-book 1.0/0.0 sentinel
+        # that PR #1182 fixed on the fetch path but may still sit in stale
+        # current_price DB rows written before the fix. Out-of-band values
+        # fall back to entry_price (P&L = 0) until exit_watcher self-heals.
+        cp = ep
+        cp_raw = r["current_price"]
+        if cp_raw is not None:
+            val = float(cp_raw)
+            if 0 < val < 1:
+                cp = val
         total += (cp / ep - 1) * float(r["size_usdc"])
     return total
 
