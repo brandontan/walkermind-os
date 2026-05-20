@@ -1,6 +1,7 @@
-Last Updated : 2026-05-20 10:15
+Last Updated: 2026-05-20 10:20 WIB
 
 [COMPLETED]
+- WARP-42 (PR #1191 c0597c4b): Full Telegram UX redesign — Dashboard inline KB removed, Close buttons labelled per-position, Settings TP/SL hub, Help Home button, Trades(N) routing; STANDARD MERGED 2026-05-20. Issues #1188+#1189 closed.
 - WARP-40 MERGED PR #1187 (e18279461): BUG-1+BUG-4 dynamic `💼 Trades (N)` routed at group=-1 + dead `📈 My Trades` handler removed; BUG-2 `🤖 Auto Mode` smart entry (auto_mode_entry) shows preset_active status when preset is active; BUG-3 ghost inline-keyboard cleared on dashboard render (_clear_tracked_inline + _track_inline); BUG-5 _unrealized_pnl strict-interior guard (0<cp<1) for stale CLOB-sentinel DB rows. STANDARD, NARROW INTEGRATION. Closes #1186.
 - WARP-36 MERGED (e0771321): math.isfinite() guard in _safe_float + _clamp helper; NaN/Infinity rejected before DB write; NumericValueOutOfRangeError resolved. STANDARD, NARROW INTEGRATION.
 - WARP-35 MERGED direct-apply (7f14c42d): regression tests for asyncpg date-object arg in _get_daily_spend/_record_spend. STANDARD, NARROW INTEGRATION.
@@ -21,7 +22,6 @@ Last Updated : 2026-05-20 10:15
 - crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.
 
 [IN PROGRESS]
-
 
 - WARP-38 WARP/fix-pnl-current-price PR open (#1182) — get_live_market_price now requires strictly-interior price (0<p<1) on CLOB primary + Gamma fallback; rejects the CLOB empty-book sentinel (1.0/0.0) that marked open longshot positions at $1.00 and produced +900% P&L; invalid lookup → None → entry_price mark (P&L 0/N/A). 4 regression tests pass. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP-30 phase1-hardening-db-cleanup PR open — signal freshness gate tests (4 cases), SSE reliability audit PASS, migrations 030/031/041 applied to Supabase production. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
@@ -133,3 +133,4 @@ Last Updated : 2026-05-20 10:15
 - [DEFERRED] No asyncio.timeout on polymarket.get_markets() in market_signal_scanner.py; scanner stall risk on hung HTTP call; P2, no capital impact.
 - [DEFERRED] Migration 024 blast radius understated as test-user-only in forge report; SQL promotes all users; documentation drift, code is correct.
 - [DEFERRED] PortfolioPage analytics UI note "market_expired excluded" may not match /portfolio/analytics backend query (pre-existing behavior, not introduced by this PR). Separate analytics backend cleanup lane required.
+
