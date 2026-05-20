@@ -136,8 +136,8 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 COALESCE(urp.profile_name, s.risk_profile, 'balanced') AS resolved_profile,
                 s.active_preset,
                 COALESCE(s.min_liquidity, 0)         AS min_liquidity_threshold,
-                COALESCE(s.strategy_params, '{}'::jsonb)    AS strategy_params,
-                COALESCE(s.category_filters, '[]'::jsonb)   AS category_filters
+                COALESCE(s.strategy_params, '{}'::jsonb)      AS strategy_params,
+                COALESCE(s.category_filters, ARRAY[]::text[]) AS category_filters
             FROM user_strategies us
             JOIN users          u   ON u.id  = us.user_id
             JOIN wallets        w   ON w.user_id = u.id
