@@ -824,6 +824,72 @@ def test_process_candidate_freshness_gate_skips_exact_boundary():
     assert execute_called["called"], "signal below 1800s threshold must not be dropped by freshness gate"
 
 
+# ===========================================================================
+# _filter_markets_by_category — WARP-44
+# ===========================================================================
+
+from projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job import (
+    _filter_markets_by_category,
+)
+
+
+def _mkt(category: str = "", slug: str = "", group: str = "") -> dict:
+    return {"category": category, "slug": slug, "groupItemTitle": group, "id": slug or category}
+
+
+def test_filter_markets_empty_filters_returns_all():
+    markets = [_mkt("crypto"), _mkt("sports"), _mkt("politics")]
+    assert _filter_markets_by_category(markets, []) == markets
+
+
+def test_filter_markets_single_filter_match():
+    markets = [_mkt("crypto"), _mkt("sports"), _mkt("politics")]
+    result = _filter_markets_by_category(markets, ["crypto"])
+    assert len(result) == 1
+    assert result[0]["category"] == "crypto"
+
+
+def test_filter_markets_multi_filter():
+    markets = [_mkt("crypto"), _mkt("sports"), _mkt("politics")]
+    result = _filter_markets_by_category(markets, ["crypto", "sports"])
+    assert len(result) == 2
+
+
+def test_filter_markets_case_insensitive():
+    markets = [_mkt("Crypto"), _mkt("SPORTS")]
+    result = _filter_markets_by_category(markets, ["crypto"])
+    assert len(result) == 1
+    assert result[0]["category"] == "Crypto"
+
+
+def test_filter_markets_partial_match_in_category():
+    markets = [_mkt("crypto-usd"), _mkt("sports-nfl")]
+    result = _filter_markets_by_category(markets, ["crypto"])
+    assert len(result) == 1
+
+
+def test_filter_markets_falls_back_to_group_item_title():
+    m = {"category": "", "groupItemTitle": "Sports", "slug": ""}
+    result = _filter_markets_by_category([m], ["sports"])
+    assert result == [m]
+
+
+def test_filter_markets_falls_back_to_slug():
+    m = {"category": "", "groupItemTitle": "", "slug": "crypto-btc-eth"}
+    result = _filter_markets_by_category([m], ["crypto"])
+    assert result == [m]
+
+
+def test_filter_markets_no_match_returns_empty():
+    markets = [_mkt("crypto"), _mkt("sports")]
+    result = _filter_markets_by_category(markets, ["politics"])
+    assert result == []
+
+
+def test_filter_markets_empty_list_returns_empty():
+    assert _filter_markets_by_category([], ["crypto"]) == []
+
+
 def test_process_candidate_freshness_gate_bypassed_for_lib_strategy():
     """pub_uuid=None (lib-strategy candidate) must bypass the freshness gate entirely."""
     bootstrap_default_strategies()
