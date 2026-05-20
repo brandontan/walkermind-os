@@ -1,4 +1,4 @@
-Last Updated : 2026-05-20 14:00
+Last Updated : 2026-05-20 03:07 2026-05-20 14:00
 
 [COMPLETED]
 - WARP-40 MERGED PR #1187 (e18279461): BUG-1+BUG-4 dynamic `💼 Trades (N)` routed at group=-1 + dead `📈 My Trades` handler removed; BUG-2 `🤖 Auto Mode` smart entry (auto_mode_entry) shows preset_active status when preset is active; BUG-3 ghost inline-keyboard cleared on dashboard render (_clear_tracked_inline + _track_inline); BUG-5 _unrealized_pnl strict-interior guard (0<cp<1) for stale CLOB-sentinel DB rows. STANDARD, NARROW INTEGRATION. Closes #1186.
