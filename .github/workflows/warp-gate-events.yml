@@ -87,12 +87,9 @@ actor   = os.environ.get("WARP_ACTOR", "")
 api_key = os.environ.get("BASE44_API_KEY", "")
 secret  = os.environ.get("WARP_WEBHOOK_SECRET", "")
 
-if not api_key:
-    print("ERROR: BASE44_API_KEY not set", file=sys.stderr)
-    sys.exit(1)
-if not secret:
-    print("ERROR: WARP_WEBHOOK_SECRET not set", file=sys.stderr)
-    sys.exit(1)
+if not api_key or not secret:
+    print("WARN: BASE44_API_KEY or WARP_WEBHOOK_SECRET not configured — dispatch skipped")
+    sys.exit(0)
 
 # ── pull_request ─────────────────────────────────────────────────────────────
 if ev == "pull_request":
