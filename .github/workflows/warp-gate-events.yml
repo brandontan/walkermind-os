@@ -33,6 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     if: |
+      github.event_name != 'push' &&
       github.actor != 'github-actions[bot]' &&
       github.actor != 'dependabot[bot]' &&
       github.actor != 'warp-gate[bot]' &&
