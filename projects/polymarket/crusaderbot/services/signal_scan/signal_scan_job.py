@@ -626,8 +626,8 @@ async def _process_candidate(
     _live_fill_price: float | None = None
     try:
         _live_fill_price = await get_live_market_price(cand.market_id, side)
-    except Exception:
-        pass  # DB price fallback handled inside _build_trade_signal
+    except Exception as exc:
+        log.warning("live_price_fetch_failed", market_id=cand.market_id, error=str(exc))
 
     try:
         signal = _build_trade_signal(
@@ -737,6 +737,7 @@ async def run_once() -> None:
     Each user is processed independently — an exception for one user does
     not prevent other users from being scanned on the same tick.
     """
+    logger.info("signal_scan_job_started")
     try:
         users = await _load_enrolled_users()
     except Exception as exc:
