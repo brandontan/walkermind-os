@@ -325,7 +325,10 @@ async def dashboard_nav_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     elif sub in ("auto", "autotrade"):
         from .autotrade import show_autotrade
         await show_autotrade(update, ctx)
-    elif sub in ("portfolio", "trades"):
+    elif sub == "portfolio":
+        from .positions import show_portfolio
+        await show_portfolio(update, ctx)
+    elif sub == "trades":
         from .trades import show_trades
         await show_trades(update, ctx)
     elif sub == "wallet":
