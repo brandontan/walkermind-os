@@ -69,7 +69,6 @@ AND NOT EXISTS (
        AND s.unsubscribed_at IS NULL
 );
 
--- 5. Align access_tier with role model — paper is open to all users
-UPDATE users SET access_tier = 3 WHERE access_tier < 3;
+-- 5. access_tier removed — role-based scope (admin/user) handles access. No action needed.
 
 COMMIT;
