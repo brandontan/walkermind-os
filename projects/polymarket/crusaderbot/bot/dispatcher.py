@@ -24,7 +24,7 @@ from .handlers import (
 )
 from .handlers.autotrade import autotrade_callback, show_autotrade
 from .handlers.dashboard import (
-    autotrade_toggle_cb, close_position_cb, dashboard, dashboard_nav_cb,
+    autotrade_toggle_cb, dashboard, dashboard_nav_cb,
     show_dashboard_for_cb, activity,
 )
 from .handlers.emergency import emergency_callback, emergency_root, emergency_root_cb
@@ -60,6 +60,10 @@ async def _menu_nav_cb(update, ctx) -> None:
         # pre-answer below to avoid double-ACK (BadRequest from Telegram).
         from .handlers.positions import show_portfolio
         await show_portfolio(update, ctx)
+        return
+    if sub == "positions":
+        # show_positions answers internally on the callback path.
+        await positions.show_positions(update, ctx)
         return
     await q.answer()
     if sub == "dashboard":
