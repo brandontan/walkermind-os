@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -104,6 +105,22 @@ _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
 def _preset_allows(active_preset: str | None, strategy_name: str) -> bool:
     """Return True if user's active_preset permits signals from strategy_name."""
     return strategy_name in _PRESET_ALLOWED.get(active_preset, _LIB_STRATEGY_NAMES)
+
+
+def _coerce_jsonb(val: object, fallback: dict | list | None = None) -> dict | list:
+    """asyncpg may return JSONB columns as str — coerce to dict/list."""
+    if fallback is None:
+        fallback = {}
+    if val is None:
+        return fallback
+    if isinstance(val, str):
+        try:
+            return json.loads(val)
+        except Exception:
+            return fallback
+    if isinstance(val, (dict, list)):
+        return val
+    return fallback
 
 # Module-level TradeEngine singleton — stateless; safe to share across ticks.
 _engine: TradeEngine = TradeEngine()
@@ -741,7 +758,7 @@ async def run_once() -> None:
     for row in users:
         active_preset = row.get("active_preset")
         category_filters: list[str] = list(row.get("category_filters") or [])
-        strategy_params: dict = dict(row.get("strategy_params") or {})
+        strategy_params: dict = _coerce_jsonb(row.get("strategy_params"), {})
         user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
 
         # Filter market list to user's chosen categories (empty = all markets).
