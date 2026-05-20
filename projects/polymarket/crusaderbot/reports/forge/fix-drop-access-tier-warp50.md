@@ -19,7 +19,7 @@
 
 No architecture changes. SQL-only deliverable. Migration pipeline unchanged.
 
-**Apply order:** 031 (already mostly applied; only step 2 live feed pending) → 044.
+**Apply order:** 031 → Python role-migration lane → 044. (031 is already mostly applied; only step 2 live feed pending. The Python role-migration lane must close all P1 references in section 6 before 044 is safe.)
 
 ⚠️ 044 must NOT be applied to Supabase until the Python `access_tier` references listed in section 6 are migrated to the role-based model. Applying 044 against the current codebase will break LIVE TRADING GUARDS, user creation, the risk gate, the admin API, the operator allowlist, and multiple background jobs.
 
@@ -40,12 +40,16 @@ No other files modified.
 
 ```sql
 -- Migration 044: Drop access_tier column from users table
--- access_tier is obsolete — access control is now role-based (admin/user).
--- Safe to run: column is no longer referenced in any Python code or migration.
--- Idempotent: IF EXISTS guard prevents error on re-run.
+-- access_tier is planned for removal — access control will move to a role-based model.
+-- WARNING: DO NOT APPLY. Column is still referenced in Python code per WARP-50 audit
+--          (see reports/forge/fix-drop-access-tier-warp50.md section 6).
+--          Apply only after the role-based Python migration lane lands.
+-- Idempotent: IF EXISTS guard prevents error on re-run once safe to apply.
 
 ALTER TABLE users DROP COLUMN IF EXISTS access_tier;
 ```
+
+> Deviation from issue spec: the comments originally specified ("obsolete", "Safe to run: column is no longer referenced") were proven false by the Python audit in section 6. Comments updated to match audit truth so the file does not mislead future maintainers.
 
 ---
 
@@ -75,7 +79,7 @@ The issue's preamble for 044 says "column is no longer referenced in any Python 
 | `projects/polymarket/crusaderbot/services/user_service.py` | 21, 23, 31, 44, 59, 72, 78, 91, 97 | INSERT/SELECT/UPDATE with audit; `update_access_tier` API |
 | `projects/polymarket/crusaderbot/services/copy_trade/monitor.py` | 290, 481 | SELECT join + ctx field |
 | `projects/polymarket/crusaderbot/services/signal_scan/signal_scan_job.py` | 143, 398, 490 | Scanner SELECT + ctx instantiation |
-| `projects/polymarket/crusaderbot/services/trade_engine/engine.py` | 77, 184, 288 | `SignalCtx.access_tier: int` dataclass field |
+| `projects/polymarket/crusaderbot/services/trade_engine/engine.py` | 77, 184, 288 | `TradeSignal.access_tier: int` dataclass field |
 | `projects/polymarket/crusaderbot/api/admin.py` | 39, 41, 75, 83, 164 | Admin dashboard counts + user create endpoint |
 | `projects/polymarket/crusaderbot/bot/middleware/access_tier.py` | (file-level) | `require_access_tier` decorator; the entire module is built on this |
 | `projects/polymarket/crusaderbot/domain/activation/live_checklist.py` | 187, 191 | `SELECT access_tier FROM users` (live gate check 8) |
@@ -119,6 +123,6 @@ Source: projects/polymarket/crusaderbot/reports/forge/fix-drop-access-tier-warp5
 Tier: MINOR
 ```
 
-**Apply order recommendation:** 031 → 044 — but **HOLD 044** until the P1 Python references in section 6 are migrated.
+**Apply order recommendation:** 031 → Python role-migration lane → 044. **HOLD 044** until the Python lane closes all P1 references in section 6.
 
 GATE + Mr. Walker handle Supabase execution per issue spec. No further FORGE action required on this lane.
