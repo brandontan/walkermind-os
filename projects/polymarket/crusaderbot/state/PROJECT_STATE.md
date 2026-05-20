@@ -1,5 +1,5 @@
-Last Updated : 2026-05-20 14:52
-Status       : WARP-21 MERGED (97e7d25a) — WebTrader SSE live feed. WARP-19 (pagination) pending.
+Last Updated : 2026-05-20 16:20
+Status       : WARP-35/37 Linear sync MERGED (a9de0ac7) — state lane only
 - WARP-25 MERGED (698b2cdf): menu:positions routing, dead import cleanup, dynamic preset_picker (domain layer), Back→Portfolio. STANDARD, NARROW INTEGRATION.
 - WARP-45 (issue #1198): fix-sentry-p1-runtime-bugs PR open — _coerce_jsonb() helper added to signal_scan_job.py; asyncpg JSONB-as-str ValueError resolved (Sentry DAWN-SNOWFLAKE-1729-1Q); Bugs 2+3 confirmed already fixed (WARP-35/WARP-37). STANDARD, NARROW INTEGRATION.
 - WARP-44 (issue #1195): strategy-pipeline-user-filter MERGED (SHA e2e9e219) — per-user category_filters market filtering, strategy_params wire-up, migration 043 applied to Supabase production. STANDARD, MODERATE.
