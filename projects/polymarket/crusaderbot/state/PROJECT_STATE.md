@@ -1,6 +1,4 @@
-Last Updated: 2026-05-20 10:46
-
-[COMPLETED]
+Last Updated : 2026-05-20 03:53[COMPLETED]
 - WARP-43 (issue #1192): dashboard:portfolio callback routing fixed — split from trades branch, now dispatches to show_portfolio; test_dashboard_routing.py added; MINOR, NARROW INTEGRATION.
 - WARP-42 (PR #1191 c0597c4b): Full Telegram UX redesign — Dashboard inline KB removed, Close buttons labelled per-position, Settings TP/SL hub, Help Home button, Trades(N) routing; STANDARD MERGED 2026-05-20. Issues #1188+#1189 closed.
 - WARP-40 MERGED PR #1187 (e18279461): BUG-1+BUG-4 dynamic `💼 Trades (N)` routed at group=-1 + dead `📈 My Trades` handler removed; BUG-2 `🤖 Auto Mode` smart entry (auto_mode_entry) shows preset_active status when preset is active; BUG-3 ghost inline-keyboard cleared on dashboard render (_clear_tracked_inline + _track_inline); BUG-5 _unrealized_pnl strict-interior guard (0<cp<1) for stale CLOB-sentinel DB rows. STANDARD, NARROW INTEGRATION. Closes #1186.
