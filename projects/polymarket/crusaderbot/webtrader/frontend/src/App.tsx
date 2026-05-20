@@ -38,6 +38,16 @@ export function useAlertCenter(): AlertCenterCtx {
   return useContext(AlertCenterContext);
 }
 
+interface ScannerCtx {
+  lastScanMs: number | null;
+}
+
+export const ScannerContext = createContext<ScannerCtx>({ lastScanMs: null });
+
+export function useScannerStatus(): ScannerCtx {
+  return useContext(ScannerContext);
+}
+
 function AppShell() {
   const { user } = useAuth();
   const location = useLocation();
@@ -64,11 +74,17 @@ function AppShell() {
     }
   }, [api, user]);
 
+  const [lastScanMs, setLastScanMs] = useState<number | null>(null);
+
   // SSE connection — fetchAlerts defined above so it's safe to reference here.
   // Re-fetch on both system and alert events to keep the Alert Center in sync.
   const { connected: sseConnected } = useSSE(user?.token ?? null, {
     system: fetchAlerts,
     alert: fetchAlerts,
+    scanner_tick: (raw) => {
+      const payload = raw as { ts?: number };
+      if (payload.ts) setLastScanMs(payload.ts * 1000);
+    },
   });
 
   useEffect(() => {
@@ -95,6 +111,7 @@ function AppShell() {
   );
 
   return (
+    <ScannerContext.Provider value={{ lastScanMs }}>
     <AlertCenterContext.Provider value={alertCtx}>
     <SSEStatusContext.Provider value={sseConnected}>
     <div className="min-h-screen text-ink-1 font-sans overflow-hidden">
@@ -167,6 +184,7 @@ function AppShell() {
     </div>
     </SSEStatusContext.Provider>
     </AlertCenterContext.Provider>
+    </ScannerContext.Provider>
   );
 }
 
