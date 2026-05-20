@@ -41,12 +41,12 @@ Deliverables:
 
 Validate and fix realtime trust gaps:
 
-- [ ] Terminal updates without manual refresh
-- [ ] Scanner counts match backend jobs
-- [ ] Recent Activity synced to runtime truth
-- [ ] Portfolio / Wallet sync with ledger
-- [ ] Heartbeat / last_tick / last_scan timestamps
-- [ ] PAPER ONLY posture clear; LIVE not misleading
+- [x] Terminal updates without manual refresh
+- [x] Scanner counts match backend jobs
+- [x] Recent Activity synced to runtime truth
+- [x] Portfolio / Wallet sync with ledger
+- [x] Heartbeat / last_tick / last_scan timestamps
+- [x] PAPER ONLY posture clear; LIVE not misleading
 
 ---
 
