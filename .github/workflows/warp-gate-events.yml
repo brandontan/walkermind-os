@@ -1,18 +1,14 @@
 name: WARP Gate — Events
 
-# Fires WARP•GATE on every relevant GitHub event and dispatches
-# a normalized envelope to the Base44 agent + gateWebhook.
+# Fires WARP•GATE on every relevant GitHub event.
+# Dispatcher is fully inlined — no external script dependency.
 #
-# Events covered:
-#   pull_request        — opened / synchronize / reopened / ready_for_review
-#   pull_request_review_comment — created / edited
-#   issue_comment       — created  (covers PR comments + issue comments)
-#   issues              — opened / edited / labeled
+# Events: pull_request | pull_request_review_comment | issue_comment | issues
 #
-# Anti-loop guards:
-#   - Skip sync: commits (title starts with "sync:")
-#   - Skip bot actors (github-actions[bot], dependabot[bot], warp-gate[bot])
-#   - Skip issue_comment by the gate bot itself
+# Anti-loop:
+#   - Skip sync: commits
+#   - Skip bot actors
+#   - Skip warp-gate[bot] comments
 
 on:
   pull_request:
@@ -36,8 +32,6 @@ jobs:
   warp-gate-dispatch:
     name: WARP•GATE Dispatch
     runs-on: ubuntu-latest
-
-    # Global skip conditions
     if: |
       github.actor != 'github-actions[bot]' &&
       github.actor != 'dependabot[bot]' &&
@@ -46,164 +40,373 @@ jobs:
       !startsWith(github.event.issue.title, 'sync:')
 
     steps:
-      - name: Set event context
-        id: ctx
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          ACTOR: ${{ github.actor }}
-        run: |
-          echo "event=${EVENT_NAME}" >> $GITHUB_OUTPUT
-          echo "actor=${ACTOR}"      >> $GITHUB_OUTPUT
 
-      # ── pull_request ────────────────────────────────────────────────────
+      # ── pull_request ──────────────────────────────────────────────────────
       - name: Dispatch — pull_request
         if: github.event_name == 'pull_request'
         env:
-          BASE44_API_KEY:        ${{ secrets.BASE44_API_KEY }}
-          WARP_WEBHOOK_SECRET:   ${{ secrets.WARP_WEBHOOK_SECRET }}
-          GITHUB_EVENT_NAME:     pull_request
-          GITHUB_REPOSITORY:     ${{ github.repository }}
-          GITHUB_ACTOR:          ${{ github.actor }}
-          PR_ACTION:             ${{ github.event.action }}
-          PR_NUMBER:             ${{ github.event.pull_request.number }}
-          PR_TITLE:              ${{ github.event.pull_request.title }}
-          PR_BODY:               ${{ github.event.pull_request.body }}
-          PR_BRANCH:             ${{ github.event.pull_request.head.ref }}
-          PR_SHA:                ${{ github.event.pull_request.head.sha }}
-          PR_AUTHOR:             ${{ github.event.pull_request.user.login }}
-          PR_URL:                ${{ github.event.pull_request.html_url }}
-        run: python3 scripts/warp_gate_dispatcher.py
+          BASE44_API_KEY:       ${{ secrets.BASE44_API_KEY }}
+          WARP_WEBHOOK_SECRET:  ${{ secrets.WARP_WEBHOOK_SECRET }}
+          PR_ACTION:            ${{ github.event.action }}
+          PR_NUMBER:            ${{ github.event.pull_request.number }}
+          PR_TITLE:             ${{ github.event.pull_request.title }}
+          PR_BODY:              ${{ github.event.pull_request.body }}
+          PR_BRANCH:            ${{ github.event.pull_request.head.ref }}
+          PR_SHA:               ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR:            ${{ github.event.pull_request.user.login }}
+          PR_URL:               ${{ github.event.pull_request.html_url }}
+          GITHUB_REPO:          ${{ github.repository }}
+          GITHUB_ACTOR:         ${{ github.actor }}
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys, urllib.request, urllib.error
 
-      # ── pull_request_review_comment ─────────────────────────────────────
+          BASE44  = "https://app.base44.com/api/agents/69f0641f438b21f8ef2e1218/conversations"
+          WEBHOOK = "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook"
+
+          def post(url, headers, body):
+              data = json.dumps(body).encode()
+              req  = urllib.request.Request(url, data=data, headers=headers, method="POST")
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      return r.status, r.read().decode()[:400]
+              except urllib.error.HTTPError as e:
+                  return e.code, e.read().decode()[:200]
+              except Exception as e:
+                  return 0, str(e)
+
+          api_key = os.environ["BASE44_API_KEY"]
+          secret  = os.environ["WARP_WEBHOOK_SECRET"]
+          repo    = os.environ["GITHUB_REPO"]
+          actor   = os.environ["GITHUB_ACTOR"]
+          action  = os.environ["PR_ACTION"]
+          number  = os.environ["PR_NUMBER"]
+          title   = os.environ["PR_TITLE"]
+          body    = os.environ["PR_BODY"]
+          branch  = os.environ["PR_BRANCH"]
+          sha     = os.environ["PR_SHA"]
+          author  = os.environ["PR_AUTHOR"]
+          url     = os.environ["PR_URL"]
+
+          envelope = {
+              "event": "pull_request", "action": action, "repo": repo, "actor": actor,
+              "pull_request": {
+                  "number": int(number), "title": title, "body": body,
+                  "branch": branch, "sha": sha, "author": author, "url": url,
+              },
+          }
+
+          message = (
+              f"WARP\u2022GATE EVENT: pull_request.{action}\n\n"
+              f"Repo   : {repo}\n"
+              f"PR     : #{number} \u2014 {title}\n"
+              f"Branch : {branch}\n"
+              f"Author : {author}\n"
+              f"URL    : {url}\n\n"
+              f"Run gate review per AGENTS.md. Check tier, declarations, hard stops, "
+              f"forge report, state files. Post one batched DECISION comment on the PR."
+          )
+
+          s1, b1 = post(BASE44,
+              {"Content-Type":"application/json","api_key":api_key,"User-Agent":"WARP-Gate/3"},
+              {"messages":[{"role":"user","content":message}],
+               "metadata":{"source":"github-action","event":"pull_request","action":action}})
+          print(f"Base44  : HTTP {s1} {b1[:150]}")
+
+          s2, b2 = post(WEBHOOK,
+              {"Content-Type":"application/json","x-warp-secret":secret,"User-Agent":"WARP-Gate/3"},
+              envelope)
+          print(f"Webhook : HTTP {s2} {b2[:150]}")
+
+          sys.exit(0 if s1 in (200,201) else 1)
+          PYEOF
+
+      # ── pull_request_review_comment ───────────────────────────────────────
       - name: Dispatch — pr_review_comment
         if: github.event_name == 'pull_request_review_comment'
         env:
-          BASE44_API_KEY:        ${{ secrets.BASE44_API_KEY }}
-          WARP_WEBHOOK_SECRET:   ${{ secrets.WARP_WEBHOOK_SECRET }}
-          GITHUB_EVENT_NAME:     pull_request_review_comment
-          GITHUB_REPOSITORY:     ${{ github.repository }}
-          GITHUB_ACTOR:          ${{ github.actor }}
-          PR_ACTION:             ${{ github.event.action }}
-          PR_NUMBER:             ${{ github.event.pull_request.number }}
-          PR_TITLE:              ${{ github.event.pull_request.title }}
-          PR_BRANCH:             ${{ github.event.pull_request.head.ref }}
-          PR_URL:                ${{ github.event.pull_request.html_url }}
-          COMMENT_BODY:          ${{ github.event.comment.body }}
-          COMMENT_AUTHOR:        ${{ github.event.comment.user.login }}
-          COMMENT_URL:           ${{ github.event.comment.html_url }}
-        run: python3 scripts/warp_gate_dispatcher.py
+          BASE44_API_KEY:       ${{ secrets.BASE44_API_KEY }}
+          WARP_WEBHOOK_SECRET:  ${{ secrets.WARP_WEBHOOK_SECRET }}
+          PR_NUMBER:            ${{ github.event.pull_request.number }}
+          PR_TITLE:             ${{ github.event.pull_request.title }}
+          PR_BRANCH:            ${{ github.event.pull_request.head.ref }}
+          PR_URL:               ${{ github.event.pull_request.html_url }}
+          COMMENT_BODY:         ${{ github.event.comment.body }}
+          COMMENT_AUTHOR:       ${{ github.event.comment.user.login }}
+          COMMENT_URL:          ${{ github.event.comment.html_url }}
+          GITHUB_REPO:          ${{ github.repository }}
+          GITHUB_ACTOR:         ${{ github.actor }}
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys, urllib.request, urllib.error
 
-      # ── issue_comment (PR comment OR issue comment) ──────────────────────
+          BASE44  = "https://app.base44.com/api/agents/69f0641f438b21f8ef2e1218/conversations"
+          WEBHOOK = "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook"
+
+          def post(url, headers, body):
+              data = json.dumps(body).encode()
+              req  = urllib.request.Request(url, data=data, headers=headers, method="POST")
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      return r.status, r.read().decode()[:400]
+              except urllib.error.HTTPError as e:
+                  return e.code, e.read().decode()[:200]
+              except Exception as e:
+                  return 0, str(e)
+
+          api_key = os.environ["BASE44_API_KEY"]
+          secret  = os.environ["WARP_WEBHOOK_SECRET"]
+          repo    = os.environ["GITHUB_REPO"]
+          number  = os.environ["PR_NUMBER"]
+          title   = os.environ["PR_TITLE"]
+          branch  = os.environ["PR_BRANCH"]
+          pr_url  = os.environ["PR_URL"]
+          cbody   = os.environ["COMMENT_BODY"]
+          cauthor = os.environ["COMMENT_AUTHOR"]
+          curl    = os.environ["COMMENT_URL"]
+
+          envelope = {
+              "event":"pull_request_review_comment","action":"created","repo":repo,
+              "pull_request":{"number":int(number),"title":title,"branch":branch,"url":pr_url},
+              "comment":{"body":cbody,"author":cauthor,"url":curl},
+          }
+
+          message = (
+              f"WARP\u2022GATE EVENT: pr_review_comment\n\n"
+              f"Repo    : {repo}\nPR      : #{number} \u2014 {title}\n"
+              f"Branch  : {branch}\nComment : {cbody[:300]}\nAuthor  : {cauthor}\n\n"
+              f"Classify: BLOCKER / MINOR SAFE FIX / IGNORE per COMMANDER.md PR REVIEW AUTO-TRIAGE."
+          )
+
+          s1, b1 = post(BASE44,
+              {"Content-Type":"application/json","api_key":api_key,"User-Agent":"WARP-Gate/3"},
+              {"messages":[{"role":"user","content":message}]})
+          print(f"Base44  : HTTP {s1} {b1[:150]}")
+
+          s2, b2 = post(WEBHOOK,
+              {"Content-Type":"application/json","x-warp-secret":secret,"User-Agent":"WARP-Gate/3"},
+              envelope)
+          print(f"Webhook : HTTP {s2} {b2[:150]}")
+          sys.exit(0)
+          PYEOF
+
+      # ── issue_comment ─────────────────────────────────────────────────────
       - name: Dispatch — issue_comment
         if: |
           github.event_name == 'issue_comment' &&
           github.event.sender.login != 'github-actions[bot]' &&
           github.event.sender.login != 'warp-gate[bot]'
         env:
-          BASE44_API_KEY:        ${{ secrets.BASE44_API_KEY }}
-          WARP_WEBHOOK_SECRET:   ${{ secrets.WARP_WEBHOOK_SECRET }}
-          GITHUB_EVENT_NAME:     issue_comment
-          GITHUB_REPOSITORY:     ${{ github.repository }}
-          GITHUB_ACTOR:          ${{ github.actor }}
-          # If comment is on a PR, github.event.issue.pull_request exists
-          PR_NUMBER:             ${{ github.event.issue.pull_request && github.event.issue.number || '' }}
-          PR_TITLE:              ${{ github.event.issue.title }}
-          PR_URL:                ${{ github.event.issue.html_url }}
-          # Branch not available on issue_comment — left empty
-          PR_BRANCH:             ""
-          ISSUE_NUMBER:          ${{ github.event.issue.pull_request && '' || github.event.issue.number }}
-          ISSUE_TITLE:           ${{ github.event.issue.title }}
-          ISSUE_URL:             ${{ github.event.issue.html_url }}
-          COMMENT_BODY:          ${{ github.event.comment.body }}
-          COMMENT_AUTHOR:        ${{ github.event.comment.user.login }}
-          COMMENT_URL:           ${{ github.event.comment.html_url }}
-        run: python3 scripts/warp_gate_dispatcher.py
+          BASE44_API_KEY:       ${{ secrets.BASE44_API_KEY }}
+          WARP_WEBHOOK_SECRET:  ${{ secrets.WARP_WEBHOOK_SECRET }}
+          IS_PR:                ${{ github.event.issue.pull_request != null && 'true' || 'false' }}
+          ISSUE_NUMBER:         ${{ github.event.issue.number }}
+          ISSUE_TITLE:          ${{ github.event.issue.title }}
+          ISSUE_URL:            ${{ github.event.issue.html_url }}
+          COMMENT_BODY:         ${{ github.event.comment.body }}
+          COMMENT_AUTHOR:       ${{ github.event.comment.user.login }}
+          COMMENT_URL:          ${{ github.event.comment.html_url }}
+          GITHUB_REPO:          ${{ github.repository }}
+          GITHUB_ACTOR:         ${{ github.actor }}
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys, urllib.request, urllib.error
 
-      # ── issues ───────────────────────────────────────────────────────────
+          BASE44  = "https://app.base44.com/api/agents/69f0641f438b21f8ef2e1218/conversations"
+          WEBHOOK = "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook"
+
+          def post(url, headers, body):
+              data = json.dumps(body).encode()
+              req  = urllib.request.Request(url, data=data, headers=headers, method="POST")
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      return r.status, r.read().decode()[:400]
+              except urllib.error.HTTPError as e:
+                  return e.code, e.read().decode()[:200]
+              except Exception as e:
+                  return 0, str(e)
+
+          api_key = os.environ["BASE44_API_KEY"]
+          secret  = os.environ["WARP_WEBHOOK_SECRET"]
+          repo    = os.environ["GITHUB_REPO"]
+          is_pr   = os.environ["IS_PR"] == "true"
+          number  = os.environ["ISSUE_NUMBER"]
+          title   = os.environ["ISSUE_TITLE"]
+          iurl    = os.environ["ISSUE_URL"]
+          cbody   = os.environ["COMMENT_BODY"]
+          cauthor = os.environ["COMMENT_AUTHOR"]
+          curl    = os.environ["COMMENT_URL"]
+
+          kind = "PR" if is_pr else "Issue"
+          envelope = {
+              "event":"issue_comment",
+              "action":"pr_comment" if is_pr else "issue_comment",
+              "repo":repo,
+              ("pull_request" if is_pr else "issue"):{
+                  "number":int(number),"title":title,"url":iurl
+              },
+              "comment":{"body":cbody,"author":cauthor,"url":curl},
+          }
+
+          message = (
+              f"WARP\u2022GATE EVENT: issue_comment on {kind}\n\n"
+              f"Repo    : {repo}\n{kind}: #{number} \u2014 {title}\n"
+              f"Comment : {cbody[:300]}\nAuthor  : {cauthor}\n\n"
+              f"{'Classify and route per PR REVIEW AUTO-TRIAGE in COMMANDER.md.' if is_pr else 'Assess if WARP-FORGE task or WARP-SENTINEL routing required.'}"
+          )
+
+          s1, b1 = post(BASE44,
+              {"Content-Type":"application/json","api_key":api_key,"User-Agent":"WARP-Gate/3"},
+              {"messages":[{"role":"user","content":message}]})
+          print(f"Base44  : HTTP {s1} {b1[:150]}")
+          s2, b2 = post(WEBHOOK,
+              {"Content-Type":"application/json","x-warp-secret":secret,"User-Agent":"WARP-Gate/3"},
+              envelope)
+          print(f"Webhook : HTTP {s2} {b2[:150]}")
+          sys.exit(0)
+          PYEOF
+
+      # ── issues ────────────────────────────────────────────────────────────
       - name: Dispatch — issues
         if: github.event_name == 'issues'
         env:
-          BASE44_API_KEY:        ${{ secrets.BASE44_API_KEY }}
-          WARP_WEBHOOK_SECRET:   ${{ secrets.WARP_WEBHOOK_SECRET }}
-          GITHUB_EVENT_NAME:     issues
-          GITHUB_REPOSITORY:     ${{ github.repository }}
-          GITHUB_ACTOR:          ${{ github.actor }}
-          ISSUE_ACTION:          ${{ github.event.action }}
-          ISSUE_NUMBER:          ${{ github.event.issue.number }}
-          ISSUE_TITLE:           ${{ github.event.issue.title }}
-          ISSUE_BODY:            ${{ github.event.issue.body }}
-          ISSUE_URL:             ${{ github.event.issue.html_url }}
-          ISSUE_LABELS:          ${{ join(github.event.issue.labels.*.name, ',') }}
-        run: python3 scripts/warp_gate_dispatcher.py
+          BASE44_API_KEY:       ${{ secrets.BASE44_API_KEY }}
+          WARP_WEBHOOK_SECRET:  ${{ secrets.WARP_WEBHOOK_SECRET }}
+          ISSUE_ACTION:         ${{ github.event.action }}
+          ISSUE_NUMBER:         ${{ github.event.issue.number }}
+          ISSUE_TITLE:          ${{ github.event.issue.title }}
+          ISSUE_BODY:           ${{ github.event.issue.body }}
+          ISSUE_URL:            ${{ github.event.issue.html_url }}
+          ISSUE_LABELS:         ${{ join(github.event.issue.labels.*.name, ',') }}
+          GITHUB_REPO:          ${{ github.repository }}
+          GITHUB_ACTOR:         ${{ github.actor }}
+        run: |
+          python3 << 'PYEOF'
+          import json, os, sys, urllib.request, urllib.error
 
-      # ── Telegram notification ────────────────────────────────────────────
+          BASE44  = "https://app.base44.com/api/agents/69f0641f438b21f8ef2e1218/conversations"
+          WEBHOOK = "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook"
+
+          def post(url, headers, body):
+              data = json.dumps(body).encode()
+              req  = urllib.request.Request(url, data=data, headers=headers, method="POST")
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      return r.status, r.read().decode()[:400]
+              except urllib.error.HTTPError as e:
+                  return e.code, e.read().decode()[:200]
+              except Exception as e:
+                  return 0, str(e)
+
+          api_key = os.environ["BASE44_API_KEY"]
+          secret  = os.environ["WARP_WEBHOOK_SECRET"]
+          repo    = os.environ["GITHUB_REPO"]
+          actor   = os.environ["GITHUB_ACTOR"]
+          action  = os.environ["ISSUE_ACTION"]
+          number  = os.environ["ISSUE_NUMBER"]
+          title   = os.environ["ISSUE_TITLE"]
+          body    = os.environ["ISSUE_BODY"]
+          iurl    = os.environ["ISSUE_URL"]
+          labels  = os.environ["ISSUE_LABELS"]
+
+          envelope = {
+              "event":"issues","action":action,"repo":repo,"actor":actor,
+              "issue":{"number":int(number),"title":title,"body":body,
+                       "labels":labels,"url":iurl},
+          }
+
+          sentinel_hint = ""
+          if any(l in labels for l in ("warp:sentinel","major","warp-sentinel")):
+              sentinel_hint = "\nLabels include sentinel/major \u2014 prepare WARP\u2022SENTINEL routing."
+
+          message = (
+              f"WARP\u2022GATE EVENT: issues.{action}\n\n"
+              f"Repo   : {repo}\nIssue  : #{number} \u2014 {title}\n"
+              f"Labels : {labels}\nActor  : {actor}\nURL    : {iurl}\n"
+              f"{sentinel_hint}\n\nAssess and route per AGENTS.md."
+          )
+
+          s1, b1 = post(BASE44,
+              {"Content-Type":"application/json","api_key":api_key,"User-Agent":"WARP-Gate/3"},
+              {"messages":[{"role":"user","content":message}]})
+          print(f"Base44  : HTTP {s1} {b1[:150]}")
+          s2, b2 = post(WEBHOOK,
+              {"Content-Type":"application/json","x-warp-secret":secret,"User-Agent":"WARP-Gate/3"},
+              envelope)
+          print(f"Webhook : HTTP {s2} {b2[:150]}")
+          sys.exit(0)
+          PYEOF
+
+      # ── Telegram notification ─────────────────────────────────────────────
       - name: Telegram Notification
         if: always()
         env:
-          BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
-          EVENT_NAME:  ${{ github.event_name }}
+          BOT_TOKEN:    ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID:      ${{ secrets.TELEGRAM_CHAT_ID }}
+          EVENT_NAME:   ${{ github.event_name }}
           EVENT_ACTION: ${{ github.event.action }}
-          ACTOR:       ${{ github.actor }}
-          REPO:        ${{ github.repository }}
-          PR_NUMBER:   ${{ github.event.pull_request.number || github.event.issue.number || '' }}
-          PR_URL:      ${{ github.event.pull_request.html_url || github.event.issue.html_url || '' }}
-          STEP_RESULT: ${{ job.status }}
+          ACTOR:        ${{ github.actor }}
+          REPO:         ${{ github.repository }}
+          ITEM_NUMBER:  ${{ github.event.pull_request.number || github.event.issue.number || '' }}
+          ITEM_URL:     ${{ github.event.pull_request.html_url || github.event.issue.html_url || '' }}
+          JOB_STATUS:   ${{ job.status }}
         run: |
-          python3 << 'EOF'
-          import os, json, urllib.request
+          python3 << 'PYEOF'
+          import json, os, urllib.request
 
-          bot_token    = os.environ.get("BOT_TOKEN", "")
-          chat_id      = os.environ.get("CHAT_ID", "")
-          event_name   = os.environ.get("EVENT_NAME", "")
-          event_action = os.environ.get("EVENT_ACTION", "")
-          actor        = os.environ.get("ACTOR", "")
-          repo         = os.environ.get("REPO", "")
-          pr_number    = os.environ.get("PR_NUMBER", "")
-          pr_url       = os.environ.get("PR_URL", "")
-          step_result  = os.environ.get("STEP_RESULT", "unknown")
+          bot   = os.environ.get("BOT_TOKEN","")
+          chat  = os.environ.get("CHAT_ID","")
+          ev    = os.environ.get("EVENT_NAME","")
+          act   = os.environ.get("EVENT_ACTION","")
+          actor = os.environ.get("ACTOR","")
+          repo  = os.environ.get("REPO","")
+          num   = os.environ.get("ITEM_NUMBER","")
+          url   = os.environ.get("ITEM_URL","")
+          stat  = os.environ.get("JOB_STATUS","unknown")
 
-          if not bot_token or not chat_id:
-              print("Telegram: no credentials, skip.")
+          if not bot or not chat:
               raise SystemExit(0)
 
-          icon_map = {
-              "pull_request":               "\U0001f504",
-              "pull_request_review_comment": "\U0001f4ac",
-              "issue_comment":              "\U0001f4ac",
-              "issues":                     "\U0001f4cb",
+          icons = {
+              "pull_request":"\U0001f504",
+              "pull_request_review_comment":"\U0001f4ac",
+              "issue_comment":"\U0001f4ac",
+              "issues":"\U0001f4cb",
           }
-          icon = icon_map.get(event_name, "\U0001f504")
+          icon = icons.get(ev, "\U0001f504")
 
-          item_line = ""
-          if pr_number and pr_url:
-              item_line = f"\nItem: [\\#{pr_number}]({pr_url})"
+          item = f"\nItem: [\\#{num}]({url})" if num and url else ""
+
+          # escape MarkdownV2 special chars in dynamic fields
+          def esc(s):
+              for c in r"\_*[]()~`>#+-=|{}.!":
+                  s = s.replace(c, f"\\{c}")
+              return s
 
           text = (
               f"{icon} *WARP\u2022GATE*\n\n"
               f"[walk3r69](tg://user?id=5642722297)\n\n"
-              f"Event: `{event_name}\\.{event_action}`\n"
-              f"Repo: `{repo}`{item_line}\n"
-              f"Actor: {actor}\n"
-              f"Status: `{step_result}`"
+              f"Event: `{esc(ev)}\\.{esc(act)}`\n"
+              f"Repo: `{esc(repo)}`{item}\n"
+              f"Actor: {esc(actor)}\n"
+              f"Status: `{esc(stat)}`"
           )
 
           payload = json.dumps({
-              "chat_id": chat_id,
-              "text": text,
+              "chat_id": chat, "text": text,
               "parse_mode": "MarkdownV2",
               "disable_web_page_preview": True,
-          }).encode("utf-8")
+          }).encode()
 
           req = urllib.request.Request(
-              f"https://api.telegram.org/bot{bot_token}/sendMessage",
+              f"https://api.telegram.org/bot{bot}/sendMessage",
               data=payload,
-              headers={"Content-Type": "application/json"},
+              headers={"Content-Type":"application/json"},
               method="POST",
           )
           try:
-              with urllib.request.urlopen(req, timeout=15) as resp:
-                  print(f"Telegram OK {resp.status}")
+              with urllib.request.urlopen(req, timeout=15) as r:
+                  print(f"Telegram OK {r.status}")
           except Exception as e:
               print(f"Telegram WARN: {e}")
-          EOF
+          PYEOF
