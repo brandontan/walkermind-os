@@ -135,7 +135,9 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 us.weight                AS capital_allocation_pct,
                 COALESCE(urp.profile_name, s.risk_profile, 'balanced') AS resolved_profile,
                 s.active_preset,
-                COALESCE(s.min_liquidity, 0)         AS min_liquidity_threshold
+                COALESCE(s.min_liquidity, 0)         AS min_liquidity_threshold,
+                COALESCE(s.strategy_params, '{}')    AS strategy_params,
+                COALESCE(s.category_filters, '{}')   AS category_filters
             FROM user_strategies us
             JOIN users          u   ON u.id  = us.user_id
             JOIN wallets        w   ON w.user_id = u.id
@@ -677,6 +679,23 @@ async def _process_candidate(
 # ---------------------------------------------------------------------------
 
 
+def _filter_markets_by_category(markets: list[dict], filters: list[str]) -> list[dict]:
+    """Filter Gamma market dicts by category. Empty filters = all markets."""
+    if not filters:
+        return markets
+    lower = {f.lower() for f in filters}
+    result = []
+    for m in markets:
+        cat = (
+            m.get("category")
+            or m.get("groupItemTitle")
+            or m.get("slug", "")
+        ).lower()
+        if any(f in cat for f in lower):
+            result.append(m)
+    return result
+
+
 async def _fetch_markets_for_lib_strategies() -> list[dict]:
     """Fetch active market list from Gamma API for lib strategy scans.
 
@@ -692,11 +711,11 @@ async def _fetch_markets_for_lib_strategies() -> list[dict]:
 async def run_once() -> None:
     """Run one tick of the lib-strategy scan loop for all enrolled users.
 
-    Two-phase execution:
-      Phase A — run each enabled lib strategy once per tick against the shared
-                market list; collect candidates keyed by strategy_name.
-      Phase B — for each enrolled user, filter candidates by their active_preset
-                via _preset_allows(); call _process_candidate for each match.
+    Per-user execution:
+      Markets are fetched once from Gamma API then filtered per-user by
+      category_filters before being passed to each lib strategy. strategy_params
+      from user_settings are forwarded as config so strategies apply user-specific
+      thresholds (drop_threshold, min_liquidity, etc.).
 
     Each user is processed independently — an exception for one user does
     not prevent other users from being scanned on the same tick.
@@ -712,40 +731,36 @@ async def run_once() -> None:
     if not users:
         return
 
-    # Phase A: fetch markets once, run each lib strategy, collect by name.
     markets = await _fetch_markets_for_lib_strategies()
-    all_candidates: dict[str, list[SignalCandidate]] = {}
     strategies_to_run = list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES)
-    for lib_name in strategies_to_run:
-        try:
-            cands = await asyncio.get_event_loop().run_in_executor(
-                None, run_lib_strategy, lib_name, markets, {}
-            )
-            all_candidates[lib_name] = cands
-        except Exception as exc:
-            logger.warning("lib_strategy_run_failed", strategy=lib_name, error=str(exc))
-            all_candidates[lib_name] = []
 
-    total_signals = sum(len(v) for v in all_candidates.values())
-    logger.info("lib_strategy_phase_a_done", strategies=len(strategies_to_run),
-                total_signals=total_signals)
-    await _event_bus.emit(
-        "pipeline.strategy_scan_done",
-        strategy_count=len(strategies_to_run),
-        total_signals=total_signals,
-    )
-
-    # Phase B: distribute signals to users based on their active_preset.
     candidates_processed = 0
     candidates_errored = 0
+    lib_total_signals = 0
+
     for row in users:
         active_preset = row.get("active_preset")
+        category_filters: list[str] = list(row.get("category_filters") or [])
+        strategy_params: dict = dict(row.get("strategy_params") or {})
         user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
 
-        for lib_name, candidates in all_candidates.items():
+        # Filter market list to user's chosen categories (empty = all markets).
+        user_markets = _filter_markets_by_category(markets, category_filters)
+
+        for lib_name in strategies_to_run:
             if not _preset_allows(active_preset, lib_name):
                 continue
-            for cand in candidates:
+            config = {"strategy_params": strategy_params.get(lib_name, {})}
+            try:
+                cands: list[SignalCandidate] = await asyncio.get_event_loop().run_in_executor(
+                    None, run_lib_strategy, lib_name, user_markets, config
+                )
+            except Exception as exc:
+                user_log.warning("lib_strategy_run_failed", strategy=lib_name, error=str(exc))
+                cands = []
+
+            lib_total_signals += len(cands)
+            for cand in cands:
                 try:
                     await _process_candidate(row, cand)
                     candidates_processed += 1
@@ -786,6 +801,16 @@ async def run_once() -> None:
                     error=str(exc),
                 )
 
+    logger.info(
+        "lib_strategy_scan_done",
+        strategies=len(strategies_to_run),
+        total_signals=lib_total_signals,
+    )
+    await _event_bus.emit(
+        "pipeline.strategy_scan_done",
+        strategy_count=len(strategies_to_run),
+        total_signals=lib_total_signals,
+    )
     await _event_bus.emit(
         "pipeline.scan_completed",
         user_count=len(users),
@@ -794,4 +819,4 @@ async def run_once() -> None:
     )
 
 
-__all__ = ["run_once"]
+__all__ = ["run_once", "_filter_markets_by_category"]

@@ -1,4 +1,4 @@
-Last Updated: 2026-05-20 10:52 WIB
+Last Updated: 2026-05-20 19:00 WIB
 
 [COMPLETED]
 - WARP-43 (issue #1192): dashboard:portfolio callback routing fixed — split from trades branch, now dispatches to show_portfolio; test_dashboard_routing.py added; MINOR, NARROW INTEGRATION.
@@ -24,6 +24,7 @@ Last Updated: 2026-05-20 10:52 WIB
 
 [IN PROGRESS]
 
+- WARP-44 (issue #1195): strategy-pipeline-user-filter PR open — per-user category_filters market filtering, strategy_params wire-up, migration 043 (strategy_params JSONB). STANDARD, MODERATE. Awaiting WARP🔹CMD review + migration 043 apply.
 - WARP-38 WARP/fix-pnl-current-price PR open (#1182) — get_live_market_price now requires strictly-interior price (0<p<1) on CLOB primary + Gamma fallback; rejects the CLOB empty-book sentinel (1.0/0.0) that marked open longshot positions at $1.00 and produced +900% P&L; invalid lookup → None → entry_price mark (P&L 0/N/A). 4 regression tests pass. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP-30 phase1-hardening-db-cleanup PR open — signal freshness gate tests (4 cases), SSE reliability audit PASS, migrations 030/031/041 applied to Supabase production. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP-25 telegram-functional-routing-fix PR open — show_positions() callback fix + Positions [🛑 Close] buttons + Trades history-only keyboard + preset picker short labels. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
@@ -71,6 +72,7 @@ Last Updated: 2026-05-20 10:52 WIB
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for WARP-44 strategy-pipeline-user-filter (per-user category filter + strategy_params wire-up). Source: projects/polymarket/crusaderbot/reports/forge/strategy-pipeline-user-filter.md. Tier: STANDARD. Apply migration 043 to Supabase before deploy.
 - Bot redeploy on Fly.io required — apply WARP-41+42 (PR #1191). No migration needed.
 - WARP🔹CMD review required for WARP-38 WARP/fix-pnl-current-price (#1182: open-position P&L inflation root-caused to CLOB empty-book 1.0 sentinel; strict-interior price guard). Source: projects/polymarket/crusaderbot/reports/forge/fix-pnl-current-price.md. Tier: STANDARD. No migration. After merge: redeploy so exit_watcher self-heals affected open positions on next tick.
 - WARP🔹CMD review + URGENT MERGE required for WARP-28 dashboard-corruption-fix (deployment blocker). Source: projects/polymarket/crusaderbot/reports/forge/dashboard-corruption-fix.md. Tier: STANDARD. After merge: Fly.io redeploy required.
