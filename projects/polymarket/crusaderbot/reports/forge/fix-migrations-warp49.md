@@ -86,7 +86,7 @@ No other issues found.
 
 ## 7. What Is Next
 
-```
+```text
 WARP🔹CMD review required.
 Source: projects/polymarket/crusaderbot/reports/forge/fix-migrations-warp49.md
 Tier: MINOR

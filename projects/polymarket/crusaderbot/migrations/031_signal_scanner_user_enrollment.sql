@@ -1,7 +1,7 @@
 -- Migration 031: Signal Scanner — backfill feed seeds + user enrollment
 -- Fixes: demo/live feeds missing if 024/025 ran on empty DB;
---        users created after 024 not enrolled or subscribed;
---        access_tier < 3 blocking paper-mode signal scan.
+--        users created after 024 not enrolled or subscribed.
+-- Note:  access_tier handling removed; access is now role-based (admin/user).
 -- Idempotent: all writes use ON CONFLICT DO NOTHING or WHERE NOT EXISTS.
 -- Apply after 030_job_runs_metadata.sql
 
