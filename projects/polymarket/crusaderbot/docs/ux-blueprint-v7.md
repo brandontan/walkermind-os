@@ -30,18 +30,18 @@ Dashboard text is now rendered with no inline keyboard. Navigation via persisten
 
 `positions_list_kb` signature changed:
 
-```
+```python
 # Before
 def positions_list_kb(position_ids: Iterable[UUID | str]) -> InlineKeyboardMarkup
 
 # After
-def positions_list_kb(positions: Iterable[dict]) -> InlineKeyboardMarkup
+def positions_list_kb(positions: Iterable[PositionRow]) -> InlineKeyboardMarkup
 ```
 
 Button label format: `🔴 Close — {id[:8]} {SIDE} · {question[:28]}…`
 
 Call site in `handlers/positions.py`:
-```
+```python
 # Before
 kb = positions_list_kb([p["id"] for p in positions])
 
@@ -73,7 +73,7 @@ Replaces the previous `reply_markup=main_menu()` (ReplyKeyboard) — persistent 
 
 Dispatcher split from one combined handler to two:
 
-```
+```python
 # Before (both labels → show_portfolio)
 MessageHandler(Regex(r"^💼 (Portfolio|Trades \(\d+\))$"), positions.show_portfolio)
 

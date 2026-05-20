@@ -22,7 +22,7 @@ Five UX fixes covering WARP-41 (#1188) and WARP-42 (#1189), merged into one PR.
 
 ## 2. Current system architecture
 
-```
+```text
 Telegram Update
   → dispatcher.py (group=-1 handlers)
       ├─ 💼 Portfolio  → positions.show_portfolio  (unchanged)

@@ -6,7 +6,7 @@ callback paths, but positions_list_kb renders navigation-only controls.
 """
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterable, TypedDict
 from uuid import UUID
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -14,7 +14,14 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from ._common import confirm_cancel_row, home_back_row
 
 
-def positions_list_kb(positions: Iterable[dict]) -> InlineKeyboardMarkup:
+class PositionRow(TypedDict, total=False):
+    id: UUID | str
+    side: str
+    question: str
+    market_id: str
+
+
+def positions_list_kb(positions: Iterable[PositionRow]) -> InlineKeyboardMarkup:
     """Per-position [🔴 Close — id SIDE · question] rows + back/home nav row."""
     rows: list[list[InlineKeyboardButton]] = []
     for pos in positions:
