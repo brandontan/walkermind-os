@@ -3,21 +3,10 @@ name: WARP Gate -- PR Review Pipeline
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches:
-      - main
-
-permissions:
-  pull-requests: write
-  issues: write
-  contents: read
-
-env:
-  BASE44_URL: "https://app.base44.com/api/agents/69f0641f438b21f8ef2e1218/conversations"
-  WEBHOOK_URL: "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook"
 
 jobs:
   gate-webhook:
-    name: Trigger WARP\U0001f539CMD Gate
+    name: Trigger WARP CMD Gate
     runs-on: ubuntu-latest
     if: |
       startsWith(github.head_ref, 'WARP/') &&
@@ -25,64 +14,59 @@ jobs:
       github.actor != 'warp-gate[bot]'
 
     steps:
-      - name: Send PR event to WARP\U0001f539CMD
+      - name: Send PR event to WARP CMD
         env:
           BASE44_API_KEY:      ${{ secrets.BASE44_API_KEY }}
           WARP_WEBHOOK_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
-          PR_NUMBER:   ${{ github.event.pull_request.number }}
-          PR_TITLE:    ${{ github.event.pull_request.title }}
-          PR_BRANCH:   ${{ github.head_ref }}
-          PR_SHA:      ${{ github.event.pull_request.head.sha }}
-          PR_AUTHOR:   ${{ github.event.pull_request.user.login }}
-          PR_ACTION:   ${{ github.event.action }}
-          PR_URL:      ${{ github.event.pull_request.html_url }}
-          PR_REPO:     ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE:  ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_SHA:    ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_ACTION: ${{ github.event.action }}
+          PR_URL:    ${{ github.event.pull_request.html_url }}
+          PR_REPO:   ${{ github.repository }}
         run: |
-          python3 << 'PYEOF'
+          cat > /tmp/gate_dispatch.py << 'ENDPY'
 import os, json, urllib.request, urllib.error, sys
 
-base44_url  = os.environ.get("BASE44_URL", "")
-webhook_url = os.environ.get("WEBHOOK_URL", "")
-api_key     = os.environ.get("BASE44_API_KEY", "")
-secret      = os.environ.get("WARP_WEBHOOK_SECRET", "")
+base44_url  = "https://app.base44.com/api/agents/69f0641f438b21f8ef2e1218/conversations"
+webhook_url = "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook"
+api_key = os.environ.get("BASE44_API_KEY", "")
+secret  = os.environ.get("WARP_WEBHOOK_SECRET", "")
 
-number  = os.environ.get("PR_NUMBER", "0")
-title   = os.environ.get("PR_TITLE",  "")
-branch  = os.environ.get("PR_BRANCH", "")
-sha     = os.environ.get("PR_SHA",    "")
-author  = os.environ.get("PR_AUTHOR", "")
-action  = os.environ.get("PR_ACTION", "")
-url     = os.environ.get("PR_URL",    "")
-repo    = os.environ.get("PR_REPO",   "")
+number = os.environ.get("PR_NUMBER", "0")
+title  = os.environ.get("PR_TITLE",  "")
+branch = os.environ.get("PR_BRANCH", "")
+sha    = os.environ.get("PR_SHA",    "")
+author = os.environ.get("PR_AUTHOR", "")
+action = os.environ.get("PR_ACTION", "")
+url    = os.environ.get("PR_URL",    "")
+repo   = os.environ.get("PR_REPO",   "")
 
 if not api_key or not secret:
-    print("WARN: secrets not configured — skip")
+    print("WARN: secrets not configured -- skip")
     sys.exit(0)
 
 envelope = {
-    "event": "pull_request",
-    "action": action,
-    "repo": repo,
+    "event": "pull_request", "action": action, "repo": repo,
     "pull_request": {
         "number": int(number) if number.isdigit() else 0,
-        "title": title,
-        "branch": branch,
-        "sha": sha,
-        "author": author,
-        "url": url,
+        "title": title, "branch": branch, "sha": sha,
+        "author": author, "url": url,
     },
 }
 
 message = (
-    f"WARP\u2022GATE EVENT: pull_request.{action}\n\n"
-    f"Repo   : {repo}\n"
-    f"PR     : #{number} \u2014 {title}\n"
-    f"Branch : {branch}\n"
-    f"SHA    : {sha}\n"
-    f"Author : {author}\n"
-    f"URL    : {url}\n\n"
-    f"Run gate review per AGENTS.md. Check tier, declarations, hard stops, "
-    f"forge report, state files. Post one batched DECISION comment on the PR."
+    "WARP GATE EVENT: pull_request." + action + "\n\n"
+    "Repo   : " + repo + "\n"
+    "PR     : #" + number + " -- " + title + "\n"
+    "Branch : " + branch + "\n"
+    "SHA    : " + sha + "\n"
+    "Author : " + author + "\n"
+    "URL    : " + url + "\n\n"
+    "Run gate review per AGENTS.md. Check tier, declarations, hard stops, "
+    "forge report, state files. Post one batched DECISION comment on the PR."
 )
 
 def post(endpoint, headers, body):
@@ -96,21 +80,14 @@ def post(endpoint, headers, body):
     except Exception as e:
         return 0, str(e)[:200]
 
-s1, b1 = post(base44_url, {
-    "Content-Type": "application/json",
-    "api_key": api_key,
-    "User-Agent": "WARP-Gate/3"
-}, {"messages": [{"role": "user", "content": message}]})
-print(f"Base44  : HTTP {s1}  {b1[:120]}")
+s1, b1 = post(base44_url,
+    {"Content-Type": "application/json", "api_key": api_key, "User-Agent": "WARP-Gate/3"},
+    {"messages": [{"role": "user", "content": message}]})
+print("Base44  : HTTP %d  %s" % (s1, b1[:120]))
 
-s2, b2 = post(webhook_url, {
-    "Content-Type": "application/json",
-    "x-warp-secret": secret,
-    "User-Agent": "WARP-Gate/3"
-}, envelope)
-print(f"Webhook : HTTP {s2}  {b2[:120]}")
-
-if s1 not in (200, 201, 202) and s2 not in (200, 201, 202):
-    print("Both endpoints failed")
-    sys.exit(1)
-'PYEOF'
+s2, b2 = post(webhook_url,
+    {"Content-Type": "application/json", "x-warp-secret": secret, "User-Agent": "WARP-Gate/3"},
+    envelope)
+print("Webhook : HTTP %d  %s" % (s2, b2[:120]))
+ENDPY
+          python3 /tmp/gate_dispatch.py
