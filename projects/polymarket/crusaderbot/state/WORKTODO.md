@@ -54,7 +54,7 @@ Validate and fix realtime trust gaps:
 
 Close production gaps before beta:
 
-- [ ] Apply pending migrations (027/029/030/031) — audited, pending Supabase execution
+- [ ] Apply migrations 027/029/030/031 — patched & ready, pending Mr. Walker Supabase execution
 - [x] Fly.io deploy validation
 - [x] Scheduler health / retry check
 - [ ] Telegram notification reliability
