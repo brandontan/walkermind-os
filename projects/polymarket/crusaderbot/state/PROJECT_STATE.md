@@ -1,6 +1,7 @@
 Last Updated: 2026-05-20 13:20 WIB
 
 [COMPLETED]
+- WARP-25 MERGED PR #1203 (698b2cdfd7a5): Telegram routing fixes — menu:positions, close_position dedup, preset_picker domain. STANDARD, NARROW INTEGRATION.
 - WARP-45 (issue #1198): fix-sentry-p1-runtime-bugs PR open — _coerce_jsonb() helper added to signal_scan_job.py; asyncpg JSONB-as-str ValueError resolved (Sentry DAWN-SNOWFLAKE-1729-1Q); Bugs 2+3 confirmed already fixed (WARP-35/WARP-37). STANDARD, NARROW INTEGRATION.
 - WARP-44 (issue #1195): strategy-pipeline-user-filter MERGED (SHA e2e9e219) — per-user category_filters market filtering, strategy_params wire-up, migration 043 applied to Supabase production. STANDARD, MODERATE.
 - WARP-43 (issue #1192): dashboard:portfolio callback routing fixed — split from trades branch, now dispatches to show_portfolio; test_dashboard_routing.py added; MINOR, NARROW INTEGRATION.
