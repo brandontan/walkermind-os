@@ -116,6 +116,45 @@ async def get_recent_signals(user: _CurrentUser, limit: int = 10):
     ]
 
 
+@router.get("/activity")
+async def get_activity(user: _CurrentUser, limit: int = 10):
+    """Last N trade events (opens + closes) for the authenticated user."""
+    pool = get_pool()
+    user_id = user["user_id"]
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT p.id, p.status, p.side, p.size_usdc,
+                   p.entry_price, p.pnl_usdc, p.exit_reason,
+                   p.strategy_type, p.created_at, p.closed_at,
+                   m.question AS market_question
+              FROM positions p
+              LEFT JOIN markets m ON m.id = p.market_id
+             WHERE p.user_id = $1::uuid
+             ORDER BY COALESCE(p.closed_at, p.created_at) DESC
+             LIMIT $2
+            """,
+            user_id,
+            min(limit, 20),
+        )
+    return [
+        {
+            "id": str(r["id"]),
+            "type": "trade_close" if r["status"] == "closed" else "trade_open",
+            "status": r["status"],
+            "side": r["side"],
+            "size_usdc": float(r["size_usdc"]) if r["size_usdc"] else None,
+            "entry_price": float(r["entry_price"]) if r["entry_price"] else None,
+            "pnl_usdc": float(r["pnl_usdc"]) if r["pnl_usdc"] else None,
+            "exit_reason": r["exit_reason"],
+            "strategy_type": r["strategy_type"],
+            "market_question": r["market_question"],
+            "ts": (r["closed_at"] or r["created_at"]).isoformat(),
+        }
+        for r in rows
+    ]
+
+
 @router.get("/dashboard", response_model=DashboardSummary)
 async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
     pool = get_pool()
