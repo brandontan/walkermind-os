@@ -195,9 +195,17 @@ def test_backward_compat_aliases_present():
         assert alias in MAIN_MENU_ROUTES, f"backward-compat alias missing: {alias}"
 
 
-def test_dashboard_and_portfolio_are_different_handlers():
-    # Dashboard maps to _group0_noop sentinel; still distinct from portfolio.
-    assert MAIN_MENU_ROUTES["📊 Dashboard"] is not MAIN_MENU_ROUTES["💼 Portfolio"]
+def test_dashboard_and_portfolio_share_noop_sentinel():
+    # Both Dashboard and Portfolio map to _group0_noop — the actual render
+    # for both buttons is owned by the group=-1 MessageHandler in
+    # dispatcher.py. For Portfolio this also covers the dynamic
+    # "💼 Trades (N)" label (regex match in group=-1) and prevents duplicate
+    # sends from ConversationHandler / wizard text_input fallthrough.
+    from projects.polymarket.crusaderbot.bot.menus.main import _group0_noop
+    from projects.polymarket.crusaderbot.bot.handlers.positions import show_portfolio
+    assert MAIN_MENU_ROUTES["📊 Dashboard"] is _group0_noop
+    assert MAIN_MENU_ROUTES["💼 Portfolio"] is _group0_noop
+    assert MAIN_MENU_ROUTES["💼 Portfolio"] is not show_portfolio
 
 
 def test_dashboard_and_settings_are_different_handlers():

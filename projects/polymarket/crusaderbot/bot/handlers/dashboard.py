@@ -225,9 +225,14 @@ async def _clear_tracked_inline(
         await ctx.bot.edit_message_reply_markup(
             chat_id=chat_id, message_id=msg_id, reply_markup=None,
         )
-    except BadRequest:
+    except BadRequest as exc:
         # Message too old, already cleared, or not editable — best-effort only.
-        pass
+        # Log at debug so ghost-keyboard regressions stay diagnosable without
+        # noise on the common "Message is not modified" / age-out paths.
+        logger.debug(
+            "dashboard.inline_cleanup_bad_request chat_id=%s message_id=%s err=%s",
+            chat_id, msg_id, exc,
+        )
 
 
 def _track_inline(ctx: ContextTypes.DEFAULT_TYPE, message_id: int) -> None:
