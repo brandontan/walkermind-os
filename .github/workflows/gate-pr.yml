@@ -12,7 +12,6 @@ jobs:
 
     steps:
       - name: Send PR event to WARP gate_webhook
-        continue-on-error: true
         env:
           WARP_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -25,7 +24,7 @@ jobs:
           PR_REPO: ${{ github.repository }}
         run: |
           python3 << 'EOF'
-          import os, json, urllib.request, urllib.error
+          import os, json, urllib.request
 
           ENDPOINT = "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook"
 
@@ -54,53 +53,12 @@ jobs:
           )
           try:
               with urllib.request.urlopen(req, timeout=15) as resp:
-                  print(f"OK {resp.status}: {resp.read().decode()[:200]}")
+                  body = resp.read().decode()
+                  print(f"OK {resp.status}: {body[:400]}")
+                  if "db_write_failed" in body:
+                      print("WARNING: DB write failed")
+                      raise SystemExit(1)
           except Exception as e:
               print(f"ERROR: {e}")
               raise SystemExit(1)
-          EOF
-
-      - name: Send Telegram Notification
-        if: always()
-        env:
-          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          PR_NUM: ${{ github.event.pull_request.number }}
-          PR_BRANCH: ${{ github.head_ref }}
-          PR_AUTHOR: ${{ github.actor }}
-        run: |
-          python3 << 'EOF'
-          import os, urllib.request, urllib.parse, json
-
-          bot_token = os.environ["BOT_TOKEN"]
-          chat_id   = os.environ["CHAT_ID"]
-          pr_url    = os.environ["PR_URL"]
-          pr_num    = os.environ["PR_NUM"]
-          pr_branch = os.environ["PR_BRANCH"]
-          pr_author = os.environ["PR_AUTHOR"]
-
-          text = (
-              f"🔹 *WARP GATE ALERT*\n\n"
-              f"@walk3r69 PR ready for review\n\n"
-              f"PR: [\\#{pr_num}]({pr_url})\n"
-              f"Branch: `{pr_branch}`\n"
-              f"Author: {pr_author}"
-          )
-
-          payload = json.dumps({
-              "chat_id": chat_id,
-              "text": text,
-              "parse_mode": "MarkdownV2",
-              "disable_web_page_preview": True,
-          }).encode("utf-8")
-
-          req = urllib.request.Request(
-              f"https://api.telegram.org/bot{bot_token}/sendMessage",
-              data=payload,
-              headers={"Content-Type": "application/json"},
-              method="POST",
-          )
-          with urllib.request.urlopen(req, timeout=15) as resp:
-              print(f"Telegram OK {resp.status}")
           EOF
