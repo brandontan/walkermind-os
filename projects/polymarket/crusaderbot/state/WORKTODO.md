@@ -1,7 +1,7 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated: 2026-05-20 03:07** 2026-05-20 Asia/Jakarta
+**Last Updated: 2026-05-20 10:15 WIB
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
@@ -78,12 +78,12 @@ Observe the runtime under real usage:
 
 ## P1 -- Telegram UX Final (After Runtime Proven)
 
-- [ ] No dead buttons
-- [ ] No fake placeholder routes
+- [x] No dead buttons
+- [x] No fake placeholder routes
 - [x] State-driven keyboard
 - [x] Concierge onboarding polish
-- [ ] Portfolio / Settings clarity
-- [ ] No legacy tier / operator wording
+- [x] Portfolio / Settings clarity
+- [x] No legacy tier / operator wording
 
 ---
 
@@ -110,3 +110,4 @@ CRUSADERBOT is considered **DONE** only when:
 ❌ dashboard redesign
 ❌ monetization / premium expansion
 ❌ new feature creep until PAPER runtime is trusted
+
