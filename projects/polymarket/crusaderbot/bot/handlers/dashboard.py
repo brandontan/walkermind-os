@@ -205,6 +205,36 @@ async def _build_dashboard_message(user: dict) -> tuple[str, bool, int]:
     return text, bool(preset_key), int(st["open_positions"])
 
 
+# ── Ghost inline-keyboard cleanup ──────────────────────────────────────────────
+
+async def _clear_tracked_inline(
+    ctx: ContextTypes.DEFAULT_TYPE, chat_id: int,
+) -> None:
+    """Best-effort clear of a previously tracked inline keyboard message.
+
+    Prevents ghost keyboards (e.g. stale 'COPY CODE' from onboarding, or a
+    leftover p5_dashboard_kb) from floating above the freshly rendered
+    Dashboard / Auto Mode screen.
+    """
+    if ctx.user_data is None:
+        return
+    msg_id = ctx.user_data.pop("last_inline_msg_id", None)
+    if msg_id is None:
+        return
+    try:
+        await ctx.bot.edit_message_reply_markup(
+            chat_id=chat_id, message_id=msg_id, reply_markup=None,
+        )
+    except BadRequest:
+        # Message too old, already cleared, or not editable — best-effort only.
+        pass
+
+
+def _track_inline(ctx: ContextTypes.DEFAULT_TYPE, message_id: int) -> None:
+    if ctx.user_data is not None:
+        ctx.user_data["last_inline_msg_id"] = message_id
+
+
 # ── Public entry points ────────────────────────────────────────────────────────
 
 async def show_dashboard(
@@ -223,6 +253,7 @@ async def show_dashboard(
     )
     if target is None:
         return
+    await _clear_tracked_inline(ctx, target.chat_id)
     nav_kb = main_menu(
         auto_on=user.get("auto_trade_on", False),
         paused=user.get("paused", False),
@@ -256,12 +287,17 @@ async def show_dashboard_for_cb(
     if q is not None and q.message is not None:
         try:
             await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+            # In-place edit replaces stale kb; track the live id so the next
+            # message-path render can clear it.
+            _track_inline(ctx, q.message.message_id)
         except BadRequest as exc:
             if "Message is not modified" not in str(exc):
+                await _clear_tracked_inline(ctx, q.message.chat_id)
                 await q.message.reply_text(
                     text, parse_mode=ParseMode.HTML, reply_markup=nav_kb,
                 )
     elif update.message is not None:
+        await _clear_tracked_inline(ctx, update.message.chat_id)
         await update.message.reply_text(
             text, parse_mode=ParseMode.HTML, reply_markup=nav_kb,
         )

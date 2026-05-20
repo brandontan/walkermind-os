@@ -7,10 +7,13 @@ taps a main menu button from inside a wizard or ConversationHandler state.
 from __future__ import annotations
 
 import logging
+import re
 
 from telegram.ext import (
     Application, CallbackQueryHandler, CommandHandler, MessageHandler, filters,
 )
+
+_DYNAMIC_TRADES_RE = re.compile(r"^💼 Trades \(\d+\)$")
 
 from .handlers import (
     activation, admin, copy_trade, demo_polish, emergency,
@@ -113,6 +116,13 @@ async def _text_router(update, ctx) -> None:
     if update.message is None:
         return
     text = (update.message.text or "").strip()
+    # Dynamic 💼 Trades (N) label — visible response already sent by the
+    # group=-1 MessageHandler above. Short-circuit so wizard text handlers
+    # don't misprocess the tap.
+    if _DYNAMIC_TRADES_RE.match(text):
+        if ctx.user_data:
+            ctx.user_data.pop("awaiting", None)
+        return
     menu_handler = get_menu_route(text)
     if menu_handler:
         if ctx.user_data:
@@ -144,8 +154,12 @@ def register(app: Application) -> None:
         filters.Regex(r"^🤖 Auto-Trade$"), show_autotrade), group=-1)
     app.add_handler(MessageHandler(
         filters.Regex(r"^💰 Wallet$"), wallet_root), group=-1)
+    # 💼 Portfolio + dynamic 💼 Trades (N) — single group=-1 handler intercepts
+    # both labels before any ConversationHandler state, preventing duplicate
+    # sends from text-input wizards and routing the dynamic label correctly.
     app.add_handler(MessageHandler(
-        filters.Regex(r"^📈 My Trades$"), show_trades), group=-1)
+        filters.Regex(r"^💼 (Portfolio|Trades \(\d+\))$"),
+        positions.show_portfolio), group=-1)
     app.add_handler(MessageHandler(
         filters.Regex(r"^🚨 Emergency$"), emergency_root), group=-1)
 
