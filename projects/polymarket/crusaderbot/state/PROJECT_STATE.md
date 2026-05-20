@@ -1,6 +1,7 @@
-Last Updated: 2026-05-20 12:50 WIB
+Last Updated: 2026-05-20 13:20 WIB
 
 [COMPLETED]
+- WARP-45 (issue #1198): fix-sentry-p1-runtime-bugs PR open — _coerce_jsonb() helper added to signal_scan_job.py; asyncpg JSONB-as-str ValueError resolved (Sentry DAWN-SNOWFLAKE-1729-1Q); Bugs 2+3 confirmed already fixed (WARP-35/WARP-37). STANDARD, NARROW INTEGRATION.
 - WARP-44 (issue #1195): strategy-pipeline-user-filter MERGED (SHA e2e9e219) — per-user category_filters market filtering, strategy_params wire-up, migration 043 applied to Supabase production. STANDARD, MODERATE.
 - WARP-43 (issue #1192): dashboard:portfolio callback routing fixed — split from trades branch, now dispatches to show_portfolio; test_dashboard_routing.py added; MINOR, NARROW INTEGRATION.
 - WARP-42 (PR #1191 c0597c4b): Full Telegram UX redesign — Dashboard inline KB removed, Close buttons labelled per-position, Settings TP/SL hub, Help Home button, Trades(N) routing; STANDARD MERGED 2026-05-20. Issues #1188+#1189 closed.
@@ -72,6 +73,7 @@ Last Updated: 2026-05-20 12:50 WIB
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for WARP-45 fix-sentry-p1-runtime-bugs (signal_scan ValueError: asyncpg JSONB-as-str; _coerce_jsonb guard). Source: projects/polymarket/crusaderbot/reports/forge/fix-sentry-p1-runtime-bugs.md. Tier: STANDARD. No migration. Redeploy on Fly.io after merge.
 - Bot redeploy on Fly.io required — apply WARP-41+42 (PR #1191). No migration needed.
 - WARP🔹CMD review required for WARP-38 WARP/fix-pnl-current-price (#1182: open-position P&L inflation root-caused to CLOB empty-book 1.0 sentinel; strict-interior price guard). Source: projects/polymarket/crusaderbot/reports/forge/fix-pnl-current-price.md. Tier: STANDARD. No migration. After merge: redeploy so exit_watcher self-heals affected open positions on next tick.
 - WARP🔹CMD review + URGENT MERGE required for WARP-28 dashboard-corruption-fix (deployment blocker). Source: projects/polymarket/crusaderbot/reports/forge/dashboard-corruption-fix.md. Tier: STANDARD. After merge: Fly.io redeploy required.
