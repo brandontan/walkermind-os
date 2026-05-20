@@ -384,7 +384,7 @@ def preset_picker() -> InlineKeyboardMarkup:
     from ...domain.preset import RECOMMENDED_PRESET, list_presets
     rows: list[list] = []
     for p in list_presets():
-        name = p.name if len(p.name) <= 20 else p.name.split()[0]
+        name = p.name if len(p.name) <= 20 else p.name[:20]
         label = f"{p.emoji} {name}"
         if p.key == RECOMMENDED_PRESET:
             label = f"{label} ⭐"
