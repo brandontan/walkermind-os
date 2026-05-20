@@ -134,3 +134,4 @@ Last Updated : 2026-05-20 03:07 2026-05-20 14:00
 - [DEFERRED] Migration 024 blast radius understated as test-user-only in forge report; SQL promotes all users; documentation drift, code is correct.
 - [DEFERRED] PortfolioPage analytics UI note "market_expired excluded" may not match /portfolio/analytics backend query (pre-existing behavior, not introduced by this PR). Separate analytics backend cleanup lane required.
 
+
