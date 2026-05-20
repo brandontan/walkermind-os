@@ -1,3 +1,4 @@
+2026-05-20 14:52 | WARP/feat-pagination-warp19 | WARP-19 MERGED (2fc2929d): Load More pagination audit — all 4 surfaces confirmed (Market Feed, Leaderboard, Closed Trades, Orders); ScannerContext + TopBar last_scan display wired; vite build clean. STANDARD, NARROW INTEGRATION
 2026-05-20 14:04 | WARP/fix-webtrader-sse-warp21 | WARP-21 MERGED (97e7d25a): Pre-audit 5/6 deliverables present; gap patched (scanner.tick→TopBar display via ScannerContext + useScannerStatus hook). STANDARD, NARROW INTEGRATION
 2026-05-20 13:20 | WARP/fix-sentry-p1-runtime-bugs | WARP-45: _coerce_jsonb() added to signal_scan_job.py; asyncpg JSONB-as-str ValueError fixed (Sentry DAWN-SNOWFLAKE-1729-1Q); STANDARD, NARROW INTEGRATION
 2026-05-20 10:46 | WARP/fix-dashboard-portfolio-routing | WARP-43: dashboard:portfolio callback split from trades branch — now routes to show_portfolio; dashboard:trades retained; MINOR, NARROW INTEGRATION
