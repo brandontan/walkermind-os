@@ -1,0 +1,209 @@
+name: WARP Gate — Events
+
+# Fires WARP•GATE on every relevant GitHub event and dispatches
+# a normalized envelope to the Base44 agent + gateWebhook.
+#
+# Events covered:
+#   pull_request        — opened / synchronize / reopened / ready_for_review
+#   pull_request_review_comment — created / edited
+#   issue_comment       — created  (covers PR comments + issue comments)
+#   issues              — opened / edited / labeled
+#
+# Anti-loop guards:
+#   - Skip sync: commits (title starts with "sync:")
+#   - Skip bot actors (github-actions[bot], dependabot[bot], warp-gate[bot])
+#   - Skip issue_comment by the gate bot itself
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+  pull_request_review_comment:
+    types: [created]
+
+  issue_comment:
+    types: [created]
+
+  issues:
+    types: [opened, edited, labeled]
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  warp-gate-dispatch:
+    name: WARP•GATE Dispatch
+    runs-on: ubuntu-latest
+
+    # Global skip conditions
+    if: |
+      github.actor != 'github-actions[bot]' &&
+      github.actor != 'dependabot[bot]' &&
+      github.actor != 'warp-gate[bot]' &&
+      !startsWith(github.event.pull_request.title, 'sync:') &&
+      !startsWith(github.event.issue.title, 'sync:')
+
+    steps:
+      - name: Set event context
+        id: ctx
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          echo "event=${EVENT_NAME}" >> $GITHUB_OUTPUT
+          echo "actor=${ACTOR}"      >> $GITHUB_OUTPUT
+
+      # ── pull_request ────────────────────────────────────────────────────
+      - name: Dispatch — pull_request
+        if: github.event_name == 'pull_request'
+        env:
+          BASE44_API_KEY:        ${{ secrets.BASE44_API_KEY }}
+          WARP_WEBHOOK_SECRET:   ${{ secrets.WARP_WEBHOOK_SECRET }}
+          GITHUB_EVENT_NAME:     pull_request
+          GITHUB_REPOSITORY:     ${{ github.repository }}
+          GITHUB_ACTOR:          ${{ github.actor }}
+          PR_ACTION:             ${{ github.event.action }}
+          PR_NUMBER:             ${{ github.event.pull_request.number }}
+          PR_TITLE:              ${{ github.event.pull_request.title }}
+          PR_BODY:               ${{ github.event.pull_request.body }}
+          PR_BRANCH:             ${{ github.event.pull_request.head.ref }}
+          PR_SHA:                ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR:             ${{ github.event.pull_request.user.login }}
+          PR_URL:                ${{ github.event.pull_request.html_url }}
+        run: python3 scripts/warp_gate_dispatcher.py
+
+      # ── pull_request_review_comment ─────────────────────────────────────
+      - name: Dispatch — pr_review_comment
+        if: github.event_name == 'pull_request_review_comment'
+        env:
+          BASE44_API_KEY:        ${{ secrets.BASE44_API_KEY }}
+          WARP_WEBHOOK_SECRET:   ${{ secrets.WARP_WEBHOOK_SECRET }}
+          GITHUB_EVENT_NAME:     pull_request_review_comment
+          GITHUB_REPOSITORY:     ${{ github.repository }}
+          GITHUB_ACTOR:          ${{ github.actor }}
+          PR_ACTION:             ${{ github.event.action }}
+          PR_NUMBER:             ${{ github.event.pull_request.number }}
+          PR_TITLE:              ${{ github.event.pull_request.title }}
+          PR_BRANCH:             ${{ github.event.pull_request.head.ref }}
+          PR_URL:                ${{ github.event.pull_request.html_url }}
+          COMMENT_BODY:          ${{ github.event.comment.body }}
+          COMMENT_AUTHOR:        ${{ github.event.comment.user.login }}
+          COMMENT_URL:           ${{ github.event.comment.html_url }}
+        run: python3 scripts/warp_gate_dispatcher.py
+
+      # ── issue_comment (PR comment OR issue comment) ──────────────────────
+      - name: Dispatch — issue_comment
+        if: |
+          github.event_name == 'issue_comment' &&
+          github.event.sender.login != 'github-actions[bot]' &&
+          github.event.sender.login != 'warp-gate[bot]'
+        env:
+          BASE44_API_KEY:        ${{ secrets.BASE44_API_KEY }}
+          WARP_WEBHOOK_SECRET:   ${{ secrets.WARP_WEBHOOK_SECRET }}
+          GITHUB_EVENT_NAME:     issue_comment
+          GITHUB_REPOSITORY:     ${{ github.repository }}
+          GITHUB_ACTOR:          ${{ github.actor }}
+          # If comment is on a PR, github.event.issue.pull_request exists
+          PR_NUMBER:             ${{ github.event.issue.pull_request && github.event.issue.number || '' }}
+          PR_TITLE:              ${{ github.event.issue.title }}
+          PR_URL:                ${{ github.event.issue.html_url }}
+          # Branch not available on issue_comment — left empty
+          PR_BRANCH:             ""
+          ISSUE_NUMBER:          ${{ github.event.issue.pull_request && '' || github.event.issue.number }}
+          ISSUE_TITLE:           ${{ github.event.issue.title }}
+          ISSUE_URL:             ${{ github.event.issue.html_url }}
+          COMMENT_BODY:          ${{ github.event.comment.body }}
+          COMMENT_AUTHOR:        ${{ github.event.comment.user.login }}
+          COMMENT_URL:           ${{ github.event.comment.html_url }}
+        run: python3 scripts/warp_gate_dispatcher.py
+
+      # ── issues ───────────────────────────────────────────────────────────
+      - name: Dispatch — issues
+        if: github.event_name == 'issues'
+        env:
+          BASE44_API_KEY:        ${{ secrets.BASE44_API_KEY }}
+          WARP_WEBHOOK_SECRET:   ${{ secrets.WARP_WEBHOOK_SECRET }}
+          GITHUB_EVENT_NAME:     issues
+          GITHUB_REPOSITORY:     ${{ github.repository }}
+          GITHUB_ACTOR:          ${{ github.actor }}
+          ISSUE_ACTION:          ${{ github.event.action }}
+          ISSUE_NUMBER:          ${{ github.event.issue.number }}
+          ISSUE_TITLE:           ${{ github.event.issue.title }}
+          ISSUE_BODY:            ${{ github.event.issue.body }}
+          ISSUE_URL:             ${{ github.event.issue.html_url }}
+          ISSUE_LABELS:          ${{ join(github.event.issue.labels.*.name, ',') }}
+        run: python3 scripts/warp_gate_dispatcher.py
+
+      # ── Telegram notification ────────────────────────────────────────────
+      - name: Telegram Notification
+        if: always()
+        env:
+          BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
+          EVENT_NAME:  ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          ACTOR:       ${{ github.actor }}
+          REPO:        ${{ github.repository }}
+          PR_NUMBER:   ${{ github.event.pull_request.number || github.event.issue.number || '' }}
+          PR_URL:      ${{ github.event.pull_request.html_url || github.event.issue.html_url || '' }}
+          STEP_RESULT: ${{ job.status }}
+        run: |
+          python3 << 'EOF'
+          import os, json, urllib.request
+
+          bot_token    = os.environ.get("BOT_TOKEN", "")
+          chat_id      = os.environ.get("CHAT_ID", "")
+          event_name   = os.environ.get("EVENT_NAME", "")
+          event_action = os.environ.get("EVENT_ACTION", "")
+          actor        = os.environ.get("ACTOR", "")
+          repo         = os.environ.get("REPO", "")
+          pr_number    = os.environ.get("PR_NUMBER", "")
+          pr_url       = os.environ.get("PR_URL", "")
+          step_result  = os.environ.get("STEP_RESULT", "unknown")
+
+          if not bot_token or not chat_id:
+              print("Telegram: no credentials, skip.")
+              raise SystemExit(0)
+
+          icon_map = {
+              "pull_request":               "\U0001f504",
+              "pull_request_review_comment": "\U0001f4ac",
+              "issue_comment":              "\U0001f4ac",
+              "issues":                     "\U0001f4cb",
+          }
+          icon = icon_map.get(event_name, "\U0001f504")
+
+          item_line = ""
+          if pr_number and pr_url:
+              item_line = f"\nItem: [\\#{pr_number}]({pr_url})"
+
+          text = (
+              f"{icon} *WARP\u2022GATE*\n\n"
+              f"[walk3r69](tg://user?id=5642722297)\n\n"
+              f"Event: `{event_name}\\.{event_action}`\n"
+              f"Repo: `{repo}`{item_line}\n"
+              f"Actor: {actor}\n"
+              f"Status: `{step_result}`"
+          )
+
+          payload = json.dumps({
+              "chat_id": chat_id,
+              "text": text,
+              "parse_mode": "MarkdownV2",
+              "disable_web_page_preview": True,
+          }).encode("utf-8")
+
+          req = urllib.request.Request(
+              f"https://api.telegram.org/bot{bot_token}/sendMessage",
+              data=payload,
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=15) as resp:
+                  print(f"Telegram OK {resp.status}")
+          except Exception as e:
+              print(f"Telegram WARN: {e}")
+          EOF
