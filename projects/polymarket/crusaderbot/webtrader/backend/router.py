@@ -148,7 +148,7 @@ async def get_activity(user: _CurrentUser, limit: int = 10):
             "pnl_usdc": float(r["pnl_usdc"]) if r["pnl_usdc"] else None,
             "exit_reason": r["exit_reason"],
             "strategy_type": r["strategy_type"],
-            "market_question": r["market_question"],
+            "market_question": r["market_question"] or "",
             "ts": (r["closed_at"] or r["created_at"]).isoformat(),
         }
         for r in rows

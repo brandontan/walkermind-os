@@ -212,8 +212,8 @@ def main() -> int:
     secret  = os.environ.get("WARP_WEBHOOK_SECRET", "")
 
     if not api_key or not secret:
-        print("WARN: BASE44_API_KEY or WARP_WEBHOOK_SECRET not configured — dispatch skipped")
-        return 0
+        print("ERROR: BASE44_API_KEY or WARP_WEBHOOK_SECRET not set.", file=sys.stderr)
+        return 1
 
     envelope = build_envelope()
     message  = human_message(envelope)

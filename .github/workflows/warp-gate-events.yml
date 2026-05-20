@@ -308,8 +308,6 @@ ENDOFSCRIPT
           ITEM_URL:     ${{ github.event.pull_request.html_url || github.event.issue.html_url || '' }}
           JOB_STATUS:   ${{ job.status }}
         run: |
-          python3 /tmp/tg.py 2>/dev/null || true
-          # write tg.py if needed
           cat > /tmp/tg.py << 'TGEOF'
 import json, os, urllib.request
 bot   = os.environ.get("BOT_TOKEN","")
