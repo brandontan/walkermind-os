@@ -44,6 +44,16 @@ ENABLED_STRATEGIES: tuple[str, ...] = (
 DEFERRED_STRATEGIES: tuple[str, ...] = ("whale_tracking",)
 
 
+# Module-level cache: strategy name → strategy instance.
+# Strategy classes are loaded once per process (module loading + class
+# instantiation is expensive). initialize() is still called per invocation so
+# per-user strategy_params are applied correctly before each scan.
+# Thread safety: run_lib_strategy is called via run_in_executor in a
+# sequential await loop — no two calls overlap, so the shared instance is
+# not accessed concurrently.
+_strategy_instances: dict[str, Any] = {}
+
+
 def _load_strategy(name: str) -> Any:
     """Dynamically load and instantiate a lib strategy class by file name.
 
@@ -231,15 +241,17 @@ def run_lib_strategy(
     now = datetime.now(tz=timezone.utc)
     config = config or {}
 
-    try:
-        strategy = _load_strategy(name)
-    except Exception as exc:
-        logger.warning(
-            "lib_strategy_load_failed strategy=%s error=%s — "
-            "no signals will be generated for this preset this tick",
-            name, exc,
-        )
-        return []
+    if name not in _strategy_instances:
+        try:
+            _strategy_instances[name] = _load_strategy(name)
+        except Exception as exc:
+            logger.warning(
+                "lib_strategy_load_failed strategy=%s error=%s — "
+                "no signals will be generated for this preset this tick",
+                name, exc,
+            )
+            return []
+    strategy = _strategy_instances[name]
 
     try:
         strategy.initialize(config.get("strategy_params", {}))
