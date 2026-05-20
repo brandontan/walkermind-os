@@ -12,19 +12,21 @@ def settings_hub_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = [
         # Trading group
         [
-            InlineKeyboardButton("⚖️ Risk",          callback_data="settings:risk"),
-            InlineKeyboardButton("📑 Mode",           callback_data="settings:mode"),
+            InlineKeyboardButton("⚖️ Risk",           callback_data="settings:risk"),
+            InlineKeyboardButton("📑 Mode",            callback_data="settings:mode"),
         ],
-        # Account group
         [
-            InlineKeyboardButton("💰 Wallet",         callback_data="settings:wallet"),
-            InlineKeyboardButton("🔔 Notifications",  callback_data="settings:notifications"),
+            InlineKeyboardButton("🎚️ TP/SL",          callback_data="settings:tpsl"),
+            InlineKeyboardButton("💰 Wallet",          callback_data="settings:wallet"),
         ],
-        # System group
-        [InlineKeyboardButton("🏥 Health",            callback_data="settings:health")],
+        # Account / System group
+        [
+            InlineKeyboardButton("🔔 Notifications",  callback_data="settings:notifications"),
+            InlineKeyboardButton("🏥 Health",          callback_data="settings:health"),
+        ],
     ]
     if is_admin:
-        rows[-1].append(InlineKeyboardButton("🧭 Admin", callback_data="settings:admin"))
+        rows.append([InlineKeyboardButton("🧭 Admin", callback_data="settings:admin")])
     rows.append([
         InlineKeyboardButton("⬅ Back", callback_data="settings:back"),
         InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),

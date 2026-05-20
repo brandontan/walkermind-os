@@ -469,7 +469,9 @@ async def help_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         "🚨 Emergency   — pause or lock trading immediately\n\n"
         "Type /start to re-run setup at any time.",
         parse_mode=ParseMode.HTML,
-        reply_markup=main_menu(),
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
+        ]]),
     )
 
 

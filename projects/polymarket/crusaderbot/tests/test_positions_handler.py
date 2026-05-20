@@ -134,14 +134,23 @@ def test_fetch_mark_price_one_side_only():
 # ---------- Keyboard builders -----------------------------------------------
 
 def test_positions_list_kb_close_rows_plus_nav():
-    pids = [uuid4() for _ in range(3)]
-    kb = positions_list_kb(pids)
+    positions = [
+        {"id": uuid4(), "side": "yes", "question": "Will Bitcoin hit 120K by year end?", "market_id": "m1"},
+        {"id": uuid4(), "side": "no",  "question": "Will Y happen?", "market_id": "m2"},
+        {"id": uuid4(), "side": "yes", "question": "Short Q", "market_id": "m3"},
+    ]
+    kb = positions_list_kb(positions)
     rows = kb.inline_keyboard
     # One close-button row per position + one back/home nav row
     assert len(rows) == 4
-    for i, pid in enumerate(pids):
-        assert rows[i][0].text == "🛑 Close"
-        assert rows[i][0].callback_data == f"close_position:{pid}"
+    for i, pos in enumerate(positions):
+        pid_short = str(pos["id"])[:8]
+        side = pos["side"].upper()
+        q = pos["question"]
+        title = (q[:28] + "…") if len(q) > 28 else q
+        expected_label = f"🔴 Close — {pid_short} {side} · {title}"
+        assert rows[i][0].text == expected_label
+        assert rows[i][0].callback_data == f"close_position:{pos['id']}"
     assert [btn.text for btn in rows[-1]] == ["⬅ Back", "🏠 Home"]
     assert [btn.callback_data for btn in rows[-1]] == ["portfolio:portfolio", "nav:home"]
 

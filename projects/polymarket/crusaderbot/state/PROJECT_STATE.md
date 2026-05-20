@@ -1,4 +1,4 @@
-Last Updated : 2026-05-20 08:34
+Last Updated : 2026-05-20 14:00
 
 [COMPLETED]
 - WARP-40 MERGED PR #1187 (e18279461): BUG-1+BUG-4 dynamic `💼 Trades (N)` routed at group=-1 + dead `📈 My Trades` handler removed; BUG-2 `🤖 Auto Mode` smart entry (auto_mode_entry) shows preset_active status when preset is active; BUG-3 ghost inline-keyboard cleared on dashboard render (_clear_tracked_inline + _track_inline); BUG-5 _unrealized_pnl strict-interior guard (0<cp<1) for stale CLOB-sentinel DB rows. STANDARD, NARROW INTEGRATION. Closes #1186.
@@ -22,6 +22,7 @@ Last Updated : 2026-05-20 08:34
 
 [IN PROGRESS]
 
+- WARP-41+WARP-42 tg-ux-blueprint-v7 PR open — Dashboard inline KB removed; Close buttons labelled per-position (🔴 Close — id SIDE · question); Settings hub TP/SL entry point added; Help Home button; Trades(N) routed directly to show_positions. STANDARD, BROAD INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP-38 WARP/fix-pnl-current-price PR open (#1182) — get_live_market_price now requires strictly-interior price (0<p<1) on CLOB primary + Gamma fallback; rejects the CLOB empty-book sentinel (1.0/0.0) that marked open longshot positions at $1.00 and produced +900% P&L; invalid lookup → None → entry_price mark (P&L 0/N/A). 4 regression tests pass. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP-30 phase1-hardening-db-cleanup PR open — signal freshness gate tests (4 cases), SSE reliability audit PASS, migrations 030/031/041 applied to Supabase production. STANDARD, NARROW INTEGRATION. Awaiting WARP🔹CMD review.
 - WARP-25 telegram-functional-routing-fix PR open — show_positions() callback fix + Positions [🛑 Close] buttons + Trades history-only keyboard + preset picker short labels. STANDARD, FULL RUNTIME INTEGRATION. Awaiting WARP🔹CMD review.
@@ -69,6 +70,7 @@ Last Updated : 2026-05-20 08:34
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for WARP-41+WARP-42 tg-ux-blueprint-v7 (Dashboard inline KB removal; Close button labels; Settings TP/SL; Help Home; Trades(N) routing). Source: projects/polymarket/crusaderbot/reports/forge/tg-ux-blueprint-v7.md. Tier: STANDARD. No migration. After merge: redeploy only.
 - WARP🔹CMD review required for WARP-38 WARP/fix-pnl-current-price (#1182: open-position P&L inflation root-caused to CLOB empty-book 1.0 sentinel; strict-interior price guard). Source: projects/polymarket/crusaderbot/reports/forge/fix-pnl-current-price.md. Tier: STANDARD. No migration. After merge: redeploy so exit_watcher self-heals affected open positions on next tick.
 - WARP🔹CMD review + URGENT MERGE required for WARP-28 dashboard-corruption-fix (deployment blocker). Source: projects/polymarket/crusaderbot/reports/forge/dashboard-corruption-fix.md. Tier: STANDARD. After merge: Fly.io redeploy required.
 - WARP🔹CMD review required for WARP-25 telegram-functional-routing-fix (Positions callback fix + Close buttons + Trades history separation + preset label fix). Source: projects/polymarket/crusaderbot/reports/forge/telegram-functional-routing-fix.md. Tier: STANDARD.

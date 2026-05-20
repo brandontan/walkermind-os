@@ -6,7 +6,7 @@ callback paths, but positions_list_kb renders navigation-only controls.
 """
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterable, TypedDict
 from uuid import UUID
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -14,13 +14,23 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from ._common import confirm_cancel_row, home_back_row
 
 
-def positions_list_kb(position_ids: Iterable[UUID | str]) -> InlineKeyboardMarkup:
-    """Per-position [🛑 Close] rows + back/home nav row."""
+class PositionRow(TypedDict, total=False):
+    id: UUID | str
+    side: str
+    question: str
+    market_id: str
+
+
+def positions_list_kb(positions: Iterable[PositionRow]) -> InlineKeyboardMarkup:
+    """Per-position [🔴 Close — id SIDE · question] rows + back/home nav row."""
     rows: list[list[InlineKeyboardButton]] = []
-    for pid in position_ids:
-        rows.append([InlineKeyboardButton(
-            "🛑 Close", callback_data=f"close_position:{pid}",
-        )])
+    for pos in positions:
+        pid   = str(pos["id"])[:8]
+        side  = pos["side"].upper()
+        q     = pos.get("question") or pos.get("market_id", "")
+        title = (q[:28] + "…") if len(q) > 28 else q
+        label = f"🔴 Close — {pid} {side} · {title}"
+        rows.append([InlineKeyboardButton(label, callback_data=f"close_position:{pos['id']}")])
     rows.append(home_back_row("portfolio:portfolio"))
     return InlineKeyboardMarkup(rows)
 
