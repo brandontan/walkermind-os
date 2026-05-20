@@ -1,3 +1,4 @@
+2026-05-20 16:10 | WARP/fix-runtime-spine-warp46 | WARP-46: runtime spine evidence matrix — all 12 steps REAL, 2 DEAD strategies (MomentumReversal, SignalFollowing), 15-gate risk evaluation confirmed, all 4 paper-safety guards default False. STANDARD, MODERATE
 2026-05-20 15:30 | WARP/fix-active-issues | WARP-35+WARP-37: Linear status sync — both issues closed to Done; fixes confirmed in main (7f14c42d, 088bad4, 843bb6c); no code changes in this lane. MINOR, FOUNDATION
 2026-05-20 14:52 | WARP/feat-pagination-warp19 | WARP-19 MERGED (2fc2929d): Load More pagination audit — all 4 surfaces confirmed (Market Feed, Leaderboard, Closed Trades, Orders); ScannerContext + TopBar last_scan display wired; vite build clean. STANDARD, NARROW INTEGRATION
 2026-05-20 14:04 | WARP/fix-webtrader-sse-warp21 | WARP-21 MERGED (97e7d25a): Pre-audit 5/6 deliverables present; gap patched (scanner.tick→TopBar display via ScannerContext + useScannerStatus hook). STANDARD, NARROW INTEGRATION
