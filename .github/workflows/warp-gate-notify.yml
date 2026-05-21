@@ -1,7 +1,7 @@
-name: WARP Gate — Events v2
+name: WARP Gate - Notify
 
-# Unified event dispatcher ke WARP•GATE (Base44 agent) + Telegram.
-# Coverage: PR opened/updated/merged, issue opened/updated, PR review comment, issue comment.
+# Unified event dispatcher to WARP GATE (Base44 agent) + Telegram.
+# Coverage: PR, issue, comment events.
 #
 # Secrets required:
 #   BASE44_API_KEY        — Base44 agent API key
