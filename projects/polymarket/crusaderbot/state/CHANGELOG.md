@@ -2,6 +2,14 @@
 
 2026-05-21 08:08 | WARP/warp51-drop-access-tier | WARP-51 (issue #1220): every Python access_tier writer/reader removed; `set_tier`/`force_set_tier` deleted; `/allowlist` converted to `set_role('admin')`; `scripts/seed_operator_tier.py` deleted + `fly.toml [deploy].release_command` removed; migration `044_drop_access_tier.sql` re-enabled; 16 test files fixture-swept; 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL pending.
 
+## [2026-05-21] WARP-GATE — Migrations 027/029/030/031/044 Applied
+
+- **027** `user_settings.notifications_on BOOLEAN DEFAULT TRUE` — added
+- **029** `portfolio_snapshots` + `system_alerts` tables created; NOTIFY triggers wired (orders/fills/positions/user_settings)
+- **030** `job_runs.metadata JSONB` — added
+- **031** Demo + Live signal feeds seeded; 6 users enrolled in `signal_following` strategy; demo feed subscriptions created
+- **044** `access_tier` column DROP confirmed — column absent from `users` schema; `role` column present
+- Executed via WARP🔹CMD direct Supabase Management API (PAT) — no manual SQL Editor required
 ## [2026-05-21] WARP-50b — role-based access model (PR #1222)
 ## [2026-05-21] Hotfix — disable migration 044 (PR #1223)
 
