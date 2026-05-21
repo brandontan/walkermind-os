@@ -157,7 +157,6 @@ jobs:
           curl -fsS -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
             --connect-timeout 5 \
             --max-time 20 \
-            --retry 2 --retry-delay 1 --retry-connrefused \
             --data-urlencode "chat_id=${TG_CHAT}" \
             --data-urlencode "text=${MSG}" \
             --data-urlencode "disable_web_page_preview=false" \
@@ -179,7 +178,6 @@ jobs:
           curl -fsS -X POST \
             --connect-timeout 5 \
             --max-time 20 \
-            --retry 2 --retry-delay 1 --retry-connrefused \
             "https://app.base44.com/api/agents/${B44_AGENT}/conversations" \
             -H "Content-Type: application/json" \
             -H "api_key: ${B44_KEY}" \
