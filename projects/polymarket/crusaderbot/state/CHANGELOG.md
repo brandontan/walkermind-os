@@ -1,3 +1,13 @@
+## [2026-05-21] WARP-50b — role-based access model (PR #1222)
+
+- Merged `WARP/fix-access-tier-open-warp50b` → main (SHA aa17b2a7135a)
+- Replaced all `access_tier` integer gating with `users.role` ('admin'|'user') across 16 production files
+- Added migration `045_add_role_column.sql` (idempotent, admin bootstrap)
+- `access_tier` column kept for backward compat; DROP staged behind `044_drop_access_tier.sql`
+- pytest: 1512 passed, 0 failed
+- Closes Issue #1219
+
+
 2026-05-20 23:24 | WARP/fix-drop-access-tier-warp50 | WARP-50 MERGED (67f072a0): 044_drop_access_tier.sql created (NOT applied); Python audit found 16 prod files still reference access_tier; WARP-50b (#1219) dispatched for open-access fix; WARP-51 (#1220) backlogged for full role-based migration. MINOR, audit artifact.
 2026-05-20 23:10 | WARP/fix-migrations-warp49 | WARP-49 MERGED (b7e1fe14): 031 Step 5 access_tier UPDATE removed (role-based scope); 027/029/030 confirmed clean. Migrations 027-031 ready for Supabase execution. MINOR, NARROW INTEGRATION
 2026-05-20 22:50 | WARP-48 MERGED (92fb5e33): fly.toml ADMIN_API_TOKEN placeholder; signal_scan_job silent except→log.warning; paper.py trade open/close structlog; vite build 0 errors; migrations 027/029/030/031 audited NOT APPLIED. STANDARD, NARROW INTEGRATION
