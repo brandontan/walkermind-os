@@ -5,8 +5,14 @@ subclass. The registry bootstrap (`StrategyRegistry.bootstrap_default_strategies
 imports them here and registers a fresh instance per process.
 """
 
+from .confluence_scalper import ConfluenceScalperStrategy
 from .copy_trade import CopyTradeStrategy
 from .momentum_reversal import MomentumReversalStrategy
 from .signal_following import SignalFollowingStrategy
 
-__all__ = ["CopyTradeStrategy", "MomentumReversalStrategy", "SignalFollowingStrategy"]
+__all__ = [
+    "ConfluenceScalperStrategy",
+    "CopyTradeStrategy",
+    "MomentumReversalStrategy",
+    "SignalFollowingStrategy",
+]
