@@ -72,8 +72,7 @@ AND NOT EXISTS (
        AND exit_published_at IS NULL
 );
 
--- 4. access_tier column removed (WARP-51/044) — role-based model active.
---    Was: UPDATE users SET access_tier = 3 WHERE access_tier < 3;
+-- 4. Legacy tier-based promotion removed (WARP-51/044) — role-based model active.
 
 -- 5. Enroll all users in signal_following strategy (upsert, weight 10%)
 INSERT INTO user_strategies (user_id, strategy_name, weight, enabled, created_at)

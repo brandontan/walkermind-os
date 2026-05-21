@@ -108,17 +108,26 @@ def _preset_allows(active_preset: str | None, strategy_name: str) -> bool:
 
 
 def _coerce_jsonb(val: object, fallback: dict | list | None = None) -> dict | list:
-    """asyncpg may return JSONB columns as str — coerce to dict/list."""
+    """asyncpg may return JSONB columns as str — coerce to dict/list.
+
+    Narrows to the same shape as ``fallback`` (dict or list). JSON scalars
+    (e.g. ``'"balanced"'`` → string, ``'1'`` → int) return ``fallback`` so a
+    malformed user_settings.strategy_params row cannot leak a string into
+    ``strategy.initialize()`` and trigger ``ValueError: dictionary update
+    sequence element #0 has length 1; 2 is required``.
+    """
     if fallback is None:
         fallback = {}
+    expected_type = type(fallback)  # dict or list
     if val is None:
         return fallback
     if isinstance(val, str):
         try:
-            return json.loads(val)
-        except Exception:
+            parsed = json.loads(val)
+        except (json.JSONDecodeError, ValueError):
             return fallback
-    if isinstance(val, (dict, list)):
+        return parsed if isinstance(parsed, expected_type) else fallback
+    if isinstance(val, expected_type):
         return val
     return fallback
 

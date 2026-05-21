@@ -7,6 +7,8 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
+import asyncpg
+
 from ...database import get_pool
 from ...wallet.ledger import daily_pnl, get_balance
 from ..execution import fallback as live_fallback
@@ -58,6 +60,12 @@ async def _log(user_id: UUID, market_id: str, step: int,
                 " VALUES ($1, $2, $3, $4, $5)",
                 user_id, market_id, step, approved, reason[:200],
             )
+    except asyncpg.exceptions.ForeignKeyViolationError:
+        # risk_log.user_id has FK on users.id. Operator /admin/dry-run uses
+        # a synthetic user_id that doesn't exist — there's nothing to audit
+        # and the FK is expected. Drop to debug so Sentry isn't paged on
+        # every dry-run tick.
+        logger.debug("risk_log skipped: synthetic user_id %s (dry-run)", user_id)
     except Exception as exc:
         logger.error("risk_log insert failed: %s", exc)
 

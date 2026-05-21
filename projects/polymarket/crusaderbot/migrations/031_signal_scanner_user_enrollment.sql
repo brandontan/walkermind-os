@@ -1,7 +1,7 @@
 -- Migration 031: Signal Scanner — backfill feed seeds + user enrollment
 -- Fixes: demo/live feeds missing if 024/025 ran on empty DB;
 --        users created after 024 not enrolled or subscribed.
--- Note:  access_tier handling removed; access is now role-based (admin/user).
+-- Note:  Legacy tier handling removed (WARP-51/044); access is role-based (admin/user).
 -- Idempotent: all writes use ON CONFLICT DO NOTHING or WHERE NOT EXISTS.
 -- Apply after 030_job_runs_metadata.sql
 
@@ -69,6 +69,6 @@ AND NOT EXISTS (
        AND s.unsubscribed_at IS NULL
 );
 
--- 5. access_tier removed — role-based scope (admin/user) handles access. No action needed.
+-- 5. Legacy tier filter removed — role-based scope (admin/user) handles access. No action needed.
 
 COMMIT;
