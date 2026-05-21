@@ -95,13 +95,13 @@ Observe the runtime under real usage:
 CRUSADERBOT is considered **DONE** only when:
 
 - [x] WebTrader running
-- [x] Runtime spine proven end-to-end
-- [x] WebTrader realtime trusted
-- [x] Telegram stable
-- [x] Paper trading stable
-- [x] No user bleed
-- [x] No dead routes
-- [x] Closed beta clean
+- [ ] Runtime spine proven end-to-end
+- [ ] WebTrader realtime trusted
+- [ ] Telegram stable
+- [ ] Paper trading stable
+- [ ] No user bleed
+- [ ] No dead routes
+- [ ] Closed beta clean
 - [ ] Production checklist complete
 
 ---
