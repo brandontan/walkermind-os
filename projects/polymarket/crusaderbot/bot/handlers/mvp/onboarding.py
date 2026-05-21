@@ -35,7 +35,7 @@ async def _classify(telegram_user) -> tuple[bool, str | None]:
         pool = get_pool()
         async with pool.acquire() as conn:
             addr = await conn.fetchval(
-                "SELECT public_address FROM wallets WHERE user_id=$1",
+                "SELECT deposit_address FROM wallets WHERE user_id=$1",
                 u["id"],
             )
             if addr:
