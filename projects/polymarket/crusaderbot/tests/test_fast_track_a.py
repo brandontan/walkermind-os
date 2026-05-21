@@ -67,7 +67,7 @@ def _signal(
     *,
     auto_trade_on: bool = True,
     paused: bool = False,
-    access_tier: int = 3,
+    role: str = "user",
     market_status: str = "active",
     market_liquidity: float = 50_000.0,
     side: str = "yes",
@@ -82,7 +82,7 @@ def _signal(
     return TradeSignal(
         user_id=_USER_UUID,
         telegram_user_id=12345,
-        access_tier=access_tier,
+        role=role,
         auto_trade_on=auto_trade_on,
         paused=paused,
         market_id=_MARKET,
@@ -238,8 +238,8 @@ class TestTradeEngineGateRejected:
         assert result.failed_gate_step == 13
 
     def test_insufficient_tier(self):
-        sig = _signal(access_tier=2)
-        gate_rej = _rejected_gate("insufficient_tier", 3)
+        sig = _signal(role="user")
+        gate_rej = _rejected_gate("insufficient_role", 3)
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(
                 "projects.polymarket.crusaderbot.services.trade_engine.engine._risk_evaluate",
@@ -424,7 +424,7 @@ class TestGateContextMapping:
             price=0.60,
             market_liquidity=25_000.0,
             market_status="active",
-            access_tier=4,
+            role="admin",
             auto_trade_on=True,
             paused=False,
             risk_profile="aggressive",
@@ -432,7 +432,7 @@ class TestGateContextMapping:
         ctx = TradeEngine._build_gate_context(sig)
         assert ctx.user_id == _USER_UUID
         assert ctx.telegram_user_id == 12345
-        assert ctx.access_tier == 4
+        assert ctx.role == "admin"
         assert ctx.auto_trade_on is True
         assert ctx.paused is False
         assert ctx.market_id == _MARKET
@@ -625,7 +625,7 @@ class TestTradeSignalContract:
 
     def test_signal_ts_none_allowed(self):
         sig = TradeSignal(
-            user_id=_USER_UUID, telegram_user_id=12345, access_tier=3,
+            user_id=_USER_UUID, telegram_user_id=12345, role="user",
             auto_trade_on=True, paused=False, market_id=_MARKET,
             market_question=None, yes_token_id=None, no_token_id=None,
             side="yes", proposed_size_usdc=Decimal("50"), price=0.50,
@@ -724,7 +724,7 @@ def _make_scan_row(user_id: UUID | None = None) -> dict:
     return {
         "user_id": user_id or _USER_UUID,
         "telegram_user_id": 12345,
-        "access_tier": 3,
+        "role": "user",
         "auto_trade_on": True,
         "paused": False,
         "balance_usdc": Decimal("500.00"),

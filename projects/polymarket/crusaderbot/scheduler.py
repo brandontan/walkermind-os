@@ -241,7 +241,7 @@ async def run_signal_scan() -> None:
     async with pool.acquire() as conn:
         users = await conn.fetch(
             """
-            SELECT u.id, u.telegram_user_id, u.access_tier, u.auto_trade_on,
+            SELECT u.id, u.telegram_user_id, u.role, u.auto_trade_on,
                    u.paused, w.balance_usdc, s.*
               FROM users u
               JOIN wallets w ON w.user_id = u.id
@@ -283,7 +283,7 @@ async def _process_candidate(user: dict, cand) -> None:
     ctx_g = GateContext(
         user_id=user["id"],
         telegram_user_id=user["telegram_user_id"],
-        access_tier=user["access_tier"],
+        role=user.get("role") or "user",
         auto_trade_on=user["auto_trade_on"],
         paused=user["paused"],
         market_id=cand.market_id,
@@ -311,7 +311,7 @@ async def _process_candidate(user: dict, cand) -> None:
             chosen_mode=result.chosen_mode,
             user_id=user["id"],
             telegram_user_id=user["telegram_user_id"],
-            access_tier=user["access_tier"],
+            role=user.get("role") or "user",
             trading_mode=user["trading_mode"],
             market_id=cand.market_id,
             market_question=market["question"],

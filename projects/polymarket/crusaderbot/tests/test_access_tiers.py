@@ -170,72 +170,71 @@ def test_list_all_user_tiers_returns_dicts():
 from projects.polymarket.crusaderbot.bot.middleware import access_tier as at_mw
 
 
-def test_require_access_tier_allows_when_meets():
+def test_require_role_admin_allows_admin():
     called = []
 
     async def _handler(update, ctx):
         called.append(True)
 
-    wrapped = at_mw.require_access_tier("PREMIUM")(_handler)
+    wrapped = at_mw.require_role("admin")(_handler)
     upd = _update(user_id=10)
 
     with patch(
-        "projects.polymarket.crusaderbot.bot.middleware.access_tier.get_user_tier",
-        new=AsyncMock(return_value="PREMIUM"),
+        "projects.polymarket.crusaderbot.bot.middleware.access_tier._get_role",
+        new=AsyncMock(return_value="admin"),
     ):
         _run(wrapped(upd, _ctx()))
 
     assert called == [True]
 
 
-def test_require_access_tier_blocks_when_below():
+def test_require_role_admin_blocks_non_admin():
     called = []
 
     async def _handler(update, ctx):
         called.append(True)
 
-    wrapped = at_mw.require_access_tier("PREMIUM")(_handler)
+    wrapped = at_mw.require_role("admin")(_handler)
     upd = _update(user_id=11)
 
     with patch(
-        "projects.polymarket.crusaderbot.bot.middleware.access_tier.get_user_tier",
-        new=AsyncMock(return_value="FREE"),
+        "projects.polymarket.crusaderbot.bot.middleware.access_tier._get_role",
+        new=AsyncMock(return_value="user"),
     ):
         _run(wrapped(upd, _ctx()))
 
     assert called == []
     upd.effective_message.reply_text.assert_awaited_once()
-    call_kwargs = upd.effective_message.reply_text.await_args[0][0]
-    # Tier wording is hidden from users (Chunk N cleanup); message says "not available"
-    assert "not available" in call_kwargs
+    body = upd.effective_message.reply_text.await_args[0][0]
+    assert "Admin" in body
 
 
-def test_require_access_tier_admin_blocks_premium():
-    """ADMIN tier passes when PREMIUM is required (rank >= rank)."""
+def test_require_role_user_does_not_gate():
+    """require_role('user') is open — paper trading is unrestricted."""
     called = []
 
     async def _handler(update, ctx):
         called.append(True)
 
-    wrapped = at_mw.require_access_tier("PREMIUM")(_handler)
+    wrapped = at_mw.require_role("user")(_handler)
     upd = _update(user_id=12)
 
     with patch(
-        "projects.polymarket.crusaderbot.bot.middleware.access_tier.get_user_tier",
-        new=AsyncMock(return_value="ADMIN"),
+        "projects.polymarket.crusaderbot.bot.middleware.access_tier._get_role",
+        new=AsyncMock(return_value="user"),
     ):
         _run(wrapped(upd, _ctx()))
 
     assert called == [True]
 
 
-def test_require_access_tier_no_user_is_noop():
+def test_require_role_no_user_is_noop():
     called = []
 
     async def _handler(update, ctx):
         called.append(True)
 
-    wrapped = at_mw.require_access_tier("PREMIUM")(_handler)
+    wrapped = at_mw.require_role("admin")(_handler)
     upd = _update()
     upd.effective_user = None
 
@@ -243,24 +242,24 @@ def test_require_access_tier_no_user_is_noop():
     assert called == []
 
 
-def test_require_access_tier_raises_at_decoration_time_on_bad_tier():
-    with pytest.raises(ValueError, match="unknown tier"):
-        at_mw.require_access_tier("PREMUM")  # typo — caught at decoration, not runtime
+def test_require_role_raises_at_decoration_time_on_bad_role():
+    with pytest.raises(ValueError, match="unknown role"):
+        at_mw.require_role("operator")  # not a valid role
 
 
-def test_require_access_tier_returns_handler_return_value():
+def test_require_role_returns_handler_return_value():
     """Wrapper must propagate the handler's return value for ConversationHandler."""
     SENTINEL = object()
 
     async def _handler(update, ctx):
         return SENTINEL
 
-    wrapped = at_mw.require_access_tier("FREE")(_handler)
+    wrapped = at_mw.require_role("admin")(_handler)
     upd = _update(user_id=10)
 
     with patch(
-        "projects.polymarket.crusaderbot.bot.middleware.access_tier.get_user_tier",
-        new=AsyncMock(return_value="FREE"),
+        "projects.polymarket.crusaderbot.bot.middleware.access_tier._get_role",
+        new=AsyncMock(return_value="admin"),
     ):
         result = _run(wrapped(upd, _ctx()))
 

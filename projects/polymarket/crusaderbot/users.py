@@ -68,8 +68,8 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
             )
             if row is None:
                 row = await conn.fetchrow(
-                    "INSERT INTO users (telegram_user_id, username, access_tier) "
-                    "VALUES ($1, $2, 3) RETURNING *",
+                    "INSERT INTO users (telegram_user_id, username, access_tier, role) "
+                    "VALUES ($1, $2, 4, 'user') RETURNING *",
                     telegram_user_id, username,
                 )
                 await conn.execute(
@@ -79,10 +79,6 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
                 )
                 _is_new_user = True
             else:
-                if row["access_tier"] < 3:
-                    await conn.execute(
-                        "UPDATE users SET access_tier=3 WHERE id=$1", row["id"],
-                    )
                 if username and username != row["username"]:
                     await conn.execute(
                         "UPDATE users SET username=$1 WHERE id=$2",
@@ -183,6 +179,12 @@ async def get_user_by_username(username: str) -> Optional[dict]:
 
 
 async def set_tier(user_id: UUID, tier: int) -> None:
+    """Legacy integer-tier setter. Retained while access_tier column exists.
+
+    access_tier no longer gates anything (role column is the source of truth).
+    Kept so existing admin tooling that writes the column still works until
+    migration 044 drops the column.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
@@ -192,10 +194,22 @@ async def set_tier(user_id: UUID, tier: int) -> None:
 
 
 async def force_set_tier(user_id: UUID, tier: int) -> None:
+    """Legacy integer-tier overwrite. See set_tier docstring."""
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
             "UPDATE users SET access_tier=$2 WHERE id=$1", user_id, tier,
+        )
+
+
+async def set_role(user_id: UUID, role: str) -> None:
+    """Set users.role — 'admin' or 'user'. The role column is the access source of truth."""
+    if role not in {"admin", "user"}:
+        raise ValueError(f"set_role: invalid role {role!r} (expected 'admin' or 'user')")
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET role=$2 WHERE id=$1", user_id, role,
         )
 
 

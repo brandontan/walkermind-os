@@ -74,7 +74,7 @@ class TradeSignal:
 
     user_id: UUID
     telegram_user_id: int
-    access_tier: int
+    role: str
     auto_trade_on: bool
     paused: bool
     market_id: str
@@ -181,7 +181,7 @@ class TradeEngine:
             chosen_mode=gate_result.chosen_mode,
             user_id=signal.user_id,
             telegram_user_id=signal.telegram_user_id,
-            access_tier=signal.access_tier,
+            role=signal.role,
             trading_mode=signal.trading_mode,
             market_id=signal.market_id,
             market_question=signal.market_question,
@@ -285,7 +285,7 @@ class TradeEngine:
         return GateContext(
             user_id=signal.user_id,
             telegram_user_id=signal.telegram_user_id,
-            access_tier=signal.access_tier,
+            role=signal.role,
             auto_trade_on=signal.auto_trade_on,
             paused=signal.paused,
             market_id=signal.market_id,

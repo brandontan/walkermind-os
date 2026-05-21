@@ -184,18 +184,18 @@ async def _gate_two_factor(user_id: UUID) -> GateOutcome:
 
 
 async def _gate_operator_allowlist(user_id: UUID) -> GateOutcome:
-    """[8] Operator allowlist approved → users.access_tier >= 4 (Tier 4)."""
+    """[8] Operator allowlist approved → users.role = 'admin'."""
     pool = get_pool()
     async with pool.acquire() as conn:
-        tier = await conn.fetchval(
-            "SELECT access_tier FROM users WHERE id=$1", user_id,
+        role = await conn.fetchval(
+            "SELECT role FROM users WHERE id=$1", user_id,
         )
-    if tier is None:
+    if role is None:
         return GateOutcome(GATE_OPERATOR_ALLOWLIST, False, "user not found")
-    if int(tier) >= 4:
-        return GateOutcome(GATE_OPERATOR_ALLOWLIST, True, f"tier={int(tier)}")
+    if str(role) == "admin":
+        return GateOutcome(GATE_OPERATOR_ALLOWLIST, True, "role=admin")
     return GateOutcome(
-        GATE_OPERATOR_ALLOWLIST, False, f"tier={int(tier)}<4",
+        GATE_OPERATOR_ALLOWLIST, False, f"role={role}",
     )
 
 

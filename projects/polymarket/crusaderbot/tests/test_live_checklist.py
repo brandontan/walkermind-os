@@ -35,7 +35,7 @@ class FakeConn:
                  strategy_types: list[str] | None = None,
                  risk_profile: str | None = "balanced",
                  two_factor: bool = True,
-                 access_tier: int = 4,
+                 role: str = "admin",
                  user_exists: bool = True) -> None:
         self.has_wallet = has_wallet
         self.deposit_count = deposit_count
@@ -44,7 +44,7 @@ class FakeConn:
         )
         self.risk_profile = risk_profile
         self.two_factor = two_factor
-        self.access_tier = access_tier
+        self.role = role
         self.user_exists = user_exists
         self.audit_inserts: list[tuple] = []
 
@@ -65,8 +65,8 @@ class FakeConn:
     async def fetchval(self, query: str, *args: Any):
         if "COUNT(*) FROM deposits" in query:
             return self.deposit_count
-        if "access_tier FROM users" in query:
-            return self.access_tier if self.user_exists else None
+        if "role FROM users" in query:
+            return self.role if self.user_exists else None
         return 0
 
     async def execute(self, query: str, *args: Any):
@@ -173,8 +173,8 @@ def test_two_factor_gate_fails_when_flag_unset():
     assert lc.GATE_TWO_FACTOR_SETUP in r.failed_gates
 
 
-def test_operator_allowlist_gate_fails_below_tier_4():
-    conn = FakeConn(access_tier=3)
+def test_operator_allowlist_gate_fails_when_role_not_admin():
+    conn = FakeConn(role="user")
     r = _run(conn, _settings())
     assert lc.GATE_OPERATOR_ALLOWLIST in r.failed_gates
 
@@ -189,8 +189,8 @@ def test_operator_allowlist_gate_fails_when_user_missing():
 
 
 def test_partial_pass_three_env_three_user():
-    # Three env gates pass, three user gates fail (subaccount, 2fa, tier).
-    conn = FakeConn(has_wallet=False, two_factor=False, access_tier=2)
+    # Three env gates pass, three user gates fail (subaccount, 2fa, role).
+    conn = FakeConn(has_wallet=False, two_factor=False, role="user")
     r = _run(conn, _settings())
     assert r.passed is False
     assert lc.GATE_ACTIVE_SUBACCOUNT in r.failed_gates

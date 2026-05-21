@@ -1,17 +1,15 @@
-"""Admin/access seeder for CrusaderBot.
+"""Admin role seeder for CrusaderBot.
 
 Reads ``ADMIN_USER_IDS`` from the environment (comma-separated Telegram
-user ids) and ensures each id has a row in ``users`` with a sufficient
-``access_tier``. In the two-role model every user already has full paper
-access; this seeder guarantees designated ids are provisioned (and is the
-mechanism for bootstrapping admin/funded ids on a fresh deploy).
+user ids) and ensures each id has a row in ``users`` with ``role='admin'``.
+In the two-role model every user already has full paper access; this
+seeder grants the admin role to the designated owner/operator ids (and is
+the mechanism for bootstrapping admin ids on a fresh deploy).
 
 The script is idempotent: re-running it on a database that already has
-the operators seeded is a no-op. Existing rows have ``access_tier``
-raised to 2 only when the current value is below 2 (we never *demote*
-an existing operator — a Tier 4 operator stays Tier 4). Missing rows
-are inserted with sensible defaults (auto_trade_on=FALSE, paused=FALSE,
-no wallet — the operator must run /start once to provision a wallet).
+the operators seeded is a no-op. Missing rows are inserted with sensible
+defaults (auto_trade_on=FALSE, paused=FALSE, no wallet — the operator
+must run /start once to provision a wallet).
 
 The seeder is wired into the Fly release_command so it runs on every
 deploy. In the Fly image the package installs as top-level
@@ -31,18 +29,7 @@ Process exit code
 The CLI entry point (``main``) ALWAYS exits 0 so Fly's release_command
 never aborts the deploy. Fly fails any release whose hook returns a
 non-zero code, but every failure mode of this seeder is recoverable
-without rolling the release back:
-
-* Missing ``ADMIN_USER_IDS`` — the operator simply hasn't supplied the
-  secret yet; the bot still runs, /kill / /resume still work, and the
-  next deploy after the secret is set will pick the operators up.
-* Missing ``DATABASE_URL`` — the app itself cannot start without it
-  and will surface the failure through /health, not the seeder.
-* DB error — transient connectivity, OR (on the very first deploy)
-  the schema does not exist yet because ``run_migrations()`` runs in
-  the app lifespan AFTER the release_command. The seeder logs the
-  error and the operator can re-run it after the bot is up. A future
-  enhancement is to gate the seed on a "migrations applied" probe.
+without rolling the release back.
 
 Internal status codes (returned by ``_run`` for tests + programmatic
 callers, but always wrapped to exit 0 by ``main``):
@@ -53,9 +40,9 @@ callers, but always wrapped to exit 0 by ``main``):
 
 Audit
 -----
-Every successful insert or tier-raise emits one row to ``audit.log``
-(actor_role=``operator``, action=``operator_tier_seed``, payload contains
-the affected telegram_user_id and the previous + new tier values). The
+Every successful insert or role-promotion emits one row to ``audit.log``
+(actor_role=``operator``, action=``operator_role_seed``, payload contains
+the affected telegram_user_id and the previous + new role values). The
 audit write is best-effort: a failure to write audit MUST NOT block
 deploy completion.
 """
@@ -72,9 +59,10 @@ import asyncpg
 
 logger = logging.getLogger("crusaderbot.scripts.seed_operator_tier")
 
-OPERATOR_TIER: int = 2
+ADMIN_ROLE: str = "admin"
+ACCESS_TIER_DUMMY: int = 4  # legacy column placeholder; role is the source of truth
 AUDIT_ACTOR_ROLE: str = "operator"
-AUDIT_ACTION: str = "operator_tier_seed"
+AUDIT_ACTION: str = "operator_role_seed"
 
 
 def _parse_ids(raw: str | None) -> list[int]:
@@ -103,93 +91,47 @@ def _parse_ids(raw: str | None) -> list[int]:
 
 async def _seed_one(
     conn: asyncpg.Connection, telegram_user_id: int,
-) -> tuple[str, int | None, int]:
-    """Ensure one operator row exists at >= Tier 2.
+) -> tuple[str, str | None, str]:
+    """Ensure one operator row exists with ``role='admin'``.
 
-    Returns a tuple ``(action, prev_tier, new_tier)`` where ``action``
-    is one of ``inserted`` / ``raised`` / ``noop``. ``prev_tier`` is
-    ``None`` for inserted rows.
+    Returns ``(action, prev_role, new_role)`` where ``action`` is one of
+    ``inserted`` / ``raised`` / ``noop``. ``prev_role`` is ``None`` for
+    inserted rows.
     """
     row = await conn.fetchrow(
-        "SELECT id, access_tier FROM users WHERE telegram_user_id=$1",
+        "SELECT id, role FROM users WHERE telegram_user_id=$1",
         telegram_user_id,
     )
     if row is None:
-        # Atomic upsert that closes the same release-time concurrency
-        # window we already handle for UPDATE: if a sibling process
-        # (e.g., the previous app version still serving the same DB
-        # during a Fly release) runs ``users.upsert_user()`` between
-        # our SELECT and our INSERT, the row appears at Tier 1 — a
-        # plain ``ON CONFLICT DO NOTHING`` would skip the upgrade and
-        # falsely report "inserted" while the actual tier stayed at 1.
-        # ``ON CONFLICT DO UPDATE SET access_tier=GREATEST(...)`` is
-        # monotonic and guarantees ``access_tier >= OPERATOR_TIER``
-        # post-statement. ``xmax = 0`` on RETURNING distinguishes a
-        # true insert (xmax=0) from a conflict-path upgrade (xmax!=0)
-        # so the audit row records the correct action.
         result = await conn.fetchrow(
-            "INSERT INTO users (telegram_user_id, access_tier, "
-            "auto_trade_on, paused) VALUES ($1, $2, FALSE, FALSE) "
+            "INSERT INTO users (telegram_user_id, access_tier, role, "
+            "auto_trade_on, paused) VALUES ($1, $2, $3, FALSE, FALSE) "
             "ON CONFLICT (telegram_user_id) DO UPDATE "
-            "SET access_tier=GREATEST(users.access_tier, EXCLUDED.access_tier) "
-            "RETURNING access_tier, (xmax = 0) AS was_inserted",
-            telegram_user_id, OPERATOR_TIER,
+            "SET role = EXCLUDED.role "
+            "RETURNING role, (xmax = 0) AS was_inserted",
+            telegram_user_id, ACCESS_TIER_DUMMY, ADMIN_ROLE,
         )
-        # The DO UPDATE branch is unconditional, so RETURNING always
-        # yields one row — but stay defensive in case a fixture or
-        # future schema change ever returns None.
         if result is None:
-            return ("noop", None, OPERATOR_TIER)
-        new_actual = int(result["access_tier"])
+            return ("noop", None, ADMIN_ROLE)
+        new_actual = str(result["role"])
         was_inserted = bool(result["was_inserted"])
-        # user_settings row is created lazily on first /dashboard read
-        # via users.get_settings_for(); we keep this script narrow.
         if was_inserted:
             return ("inserted", None, new_actual)
-        if new_actual > OPERATOR_TIER:
-            # Concurrent process inserted the row at a higher tier
-            # than our target — script did not lift it.
-            return ("noop", None, new_actual)
-        # Concurrent INSERT landed at a tier below ours; our DO UPDATE
-        # path lifted it up to OPERATOR_TIER. We didn't see the row in
-        # our SELECT, so prev_tier stays None for the audit.
+        # Concurrent INSERT landed earlier and our DO UPDATE set role=admin;
+        # treat as a promotion (prev unknown so audit prev_role is None).
         return ("raised", None, new_actual)
 
-    prev = int(row["access_tier"])
-    if prev >= OPERATOR_TIER:
+    prev = str(row["role"]) if row["role"] is not None else "user"
+    if prev == ADMIN_ROLE:
         return ("noop", prev, prev)
 
-    # Use GREATEST so a concurrent promotion that lands between our
-    # SELECT and our UPDATE is preserved — the previous app version
-    # may still be serving the same database during a Fly release and
-    # an operator could be promoted to Tier 3/4 in that window. A
-    # plain ``SET access_tier=$2`` would silently demote them back to
-    # Tier 2; ``GREATEST`` is monotonic and matches the convention in
-    # ``users.set_tier()``. ``RETURNING`` gives us the actual post-
-    # update tier so the audit row reflects reality.
     new_actual = await conn.fetchval(
-        "UPDATE users SET access_tier=GREATEST(access_tier, $2) "
-        "WHERE id=$1 RETURNING access_tier",
-        row["id"], OPERATOR_TIER,
+        "UPDATE users SET role=$2 WHERE id=$1 RETURNING role",
+        row["id"], ADMIN_ROLE,
     )
     if new_actual is None:
-        # The row was deleted between our SELECT and UPDATE; nothing
-        # for us to claim credit for. Audit row stays at prev so a
-        # reviewer can correlate the disappearance with whatever
-        # concurrent process removed it.
         return ("noop", prev, prev)
-    new_actual = int(new_actual)
-    if new_actual > OPERATOR_TIER:
-        # A concurrent process already lifted the user above our
-        # target. ``GREATEST`` kept the higher value so our UPDATE was
-        # a no-op write — the script did NOT raise this tier and the
-        # audit log must not attribute the change to us.
-        return ("noop", prev, new_actual)
-    # ``new_actual == OPERATOR_TIER`` — we (or a sibling release also
-    # seeding the same tier) brought the row to the target. Either
-    # way the audit row showing ``prev_tier`` lets a reader verify
-    # the promotion came from below.
-    return ("raised", prev, new_actual)
+    return ("raised", prev, str(new_actual))
 
 
 async def _write_audit(
@@ -197,26 +139,21 @@ async def _write_audit(
     *,
     telegram_user_id: int,
     action: str,
-    prev_tier: int | None,
-    new_tier: int,
+    prev_role: str | None,
+    new_role: str,
 ) -> None:
     """Best-effort audit write — never blocks the seeder.
 
     The INSERT runs inside a NESTED ``conn.transaction()`` so an audit
     failure (missing ``audit`` schema on first deploy, permissions
     drift, etc.) rolls back ONLY the savepoint and leaves the outer
-    seed transaction healthy. asyncpg implements nested transactions
-    as savepoints — without this, a failed INSERT would put the
-    surrounding transaction into an aborted state and PostgreSQL would
-    reject every subsequent statement with ``current transaction is
-    aborted``, undoing the operator-tier seed for every later id in
-    the batch.
+    seed transaction healthy.
     """
     payload = {
         "telegram_user_id": telegram_user_id,
         "action": action,
-        "prev_tier": prev_tier,
-        "new_tier": new_tier,
+        "prev_role": prev_role,
+        "new_role": new_role,
         "source": "scripts.seed_operator_tier",
     }
     try:
@@ -251,8 +188,8 @@ async def seed(
                         conn,
                         telegram_user_id=tg_id,
                         action=action,
-                        prev_tier=prev,
-                        new_tier=new,
+                        prev_role=prev,
+                        new_role=new,
                     )
                 logger.info(
                     "seed_operator_tier tg=%s action=%s prev=%s new=%s",

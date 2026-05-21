@@ -150,7 +150,7 @@ def _settings(
 _EXEC_KWARGS: dict[str, Any] = dict(
     user_id=USER_ID,
     telegram_user_id=12345,
-    access_tier=4,
+    role="admin",
     trading_mode="live",
     market_id="mkt-abc",
     market_question="Will X happen?",
@@ -195,7 +195,7 @@ class TestAssertLiveGuards:
         s = _settings()
         with patch("projects.polymarket.crusaderbot.domain.execution.live.get_settings",
                    return_value=s):
-            assert_live_guards(access_tier=4, trading_mode="live")
+            assert_live_guards(role="admin", trading_mode="live")
 
     def test_enable_live_trading_false_raises(self) -> None:
         s = _settings(enable_live=False)
@@ -204,7 +204,7 @@ class TestAssertLiveGuards:
                   return_value=s),
             pytest.raises(LivePreSubmitError, match="ENABLE_LIVE_TRADING"),
         ):
-            assert_live_guards(access_tier=4, trading_mode="live")
+            assert_live_guards(role="admin", trading_mode="live")
 
     def test_execution_path_not_validated_raises(self) -> None:
         s = _settings(exec_validated=False)
@@ -213,7 +213,7 @@ class TestAssertLiveGuards:
                   return_value=s),
             pytest.raises(LivePreSubmitError, match="EXECUTION_PATH_VALIDATED"),
         ):
-            assert_live_guards(access_tier=4, trading_mode="live")
+            assert_live_guards(role="admin", trading_mode="live")
 
     def test_capital_mode_not_confirmed_raises(self) -> None:
         s = _settings(capital_confirmed=False)
@@ -222,7 +222,7 @@ class TestAssertLiveGuards:
                   return_value=s),
             pytest.raises(LivePreSubmitError, match="CAPITAL_MODE_CONFIRMED"),
         ):
-            assert_live_guards(access_tier=4, trading_mode="live")
+            assert_live_guards(role="admin", trading_mode="live")
 
     def test_use_real_clob_false_raises(self) -> None:
         """USE_REAL_CLOB=False with all other guards set → LivePreSubmitError.
@@ -238,16 +238,16 @@ class TestAssertLiveGuards:
                   return_value=s),
             pytest.raises(LivePreSubmitError, match="USE_REAL_CLOB must be True"),
         ):
-            assert_live_guards(access_tier=4, trading_mode="live")
+            assert_live_guards(role="admin", trading_mode="live")
 
     def test_low_tier_raises(self) -> None:
         s = _settings()
         with (
             patch("projects.polymarket.crusaderbot.domain.execution.live.get_settings",
                   return_value=s),
-            pytest.raises(LivePreSubmitError, match="tier 3"),
+            pytest.raises(LivePreSubmitError, match="not admin"),
         ):
-            assert_live_guards(access_tier=3, trading_mode="live")
+            assert_live_guards(role="user", trading_mode="live")
 
     def test_paper_trading_mode_raises(self) -> None:
         s = _settings()
@@ -256,7 +256,7 @@ class TestAssertLiveGuards:
                   return_value=s),
             pytest.raises(LivePreSubmitError, match="trading_mode=paper"),
         ):
-            assert_live_guards(access_tier=4, trading_mode="paper")
+            assert_live_guards(role="admin", trading_mode="paper")
 
 
 # ---------------------------------------------------------------------------

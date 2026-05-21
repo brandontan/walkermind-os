@@ -54,7 +54,7 @@ async def validate_gate_parity(
     *,
     user_id: UUID,
     telegram_user_id: int,
-    access_tier: int,
+    role: str,
     market_id: str,
     side: str,
     proposed_size_usdc: Decimal,
@@ -79,7 +79,7 @@ async def validate_gate_parity(
     base_ctx = GateContext(
         user_id=user_id,
         telegram_user_id=telegram_user_id,
-        access_tier=access_tier,
+        role=role,
         auto_trade_on=True,
         paused=False,
         market_id=market_id,
@@ -125,7 +125,7 @@ async def validate_gate_parity(
     live_ctx = GateContext(
         user_id=user_id,
         telegram_user_id=telegram_user_id,
-        access_tier=max(access_tier, 4),  # min Tier 4 for live gate
+        role="admin",  # force admin for live gate parity simulation
         auto_trade_on=True,
         paused=False,
         market_id=market_id,
