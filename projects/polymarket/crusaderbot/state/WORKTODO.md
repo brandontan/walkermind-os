@@ -1,7 +1,7 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-05-21 14:23
+**Last Updated : 2026-05-21 18:00
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
@@ -108,7 +108,7 @@ CRUSADERBOT is considered **DONE** only when:
 
 ## Active — In Progress
 
-- [ ] WARP-57 — Telegram UX MVP v1 Rebuild (Issue #1260) [MAJOR] — DISPATCHED to FORGE
+- [ ] WARP-57 — Telegram UX MVP v1 Rebuild (Issue #1260) [MAJOR] — FORGE delivered; WARP•SENTINEL validation pending on WARP/warp57-telegram-ux-mvp
 
 ---
 

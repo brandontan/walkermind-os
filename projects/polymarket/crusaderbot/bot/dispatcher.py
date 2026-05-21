@@ -1,8 +1,10 @@
-"""Phase 5 UX Rebuild — handler registration.
+"""WARP-57 Telegram UX MVP v1 — handler registration.
 
-CRITICAL: ALL primary menu callbacks (menu:*) are registered at group=-1
-BEFORE any ConversationHandlers. This prevents nav breakage when a user
-taps a main menu button from inside a wizard or ConversationHandler state.
+MVP UX (`bot/handlers/mvp/*`) handlers are attached FIRST so they take
+precedence over legacy callback handlers that share a prefix. Legacy
+handlers stay registered as fallbacks for admin, emergency, copy-trade
+wizard, live-gate, and other non-MVP surfaces (blueprint scope: UX only,
+domain/services untouched).
 """
 from __future__ import annotations
 
@@ -42,42 +44,53 @@ from .handlers.settings import (
 )
 from .menus.main import get_menu_route
 
+# WARP-57 MVP v1 handlers — full IA + hierarchy tree UX.
+from .handlers.mvp import dashboard as mvp_dashboard
+from .handlers.mvp import autotrade as mvp_autotrade
+from .handlers.mvp import copy_wallet as mvp_copy_wallet
+from .handlers.mvp import portfolio as mvp_portfolio
+from .handlers.mvp import markets as mvp_markets
+from .handlers.mvp import settings as mvp_settings
+from .handlers.mvp import help as mvp_help
+from .handlers.mvp import onboarding as mvp_onboarding
+
 logger = logging.getLogger(__name__)
 
 
 async def _menu_nav_cb(update, ctx) -> None:
     """group=-1 — fires before ConversationHandler states.
 
-    Routes menu:* callback_data to the correct surface so tapping a primary
-    nav button from inside any wizard always works.
+    `menu:*` callback_data now routes to the MVP v1 hierarchy-tree surfaces
+    (WARP-57). Wallet / emergency / trades remain on their legacy backends
+    since those surfaces stay live for admin and runtime ops.
     """
     q = update.callback_query
     if q is None:
         return
     sub = (q.data or "").split(":", 1)[-1]
-    if sub == "portfolio":
-        # show_portfolio calls q.answer() itself — dispatch before the global
-        # pre-answer below to avoid double-ACK (BadRequest from Telegram).
-        from .handlers.positions import show_portfolio
-        await show_portfolio(update, ctx)
-        return
-    if sub == "positions":
-        # show_positions answers internally on the callback path.
-        await positions.show_positions(update, ctx)
-        return
+    # MVP v1 main menu routes — InlineKeyboardMarkup only, blueprint 7.2.
+    if sub in {"dashboard", "home"}:
+        await mvp_dashboard.show_dashboard(update, ctx); return
+    if sub == "autotrade":
+        await mvp_autotrade.show_home(update, ctx); return
+    if sub in {"copy", "copy_wallet"}:
+        await mvp_copy_wallet.show_home(update, ctx); return
+    if sub in {"portfolio", "positions"}:
+        await mvp_portfolio.show_home(update, ctx); return
+    if sub == "markets":
+        await mvp_markets.show_home(update, ctx); return
+    if sub == "settings":
+        await mvp_settings.show_home(update, ctx); return
+    if sub == "help":
+        await mvp_help.show_home(update, ctx); return
+    # Non-MVP legacy surfaces kept live for admin/runtime ops.
     await q.answer()
-    if sub == "dashboard":
-        await show_dashboard_for_cb(update, ctx)
-    elif sub == "autotrade":
-        await show_autotrade(update, ctx)
-    elif sub == "wallet":
+    if sub == "wallet":
         await wallet_root_cb(update, ctx)
     elif sub == "trades":
         await show_trades(update, ctx)
     elif sub == "emergency":
         await emergency_root_cb(update, ctx)
-    elif sub == "settings":
-        await settings_handler.settings_hub_root(update, ctx)
 
 
 async def _noop_refresh_cb(update, ctx) -> None:
@@ -89,13 +102,10 @@ async def _noop_refresh_cb(update, ctx) -> None:
 
 
 async def _nav_cb(update, ctx) -> None:
-    """Tactical Terminal polish — handles `nav:*` callback prefixes.
+    """`nav:*` global navigation — back / home / refresh / cancel / noop.
 
-    The new `_common.py` keyboard helpers emit:
-      - nav:home    → return to dashboard
-      - nav:back    → re-render dashboard (handlers can override per-flow)
-      - nav:refresh → silent refresh + re-render dashboard
-      - nav:noop    → silently absorb (used by pagination indicator)
+    All MVP keyboards emit these prefixes. Default fallback is the MVP
+    dashboard surface (blueprint 6.x).
     """
     q = update.callback_query
     if q is None:
@@ -104,11 +114,13 @@ async def _nav_cb(update, ctx) -> None:
     sub = (q.data or "").split(":", 1)[-1]
     if sub == "noop":
         return
-    if sub == "refresh":
-        await show_dashboard_for_cb(update, ctx, refresh=True)
+    if sub in {"home", "back", "refresh", "cancel"}:
+        # Back/cancel fall through to the dashboard for MVP — flows that
+        # need finer-grained back behavior maintain their own stack and
+        # route directly.
+        await mvp_dashboard.show_dashboard(update, ctx)
         return
-    # nav:home and nav:back default to the main dashboard surface.
-    await show_dashboard_for_cb(update, ctx)
+    await mvp_dashboard.show_dashboard(update, ctx)
 
 
 async def _global_error_handler(update: object, ctx) -> None:
@@ -133,6 +145,10 @@ async def _text_router(update, ctx) -> None:
             ctx.user_data.pop("awaiting", None)
         await menu_handler(update, ctx)
         return
+    # MVP copy-wallet flow gets first dibs on free text — it captures pasted
+    # wallet addresses while in the await_address step (WARP-57).
+    if await mvp_copy_wallet.text_input(update, ctx):
+        return
     if await live_gate.text_input(update, ctx):
         return
     if await activation.text_input(update, ctx):
@@ -146,27 +162,38 @@ async def _text_router(update, ctx) -> None:
 
 
 def register(app: Application) -> None:
+    # ── WARP-57 MVP v1 — attached FIRST so MVP prefixes win over legacy ────────
+    mvp_dashboard.attach(app)
+    mvp_autotrade.attach(app)
+    mvp_copy_wallet.attach(app)
+    mvp_portfolio.attach(app)
+    mvp_markets.attach(app)
+    mvp_settings.attach(app)
+    mvp_help.attach(app)
+    # Onboarding /start must register AFTER mvp_dashboard.attach so it wins.
+    mvp_onboarding.attach(app)
+
     # ── group=-1: primary nav — fires BEFORE ConversationHandlers ────────────────
     app.add_handler(CallbackQueryHandler(_menu_nav_cb, pattern=r"^menu:"), group=-1)
-    # nav:* prefix — all keyboard modules now use _common.py helpers (home_row /
-    # home_back_row / confirm_cancel_row) which emit nav:home / nav:back / nav:noop.
+    # nav:* prefix — MVP _common.py keyboard helpers emit nav:home/back/refresh/cancel/noop.
     app.add_handler(CallbackQueryHandler(_nav_cb, pattern=r"^nav:"), group=-1)
-    # Persistent keyboard text buttons — interrupt any ConversationHandler state
+    # Persistent reply-keyboard text taps — route to MVP surfaces (WARP-57).
+    # Legacy users with a residual ReplyKeyboard still get routed correctly
+    # into the new hierarchy-tree UX.
     app.add_handler(MessageHandler(
-        filters.Regex(r"^📊 Dashboard$"), dashboard), group=-1)
+        filters.Regex(r"^(📊 )?Dashboard$"), mvp_dashboard.show_dashboard), group=-1)
     app.add_handler(MessageHandler(
-        filters.Regex(r"^🤖 Auto-Trade$"), show_autotrade), group=-1)
+        filters.Regex(r"^🤖 (Auto-Trade|Auto Trade)$"), mvp_autotrade.show_home), group=-1)
     app.add_handler(MessageHandler(
         filters.Regex(r"^💰 Wallet$"), wallet_root), group=-1)
-    # 💼 Portfolio — group=-1 intercepts before any ConversationHandler state.
     app.add_handler(MessageHandler(
-        filters.Regex(r"^💼 Portfolio$"),
-        positions.show_portfolio), group=-1)
-    # 💼 Trades (N) — routes directly to the live position monitor so tapping
-    # the dynamic open-count label immediately shows positions with Close buttons.
+        filters.Regex(r"^💼 Portfolio$"), mvp_portfolio.show_home), group=-1)
     app.add_handler(MessageHandler(
-        filters.Regex(r"^💼 Trades \(\d+\)$"),
-        positions.show_positions), group=-1)
+        filters.Regex(r"^💼 Trades \(\d+\)$"), mvp_portfolio.show_positions), group=-1)
+    app.add_handler(MessageHandler(
+        filters.Regex(r"^⚙️ Settings$"), mvp_settings.show_home), group=-1)
+    app.add_handler(MessageHandler(
+        filters.Regex(r"^❓ Help$"), mvp_help.show_home), group=-1)
     app.add_handler(MessageHandler(
         filters.Regex(r"^🚨 Emergency$"), emergency_root), group=-1)
 
