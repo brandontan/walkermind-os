@@ -164,9 +164,19 @@ def bootstrap_default_strategies(
     `strategies/`.
     """
     reg = registry if registry is not None else StrategyRegistry.instance()
-    from .strategies import CopyTradeStrategy, MomentumReversalStrategy, SignalFollowingStrategy
+    from .strategies import (
+        ConfluenceScalperStrategy,
+        CopyTradeStrategy,
+        MomentumReversalStrategy,
+        SignalFollowingStrategy,
+    )
 
-    for cls in (CopyTradeStrategy, MomentumReversalStrategy, SignalFollowingStrategy):
+    for cls in (
+        CopyTradeStrategy,
+        MomentumReversalStrategy,
+        SignalFollowingStrategy,
+        ConfluenceScalperStrategy,
+    ):
         try:
             reg.get(cls.name)
         except KeyError:
