@@ -180,6 +180,6 @@ jobs:
             --max-time 20 \
             "https://app.base44.com/api/agents/${B44_AGENT}/conversations" \
             -H "Content-Type: application/json" \
-            -H "api_key: ${B44_KEY}" \
+            -H "Authorization: Bearer ${B44_KEY}" \
             -d "$PAYLOAD" \
             -o /dev/null
