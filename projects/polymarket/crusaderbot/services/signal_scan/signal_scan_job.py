@@ -43,7 +43,6 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import re
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -55,6 +54,10 @@ from ...core import event_bus as _event_bus
 from ...database import get_pool
 from ...domain.execution.router import execute as router_execute
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
+from ...domain.strategy.eligibility import (
+    eligible_market_ids_for_confluence_scalper,
+    is_confluence_scalper_eligible,
+)
 from ...domain.strategy.registry import StrategyRegistry
 from ...domain.strategy.types import MarketFilters, SignalCandidate, UserContext
 from ...integrations import polymarket as _polymarket
@@ -93,26 +96,10 @@ _LIB_STRATEGY_NAMES: frozenset[str] = frozenset(ENABLED_STRATEGIES) | frozenset(
 # Domain strategies wired into the scan loop alongside lib/ strategies.
 # These live in domain/strategy/strategies/ and are registered via
 # bootstrap_default_strategies(). The scan loop runs them explicitly per user
-# when the active_preset permits.
+# when the active_preset permits. Crypto-only eligibility for the scalper
+# lives in domain/strategy/eligibility.py — the scan loop filters emitted
+# candidates against that whitelist before they reach the risk gate.
 _CONFLUENCE_SCALPER_NAME = "confluence_scalper"
-
-# Crypto-only eligibility gate for confluence_scalper. The strategy itself
-# fetches markets from Gamma and does not know about category gating, so the
-# scan loop filters its emitted candidates against this set of asset symbols
-# before they reach the risk gate. Non-crypto markets are silently skipped.
-_CRYPTO_SCALPER_ASSETS: tuple[str, ...] = (
-    "btc", "bitcoin",
-    "eth", "ethereum",
-    "sol", "solana",
-    "xrp", "ripple",
-    "doge", "dogecoin",
-    "bnb", "binance coin",
-    "hype", "hyperliquid",
-)
-_CRYPTO_SCALPER_ASSET_PATTERN = re.compile(
-    r"\b(" + "|".join(re.escape(a) for a in _CRYPTO_SCALPER_ASSETS) + r")\b",
-    re.IGNORECASE,
-)
 
 _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
     "whale_mirror":        frozenset({"whale_tracking"}),
@@ -131,48 +118,6 @@ _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
 def _preset_allows(active_preset: str | None, strategy_name: str) -> bool:
     """Return True if user's active_preset permits signals from strategy_name."""
     return strategy_name in _PRESET_ALLOWED.get(active_preset, _LIB_STRATEGY_NAMES)
-
-
-def _is_crypto_eligible_for_confluence(market: dict) -> bool:
-    """Return True if a Gamma market dict qualifies for the confluence scalper.
-
-    Two gates must both pass:
-      - category resolves to ``Crypto`` (case-insensitive match on Gamma's
-        ``category``, ``groupItemTitle``, or ``slug`` fields).
-      - market title/question references one of the whitelisted assets
-        (BTC, ETH, SOL, XRP, DOGE, BNB, HYPE), matched with word boundaries
-        so "hyperventilate" or "doge-style" do not produce false positives.
-
-    Non-crypto markets and crypto markets outside the asset whitelist are
-    skipped so existing strategies remain unaffected.
-    """
-    if not isinstance(market, dict):
-        return False
-    cat = (
-        market.get("category")
-        or market.get("groupItemTitle")
-        or market.get("slug")
-        or ""
-    )
-    if "crypto" not in str(cat).lower():
-        return False
-    haystack = " ".join(
-        str(market.get(field) or "")
-        for field in ("question", "title", "slug", "groupItemTitle")
-    )
-    return bool(_CRYPTO_SCALPER_ASSET_PATTERN.search(haystack))
-
-
-def _crypto_eligible_market_ids(markets: list[dict]) -> set[str]:
-    """Return the set of Gamma market ``id`` strings eligible for confluence_scalper."""
-    out: set[str] = set()
-    for m in markets:
-        if not _is_crypto_eligible_for_confluence(m):
-            continue
-        market_id = str(m.get("id") or "")
-        if market_id:
-            out.add(market_id)
-    return out
 
 
 def _coerce_jsonb(val: object, fallback: dict | list | None = None) -> dict | list:
@@ -827,7 +772,7 @@ async def run_once() -> None:
         return
 
     markets = await _fetch_markets_for_lib_strategies()
-    crypto_market_ids = _crypto_eligible_market_ids(markets)
+    crypto_market_ids = eligible_market_ids_for_confluence_scalper(markets)
     strategies_to_run = list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES)
 
     candidates_processed = 0

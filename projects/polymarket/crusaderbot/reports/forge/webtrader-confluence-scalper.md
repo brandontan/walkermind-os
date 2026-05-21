@@ -18,7 +18,7 @@ A narrow integration that surfaces the WARP-60 `ConfluenceScalperStrategy` to tw
 
 1. **WebTrader Auto Trade preset card** — new "🚀 Crypto Scalper" preset positioned between Ensemble and Full Auto on `/auto-trade`. Selecting it persists `active_preset='confluence_scalper'` via the existing `/autotrade/preset` endpoint and the existing card-grid UI handles state, ACTIVE badge, and Settings sync.
 2. **Full Auto coverage** — `_PRESET_ALLOWED['full_auto']` now also permits `confluence_scalper` so the existing trio is joined by the new strategy automatically; `_PRESET_ALLOWED[None]` mirrors the same set for users with no preset persisted (matches existing default-fallback behaviour).
-3. **Crypto-only eligibility gate** — `signal_scan_job._is_crypto_eligible_for_confluence(market)` requires category == "Crypto" (case-insensitive across `category`, `groupItemTitle`, `slug`) AND the market title/question/slug match the BTC|bitcoin|ETH|ethereum|SOL|solana|XRP|ripple|DOGE|dogecoin|BNB|"binance coin"|HYPE|hyperliquid regex with word boundaries. Non-crypto and off-whitelist markets silently skip — other strategies on the same scan tick are not affected because the filter runs only on `confluence_scalper`'s emitted candidates.
+3. **Crypto-only eligibility gate** — `domain/strategy/eligibility.is_confluence_scalper_eligible(market)` requires category == "Crypto" (case-insensitive across `category`, `groupItemTitle`, `slug`) AND the market title/question/slug match the BTC|bitcoin|ETH|ethereum|SOL|solana|XRP|ripple|DOGE|dogecoin|BNB|"binance coin"|HYPE|hyperliquid regex with word boundaries. The signal scan loop calls `eligible_market_ids_for_confluence_scalper(markets)` to derive the per-tick whitelist. Non-crypto and off-whitelist markets silently skip — other strategies on the same scan tick are not affected because the filter runs only on `confluence_scalper`'s emitted candidates.
 
 The domain strategy itself was not touched — WARP-60 already ships `ConfluenceScalperStrategy` with full `scan()` / `evaluate_exit()` / `default_tp_sl()` contract and 36 hermetic tests; this lane only wires it into the scan loop and exposes the activation surface.
 
@@ -30,7 +30,7 @@ DATA -> [STRATEGY <-- lib/ + domain confluence_scalper] -> INTELLIGENCE -> RISK 
 
 * `signal_scan_job.run_once()` flow per user, per tick:
   1. Load enrolled users + per-user `active_preset` + `category_filters` + `strategy_params`.
-  2. Fetch raw Gamma market list once for the tick; build `crypto_market_ids` set via `_crypto_eligible_market_ids()`.
+  2. Fetch raw Gamma market list once for the tick; build `crypto_market_ids` set via `eligible_market_ids_for_confluence_scalper()` (imported from `domain/strategy/eligibility.py`).
   3. Phase A: lib strategies (whale_tracking / trend_breakout / momentum / value_investor / expiration_timing / pair_arb / ensemble) — unchanged.
   4. **Phase B (NEW): if `_preset_allows(active_preset, 'confluence_scalper')`** → fetch the registered domain strategy via `StrategyRegistry.instance().get('confluence_scalper')`, call `scan(market_filters, user_ctx)`, filter emitted candidates against `crypto_market_ids`, feed survivors through the same `_process_candidate(row, cand)` path as Phase A.
   5. Phase C: signal_publications feed — unchanged.
@@ -46,13 +46,14 @@ DATA -> [STRATEGY <-- lib/ + domain confluence_scalper] -> INTELLIGENCE -> RISK 
 **Modified (5):**
 * `projects/polymarket/crusaderbot/webtrader/backend/router.py` — added `confluence_scalper` entry to `_PRESET_PARAMS` so `/autotrade/preset` accepts the new key.
 * `projects/polymarket/crusaderbot/bot/presets.py` — `PRESET_CONFIG['confluence_scalper']` entry and `PRESET_ORDER` insert between `ensemble` and `full_auto`.
-* `projects/polymarket/crusaderbot/services/signal_scan/signal_scan_job.py` — imported `re`; added `_CRYPTO_SCALPER_ASSETS` whitelist + compiled word-boundary regex; added `_is_crypto_eligible_for_confluence()` + `_crypto_eligible_market_ids()`; expanded `_PRESET_ALLOWED` with `confluence_scalper` and Full Auto inclusion; added Phase B domain-strategy execution block inside `run_once()`; extended log + event_bus emit with `confluence_signals` count.
+* `projects/polymarket/crusaderbot/services/signal_scan/signal_scan_job.py` — imports `is_confluence_scalper_eligible` + `eligible_market_ids_for_confluence_scalper` from the new `domain/strategy/eligibility` module; expanded `_PRESET_ALLOWED` with `confluence_scalper` and Full Auto inclusion; added Phase B domain-strategy execution block inside `run_once()`; extended log + event_bus emit with `confluence_signals` count.
 * `projects/polymarket/crusaderbot/services/notification_service.py` — `_STRAT_LABELS['confluence_scalper'] = '🚀 Crypto Scalper'`.
 * `projects/polymarket/crusaderbot/services/trade_notifications/notifier.py` — same label mapping for the per-trade notifier path.
 * `projects/polymarket/crusaderbot/webtrader/frontend/src/pages/AutoTradePage.tsx` — inserted `confluence_scalper` entry into the `STRATEGY_PRESETS` const array between `ensemble` and `full_auto`; signal copy `Fast crypto momentum + liquidity confluence (BTC/ETH/SOL/XRP/DOGE/BNB/HYPE · 5m/15m)`; engine label `ConfluenceScalperStrategy`; risk `advanced`; freq `High`.
 
-**Created (1):**
-* `projects/polymarket/crusaderbot/tests/test_webtrader_confluence_scalper_exposure.py` — 22 hermetic tests, no DB / no Telegram / no HTTP.
+**Created (2):**
+* `projects/polymarket/crusaderbot/domain/strategy/eligibility.py` — standalone eligibility module exporting `CONFLUENCE_SCALPER_ASSETS`, `CONFLUENCE_SCALPER_ASSET_PATTERN`, `is_confluence_scalper_eligible(market)`, and `eligible_market_ids_for_confluence_scalper(markets)`. Behavior-identical to the previously-inline regex (verified by replaying all 20 PR test cases through the standalone module).
+* `projects/polymarket/crusaderbot/tests/test_webtrader_confluence_scalper_exposure.py` — 22 hermetic tests, no DB / no Telegram / no HTTP. Imports `is_confluence_scalper_eligible` + `eligible_market_ids_for_confluence_scalper` directly from the new module (no longer reaches into `signal_scan_job` private names for the eligibility checks).
 
 **State files updated:**
 * `projects/polymarket/crusaderbot/state/PROJECT_STATE.md`

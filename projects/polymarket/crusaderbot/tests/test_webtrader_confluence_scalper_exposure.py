@@ -7,9 +7,10 @@ Verifies the four done-criteria gates declared in issue #1269:
      ``confluence_scalper`` and existing preset ids remain wired.
   3. Full Auto inclusion: signal_scan_job._PRESET_ALLOWED["full_auto"]
      contains "confluence_scalper" so Full Auto picks it up automatically.
-  4. Non-crypto skip + asset whitelist: _is_crypto_eligible_for_confluence
-     gates by Crypto category AND BTC/ETH/SOL/XRP/DOGE/BNB/HYPE asset
-     whitelist; Politics/Sports/Weather/Finance markets must skip.
+  4. Non-crypto skip + asset whitelist: is_confluence_scalper_eligible
+     (domain/strategy/eligibility.py) gates by Crypto category AND
+     BTC/ETH/SOL/XRP/DOGE/BNB/HYPE asset whitelist;
+     Politics/Sports/Weather/Finance markets must skip.
 
 No DB, no Telegram, no Polymarket HTTP.
 """
@@ -21,6 +22,10 @@ from projects.polymarket.crusaderbot.bot.presets import (
     PRESET_CONFIG,
     PRESET_ORDER,
     get_preset,
+)
+from projects.polymarket.crusaderbot.domain.strategy.eligibility import (
+    eligible_market_ids_for_confluence_scalper,
+    is_confluence_scalper_eligible,
 )
 from projects.polymarket.crusaderbot.services.signal_scan import signal_scan_job as job
 from projects.polymarket.crusaderbot.webtrader.backend.router import _PRESET_PARAMS
@@ -151,7 +156,7 @@ def _market(category: str, question: str, market_id: str = "m-1") -> dict:
 ])
 def test_crypto_markets_pass_eligibility(asset_phrase: str):
     m = _market("Crypto", asset_phrase)
-    assert job._is_crypto_eligible_for_confluence(m) is True
+    assert is_confluence_scalper_eligible(m) is True
 
 
 @pytest.mark.parametrize("category,question", [
@@ -168,19 +173,19 @@ def test_non_crypto_categories_rejected(category: str, question: str):
     # the strategy so Politics/Sports/etc. markets keep running their own
     # eligible strategies untouched.
     m = _market(category, question)
-    assert job._is_crypto_eligible_for_confluence(m) is False
+    assert is_confluence_scalper_eligible(m) is False
 
 
 def test_crypto_category_without_whitelisted_asset_rejected():
     # Crypto-tagged market that does NOT mention a whitelisted asset.
     m = _market("Crypto", "Will an altcoin index outperform stocks?")
-    assert job._is_crypto_eligible_for_confluence(m) is False
+    assert is_confluence_scalper_eligible(m) is False
 
 
 def test_word_boundary_prevents_substring_false_positive():
     # "hyperventilate" must not match HYPE; "hyperliquid" must.
     miss = _market("Crypto", "Will the hyperventilating pundit retire?")
-    assert job._is_crypto_eligible_for_confluence(miss) is False
+    assert is_confluence_scalper_eligible(miss) is False
 
 
 def test_crypto_eligible_market_ids_filter():
@@ -190,12 +195,12 @@ def test_crypto_eligible_market_ids_filter():
         _market("Crypto", "Random altcoin moon?", market_id="m-alt"),
         _market("Crypto", "ETH gas low?", market_id="m-eth"),
     ]
-    ids = job._crypto_eligible_market_ids(markets)
+    ids = eligible_market_ids_for_confluence_scalper(markets)
     assert ids == {"m-btc", "m-eth"}
 
 
 def test_invalid_market_dict_safe():
-    assert job._is_crypto_eligible_for_confluence(None) is False  # type: ignore[arg-type]
-    assert job._is_crypto_eligible_for_confluence({"category": None}) is False
+    assert is_confluence_scalper_eligible(None) is False  # type: ignore[arg-type]
+    assert is_confluence_scalper_eligible({"category": None}) is False
     # Missing question/title falls through cleanly.
-    assert job._is_crypto_eligible_for_confluence({"category": "Crypto"}) is False
+    assert is_confluence_scalper_eligible({"category": "Crypto"}) is False
