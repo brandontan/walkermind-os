@@ -108,7 +108,7 @@ CRUSADERBOT is considered **DONE** only when:
 
 ## Active — In Progress
 
-- [ ] WARP-57 — Telegram UX MVP v1 Rebuild (Issue #1260) [MAJOR] — FORGE delivered; WARP•SENTINEL validation pending on WARP/warp57-telegram-ux-mvp
+- [x] WARP-57 — Telegram UX MVP v1 Rebuild (Issue #1260) [MAJOR] — MERGED c6ae44b18572. SENTINEL CONDITIONAL APPROVED 92/100.
 
 ---
 
