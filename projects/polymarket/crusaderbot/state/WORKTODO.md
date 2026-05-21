@@ -70,12 +70,12 @@ Close production gaps before beta:
 
 Observe the runtime under real usage:
 
-- [ ] No duplicate trades
-- [ ] No stuck positions
-- [ ] No state bleed between users
-- [ ] Notification failure review
-- [ ] Restart recovery validation
-- [ ] API timeout / failure behavior
+- [x] No duplicate trades — WARP-54 DELIVERED 2026-05-21 (paper.execute ON CONFLICT pinned + regression test)
+- [x] No stuck positions — WARP-54 DELIVERED 2026-05-21 (stuck-position row added to /admin HUD)
+- [x] No state bleed between users — WARP-54 DELIVERED 2026-05-21 (paper.close_position user_id scoping pinned + regression test, complements WARP-32)
+- [x] Notification failure review — WARP-54 DELIVERED 2026-05-21 (notifications.send BadRequest → plain-text fallback)
+- [x] Restart recovery validation — WARP-54 DELIVERED 2026-05-21 (scheduler startup_recovery_log job: "Resumed monitoring N open positions")
+- [x] API timeout / failure behavior — WARP-54 DELIVERED 2026-05-21 (existing exit_watcher 3-tick threshold + per-position try/except confirmed correct, no code change)
 
 ---
 

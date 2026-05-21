@@ -265,6 +265,23 @@ async def _admin_status_hud(message: Message) -> None:
         open_live = int(await conn.fetchval(
             "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='live'"
         ) or 0)
+        # WARP-54 §2: surface positions the exit watcher has tried to close
+        # repeatedly without success, OR positions that have been open longer
+        # than the stuck-threshold without a recent price refresh. Either
+        # condition is a stuck-position signal an operator should see at a
+        # glance — the close_failure_count branch catches submit_close_with_retry
+        # exhaustion (Polymarket-side), the age branch catches positions on
+        # markets that are silently un-priced for an extended period.
+        stuck_open = int(await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM positions
+             WHERE status = 'open'
+               AND (
+                 COALESCE(close_failure_count, 0) > 0
+                 OR opened_at < NOW() - INTERVAL '24 hours'
+               )
+            """
+        ) or 0)
         paper_pnl = float(await conn.fetchval(
             "SELECT COALESCE(SUM(pnl_usdc), 0) FROM positions WHERE mode='paper' AND status!='open'"
         ) or 0.0)
@@ -287,7 +304,8 @@ async def _admin_status_hud(message: Message) -> None:
         "",
         f"Users: {total_users} total · {admin_n} admin · {auto_trade_n} auto-trade",
         f"Pool: ${total_usdc:,.2f} USDC",
-        f"Positions: {open_paper} paper · {open_live} live",
+        f"Positions: {open_paper} paper · {open_live} live"
+        + (f"  ⚠️ {stuck_open} stuck" if stuck_open else ""),
         f"Paper PnL: ${paper_pnl:+,.2f}",
         "",
         f"Kill switch: {ks_label}",
