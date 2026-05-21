@@ -81,7 +81,7 @@ const STRATEGY_PRESETS = [
     name: "Crypto Scalper",
     emoji: "🚀",
     engine: "ConfluenceScalperStrategy",
-    signal: "Fast crypto momentum + liquidity confluence (BTC/ETH/SOL/XRP/DOGE/BNB/HYPE · 5m/15m)",
+    signal: "Fast crypto momentum + liquidity confluence (BTC / ETH / SOL / XRP / DOGE / BNB / HYPE only)",
     risk: "advanced" as const,
     freq: "High",
   },
