@@ -36,7 +36,6 @@ jobs:
               NUM=$(echo "$GH_EVENT"      | jq -r '.pull_request.number')
               TITLE=$(echo "$GH_EVENT"    | jq -r '.pull_request.title')
               HEAD=$(echo "$GH_EVENT"     | jq -r '.pull_request.head.ref')
-              BASE=$(echo "$GH_EVENT"     | jq -r '.pull_request.base.ref')
               URL=$(echo "$GH_EVENT"      | jq -r '.pull_request.html_url')
               HEAD_SHA=$(echo "$GH_EVENT" | jq -r '.pull_request.head.sha')
               MERGED=$(echo "$GH_EVENT"   | jq -r '.pull_request.merged')
@@ -111,6 +110,7 @@ jobs:
           URL:       ${{ steps.msg.outputs.url }}
           ACTOR:     ${{ github.actor }}
           REPO:      ${{ github.repository }}
+          PR_BODY:   ${{ toJson(github.event.pull_request.body) }}
         continue-on-error: true
         run: |
           set -euo pipefail
@@ -119,37 +119,50 @@ jobs:
           fi
           case "$KIND" in
             pull_request.opened|pull_request.reopened|pull_request.ready_for_review|pull_request.synchronize)
-              GATE_STATUS="pending" ;;
+              ACTION_VAL="opened" ;;
             pull_request.merged)
-              GATE_STATUS="merged" ;;
+              ACTION_VAL="closed"
+              ;;
             *)
               echo "Non-gate event ($KIND) — skip"
               exit 0 ;;
           esac
           case "$HEAD" in
-            WARP/GATE-*|WARP/STATE-SYNC-*|WARP/ECHO-*|WARP/TEST*|WARP/test-*)
+            WARP/GATE-*|WARP/STATE-SYNC-*|WARP/ECHO-*)
               echo "excluded branch ${HEAD} — skip"; exit 0 ;;
           esac
           PR_NUM=$(echo "$NUM" | tr -d '[:space:]')
           if [ -z "$PR_NUM" ] || [ "$PR_NUM" = "null" ]; then
             echo "invalid PR number — skip"; exit 0
           fi
+          BODY_STR=$(echo "$PR_BODY" | jq -r '.')
           PAYLOAD=$(jq -n \
-            --argjson pr  "$PR_NUM" \
-            --arg branch  "$HEAD" \
-            --arg repo    "$REPO" \
-            --arg title   "$TITLE" \
-            --arg author  "$ACTOR" \
-            --arg sha     "$HEAD_SHA" \
-            --arg status  "$GATE_STATUS" \
-            '{pr_number:$pr, branch:$branch, repo:$repo, title:$title, author:$author, head_sha:$sha, gate_status:$status, tier:"UNKNOWN", review_cycle:1}')
+            --arg action    "$ACTION_VAL" \
+            --argjson num   "$PR_NUM" \
+            --arg head      "$HEAD" \
+            --arg sha       "$HEAD_SHA" \
+            --arg title     "$TITLE" \
+            --arg body      "$BODY_STR" \
+            --arg login     "$ACTOR" \
+            --arg repo      "$REPO" \
+            '{
+              action: $action,
+              pull_request: {
+                number: $num,
+                title: $title,
+                body: $body,
+                head: { ref: $head, sha: $sha },
+                user: { login: $login }
+              },
+              repository: { full_name: $repo }
+            }')
           curl -fsS -X POST \
             "https://warpcmd-ef2e1218.base44.app/gateWebhook" \
             -H "Content-Type: application/json" \
             -H "x-warp-secret: ${WEBHOOK_SECRET}" \
             -d "$PAYLOAD" \
             -o /dev/null
-          echo "PrEvent dispatched for PR #${PR_NUM} status=${GATE_STATUS}"
+          echo "gateWebhook dispatched for PR #${PR_NUM} action=${ACTION_VAL}"
 
       - name: Complete job
         run: echo "done"
