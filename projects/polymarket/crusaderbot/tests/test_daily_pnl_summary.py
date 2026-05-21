@@ -435,6 +435,7 @@ def test_scheduler_registers_daily_pnl_summary_job():
         DEPOSIT_WATCH_INTERVAL = 120
         SIGNAL_SCAN_INTERVAL = 180
         EXIT_WATCH_INTERVAL = 60
+        PORTFOLIO_SNAPSHOT_INTERVAL = 60
         REDEEM_INTERVAL = 3600
         RESOLUTION_CHECK_INTERVAL = 300
         ORDER_POLL_INTERVAL_SECONDS = 30
@@ -612,6 +613,7 @@ def test_scheduler_registers_run_job_as_daily_callable():
         DEPOSIT_WATCH_INTERVAL = 120
         SIGNAL_SCAN_INTERVAL = 180
         EXIT_WATCH_INTERVAL = 60
+        PORTFOLIO_SNAPSHOT_INTERVAL = 60
         REDEEM_INTERVAL = 3600
         RESOLUTION_CHECK_INTERVAL = 300
         ORDER_POLL_INTERVAL_SECONDS = 30

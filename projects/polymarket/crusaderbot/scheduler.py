@@ -37,6 +37,7 @@ from .services.copy_trade import monitor as copy_trade_monitor
 from .services.copy_trade import leaderboard_sync
 from .services.redeem import hourly_worker as redeem_hourly_worker
 from .services.redeem import redeem_router
+from .services import portfolio_snapshots
 from .wallet import ledger
 
 logger = logging.getLogger(__name__)
@@ -348,6 +349,20 @@ async def check_exits() -> dict:
     }
 
 
+# ---------------- Portfolio snapshots ----------------
+
+async def snapshot_portfolios() -> dict:
+    """Write a `portfolio_snapshots` row for every user with paper activity.
+
+    Keeps the `cb_portfolio` NOTIFY channel warm for WebTrader SSE listeners
+    even when no trade closes happen in a tick — open-position mark-to-market
+    drift is captured here, while realised closes write inline from
+    ``domain/execution/paper.py:close_position``.
+    """
+    written = await portfolio_snapshots.snapshot_active_users()
+    return {"snapshots_written": written}
+
+
 # ---------------- Order lifecycle ----------------
 
 async def poll_order_lifecycle() -> None:
@@ -559,6 +574,13 @@ def setup_scheduler() -> AsyncIOScheduler:
                   next_run_time=datetime.now(timezone.utc))
     sched.add_job(check_exits, "interval", seconds=s.EXIT_WATCH_INTERVAL,
                   id="exit_watch", max_instances=1, coalesce=True)
+    # Portfolio snapshots tick — drives the dormant `cb_portfolio` NOTIFY
+    # channel so WebTrader SSE receives live equity updates even without
+    # a trade close in the window (handles open-position mark-to-market
+    # drift). 60s cadence matches the WebTrader heartbeat budget.
+    sched.add_job(snapshot_portfolios, "interval",
+                  seconds=s.PORTFOLIO_SNAPSHOT_INTERVAL,
+                  id="portfolio_snapshots", max_instances=1, coalesce=True)
     sched.add_job(poll_order_lifecycle, "interval",
                   seconds=s.ORDER_POLL_INTERVAL_SECONDS,
                   id="order_lifecycle", max_instances=1, coalesce=True)

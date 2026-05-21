@@ -186,6 +186,7 @@ class Settings(BaseSettings):
     SCANNER_MIN_LIQUIDITY: float = 5_000.0  # env: SCANNER_MIN_LIQUIDITY
     COPY_TRADE_MONITOR_INTERVAL: int = 60  # Fast Track B — copy trade tick cadence
     EXIT_WATCH_INTERVAL: int = 30  # Track A: TP/SL poll cadence (30s per spec)
+    PORTFOLIO_SNAPSHOT_INTERVAL: int = 60  # WARP-52: cb_portfolio NOTIFY heartbeat
     REDEEM_INTERVAL: int = 3600
     RESOLUTION_CHECK_INTERVAL: int = 300
     DB_POOL_MAX: int = 4

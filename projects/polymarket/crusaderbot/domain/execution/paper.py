@@ -8,6 +8,7 @@ from uuid import UUID
 
 from ... import audit, notifications
 from ...database import get_pool
+from ...services import portfolio_snapshots
 from ...services.trade_notifications import TradeNotifier
 from ...wallet import ledger
 
@@ -136,4 +137,9 @@ async def close_position(*, position: dict, exit_price: float,
                                "exit_price": exit_price,
                                "exit_reason": exit_reason,
                                "pnl_usdc": str(pnl)})
+    # Fire a portfolio_snapshots row so the cb_portfolio NOTIFY trigger
+    # pushes the new equity/PnL to WebTrader SSE listeners. Best-effort —
+    # the writer swallows its own errors so a snapshot outage cannot
+    # corrupt the realised-close return contract.
+    await portfolio_snapshots.write_snapshot(position["user_id"])
     return {"pnl_usdc": pnl, "exit_price": exit_price, "exit_reason": exit_reason}

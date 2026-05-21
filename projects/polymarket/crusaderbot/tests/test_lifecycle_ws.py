@@ -816,6 +816,7 @@ def test_setup_scheduler_registers_ws_jobs(monkeypatch):
         DEPOSIT_WATCH_INTERVAL = 120
         SIGNAL_SCAN_INTERVAL = 180
         EXIT_WATCH_INTERVAL = 60
+        PORTFOLIO_SNAPSHOT_INTERVAL = 60
         REDEEM_INTERVAL = 3600
         RESOLUTION_CHECK_INTERVAL = 300
         ORDER_POLL_INTERVAL_SECONDS = 30

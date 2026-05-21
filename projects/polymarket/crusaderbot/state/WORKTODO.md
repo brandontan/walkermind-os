@@ -59,7 +59,7 @@ Close production gaps before beta:
 - [x] Apply migration 044 (DROP access_tier) — CONFIRMED APPLIED (access_tier column gone from schema)
 - [x] Fly.io deploy validation
 - [x] Scheduler health / retry check
-- [ ] WARP-52 — portfolio_snapshots Python writer / cb_portfolio NOTIFY wiring (Issue #1245) [STANDARD]
+- [x] WARP-52 — portfolio_snapshots Python writer / cb_portfolio NOTIFY wiring (Issue #1245) [STANDARD] — DELIVERED WARP/portfolio-snapshots-writer 2026-05-21
 - [ ] Telegram notification reliability
 - [ ] Paper trading consistency (PNL, positions, ledger)
 - [x] Logging and operational sanity
