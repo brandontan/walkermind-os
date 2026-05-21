@@ -1,3 +1,6 @@
+<!-- gate-notify-verify-v3 -->
+2026-05-21 12:57 | WARP/warp53-reliability-hardening | WARP-53 (issue #1252): Telegram delivery + paper-close P0 hardening — notifications.send wait strategy now honours RetryAfter.retry_after (capped 30s) instead of fixed exponential, max attempts 3→4; per-event "no silent swallow" WARNING added at notifier._send, _edit_or_resend, _send_safe, and all 7 alert_user_* (refactored through new _send_user_exit_alert helper); paper.close_position double-close idempotency pinned by new regression test (already_closed branch fires zero extra ledger/audit/snapshot writes). 7 new + 28 existing hermetic tests pass. No schema change, no code change to paper engine. STANDARD, NARROW INTEGRATION.
+
 2026-05-21 11:49 | WARP/portfolio-snapshots-writer | WARP-52 (issue #1245): portfolio_snapshots Python writer wired — new services/portfolio_snapshots.py (write_snapshot + snapshot_active_users); paper.close_position calls write_snapshot inline after txn commit (domain/execution/paper.py:139); scheduler portfolio_snapshots tick at PORTFOLIO_SNAPSHOT_INTERVAL=60s registered alongside exit_watch; cb_portfolio NOTIFY channel now live via mig 029 AFTER INSERT trigger; 7 hermetic regression tests pass + 31 exit_watcher tests pass (no regression). No schema change. STANDARD, NARROW INTEGRATION.
 
 2026-05-21 11:06 | WARP/runtime-spine-validation | WARP-46 (issue #1243): runtime spine evidence pass — 7 #1243 targets verified REAL against current main HEAD (start/scan→trade/positions/close/receipt/PnL/routing); NOTIFY triggers cb_orders/cb_fills/cb_positions confirmed wired (mig 029); job_runs.metadata writer verified (scheduler.py:482 + job_tracker.py:85, mig 030); silent-exception audit clean; portfolio_snapshots Python writer GAP surfaced as advisory (cb_portfolio NOTIFY channel dormant — out of #1243 scope). No code modified. STANDARD, NARROW INTEGRATION.
@@ -5,13 +8,6 @@
 2026-05-21 08:30 | MERGED #1224 WARP/warp51-drop-access-tier | WARP-51 (issue #1220): full Python access_tier cleanup — INSERT/SELECT stripped from users.py, user_service.py, seed_demo_data.py; set_tier/force_set_tier deleted; /allowlist → set_role('admin'); seed_operator_tier.py deleted + fly.toml release_command removed; migration 044_drop_access_tier.sql re-enabled (IF EXISTS); 16 test fixtures swept; 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL APPROVED 99/100 (issue #1225). SHA 1b9c3fdb5e6c.
 
 2026-05-21 08:08 | WARP/warp51-drop-access-tier | WARP-51 (issue #1220): every Python access_tier writer/reader removed; `set_tier`/`force_set_tier` deleted; `/allowlist` converted to `set_role('admin')`; `scripts/seed_operator_tier.py` deleted + `fly.toml [deploy].release_command` removed; migration `044_drop_access_tier.sql` re-enabled; 16 test files fixture-swept; 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL pending.
-
-## [2026-05-21 05:44] WARP-52 MERGED (743bc9f92063) — portfolio_snapshots Python writer + cb_portfolio NOTIFY wiring
-- `services/portfolio_snapshots.py`: write_snapshot() + snapshot_active_users()
-- `paper.close_position`: inline write_snapshot outside DB txn
-- `scheduler.py`: portfolio_snapshots 60s tick (max_instances=1, coalesce=True)
-- 7 regression tests pass; CI clean
-- Closes Issue #1245
 
 ## 2026-05-21 — Migrations 027/029/030/031/044 Applied to Supabase Production
 

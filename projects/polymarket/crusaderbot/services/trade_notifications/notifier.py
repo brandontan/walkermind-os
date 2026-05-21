@@ -67,7 +67,12 @@ async def _edit_or_resend(chat_id: int, message_id: int, text: str) -> None:
             parse_mode=ParseMode.HTML,
         )
     except Exception:
-        await notifications.send(chat_id, text)
+        delivered = await notifications.send(chat_id, text)
+        if not delivered:
+            logging.getLogger(__name__).warning(
+                "animated_status.fallback_send_dropped chat=%s message_id=%s",
+                chat_id, message_id,
+            )
 
 
 class NotificationEvent(str, enum.Enum):
@@ -498,14 +503,27 @@ class TradeNotifier:
                 event.value, telegram_user_id,
             )
             return
+        # structlog's `event` positional arg conflicts with the local
+        # ``event`` param name — use the stdlib logger to avoid the clash.
+        _stdlib_logger = logging.getLogger(__name__)
         try:
-            await notifications.send(telegram_user_id, text, reply_markup=reply_markup)
+            delivered = await notifications.send(
+                telegram_user_id, text, reply_markup=reply_markup,
+            )
         except Exception as exc:  # noqa: BLE001 — must not propagate
-            # structlog's `event` positional arg conflicts with the local
-            # ``event`` param name — use the stdlib logger to avoid the clash.
-            _stdlib_logger = logging.getLogger(__name__)
             _stdlib_logger.error(
                 "trade_notification.send_failed notification_event=%s market_id=%s "
                 "telegram_user_id=%s error=%s",
                 event.value, market_id, telegram_user_id, exc,
+            )
+            return
+        if not delivered:
+            # notifications.send already logged the underlying error at ERROR.
+            # Surface a notifier-level WARNING so the dropped trade-lifecycle
+            # event is auditable per-event (not just as a generic delivery
+            # failure) — required by WARP-53 "no silent swallow" gate.
+            _stdlib_logger.warning(
+                "trade_notification.delivery_dropped notification_event=%s "
+                "market_id=%s telegram_user_id=%s",
+                event.value, market_id, telegram_user_id,
             )

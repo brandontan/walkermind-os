@@ -1,7 +1,7 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-05-21 05:44
+**Last Updated : 2026-05-21 11:06
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
@@ -60,8 +60,8 @@ Close production gaps before beta:
 - [x] Fly.io deploy validation
 - [x] Scheduler health / retry check
 - [x] WARP-52 — portfolio_snapshots Python writer / cb_portfolio NOTIFY wiring (Issue #1245) [STANDARD] — DELIVERED WARP/portfolio-snapshots-writer 2026-05-21
-- [ ] Telegram notification reliability
-- [ ] Paper trading consistency (PNL, positions, ledger)
+- [x] Telegram notification reliability — WARP-53 DELIVERED 2026-05-21 (WARP/warp53-reliability-hardening)
+- [x] Paper trading consistency (PNL, positions, ledger) — WARP-53 DELIVERED 2026-05-21 (WARP/warp53-reliability-hardening)
 - [x] Logging and operational sanity
 
 ---

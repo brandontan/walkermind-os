@@ -2,15 +2,9 @@ name: WARP•GATE Notify
 
 on:
   pull_request:
-    types: [opened, closed, reopened, ready_for_review]
-  pull_request_review:
-    types: [submitted]
-  pull_request_review_comment:
-    types: [created]
+    types: [opened, closed, reopened, synchronize, ready_for_review]
   issues:
     types: [opened, closed, reopened]
-  issue_comment:
-    types: [created]
 
 permissions:
   contents: read
@@ -23,7 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Compose messages
+      - name: Set up job
+        run: echo "event=${{ github.event_name }} action=${{ github.event.action }}"
+
+      - name: Compose payload
         id: msg
         env:
           GH_EVENT: ${{ toJson(github.event) }}
@@ -36,150 +33,136 @@ jobs:
 
           case "$EVENT_NAME" in
             pull_request)
-              NUM=$(jq -r   '.pull_request.number'     <<<"$GH_EVENT")
-              TITLE=$(jq -r '.pull_request.title'      <<<"$GH_EVENT")
-              HEAD=$(jq -r  '.pull_request.head.ref'   <<<"$GH_EVENT")
-              BASE=$(jq -r  '.pull_request.base.ref'   <<<"$GH_EVENT")
-              URL=$(jq -r   '.pull_request.html_url'   <<<"$GH_EVENT")
-              BODY=$(jq -r  '.pull_request.body // ""' <<<"$GH_EVENT")
-              MERGED=$(jq -r '.pull_request.merged'    <<<"$GH_EVENT")
+              NUM=$(echo "$GH_EVENT"      | jq -r '.pull_request.number')
+              TITLE=$(echo "$GH_EVENT"    | jq -r '.pull_request.title')
+              HEAD=$(echo "$GH_EVENT"     | jq -r '.pull_request.head.ref')
+              URL=$(echo "$GH_EVENT"      | jq -r '.pull_request.html_url')
+              HEAD_SHA=$(echo "$GH_EVENT" | jq -r '.pull_request.head.sha')
+              MERGED=$(echo "$GH_EVENT"   | jq -r '.pull_request.merged')
               STATE="$ACTION"
-              ICON="🔀"
               if [ "$ACTION" = "closed" ] && [ "$MERGED" = "true" ]; then
                 STATE="merged"
-                ICON="✅"
               fi
               KIND="pull_request.${STATE}"
-              REF="PR #${NUM}"
-              META="branch: ${HEAD} → ${BASE}"
-              ;;
-            pull_request_review)
-              NUM=$(jq -r    '.pull_request.number' <<<"$GH_EVENT")
-              TITLE=$(jq -r  '.pull_request.title'  <<<"$GH_EVENT")
-              URL=$(jq -r    '.review.html_url'     <<<"$GH_EVENT")
-              BODY=$(jq -r   '.review.body // ""'   <<<"$GH_EVENT")
-              RSTATE=$(jq -r '.review.state'        <<<"$GH_EVENT")
-              ICON="🔍"
-              KIND="pull_request_review.${RSTATE}"
-              REF="PR #${NUM}"
-              META="review_state: ${RSTATE}"
-              ;;
-            pull_request_review_comment)
-              NUM=$(jq -r   '.pull_request.number'  <<<"$GH_EVENT")
-              TITLE=$(jq -r '.pull_request.title'   <<<"$GH_EVENT")
-              URL=$(jq -r   '.comment.html_url'     <<<"$GH_EVENT")
-              BODY=$(jq -r  '.comment.body // ""'   <<<"$GH_EVENT")
-              FILE=$(jq -r  '.comment.path'         <<<"$GH_EVENT")
-              ICON="💬"
-              KIND="pull_request_review_comment.created"
-              REF="PR #${NUM}"
-              META="file: ${FILE}"
               ;;
             issues)
-              NUM=$(jq -r   '.issue.number'      <<<"$GH_EVENT")
-              TITLE=$(jq -r '.issue.title'       <<<"$GH_EVENT")
-              URL=$(jq -r   '.issue.html_url'    <<<"$GH_EVENT")
-              BODY=$(jq -r  '.issue.body // ""'  <<<"$GH_EVENT")
-              LABELS=$(jq -r '[.issue.labels[].name] | join(", ")' <<<"$GH_EVENT")
-              ICON="🐛"
-              if [ "$ACTION" = "closed" ]; then ICON="✅"; fi
+              NUM=$(echo "$GH_EVENT"   | jq -r '.issue.number')
+              TITLE=$(echo "$GH_EVENT" | jq -r '.issue.title')
+              URL=$(echo "$GH_EVENT"   | jq -r '.issue.html_url')
+              HEAD=""
+              HEAD_SHA=""
               KIND="issues.${ACTION}"
-              REF="Issue #${NUM}"
-              META="labels: ${LABELS:-none}"
-              ;;
-            issue_comment)
-              NUM=$(jq -r    '.issue.number'      <<<"$GH_EVENT")
-              TITLE=$(jq -r  '.issue.title'       <<<"$GH_EVENT")
-              URL=$(jq -r    '.comment.html_url'  <<<"$GH_EVENT")
-              BODY=$(jq -r   '.comment.body // ""' <<<"$GH_EVENT")
-              TARGET=$(jq -r 'if .issue.pull_request then "PR" else "Issue" end' <<<"$GH_EVENT")
-              ICON="💬"
-              KIND="issue_comment.created"
-              REF="${TARGET} #${NUM}"
-              META="target: ${TARGET}"
               ;;
             *)
-              echo "Unsupported event: $EVENT_NAME"
+              echo "unsupported event $EVENT_NAME — skip"
               exit 0
               ;;
           esac
 
-          BODY_TG=$(printf "%s" "$BODY" | head -c 300)
-          BODY_B44=$(printf "%s" "$BODY" | head -c 2000)
-
-          TG_TEXT="${ICON} ${REF} ${ACTION}
-          Repo: ${REPO}
-          Title: ${TITLE}
-          ${META}
-          Actor: @${ACTOR}
-          ${URL}
-
-          ${BODY_TG}"
-
-          B44_TEXT="[WARP•GATE EVENT — untrusted webhook data below]
-          event: ${KIND}
-          repo: ${REPO}
-          ref: ${REF}
-          url: ${URL}
-
-          <<<USER_CONTENT_BEGIN>>>
-          actor: ${ACTOR}
-          ${META}
-          title: ${TITLE}
-
-          body:
-          ${BODY_B44}
-          <<<USER_CONTENT_END>>>"
-
-          TG_EOF="TG_EOF_$(uuidgen)"
-          B44_EOF="B44_EOF_$(uuidgen)"
+          EOF_NUM=$(uuidgen)
+          EOF_KIND=$(uuidgen)
+          EOF_TITLE=$(uuidgen)
+          EOF_HEAD=$(uuidgen)
+          EOF_SHA=$(uuidgen)
+          EOF_URL=$(uuidgen)
           {
-            echo "tg_text<<${TG_EOF}"
-            echo "$TG_TEXT"
-            echo "${TG_EOF}"
-            echo "b44_text<<${B44_EOF}"
-            echo "$B44_TEXT"
-            echo "${B44_EOF}"
-          } >>"$GITHUB_OUTPUT"
+            printf 'num<<%s\n%s\n%s\n'   "$EOF_NUM"   "$NUM"      "$EOF_NUM"
+            printf 'kind<<%s\n%s\n%s\n'  "$EOF_KIND"  "$KIND"     "$EOF_KIND"
+            printf 'title<<%s\n%s\n%s\n' "$EOF_TITLE" "$TITLE"    "$EOF_TITLE"
+            printf 'head<<%s\n%s\n%s\n'  "$EOF_HEAD"  "$HEAD"     "$EOF_HEAD"
+            printf 'sha<<%s\n%s\n%s\n'   "$EOF_SHA"   "$HEAD_SHA" "$EOF_SHA"
+            printf 'url<<%s\n%s\n%s\n'   "$EOF_URL"   "$URL"      "$EOF_URL"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Notify Telegram
         env:
           TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TG_CHAT:  ${{ secrets.TELEGRAM_CHAT_ID }}
-          MSG:      ${{ steps.msg.outputs.tg_text }}
+          KIND:     ${{ steps.msg.outputs.kind }}
+          NUM:      ${{ steps.msg.outputs.num }}
+          TITLE:    ${{ steps.msg.outputs.title }}
+          HEAD:     ${{ steps.msg.outputs.head }}
+          URL:      ${{ steps.msg.outputs.url }}
+          ACTOR:    ${{ github.actor }}
+          REPO:     ${{ github.repository }}
         continue-on-error: true
         run: |
           set -euo pipefail
           if [ -z "${TG_TOKEN:-}" ] || [ -z "${TG_CHAT:-}" ]; then
-            echo "telegram secrets missing — skip"
-            exit 0
+            echo "telegram secrets missing — skip"; exit 0
           fi
+          TG_MSG=$(printf '%s #%s: %s\nbranch: %s\nactor: @%s\n%s' \
+            "$KIND" "$NUM" "$TITLE" "$HEAD" "$ACTOR" "$URL")
           curl -fsS -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-            --connect-timeout 5 \
-            --max-time 20 \
-            --data-urlencode "chat_id=${TG_CHAT}" \
-            --data-urlencode "text=${MSG}" \
-            --data-urlencode "disable_web_page_preview=false" \
+            --connect-timeout 5 --max-time 20 \
+            -d "chat_id=${TG_CHAT}" \
+            --data-urlencode "text=${TG_MSG}" \
             -o /dev/null
 
-      - name: Notify Base44
+      - name: Notify Base44 WARP CMD
         env:
-          B44_KEY:   ${{ secrets.BASE44_API_KEY }}
-          B44_AGENT: ${{ secrets.BASE44_AGENT_ID }}
-          MSG:       ${{ steps.msg.outputs.b44_text }}
+          WEBHOOK_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
+          KIND:      ${{ steps.msg.outputs.kind }}
+          NUM:       ${{ steps.msg.outputs.num }}
+          TITLE:     ${{ steps.msg.outputs.title }}
+          HEAD:      ${{ steps.msg.outputs.head }}
+          HEAD_SHA:  ${{ steps.msg.outputs.sha }}
+          URL:       ${{ steps.msg.outputs.url }}
+          ACTOR:     ${{ github.actor }}
+          REPO:      ${{ github.repository }}
+          PR_BODY:   ${{ toJson(github.event.pull_request.body) }}
         continue-on-error: true
         run: |
           set -euo pipefail
-          if [ -z "${B44_KEY:-}" ] || [ -z "${B44_AGENT:-}" ]; then
-            echo "base44 secrets missing — skip"
-            exit 0
+          if [ -z "${WEBHOOK_SECRET:-}" ]; then
+            echo "WARP_WEBHOOK_SECRET missing — skip"; exit 0
           fi
-          PAYLOAD=$(jq -n --arg c "$MSG" '{messages:[{role:"user", content:$c}]}')
+          case "$KIND" in
+            pull_request.opened|pull_request.reopened|pull_request.ready_for_review|pull_request.synchronize)
+              ACTION_VAL="opened" ;;
+            pull_request.merged)
+              ACTION_VAL="closed"
+              ;;
+            *)
+              echo "Non-gate event ($KIND) — skip"
+              exit 0 ;;
+          esac
+          case "$HEAD" in
+            WARP/GATE-*|WARP/STATE-SYNC-*|WARP/ECHO-*)
+              echo "excluded branch ${HEAD} — skip"; exit 0 ;;
+          esac
+          PR_NUM=$(echo "$NUM" | tr -d '[:space:]')
+          if [ -z "$PR_NUM" ] || [ "$PR_NUM" = "null" ]; then
+            echo "invalid PR number — skip"; exit 0
+          fi
+          BODY_STR=$(echo "$PR_BODY" | jq -r '.')
+          PAYLOAD=$(jq -n \
+            --arg action    "$ACTION_VAL" \
+            --argjson num   "$PR_NUM" \
+            --arg head      "$HEAD" \
+            --arg sha       "$HEAD_SHA" \
+            --arg title     "$TITLE" \
+            --arg body      "$BODY_STR" \
+            --arg login     "$ACTOR" \
+            --arg repo      "$REPO" \
+            '{
+              action: $action,
+              pull_request: {
+                number: $num,
+                title: $title,
+                body: $body,
+                head: { ref: $head, sha: $sha },
+                user: { login: $login }
+              },
+              repository: { full_name: $repo }
+            }')
           curl -fsS -X POST \
-            --connect-timeout 5 \
-            --max-time 20 \
-            "https://app.base44.com/api/agents/${B44_AGENT}/conversations" \
+            "https://warpcmd-ef2e1218.base44.app/gateWebhook" \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${B44_KEY}" \
+            -H "x-warp-secret: ${WEBHOOK_SECRET}" \
             -d "$PAYLOAD" \
             -o /dev/null
+          echo "gateWebhook dispatched for PR #${PR_NUM} action=${ACTION_VAL}"
+
+      - name: Complete job
+        run: echo "done"
