@@ -35,15 +35,22 @@ def _short_addr(addr: str) -> str:
 
 async def _read_wallets(user_uuid) -> list[dict]:
     """Read copy-wallet entries directly via the database; mirroring backend
-    services are not modified (blueprint scope: domain/services untouched)."""
+    services are not modified (blueprint scope: domain/services untouched).
+
+    Schema per migrations/009_copy_trade.sql:56-65 — canonical columns are
+    target_wallet_address (VARCHAR(42)), scale_factor (DOUBLE PRECISION),
+    status (VARCHAR(20)). The legacy boolean `enabled` column is gone.
+    """
     try:
         from ....database import get_pool  # type: ignore
         pool = get_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
-                SELECT id, target_address AS address, enabled,
-                       allocation_usdc AS allocation
+                SELECT id,
+                       target_wallet_address AS address,
+                       (status = 'active') AS enabled,
+                       scale_factor AS allocation
                 FROM copy_targets
                 WHERE user_id=$1
                 ORDER BY created_at DESC
@@ -133,18 +140,24 @@ async def do_start_copying(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         await show_home(update, ctx)
         return
     inserted = False
+    # scale_factor is a pure multiplier consumed by domain/signal/copy_trade.py
+    # (`size_usdc = trade_size * scale_factor`). Baseline allocation $100 → scale 1.0
+    # (full mirror); $25 → 0.25 (¼-size copy); $250 → 2.5 (amplified). The MVP UI
+    # exposes $25/$50/$100/$250/Custom buckets, all of which map cleanly.
+    allocation_usdc = float(f.get("allocation", 100.0))
+    scale = max(allocation_usdc / 100.0, 0.01)
     try:
         from ....database import get_pool  # type: ignore
         pool = get_pool()
         async with pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO copy_targets (user_id, target_address, enabled, allocation_usdc)
-                VALUES ($1, $2, TRUE, $3)
-                ON CONFLICT (user_id, target_address) DO UPDATE
-                  SET enabled = TRUE, allocation_usdc = EXCLUDED.allocation_usdc
+                INSERT INTO copy_targets (user_id, target_wallet_address, status, scale_factor)
+                VALUES ($1, $2, 'active', $3)
+                ON CONFLICT (user_id, target_wallet_address) DO UPDATE
+                  SET status = 'active', scale_factor = EXCLUDED.scale_factor
                 """,
-                u["id"], f["address"], float(f.get("allocation", 100.0)),
+                u["id"], f["address"], scale,
             )
             inserted = True
     except Exception as exc:  # noqa: BLE001
@@ -171,7 +184,7 @@ async def do_pause(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 pool = get_pool()
                 async with pool.acquire() as conn:
                     await conn.execute(
-                        "UPDATE copy_targets SET enabled = FALSE WHERE user_id=$1",
+                        "UPDATE copy_targets SET status = 'inactive' WHERE user_id=$1",
                         u["id"],
                     )
             except Exception as exc:  # noqa: BLE001
