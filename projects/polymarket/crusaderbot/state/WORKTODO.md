@@ -108,6 +108,7 @@ CRUSADERBOT is considered **DONE** only when:
 
 ## Active — In Progress
 
+- [x] WARP-59 — Copy Wallet end-to-end bridge: copy_targets → copy_trade_tasks (Issue #1265) [STANDARD] — DELIVERED WARP/warp59-copy-wallet-e2e-bridge 2026-05-21 (MVP write path realigned to canonical execution table read by services/copy_trade/monitor.py).
 - [x] WARP-58 — Fix domain/signal/copy_trade.py copy_targets schema mismatch (Issue #1263) [STANDARD] — DELIVERED WARP/warp58-copy-trade-schema-fix 2026-05-21 (closes WARP-57 SENTINEL Round-1 read-path drift).
 - [x] WARP-57 — Telegram UX MVP v1 Rebuild (Issue #1260) [MAJOR] — MERGED c6ae44b18572. SENTINEL CONDITIONAL APPROVED 92/100.
 
