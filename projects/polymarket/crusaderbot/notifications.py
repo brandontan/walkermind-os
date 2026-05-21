@@ -10,9 +10,10 @@ from typing import Any, Optional
 
 from telegram import Bot
 from telegram.constants import ParseMode
-from telegram.error import NetworkError, RetryAfter, TimedOut
+from telegram.error import BadRequest, NetworkError, RetryAfter, TimedOut
 from tenacity import (
-    AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential,
+    AsyncRetrying, retry_if_exception_type, retry_if_not_exception_type,
+    stop_after_attempt, wait_exponential,
 )
 from tenacity.wait import wait_base
 
@@ -75,11 +76,19 @@ class _wait_telegram(wait_base):
 
 
 def _retry() -> AsyncRetrying:
+    # Note: BadRequest inherits from NetworkError in python-telegram-bot, but
+    # it is non-transient (malformed payload, missing chat) — retrying it
+    # only burns latency. Combine the retry predicate with a "not BadRequest"
+    # filter so HTML parse errors fall through immediately to the plain-text
+    # fallback in ``send()`` instead of consuming the attempt budget.
     return AsyncRetrying(
         reraise=True,
         stop=stop_after_attempt(_MAX_SEND_ATTEMPTS),
         wait=_wait_telegram(),
-        retry=retry_if_exception_type((NetworkError, TimedOut, RetryAfter)),
+        retry=(
+            retry_if_exception_type((NetworkError, TimedOut, RetryAfter))
+            & retry_if_not_exception_type(BadRequest)
+        ),
     )
 
 
@@ -95,6 +104,13 @@ async def send(
     failure (after retries). Existing call sites that ignore the return
     value continue to work; the alert dispatcher uses it to avoid
     arming the cooldown when delivery did not actually happen.
+
+    ``BadRequest`` (typically malformed HTML in ``text``) is non-transient
+    and not in the retry set. When it surfaces on an HTML-mode send, we
+    retry exactly once with ``parse_mode=None`` so a stray angle bracket
+    cannot silently drop a trade-lifecycle receipt. Plain text is the
+    fail-safe path — guaranteed to render even if the original markup
+    was malformed.
     """
     try:
         async for attempt in _retry():
@@ -106,6 +122,35 @@ async def send(
                     reply_markup=reply_markup,
                 )
         return True
+    except BadRequest as exc:
+        if parse_mode is None:
+            logger.error(
+                "Telegram send permanently failed (plain text) chat=%s err=%s",
+                chat_id, exc,
+            )
+            return False
+        logger.warning(
+            "Telegram send BadRequest (parse_mode=%s) chat=%s err=%s — "
+            "retrying as plain text",
+            parse_mode, chat_id, exc,
+        )
+        try:
+            async for attempt in _retry():
+                with attempt:
+                    await get_bot().send_message(
+                        chat_id=chat_id,
+                        text=text,
+                        parse_mode=None,
+                        reply_markup=reply_markup,
+                    )
+            return True
+        except Exception as exc2:
+            logger.error(
+                "Telegram send permanently failed after plain-text fallback "
+                "chat=%s err=%s",
+                chat_id, exc2,
+            )
+            return False
     except Exception as exc:
         # Final failure (after retries) — surface as ERROR, never swallow silently.
         logger.error("Telegram send permanently failed chat=%s err=%s", chat_id, exc)

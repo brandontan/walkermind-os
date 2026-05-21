@@ -349,6 +349,41 @@ async def check_exits() -> dict:
     }
 
 
+async def log_resumed_open_positions() -> dict:
+    """WARP-54 §5: log how many pre-existing open positions exit_watcher is
+    about to resume monitoring on startup.
+
+    Runs once as a one-shot startup job (date trigger, immediate). The
+    exit_watcher tick already picks up every row where ``status='open'``
+    via ``registry.list_open_for_exit`` — this log line is the operator-
+    visible proof that recovery happened after a Fly machine restart.
+
+    Returns a dict captured by ``job_runs.metadata`` so the count is
+    queryable from the DB without scraping logs.
+    """
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            paper_open = int(await conn.fetchval(
+                "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='paper'"
+            ) or 0)
+            live_open = int(await conn.fetchval(
+                "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='live'"
+            ) or 0)
+    except Exception as exc:
+        logger.error(
+            "startup_recovery: open-position count query failed: %s",
+            exc, exc_info=True,
+        )
+        return {"resumed_paper": None, "resumed_live": None, "error": str(exc)[:300]}
+
+    logger.info(
+        "startup_recovery: Resumed monitoring %d open positions (%d paper, %d live)",
+        paper_open + live_open, paper_open, live_open,
+    )
+    return {"resumed_paper": paper_open, "resumed_live": live_open}
+
+
 # ---------------- Portfolio snapshots ----------------
 
 async def snapshot_portfolios() -> dict:
@@ -631,6 +666,17 @@ def setup_scheduler() -> AsyncIOScheduler:
         run_auto_fallback_check, "interval",
         seconds=AUTO_FALLBACK_INTERVAL,
         id=AUTO_FALLBACK_JOB_ID, max_instances=1, coalesce=True,
+    )
+    # WARP-54 §5 — one-shot startup recovery log. Runs once at scheduler
+    # boot via the ``date`` trigger with no run-time argument (immediate).
+    # Surfaces "Resumed monitoring N open positions" so operators see proof
+    # after a Fly machine restart that exit_watcher picked up pre-existing
+    # positions (it always does via list_open_for_exit; this is the audit
+    # trail).
+    sched.add_job(
+        log_resumed_open_positions, "date",
+        id="startup_recovery_log", max_instances=1, coalesce=True,
+        replace_existing=True,
     )
     sched.add_listener(
         _job_tracker_listener,
