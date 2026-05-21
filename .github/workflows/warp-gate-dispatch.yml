@@ -1,7 +1,8 @@
-name: "WARP Gate - Notify"
+name: WARP Gate - Notify
 
 on:
   pull_request:
+    branches: [main]
     types: [opened, synchronize, reopened, ready_for_review, closed]
 
   issues:
@@ -20,7 +21,7 @@ permissions:
 
 jobs:
   dispatch:
-    name: "WARP-GATE Dispatch"
+    name: WARP-GATE Dispatch
     runs-on: ubuntu-latest
     if: |
       github.actor != 'github-actions[bot]' &&
