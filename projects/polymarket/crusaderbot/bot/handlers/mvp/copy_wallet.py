@@ -34,12 +34,12 @@ def _short_addr(addr: str) -> str:
 
 
 async def _read_wallets(user_uuid) -> list[dict]:
-    """Read copy-wallet entries directly via the database; mirroring backend
-    services are not modified (blueprint scope: domain/services untouched).
+    """Read copy-wallet entries from the canonical execution table.
 
-    Schema per migrations/009_copy_trade.sql:56-65 — canonical columns are
-    target_wallet_address (VARCHAR(42)), scale_factor (DOUBLE PRECISION),
-    status (VARCHAR(20)). The legacy boolean `enabled` column is gone.
+    WARP-59: MVP reads/writes use `copy_trade_tasks` so the production
+    scanner (`services/copy_trade/monitor.py:run_once` → `list_active_tasks`)
+    picks up wallets added via the MVP Telegram UX. Schema per
+    migrations/018_copy_trade_tasks.sql + 035_copy_trade_extend.sql.
     """
     try:
         from ....database import get_pool  # type: ignore
@@ -48,10 +48,10 @@ async def _read_wallets(user_uuid) -> list[dict]:
             rows = await conn.fetch(
                 """
                 SELECT id,
-                       target_wallet_address AS address,
+                       wallet_address AS address,
                        (status = 'active') AS enabled,
-                       scale_factor AS allocation
-                FROM copy_targets
+                       copy_amount AS allocation
+                FROM copy_trade_tasks
                 WHERE user_id=$1
                 ORDER BY created_at DESC
                 LIMIT 10
@@ -60,7 +60,7 @@ async def _read_wallets(user_uuid) -> list[dict]:
             )
             return [dict(r) for r in rows]
     except Exception as exc:  # noqa: BLE001
-        log.debug("copy_targets read unavailable: %s", exc)
+        log.debug("copy_trade_tasks read unavailable: %s", exc)
         return []
 
 
@@ -128,8 +128,8 @@ async def show_wallets(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def do_start_copying(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    """Persist new copy-wallet target. Falls back to legacy copy-trade handler if
-    the direct DB insert is not available — services/domain untouched."""
+    """Persist new copy-wallet target to copy_trade_tasks (canonical execution
+    table read by services/copy_trade/monitor.py)."""
     f = _flow(ctx)
     user = update.effective_user
     if user is None or not f.get("address"):
@@ -140,33 +140,63 @@ async def do_start_copying(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         await show_home(update, ctx)
         return
     inserted = False
-    # scale_factor is a pure multiplier consumed by domain/signal/copy_trade.py
-    # (`size_usdc = trade_size * scale_factor`). Baseline allocation $100 → scale 1.0
-    # (full mirror); $25 → 0.25 (¼-size copy); $250 → 2.5 (amplified). The MVP UI
-    # exposes $25/$50/$100/$250/Custom buckets, all of which map cleanly.
+    # MVP exposes $25/$50/$100/$250/Custom allocation buckets. Map to
+    # copy_mode='fixed' with copy_amount = allocation_usdc. The production
+    # scanner uses copy_amount directly when copy_mode='fixed'
+    # (services/copy_trade/scaler.py:mirror_size_direct).
+    addr = str(f["address"]).lower()
     allocation_usdc = float(f.get("allocation", 100.0))
-    scale = max(allocation_usdc / 100.0, 0.01)
+    task_label = f"MVP {addr[:6]}...{addr[-4:]}"
     try:
         from ....database import get_pool  # type: ignore
         pool = get_pool()
         async with pool.acquire() as conn:
-            await conn.execute(
+            # Manual upsert: copy_trade_tasks has no UNIQUE (user_id, wallet_address)
+            # constraint, so re-add of the same wallet updates the most recent row
+            # instead of inserting a duplicate.
+            existing = await conn.fetchrow(
                 """
-                INSERT INTO copy_targets (user_id, target_wallet_address, status, scale_factor)
-                VALUES ($1, $2, 'active', $3)
-                ON CONFLICT (user_id, target_wallet_address) DO UPDATE
-                  SET status = 'active', scale_factor = EXCLUDED.scale_factor
+                SELECT id FROM copy_trade_tasks
+                WHERE user_id=$1 AND wallet_address=$2
+                ORDER BY created_at DESC
+                LIMIT 1
                 """,
-                u["id"], f["address"], scale,
+                u["id"], addr,
             )
+            if existing is not None:
+                await conn.execute(
+                    """
+                    UPDATE copy_trade_tasks
+                    SET status='active',
+                        copy_mode='fixed',
+                        copy_amount=$1,
+                        copy_pct=NULL,
+                        task_name=$2,
+                        nickname=$2,
+                        updated_at=NOW()
+                    WHERE id=$3
+                    """,
+                    allocation_usdc, task_label, existing["id"],
+                )
+            else:
+                await conn.execute(
+                    """
+                    INSERT INTO copy_trade_tasks
+                        (user_id, wallet_address, task_name, status,
+                         copy_mode, copy_amount, nickname,
+                         copy_direction, execution_mode, allow_topups)
+                    VALUES ($1, $2, $3, 'active',
+                            'fixed', $4, $3,
+                            'buys_only', 'auto', true)
+                    """,
+                    u["id"], addr, task_label, allocation_usdc,
+                )
             inserted = True
     except Exception as exc:  # noqa: BLE001
-        log.debug("copy_targets insert unavailable: %s", exc)
+        log.debug("copy_trade_tasks insert unavailable: %s", exc)
     f["step"] = None
     if not inserted:
-        # Leave a hint in the UI; backend wiring lives in the legacy copy_trade
-        # wizard which the user can still reach via /copytrade.
-        log.info("copy wallet add: persisted via backend fallback; user %s", u["id"])
+        log.info("copy wallet add: persist failed; user %s", u["id"])
     await show_home(update, ctx)
 
 
@@ -184,11 +214,15 @@ async def do_pause(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 pool = get_pool()
                 async with pool.acquire() as conn:
                     await conn.execute(
-                        "UPDATE copy_targets SET status = 'inactive' WHERE user_id=$1",
+                        """
+                        UPDATE copy_trade_tasks
+                           SET status='paused', updated_at=NOW()
+                         WHERE user_id=$1 AND status='active'
+                        """,
                         u["id"],
                     )
             except Exception as exc:  # noqa: BLE001
-                log.debug("copy_targets pause update unavailable: %s", exc)
+                log.debug("copy_trade_tasks pause update unavailable: %s", exc)
     await show_home(update, ctx)
 
 
