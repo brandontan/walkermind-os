@@ -1,6 +1,16 @@
 <!-- gate-notify-verify-v3 -->
 2026-05-21 14:23 | WARP/warp56-sentry-p0-fix | WARP-56 (issue #1257): 3 Sentry P0/P1 fixes — services/signal_scan/signal_scan_job.py `_coerce_jsonb` narrowed so JSON scalar/wrong-shape values return fallback instead of leaking to `strategy.initialize()` (was ValueError: dictionary update sequence element); domain/risk/gate.py `_log` catches asyncpg.ForeignKeyViolationError at DEBUG so /admin/dry-run with synthetic user_id stops paging Sentry on every tick; migrations/001_init.sql drops `access_tier SMALLINT` from users CREATE TABLE (fresh-install DDL only — live DB already dropped via mig 044); historical access_tier comments rewritten in migs 024/031/045. 15 new + 77 existing hermetic tests pass. No schema change. STANDARD, NARROW INTEGRATION.
 
+## [WARP-58] Fix domain/signal/copy_trade.py schema — MERGED 4501fa8befb2
+**Date:** 2026-05-21
+**PR:** #1264 | **Branch:** WARP/warp58-copy-trade-schema-fix | **Tier:** STANDARD
+
+Fixed CopyTradeStrategy.scan() column refs to match 009_copy_trade.sql:
+- `wallet_address` → `target_wallet_address`
+- `enabled=TRUE` → `status='active'`
+Copy-wallet domain scan engine restored.
+
+
 ## [WARP-57] Telegram UX MVP v1 Rebuild — MERGED c6ae44b18572
 **Date:** 2026-05-21
 **PR:** #1261 | **Branch:** WARP/warp57-telegram-ux-mvp | **Tier:** MAJOR
