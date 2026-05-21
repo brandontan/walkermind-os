@@ -2,6 +2,16 @@
 2026-05-21 18:25 | WARP/warp59-copy-wallet-e2e-bridge | WARP-59 (issue #1265): MVP copy-wallet write path realigned from `copy_targets` to canonical `copy_trade_tasks` so wallets added via Telegram MVP UX flow end-to-end through `services/copy_trade/monitor.py:80` → `domain/copy_trade/repository.list_active_tasks`. bot/handlers/mvp/copy_wallet.py SELECT/INSERT/UPDATE swapped, manual upsert on (user_id, wallet_address), `copy_mode='fixed' + copy_amount=allocation_usdc` mapping for MVP $25/$50/$100/$250/Custom buckets, `do_pause` uses canonical `status='paused'`. 6 new hermetic tests (`tests/test_warp59_copy_wallet_bridge.py`). Closes WARP-57 SENTINEL MEDIUM-4. py_compile clean. No schema change. STANDARD, FUNCTIONAL.
 2026-05-21 14:23 | WARP/warp56-sentry-p0-fix | WARP-56 (issue #1257): 3 Sentry P0/P1 fixes — services/signal_scan/signal_scan_job.py `_coerce_jsonb` narrowed so JSON scalar/wrong-shape values return fallback instead of leaking to `strategy.initialize()` (was ValueError: dictionary update sequence element); domain/risk/gate.py `_log` catches asyncpg.ForeignKeyViolationError at DEBUG so /admin/dry-run with synthetic user_id stops paging Sentry on every tick; migrations/001_init.sql drops `access_tier SMALLINT` from users CREATE TABLE (fresh-install DDL only — live DB already dropped via mig 044); historical access_tier comments rewritten in migs 024/031/045. 15 new + 77 existing hermetic tests pass. No schema change. STANDARD, NARROW INTEGRATION.
 
+## [WARP-59] Copy Wallet e2e bridge — MERGED 68a523e94cd8
+**Date:** 2026-05-21
+**PR:** #1266 | **Branch:** WARP/warp59-copy-wallet-e2e-bridge | **Tier:** STANDARD
+
+Option B: `bot/handlers/mvp/copy_wallet.py` writes/reads `copy_trade_tasks` (canonical execution table).
+Manual upsert on re-add. `copy_mode='fixed'`, `copy_amount=allocation_usdc`.
+Production scanner (`services/copy_trade/monitor.py`) now picks up MVP-added wallets.
+Closes WARP-57 SENTINEL MEDIUM-4.
+
+
 ## [WARP-58] Fix domain/signal/copy_trade.py schema — MERGED 4501fa8befb2
 **Date:** 2026-05-21
 **PR:** #1264 | **Branch:** WARP/warp58-copy-trade-schema-fix | **Tier:** STANDARD
