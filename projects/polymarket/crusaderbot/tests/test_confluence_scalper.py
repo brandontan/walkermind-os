@@ -414,7 +414,8 @@ def test_scan_candidate_confidence_in_unit_interval():
 
 
 def test_scan_candidate_suggested_size_within_bounds():
-    result = _assert_scan_non_empty([_make_market()], available=1000.0, alloc=0.5)
+    result = _run_scan([_make_market()], available=1000.0, alloc=0.5)
+    assert len(result) > 0
     # allocated = 500 * 0.04 = 20, within [1, 25]
     assert 1.0 <= result[0].suggested_size_usdc <= 25.0
 
