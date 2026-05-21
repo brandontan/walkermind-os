@@ -106,6 +106,12 @@ CRUSADERBOT is considered **DONE** only when:
 
 ---
 
+## Active — In Progress
+
+- [ ] WARP-57 — Telegram UX MVP v1 Rebuild (Issue #1260) [MAJOR] — DISPATCHED to FORGE
+
+---
+
 ## Deferred / NOT NOW
 
 ❌ live trading activation
