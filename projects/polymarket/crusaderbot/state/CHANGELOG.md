@@ -1,5 +1,5 @@
 <!-- gate-notify-verify-v3 -->
-2026-05-21 14:27 | WARP/runtime-spine-e2e-proof | WARP-55 (issue #1256): runtime-spine end-to-end evidence pass — 7/7 P2 finish criteria from issue #1256 verified REAL against live Supabase + GitHub: signal_scan/exit_watch/portfolio_snapshots tick counts (275/1491/104) in 24h with exit_watcher metadata {held:25, errors:0}; all 4 NOTIFY channels (cb_orders/cb_fills/cb_positions/cb_portfolio) wired; SQL audit user-id leak count = 0; audit.log paper_open + paper_close in 24h prove end-to-end cycle; zero open P0/P1 GitHub issues. New: state/RUNTIME_EVIDENCE.md. WORKTODO P2 7 boxes flipped to [x] (9th "Production checklist" out of scope). No production code modified. STANDARD, NARROW INTEGRATION.
+2026-05-21 14:23 | WARP/warp56-sentry-p0-fix | WARP-56 (issue #1257): 3 Sentry P0/P1 fixes — services/signal_scan/signal_scan_job.py `_coerce_jsonb` narrowed so JSON scalar/wrong-shape values return fallback instead of leaking to `strategy.initialize()` (was ValueError: dictionary update sequence element); domain/risk/gate.py `_log` catches asyncpg.ForeignKeyViolationError at DEBUG so /admin/dry-run with synthetic user_id stops paging Sentry on every tick; migrations/001_init.sql drops `access_tier SMALLINT` from users CREATE TABLE (fresh-install DDL only — live DB already dropped via mig 044); historical access_tier comments rewritten in migs 024/031/045. 15 new + 77 existing hermetic tests pass. No schema change. STANDARD, NARROW INTEGRATION.
 
 2026-05-21 13:24 | WARP/warp54-closed-beta-hardening | WARP-54 (issue #1253): closed-beta P1 hardening — notifications.send falls back to plain text on BadRequest from parse_mode=HTML (BadRequest also excluded from retry predicate since it's non-transient but inherits from NetworkError in PTB v22, was burning the attempt budget); /admin HUD adds stuck-position row counting (close_failure_count > 0) OR (opened_at < NOW() - INTERVAL '24 hours'); scheduler one-shot startup_recovery_log job logs "Resumed monitoring N open positions" on every boot for restart-recovery audit trail. Audit-pinned (no code change): paper.execute idempotency_key ON CONFLICT dedup, paper.close_position WHERE user_id=$5 scoping, exit_watcher 3-tick threshold for API timeout. 6 new + 48 existing hermetic tests pass. No schema change. STANDARD, NARROW INTEGRATION.
 
@@ -13,6 +13,17 @@
 
 2026-05-21 08:08 | WARP/warp51-drop-access-tier | WARP-51 (issue #1220): every Python access_tier writer/reader removed; `set_tier`/`force_set_tier` deleted; `/allowlist` converted to `set_role('admin')`; `scripts/seed_operator_tier.py` deleted + `fly.toml [deploy].release_command` removed; migration `044_drop_access_tier.sql` re-enabled; 16 test files fixture-swept; 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL pending.
 
+## [WARP-55] — 2026-05-21
+
+- **proof:** `RUNTIME_EVIDENCE.md` — all 7 P2 finish criteria verified against live Supabase (275 signal_scan runs, 1491 exit_watch runs, 104 portfolio_snapshots runs, 25 stable paper positions, 0 stuck, 0 user bleed)
+- **status:** CrusaderBot closed beta DONE. Activation guards remain LOCKED pending owner decision.
+- Merged PR #1259 — STANDARD, evidence-only
+## [WARP-56] — 2026-05-21
+
+- **fix:** `_coerce_jsonb` in `signal_scan_job.py` now narrows return type to match `fallback` shape — JSON scalar `strategy_params` (e.g. `"balanced"`) no longer leaks into `strategy.initialize()` and triggers `ValueError` (Sentry 9x, scanner dead)
+- **fix:** `domain/risk/gate._log` catches `ForeignKeyViolationError` at DEBUG — `/admin/dry-run` with synthetic user_id no longer floods Sentry with FK errors (Sentry 2x)
+- **fix:** `migrations/001_init.sql` CREATE TABLE `users` — `access_tier SMALLINT` column removed; comments in 024/031/045 cleaned; fresh DB install can no longer recreate the ghost column
+- Merged PR #1258 (SHA c98efc5765d9) — STANDARD, NARROW INTEGRATION
 ## [2026-05-21 06:32] WARP-54 MERGED (70d3beff7257) — Closed Beta P1 Hardening
 - `notifications.py`: BadRequest plain-text fallback — no silent HTML parse drop
 - `scheduler.py`: `startup_recovery` job logs resumed monitoring count on restart
