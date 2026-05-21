@@ -32,8 +32,8 @@ from ...services.tiers import (
     set_user_tier,
 )
 from ...users import (
-    force_set_tier, get_user_by_telegram_id, get_user_by_username,
-    set_auto_trade, set_onboarding_complete, update_settings,
+    get_user_by_telegram_id, get_user_by_username,
+    set_auto_trade, set_onboarding_complete, set_role, update_settings,
 )
 from ..keyboards import admin_menu
 from ..keyboards.admin import ops_dashboard_keyboard
@@ -424,12 +424,11 @@ async def allowlist_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
     if not args:
         await update.message.reply_text(
             "Usage: <code>/allowlist @username</code> or "
-            "<code>/allowlist &lt;telegram_user_id&gt; [tier]</code>",
+            "<code>/allowlist &lt;telegram_user_id&gt;</code> — promotes user to admin role.",
             parse_mode=ParseMode.HTML,
         )
         return
     target = args[0]
-    tier = int(args[1]) if len(args) > 1 else 2
     user = None
     if target.startswith("@"):
         user = await get_user_by_username(target)
@@ -444,10 +443,10 @@ async def allowlist_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
             f"User {target} not found. They must /start first."
         )
         return
-    await force_set_tier(user["id"], tier)
+    await set_role(user["id"], "admin")
     await audit.write(actor_role="operator", action="allowlist", user_id=user["id"],
-                      payload={"new_tier": tier})
-    await update.message.reply_text(f"✅ {target} access updated by admin.")
+                      payload={"new_role": "admin"})
+    await update.message.reply_text(f"✅ {target} promoted to admin.")
     await notifications.send(
         user["telegram_user_id"],
         "✅ Your access has been updated by an admin.",

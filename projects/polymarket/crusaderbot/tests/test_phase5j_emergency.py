@@ -38,13 +38,11 @@ from projects.polymarket.crusaderbot.bot.keyboards import (
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-def _make_user(uid=None, *, locked=False, auto_trade_on=False, paused=False,
-               access_tier=2):
+def _make_user(uid=None, *, locked=False, auto_trade_on=False, paused=False):
     return {
         "id": uid or uuid4(),
         "telegram_user_id": 99,
         "username": "tester",
-        "access_tier": access_tier,
         "auto_trade_on": auto_trade_on,
         "paused": paused,
         "locked": locked,

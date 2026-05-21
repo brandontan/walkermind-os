@@ -1,5 +1,6 @@
-Last Updated : 2026-05-20 23:24
-Status       : WARP-35/37 Linear sync MERGED (a9de0ac7) — state lane only
+Last Updated : 2026-05-21 08:08
+Status       : WARP-51 PR open — full Python access_tier removal + migration 044 re-enabled; awaiting SENTINEL audit
+- WARP-51 (issue #1220): WARP/warp51-drop-access-tier PR open — every `.py` writer/reader of access_tier stripped; `/allowlist` converted to `set_role('admin')`; scripts/seed_operator_tier.py deleted (+ fly.toml release_command removed); migration 044_drop_access_tier.sql re-enabled (was .disabled); 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL audit required.
 - WARP-25 MERGED (698b2cdf): menu:positions routing, dead import cleanup, dynamic preset_picker (domain layer), Back→Portfolio. STANDARD, NARROW INTEGRATION.
 - WARP-45 (issue #1198): fix-sentry-p1-runtime-bugs PR open — _coerce_jsonb() helper added to signal_scan_job.py; asyncpg JSONB-as-str ValueError resolved (Sentry DAWN-SNOWFLAKE-1729-1Q); Bugs 2+3 confirmed already fixed (WARP-35/WARP-37). STANDARD, NARROW INTEGRATION.
 - WARP-44 (issue #1195): strategy-pipeline-user-filter MERGED (SHA e2e9e219) — per-user category_filters market filtering, strategy_params wire-up, migration 043 applied to Supabase production. STANDARD, MODERATE.
@@ -70,6 +71,7 @@ Status       : WARP-35/37 Linear sync MERGED (a9de0ac7) — state lane only
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for WARP-51 WARP/warp51-drop-access-tier (every Python access_tier writer removed; migration 044 re-enabled; 1487 pytest passed). Source: projects/polymarket/crusaderbot/reports/forge/warp51-drop-access-tier.md. Tier: MAJOR.
 - WARP🔹CMD review required for WARP-45 fix-sentry-p1-runtime-bugs (signal_scan ValueError: asyncpg JSONB-as-str; _coerce_jsonb guard). Source: projects/polymarket/crusaderbot/reports/forge/fix-sentry-p1-runtime-bugs.md. Tier: STANDARD. No migration. Redeploy on Fly.io after merge.
 - Bot redeploy on Fly.io required — apply WARP-41+42 (PR #1191). No migration needed.
 - WARP🔹CMD review required for WARP-38 WARP/fix-pnl-current-price (#1182: open-position P&L inflation root-caused to CLOB empty-book 1.0 sentinel; strict-interior price guard). Source: projects/polymarket/crusaderbot/reports/forge/fix-pnl-current-price.md. Tier: STANDARD. No migration. After merge: redeploy so exit_watcher self-heals affected open positions on next tick.
@@ -110,7 +112,7 @@ Status       : WARP-35/37 Linear sync MERGED (a9de0ac7) — state lane only
 - [RESOLVED in WARP-26] copy_trade.py now queries copy_trade_tasks — legacy copy_targets table is orphaned (schema cleanup deferred to a separate migration lane).
 - qwneer8 and Maver1ch69 have identical bad tp_hit positions from price bug #1105 (same 0.540–0.545 inflated exit_price). Not cleaned in this lane — WARP🔹CMD decision required to extend cleanup.
 - WARP🔹CMD requested removal of the internal Tier-4/activation-guard LIVE-trading safety gate; WARP•FORGE declined that sub-item only — CLAUDE.md forbids bypassing the live-trading guard. assert_live_guards is intentionally preserved (invisible to users; live remains owner-gated + OFF). All other role-model items delivered as requested.
-- Dual tier tables (users.access_tier integer + user_tiers string) retained by design (logic+UX collapse, no DB teardown). Internal-only; not user-visible. Full schema removal deferred to a separate migration lane if ever required.
+- [RESOLVED in WARP-51] users.access_tier integer column scheduled for DROP on next Fly deploy via migration 044; user_tiers string-tier table retained (parallel system, separate lane).
 - New users before runtime-autotrade-fix deploy still receive $0 balance — two affected users (qwneer8, Maver1ch69) already backfilled via SQL; fix ships with this PR.
 - Fly.io deploy blocked until migration 030 (job_runs metadata JSONB) applied to production — trading-unblock MERGED PR #1065, live on main.
 - crusaderbot-logo.png binary not yet in repo — WebTrader logo img references will render broken until PNG committed to webtrader/frontend/public/ by WARP🔹CMD.

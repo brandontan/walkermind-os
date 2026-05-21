@@ -93,7 +93,7 @@ def test_discover_filter_kb_marks_top_pnl_by_default():
 
 # ---------- Dashboard handler -----------------------------------------------
 
-_FAKE_USER = {"id": "00000000-0000-0000-0000-000000000001", "access_tier": 2}
+_FAKE_USER = {"id": "00000000-0000-0000-0000-000000000001"}
 _FAKE_TASK = {
     "id": "aaaaaaaa-0000-0000-0000-000000000001",
     "wallet_address": "0x" + "b" * 40,

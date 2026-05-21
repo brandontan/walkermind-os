@@ -332,7 +332,7 @@ async def test_chart_command_sends_fallback_on_no_data():
     ctx = MagicMock()
     ctx.bot = AsyncMock()
 
-    fake_user = {"id": uuid4(), "access_tier": 2}
+    fake_user = {"id": uuid4()}
 
     with patch(
         "projects.polymarket.crusaderbot.bot.handlers.portfolio_chart.upsert_user",
@@ -364,7 +364,7 @@ async def test_chart_command_sends_photo_with_data():
     ctx = MagicMock()
     ctx.bot = AsyncMock()
 
-    fake_user = {"id": uuid4(), "access_tier": 2}
+    fake_user = {"id": uuid4()}
     chart_result = (b"PNG_BYTES", Decimal("500"), Decimal("100"), Decimal("450"))
 
     with patch(

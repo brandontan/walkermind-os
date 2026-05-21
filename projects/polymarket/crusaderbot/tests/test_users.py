@@ -140,7 +140,6 @@ def test_upsert_user_new_user_seeds_paper_capital():
         "id": user_id,
         "telegram_user_id": 999,
         "username": "tester",
-        "access_tier": 2,
         "auto_trade_on": False,
         "paused": False,
         "locked": False,

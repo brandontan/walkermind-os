@@ -21,21 +21,19 @@ async def get_or_create_user(
 ) -> dict:
     """Upsert a user keyed on telegram_user_id. Returns full user row as dict.
 
-    On INSERT: defaults are access_tier=4, role='user', auto_trade_on=FALSE.
-    access_tier is set to 4 explicitly so the legacy column never blocks
-    inserts while it still exists; the role column is the access source of
-    truth (see migration 045_add_role_column.sql).
+    On INSERT: defaults are role='user', auto_trade_on=FALSE. The role column
+    is the access source of truth (see migration 045_add_role_column.sql).
     On CONFLICT: refreshes username if a non-NULL value is provided; preserves
-    every other column including access_tier, role, auto_trade_on, referrer_id.
+    every other column including role, auto_trade_on, referrer_id.
     """
     async with pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
-                "INSERT INTO users (telegram_user_id, username, access_tier, role) "
-                "VALUES ($1, $2, 4, 'user') "
+                "INSERT INTO users (telegram_user_id, username, role) "
+                "VALUES ($1, $2, 'user') "
                 "ON CONFLICT (telegram_user_id) DO UPDATE "
                 "SET username = COALESCE(EXCLUDED.username, users.username) "
-                "RETURNING id, telegram_user_id, username, access_tier, role, "
+                "RETURNING id, telegram_user_id, username, role, "
                 "auto_trade_on, referrer_id, created_at",
                 telegram_user_id, username,
             )
@@ -48,7 +46,7 @@ async def get_user_by_telegram_id(
 ) -> Optional[dict]:
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id, telegram_user_id, username, access_tier, role, auto_trade_on, "
+            "SELECT id, telegram_user_id, username, role, auto_trade_on, "
             "referrer_id, created_at FROM users WHERE telegram_user_id=$1",
             telegram_user_id,
         )

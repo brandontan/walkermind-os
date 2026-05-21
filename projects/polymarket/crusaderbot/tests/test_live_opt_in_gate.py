@@ -68,7 +68,6 @@ USER_ROW = {
     "telegram_user_id": 9001,
     "username": "tester",
     "auto_trade_on": False,
-    "access_tier": 4,
     "paused": False,
     "locked": False,
 }

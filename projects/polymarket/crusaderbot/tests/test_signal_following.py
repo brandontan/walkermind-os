@@ -1313,7 +1313,7 @@ def test_signals_catalog_escapes_feed_name_and_description():
     Underscores, asterisks, and brackets are safe in HTML — no backslash escaping."""
     update, reply = _fake_update_message()
     ctx = _fake_ctx(["catalog"])
-    user_ok = {"id": uuid4(), "access_tier": Tier.ALLOWLISTED}
+    user_ok = {"id": uuid4()}
     feeds = [{
         "id": _FEED_UUID, "name": "Alpha_Beta", "slug": "alpha",
         "operator_id": uuid4(), "status": "active",
@@ -1334,7 +1334,7 @@ def test_signals_catalog_escapes_feed_name_and_description():
 def test_signals_list_escapes_feed_name():
     update, reply = _fake_update_message()
     ctx = _fake_ctx(["list"])
-    user_ok = {"id": uuid4(), "access_tier": Tier.ALLOWLISTED}
+    user_ok = {"id": uuid4()}
     subs = [{
         "feed_slug": "alpha", "feed_name": "Alpha_Beta",
         "subscribed_at": datetime.now(timezone.utc),
@@ -1352,7 +1352,7 @@ def test_signals_command_accessible_for_any_registered_user():
     from telegram import InlineKeyboardMarkup
     update, reply = _fake_update_message()
     ctx = _fake_ctx()
-    user_any = {"id": uuid4(), "access_tier": Tier.BROWSE}
+    user_any = {"id": uuid4()}
     hub_text = "📡 Signal Feeds\n"
     hub_kb = InlineKeyboardMarkup([[]])
     with patch.object(sf_handler, "upsert_user", return_value=user_any), \
@@ -1367,7 +1367,7 @@ def test_signals_command_no_args_renders_hub():
     from telegram import InlineKeyboardMarkup
     update, reply = _fake_update_message()
     ctx = _fake_ctx()
-    user_ok = {"id": uuid4(), "access_tier": Tier.ALLOWLISTED}
+    user_ok = {"id": uuid4()}
     hub_text = "🧠 Signals\n━━━━━━━━━━━━━━━━━━"
     hub_kb = InlineKeyboardMarkup([[]])
     with patch.object(sf_handler, "upsert_user", return_value=user_ok), \
@@ -1382,7 +1382,7 @@ def test_signals_command_no_args_renders_hub():
 def test_signals_on_invalid_slug_message():
     update, reply = _fake_update_message()
     ctx = _fake_ctx(["on", "Bad Slug!"])
-    user_ok = {"id": uuid4(), "access_tier": Tier.ALLOWLISTED}
+    user_ok = {"id": uuid4()}
     with patch.object(sf_handler, "upsert_user", return_value=user_ok):
         asyncio.run(sf_handler.signals_command(update, ctx))
     reply.assert_called_once()
@@ -1392,7 +1392,7 @@ def test_signals_on_invalid_slug_message():
 def test_signals_on_unknown_feed_message():
     update, reply = _fake_update_message()
     ctx = _fake_ctx(["on", "alpha"])
-    user_ok = {"id": uuid4(), "access_tier": Tier.ALLOWLISTED}
+    user_ok = {"id": uuid4()}
     with patch.object(sf_handler, "upsert_user", return_value=user_ok), \
          patch.object(sf_handler, "get_feed_by_slug", return_value=None):
         asyncio.run(sf_handler.signals_command(update, ctx))
@@ -1403,7 +1403,7 @@ def test_signals_on_unknown_feed_message():
 def test_signals_on_cap_exceeded_message():
     update, reply = _fake_update_message()
     ctx = _fake_ctx(["on", "alpha"])
-    user_ok = {"id": uuid4(), "access_tier": Tier.ALLOWLISTED}
+    user_ok = {"id": uuid4()}
     feed = {"id": _FEED_UUID, "name": "Alpha", "slug": "alpha",
             "status": "active"}
     with patch.object(sf_handler, "upsert_user", return_value=user_ok), \
@@ -1418,7 +1418,7 @@ def test_signals_on_cap_exceeded_message():
 def test_signals_on_subscribed_message():
     update, reply = _fake_update_message()
     ctx = _fake_ctx(["on", "alpha"])
-    user_ok = {"id": uuid4(), "access_tier": Tier.ALLOWLISTED}
+    user_ok = {"id": uuid4()}
     feed = {"id": _FEED_UUID, "name": "Alpha", "slug": "alpha",
             "status": "active"}
     with patch.object(sf_handler, "upsert_user", return_value=user_ok), \
@@ -1431,7 +1431,7 @@ def test_signals_on_subscribed_message():
 def test_signals_off_unsubscribed_message():
     update, reply = _fake_update_message()
     ctx = _fake_ctx(["off", "alpha"])
-    user_ok = {"id": uuid4(), "access_tier": Tier.ALLOWLISTED}
+    user_ok = {"id": uuid4()}
     feed = {"id": _FEED_UUID, "name": "Alpha", "slug": "alpha",
             "status": "active"}
     with patch.object(sf_handler, "upsert_user", return_value=user_ok), \
@@ -1444,7 +1444,7 @@ def test_signals_off_unsubscribed_message():
 def test_signals_list_no_subs_message():
     update, reply = _fake_update_message()
     ctx = _fake_ctx(["list"])
-    user_ok = {"id": uuid4(), "access_tier": Tier.ALLOWLISTED}
+    user_ok = {"id": uuid4()}
     with patch.object(sf_handler, "upsert_user", return_value=user_ok), \
          patch.object(sf_handler, "list_user_subscriptions",
                        return_value=[]):
@@ -1455,7 +1455,7 @@ def test_signals_list_no_subs_message():
 def test_signals_list_with_subs_attaches_keyboard():
     update, reply = _fake_update_message()
     ctx = _fake_ctx(["list"])
-    user_ok = {"id": uuid4(), "access_tier": Tier.ALLOWLISTED}
+    user_ok = {"id": uuid4()}
     subs = [{
         "feed_slug": "alpha", "feed_name": "Alpha",
         "subscribed_at": datetime.now(timezone.utc),

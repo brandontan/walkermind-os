@@ -133,7 +133,6 @@ def _rejected(reason: str = "gate_step_1") -> TradeResult:
 
 USER_CTX: dict = {
     "telegram_user_id": 99999,
-    "access_tier": 3,
     "auto_trade_on": True,
     "paused": False,
     "risk_profile": "balanced",

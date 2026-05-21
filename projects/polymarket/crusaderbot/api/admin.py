@@ -35,9 +35,9 @@ async def status(authorization: str | None = Header(default=None)):
     pool = get_pool()
     async with pool.acquire() as conn:
         users = await conn.fetchval("SELECT COUNT(*) FROM users")
-        # 'funded' historically meant access_tier>=3 — paper is now open to all
-        # users so funded == total users (kept in the payload for backwards
-        # compatibility with existing operator dashboards).
+        # Paper trading is open to every user, so funded == total users.
+        # Kept in the payload for backwards compatibility with existing
+        # operator dashboards.
         funded = users
         live = await conn.fetchval(
             "SELECT COUNT(*) FROM users WHERE role = 'admin'")

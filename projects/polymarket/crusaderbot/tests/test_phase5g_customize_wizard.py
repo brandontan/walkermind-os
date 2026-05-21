@@ -83,8 +83,7 @@ def _make_ctx(wz: dict | None = None) -> SimpleNamespace:
 
 def _patch_tier(monkeypatch, uid, *, locked: bool = False):
     user = {
-        "id": uid, "telegram_user_id": 1, "username": "tester",
-        "access_tier": 2, "auto_trade_on": False, "paused": False,
+        "id": uid, "telegram_user_id": 1, "username": "tester", "auto_trade_on": False, "paused": False,
         "locked": locked,
     }
     monkeypatch.setattr(h, "upsert_user", AsyncMock(return_value=user))

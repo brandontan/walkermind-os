@@ -223,8 +223,7 @@ def _patch_tier(monkeypatch, user_id, *, tier_ok=True, paused=False,
                 auto_trade_on=False):
     """Patch the tier-gated helpers in the presets handler module."""
     user = {
-        "id": user_id, "telegram_user_id": 99, "username": "tester",
-        "access_tier": 2, "auto_trade_on": auto_trade_on, "paused": paused,
+        "id": user_id, "telegram_user_id": 99, "username": "tester", "auto_trade_on": auto_trade_on, "paused": paused,
     }
     upsert = AsyncMock(return_value=user)
     monkeypatch.setattr(presets_h, "upsert_user", upsert)
@@ -536,7 +535,7 @@ def test_switch_intent_shows_confirmation(monkeypatch):
 def test_setup_root_routes_to_picker_when_no_preset(monkeypatch):
     # UX Overhaul: setup_root always shows the strategy card (no preset routing).
     uid = uuid4()
-    user = {"id": uid, "access_tier": 2}
+    user = {"id": uid}
     monkeypatch.setattr(setup_h, "upsert_user",
                         AsyncMock(return_value=user))
     update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
@@ -551,7 +550,7 @@ def test_setup_root_routes_to_picker_when_no_preset(monkeypatch):
 def test_setup_root_routes_to_status_when_preset_active(monkeypatch):
     # UX Overhaul: setup_root always shows the strategy card regardless of preset.
     uid = uuid4()
-    user = {"id": uid, "access_tier": 2}
+    user = {"id": uid}
     monkeypatch.setattr(setup_h, "upsert_user",
                         AsyncMock(return_value=user))
     update, replies, kws = _make_update(message_text="🤖 Auto-Trade")
