@@ -1,4 +1,12 @@
 ## [2026-05-21] WARP-50b — role-based access model (PR #1222)
+## [2026-05-21] Hotfix — disable migration 044 (PR #1223)
+
+- Renamed `044_drop_access_tier.sql` → `044_drop_access_tier.sql.disabled`
+- Prevents crash loop: `run_migrations()` glob skips `.disabled` files
+- `access_tier` column now safe to keep as placeholder on Fly restarts
+- SHA d7164775491e
+
+
 
 - Merged `WARP/fix-access-tier-open-warp50b` → main (SHA aa17b2a7135a)
 - Replaced all `access_tier` integer gating with `users.role` ('admin'|'user') across 16 production files
