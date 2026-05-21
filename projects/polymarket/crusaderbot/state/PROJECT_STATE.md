@@ -1,5 +1,6 @@
-Last Updated : 2026-05-21 10:55
-Status       : WARP-51 MERGED + Migrations 027/029/030/031 APPLIED — schema production-ready; 044 (access_tier DROP) confirmed applied
+Last Updated : 2026-05-21 11:06
+Status       : WARP-46 runtime spine evidence pass complete (PR open on WARP/runtime-spine-validation); WARP-51 MERGED + Migrations 027/029/030/031 APPLIED — schema production-ready; 044 (access_tier DROP) confirmed applied
+- WARP-46 (issue #1243): WARP/runtime-spine-validation PR open — runtime spine evidence pass against the 7 #1243 targets (start/scan→trade/positions/close/receipt/PnL/routing); NOTIFY triggers cb_orders/cb_fills/cb_positions confirmed wired (mig 029); job_runs.metadata writer verified at scheduler.py:482 + job_tracker.py:85 (mig 030); silent-exception audit clean (no except: pass anywhere); portfolio_snapshots Python writer GAP surfaced as advisory (cb_portfolio NOTIFY channel dormant, table + trigger live, equity derived from ledger). STANDARD, NARROW INTEGRATION. No code modified.
 - WARP-51 (issue #1220): WARP/warp51-drop-access-tier PR open — every `.py` writer/reader of access_tier stripped; `/allowlist` converted to `set_role('admin')`; scripts/seed_operator_tier.py deleted (+ fly.toml release_command removed); migration 044_drop_access_tier.sql re-enabled (was .disabled); 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL audit required.
 - WARP-25 MERGED (698b2cdf): menu:positions routing, dead import cleanup, dynamic preset_picker (domain layer), Back→Portfolio. STANDARD, NARROW INTEGRATION.
 - WARP-45 (issue #1198): fix-sentry-p1-runtime-bugs PR open — _coerce_jsonb() helper added to signal_scan_job.py; asyncpg JSONB-as-str ValueError resolved (Sentry DAWN-SNOWFLAKE-1729-1Q); Bugs 2+3 confirmed already fixed (WARP-35/WARP-37). STANDARD, NARROW INTEGRATION.
@@ -74,6 +75,7 @@ Status       : WARP-51 MERGED + Migrations 027/029/030/031 APPLIED — schema pr
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP🔹CMD review required for WARP-46 WARP/runtime-spine-validation (#1243: runtime spine evidence pass — 7 targets verified REAL against current main HEAD; advisory: portfolio_snapshots Python writer missing, out of #1243 scope). Source: projects/polymarket/crusaderbot/reports/forge/runtime-spine-validation.md. Tier: STANDARD. No migration, no code change.
 - WARP•SENTINEL validation required for WARP-51 WARP/warp51-drop-access-tier (every Python access_tier writer removed; migration 044 re-enabled; 1487 pytest passed). Source: projects/polymarket/crusaderbot/reports/forge/warp51-drop-access-tier.md. Tier: MAJOR.
 - WARP🔹CMD review required for WARP-45 fix-sentry-p1-runtime-bugs (signal_scan ValueError: asyncpg JSONB-as-str; _coerce_jsonb guard). Source: projects/polymarket/crusaderbot/reports/forge/fix-sentry-p1-runtime-bugs.md. Tier: STANDARD. No migration. Redeploy on Fly.io after merge.
 - Bot redeploy on Fly.io required — apply WARP-41+42 (PR #1191). No migration needed.
@@ -112,6 +114,7 @@ Status       : WARP-51 MERGED + Migrations 027/029/030/031 APPLIED — schema pr
 - Closed beta observation continues — no new feature PRs in Week 4.
 
 [KNOWN ISSUES]
+- [WARP-46 advisory] portfolio_snapshots table + cb_portfolio NOTIFY trigger installed (mig 029) but NO Python writer — WebTrader SSE cb_portfolio channel currently dormant. PnL chart derives equity live from ledger via services/portfolio_chart.py; not a runtime defect. Separate lane required to either wire a periodic snapshot writer or drop the unused table+trigger.
 - [RESOLVED in WARP-26] copy_trade.py now queries copy_trade_tasks — legacy copy_targets table is orphaned (schema cleanup deferred to a separate migration lane).
 - qwneer8 and Maver1ch69 have identical bad tp_hit positions from price bug #1105 (same 0.540–0.545 inflated exit_price). Not cleaned in this lane — WARP🔹CMD decision required to extend cleanup.
 - WARP🔹CMD requested removal of the internal Tier-4/activation-guard LIVE-trading safety gate; WARP•FORGE declined that sub-item only — CLAUDE.md forbids bypassing the live-trading guard. assert_live_guards is intentionally preserved (invisible to users; live remains owner-gated + OFF). All other role-model items delivered as requested.
