@@ -1,17 +1,14 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- ACCESS TIER SYSTEM
--- Tier 1: Browse (auto on /start)
--- Tier 2: Community allowlisted (operator grants via /allowlist)
--- Tier 3: Funded beta (deposit confirmed)
--- Tier 4: Live auto-trade (all activation guards SET + operator approval)
+-- ROLE-BASED ACCESS (added in mig 045)
+-- 'user'  = default, full paper trading open to everyone
+-- 'admin' = OPERATOR_CHAT_ID, required for /admin commands + live trading
 
 -- IDENTITY
 CREATE TABLE IF NOT EXISTS users (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     telegram_user_id BIGINT UNIQUE NOT NULL,
     username         VARCHAR(100),
-    access_tier      SMALLINT NOT NULL DEFAULT 1,
     auto_trade_on    BOOLEAN NOT NULL DEFAULT FALSE,
     paused           BOOLEAN NOT NULL DEFAULT FALSE,
     referrer_id      UUID REFERENCES users(id),
