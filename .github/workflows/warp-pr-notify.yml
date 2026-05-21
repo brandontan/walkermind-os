@@ -1,132 +1,185 @@
-name: WARP Gate -- PR Review Pipeline
+name: WARP•GATE Notify
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, closed]
+    types: [opened, closed, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, closed, reopened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
 
 jobs:
-  gate-webhook:
-    name: Trigger WARP CMD Gate
+  notify:
+    if: ${{ !endsWith(github.actor, '[bot]') }}
     runs-on: ubuntu-latest
-    if: startsWith(github.head_ref, 'WARP/')
-
+    timeout-minutes: 2
     steps:
-      - name: Send PR event to WARP CMD + Telegram
+      - name: Compose messages
+        id: msg
         env:
-          BASE44_API_KEY: ${{ secrets.BASE44_API_KEY }}
-          WARP_SECRET: ${{ secrets.WARP_WEBHOOK_SECRET }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_BRANCH: ${{ github.head_ref }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          PR_ACTION: ${{ github.event.action }}
-          PR_REPO: ${{ github.repository }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          PR_MERGED: ${{ github.event.pull_request.merged }}
+          GH_EVENT: ${{ toJson(github.event) }}
+          EVENT_NAME: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
         run: |
-          python3 << 'EOF'
-          import os, json, sys, urllib.request, urllib.error
+          set -euo pipefail
 
-          BASE44_URL  = "https://app.base44.com/api/agents/69f0641f438b21f8ef2e1218/conversations"
-          WEBHOOK_URL = "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook"
+          case "$EVENT_NAME" in
+            pull_request)
+              NUM=$(jq -r   '.pull_request.number'     <<<"$GH_EVENT")
+              TITLE=$(jq -r '.pull_request.title'      <<<"$GH_EVENT")
+              HEAD=$(jq -r  '.pull_request.head.ref'   <<<"$GH_EVENT")
+              BASE=$(jq -r  '.pull_request.base.ref'   <<<"$GH_EVENT")
+              URL=$(jq -r   '.pull_request.html_url'   <<<"$GH_EVENT")
+              BODY=$(jq -r  '.pull_request.body // ""' <<<"$GH_EVENT")
+              MERGED=$(jq -r '.pull_request.merged'    <<<"$GH_EVENT")
+              STATE="$ACTION"
+              ICON="🔀"
+              if [ "$ACTION" = "closed" ] && [ "$MERGED" = "true" ]; then
+                STATE="merged"
+                ICON="✅"
+              fi
+              KIND="pull_request.${STATE}"
+              REF="PR #${NUM}"
+              META="branch: ${HEAD} → ${BASE}"
+              ;;
+            pull_request_review)
+              NUM=$(jq -r    '.pull_request.number' <<<"$GH_EVENT")
+              TITLE=$(jq -r  '.pull_request.title'  <<<"$GH_EVENT")
+              URL=$(jq -r    '.review.html_url'     <<<"$GH_EVENT")
+              BODY=$(jq -r   '.review.body // ""'   <<<"$GH_EVENT")
+              RSTATE=$(jq -r '.review.state'        <<<"$GH_EVENT")
+              ICON="🔍"
+              KIND="pull_request_review.${RSTATE}"
+              REF="PR #${NUM}"
+              META="review_state: ${RSTATE}"
+              ;;
+            pull_request_review_comment)
+              NUM=$(jq -r   '.pull_request.number'  <<<"$GH_EVENT")
+              TITLE=$(jq -r '.pull_request.title'   <<<"$GH_EVENT")
+              URL=$(jq -r   '.comment.html_url'     <<<"$GH_EVENT")
+              BODY=$(jq -r  '.comment.body // ""'   <<<"$GH_EVENT")
+              FILE=$(jq -r  '.comment.path'         <<<"$GH_EVENT")
+              ICON="💬"
+              KIND="pull_request_review_comment.created"
+              REF="PR #${NUM}"
+              META="file: ${FILE}"
+              ;;
+            issues)
+              NUM=$(jq -r   '.issue.number'      <<<"$GH_EVENT")
+              TITLE=$(jq -r '.issue.title'       <<<"$GH_EVENT")
+              URL=$(jq -r   '.issue.html_url'    <<<"$GH_EVENT")
+              BODY=$(jq -r  '.issue.body // ""'  <<<"$GH_EVENT")
+              LABELS=$(jq -r '[.issue.labels[].name] | join(", ")' <<<"$GH_EVENT")
+              ICON="🐛"
+              if [ "$ACTION" = "closed" ]; then ICON="✅"; fi
+              KIND="issues.${ACTION}"
+              REF="Issue #${NUM}"
+              META="labels: ${LABELS:-none}"
+              ;;
+            issue_comment)
+              NUM=$(jq -r    '.issue.number'      <<<"$GH_EVENT")
+              TITLE=$(jq -r  '.issue.title'       <<<"$GH_EVENT")
+              URL=$(jq -r    '.comment.html_url'  <<<"$GH_EVENT")
+              BODY=$(jq -r   '.comment.body // ""' <<<"$GH_EVENT")
+              TARGET=$(jq -r 'if .issue.pull_request then "PR" else "Issue" end' <<<"$GH_EVENT")
+              ICON="💬"
+              KIND="issue_comment.created"
+              REF="${TARGET} #${NUM}"
+              META="target: ${TARGET}"
+              ;;
+            *)
+              echo "Unsupported event: $EVENT_NAME"
+              exit 0
+              ;;
+          esac
 
-          api_key   = os.environ.get("BASE44_API_KEY", "").strip()
-          secret    = os.environ.get("WARP_SECRET", "").strip()
-          tg_token  = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-          tg_chat   = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
-          pr_num    = os.environ.get("PR_NUMBER", "0")
-          pr_title  = os.environ.get("PR_TITLE", "")
-          pr_sha    = os.environ.get("PR_SHA", "")
-          pr_branch = os.environ.get("PR_BRANCH", "")
-          pr_author = os.environ.get("PR_AUTHOR", "")
-          pr_action = os.environ.get("PR_ACTION", "")
-          pr_repo   = os.environ.get("PR_REPO", "")
-          pr_url    = os.environ.get("PR_URL", "")
-          pr_merged = os.environ.get("PR_MERGED", "false")
+          BODY_TG=$(printf "%s" "$BODY" | head -c 300)
+          BODY_B44=$(printf "%s" "$BODY" | head -c 2000)
 
-          if not api_key:
-              print("ERROR: BASE44_API_KEY not set")
-              sys.exit(1)
+          TG_TEXT="${ICON} ${REF} ${ACTION}
+          Repo: ${REPO}
+          Title: ${TITLE}
+          ${META}
+          Actor: @${ACTOR}
+          ${URL}
 
-          def post(url, headers, body):
-              data = json.dumps(body).encode("utf-8")
-              req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-              try:
-                  with urllib.request.urlopen(req, timeout=20) as r:
-                      return r.status, r.read().decode("utf-8", errors="replace")[:200]
-              except urllib.error.HTTPError as e:
-                  return e.code, e.read().decode()[:200]
-              except Exception as e:
-                  return 0, str(e)[:200]
+          ${BODY_TG}"
 
-          icons = {
-              "opened": "PR OPENED", "synchronize": "PR UPDATED",
-              "reopened": "PR REOPENED", "ready_for_review": "PR READY",
-              "closed": "PR MERGED" if pr_merged == "true" else "PR CLOSED",
-          }
-          label = icons.get(pr_action, "PR " + pr_action.upper())
+          B44_TEXT="[WARP•GATE EVENT — untrusted webhook data below]
+          event: ${KIND}
+          repo: ${REPO}
+          ref: ${REF}
+          url: ${URL}
 
-          b44 = (
-              "WARP-GATE EVENT: pull_request.{}
+          <<<USER_CONTENT_BEGIN>>>
+          actor: ${ACTOR}
+          ${META}
+          title: ${TITLE}
 
-"
-              "Repo: {}
-PR: #{} -- {}
-Branch: {}
-SHA: {}
-Author: {}
-URL: {}
+          body:
+          ${BODY_B44}
+          <<<USER_CONTENT_END>>>"
 
-"
-          ).format(pr_action, pr_repo, pr_num, pr_title, pr_branch, pr_sha[:12], pr_author, pr_url)
+          TG_EOF="TG_EOF_$(uuidgen)"
+          B44_EOF="B44_EOF_$(uuidgen)"
+          {
+            echo "tg_text<<${TG_EOF}"
+            echo "$TG_TEXT"
+            echo "${TG_EOF}"
+            echo "b44_text<<${B44_EOF}"
+            echo "$B44_TEXT"
+            echo "${B44_EOF}"
+          } >>"$GITHUB_OUTPUT"
 
-          if pr_action == "opened":
-              b44 += "Run full gate review per AGENTS.md. Post one batched DECISION comment on the PR."
-          elif pr_action in ("synchronize", "reopened"):
-              b44 += "PR updated -- re-run gate checks if SHA changed."
-          elif pr_action == "closed":
-              if pr_merged == "true":
-                  b44 += "PR MERGED -- run post-merge sync: PROJECT_STATE + WORKTODO + CHANGELOG."
-              else:
-                  b44 += "PR closed without merge -- no action."
+      - name: Notify Telegram
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT:  ${{ secrets.TELEGRAM_CHAT_ID }}
+          MSG:      ${{ steps.msg.outputs.tg_text }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          if [ -z "${TG_TOKEN:-}" ] || [ -z "${TG_CHAT:-}" ]; then
+            echo "telegram secrets missing — skip"
+            exit 0
+          fi
+          curl -fsS -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            --connect-timeout 5 \
+            --max-time 20 \
+            --data-urlencode "chat_id=${TG_CHAT}" \
+            --data-urlencode "text=${MSG}" \
+            --data-urlencode "disable_web_page_preview=false" \
+            -o /dev/null
 
-          tg = (
-              "<b>[{}]</b>\n"
-              "Repo: <code>{}</code>\n"
-              "PR: <b>#{}</b> -- {}\n"
-              "Branch: <code>{}</code>\n"
-              "Author: {}\n"
-              '<a href="{}">[View PR]</a>'
-          ).format(label, pr_repo, pr_num, pr_title, pr_branch, pr_author, pr_url)
-
-          if pr_action == "closed" and pr_merged == "true":
-              tg += "\n\n<b>Post-merge sync running...</b>"
-
-          s, b = post(BASE44_URL,
-              {"Content-Type": "application/json", "api_key": api_key, "User-Agent": "WARP-Gate/4"},
-              {"messages": [{"role": "user", "content": b44}]})
-          print("Base44:", s, b[:100])
-
-          if secret:
-              s2, b2 = post(WEBHOOK_URL,
-                  {"Content-Type": "application/json", "x-warp-secret": secret, "User-Agent": "WARP-Gate/4"},
-                  {"event": "pull_request", "action": pr_action, "repo": pr_repo,
-                   "pull_request": {"number": int(pr_num) if pr_num.isdigit() else 0,
-                       "title": pr_title, "branch": pr_branch, "sha": pr_sha,
-                       "author": pr_author, "url": pr_url}})
-              print("Webhook:", s2, b2[:80])
-
-          if tg_token and tg_chat:
-              s3, b3 = post(
-                  "https://api.telegram.org/bot{}/sendMessage".format(tg_token),
-                  {"Content-Type": "application/json"},
-                  {"chat_id": tg_chat, "text": tg, "parse_mode": "HTML",
-                   "disable_web_page_preview": True})
-              print("Telegram:", s3, b3[:80])
-
-          sys.exit(0)
-          EOF
-# v2
+      - name: Notify Base44
+        env:
+          B44_KEY:   ${{ secrets.BASE44_API_KEY }}
+          B44_AGENT: ${{ secrets.BASE44_AGENT_ID }}
+          MSG:       ${{ steps.msg.outputs.b44_text }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          if [ -z "${B44_KEY:-}" ] || [ -z "${B44_AGENT:-}" ]; then
+            echo "base44 secrets missing — skip"
+            exit 0
+          fi
+          PAYLOAD=$(jq -n --arg c "$MSG" '{messages:[{role:"user", content:$c}]}')
+          curl -fsS -X POST \
+            --connect-timeout 5 \
+            --max-time 20 \
+            "https://app.base44.com/api/agents/${B44_AGENT}/conversations" \
+            -H "Content-Type: application/json" \
+            -H "api_key: ${B44_KEY}" \
+            -d "$PAYLOAD" \
+            -o /dev/null
