@@ -112,3 +112,4 @@ CRUSADERBOT is considered **DONE** only when:
 ❌ dashboard redesign
 ❌ monetization / premium expansion
 ❌ new feature creep until PAPER runtime is trusted
+- [ ] WARP-46 — Runtime Spine Validation (Issue #1243)
