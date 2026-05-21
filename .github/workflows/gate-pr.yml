@@ -2,322 +2,120 @@ name: WARP Gate -- PR Review Pipeline
 
 on:
   pull_request:
-    branches: [main]
     types: [opened, synchronize, reopened, ready_for_review, closed]
 
-  issues:
-    types: [opened, edited, labeled, closed]
-
-  issue_comment:
-    types: [created]
-
-  pull_request_review_comment:
-    types: [created]
-
-permissions:
-  pull-requests: read
-  issues: read
-  contents: read
-
 jobs:
-  dispatch:
-    name: WARP-GATE Dispatch
+  gate-webhook:
+    name: Trigger WARP CMD Gate
     runs-on: ubuntu-latest
-    if: |
-      github.actor != 'github-actions[bot]' &&
-      github.actor != 'dependabot[bot]' &&
-      github.actor != 'warp-gate[bot]' &&
-      github.actor != 'coderabbitai[bot]'
+    if: startsWith(github.head_ref, 'WARP/')
 
     steps:
-      - name: "Dispatch to WARP-GATE + Telegram"
+      - name: Send PR event to WARP gate_webhook
         env:
-          BASE44_API_KEY:       ${{ secrets.BASE44_API_KEY }}
-          WARP_WEBHOOK_SECRET:  ${{ secrets.WARP_WEBHOOK_SECRET }}
-          TELEGRAM_BOT_TOKEN:   ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID:     ${{ secrets.TELEGRAM_CHAT_ID }}
-          GITHUB_EVENT_NAME:    ${{ github.event_name }}
-          GITHUB_EVENT_ACTION:  ${{ github.event.action }}
-          GITHUB_ACTOR:         ${{ github.actor }}
-          GITHUB_REPO:          ${{ github.repository }}
-          PR_NUMBER:            ${{ github.event.pull_request.number }}
-          PR_TITLE:             ${{ github.event.pull_request.title }}
-          PR_BRANCH:            ${{ github.event.pull_request.head.ref }}
-          PR_SHA:               ${{ github.event.pull_request.head.sha }}
-          PR_AUTHOR:            ${{ github.event.pull_request.user.login }}
-          PR_URL:               ${{ github.event.pull_request.html_url }}
-          PR_MERGED:            ${{ github.event.pull_request.merged }}
-          ISSUE_NUMBER:         ${{ github.event.issue.number }}
-          ISSUE_TITLE:          ${{ github.event.issue.title }}
-          ISSUE_URL:            ${{ github.event.issue.html_url }}
-          ISSUE_LABELS:         ${{ toJson(github.event.issue.labels) }}
-          ISSUE_BODY:           ${{ github.event.issue.body }}
-          COMMENT_BODY:         ${{ github.event.comment.body }}
-          COMMENT_AUTHOR:       ${{ github.event.comment.user.login }}
-          COMMENT_URL:          ${{ github.event.comment.html_url }}
-          COMMENT_IS_PR:        ${{ github.event.issue.pull_request != null }}
-          COMMENT_PR_NUM:       ${{ github.event.issue.number }}
-          COMMENT_PR_TITLE:     ${{ github.event.issue.title }}
+          BASE44_API_KEY:      ${{ secrets.BASE44_API_KEY }}
+          WARP_SECRET:         ${{ secrets.WARP_WEBHOOK_SECRET }}
+          TELEGRAM_BOT_TOKEN:  ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:    ${{ secrets.TELEGRAM_CHAT_ID }}
+          PR_NUMBER:           ${{ github.event.pull_request.number }}
+          PR_TITLE:            ${{ github.event.pull_request.title }}
+          PR_SHA:              ${{ github.event.pull_request.head.sha }}
+          PR_BRANCH:           ${{ github.head_ref }}
+          PR_AUTHOR:           ${{ github.event.pull_request.user.login }}
+          PR_ACTION:           ${{ github.event.action }}
+          PR_REPO:             ${{ github.repository }}
+          PR_URL:              ${{ github.event.pull_request.html_url }}
+          PR_MERGED:           ${{ github.event.pull_request.merged }}
         run: |
-          cat > /tmp/dispatch.py << 'ENDSCRIPT'
+          python3 - << 'PYEOF'
 import json, os, sys, urllib.request, urllib.error
 
-BASE44_URL  = "https://app.base44.com/api/agents/69f0641f438b21f8ef2e1218/conversations"
-WEBHOOK_URL = "https://warpcmd-ef2e1218.base44.app/functions/gateWebhook"
+BASE44_URL  = 'https://app.base44.com/api/agents/69f0641f438b21f8ef2e1218/conversations'
+WEBHOOK_URL = 'https://warpcmd-ef2e1218.base44.app/functions/gateWebhook'
 
-api_key  = os.environ.get("BASE44_API_KEY", "").strip()
-secret   = os.environ.get("WARP_WEBHOOK_SECRET", "").strip()
-tg_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-tg_chat  = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+api_key   = os.environ.get('BASE44_API_KEY', '').strip()
+secret    = os.environ.get('WARP_SECRET', '').strip()
+tg_token  = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+tg_chat   = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
+pr_num    = os.environ.get('PR_NUMBER', '0')
+pr_title  = os.environ.get('PR_TITLE', '')
+pr_sha    = os.environ.get('PR_SHA', '')
+pr_branch = os.environ.get('PR_BRANCH', '')
+pr_author = os.environ.get('PR_AUTHOR', '')
+pr_action = os.environ.get('PR_ACTION', '')
+pr_repo   = os.environ.get('PR_REPO', '')
+pr_url    = os.environ.get('PR_URL', '')
+pr_merged = os.environ.get('PR_MERGED', 'false')
 
 if not api_key:
-    print("ERROR: BASE44_API_KEY not set")
+    print('ERROR: BASE44_API_KEY not set')
     sys.exit(1)
 
-ev     = os.environ.get("GITHUB_EVENT_NAME", "")
-action = os.environ.get("GITHUB_EVENT_ACTION", "")
-actor  = os.environ.get("GITHUB_ACTOR", "")
-repo   = os.environ.get("GITHUB_REPO", "")
-
-
 def _post(url, headers, body):
-    data = json.dumps(body, ensure_ascii=True).encode("utf-8")
-    req  = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    data = json.dumps(body, ensure_ascii=True).encode('utf-8')
+    req  = urllib.request.Request(url, data=data, headers=headers, method='POST')
     try:
         with urllib.request.urlopen(req, timeout=20) as r:
-            return r.status, r.read().decode("utf-8", errors="replace")[:300]
+            return r.status, r.read().decode('utf-8', errors='replace')[:300]
     except urllib.error.HTTPError as e:
-        return e.code, e.read().decode("utf-8", errors="replace")[:200]
+        return e.code, e.read().decode('utf-8', errors='replace')[:200]
     except Exception as e:
         return 0, str(e)[:200]
 
+icons = {'opened': 'PR OPENED', 'synchronize': 'PR UPDATED',
+         'reopened': 'PR REOPENED', 'ready_for_review': 'PR READY',
+         'closed': 'PR MERGED' if pr_merged == 'true' else 'PR CLOSED'}
+label = icons.get(pr_action, 'PR ' + pr_action.upper())
 
-def post_base44(message):
-    s, b = _post(BASE44_URL,
-                 {"Content-Type": "application/json", "api_key": api_key,
-                  "User-Agent": "WARP-Gate/4"},
-                 {"messages": [{"role": "user", "content": message}]})
-    print("Base44  : HTTP {}  {}".format(s, b[:120]))
-    return s
+b44_msg = (
+    'WARP-GATE EVENT: pull_request.{}\n\n'
+    'Repo   : {}\nPR     : #{} -- {}\n'
+    'Branch : {}\nSHA    : {}\nAuthor : {}\nURL    : {}\n\n'
+).format(pr_action, pr_repo, pr_num, pr_title, pr_branch, pr_sha[:12], pr_author, pr_url)
 
+if pr_action == 'opened':
+    b44_msg += 'Run full gate review per AGENTS.md. Check tier, declarations, hard stops, forge report, state files. Post one batched DECISION comment on the PR.'
+elif pr_action in ('synchronize', 'reopened'):
+    b44_msg += 'PR updated -- re-run gate checks if SHA changed.'
+elif pr_action == 'ready_for_review':
+    b44_msg += 'PR marked ready -- run full gate review if not yet done.'
+elif pr_action == 'closed':
+    if pr_merged == 'true':
+        b44_msg += 'PR MERGED -- run post-merge sync: PROJECT_STATE.md + WORKTODO.md + CHANGELOG.md.'
+    else:
+        b44_msg += 'PR closed without merge -- no action required.'
 
-def post_webhook(envelope):
-    if not secret:
-        print("WARN: WARP_WEBHOOK_SECRET not set -- webhook skipped")
-        return
-    s, b = _post(WEBHOOK_URL,
-                 {"Content-Type": "application/json", "x-warp-secret": secret,
-                  "User-Agent": "WARP-Gate/4"},
-                 envelope)
-    print("Webhook : HTTP {}  {}".format(s, b[:80]))
+tg_msg = (
+    '<b>[{}]</b>\n'
+    'Repo   : <code>{}</code>\n'
+    'PR     : <b>#{}</b> -- {}\n'
+    'Branch : <code>{}</code>\n'
+    'Author : {}\n'
+    '<a href="{}">[View PR]</a>'
+).format(label, pr_repo, pr_num, pr_title, pr_branch, pr_author, pr_url)
 
+if pr_action == 'closed' and pr_merged == 'true':
+    tg_msg += '\n\n<b>[MERGED] Post-merge sync running...</b>'
 
-def post_telegram(text):
-    if not tg_token or not tg_chat:
-        print("WARN: TELEGRAM creds not set -- TG skipped")
-        return
-    url = "https://api.telegram.org/bot{}/sendMessage".format(tg_token)
-    s, b = _post(url,
-                 {"Content-Type": "application/json"},
-                 {"chat_id": tg_chat, "text": text, "parse_mode": "HTML",
-                  "disable_web_page_preview": True})
-    print("Telegram: HTTP {}  {}".format(s, b[:80]))
+s, b = _post(BASE44_URL,
+    {'Content-Type': 'application/json', 'api_key': api_key, 'User-Agent': 'WARP-Gate/4'},
+    {'messages': [{'role': 'user', 'content': b44_msg}]})
+print('Base44  : HTTP {}  {}'.format(s, b[:120]))
 
+if secret:
+    envelope = {'event': 'pull_request', 'action': pr_action, 'repo': pr_repo,
+        'pull_request': {'number': int(pr_num) if pr_num.isdigit() else 0,
+            'title': pr_title, 'branch': pr_branch, 'sha': pr_sha, 'author': pr_author, 'url': pr_url}}
+    s2, b2 = _post(WEBHOOK_URL,
+        {'Content-Type': 'application/json', 'x-warp-secret': secret, 'User-Agent': 'WARP-Gate/4'},
+        envelope)
+    print('Webhook : HTTP {}  {}'.format(s2, b2[:80]))
 
-def dispatch(b44_msg, tg_msg, envelope):
-    post_base44(b44_msg)
-    post_webhook(envelope)
-    post_telegram(tg_msg)
-
-
-if ev == "pull_request":
-    num    = os.environ.get("PR_NUMBER", "0")
-    title  = os.environ.get("PR_TITLE", "")
-    branch = os.environ.get("PR_BRANCH", "")
-    sha    = os.environ.get("PR_SHA", "")
-    author = os.environ.get("PR_AUTHOR", "")
-    url    = os.environ.get("PR_URL", "")
-    merged = os.environ.get("PR_MERGED", "false")
-
-    if not branch.startswith("WARP/"):
-        print("SKIP: branch not WARP/ -- {}".format(branch))
-        sys.exit(0)
-
-    icons = {
-        "opened": "PR OPENED", "synchronize": "PR UPDATED",
-        "reopened": "PR REOPENED", "ready_for_review": "PR READY",
-        "closed": "PR MERGED" if merged == "true" else "PR CLOSED"
-    }
-    label = icons.get(action, "PR " + action.upper())
-
-    b44 = (
-        "WARP-GATE EVENT: pull_request.{}\n\n"
-        "Repo   : {}\nPR     : #{} -- {}\n"
-        "Branch : {}\nSHA    : {}\nAuthor : {}\nURL    : {}\n\n"
-    ).format(action, repo, num, title, branch, sha[:12], author, url)
-
-    if action == "opened":
-        b44 += "Run full gate review per AGENTS.md. Check tier, declarations, hard stops, forge report, state files. Post one batched DECISION comment on the PR."
-    elif action in ("synchronize", "reopened"):
-        b44 += "PR updated -- re-run gate checks if SHA changed."
-    elif action == "ready_for_review":
-        b44 += "PR marked ready -- run full gate review if not yet done."
-    elif action == "closed":
-        if merged == "true":
-            b44 += "PR MERGED -- run post-merge sync: PROJECT_STATE.md + WORKTODO.md + CHANGELOG.md in one commit."
-        else:
-            b44 += "PR closed without merge -- no action required."
-
-    tg = (
-        "<b>[{}]</b>\n"
-        "Repo   : <code>{}</code>\n"
-        "PR     : <b>#{}</b> -- {}\n"
-        "Branch : <code>{}</code>\n"
-        "Author : {}\n"
-        "<a href=\"{}\">[View PR]</a>"
-    ).format(label, repo, num, title, branch, author, url)
-
-    if action == "closed" and merged == "true":
-        tg += "\n\n<b>[MERGED] Post-merge sync running...</b>"
-
-    envelope = {
-        "event": ev, "action": action, "repo": repo, "actor": actor,
-        "pull_request": {
-            "number": int(num) if num.isdigit() else 0,
-            "title": title, "branch": branch, "sha": sha, "author": author, "url": url
-        },
-    }
-    dispatch(b44, tg, envelope)
-
-
-elif ev == "issues":
-    num   = os.environ.get("ISSUE_NUMBER", "0")
-    title = os.environ.get("ISSUE_TITLE", "")
-    url   = os.environ.get("ISSUE_URL", "")
-    body  = os.environ.get("ISSUE_BODY", "")[:200]
-    labels_raw = os.environ.get("ISSUE_LABELS", "[]")
-    try:
-        labels_list = json.loads(labels_raw)
-        labels = ", ".join(l.get("name", "") for l in labels_list) if labels_list else ""
-    except Exception:
-        labels = labels_raw[:80]
-
-    sentinel_hint = ""
-    tg_extra = ""
-    if any(kw in labels for kw in ("major", "agent:sentinel", "warp-core")):
-        sentinel_hint = "\n\nWARNING: Label major/sentinel -- assess WARP-SENTINEL routing."
-        tg_extra = "\n\n<b>[WARNING] MAJOR/SENTINEL label detected</b>"
-
-    label_map = {"opened": "ISSUE OPENED", "edited": "ISSUE EDITED",
-                 "labeled": "ISSUE LABELED", "closed": "ISSUE CLOSED"}
-    label_str = label_map.get(action, "ISSUE " + action.upper())
-
-    b44 = (
-        "WARP-GATE EVENT: issues.{}\n\n"
-        "Repo   : {}\nIssue  : #{} -- {}\n"
-        "Labels : {}\nActor  : {}\nURL    : {}\nBody   : {}"
-        "{}\n\nAssess and route per AGENTS.md."
-    ).format(action, repo, num, title, labels, actor, url, body, sentinel_hint)
-
-    tg = (
-        "<b>[{}]</b>\n"
-        "Repo  : <code>{}</code>\n"
-        "Issue : <b>#{}</b> -- {}\n"
-        "Labels: {}\n"
-        "Actor : {}\n"
-        "<a href=\"{}\">[View]</a>{}"
-    ).format(label_str, repo, num, title, labels or "none", actor, url, tg_extra)
-
-    envelope = {
-        "event": ev, "action": action, "repo": repo, "actor": actor,
-        "issue": {
-            "number": int(num) if num.isdigit() else 0,
-            "title": title, "labels": labels, "url": url
-        },
-    }
-    dispatch(b44, tg, envelope)
-
-
-elif ev == "issue_comment":
-    is_pr   = os.environ.get("COMMENT_IS_PR", "false").lower() == "true"
-    num     = os.environ.get("COMMENT_PR_NUM", "0")
-    title   = os.environ.get("COMMENT_PR_TITLE", "")
-    cbody   = os.environ.get("COMMENT_BODY", "")[:300]
-    cauthor = os.environ.get("COMMENT_AUTHOR", "")
-    curl    = os.environ.get("COMMENT_URL", "")
-
-    if any(b in cauthor for b in ["bot]", "coderabbitai"]):
-        print("SKIP: bot comment -- {}".format(cauthor))
-        sys.exit(0)
-
-    kind = "PR" if is_pr else "Issue"
-    b44 = (
-        "WARP-GATE EVENT: issue_comment on {}\n\n"
-        "Repo   : {}\n{}    : #{} -- {}\n"
-        "Author : {}\nComment: {}\nURL    : {}\n\n"
-        "Classify and route per AGENTS.md."
-    ).format(kind, repo, kind, num, title, cauthor, cbody, curl)
-
-    tg = (
-        "<b>[Comment on {} #{}]</b>\n"
-        "Title : {}\n"
-        "Author: {}\n"
-        "{}\n"
-        "<a href=\"{}\">[View]</a>"
-    ).format(kind, num, title, cauthor,
-             cbody[:150] + ("..." if len(cbody) > 150 else ""), curl)
-
-    envelope = {
-        "event": ev, "action": action, "repo": repo, "is_pr": is_pr,
-        "item": {"number": int(num) if num.isdigit() else 0, "title": title},
-        "comment": {"body": cbody[:300], "author": cauthor, "url": curl},
-    }
-    dispatch(b44, tg, envelope)
-
-
-elif ev == "pull_request_review_comment":
-    num     = os.environ.get("PR_NUMBER", "0")
-    title   = os.environ.get("PR_TITLE", "")
-    branch  = os.environ.get("PR_BRANCH", "")
-    pr_url  = os.environ.get("PR_URL", "")
-    cbody   = os.environ.get("COMMENT_BODY", "")[:300]
-    cauthor = os.environ.get("COMMENT_AUTHOR", "")
-    curl    = os.environ.get("COMMENT_URL", "")
-
-    if any(b in cauthor for b in ["bot]", "coderabbitai"]):
-        print("SKIP: bot review comment -- {}".format(cauthor))
-        sys.exit(0)
-
-    b44 = (
-        "WARP-GATE EVENT: pr_review_comment\n\n"
-        "Repo   : {}\nPR     : #{} -- {}\n"
-        "Branch : {}\nComment: {}\nAuthor : {}\nURL    : {}\n\n"
-        "Classify and route per COMMENTS auto-triage in COMMANDER.md."
-    ).format(repo, num, title, branch, cbody, cauthor, curl)
-
-    tg = (
-        "<b>[Review Comment on PR #{}]</b>\n"
-        "<code>{}</code>\n"
-        "Author: {}\n"
-        "{}\n"
-        "<a href=\"{}\">[View]</a>"
-    ).format(num, branch, cauthor,
-             cbody[:150] + ("..." if len(cbody) > 150 else ""), curl)
-
-    envelope = {
-        "event": ev, "action": action, "repo": repo,
-        "pull_request": {
-            "number": int(num) if num.isdigit() else 0,
-            "title": title, "branch": branch, "url": pr_url
-        },
-        "comment": {"body": cbody[:300], "author": cauthor, "url": curl},
-    }
-    dispatch(b44, tg, envelope)
-
-
-else:
-    print("Unknown event: {} -- skip".format(repr(ev)))
+if tg_token and tg_chat:
+    s3, b3 = _post('https://api.telegram.org/bot{}/sendMessage'.format(tg_token),
+        {'Content-Type': 'application/json'},
+        {'chat_id': tg_chat, 'text': tg_msg, 'parse_mode': 'HTML', 'disable_web_page_preview': True})
+    print('Telegram: HTTP {}  {}'.format(s3, b3[:80]))
 
 sys.exit(0)
-ENDSCRIPT
-          python3 /tmp/dispatch.py
+PYEOF
