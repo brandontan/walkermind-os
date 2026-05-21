@@ -10,6 +10,7 @@ Issue #1269 / WARP/webtrader-confluence-scalper.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 # Whitelisted assets for ConfluenceScalperStrategy. Ticker symbols + full
@@ -63,8 +64,16 @@ def is_confluence_scalper_eligible(market: Any) -> bool:
     return bool(CONFLUENCE_SCALPER_ASSET_PATTERN.search(haystack))
 
 
-def eligible_market_ids_for_confluence_scalper(markets: list[dict]) -> set[str]:
-    """Return the set of Gamma market ``id`` strings eligible for confluence_scalper."""
+def eligible_market_ids_for_confluence_scalper(
+    markets: Iterable[Mapping[str, Any]],
+) -> set[str]:
+    """Return the set of Gamma market ``id`` strings eligible for confluence_scalper.
+
+    Pre-filter helper for any caller that wants to derive a market-id allowlist
+    in one pass. The production scan path applies ``is_confluence_scalper_eligible``
+    inline inside ``ConfluenceScalperStrategy.scan`` instead — this helper is
+    retained for callers that need a set of IDs up front (e.g. tooling, tests).
+    """
     out: set[str] = set()
     for m in markets:
         if not is_confluence_scalper_eligible(m):

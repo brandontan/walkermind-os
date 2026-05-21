@@ -54,10 +54,6 @@ from ...core import event_bus as _event_bus
 from ...database import get_pool
 from ...domain.execution.router import execute as router_execute
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
-from ...domain.strategy.eligibility import (
-    eligible_market_ids_for_confluence_scalper,
-    is_confluence_scalper_eligible,
-)
 from ...domain.strategy.registry import StrategyRegistry
 from ...domain.strategy.types import MarketFilters, SignalCandidate, UserContext
 from ...integrations import polymarket as _polymarket
@@ -97,8 +93,9 @@ _LIB_STRATEGY_NAMES: frozenset[str] = frozenset(ENABLED_STRATEGIES) | frozenset(
 # These live in domain/strategy/strategies/ and are registered via
 # bootstrap_default_strategies(). The scan loop runs them explicitly per user
 # when the active_preset permits. Crypto-only eligibility for the scalper
-# lives in domain/strategy/eligibility.py — the scan loop filters emitted
-# candidates against that whitelist before they reach the risk gate.
+# lives in domain/strategy/eligibility.py and is enforced INSIDE
+# ConfluenceScalperStrategy.scan(), so emitted candidates already satisfy
+# the asset whitelist when they reach this loop.
 _CONFLUENCE_SCALPER_NAME = "confluence_scalper"
 
 _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
@@ -772,8 +769,15 @@ async def run_once() -> None:
         return
 
     markets = await _fetch_markets_for_lib_strategies()
-    crypto_market_ids = eligible_market_ids_for_confluence_scalper(markets)
     strategies_to_run = list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES)
+
+    # Hoist the domain confluence_scalper instance once per tick — registry
+    # state is process-wide and the lookup does not depend on per-user data.
+    try:
+        confluence_strat = StrategyRegistry.instance().get(_CONFLUENCE_SCALPER_NAME)
+    except KeyError:
+        confluence_strat = None
+        logger.debug("confluence_scalper_not_registered")
 
     candidates_processed = 0
     candidates_errored = 0
@@ -816,41 +820,35 @@ async def run_once() -> None:
                     )
 
         # Phase B: run domain confluence_scalper strategy when the active
-        # preset permits. The strategy fetches markets itself; emitted
-        # candidates are filtered against the crypto-eligible asset whitelist
-        # before they reach the risk gate so non-crypto markets are silently
-        # skipped without affecting other strategies.
-        if _preset_allows(active_preset, _CONFLUENCE_SCALPER_NAME):
+        # preset permits. The strategy applies the crypto-only asset whitelist
+        # inside its own market loop (see domain/strategy/eligibility.py +
+        # strategies/confluence_scalper.py), so emitted candidates already
+        # satisfy the gate. Non-crypto markets self-skip without affecting
+        # other strategies on the same scan tick.
+        if confluence_strat is not None and _preset_allows(
+            active_preset, _CONFLUENCE_SCALPER_NAME
+        ):
             try:
-                domain_strat = StrategyRegistry.instance().get(_CONFLUENCE_SCALPER_NAME)
-            except KeyError:
-                domain_strat = None
-                user_log.debug("confluence_scalper_not_registered")
-            if domain_strat is not None:
-                try:
-                    user_ctx = _build_user_context(row)
-                    market_filters = _build_market_filters()
-                    domain_cands = await domain_strat.scan(market_filters, user_ctx)
-                except Exception as exc:
-                    user_log.warning("confluence_scalper_run_failed", error=str(exc))
-                    domain_cands = []
+                user_ctx = _build_user_context(row)
+                market_filters = _build_market_filters()
+                domain_cands = await confluence_strat.scan(market_filters, user_ctx)
+            except Exception as exc:
+                user_log.warning("confluence_scalper_run_failed", error=str(exc))
+                domain_cands = []
 
-                eligible_cands = [
-                    c for c in domain_cands if c.market_id in crypto_market_ids
-                ]
-                confluence_signals += len(eligible_cands)
-                for cand in eligible_cands:
-                    try:
-                        await _process_candidate(row, cand)
-                        candidates_processed += 1
-                    except Exception as exc:
-                        candidates_errored += 1
-                        user_log.error(
-                            "signal_scan_candidate_unhandled",
-                            market_id=cand.market_id,
-                            strategy=_CONFLUENCE_SCALPER_NAME,
-                            error=str(exc),
-                        )
+            confluence_signals += len(domain_cands)
+            for cand in domain_cands:
+                try:
+                    await _process_candidate(row, cand)
+                    candidates_processed += 1
+                except Exception as exc:
+                    candidates_errored += 1
+                    user_log.error(
+                        "signal_scan_candidate_unhandled",
+                        market_id=cand.market_id,
+                        strategy=_CONFLUENCE_SCALPER_NAME,
+                        error=str(exc),
+                    )
 
         # Phase C: evaluate signal_publications feed for this user.
         # Uses signal_evaluator which reads user's subscribed feeds and

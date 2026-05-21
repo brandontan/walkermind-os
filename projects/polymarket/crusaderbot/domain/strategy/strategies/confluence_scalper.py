@@ -37,6 +37,7 @@ from typing import Any
 
 from ....integrations import polymarket as pm
 from ..base import BaseStrategy
+from ..eligibility import is_confluence_scalper_eligible
 from ..types import ExitDecision, MarketFilters, SignalCandidate, UserContext
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,14 @@ class ConfluenceScalperStrategy(BaseStrategy):
         candidates: list[SignalCandidate] = []
 
         for m in markets:
+            # Issue #1269 eligibility gate — crypto-only category + asset
+            # whitelist (BTC/ETH/SOL/XRP/DOGE/BNB/HYPE). Applied inside the
+            # strategy's own market loop so it operates on confluence_scalper's
+            # full universe rather than a capped lib-strategy snapshot in the
+            # scan loop. Non-crypto markets self-skip without affecting other
+            # strategies on the same scan tick.
+            if not is_confluence_scalper_eligible(m):
+                continue
             try:
                 candidate = _evaluate_market(
                     m,
