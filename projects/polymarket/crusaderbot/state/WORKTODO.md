@@ -1,7 +1,7 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated: 2026-05-20 10:15 WIB
+**Last Updated: 2026-05-21T00:33 UTC
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
