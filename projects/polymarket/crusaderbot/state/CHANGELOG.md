@@ -13,6 +13,12 @@
 
 2026-05-21 08:08 | WARP/warp51-drop-access-tier | WARP-51 (issue #1220): every Python access_tier writer/reader removed; `set_tier`/`force_set_tier` deleted; `/allowlist` converted to `set_role('admin')`; `scripts/seed_operator_tier.py` deleted + `fly.toml [deploy].release_command` removed; migration `044_drop_access_tier.sql` re-enabled; 16 test files fixture-swept; 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL pending.
 
+## [WARP-56] — 2026-05-21
+
+- **fix:** `_coerce_jsonb` in `signal_scan_job.py` now narrows return type to match `fallback` shape — JSON scalar `strategy_params` (e.g. `"balanced"`) no longer leaks into `strategy.initialize()` and triggers `ValueError` (Sentry 9x, scanner dead)
+- **fix:** `domain/risk/gate._log` catches `ForeignKeyViolationError` at DEBUG — `/admin/dry-run` with synthetic user_id no longer floods Sentry with FK errors (Sentry 2x)
+- **fix:** `migrations/001_init.sql` CREATE TABLE `users` — `access_tier SMALLINT` column removed; comments in 024/031/045 cleaned; fresh DB install can no longer recreate the ghost column
+- Merged PR #1258 (SHA c98efc5765d9) — STANDARD, NARROW INTEGRATION
 ## [2026-05-21 06:32] WARP-54 MERGED (70d3beff7257) — Closed Beta P1 Hardening
 - `notifications.py`: BadRequest plain-text fallback — no silent HTML parse drop
 - `scheduler.py`: `startup_recovery` job logs resumed monitoring count on restart
