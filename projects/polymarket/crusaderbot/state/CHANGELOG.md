@@ -1,6 +1,23 @@
 <!-- gate-notify-verify-v3 -->
 2026-05-21 14:23 | WARP/warp56-sentry-p0-fix | WARP-56 (issue #1257): 3 Sentry P0/P1 fixes — services/signal_scan/signal_scan_job.py `_coerce_jsonb` narrowed so JSON scalar/wrong-shape values return fallback instead of leaking to `strategy.initialize()` (was ValueError: dictionary update sequence element); domain/risk/gate.py `_log` catches asyncpg.ForeignKeyViolationError at DEBUG so /admin/dry-run with synthetic user_id stops paging Sentry on every tick; migrations/001_init.sql drops `access_tier SMALLINT` from users CREATE TABLE (fresh-install DDL only — live DB already dropped via mig 044); historical access_tier comments rewritten in migs 024/031/045. 15 new + 77 existing hermetic tests pass. No schema change. STANDARD, NARROW INTEGRATION.
 
+## [WARP-57] Telegram UX MVP v1 Rebuild — MERGED c6ae44b18572
+**Date:** 2026-05-21
+**PR:** #1261 | **Branch:** WARP/warp57-telegram-ux-mvp | **Tier:** MAJOR
+**SENTINEL:** CONDITIONAL APPROVED 92/100 (issue #1262)
+
+Additive Telegram UX MVP v1 layer:
+- `bot/ui/tree.py` — hierarchy tree helpers + status glyphs
+- `bot/messages_mvp.py` — pure screen renderers (all 6 surfaces)
+- `bot/handlers/mvp/` — 8 handler modules (dashboard/autotrade/copy_wallet/portfolio/markets/settings/help/onboarding)
+- `bot/keyboards/mvp/` — 8 keyboard modules (InlineKeyboardMarkup only)
+- `bot/dispatcher.py` — MVP attach() first, all 7 callback prefixes registered
+
+Hard product rules enforced: no manual trade buttons, markets intelligence-only, activation guards untouched.
+
+**Follow-up: WARP-58** — fix `domain/signal/copy_trade.py:23` schema (`enabled` → `status='active'`, `wallet_address` → `target_wallet_address`).
+
+
 2026-05-21 13:24 | WARP/warp54-closed-beta-hardening | WARP-54 (issue #1253): closed-beta P1 hardening — notifications.send falls back to plain text on BadRequest from parse_mode=HTML (BadRequest also excluded from retry predicate since it's non-transient but inherits from NetworkError in PTB v22, was burning the attempt budget); /admin HUD adds stuck-position row counting (close_failure_count > 0) OR (opened_at < NOW() - INTERVAL '24 hours'); scheduler one-shot startup_recovery_log job logs "Resumed monitoring N open positions" on every boot for restart-recovery audit trail. Audit-pinned (no code change): paper.execute idempotency_key ON CONFLICT dedup, paper.close_position WHERE user_id=$5 scoping, exit_watcher 3-tick threshold for API timeout. 6 new + 48 existing hermetic tests pass. No schema change. STANDARD, NARROW INTEGRATION.
 
 2026-05-21 12:57 | WARP/warp53-reliability-hardening | WARP-53 (issue #1252): Telegram delivery + paper-close P0 hardening — notifications.send wait strategy now honours RetryAfter.retry_after (capped 30s) instead of fixed exponential, max attempts 3→4; per-event "no silent swallow" WARNING added at notifier._send, _edit_or_resend, _send_safe, and all 7 alert_user_* (refactored through new _send_user_exit_alert helper); paper.close_position double-close idempotency pinned by new regression test (already_closed branch fires zero extra ledger/audit/snapshot writes). 7 new + 28 existing hermetic tests pass. No schema change, no code change to paper engine. STANDARD, NARROW INTEGRATION.
