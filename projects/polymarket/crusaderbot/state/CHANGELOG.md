@@ -1,3 +1,5 @@
+2026-05-21 08:30 | MERGED #1224 WARP/warp51-drop-access-tier | WARP-51 (issue #1220): full Python access_tier cleanup — INSERT/SELECT stripped from users.py, user_service.py, seed_demo_data.py; set_tier/force_set_tier deleted; /allowlist → set_role('admin'); seed_operator_tier.py deleted + fly.toml release_command removed; migration 044_drop_access_tier.sql re-enabled (IF EXISTS); 16 test fixtures swept; 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL APPROVED 99/100 (issue #1225). SHA 1b9c3fdb5e6c.
+
 2026-05-21 08:08 | WARP/warp51-drop-access-tier | WARP-51 (issue #1220): every Python access_tier writer/reader removed; `set_tier`/`force_set_tier` deleted; `/allowlist` converted to `set_role('admin')`; `scripts/seed_operator_tier.py` deleted + `fly.toml [deploy].release_command` removed; migration `044_drop_access_tier.sql` re-enabled; 16 test files fixture-swept; 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL pending.
 
 ## [2026-05-21] WARP-50b — role-based access model (PR #1222)
