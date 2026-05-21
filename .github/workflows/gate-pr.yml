@@ -1,4 +1,4 @@
-name: WARP Gate - Notify
+name: WARP Gate -- PR Review Pipeline
 
 on:
   pull_request:
