@@ -1,5 +1,5 @@
-Last Updated : 2026-05-21 08:08
-Status       : WARP-51 PR open — full Python access_tier removal + migration 044 re-enabled; awaiting SENTINEL audit
+Last Updated : 2026-05-21 08:30
+Status       : WARP-51 MERGED — access_tier column refs fully removed; migration 044 re-enabled; schema DROP runs on next Fly deploy
 - WARP-51 (issue #1220): WARP/warp51-drop-access-tier PR open — every `.py` writer/reader of access_tier stripped; `/allowlist` converted to `set_role('admin')`; scripts/seed_operator_tier.py deleted (+ fly.toml release_command removed); migration 044_drop_access_tier.sql re-enabled (was .disabled); 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL audit required.
 - WARP-25 MERGED (698b2cdf): menu:positions routing, dead import cleanup, dynamic preset_picker (domain layer), Back→Portfolio. STANDARD, NARROW INTEGRATION.
 - WARP-45 (issue #1198): fix-sentry-p1-runtime-bugs PR open — _coerce_jsonb() helper added to signal_scan_job.py; asyncpg JSONB-as-str ValueError resolved (Sentry DAWN-SNOWFLAKE-1729-1Q); Bugs 2+3 confirmed already fixed (WARP-35/WARP-37). STANDARD, NARROW INTEGRATION.
@@ -24,6 +24,9 @@ Status       : WARP-51 PR open — full Python access_tier removal + migration 0
 - WARP/CRUSADERBOT-MVP-RUNTIME-V1 MERGED PR #1089 (2026-05-17). Autonomous trading bot MVP runtime: Phase 0 audit (P0_RUNTIME_MAP.md) + skip_deposit_cb preset activation fix + auto_trade_on=True on onboarding + allowlist_command migrated to is_admin(). MAJOR, FULL RUNTIME INTEGRATION.
 - telegram-ux-final-polish MERGED PR #1088 (2026-05-17). Wallet copy-address bug fixed (rsplit parse), portfolio_chart tier gate removed, wallet_p5_kb home label corrected, emergency_done_p5_kb auto-trade label corrected, _hub_text unused tier param removed. compileall clean. STANDARD, NARROW INTEGRATION.
 - crusaderbot-mvp-runtime-v1 MERGED PR #1080 (2026-05-17). Tier gates removed from all paper paths: scheduler (deposit auto-bump + run_signal_scan filter), signal_scan_job (_load_enrolled_users filter), daily_pnl_summary (access_tier >= 2), weekly_insights (access_tier >= 2), tier_gate.py (no-op passthrough), admin.py (status counts + active_users + broadcast). MAJOR, FULL RUNTIME INTEGRATION.
+
+[COMPLETED]
+  - WARP-51 MERGED (1b9c3fdb5e6c): every `.py` writer/reader of access_tier stripped; `set_tier`/`force_set_tier` deleted; `/allowlist` → `set_role('admin')`; `scripts/seed_operator_tier.py` deleted + `fly.toml [deploy].release_command` removed; migration `044_drop_access_tier.sql` re-enabled (IF EXISTS, idempotent); 16 test fixtures swept; 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL APPROVED 99/100.
 
 [IN PROGRESS]
 
