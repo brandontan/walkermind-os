@@ -19,8 +19,8 @@ class CopyTradeStrategy(BaseStrategy):
         pool = get_pool()
         async with pool.acquire() as conn:
             targets = await conn.fetch(
-                "SELECT id, wallet_address, scale_factor, last_seen_tx "
-                "FROM copy_targets WHERE user_id=$1 AND enabled=TRUE",
+                "SELECT id, target_wallet_address, scale_factor, last_seen_tx "
+                "FROM copy_targets WHERE user_id=$1 AND status='active'",
                 user["id"],
             )
         if not targets:
@@ -33,10 +33,10 @@ class CopyTradeStrategy(BaseStrategy):
 
         for t in targets:
             try:
-                trades = await get_user_activity(t["wallet_address"], limit=10)
+                trades = await get_user_activity(t["target_wallet_address"], limit=10)
             except Exception as exc:
                 logger.warning("copy_trade scan err for %s: %s",
-                               t["wallet_address"], exc)
+                               t["target_wallet_address"], exc)
                 continue
             new_last_tx = t["last_seen_tx"]
             for trade in trades:
@@ -64,7 +64,7 @@ class CopyTradeStrategy(BaseStrategy):
                     edge_bps=None,
                     strategy_type=self.name,
                     signal_ts=datetime.now(timezone.utc),
-                    extra={"target": t["wallet_address"], "src_tx": tx},
+                    extra={"target": t["target_wallet_address"], "src_tx": tx},
                 ))
                 if new_last_tx is None or new_last_tx == t["last_seen_tx"]:
                     new_last_tx = tx
