@@ -1,5 +1,7 @@
-Last Updated : 2026-05-21 11:06
+Last Updated : 2026-05-21 11:35
 Status       : WARP-46 runtime spine evidence pass complete (PR open on WARP/runtime-spine-validation); WARP-51 MERGED + Migrations 027/029/030/031 APPLIED — schema production-ready; 044 (access_tier DROP) confirmed applied
+
+- WARP-52 (issue #1245): portfolio_snapshots Python writer dispatched to WARP•FORGE — wire cb_portfolio NOTIFY; regression test; STANDARD, NARROW INTEGRATION. Pending FORGE PR.
 - WARP-46 (issue #1243): WARP/runtime-spine-validation PR open — runtime spine evidence pass against the 7 #1243 targets (start/scan→trade/positions/close/receipt/PnL/routing); NOTIFY triggers cb_orders/cb_fills/cb_positions confirmed wired (mig 029); job_runs.metadata writer verified at scheduler.py:482 + job_tracker.py:85 (mig 030); silent-exception audit clean (no except: pass anywhere); portfolio_snapshots Python writer GAP surfaced as advisory (cb_portfolio NOTIFY channel dormant, table + trigger live, equity derived from ledger). STANDARD, NARROW INTEGRATION. No code modified.
 - WARP-51 (issue #1220): WARP/warp51-drop-access-tier PR open — every `.py` writer/reader of access_tier stripped; `/allowlist` converted to `set_role('admin')`; scripts/seed_operator_tier.py deleted (+ fly.toml release_command removed); migration 044_drop_access_tier.sql re-enabled (was .disabled); 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL audit required.
 - WARP-25 MERGED (698b2cdf): menu:positions routing, dead import cleanup, dynamic preset_picker (domain layer), Back→Portfolio. STANDARD, NARROW INTEGRATION.
