@@ -26,7 +26,7 @@ from projects.polymarket.crusaderbot.bot.handlers import activation
 
 USER_ROW_OFF = {
     "id": uuid4(), "telegram_user_id": 5001, "username": "u",
-    "auto_trade_on": False, "access_tier": 4, "paused": False,
+    "auto_trade_on": False, "paused": False,
 }
 USER_ROW_ON = {**USER_ROW_OFF, "auto_trade_on": True}
 

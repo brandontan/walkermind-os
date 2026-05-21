@@ -52,12 +52,11 @@ from telegram.ext import ConversationHandler
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_user(uid=None, *, access_tier=1, onboarding_complete=False):
+def _make_user(uid=None, *, onboarding_complete=False):
     return {
         "id": uid or uuid4(),
         "telegram_user_id": 12345,
         "username": "testuser",
-        "access_tier": access_tier,
         "auto_trade_on": False,
         "onboarding_complete": onboarding_complete,
     }
@@ -174,7 +173,7 @@ def test_new_user_start_shows_welcome():
 
 def test_existing_user_start_routes_to_dashboard():
     """V6: any returning user (onboarding_complete=True) goes to dashboard."""
-    user = _make_user(onboarding_complete=True, access_tier=2)
+    user = _make_user(onboarding_complete=True)
     update, replies = _make_cmd_update()
     ctx = _ctx()
 
@@ -201,7 +200,7 @@ def test_existing_user_start_routes_to_dashboard():
 
 def test_returning_any_tier_user_routes_to_dashboard():
     """V6: tier is not checked — all returning users go directly to dashboard."""
-    user = _make_user(onboarding_complete=True, access_tier=1)
+    user = _make_user(onboarding_complete=True)
     update, replies = _make_cmd_update()
     ctx = _ctx()
 

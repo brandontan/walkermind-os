@@ -1,11 +1,11 @@
-"""Access tier CRUD for the user_tiers table.
+"""String-tier CRUD for the user_tiers table.
 
 String tiers: FREE < PREMIUM < ADMIN.
 
 Note: this module pre-dates the role-based model (users.role = 'admin' |
 'user'). The user_tiers table remains the source of truth for the legacy
 string-tier scheme; runtime access gating now uses users.role via the
-role_guard decorator (bot/middleware/access_tier.py).
+require_role decorator.
 """
 from __future__ import annotations
 

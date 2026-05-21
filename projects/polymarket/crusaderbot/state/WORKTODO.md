@@ -56,7 +56,7 @@ Close production gaps before beta:
 
 - [ ] Apply migrations 027/029/030 — ready for Supabase execution
 - [ ] Apply migration 031 — ready (access_tier step removed)
-- [ ] Apply migration 044 (DROP access_tier) — blocked until WARP-50b + WARP-51 complete
+- [ ] Apply migration 044 (DROP access_tier) — WARP-51 ready; runs automatically on next Fly deploy after merge
 - [x] Fly.io deploy validation
 - [x] Scheduler health / retry check
 - [ ] Telegram notification reliability

@@ -201,9 +201,9 @@ async def _upsert_demo_users(conn: asyncpg.Connection) -> list[uuid.UUID]:
         det_id = _det_uuid(f"user:{tg_id}")
         await conn.execute(
             """
-            INSERT INTO users (id, telegram_user_id, username, access_tier,
+            INSERT INTO users (id, telegram_user_id, username,
                                role, auto_trade_on, paused, is_demo)
-            VALUES ($1, $2, $3, 4, 'user', FALSE, FALSE, TRUE)
+            VALUES ($1, $2, $3, 'user', FALSE, FALSE, TRUE)
             ON CONFLICT (telegram_user_id) DO NOTHING
             """,
             det_id, tg_id, f"demo_user_{i}",

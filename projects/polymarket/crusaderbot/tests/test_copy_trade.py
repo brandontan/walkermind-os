@@ -1500,7 +1500,6 @@ def test_monitor_allow_topups_false_skips_when_position_exists():
     async def fake_load_user(user_id):
         return {
             "telegram_user_id": 12345,
-            "access_tier": "basic",
             "auto_trade_on": True,
             "paused": False,
             "risk_profile": "balanced",
@@ -1555,7 +1554,6 @@ def test_monitor_execution_mode_manual_emits_event_not_execute():
     async def fake_load_user(user_id):
         return {
             "telegram_user_id": 99999,
-            "access_tier": "basic",
             "auto_trade_on": True,
             "paused": False,
             "risk_profile": "balanced",
@@ -1603,7 +1601,6 @@ def test_monitor_execution_mode_auto_calls_engine():
     async def fake_load_user(user_id):
         return {
             "telegram_user_id": 77777,
-            "access_tier": "basic",
             "auto_trade_on": True,
             "paused": False,
             "risk_profile": "balanced",

@@ -58,7 +58,6 @@ _NOW = datetime(2026, 5, 7, 12, 0, 0, tzinfo=timezone.utc)
 def _user_row(
     *,
     user_id: UUID = _USER_UUID,
-    access_tier: int = 3,
     balance: float = 500.0,
     risk_profile: str = "balanced",
     trading_mode: str = "paper",
@@ -71,7 +70,6 @@ def _user_row(
     return {
         "user_id": user_id,
         "telegram_user_id": 42,
-        "access_tier": access_tier,
         "auto_trade_on": True,
         "paused": False,
         "balance_usdc": balance,

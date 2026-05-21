@@ -173,7 +173,7 @@ def _make_ctx(wizard: dict | None = None) -> MagicMock:
 
 
 def _mock_resolve_user(ok: bool = True):
-    fake_user = {"id": _FAKE_USER_ID, "access_tier": 2}
+    fake_user = {"id": _FAKE_USER_ID}
     return patch.object(
         ct_mod, "_resolve_user", new=AsyncMock(return_value=(fake_user, ok)),
     )

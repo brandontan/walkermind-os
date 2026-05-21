@@ -68,8 +68,8 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
             )
             if row is None:
                 row = await conn.fetchrow(
-                    "INSERT INTO users (telegram_user_id, username, access_tier, role) "
-                    "VALUES ($1, $2, 4, 'user') RETURNING *",
+                    "INSERT INTO users (telegram_user_id, username, role) "
+                    "VALUES ($1, $2, 'user') RETURNING *",
                     telegram_user_id, username,
                 )
                 await conn.execute(
@@ -176,30 +176,6 @@ async def get_user_by_username(username: str) -> Optional[dict]:
             "SELECT * FROM users WHERE LOWER(username)=LOWER($1)", username,
         )
         return dict(row) if row else None
-
-
-async def set_tier(user_id: UUID, tier: int) -> None:
-    """Legacy integer-tier setter. Retained while access_tier column exists.
-
-    access_tier no longer gates anything (role column is the source of truth).
-    Kept so existing admin tooling that writes the column still works until
-    migration 044 drops the column.
-    """
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE users SET access_tier=GREATEST(access_tier, $2) WHERE id=$1",
-            user_id, tier,
-        )
-
-
-async def force_set_tier(user_id: UUID, tier: int) -> None:
-    """Legacy integer-tier overwrite. See set_tier docstring."""
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE users SET access_tier=$2 WHERE id=$1", user_id, tier,
-        )
 
 
 async def set_role(user_id: UUID, role: str) -> None:

@@ -233,7 +233,7 @@ def test_menu_copytrade_handler_sends_placeholder(monkeypatch):
         callback_query=None,
         effective_user=SimpleNamespace(id=1, username="u"),
     )
-    fake_user = {"id": "00000000-0000-0000-0000-000000000001", "access_tier": 2}
+    fake_user = {"id": "00000000-0000-0000-0000-000000000001"}
     with patch(
         "projects.polymarket.crusaderbot.bot.handlers.copy_trade.upsert_user",
         return_value=fake_user,
@@ -263,7 +263,7 @@ def test_menu_copytrade_handler_inline_buttons(monkeypatch):
         callback_query=None,
         effective_user=SimpleNamespace(id=1, username="u"),
     )
-    fake_user = {"id": "00000000-0000-0000-0000-000000000001", "access_tier": 2}
+    fake_user = {"id": "00000000-0000-0000-0000-000000000001"}
     with patch(
         "projects.polymarket.crusaderbot.bot.handlers.copy_trade.upsert_user",
         return_value=fake_user,

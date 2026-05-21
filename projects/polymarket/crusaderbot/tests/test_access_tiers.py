@@ -1,9 +1,9 @@
-"""Hermetic tests for the string-tier access layer.
+"""Hermetic tests for the role-based access layer.
 
 Covers:
 - services/tiers.py: get_user_tier, set_user_tier, meets_tier, tier_rank,
-  list_all_user_tiers, VALID_TIERS
-- bot/middleware/access_tier.py: require_access_tier decorator (allow + deny paths)
+  list_all_user_tiers, VALID_TIERS (parallel string-tier system)
+- bot/middleware/access_tier.py: require_role decorator (allow + deny paths)
 - bot/handlers/admin.py: _is_admin_user, admin_root routing + subcommands
   (_admin_users, _admin_settier, _admin_stats, _admin_broadcast) — no DB, no network.
 
