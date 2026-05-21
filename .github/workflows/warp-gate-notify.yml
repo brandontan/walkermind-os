@@ -4,10 +4,10 @@ name: WARP Gate - Notify
 # Coverage: PR, issue, comment events.
 #
 # Secrets required:
-#   BASE44_API_KEY        — Base44 agent API key
-#   WARP_WEBHOOK_SECRET   — gateWebhook secret (untuk PrEvent entity sync)
-#   TELEGRAM_BOT_TOKEN    — Telegram bot token
-#   TELEGRAM_CHAT_ID      — Telegram chat ID (BossWalker)
+#   BASE44_API_KEY        - Base44 agent API key
+#   WARP_WEBHOOK_SECRET   - gateWebhook secret (untuk PrEvent entity sync)
+#   TELEGRAM_BOT_TOKEN    - Telegram bot token
+#   TELEGRAM_CHAT_ID      - Telegram chat ID (BossWalker)
 
 on:
   pull_request:
