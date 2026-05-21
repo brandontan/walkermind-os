@@ -11,6 +11,14 @@
 
 2026-05-21 08:08 | WARP/warp51-drop-access-tier | WARP-51 (issue #1220): every Python access_tier writer/reader removed; `set_tier`/`force_set_tier` deleted; `/allowlist` converted to `set_role('admin')`; `scripts/seed_operator_tier.py` deleted + `fly.toml [deploy].release_command` removed; migration `044_drop_access_tier.sql` re-enabled; 16 test files fixture-swept; 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL pending.
 
+## [2026-05-21 06:32] WARP-54 MERGED (70d3beff7257) — Closed Beta P1 Hardening
+- `notifications.py`: BadRequest plain-text fallback — no silent HTML parse drop
+- `scheduler.py`: `startup_recovery` job logs resumed monitoring count on restart
+- `admin.py`: /admin HUD surfaces stuck open positions
+- 6 regression tests pin dedup, user_id scoping, exception-swallow behaviours
+- All 6 P1 WORKTODO items closed
+- Closes Issue #1253
+
 ## [2026-05-21 06:06] WARP-53 MERGED (96d397ee234b) — Telegram delivery hardening + paper-close idempotency
 - `notifications.py`: `_wait_telegram()` honours Telegram 429 RetryAfter (capped 30s), attempts 3→4
 - `notifier.py` + `notification_service.py`: per-event WARNING on every silent notification drop
