@@ -1,7 +1,7 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-05-21 08:30
+**Last Updated : 2026-05-21 10:55
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
@@ -54,9 +54,9 @@ Validate and fix realtime trust gaps:
 
 Close production gaps before beta:
 
-- [ ] Apply migrations 027/029/030 — ready for Supabase execution
-- [ ] Apply migration 031 — ready (access_tier step removed)
-- [ ] Apply migration 044 (DROP access_tier) — WARP-51 ready; runs automatically on next Fly deploy after merge
+- [x] Apply migrations 027/029/030 — APPLIED 2026-05-21
+- [x] Apply migration 031 — APPLIED 2026-05-21
+- [x] Apply migration 044 (DROP access_tier) — CONFIRMED APPLIED (access_tier column gone from schema)
 - [x] Fly.io deploy validation
 - [x] Scheduler health / retry check
 - [ ] Telegram notification reliability
