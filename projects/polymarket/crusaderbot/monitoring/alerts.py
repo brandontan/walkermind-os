@@ -274,6 +274,25 @@ def _format_exit_label(market_question: Optional[str], market_id: str) -> str:
     return html.escape(market_question or market_id)
 
 
+async def _send_user_exit_alert(
+    telegram_user_id: int, text: str, *, alert_kind: str, market_id: str,
+) -> bool:
+    """Send a user-side exit alert and log a WARNING if delivery was dropped.
+
+    ``notifications.send`` already retries transient errors and logs at ERROR
+    on permanent failure. This wrapper adds an alert-kind-tagged WARNING so a
+    dropped TP/SL/force/manual receipt surfaces in logs with its lifecycle
+    context — required by WARP-53 "no silent swallow" gate.
+    """
+    delivered = await notifications.send(telegram_user_id, text)
+    if not delivered:
+        logger.warning(
+            "alert_user.delivery_dropped alert_kind=%s telegram_user_id=%s market_id=%s",
+            alert_kind, telegram_user_id, market_id,
+        )
+    return delivered
+
+
 async def alert_user_tp_hit(
     *,
     telegram_user_id: int,
@@ -292,7 +311,9 @@ async def alert_user_tp_hit(
         f"Side: <b>{html.escape(side.upper())}</b> — Exit: <code>{exit_price:.3f}</code>\n"
         f"P&amp;L: <b>${pnl_usdc:+.2f}</b>"
     )
-    await notifications.send(telegram_user_id, text)
+    await _send_user_exit_alert(
+        telegram_user_id, text, alert_kind="tp_hit", market_id=market_id,
+    )
 
 
 async def alert_user_sl_hit(
@@ -313,7 +334,9 @@ async def alert_user_sl_hit(
         f"Side: <b>{html.escape(side.upper())}</b> — Exit: <code>{exit_price:.3f}</code>\n"
         f"P&amp;L: <b>${pnl_usdc:+.2f}</b>"
     )
-    await notifications.send(telegram_user_id, text)
+    await _send_user_exit_alert(
+        telegram_user_id, text, alert_kind="sl_hit", market_id=market_id,
+    )
 
 
 async def alert_user_force_close(
@@ -334,7 +357,9 @@ async def alert_user_force_close(
         f"Side: <b>{html.escape(side.upper())}</b> — Exit: <code>{exit_price:.3f}</code>\n"
         f"P&amp;L: <b>${pnl_usdc:+.2f}</b>"
     )
-    await notifications.send(telegram_user_id, text)
+    await _send_user_exit_alert(
+        telegram_user_id, text, alert_kind="force_close", market_id=market_id,
+    )
 
 
 async def alert_user_strategy_exit(
@@ -355,7 +380,9 @@ async def alert_user_strategy_exit(
         f"Side: <b>{html.escape(side.upper())}</b> — Exit: <code>{exit_price:.3f}</code>\n"
         f"P&amp;L: <b>${pnl_usdc:+.2f}</b>"
     )
-    await notifications.send(telegram_user_id, text)
+    await _send_user_exit_alert(
+        telegram_user_id, text, alert_kind="strategy_exit", market_id=market_id,
+    )
 
 
 async def alert_user_manual_close(
@@ -376,7 +403,9 @@ async def alert_user_manual_close(
         f"Side: <b>{html.escape(side.upper())}</b> — Exit: <code>{exit_price:.3f}</code>\n"
         f"P&amp;L: <b>${pnl_usdc:+.2f}</b>"
     )
-    await notifications.send(telegram_user_id, text)
+    await _send_user_exit_alert(
+        telegram_user_id, text, alert_kind="manual_close", market_id=market_id,
+    )
 
 
 async def alert_user_market_expired(
@@ -397,7 +426,9 @@ async def alert_user_market_expired(
         f"Capital returned: <b>${size_usdc:.2f} USDC</b>\n"
         "Position closed — market is no longer active on Polymarket."
     )
-    await notifications.send(telegram_user_id, text)
+    await _send_user_exit_alert(
+        telegram_user_id, text, alert_kind="market_expired", market_id=market_id,
+    )
 
 
 async def alert_user_close_failed(
@@ -417,9 +448,12 @@ async def alert_user_close_failed(
         "We will retry on the next exit-watcher tick. If failures persist, "
         "admin has been notified."
     )
-    await notifications.send(telegram_user_id, text)
-    logger.warning("close_failed user-alert delivered tg=%s market=%s err=%s",
-                   telegram_user_id, market_id, error[:200])
+    delivered = await _send_user_exit_alert(
+        telegram_user_id, text, alert_kind="close_failed", market_id=market_id,
+    )
+    if delivered:
+        logger.warning("close_failed user-alert delivered tg=%s market=%s err=%s",
+                       telegram_user_id, market_id, error[:200])
 
 
 async def alert_operator_close_failed_persistent(

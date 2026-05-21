@@ -164,13 +164,24 @@ async def _send_safe(
     try:
         if not await notifications_enabled_by_telegram_id(telegram_user_id):
             return
-        await notifications.send(telegram_user_id, text, reply_markup=kb)
+        delivered = await notifications.send(telegram_user_id, text, reply_markup=kb)
     except Exception as exc:
         logger.error(
             "notification_service: send_failed event=%s telegram_user_id=%s error=%s",
             event_name,
             telegram_user_id,
             exc,
+        )
+        return
+    if not delivered:
+        # notifications.send already logged the underlying error at ERROR.
+        # Add an event-level WARNING so position open/close/copy receipts
+        # dropped by a Telegram outage surface in logs with their event
+        # context — required by WARP-53 "no silent swallow" gate.
+        logger.warning(
+            "notification_service: delivery_dropped event=%s telegram_user_id=%s",
+            event_name,
+            telegram_user_id,
         )
 
 
