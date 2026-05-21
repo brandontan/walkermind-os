@@ -1,4 +1,4 @@
-"""Tests for the Tier 2 operator seeder.
+"""Tests for the admin role seeder.
 
 The seeder is wired into the Fly release_command, so its failure modes
 matter as much as its happy path: a missing or malformed
@@ -43,176 +43,96 @@ def test_parse_ids_skips_unparseable_tokens(caplog):
 
 
 def test_parse_ids_handles_negative_ids():
-    """Telegram supplies positive ids; negative ids appear in the demo
-    seeder. The parser must still accept them — validation belongs at
-    the caller, not here.
-    """
     assert seed._parse_ids("-1, -2, 3") == [-1, -2, 3]
 
 
 # ---------------------------------------------------------------------------
-# _seed_one
+# _seed_one — role-based seeder
 # ---------------------------------------------------------------------------
 
 
 def test_seed_one_inserts_when_user_missing():
     conn = MagicMock()
-    # First fetchrow is the SELECT — returns None (no existing row).
-    # Second fetchrow is the upsert RETURNING. ``xmax = 0`` means our
-    # INSERT actually created the row (no concurrent insert happened).
+    # SELECT returns None (no existing row); upsert RETURNING reports a fresh insert.
     conn.fetchrow = AsyncMock(side_effect=[
         None,
-        {"access_tier": seed.OPERATOR_TIER, "was_inserted": True},
+        {"role": seed.ADMIN_ROLE, "was_inserted": True},
     ])
 
     action, prev, new = _run(seed._seed_one(conn, 123))
 
     assert action == "inserted"
     assert prev is None
-    assert new == seed.OPERATOR_TIER
-    # The upsert SQL is the second fetchrow call.
+    assert new == seed.ADMIN_ROLE
     upsert_sql = conn.fetchrow.await_args_list[1].args[0]
     assert "INSERT INTO users" in upsert_sql
-    assert "ON CONFLICT (telegram_user_id) DO UPDATE" in upsert_sql, (
-        "missing-user path must be an atomic upsert (DO UPDATE), not "
-        "DO NOTHING — see test_seed_one_atomic_upsert_handles_concurrent_insert"
-    )
-    assert "GREATEST(users.access_tier, EXCLUDED.access_tier)" in upsert_sql
+    assert "ON CONFLICT (telegram_user_id) DO UPDATE" in upsert_sql
+    assert "SET role = EXCLUDED.role" in upsert_sql
     assert "(xmax = 0) AS was_inserted" in upsert_sql
 
 
-def test_seed_one_atomic_upsert_handles_concurrent_insert_below_target():
-    """Race: ``users.upsert_user()`` from the previous app version
-    inserts the same telegram_user_id at default Tier 1 between our
-    SELECT (returned None) and our INSERT. The atomic upsert's
-    ``DO UPDATE SET access_tier=GREATEST(...)`` lifts the row to
-    Tier 2; ``xmax != 0`` flags that the conflict path fired so the
-    audit label is "raised", not "inserted".
-    """
-    conn = MagicMock()
-    conn.fetchrow = AsyncMock(side_effect=[
-        None,  # SELECT: no row yet (we read before the concurrent INSERT)
-        # Upsert RETURNING: was_inserted=False (conflict fired) +
-        # access_tier=2 (GREATEST(1, 2) = 2 — concurrent row at Tier 1
-        # was lifted to our target).
-        {"access_tier": 2, "was_inserted": False},
-    ])
-
-    action, prev, new = _run(seed._seed_one(conn, 123))
-
-    assert action == "raised", (
-        "concurrent INSERT below target must be lifted and labelled "
-        "'raised' — not silently mislabelled 'inserted'"
-    )
-    assert prev is None
-    assert new == 2
-
-
-def test_seed_one_atomic_upsert_handles_concurrent_insert_above_target():
-    """Race: a concurrent process inserted the row at Tier 4
-    between our SELECT and our upsert. ``GREATEST(4, 2) = 4`` so
-    our DO UPDATE was a no-op — the script did not change anything
-    and must label it "noop".
+def test_seed_one_atomic_upsert_handles_concurrent_insert():
+    """Race: a concurrent process inserted the row between our SELECT and
+    INSERT. The atomic upsert's ``DO UPDATE SET role = EXCLUDED.role``
+    promotes the row to admin; ``xmax != 0`` flags the conflict path so
+    the audit label is "raised", not "inserted".
     """
     conn = MagicMock()
     conn.fetchrow = AsyncMock(side_effect=[
         None,
-        {"access_tier": 4, "was_inserted": False},
+        {"role": seed.ADMIN_ROLE, "was_inserted": False},
     ])
 
     action, prev, new = _run(seed._seed_one(conn, 123))
 
-    assert action == "noop"
+    assert action == "raised"
     assert prev is None
-    assert new == 4
+    assert new == seed.ADMIN_ROLE
 
 
-def test_seed_one_raises_tier_when_below_threshold():
+def test_seed_one_promotes_user_to_admin():
     conn = MagicMock()
-    conn.fetchrow = AsyncMock(return_value={"id": "uuid-1", "access_tier": 1})
-    conn.execute = AsyncMock()
-    conn.fetchval = AsyncMock(return_value=seed.OPERATOR_TIER)
+    conn.fetchrow = AsyncMock(return_value={"id": "uuid-1", "role": "user"})
+    conn.fetchval = AsyncMock(return_value=seed.ADMIN_ROLE)
 
     action, prev, new = _run(seed._seed_one(conn, 123))
 
     assert action == "raised"
-    assert prev == 1
-    assert new == seed.OPERATOR_TIER
+    assert prev == "user"
+    assert new == seed.ADMIN_ROLE
     sql = conn.fetchval.await_args.args[0]
-    assert "UPDATE users SET access_tier=GREATEST" in sql, (
-        "UPDATE must be GREATEST(access_tier, target) — see "
-        "test_seed_one_does_not_demote_concurrent_promotion for the "
-        "race-condition rationale"
-    )
-    assert "RETURNING access_tier" in sql
-
-
-def test_seed_one_does_not_demote_concurrent_promotion():
-    """Race: the previous app version is still serving the DB during a
-    Fly release. Our SELECT sees ``access_tier=1`` but a concurrent
-    process promotes the operator to Tier 4 before our UPDATE lands.
-    The GREATEST clause must keep the higher tier and our action
-    label must report "noop" (the script did not lower the value).
-    """
-    conn = MagicMock()
-    conn.fetchrow = AsyncMock(
-        return_value={"id": "uuid-1", "access_tier": 1},
-    )
-    # GREATEST(4, 2) = 4 — the concurrent promotion wins.
-    conn.fetchval = AsyncMock(return_value=4)
-
-    action, prev, new = _run(seed._seed_one(conn, 123))
-
-    assert action == "noop", (
-        "concurrent promote must produce a noop label so the audit "
-        "log does not falsely attribute the change to this script"
-    )
-    assert prev == 1
-    assert new == 4
+    assert "UPDATE users SET role=$2" in sql
+    assert "RETURNING role" in sql
 
 
 def test_seed_one_handles_returning_none_after_concurrent_delete():
-    """If the row is DELETEd between our SELECT and UPDATE, RETURNING
-    yields no row and ``fetchval`` returns ``None``. The seeder must
-    fall back to the pre-update tier so the audit row stays consistent.
+    """If the row is DELETEd between SELECT and UPDATE, RETURNING yields
+    no row. The seeder must fall back to the pre-update role for audit
+    consistency.
     """
     conn = MagicMock()
     conn.fetchrow = AsyncMock(
-        return_value={"id": "uuid-1", "access_tier": 1},
+        return_value={"id": "uuid-1", "role": "user"},
     )
     conn.fetchval = AsyncMock(return_value=None)
 
     action, prev, new = _run(seed._seed_one(conn, 123))
 
     assert action == "noop"
-    assert prev == 1
-    assert new == 1
+    assert prev == "user"
+    assert new == "user"
 
 
-def test_seed_one_noop_when_already_at_or_above_tier():
+def test_seed_one_noop_when_already_admin():
     conn = MagicMock()
-    conn.fetchrow = AsyncMock(return_value={"id": "uuid-1", "access_tier": 2})
+    conn.fetchrow = AsyncMock(return_value={"id": "uuid-1", "role": "admin"})
     conn.execute = AsyncMock()
 
     action, prev, new = _run(seed._seed_one(conn, 123))
 
     assert action == "noop"
-    assert prev == 2
-    assert new == 2
-    conn.execute.assert_not_awaited()
-
-
-def test_seed_one_noop_does_not_demote_higher_tier():
-    """A Tier 4 (live-eligible) operator must not be demoted to Tier 2."""
-    conn = MagicMock()
-    conn.fetchrow = AsyncMock(return_value={"id": "uuid-1", "access_tier": 4})
-    conn.execute = AsyncMock()
-
-    action, prev, new = _run(seed._seed_one(conn, 123))
-
-    assert action == "noop"
-    assert prev == 4
-    assert new == 4
+    assert prev == "admin"
+    assert new == "admin"
     conn.execute.assert_not_awaited()
 
 
@@ -222,12 +142,6 @@ def test_seed_one_noop_does_not_demote_higher_tier():
 
 
 class _NoopTx:
-    """Async context manager mock that simulates asyncpg's nested
-    transaction (a SAVEPOINT). ``__aexit__`` returns False so any
-    exception raised inside the context propagates outward — exactly
-    what real asyncpg does with ``Transaction.__aexit__``.
-    """
-
     async def __aenter__(self):
         return self
 
@@ -249,8 +163,8 @@ def test_write_audit_inserts_into_audit_log():
         conn,
         telegram_user_id=42,
         action="inserted",
-        prev_tier=None,
-        new_tier=2,
+        prev_role=None,
+        new_role="admin",
     ))
 
     conn.execute.assert_awaited_once()
@@ -259,11 +173,9 @@ def test_write_audit_inserts_into_audit_log():
 
 
 def test_write_audit_uses_nested_transaction_for_savepoint_isolation():
-    """The INSERT must run inside ``async with conn.transaction()`` so a
-    failed audit row does NOT poison the outer seed transaction.
-    PostgreSQL aborts the surrounding transaction after any failed
-    statement, so without a savepoint the seeder would fail on every
-    subsequent id in the batch with ``current transaction is aborted``.
+    """Audit INSERT runs inside ``async with conn.transaction()`` so a
+    failed audit row rolls back to a savepoint instead of poisoning the
+    outer seed transaction.
     """
     conn = _conn_with_tx()
 
@@ -271,17 +183,13 @@ def test_write_audit_uses_nested_transaction_for_savepoint_isolation():
         conn,
         telegram_user_id=42,
         action="inserted",
-        prev_tier=None,
-        new_tier=2,
+        prev_role=None,
+        new_role="admin",
     ))
-    assert conn.transaction.call_count == 1, (
-        "audit write must enter a nested conn.transaction() so an audit "
-        "INSERT failure rolls back to a savepoint"
-    )
+    assert conn.transaction.call_count == 1
 
 
 def test_write_audit_swallows_exceptions(caplog):
-    """Audit failure must never propagate out of the seeder."""
     conn = _conn_with_tx(execute_side_effect=RuntimeError("audit table missing"))
 
     with caplog.at_level("WARNING"):
@@ -289,8 +197,8 @@ def test_write_audit_swallows_exceptions(caplog):
             conn,
             telegram_user_id=42,
             action="inserted",
-            prev_tier=None,
-            new_tier=2,
+            prev_role=None,
+            new_role="admin",
         ))
     assert any("audit write failed" in rec.getMessage() for rec in caplog.records)
 
@@ -304,62 +212,45 @@ def test_write_audit_swallows_exceptions(caplog):
 def fake_conn_factory():
     """Patch ``asyncpg.connect`` to return a controllable mock connection."""
 
-    def _factory(initial_rows: dict[int, int | None]):
-        """``initial_rows`` maps telegram_id -> existing access_tier (or None)."""
+    def _factory(initial_rows: dict[int, str | None]):
+        """``initial_rows`` maps telegram_id -> existing role (or None for missing)."""
         conn = MagicMock()
         conn.close = AsyncMock()
 
-        # Track per-id state across calls (insert/raise should mutate state).
         state = dict(initial_rows)
 
         async def _fetchrow(sql, *args):
-            # SELECT lookup before deciding insert vs update.
-            if sql.startswith("SELECT id, access_tier FROM users"):
+            if sql.startswith("SELECT id, role FROM users"):
                 tg_id = args[0]
-                tier = state.get(tg_id)
-                if tier is None:
+                role = state.get(tg_id)
+                if role is None:
                     return None
-                return {"id": f"uuid-{tg_id}", "access_tier": tier}
-            # Atomic upsert RETURNING. ``xmax = 0`` is True only when
-            # this is a fresh insert; in our fake we determine that by
-            # whether the id was absent from state at call time.
+                return {"id": f"uuid-{tg_id}", "role": role}
             if "INSERT INTO users" in sql and "DO UPDATE" in sql:
                 tg_id = args[0]
-                target = args[1]
+                new_role = args[2]
                 pre = state.get(tg_id)
-                if pre is None:
-                    state[tg_id] = target
-                    return {"access_tier": target, "was_inserted": True}
-                new = max(pre, target)
-                state[tg_id] = new
-                return {"access_tier": new, "was_inserted": False}
+                state[tg_id] = new_role
+                return {"role": new_role, "was_inserted": pre is None}
             return None
 
         async def _execute(sql, *args):
             return None
 
         async def _fetchval(sql, *args):
-            # The raise path issues an ``UPDATE ... GREATEST RETURNING``
-            # so the seeder picks up the actual post-update tier even
-            # under a concurrent promotion. Replicate the GREATEST
-            # semantics here so tests exercise the same branching the
-            # production query would.
-            if "UPDATE users SET access_tier=GREATEST" in sql:
+            if "UPDATE users SET role=$2" in sql:
                 uuid_str = args[0]
-                target = args[1]
+                new_role = args[1]
                 if isinstance(uuid_str, str) and uuid_str.startswith("uuid-"):
                     tg = int(uuid_str.removeprefix("uuid-"))
-                    current = state.get(tg, 0)
-                    new = max(current, target)
-                    state[tg] = new
-                    return new
+                    state[tg] = new_role
+                    return new_role
             return None
 
         conn.fetchrow = AsyncMock(side_effect=_fetchrow)
         conn.execute = AsyncMock(side_effect=_execute)
         conn.fetchval = AsyncMock(side_effect=_fetchval)
 
-        # ``conn.transaction()`` must be an async context manager.
         class _Tx:
             async def __aenter__(self):
                 return self
@@ -375,28 +266,26 @@ def fake_conn_factory():
 
 def test_seed_counts_actions_correctly(fake_conn_factory):
     conn = fake_conn_factory({
-        100: None,  # missing -> inserted
-        200: 1,     # below tier -> raised
-        300: 2,     # at tier   -> noop
-        400: 4,     # above     -> noop
+        100: None,     # missing  -> inserted
+        200: "user",   # user     -> raised
+        300: "admin",  # admin    -> noop
     })
 
     async def _connect(dsn):
         return conn
 
     with patch("asyncpg.connect", new=_connect):
-        counts = _run(seed.seed("postgresql://x", [100, 200, 300, 400]))
+        counts = _run(seed.seed("postgresql://x", [100, 200, 300]))
 
-    assert counts == {"inserted": 1, "raised": 1, "noop": 2}
+    assert counts == {"inserted": 1, "raised": 1, "noop": 1}
     conn.close.assert_awaited()
 
 
 def test_seed_runs_each_id_in_single_outer_transaction(fake_conn_factory):
-    """A partial DB outage mid-loop must roll the whole batch back so the
-    operator sees a clean retry rather than half-applied state. The
-    audit writes use nested savepoints on top so an audit failure does
-    NOT poison the outer transaction; total ``conn.transaction()``
-    calls = 1 outer + N audit savepoints (one per non-noop id).
+    """Partial DB outage mid-loop rolls the whole batch back. Audit
+    writes use nested savepoints on top so an audit failure does NOT
+    poison the outer transaction; total ``conn.transaction()`` calls =
+    1 outer + N audit savepoints (one per non-noop id).
     """
     conn = fake_conn_factory({100: None, 200: None})
 
@@ -406,23 +295,13 @@ def test_seed_runs_each_id_in_single_outer_transaction(fake_conn_factory):
     with patch("asyncpg.connect", new=_connect):
         _run(seed.seed("postgresql://x", [100, 200]))
 
-    # 1 outer batch transaction + 2 audit savepoints (both ids inserted).
     assert conn.transaction.call_count == 3
 
 
 def test_seed_outer_transaction_survives_audit_failure(fake_conn_factory):
-    """When an audit INSERT raises, the outer seed transaction MUST
-    survive (savepoint rolls back, outer continues) and the next id in
-    the batch must still be processed. This is the regression Codex
-    flagged: without nested transactions PostgreSQL aborts the whole
-    txn after the first failed audit row.
-    """
+    """An audit INSERT failure must NOT abort the outer seed transaction."""
     conn = fake_conn_factory({100: None, 200: None})
 
-    # Stash the seeder's normal execute side effect, then wrap it so
-    # the audit INSERT for id=100 raises while every other statement
-    # behaves normally. The outer txn must keep going; id=200 must
-    # still be inserted at Tier 2.
     state = {"audit_calls": 0}
     real_execute = conn.execute.side_effect
 
@@ -442,10 +321,8 @@ def test_seed_outer_transaction_survives_audit_failure(fake_conn_factory):
     with patch("asyncpg.connect", new=_connect):
         counts = _run(seed.seed("postgresql://x", [100, 200]))
 
-    # Both ids were inserted at Tier 2 — the audit failure on id=100
-    # did NOT prevent id=200 from being processed.
     assert counts == {"inserted": 2, "raised": 0, "noop": 0}
-    assert state["audit_calls"] == 2  # both audit writes were attempted
+    assert state["audit_calls"] == 2
 
 
 # ---------------------------------------------------------------------------
@@ -496,8 +373,6 @@ def test_run_returns_4_on_db_error(monkeypatch):
 
 
 def test_main_returns_zero_when_inner_run_returns_zero(monkeypatch):
-    """Happy path: inner _run returned 0, main returns 0."""
-
     async def _ok():
         return 0
 
@@ -507,33 +382,21 @@ def test_main_returns_zero_when_inner_run_returns_zero(monkeypatch):
 
 @pytest.mark.parametrize("inner_rc", [2, 3, 4])
 def test_main_swallows_nonzero_inner_run_for_fly_deploy(monkeypatch, caplog, inner_rc):
-    """Fly's release_command aborts the deploy on any non-zero exit. The
-    seeder's internal failure modes (missing env, missing DSN, DB blip on
-    first deploy before migrations) are ALL recoverable without rolling
-    back the release, so main() must wrap them to exit 0 and only log
-    the inner status code for diagnostics.
-    """
-
     async def _failing():
         return inner_rc
 
     monkeypatch.setattr(seed, "_run", _failing)
     with caplog.at_level("WARNING"):
         rc = seed.main()
-    assert rc == 0, (
-        f"main() returned {rc} for inner_rc={inner_rc}; Fly release_command "
-        "would have aborted the deploy"
-    )
-    assert any(
-        "exiting 0" in rec.getMessage() for rec in caplog.records
-    ), "main() should log the swallowed inner status code at WARNING"
+    assert rc == 0
+    assert any("exiting 0" in rec.getMessage() for rec in caplog.records)
 
 
 def test_run_returns_0_on_success(monkeypatch, fake_conn_factory):
     monkeypatch.setenv("ADMIN_USER_IDS", "123,456")
     monkeypatch.setenv("DATABASE_URL", "postgresql://x")
 
-    conn = fake_conn_factory({123: None, 456: 1})
+    conn = fake_conn_factory({123: None, 456: "user"})
 
     async def _connect(dsn):
         return conn

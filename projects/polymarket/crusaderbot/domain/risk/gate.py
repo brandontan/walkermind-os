@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class GateContext:
     user_id: UUID
     telegram_user_id: int
-    access_tier: int
+    role: str
     auto_trade_on: bool
     paused: bool
     market_id: str
@@ -137,7 +137,7 @@ def _passes_live_guards(ctx: GateContext, settings) -> bool:
         settings.ENABLE_LIVE_TRADING
         and settings.EXECUTION_PATH_VALIDATED
         and settings.CAPITAL_MODE_CONFIRMED
-        and ctx.access_tier >= 4
+        and ctx.role == "admin"
         and ctx.trading_mode == "live"
     )
 
@@ -235,13 +235,13 @@ async def evaluate(ctx: GateContext) -> GateResult:
         return GateResult(False, "auto_trade_off_or_paused", 2)
     await _log(ctx.user_id, ctx.market_id, 2, True, "ok")
 
-    # 3. Paper trading is open to every user (no gate). Live retains a
-    #    funded-account check as defence-in-depth; the authoritative live
-    #    safety boundary is assert_live_guards (Tier 4 + activation guards)
-    #    at order submission, which is intentionally left intact.
-    if ctx.trading_mode == "live" and ctx.access_tier < 3:
-        await _log(ctx.user_id, ctx.market_id, 3, False, f"tier_{ctx.access_tier}")
-        return GateResult(False, "insufficient_tier", 3)
+    # 3. Paper trading is open to every user (no gate). Live retains an
+    #    admin-role check as defence-in-depth; the authoritative live
+    #    safety boundary is assert_live_guards (role=='admin' + activation
+    #    guards) at order submission, which is intentionally left intact.
+    if ctx.trading_mode == "live" and ctx.role != "admin":
+        await _log(ctx.user_id, ctx.market_id, 3, False, f"role_{ctx.role}")
+        return GateResult(False, "insufficient_role", 3)
     await _log(ctx.user_id, ctx.market_id, 3, True, "ok")
 
     # 4. Strategy availability

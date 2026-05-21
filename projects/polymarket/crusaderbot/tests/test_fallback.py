@@ -280,7 +280,7 @@ def test_gate_step13_silent_downgrade_triggers_live_guard_unset_fallback():
     ctx = gate.GateContext(
         user_id=user_id,
         telegram_user_id=42,
-        access_tier=4,
+        role="admin",
         auto_trade_on=True,
         paused=False,
         market_id="m1",

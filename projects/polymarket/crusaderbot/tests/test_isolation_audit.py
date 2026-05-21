@@ -855,16 +855,16 @@ class TestAdminBoundary:
             asyncio.run(admin_root(upd, ctx))
         upd.message.reply_text.assert_called_once()
 
-    # 4-H: require_access_tier decorator — FREE blocked from PREMIUM handler
-    def test_require_access_tier_blocks_free_from_premium(self):
+    # 4-H: require_role decorator — non-admin blocked from admin handler
+    def test_require_role_blocks_user_from_admin(self):
         from projects.polymarket.crusaderbot.bot.middleware.access_tier import (
-            require_access_tier,
+            require_role,
         )
 
         called = []
 
-        @require_access_tier("PREMIUM")
-        async def _premium_handler(update, context):
+        @require_role("admin")
+        async def _admin_handler(update, context):
             called.append("executed")
 
         msg = MagicMock()
@@ -875,24 +875,24 @@ class TestAdminBoundary:
         ctx = MagicMock()
 
         with patch(
-            "projects.polymarket.crusaderbot.bot.middleware.access_tier.get_user_tier",
-            new=AsyncMock(return_value="FREE"),
+            "projects.polymarket.crusaderbot.bot.middleware.access_tier._get_role",
+            new=AsyncMock(return_value="user"),
         ):
-            asyncio.run(_premium_handler(upd, ctx))
+            asyncio.run(_admin_handler(upd, ctx))
 
-        assert not called, "PREMIUM handler should not execute for FREE user"
+        assert not called, "admin handler should not execute for non-admin user"
         msg.reply_text.assert_called_once()
 
-    # 4-I: require_access_tier — PREMIUM can access PREMIUM handler
-    def test_require_access_tier_allows_premium(self):
+    # 4-I: require_role — admin can access admin handler
+    def test_require_role_allows_admin(self):
         from projects.polymarket.crusaderbot.bot.middleware.access_tier import (
-            require_access_tier,
+            require_role,
         )
 
         called = []
 
-        @require_access_tier("PREMIUM")
-        async def _premium_handler(update, context):
+        @require_role("admin")
+        async def _admin_handler(update, context):
             called.append("executed")
 
         msg = MagicMock()
@@ -903,23 +903,23 @@ class TestAdminBoundary:
         ctx = MagicMock()
 
         with patch(
-            "projects.polymarket.crusaderbot.bot.middleware.access_tier.get_user_tier",
-            new=AsyncMock(return_value="PREMIUM"),
+            "projects.polymarket.crusaderbot.bot.middleware.access_tier._get_role",
+            new=AsyncMock(return_value="admin"),
         ):
-            asyncio.run(_premium_handler(upd, ctx))
+            asyncio.run(_admin_handler(upd, ctx))
 
-        assert "executed" in called, "PREMIUM handler should execute for PREMIUM user"
+        assert "executed" in called, "admin handler should execute for admin user"
 
-    # 4-J: require_access_tier — ADMIN tier blocked from ADMIN handler if not ADMIN
-    def test_require_access_tier_blocks_premium_from_admin(self):
+    # 4-J: require_role('user') is open — paper trading is unrestricted
+    def test_require_role_user_does_not_gate(self):
         from projects.polymarket.crusaderbot.bot.middleware.access_tier import (
-            require_access_tier,
+            require_role,
         )
 
         called = []
 
-        @require_access_tier("ADMIN")
-        async def _admin_handler(update, context):
+        @require_role("user")
+        async def _open_handler(update, context):
             called.append("executed")
 
         msg = MagicMock()
@@ -930,9 +930,9 @@ class TestAdminBoundary:
         ctx = MagicMock()
 
         with patch(
-            "projects.polymarket.crusaderbot.bot.middleware.access_tier.get_user_tier",
-            new=AsyncMock(return_value="PREMIUM"),
+            "projects.polymarket.crusaderbot.bot.middleware.access_tier._get_role",
+            new=AsyncMock(return_value="user"),
         ):
-            asyncio.run(_admin_handler(upd, ctx))
+            asyncio.run(_open_handler(upd, ctx))
 
-        assert not called, "ADMIN handler should not execute for PREMIUM user"
+        assert "executed" in called, "user-role handler is open to all users"

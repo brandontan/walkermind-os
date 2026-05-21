@@ -47,7 +47,7 @@ class LivePostSubmitError(RuntimeError):
     """Raised after a CLOB submission has occurred — paper-fallback is UNSAFE."""
 
 
-def assert_live_guards(access_tier: int, trading_mode: str) -> None:
+def assert_live_guards(role: str, trading_mode: str) -> None:
     """Raise unless ALL activation guards pass.
 
     USE_REAL_CLOB is included as a guard because MockClobClient records
@@ -55,6 +55,9 @@ def assert_live_guards(access_tier: int, trading_mode: str) -> None:
     real order to Polymarket — phantom live exposure. Requiring the real
     client here ensures the router also paper-falls-back when USE_REAL_CLOB
     is not set, even if all three env guards are enabled.
+
+    role must equal 'admin' — live trading is owner-only while
+    EXECUTION_PATH_VALIDATED / CAPITAL_MODE_CONFIRMED remain owner-gated.
     """
     s = get_settings()
     if not s.ENABLE_LIVE_TRADING:
@@ -67,8 +70,8 @@ def assert_live_guards(access_tier: int, trading_mode: str) -> None:
         raise LivePreSubmitError(
             "USE_REAL_CLOB must be True when ENABLE_LIVE_TRADING is set"
         )
-    if access_tier < 4:
-        raise LivePreSubmitError(f"tier {access_tier}<4")
+    if role != "admin":
+        raise LivePreSubmitError(f"role={role!r} not admin")
     if trading_mode != "live":
         raise LivePreSubmitError(f"user trading_mode={trading_mode}")
 
@@ -77,7 +80,7 @@ async def execute(
     *,
     user_id: UUID,
     telegram_user_id: int,
-    access_tier: int,
+    role: str,
     trading_mode: str,
     market_id: str,
     market_question: str | None,
@@ -137,7 +140,7 @@ async def execute(
         )
         return {"status": "dry_run", "mode": "paper", "_mock": True}
 
-    assert_live_guards(access_tier, trading_mode)
+    assert_live_guards(role, trading_mode)
 
     token_id = yes_token_id if side == "yes" else no_token_id
     if not token_id:

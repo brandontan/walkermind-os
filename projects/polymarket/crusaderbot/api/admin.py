@@ -35,10 +35,12 @@ async def status(authorization: str | None = Header(default=None)):
     pool = get_pool()
     async with pool.acquire() as conn:
         users = await conn.fetchval("SELECT COUNT(*) FROM users")
-        funded = await conn.fetchval(
-            "SELECT COUNT(*) FROM users WHERE access_tier>=3")
+        # 'funded' historically meant access_tier>=3 — paper is now open to all
+        # users so funded == total users (kept in the payload for backwards
+        # compatibility with existing operator dashboards).
+        funded = users
         live = await conn.fetchval(
-            "SELECT COUNT(*) FROM users WHERE access_tier>=4")
+            "SELECT COUNT(*) FROM users WHERE role = 'admin'")
         open_paper = await conn.fetchval(
             "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='paper'")
         open_live = await conn.fetchval(
@@ -63,7 +65,7 @@ async def live_gate_status(authorization: str | None = Header(default=None)):
 
     Returns a machine-readable and human-readable summary of whether each gate
     is open or locked, which makes operator validation and CI monitoring
-    straightforward. All five must be True before any Tier 4 user can route a
+    straightforward. All five must be True before any admin user can route a
     real order to the Polymarket CLOB.
     """
     token = authorization.removeprefix("Bearer ").strip() if authorization else None
@@ -72,7 +74,7 @@ async def live_gate_status(authorization: str | None = Header(default=None)):
     pool = get_pool()
     async with pool.acquire() as conn:
         tier4_count = int(await conn.fetchval(
-            "SELECT COUNT(*) FROM users WHERE access_tier >= 4"
+            "SELECT COUNT(*) FROM users WHERE role = 'admin'"
         ))
         live_mode_count = int(await conn.fetchval(
             "SELECT COUNT(*) FROM user_settings WHERE trading_mode = 'live'"
@@ -80,7 +82,7 @@ async def live_gate_status(authorization: str | None = Header(default=None)):
         live_mode_tier4_count = int(await conn.fetchval(
             "SELECT COUNT(*) FROM users u "
             "JOIN user_settings s ON s.user_id = u.id "
-            "WHERE u.access_tier >= 4 AND s.trading_mode = 'live'"
+            "WHERE u.role = 'admin' AND s.trading_mode = 'live'"
         ))
         open_live = int(await conn.fetchval(
             "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='live'"
@@ -93,8 +95,8 @@ async def live_gate_status(authorization: str | None = Header(default=None)):
         "ENABLE_LIVE_TRADING": s.ENABLE_LIVE_TRADING,
         "EXECUTION_PATH_VALIDATED": s.EXECUTION_PATH_VALIDATED,
         "CAPITAL_MODE_CONFIRMED": s.CAPITAL_MODE_CONFIRMED,
-        "tier4_users_exist": tier4_count > 0,
-        "live_mode_tier4_users_exist": live_mode_tier4_count > 0,
+        "admin_users_exist": tier4_count > 0,
+        "live_mode_admin_users_exist": live_mode_tier4_count > 0,
     }
     operator_guards_open = (
         s.ENABLE_LIVE_TRADING
@@ -119,9 +121,9 @@ async def live_gate_status(authorization: str | None = Header(default=None)):
         "live_routing_possible": operator_guards_open and live_mode_tier4_count > 0,
         "gates": gates,
         "users": {
-            "tier4_total": tier4_count,
+            "admin_total": tier4_count,
             "live_mode_total": live_mode_count,
-            "tier4_and_live_mode": live_mode_tier4_count,
+            "admin_and_live_mode": live_mode_tier4_count,
         },
         "positions": {
             "open_live": open_live,
@@ -161,7 +163,7 @@ async def dry_run(request: dict, authorization: str | None = Header(default=None
         signal = TradeSignal(
             user_id=uuid.UUID(str(request.get("user_id", ""))),
             telegram_user_id=int(request.get("telegram_user_id", 0)),
-            access_tier=int(request.get("access_tier", 2)),
+            role=str(request.get("role", "user")),
             auto_trade_on=bool(request.get("auto_trade_on", True)),
             paused=bool(request.get("paused", False)),
             market_id=str(request.get("market_id", "")),

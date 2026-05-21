@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,
-                  access_tier: int, market_id: str, market_question: str | None,
+                  role: str, market_id: str, market_question: str | None,
                   yes_token_id: str | None, no_token_id: str | None,
                   side: str, size_usdc: Decimal, price: float,
                   idempotency_key: str, strategy_type: str,
@@ -32,7 +32,7 @@ async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,
                   trading_mode: str = "paper") -> dict:
     if chosen_mode == "live":
         try:
-            live_engine.assert_live_guards(access_tier, trading_mode)
+            live_engine.assert_live_guards(role, trading_mode)
         except Exception as exc:
             # CRITICAL: live path was requested but guards are not all SET.
             # This is a guard bypass attempt — operator must investigate.
@@ -54,7 +54,7 @@ async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,
         try:
             return await live_engine.execute(
                 user_id=user_id, telegram_user_id=telegram_user_id,
-                access_tier=access_tier, trading_mode=trading_mode,
+                role=role, trading_mode=trading_mode,
                 market_id=market_id, market_question=market_question,
                 yes_token_id=yes_token_id, no_token_id=no_token_id,
                 side=side, size_usdc=size_usdc, price=price,

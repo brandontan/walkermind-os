@@ -287,7 +287,7 @@ async def _process_one(
     signal = TradeSignal(
         user_id=task.user_id,
         telegram_user_id=user_ctx["telegram_user_id"],
-        access_tier=user_ctx["access_tier"],
+        role=user_ctx.get("role") or "user",
         auto_trade_on=user_ctx["auto_trade_on"],
         paused=user_ctx["paused"],
         market_id=market_id,
@@ -478,7 +478,7 @@ async def _load_user_context(user_id: UUID) -> dict[str, Any] | None:
         row = await conn.fetchrow(
             """
             SELECT u.telegram_user_id,
-                   u.access_tier,
+                   u.role,
                    u.auto_trade_on,
                    u.paused,
                    COALESCE(s.risk_profile, 'balanced') AS risk_profile,

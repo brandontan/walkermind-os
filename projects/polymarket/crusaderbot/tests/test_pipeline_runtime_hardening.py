@@ -76,7 +76,7 @@ def _signal(**overrides: Any) -> TradeSignal:
     defaults: dict[str, Any] = dict(
         user_id=_USER,
         telegram_user_id=99_999,
-        access_tier=3,
+        role="user",
         auto_trade_on=True,
         paused=False,
         market_id=_MARKET,
@@ -361,7 +361,7 @@ async def test_strategy_scan_done_event_emitted():
     _mock_user = {
         "user_id": str(_USER),
         "telegram_user_id": 12345,
-        "access_tier": 3,
+        "role": "user",
         "auto_trade_on": True,
         "paused": False,
         "balance_usdc": Decimal("1000.00"),

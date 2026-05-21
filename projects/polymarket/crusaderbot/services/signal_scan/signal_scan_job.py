@@ -140,7 +140,7 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
             SELECT
                 u.id                     AS user_id,
                 u.telegram_user_id,
-                u.access_tier,
+                u.role,
                 u.auto_trade_on,
                 u.paused,
                 COALESCE(w.balance_usdc, 0)   AS balance_usdc,
@@ -395,7 +395,7 @@ def _build_trade_signal(
     return TradeSignal(
         user_id=UUID(str(row["user_id"])),
         telegram_user_id=int(row["telegram_user_id"]),
-        access_tier=int(row["access_tier"]),
+        role=str(row.get("role") or "user"),
         auto_trade_on=bool(row["auto_trade_on"]),
         paused=bool(row["paused"]),
         market_id=cand.market_id,
@@ -487,7 +487,7 @@ async def _process_candidate(
                     chosen_mode=str(stale["chosen_mode"]),
                     user_id=user_id,
                     telegram_user_id=int(row["telegram_user_id"]),
-                    access_tier=int(row["access_tier"]),
+                    role=str(row.get("role") or "user"),
                     market_id=stale["market_id"],
                     market_question=str(stale_market.get("question") or ""),
                     yes_token_id=stale_market.get("yes_token_id"),
