@@ -1,7 +1,7 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-05-21 06:32
+**Last Updated : 2026-05-21 14:27
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
@@ -95,13 +95,13 @@ Observe the runtime under real usage:
 CRUSADERBOT is considered **DONE** only when:
 
 - [x] WebTrader running
-- [ ] Runtime spine proven end-to-end
-- [ ] WebTrader realtime trusted
-- [ ] Telegram stable
-- [ ] Paper trading stable
-- [ ] No user bleed
-- [ ] No dead routes
-- [ ] Closed beta clean
+- [x] Runtime spine proven end-to-end
+- [x] WebTrader realtime trusted
+- [x] Telegram stable
+- [x] Paper trading stable
+- [x] No user bleed
+- [x] No dead routes
+- [x] Closed beta clean
 - [ ] Production checklist complete
 
 ---
