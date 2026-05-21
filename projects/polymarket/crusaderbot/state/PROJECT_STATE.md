@@ -1,5 +1,5 @@
-Last Updated : 2026-05-21 08:30
-Status       : WARP-51 MERGED — access_tier column refs fully removed; migration 044 re-enabled; schema DROP runs on next Fly deploy
+Last Updated : 2026-05-21 10:55
+Status       : WARP-51 MERGED + Migrations 027/029/030/031 APPLIED — schema production-ready; 044 (access_tier DROP) confirmed applied
 - WARP-51 (issue #1220): WARP/warp51-drop-access-tier PR open — every `.py` writer/reader of access_tier stripped; `/allowlist` converted to `set_role('admin')`; scripts/seed_operator_tier.py deleted (+ fly.toml release_command removed); migration 044_drop_access_tier.sql re-enabled (was .disabled); 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL audit required.
 - WARP-25 MERGED (698b2cdf): menu:positions routing, dead import cleanup, dynamic preset_picker (domain layer), Back→Portfolio. STANDARD, NARROW INTEGRATION.
 - WARP-45 (issue #1198): fix-sentry-p1-runtime-bugs PR open — _coerce_jsonb() helper added to signal_scan_job.py; asyncpg JSONB-as-str ValueError resolved (Sentry DAWN-SNOWFLAKE-1729-1Q); Bugs 2+3 confirmed already fixed (WARP-35/WARP-37). STANDARD, NARROW INTEGRATION.
