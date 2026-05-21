@@ -131,13 +131,15 @@ jobs:
           ${BODY_B44}
           <<<USER_CONTENT_END>>>"
 
+          TG_EOF="TG_EOF_$(uuidgen)"
+          B44_EOF="B44_EOF_$(uuidgen)"
           {
-            echo "tg_text<<__TG_EOF__"
+            echo "tg_text<<${TG_EOF}"
             echo "$TG_TEXT"
-            echo "__TG_EOF__"
-            echo "b44_text<<__B44_EOF__"
+            echo "${TG_EOF}"
+            echo "b44_text<<${B44_EOF}"
             echo "$B44_TEXT"
-            echo "__B44_EOF__"
+            echo "${B44_EOF}"
           } >>"$GITHUB_OUTPUT"
 
       - name: Notify Telegram
@@ -153,6 +155,9 @@ jobs:
             exit 0
           fi
           curl -fsS -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            --connect-timeout 5 \
+            --max-time 20 \
+            --retry 2 --retry-delay 1 --retry-connrefused \
             --data-urlencode "chat_id=${TG_CHAT}" \
             --data-urlencode "text=${MSG}" \
             --data-urlencode "disable_web_page_preview=false" \
@@ -172,6 +177,9 @@ jobs:
           fi
           PAYLOAD=$(jq -n --arg c "$MSG" '{messages:[{role:"user", content:$c}]}')
           curl -fsS -X POST \
+            --connect-timeout 5 \
+            --max-time 20 \
+            --retry 2 --retry-delay 1 --retry-connrefused \
             "https://app.base44.com/api/agents/${B44_AGENT}/conversations" \
             -H "Content-Type: application/json" \
             -H "api_key: ${B44_KEY}" \
