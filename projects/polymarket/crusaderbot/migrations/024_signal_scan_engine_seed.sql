@@ -72,8 +72,8 @@ AND NOT EXISTS (
        AND exit_published_at IS NULL
 );
 
--- 4. Promote all existing users to access_tier >= 3 (unblocks the scanner filter)
-UPDATE users SET access_tier = 3 WHERE access_tier < 3;
+-- 4. access_tier column removed (WARP-51/044) — role-based model active.
+--    Was: UPDATE users SET access_tier = 3 WHERE access_tier < 3;
 
 -- 5. Enroll all users in signal_following strategy (upsert, weight 10%)
 INSERT INTO user_strategies (user_id, strategy_name, weight, enabled, created_at)
