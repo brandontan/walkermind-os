@@ -13,6 +13,11 @@
 
 2026-05-21 08:08 | WARP/warp51-drop-access-tier | WARP-51 (issue #1220): every Python access_tier writer/reader removed; `set_tier`/`force_set_tier` deleted; `/allowlist` converted to `set_role('admin')`; `scripts/seed_operator_tier.py` deleted + `fly.toml [deploy].release_command` removed; migration `044_drop_access_tier.sql` re-enabled; 16 test files fixture-swept; 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL pending.
 
+## [WARP-55] — 2026-05-21
+
+- **proof:** `RUNTIME_EVIDENCE.md` — all 7 P2 finish criteria verified against live Supabase (275 signal_scan, 1491 exit_watch, 104 portfolio_snapshots runs; 25 stable paper positions, 0 stuck, 0 user bleed)
+- **🏁 CrusaderBot closed beta DONE.** Activation guards LOCKED pending owner decision.
+- Merged PR #1259 (SHA abd3b43dbe10) — STANDARD, evidence-only
 ## [WARP-56] — 2026-05-21
 
 - **fix:** `_coerce_jsonb` in `signal_scan_job.py` now narrows return type to match `fallback` shape — JSON scalar `strategy_params` (e.g. `"balanced"`) no longer leaks into `strategy.initialize()` and triggers `ValueError` (Sentry 9x, scanner dead)
