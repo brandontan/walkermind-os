@@ -108,6 +108,7 @@ CRUSADERBOT is considered **DONE** only when:
 
 ## Active — In Progress
 
+- [x] WARP-61 — WebTrader confluence_scalper exposure (issue #1269) [STANDARD] — DELIVERED WARP/webtrader-confluence-scalper 2026-05-21 (Crypto Scalper preset card in WebTrader Auto Trade; Full Auto runs confluence_scalper for eligible crypto markets only; non-crypto markets auto-skip).
 - [x] WARP-60 — ConfluenceScalperStrategy (issue #1267) [STANDARD] — MERGED b3ec4b7d4930
 - [x] WARP-59 — Copy Wallet end-to-end bridge: copy_targets → copy_trade_tasks (Issue #1265) [STANDARD] — DELIVERED WARP/warp59-copy-wallet-e2e-bridge 2026-05-21 (MVP write path realigned to canonical execution table read by services/copy_trade/monitor.py).
 - [x] WARP-58 — Fix domain/signal/copy_trade.py copy_targets schema mismatch (Issue #1263) [STANDARD] — DELIVERED WARP/warp58-copy-trade-schema-fix 2026-05-21 (closes WARP-57 SENTINEL Round-1 read-path drift).

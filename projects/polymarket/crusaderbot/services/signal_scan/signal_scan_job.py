@@ -43,6 +43,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -89,22 +90,89 @@ _MAX_TARGET_DRIFT_PCT: float = 0.25  # 25%
 
 _LIB_STRATEGY_NAMES: frozenset[str] = frozenset(ENABLED_STRATEGIES) | frozenset(DEFERRED_STRATEGIES)
 
+# Domain strategies wired into the scan loop alongside lib/ strategies.
+# These live in domain/strategy/strategies/ and are registered via
+# bootstrap_default_strategies(). The scan loop runs them explicitly per user
+# when the active_preset permits.
+_CONFLUENCE_SCALPER_NAME = "confluence_scalper"
+
+# Crypto-only eligibility gate for confluence_scalper. The strategy itself
+# fetches markets from Gamma and does not know about category gating, so the
+# scan loop filters its emitted candidates against this set of asset symbols
+# before they reach the risk gate. Non-crypto markets are silently skipped.
+_CRYPTO_SCALPER_ASSETS: tuple[str, ...] = (
+    "btc", "bitcoin",
+    "eth", "ethereum",
+    "sol", "solana",
+    "xrp", "ripple",
+    "doge", "dogecoin",
+    "bnb", "binance coin",
+    "hype", "hyperliquid",
+)
+_CRYPTO_SCALPER_ASSET_PATTERN = re.compile(
+    r"\b(" + "|".join(re.escape(a) for a in _CRYPTO_SCALPER_ASSETS) + r")\b",
+    re.IGNORECASE,
+)
+
 _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
-    "whale_mirror":   frozenset({"whale_tracking"}),
-    "trend_breakout": frozenset({"trend_breakout"}),
-    "contrarian":     frozenset({"momentum"}),
-    "value_hunter":   frozenset({"value_investor"}),
-    "close_sweep":    frozenset({"expiration_timing"}),
-    "pair_arb":       frozenset({"pair_arb"}),
-    "ensemble":       frozenset({"ensemble", "trend_breakout", "momentum", "value_investor"}),
-    "full_auto":      _LIB_STRATEGY_NAMES,
-    None:             _LIB_STRATEGY_NAMES,  # no preset set → full_auto behaviour
+    "whale_mirror":        frozenset({"whale_tracking"}),
+    "trend_breakout":      frozenset({"trend_breakout"}),
+    "contrarian":          frozenset({"momentum"}),
+    "value_hunter":        frozenset({"value_investor"}),
+    "close_sweep":         frozenset({"expiration_timing"}),
+    "pair_arb":            frozenset({"pair_arb"}),
+    "ensemble":            frozenset({"ensemble", "trend_breakout", "momentum", "value_investor"}),
+    "confluence_scalper":  frozenset({_CONFLUENCE_SCALPER_NAME}),
+    "full_auto":           _LIB_STRATEGY_NAMES | frozenset({_CONFLUENCE_SCALPER_NAME}),
+    None:                  _LIB_STRATEGY_NAMES | frozenset({_CONFLUENCE_SCALPER_NAME}),  # no preset set → full_auto behaviour
 }
 
 
 def _preset_allows(active_preset: str | None, strategy_name: str) -> bool:
     """Return True if user's active_preset permits signals from strategy_name."""
     return strategy_name in _PRESET_ALLOWED.get(active_preset, _LIB_STRATEGY_NAMES)
+
+
+def _is_crypto_eligible_for_confluence(market: dict) -> bool:
+    """Return True if a Gamma market dict qualifies for the confluence scalper.
+
+    Two gates must both pass:
+      - category resolves to ``Crypto`` (case-insensitive match on Gamma's
+        ``category``, ``groupItemTitle``, or ``slug`` fields).
+      - market title/question references one of the whitelisted assets
+        (BTC, ETH, SOL, XRP, DOGE, BNB, HYPE), matched with word boundaries
+        so "hyperventilate" or "doge-style" do not produce false positives.
+
+    Non-crypto markets and crypto markets outside the asset whitelist are
+    skipped so existing strategies remain unaffected.
+    """
+    if not isinstance(market, dict):
+        return False
+    cat = (
+        market.get("category")
+        or market.get("groupItemTitle")
+        or market.get("slug")
+        or ""
+    )
+    if "crypto" not in str(cat).lower():
+        return False
+    haystack = " ".join(
+        str(market.get(field) or "")
+        for field in ("question", "title", "slug", "groupItemTitle")
+    )
+    return bool(_CRYPTO_SCALPER_ASSET_PATTERN.search(haystack))
+
+
+def _crypto_eligible_market_ids(markets: list[dict]) -> set[str]:
+    """Return the set of Gamma market ``id`` strings eligible for confluence_scalper."""
+    out: set[str] = set()
+    for m in markets:
+        if not _is_crypto_eligible_for_confluence(m):
+            continue
+        market_id = str(m.get("id") or "")
+        if market_id:
+            out.add(market_id)
+    return out
 
 
 def _coerce_jsonb(val: object, fallback: dict | list | None = None) -> dict | list:
@@ -759,11 +827,13 @@ async def run_once() -> None:
         return
 
     markets = await _fetch_markets_for_lib_strategies()
+    crypto_market_ids = _crypto_eligible_market_ids(markets)
     strategies_to_run = list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES)
 
     candidates_processed = 0
     candidates_errored = 0
     lib_total_signals = 0
+    confluence_signals = 0
 
     for row in users:
         active_preset = row.get("active_preset")
@@ -800,6 +870,43 @@ async def run_once() -> None:
                         error=str(exc),
                     )
 
+        # Phase B: run domain confluence_scalper strategy when the active
+        # preset permits. The strategy fetches markets itself; emitted
+        # candidates are filtered against the crypto-eligible asset whitelist
+        # before they reach the risk gate so non-crypto markets are silently
+        # skipped without affecting other strategies.
+        if _preset_allows(active_preset, _CONFLUENCE_SCALPER_NAME):
+            try:
+                domain_strat = StrategyRegistry.instance().get(_CONFLUENCE_SCALPER_NAME)
+            except KeyError:
+                domain_strat = None
+                user_log.debug("confluence_scalper_not_registered")
+            if domain_strat is not None:
+                try:
+                    user_ctx = _build_user_context(row)
+                    market_filters = _build_market_filters()
+                    domain_cands = await domain_strat.scan(market_filters, user_ctx)
+                except Exception as exc:
+                    user_log.warning("confluence_scalper_run_failed", error=str(exc))
+                    domain_cands = []
+
+                eligible_cands = [
+                    c for c in domain_cands if c.market_id in crypto_market_ids
+                ]
+                confluence_signals += len(eligible_cands)
+                for cand in eligible_cands:
+                    try:
+                        await _process_candidate(row, cand)
+                        candidates_processed += 1
+                    except Exception as exc:
+                        candidates_errored += 1
+                        user_log.error(
+                            "signal_scan_candidate_unhandled",
+                            market_id=cand.market_id,
+                            strategy=_CONFLUENCE_SCALPER_NAME,
+                            error=str(exc),
+                        )
+
         # Phase C: evaluate signal_publications feed for this user.
         # Uses signal_evaluator which reads user's subscribed feeds and
         # returns SignalCandidates with metadata["publication_id"] set.
@@ -832,11 +939,12 @@ async def run_once() -> None:
         "lib_strategy_scan_done",
         strategies=len(strategies_to_run),
         total_signals=lib_total_signals,
+        confluence_signals=confluence_signals,
     )
     await _event_bus.emit(
         "pipeline.strategy_scan_done",
-        strategy_count=len(strategies_to_run),
-        total_signals=lib_total_signals,
+        strategy_count=len(strategies_to_run) + 1,  # +1 for confluence_scalper
+        total_signals=lib_total_signals + confluence_signals,
     )
     await _event_bus.emit(
         "pipeline.scan_completed",
