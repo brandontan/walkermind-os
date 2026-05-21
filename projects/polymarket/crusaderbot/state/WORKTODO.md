@@ -1,7 +1,7 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-05-21 10:55
+**Last Updated : 2026-05-21 11:06
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
@@ -30,10 +30,10 @@ Prove the actual runtime spine is real end-to-end:
 ```
 
 Deliverables:
-- [ ] Runtime evidence matrix
-- [ ] Broken/fake/dead path map
+- [x] Runtime evidence matrix
+- [x] Broken/fake/dead path map
 - [x] Multi-user isolation verification
-- [ ] Proof PAPER ONLY posture unchanged
+- [x] Proof PAPER ONLY posture unchanged
 
 ---
 
@@ -112,4 +112,4 @@ CRUSADERBOT is considered **DONE** only when:
 ❌ dashboard redesign
 ❌ monetization / premium expansion
 ❌ new feature creep until PAPER runtime is trusted
-- [ ] WARP-46 — Runtime Spine Validation (Issue #1243)
+- [x] WARP-46 — Runtime Spine Validation (Issue #1243)
