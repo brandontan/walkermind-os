@@ -6,6 +6,13 @@
 
 2026-05-21 08:08 | WARP/warp51-drop-access-tier | WARP-51 (issue #1220): every Python access_tier writer/reader removed; `set_tier`/`force_set_tier` deleted; `/allowlist` converted to `set_role('admin')`; `scripts/seed_operator_tier.py` deleted + `fly.toml [deploy].release_command` removed; migration `044_drop_access_tier.sql` re-enabled; 16 test files fixture-swept; 1487 pytest passed. MAJOR, NARROW INTEGRATION. SENTINEL pending.
 
+## [2026-05-21 05:44] WARP-52 MERGED (743bc9f92063) — portfolio_snapshots Python writer + cb_portfolio NOTIFY wiring
+- `services/portfolio_snapshots.py`: write_snapshot() + snapshot_active_users()
+- `paper.close_position`: inline write_snapshot outside DB txn
+- `scheduler.py`: portfolio_snapshots 60s tick (max_instances=1, coalesce=True)
+- 7 regression tests pass; CI clean
+- Closes Issue #1245
+
 ## 2026-05-21 — Migrations 027/029/030/031/044 Applied to Supabase Production
 
 - **027** `notifications_on` column added to `user_settings` (BOOLEAN DEFAULT TRUE)
