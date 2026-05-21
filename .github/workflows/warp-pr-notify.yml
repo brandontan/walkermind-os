@@ -120,11 +120,11 @@ jobs:
           event: ${KIND}
           repo: ${REPO}
           ref: ${REF}
-          actor: ${ACTOR}
-          ${META}
           url: ${URL}
 
           <<<USER_CONTENT_BEGIN>>>
+          actor: ${ACTOR}
+          ${META}
           title: ${TITLE}
 
           body:
