@@ -154,6 +154,19 @@ PRESET_CONFIG: dict[str, PresetConfig] = {
         "max_pos_pct": 8,
         "has_copy_trade": False,
     },
+    "confluence_scalper": {
+        "emoji": "🚀",
+        "name": "Crypto Scalper",
+        "strategy_label": "ConfluenceScalperStrategy",
+        "strategies": ["confluence_scalper"],
+        "risk_label": "Advanced",
+        "risk_emoji": "🟡",
+        "capital_pct": 40,
+        "tp_pct": 8,
+        "sl_pct": 4,
+        "max_pos_pct": 5,
+        "has_copy_trade": False,
+    },
 }
 
 
@@ -169,5 +182,6 @@ PRESET_ORDER: list[str] = [
     "close_sweep",
     "pair_arb",
     "ensemble",
+    "confluence_scalper",
     "full_auto",
 ]

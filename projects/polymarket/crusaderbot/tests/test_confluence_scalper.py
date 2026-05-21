@@ -104,6 +104,11 @@ def _make_market(
     drift: float = -0.05,
     liquidity: float = 20_000.0,
     volume_24h: float = 10_000.0,
+    # Defaults satisfy the Issue #1269 eligibility gate (category=Crypto +
+    # asset whitelist) which is now enforced inside ConfluenceScalperStrategy.
+    # Override per test when validating the rejection path.
+    category: str = "Crypto",
+    question: str = "Will BTC hit a new high?",
 ) -> dict:
     return {
         "id": market_id,
@@ -115,6 +120,8 @@ def _make_market(
         "oneDayPriceChange": drift,
         "liquidity": liquidity,
         "volume_24hr": volume_24h,
+        "category": category,
+        "question": question,
     }
 
 
@@ -257,6 +264,38 @@ def test_scan_returns_empty_when_get_markets_raises():
 def test_scan_skips_malformed_market_dict_without_exception():
     bad_markets = [{"garbage": True}, None, {}, {"id": "x"}]
     assert _run_scan(bad_markets) == []
+
+
+# ---------------------------------------------------------------------------
+# scan() — Issue #1269 eligibility gate (crypto-only + asset whitelist)
+# ---------------------------------------------------------------------------
+
+
+def test_scan_skips_non_crypto_category():
+    # A market that satisfies every confluence signal but lives in a non-crypto
+    # category must self-skip inside scan(); other strategies on the same tick
+    # are unaffected.
+    _assert_scan_empty([_make_market(category="Politics", question="Will BTC ban pass?")])
+
+
+def test_scan_skips_off_whitelist_crypto_asset():
+    _assert_scan_empty([_make_market(question="Will ADA hit \\$10?")])
+
+
+def test_scan_keeps_each_whitelisted_asset():
+    for question in (
+        "Will BTC hit a new high?",
+        "Will ETH gas drop?",
+        "Will SOL TVL grow?",
+        "Will XRP ETF land?",
+        "Will DOGE moon?",
+        "Will BNB outperform?",
+        "Will HYPE pump?",
+    ):
+        m = _make_market(market_id="m_" + question[:4], condition_id="c_" + question[:4],
+                         question=question)
+        result = _run_scan([m])
+        assert len(result) == 1, question
 
 
 # ---------------------------------------------------------------------------

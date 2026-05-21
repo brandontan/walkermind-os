@@ -89,16 +89,26 @@ _MAX_TARGET_DRIFT_PCT: float = 0.25  # 25%
 
 _LIB_STRATEGY_NAMES: frozenset[str] = frozenset(ENABLED_STRATEGIES) | frozenset(DEFERRED_STRATEGIES)
 
+# Domain strategies wired into the scan loop alongside lib/ strategies.
+# These live in domain/strategy/strategies/ and are registered via
+# bootstrap_default_strategies(). The scan loop runs them explicitly per user
+# when the active_preset permits. Crypto-only eligibility for the scalper
+# lives in domain/strategy/eligibility.py and is enforced INSIDE
+# ConfluenceScalperStrategy.scan(), so emitted candidates already satisfy
+# the asset whitelist when they reach this loop.
+_CONFLUENCE_SCALPER_NAME = "confluence_scalper"
+
 _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
-    "whale_mirror":   frozenset({"whale_tracking"}),
-    "trend_breakout": frozenset({"trend_breakout"}),
-    "contrarian":     frozenset({"momentum"}),
-    "value_hunter":   frozenset({"value_investor"}),
-    "close_sweep":    frozenset({"expiration_timing"}),
-    "pair_arb":       frozenset({"pair_arb"}),
-    "ensemble":       frozenset({"ensemble", "trend_breakout", "momentum", "value_investor"}),
-    "full_auto":      _LIB_STRATEGY_NAMES,
-    None:             _LIB_STRATEGY_NAMES,  # no preset set → full_auto behaviour
+    "whale_mirror":        frozenset({"whale_tracking"}),
+    "trend_breakout":      frozenset({"trend_breakout"}),
+    "contrarian":          frozenset({"momentum"}),
+    "value_hunter":        frozenset({"value_investor"}),
+    "close_sweep":         frozenset({"expiration_timing"}),
+    "pair_arb":            frozenset({"pair_arb"}),
+    "ensemble":            frozenset({"ensemble", "trend_breakout", "momentum", "value_investor"}),
+    "confluence_scalper":  frozenset({_CONFLUENCE_SCALPER_NAME}),
+    "full_auto":           _LIB_STRATEGY_NAMES | frozenset({_CONFLUENCE_SCALPER_NAME}),
+    None:                  _LIB_STRATEGY_NAMES | frozenset({_CONFLUENCE_SCALPER_NAME}),  # no preset set → full_auto behaviour
 }
 
 
@@ -761,9 +771,18 @@ async def run_once() -> None:
     markets = await _fetch_markets_for_lib_strategies()
     strategies_to_run = list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES)
 
+    # Hoist the domain confluence_scalper instance once per tick — registry
+    # state is process-wide and the lookup does not depend on per-user data.
+    try:
+        confluence_strat = StrategyRegistry.instance().get(_CONFLUENCE_SCALPER_NAME)
+    except KeyError:
+        confluence_strat = None
+        logger.debug("confluence_scalper_not_registered")
+
     candidates_processed = 0
     candidates_errored = 0
     lib_total_signals = 0
+    confluence_signals = 0
 
     for row in users:
         active_preset = row.get("active_preset")
@@ -800,6 +819,37 @@ async def run_once() -> None:
                         error=str(exc),
                     )
 
+        # Phase B: run domain confluence_scalper strategy when the active
+        # preset permits. The strategy applies the crypto-only asset whitelist
+        # inside its own market loop (see domain/strategy/eligibility.py +
+        # strategies/confluence_scalper.py), so emitted candidates already
+        # satisfy the gate. Non-crypto markets self-skip without affecting
+        # other strategies on the same scan tick.
+        if confluence_strat is not None and _preset_allows(
+            active_preset, _CONFLUENCE_SCALPER_NAME
+        ):
+            try:
+                user_ctx = _build_user_context(row)
+                market_filters = _build_market_filters()
+                domain_cands = await confluence_strat.scan(market_filters, user_ctx)
+            except Exception as exc:
+                user_log.warning("confluence_scalper_run_failed", error=str(exc))
+                domain_cands = []
+
+            confluence_signals += len(domain_cands)
+            for cand in domain_cands:
+                try:
+                    await _process_candidate(row, cand)
+                    candidates_processed += 1
+                except Exception as exc:
+                    candidates_errored += 1
+                    user_log.error(
+                        "signal_scan_candidate_unhandled",
+                        market_id=cand.market_id,
+                        strategy=_CONFLUENCE_SCALPER_NAME,
+                        error=str(exc),
+                    )
+
         # Phase C: evaluate signal_publications feed for this user.
         # Uses signal_evaluator which reads user's subscribed feeds and
         # returns SignalCandidates with metadata["publication_id"] set.
@@ -832,11 +882,12 @@ async def run_once() -> None:
         "lib_strategy_scan_done",
         strategies=len(strategies_to_run),
         total_signals=lib_total_signals,
+        confluence_signals=confluence_signals,
     )
     await _event_bus.emit(
         "pipeline.strategy_scan_done",
-        strategy_count=len(strategies_to_run),
-        total_signals=lib_total_signals,
+        strategy_count=len(strategies_to_run) + 1,  # +1 for confluence_scalper
+        total_signals=lib_total_signals + confluence_signals,
     )
     await _event_bus.emit(
         "pipeline.scan_completed",

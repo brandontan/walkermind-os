@@ -46,6 +46,7 @@ _STRAT_LABELS: dict[str, str] = {
     "hybrid":        "🐋📡 Hybrid",
     "value_hunter":  "🎯 Value Hunter",
     "full_auto":     "🚀 Full Auto",
+    "confluence_scalper": "🚀 Crypto Scalper",
     "copy_trade":    "🐋 Copy Trade",
     "signal":        "📡 Signal",
     "value":         "🎯 Value",

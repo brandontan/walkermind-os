@@ -436,6 +436,7 @@ _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
     "close_sweep":    {"risk_profile": "balanced",     "capital_alloc_pct": 0.30, "tp_pct": 0.15, "sl_pct": 0.08},
     "pair_arb":       {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.05, "sl_pct": 0.03},
     "ensemble":       {"risk_profile": "balanced",   "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.12},
+    "confluence_scalper": {"risk_profile": "balanced", "capital_alloc_pct": 0.40, "tp_pct": 0.08, "sl_pct": 0.04},
 }
 
 _VALID_RISK_PROFILES: frozenset[str] = frozenset({"conservative", "balanced", "aggressive", "custom"})
