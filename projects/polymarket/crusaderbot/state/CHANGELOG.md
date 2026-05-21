@@ -13,6 +13,15 @@
 - **044** `access_tier` column DROPPED from `users` — role-based model (`admin`/`user`) fully active
 - All migrations executed via Supabase Management API by WARP🔹CMD [warp-gate[bot]]
 
+## [2026-05-21] WARP-46 — Runtime Spine Validation MERGED (PR #1244)
+
+- 7/7 validation targets REAL (start / scan→trade / positions / close / receipt / PnL / routing)
+- NOTIFY triggers cb_orders/cb_fills/cb_positions confirmed wired (migration 029)
+- job_runs.metadata populated each tick confirmed (scheduler.py:482-529)
+- Zero silent-exception swallowing in production paths
+- Advisory: portfolio_snapshots has no Python writer — cb_portfolio channel dormant (out-of-scope, tracked)
+- Merge SHA: 54e32a006f4b — STANDARD tier, no SENTINEL required
+- Gate: MERGE ✅
 ## [2026-05-21] WARP-GATE — Migrations 027/029/030/031/044 Applied
 
 - **027** `user_settings.notifications_on BOOLEAN DEFAULT TRUE` — added
