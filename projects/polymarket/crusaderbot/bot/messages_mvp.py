@@ -9,6 +9,8 @@ from __future__ import annotations
 from typing import Iterable, Sequence
 
 from .ui.tree import (
+    CARD_DIVIDER,
+    DIVIDER,
     LIVE,
     LOCKED,
     PAPER,
@@ -17,6 +19,8 @@ from .ui.tree import (
     STATUS_RUNNING,
     STATUS_STOPPED,
     STATUS_SYNCING,
+    cta,
+    divider,
     join_blocks,
     leaf,
     md_escape,
@@ -40,18 +44,18 @@ def render_dashboard_default(
     copy_wallets_active: int = 0,
     portfolio_value: float = 0.0,
 ) -> str:
-    blocks = [
-        title("🏠 Dashboard"),
-        leaf("🤖 Bot Status", bot_status),
-        section("💹 Today", [
-            ("PnL", pnl(today_pnl)),
-            ("Trades", str(today_trades)),
-        ]),
-        leaf("🔄 Auto Trade", active_strategy),
-        leaf("👥 Copy Wallet", f"{copy_wallets_active} Active"),
-        leaf("💼 Portfolio", f"${portfolio_value:,.2f}", last=True),
-    ]
-    return join_blocks(blocks)
+    return (
+        f"*🏠 Dashboard*\n\n"
+        f"🤖 Bot Status  ·  {md_escape(bot_status)}\n"
+        f"{DIVIDER}\n"
+        f"*💹 Today*\n"
+        f"  PnL  ·  {pnl(today_pnl)}\n"
+        f"  Trades  ·  {today_trades}\n"
+        f"{DIVIDER}\n"
+        f"🔄 Auto Trade  »  {md_escape(active_strategy)}\n"
+        f"👥 Copy Wallet  »  {copy_wallets_active} Active\n"
+        f"💼 Portfolio  »  ${portfolio_value:,.2f}"
+    )
 
 
 def render_dashboard_new_user() -> str:
@@ -108,21 +112,20 @@ def render_autotrade_home(
 ) -> str:
     blocks = [
         title("🤖 Auto Trade"),
-        leaf("Status", status),
-        leaf("Active Strategy", strategy),
-        section("Configuration", [
-            ("💰 Capital", f"${capital:,.0f}"),
-            ("⚖️ Risk", risk),
-            ("📝 Mode", mode),
+        f"{leaf('Status', status)}\n{leaf('Active Strategy', strategy)}",
+        section("⚙️ Configuration", [
+            ("Capital", f"${capital:,.0f}"),
+            ("Risk", risk),
+            ("Mode", mode),
         ]),
-        section("Performance", [
-            ("📈 PnL Today", pnl(pnl_today)),
-            ("🔥 Executions", str(executions)),
-            ("🎯 Win Rate", f"{win_rate}%"),
+        section("📊 Performance", [
+            ("PnL Today", pnl(pnl_today)),
+            ("Executions", str(executions)),
+            ("Win Rate", f"{win_rate}%"),
         ]),
-        "Choose an action:",
+        cta("Choose an action:"),
     ]
-    return join_blocks(blocks)
+    return "\n\n".join(b for b in blocks if b)
 
 
 def render_autotrade_quick_start(
@@ -473,19 +476,32 @@ def render_positions_empty() -> str:
     return join_blocks(blocks)
 
 
-def render_positions_list(items: Sequence[dict]) -> str:
-    """items: [{rank, title, side, pnl}, ...]"""
-    blocks: list[str] = [title("📌 Open Positions")]
+def render_positions_list(
+    items: Sequence[dict],
+    *,
+    page: int = 1,
+    total_pages: int = 1,
+    total: int = 0,
+) -> str:
+    """Paginated card list for open positions.
+
+    items: [{rank, title, side, pnl}, ...]
+    """
+    header = f"*📌 Open Positions*  ·  {total} active"
+    cards: list[str] = []
     for it in items:
         rank = str(it.get("rank", "")).strip()
         market_title = str(it.get("title", "")).replace("\n", " ").strip()
-        label = f"{rank} {market_title}".strip()
-        blocks.append(section(label, [
-            ("Side", it.get("side", "—")),
-            ("PnL", pnl(float(it.get("pnl", 0.0)))),
-        ]))
-    blocks.append("Select a position:")
-    return join_blocks(blocks)
+        label = f"{rank} {md_escape(market_title)}".strip()
+        card = (
+            f"{CARD_DIVIDER}\n"
+            f"*{label}*\n"
+            f"  Side  ·  {md_escape(str(it.get('side', '—')))}\n"
+            f"  PnL   ·  {pnl(float(it.get('pnl', 0.0)))}"
+        )
+        cards.append(card)
+    footer = f"{CARD_DIVIDER}\n_{page} of {total_pages}_"
+    return "\n".join([header, ""] + cards + [footer])
 
 
 def render_position_detail(

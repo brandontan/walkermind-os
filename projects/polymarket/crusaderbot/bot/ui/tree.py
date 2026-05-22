@@ -32,6 +32,10 @@ BAR = "|"
 BRANCH = "|-"
 LAST = "`-"
 
+# Structured card dividers (WARP-68).
+DIVIDER = "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"
+CARD_DIVIDER = "━━━━━━━━━━━━━━━━"
+
 STATUS_RUNNING = "🟢 Running"
 STATUS_STOPPED = "🔴 Stopped"
 STATUS_PAUSED = "🟡 Paused"
@@ -82,26 +86,26 @@ def title(text: str) -> str:
 
 
 def leaf(label: str, value: str, last: bool = False) -> str:
-    """Return a single `Label: Value` line (flat format).
+    """Return a single `Label  ·  Value` line (structured card format).
 
     The ``last`` flag is accepted for call-site compatibility but no longer
     affects rendering.
     """
-    return f"{md_escape(label)}: {md_escape(value)}"
+    return f"{md_escape(label)}  ·  {md_escape(value)}"
 
 
 def section(label: str, rows: Sequence[tuple[str, str]], last: bool = False) -> str:
-    """Return a bold-headed section block with flat `Key: Value` rows.
+    """Return a bold-headed section block with indented `Key  ·  Value` rows.
 
     Renders as:
 
         *label*
-        row1.label: row1.value
-        rowN.label: rowN.value
+          row1.label  ·  row1.value
+          rowN.label  ·  rowN.value
     """
     lines: list[str] = [f"*{md_escape(label)}*"]
     for sub_label, sub_value in rows:
-        lines.append(f"{md_escape(sub_label)}: {md_escape(sub_value)}")
+        lines.append(f"  {md_escape(sub_label)}  ·  {md_escape(sub_value)}")
     return "\n".join(lines)
 
 
@@ -118,6 +122,16 @@ def nested(label: str, lines: Iterable[str], last: bool = False) -> str:
     for line in lines:
         out.append(f"• {md_escape(line)}")
     return "\n".join(out)
+
+
+def divider() -> str:
+    """Return the light section divider string."""
+    return DIVIDER
+
+
+def cta(text: str) -> str:
+    """Return italic call-to-action text."""
+    return f"_{md_escape(text)}_"
 
 
 def join_blocks(blocks: Iterable[str], spacer: str = "\n") -> str:
