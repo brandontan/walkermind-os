@@ -3,6 +3,14 @@
 **Date:** 2026-05-23
 **PR:** #1287 | **Branch:** WARP/warp68-structured-card-ui | **Tier:** STANDARD
 
+## [WARP-70] Dynamic capital from risk profile — MERGED eb149d18427b
+**Date:** 2026-05-23
+**PR:** #1292 | **Tier:** MINOR
+
+Capital = balance × risk fraction (safe 25%, balanced 50%, aggressive 80%).
+Fallback $100 when balance = 0.
+
+
 ## [WARP-69] Full structured card format — MERGED b50ef1a2ce86
 **Date:** 2026-05-23
 **PR:** #1289 | **Branch:** WARP/warp69-full-card-format | **Tier:** STANDARD
