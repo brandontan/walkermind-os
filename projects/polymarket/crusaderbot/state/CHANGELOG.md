@@ -232,3 +232,13 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 - Merge SHA: 54e32a006f4b — STANDARD tier, no SENTINEL required
 - Gate: MERGE ✅
 
+
+## [2026-05-23] SYSTEM AUDIT — WARP/crusaderbot-system-audit (BLOCKED 62/100)
+
+- WARP•SENTINEL CORE AUDIT pre-client-handoff vs main HEAD 9caaabc + blueprint v3.1
+- F-CRIT-1 (BLOCKER): bot/ui/__init__.py imports BAR/BRANCH/LAST/STATUS_*/PAPER/LIVE/LOCKED removed from bot/ui/tree.py (WARP-67/68/71/73) → main.py→bot.dispatcher→MVP handlers ImportError; app cannot boot from main
+- F-HIGH-2: 0 positions/orders/fills/snapshots live (6 users, 5 auto-on) — frontend empty
+- PASS: risk constants/gate/guards/kill switch/asyncio/no-silent-fail; realtime NOTIFY triggers wired; 1606 pytest pass; ruff clean; frontend build clean; blueprint conformance high
+- Live verified via Supabase + Sentry + GitHub MCP (secrets not injected locally)
+- Report: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-system-audit.md
+- Gate: BLOCKED — fix F-CRIT-1 + redeploy + re-validate before handoff
