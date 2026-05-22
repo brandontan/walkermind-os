@@ -35,9 +35,9 @@ from .ui.tree import (
     title,
 )
 
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # 8. Dashboard
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def render_dashboard_default(
@@ -45,24 +45,24 @@ def render_dashboard_default(
     bot_status: str = STATUS_RUNNING,
     today_pnl: float = 0.0,
     today_trades: int = 0,
-    active_strategy: str = "⚡ Momentum",
+    active_strategy: str = "⚡ Full Auto",
     copy_wallets_active: int = 0,
     portfolio_value: float = 0.0,
 ) -> str:
-    today = pre_block([
-        ("PnL", pnl(today_pnl)),
-        ("Trades", str(today_trades)),
-    ])
     return (
         f"🏠 <b>Dashboard</b>\n"
         f"{DIV}\n\n"
-        f"{leaf('🤖 Bot Status', bot_status, last=True)}\n\n"
-        f"<b>💹 Today</b>\n{today}\n"
-        f"{DIV}\n"
+        f"Bot Status: <code>{html_escape(bot_status)}</code>\n\n"
+        f"<b>💹 Today</b>\n"
+        + pre_block([
+            ("PnL", pnl(today_pnl)),
+            ("Trades", str(today_trades)),
+        ]) +
+        f"\n{DIV}\n"
         f"<b>📊 Overview</b>\n"
-        f"{leaf('🔄 Auto Trade', active_strategy)}\n"
-        f"{leaf('👥 Copy Wallet', f'{copy_wallets_active} Active')}\n"
-        f"{leaf('💼 Portfolio', f'${portfolio_value:,.2f}', last=True)}"
+        f"  · Auto Trade: <code>{html_escape(active_strategy)}</code>\n"
+        f"  · Copy Wallet: <code>{copy_wallets_active} Active</code>\n"
+        f"  · Portfolio: <code>${portfolio_value:,.2f}</code>"
     )
 
 
@@ -70,40 +70,38 @@ def render_dashboard_new_user() -> str:
     return (
         f"🏠 <b>Dashboard</b>\n"
         f"{DIV}\n\n"
-        f"{leaf('👋 Welcome', 'Not configured yet', last=True)}\n"
-        f"{DIV}\n"
+        f"Bot Status: <code>{STATUS_NOT_SET}</code>\n\n"
         f"<b>📊 Overview</b>\n"
-        f"{leaf('🔄 Auto Trade', STATUS_NOT_SET)}\n"
-        f"{leaf('👥 Copy Wallet', STATUS_NOT_SET, last=True)}\n\n"
+        f"  · Auto Trade: <code>{STATUS_NOT_SET}</code>\n"
+        f"  · Copy Wallet: <code>{STATUS_NOT_SET}</code>\n\n"
         f"{cta('Tap Setup Auto to get started')}"
     )
 
 
 def render_dashboard_paused(*, reason: str = "Manual Pause", today_pnl: float = 0.0) -> str:
-    return join_blocks([
-        title("🏠 Dashboard"),
-        section("🤖 Bot Status", [
-            ("State", STATUS_PAUSED),
-            ("Reason", reason),
-        ]),
-        leaf("💹 Today", pnl(today_pnl)),
-        cta("Resume trading to continue"),
-    ])
+    return (
+        f"🏠 <b>Dashboard</b>\n"
+        f"{DIV}\n\n"
+        f"Bot Status: <code>{STATUS_PAUSED}</code>\n"
+        f"Reason: <code>{html_escape(reason)}</code>\n\n"
+        f"Today PnL: <code>{pnl(today_pnl)}</code>\n\n"
+        f"{cta('Resume trading to continue')}"
+    )
 
 
 def render_dashboard_risk_alert(*, message: str = "Daily drawdown nearing limit") -> str:
-    return join_blocks([
-        title("🏠 Dashboard"),
-        leaf("⚠ Risk Alert", message),
-        leaf("🤖 Bot Protection", "Auto pause may trigger"),
-        leaf("💼 Portfolio", "Review open positions"),
-        cta("Adjust risk settings"),
-    ])
+    return (
+        f"🏠 <b>Dashboard</b>\n"
+        f"{DIV}\n\n"
+        f"⚠️ Risk Alert: <code>{html_escape(message)}</code>\n"
+        f"Bot Protection: <code>Auto pause may trigger</code>\n\n"
+        f"{cta('Adjust risk settings')}"
+    )
 
 
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # 9. Auto Trade
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def render_autotrade_home(
@@ -117,23 +115,34 @@ def render_autotrade_home(
     executions: int = 0,
     win_rate: int = 0,
 ) -> str:
-    config = pre_block([
-        ("Capital", f"${capital:,.2f}"),
-        ("Risk", risk),
-        ("Mode", mode),
-    ])
-    perf = pre_block([
-        ("PnL Today", pnl(pnl_today)),
-        ("Executions", str(executions)),
-        ("Win Rate", f"{win_rate}%"),
-    ])
     return (
         f"🤖 <b>Auto Trade</b>\n"
         f"{DIV}\n\n"
-        f"{leaf('Status', status)}\n"
-        f"{leaf('Strategy', strategy, last=True)}\n\n"
-        f"<b>⚙️ Configuration</b>\n{config}\n\n"
-        f"<b>📊 Performance</b>\n{perf}\n"
+        f"Status: <code>{html_escape(status)}</code>\n"
+        f"Strategy: <code>{html_escape(strategy)}</code>\n\n"
+        f"<b>⚙️ Configuration</b>\n"
+        + pre_block([
+            ("Capital", f"${capital:,.2f}"),
+            ("Risk",    risk),
+            ("Mode",    mode),
+        ]) +
+        f"\n\n<b>📊 Performance</b>\n"
+        + pre_block([
+            ("PnL Today",   pnl(pnl_today)),
+            ("Executions",  str(executions)),
+            ("Win Rate",    f"{win_rate}%"),
+        ]) +
+        f"\n{DIV}\n"
+        f"{cta('Choose an action:')}",
+    )[0] if False else (
+        f"🤖 <b>Auto Trade</b>\n"
+        f"{DIV}\n\n"
+        f"Status: <code>{html_escape(status)}</code>\n"
+        f"Strategy: <code>{html_escape(strategy)}</code>\n\n"
+        f"<b>⚙️ Configuration</b>\n"
+        f"{pre_block([('Capital', f'${capital:,.2f}'), ('Risk', risk), ('Mode', mode)])}\n\n"
+        f"<b>📊 Performance</b>\n"
+        f"{pre_block([('PnL Today', pnl(pnl_today)), ('Executions', str(executions)), ('Win Rate', f'{win_rate}%')])}\n"
         f"{DIV}\n"
         f"{cta('Choose an action:')}"
     )
@@ -146,48 +155,49 @@ def render_autotrade_quick_start(
     capital: float = 100.0,
     mode: str = PAPER,
 ) -> str:
-    return join_blocks([
-        title("🚀 Quick Start"),
-        section("Recommended Setup", [
-            ("🧠 Strategy", strategy),
-            ("⚖️ Risk", risk),
-            ("💰 Capital", f"${capital:,.0f}"),
-            ("📝 Mode", mode),
-        ]),
-        cta("Ready to begin?"),
-    ])
+    return (
+        f"🚀 <b>Quick Start</b>\n"
+        f"{DIV}\n\n"
+        f"<b>Recommended Setup</b>\n"
+        f"  · Strategy: <code>{html_escape(strategy)}</code>\n"
+        f"  · Risk: <code>{html_escape(risk)}</code>\n"
+        f"  · Capital: <code>${capital:,.0f}</code>\n"
+        f"  · Mode: <code>{html_escape(mode)}</code>\n\n"
+        f"{cta('Ready to begin?')}"
+    )
 
 
 def render_autotrade_configure_strategy() -> str:
-    return join_blocks([
-        title("🤖 Auto Trade / Configure / Strategy"),
-        nested("Choose a Strategy", [
-            "⚡ Momentum — Fast trend following",
-            "📊 Mean Reversion — Buy pullbacks",
-            "🧪 Smart Hybrid — Mixed adaptive mode",
-        ]),
-        cta("Select a strategy:"),
-    ])
+    return (
+        f"🤖 <b>Auto Trade</b> · Configure · Strategy\n"
+        f"{DIV}\n\n"
+        f"<b>Choose a Strategy</b>\n"
+        f"  · ⚡ <b>Momentum</b> — Fast trend following\n"
+        f"  · 📊 <b>Mean Reversion</b> — Buy pullbacks\n"
+        f"  · 🧪 <b>Smart Hybrid</b> — Mixed adaptive mode\n\n"
+        f"{cta('Select a strategy:')}"
+    )
 
 
 def render_autotrade_configure_capital(current: float = 100.0) -> str:
-    return join_blocks([
-        title("🤖 Auto Trade / Configure / Capital"),
-        leaf("Current Allocation", f"${current:,.0f}"),
-        cta("Choose allocation:"),
-    ])
+    return (
+        f"🤖 <b>Auto Trade</b> · Configure · Capital\n"
+        f"{DIV}\n\n"
+        f"Current Allocation: <code>${current:,.0f}</code>\n\n"
+        f"{cta('Choose allocation:')}"
+    )
 
 
 def render_autotrade_configure_risk() -> str:
-    return join_blocks([
-        title("🤖 Auto Trade / Configure / Risk"),
-        nested("Choose a Risk Level", [
-            "🟢 Safe — Lower risk • fewer trades",
-            "🟡 Balanced — Recommended",
-            "🔴 Aggressive — Higher volatility",
-        ]),
-        cta("Select a risk level:"),
-    ])
+    return (
+        f"🤖 <b>Auto Trade</b> · Configure · Risk\n"
+        f"{DIV}\n\n"
+        f"<b>Choose a Risk Level</b>\n"
+        f"  · 🟢 <b>Safe</b> — Lower risk · fewer trades\n"
+        f"  · 🟡 <b>Balanced</b> — Recommended\n"
+        f"  · 🔴 <b>Aggressive</b> — Higher volatility\n\n"
+        f"{cta('Select a risk level:')}"
+    )
 
 
 def render_autotrade_configure_review(
@@ -197,16 +207,16 @@ def render_autotrade_configure_review(
     risk: str,
     mode: str = PAPER,
 ) -> str:
-    return join_blocks([
-        title("🤖 Auto Trade / Configure / Review"),
-        section("Your Setup", [
-            ("🧠 Strategy", strategy),
-            ("💰 Capital", f"${capital:,.0f}"),
-            ("⚖️ Risk", risk),
-            ("📝 Mode", mode),
-        ]),
-        cta("Looks good?"),
-    ])
+    return (
+        f"🤖 <b>Auto Trade</b> · Configure · Review\n"
+        f"{DIV}\n\n"
+        f"<b>Your Setup</b>\n"
+        f"  · Strategy: <code>{html_escape(strategy)}</code>\n"
+        f"  · Capital: <code>${capital:,.0f}</code>\n"
+        f"  · Risk: <code>{html_escape(risk)}</code>\n"
+        f"  · Mode: <code>{html_escape(mode)}</code>\n\n"
+        f"{cta('Looks good?')}"
+    )
 
 
 def render_autotrade_strategy_status(
@@ -217,44 +227,41 @@ def render_autotrade_strategy_status(
     pnl_today: float,
     trades: int,
 ) -> str:
-    return join_blocks([
-        title("📊 Strategy Status"),
-        section("Strategy", [
-            ("Name", strategy),
-            ("Status", status),
-            ("Capital", f"${capital:,.0f}"),
-            ("PnL Today", pnl(pnl_today)),
-            ("Trades", str(trades)),
-        ]),
-        cta("Select an action:"),
-    ])
+    return (
+        f"📊 <b>Strategy Status</b>\n"
+        f"{DIV}\n\n"
+        f"  · Name: <code>{html_escape(strategy)}</code>\n"
+        f"  · Status: <code>{html_escape(status)}</code>\n"
+        f"  · Capital: <code>${capital:,.0f}</code>\n"
+        f"  · PnL Today: <code>{pnl(pnl_today)}</code>\n"
+        f"  · Trades: <code>{trades}</code>\n\n"
+        f"{cta('Select an action:')}"
+    )
 
 
 def render_autotrade_pause_confirm() -> str:
-    return join_blocks([
-        title("⏸ Pause Auto Trade"),
-        section("Effect", [
-            ("New trades", "Stopped"),
-            ("Open positions", "Remain active"),
-        ]),
-        cta("Confirm pause?"),
-    ])
+    return (
+        f"⏸ <b>Pause Auto Trade</b>\n"
+        f"{DIV}\n\n"
+        f"  · New trades: <code>Stopped</code>\n"
+        f"  · Open positions: <code>Remain active</code>\n\n"
+        f"{cta('Confirm pause?')}"
+    )
 
 
 def render_autotrade_resume_confirm() -> str:
-    return join_blocks([
-        title("▶ Resume Auto Trade"),
-        section("Effect", [
-            ("Market monitoring", "Resumed"),
-            ("Trade execution", "Enabled"),
-        ]),
-        cta("Continue trading?"),
-    ])
+    return (
+        f"▶ <b>Resume Auto Trade</b>\n"
+        f"{DIV}\n\n"
+        f"  · Market monitoring: <code>Resumed</code>\n"
+        f"  · Trade execution: <code>Enabled</code>\n\n"
+        f"{cta('Continue trading?')}"
+    )
 
 
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # 10. Copy Wallet
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def render_copy_home(
@@ -263,20 +270,22 @@ def render_copy_home(
     active_wallets: int = 0,
     allocation: float = 0.0,
 ) -> str:
-    return join_blocks([
-        title("👥 Copy Wallet"),
-        leaf("Status", status),
-        leaf("Active Wallets", f"{active_wallets} Following"),
-        leaf("Allocation", f"${allocation:,.0f}"),
-        cta("Choose an action:"),
-    ])
+    return (
+        f"👥 <b>Copy Wallet</b>\n"
+        f"{DIV}\n\n"
+        f"  · Status: <code>{html_escape(status)}</code>\n"
+        f"  · Active Wallets: <code>{active_wallets} Following</code>\n"
+        f"  · Allocation: <code>${allocation:,.0f}</code>\n\n"
+        f"{cta('Choose an action:')}"
+    )
 
 
 def render_copy_add_wallet_prompt() -> str:
-    return join_blocks([
-        title("➕ Add Wallet"),
-        cta("Paste the wallet address to copy:"),
-    ])
+    return (
+        f"➕ <b>Add Wallet</b>\n"
+        f"{DIV}\n\n"
+        f"{cta('Paste the wallet address to copy:')}"
+    )
 
 
 def render_copy_wallet_review(
@@ -286,16 +295,16 @@ def render_copy_wallet_review(
     recent_trades: int = 0,
     risk: str = "🟡 Moderate",
 ) -> str:
-    return join_blocks([
-        title("👥 Wallet Review"),
-        section("Wallet Info", [
-            ("Address", address_short),
-            ("Activity", activity),
-            ("Recent Trades", str(recent_trades)),
-            ("Risk", risk),
-        ]),
-        cta("Add this wallet?"),
-    ])
+    return (
+        f"👥 <b>Wallet Review</b>\n"
+        f"{DIV}\n\n"
+        f"<b>Wallet Info</b>\n"
+        f"  · Address: <code>{html_escape(address_short)}</code>\n"
+        f"  · Activity: <code>{html_escape(activity)}</code>\n"
+        f"  · Recent Trades: <code>{recent_trades}</code>\n"
+        f"  · Risk: <code>{html_escape(risk)}</code>\n\n"
+        f"{cta('Add this wallet?')}"
+    )
 
 
 def render_copy_wallet_configure(
@@ -305,24 +314,24 @@ def render_copy_wallet_configure(
     risk: str,
     copy_mode: str = "Mirror Trades",
 ) -> str:
-    return join_blocks([
-        title("⚙️ Wallet Configuration"),
-        section("Configure", [
-            ("Wallet", address_short),
-            ("Allocation", f"${allocation:,.0f}"),
-            ("Risk", risk),
-            ("Copy Mode", copy_mode),
-        ]),
-        cta("Confirm settings?"),
-    ])
+    return (
+        f"⚙️ <b>Wallet Configuration</b>\n"
+        f"{DIV}\n\n"
+        f"  · Wallet: <code>{html_escape(address_short)}</code>\n"
+        f"  · Allocation: <code>${allocation:,.0f}</code>\n"
+        f"  · Risk: <code>{html_escape(risk)}</code>\n"
+        f"  · Copy Mode: <code>{html_escape(copy_mode)}</code>\n\n"
+        f"{cta('Confirm settings?')}"
+    )
 
 
 def render_copy_active_wallets_empty() -> str:
-    return join_blocks([
-        title("👛 Active Wallets"),
-        leaf("Status", "No wallets added"),
-        leaf("Next Step", "Add a wallet address to start copying"),
-    ])
+    return (
+        f"👛 <b>Active Wallets</b>\n"
+        f"{DIV}\n\n"
+        f"  · Status: <code>No wallets added</code>\n"
+        f"  · Next Step: <code>Add a wallet address to start copying</code>"
+    )
 
 
 def render_copy_wallet_card(
@@ -334,190 +343,145 @@ def render_copy_wallet_card(
     pnl_today: float,
     trades_copied: int,
 ) -> str:
-    card = pre_block([
-        ("Address", address_short),
-        ("Status", status),
-        ("Allocation", f"${allocation:,.2f}"),
-        ("PnL Today", pnl(pnl_today)),
-        ("Trades", str(trades_copied)),
-    ])
     return (
         f"👛 <b>Active Wallets</b>\n"
         f"{DIV}\n\n"
-        f"<b>Wallet #{html_escape(str(index))}</b>\n{card}\n"
-        f"{DIV}\n"
+        f"<b>Wallet #{html_escape(str(index))}</b>\n"
+        + pre_block([
+            ("Address",    address_short),
+            ("Status",     status),
+            ("Allocation", f"${allocation:,.2f}"),
+            ("PnL Today",  pnl(pnl_today)),
+            ("Trades",     str(trades_copied)),
+        ]) +
+        f"\n{DIV}\n"
         f"{cta('Select an action:')}"
     )
 
 
 def render_copy_pause_confirm() -> str:
-    return join_blocks([
-        title("⏸ Pause Copy Wallet"),
-        section("Effect", [
-            ("New copied trades", "Stopped"),
-            ("Existing positions", "Stay active"),
-        ]),
-        cta("Confirm pause?"),
-    ])
+    return (
+        f"⏸ <b>Pause Copy Wallet</b>\n"
+        f"{DIV}\n\n"
+        f"  · New copied trades: <code>Stopped</code>\n"
+        f"  · Existing positions: <code>Stay active</code>\n\n"
+        f"{cta('Confirm pause?')}"
+    )
 
 
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # 11. Markets
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def render_markets_home() -> str:
-    return join_blocks([
-        title("📈 Markets"),
-        section("Browse", [
-            ("🔥 Trending", "Most active markets"),
-            ("🆕 New Markets", "Fresh opportunities"),
-            ("🧠 AI Insights", "High-confidence setups"),
-            ("⭐ Watchlist", "Saved markets"),
-            ("🔎 Search", "Find any market"),
-        ]),
-        cta("Choose a view:"),
-    ])
+    return (
+        f"📈 <b>Markets</b>\n"
+        f"{DIV}\n\n"
+        f"<b>Browse</b>\n"
+        f"  · 🔥 Trending — Most active markets\n"
+        f"  · 🆕 New Markets — Fresh opportunities\n"
+        f"  · 🧠 AI Insights — High-confidence setups\n"
+        f"  · ⭐ Watchlist — Saved markets\n"
+        f"  · 🔎 Search — Find any market\n\n"
+        f"{cta('Choose a view:')}"
+    )
 
 
-def render_markets_trending(items: Sequence[dict]) -> str:
-    """items: [{rank, title, yes, no, volume, sentiment}, ...]"""
-    lines: list[str] = [f"🔥 <b>Trending Markets</b>\n{DIV}", ""]
-    for it in items:
-        rank = str(it.get("rank", "")).strip()
-        market_title = str(it.get("title", "")).replace("\n", " ").strip()
-        label = f"{rank} {market_title}".strip()
-        block = pre_block([
-            ("YES", f"{it.get('yes', '—')}¢"),
-            ("NO", f"{it.get('no', '—')}¢"),
-            ("Volume", str(it.get("volume", "—"))),
-            ("Sentiment", str(it.get("sentiment", "—"))),
-        ])
-        lines.append(f"<b>{html_escape(label)}</b>")
-        lines.append(block)
-        lines.append("")
-    lines.append(DIV)
-    lines.append(cta("Select a market:"))
-    return "\n".join(lines)
+def render_markets_trending(items) -> str:
+    lines = [f"🔥 <b>Trending Markets</b>\n{DIV}\n"]
+    for it in (items or []):
+        rank = html_escape(str(it.get("rank", "")))
+        t = html_escape(str(it.get("title", "")).replace("\n", " ").strip()[:60])
+        yes = html_escape(str(it.get("yes", "—")))
+        no = html_escape(str(it.get("no", "—")))
+        vol = html_escape(str(it.get("volume", "—")))
+        lines.append(
+            f"<b>{rank}. {t}</b>\n"
+            f"  · YES <code>{yes}</code> · NO <code>{no}</code> · Vol <code>{vol}</code>"
+        )
+    if not items:
+        lines.append("<i>No trending markets right now</i>")
+    return "\n\n".join(lines)
 
 
-def render_markets_detail(
+def render_market_card(
     *,
-    market_title: str,
-    yes_price: str,
-    no_price: str,
-    sentiment: str,
-    ai_confidence: str,
-    bot_exposure: str = "No active position",
+    title: str,
+    yes: str,
+    no: str,
+    volume: str,
+    closes: str,
+    sentiment: str = "🟡 Neutral",
 ) -> str:
-    return join_blocks([
-        title("📊 Market Details"),
-        leaf("Market", market_title),
-        section("Market Price", [
-            ("YES", f"{yes_price}¢"),
-            ("NO", f"{no_price}¢"),
-        ]),
-        leaf("Sentiment", sentiment),
-        leaf("AI Confidence", ai_confidence),
-        leaf("Bot Exposure", bot_exposure),
-        cta("Monitor • Watch • Auto"),
-    ])
+    return (
+        f"🎯 <b>{html_escape(title)}</b>\n"
+        f"{DIV}\n"
+        + pre_block([
+            ("YES",      yes),
+            ("NO",       no),
+            ("Volume",   volume),
+            ("Closes",   closes),
+            ("Sentiment",sentiment),
+        ]) +
+        f"\n{DIV}\n"
+        f"{cta('Choose an action:')}"
+    )
 
 
-def render_markets_ai_insight(
-    *,
-    market_title: str,
-    confidence: str,
-    reason: str,
-    bot_exposure: str = "No active position",
-) -> str:
-    return join_blocks([
-        title("🧠 AI Insights"),
-        leaf("Market", market_title),
-        leaf("Confidence", confidence),
-        leaf("Bot Exposure", bot_exposure),
-        nested("Analysis", [reason]),
-    ])
-
-
-def render_markets_search_prompt() -> str:
-    return join_blocks([
-        title("🔎 Search Markets"),
-        cta("Type a keyword — e.g. BTC, Trump, ETH"),
-    ])
-
-
-def render_watchlist_empty() -> str:
-    return join_blocks([
-        title("⭐ Watchlist"),
-        leaf("Status", "No markets saved"),
-        leaf("Tip", "Add markets from AI Insights or Trending"),
-        cta("Browse markets to add:"),
-    ])
-
-
-# ────────────────────────────────────────────────────────────────────────────
-# 12. Portfolio
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# 12. Portfolio / Positions / History
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def render_portfolio_home(
     *,
     balance: float = 0.0,
-    today_pnl: float = 0.0,
-    today_trades: int = 0,
-    today_win_rate: int = 0,
+    equity: float = 0.0,
     open_positions: int = 0,
+    today_pnl: float = 0.0,
+    week_pnl: float = 0.0,
 ) -> str:
-    today = pre_block([
-        ("PnL", pnl(today_pnl)),
-        ("Trades", str(today_trades)),
-        ("Win Rate", f"{today_win_rate}%"),
-    ])
     return (
         f"💼 <b>Portfolio</b>\n"
-        f"{DIV}\n\n"
-        f"{leaf('💰 Balance', f'${balance:,.2f}', last=True)}\n\n"
-        f"<b>💹 Today</b>\n{today}\n"
         f"{DIV}\n"
-        f"{leaf('📌 Open Positions', f'{open_positions} Active', last=True)}\n\n"
-        f"{cta('Choose an action:')}"
+        + pre_block([
+            ("Balance",    f"${balance:,.2f}"),
+            ("Equity",     f"${equity:,.2f}"),
+            ("Positions",  str(open_positions)),
+        ]) +
+        f"\n\n<b>💰 Performance</b>\n"
+        + pre_block([
+            ("Today",  pnl(today_pnl)),
+            ("7 Days", pnl(week_pnl)),
+        ]) +
+        f"\n{DIV}\n"
+        f"{cta('Select a view:')}"
     )
 
 
-def render_positions_empty() -> str:
-    return join_blocks([
-        title("📌 Open Positions"),
-        leaf("Status", "No active positions"),
-        cta("Your bot will trade when opportunities appear"),
-    ])
-
-
 def render_positions_list(
-    items: Sequence[dict],
+    items,
     *,
     page: int = 1,
     total_pages: int = 1,
     total: int = 0,
 ) -> str:
-    """Paginated card list for open positions.
-
-    items: [{rank, title, side, pnl}, ...]
-    """
     header = f"📋 <b>Open Positions</b>  ·  {total} active\n{DIV}"
-    cards: list[str] = []
-    for it in items:
+    cards = []
+    for it in (items or []):
         rank = str(it.get("rank", "")).strip()
         market_title = str(it.get("title", "")).replace("\n", " ").strip()
-        label = f"{rank} {market_title}".strip()
+        label = f"{rank}. {market_title}".strip(". ")
         block = pre_block([
             ("Side", str(it.get("side", "—"))),
-            ("PnL", pnl(float(it.get("pnl", 0.0)))),
+            ("PnL",  pnl(float(it.get("pnl", 0.0)))),
         ])
         cards.append(f"<b>{html_escape(label)}</b>\n{block}")
+    if not cards:
+        cards = ["<i>No open positions</i>"]
     footer = f"{DIV}\n<i>Page {page} of {total_pages}</i>"
-    body = "\n\n".join(cards)
-    return f"{header}\n\n{body}\n{footer}"
+    return header + "\n\n" + "\n\n".join(cards) + "\n" + footer
 
 
 def render_position_detail(
@@ -527,40 +491,41 @@ def render_position_detail(
     entry: str,
     current: str,
     pnl_value: float,
-    status: str = STATUS_RUNNING.replace("Running", "Open"),
+    status: str = "Open",
 ) -> str:
-    return join_blocks([
-        title("📌 Position Details"),
-        leaf("Market", market_title),
-        CARD_DIVIDER,
-        section("Details", [
-            ("Side", side),
-            ("Entry", f"{entry}¢"),
+    return (
+        f"📌 <b>Position Details</b>\n"
+        f"{DIV}\n\n"
+        f"<b>{html_escape(market_title)}</b>\n"
+        + pre_block([
+            ("Side",    side),
+            ("Entry",   f"{entry}¢"),
             ("Current", f"{current}¢"),
-            ("PnL", pnl(pnl_value)),
-            ("Status", status),
-        ]),
-        cta("Choose an action:"),
-    ])
+            ("PnL",     pnl(pnl_value)),
+            ("Status",  status),
+        ]) +
+        f"\n{DIV}\n"
+        f"{cta('Choose an action:')}"
+    )
 
 
 def render_history_empty() -> str:
-    return join_blocks([
-        title("📜 Trade History"),
-        leaf("Status", "No trades yet"),
-        cta("Start automation to build history"),
-    ])
+    return (
+        f"📜 <b>Trade History</b>\n"
+        f"{DIV}\n\n"
+        f"Status: <code>No trades yet</code>\n\n"
+        f"{cta('Start automation to build history')}"
+    )
 
 
 def render_history_home(*, today: int = 0, week: int = 0) -> str:
-    return join_blocks([
-        title("📜 Trade History"),
-        section("Summary", [
-            ("Today", f"{today} Trades"),
-            ("This Week", f"{week} Trades"),
-        ]),
-        cta("Choose range:"),
-    ])
+    return (
+        f"📜 <b>Trade History</b>\n"
+        f"{DIV}\n\n"
+        f"  · Today: <code>{today} Trades</code>\n"
+        f"  · This Week: <code>{week} Trades</code>\n\n"
+        f"{cta('Choose range:')}"
+    )
 
 
 def render_performance(
@@ -570,15 +535,16 @@ def render_performance(
     win_rate: int = 0,
     trades: int = 0,
 ) -> str:
-    return join_blocks([
-        title("💹 Performance"),
-        section("Results", [
-            ("Today", pnl(today_pnl)),
-            ("7 Days", pnl(week_pnl)),
+    return (
+        f"💹 <b>Performance</b>\n"
+        f"{DIV}\n"
+        + pre_block([
+            ("Today",    pnl(today_pnl)),
+            ("7 Days",   pnl(week_pnl)),
             ("Win Rate", f"{win_rate}%"),
-            ("Trades", str(trades)),
-        ]),
-    ])
+            ("Trades",   str(trades)),
+        ])
+    )
 
 
 def render_balance(
@@ -587,55 +553,57 @@ def render_balance(
     allocated: float = 0.0,
 ) -> str:
     free = max(available - allocated, 0.0)
-    return join_blocks([
-        title("💰 Balance"),
-        section("Funds", [
-            ("Available", f"${available:,.2f}"),
-            ("Allocated", f"${allocated:,.2f}"),
+    return (
+        f"💰 <b>Balance</b>\n"
+        f"{DIV}\n"
+        + pre_block([
+            ("Available",    f"${available:,.2f}"),
+            ("Allocated",    f"${allocated:,.2f}"),
             ("Free Capital", f"${free:,.2f}"),
-        ]),
-    ])
+        ])
+    )
 
 
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # 13. Settings
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def render_settings_home(*, trading_mode: str = PAPER) -> str:
-    rows = [
-        leaf("🔄 Trading Mode", trading_mode),
-        leaf("🛡 Risk", "Balanced"),
-        leaf("🔔 Alerts", "ON"),
-        leaf("👥 Copy Wallet", "OFF"),
-        leaf("👤 Account", "Profile"),
-        leaf("🧪 Advanced", "Power user", last=True),
-    ]
-    return f"⚙️ <b>Settings</b>\n{DIV}\n" + "\n".join(rows)
+    return (
+        f"⚙️ <b>Settings</b>\n"
+        f"{DIV}\n\n"
+        f"  · 🔄 Trading Mode: <code>{html_escape(trading_mode)}</code>\n"
+        f"  · 🛡 Risk: <code>Balanced</code>\n"
+        f"  · 🔔 Alerts: <code>ON</code>\n"
+        f"  · 👥 Copy Wallet: <code>OFF</code>\n"
+        f"  · 👤 Account: <code>Profile</code>\n"
+        f"  · 🧪 Advanced: <code>Power user</code>"
+    )
 
 
 def render_settings_trading_mode(*, current: str = PAPER) -> str:
-    return join_blocks([
-        title("🔄 Trading Mode"),
-        leaf("Current Mode", current),
-        section("Options", [
-            ("📝 Paper Mode", "Safe simulation"),
-            ("💸 Live Mode", "Real capital execution"),
-        ]),
-    ])
+    return (
+        f"🔄 <b>Trading Mode</b>\n"
+        f"{DIV}\n\n"
+        f"Current Mode: <code>{html_escape(current)}</code>\n\n"
+        f"<b>Options</b>\n"
+        f"  · 📝 Paper Mode — Safe simulation\n"
+        f"  · 💸 Live Mode — Real capital execution"
+    )
 
 
 def render_settings_live_gate() -> str:
-    return join_blocks([
-        title("⚠ Live Trading"),
-        leaf("Status", f"{LOCKED} Disabled"),
-        nested("Activation Requirements", [
-            "Manual owner confirmation",
-            "Risk controls verified",
-            "Paper mode tested first",
-        ]),
-        cta("Use Paper Mode until ready"),
-    ])
+    return (
+        f"⚠️ <b>Live Trading</b>\n"
+        f"{DIV}\n\n"
+        f"Status: <code>{LOCKED} Disabled</code>\n\n"
+        f"<b>Activation Requirements</b>\n"
+        f"  · Manual owner confirmation\n"
+        f"  · Risk controls verified\n"
+        f"  · Paper mode tested first\n\n"
+        f"{cta('Use Paper Mode until ready')}"
+    )
 
 
 def render_settings_risk_controls(
@@ -646,15 +614,16 @@ def render_settings_risk_controls(
     auto_pause_enabled: bool = True,
 ) -> str:
     auto_pause = "🟢 Enabled" if auto_pause_enabled else "🔴 Disabled"
-    return join_blocks([
-        title("🛡 Risk Controls"),
-        section("Limits", [
-            ("Daily Loss Limit", f"${daily_loss_limit:,.0f}"),
+    return (
+        f"🛡 <b>Risk Controls</b>\n"
+        f"{DIV}\n"
+        + pre_block([
+            ("Daily Loss Limit",  f"${daily_loss_limit:,.0f}"),
             ("Max Position Size", f"{max_position_pct}%"),
             ("Concurrent Trades", f"{max_concurrent} Max"),
-            ("Auto Pause", auto_pause),
-        ]),
-    ])
+            ("Auto Pause",        auto_pause),
+        ])
+    )
 
 
 def render_settings_notifications(
@@ -665,146 +634,141 @@ def render_settings_notifications(
     daily_summary: bool = True,
     market_alerts: bool = False,
 ) -> str:
-    on = "🟢 Enabled"
-    off = "🔴 Disabled"
-    return join_blocks([
-        title("🔔 Notifications"),
-        section("Events", [
-            ("Trade Opened", on if trade_opened else off),
-            ("Trade Closed", on if trade_closed else off),
-            ("Risk Alerts", on if risk_alerts else off),
-            ("Daily Summary", on if daily_summary else off),
-            ("Market Alerts", on if market_alerts else off),
-        ]),
-    ])
+    on, off = "🟢 ON", "🔴 OFF"
+    return (
+        f"🔔 <b>Notifications</b>\n"
+        f"{DIV}\n\n"
+        f"  · Trade Opened: <code>{on if trade_opened else off}</code>\n"
+        f"  · Trade Closed: <code>{on if trade_closed else off}</code>\n"
+        f"  · Risk Alerts: <code>{on if risk_alerts else off}</code>\n"
+        f"  · Daily Summary: <code>{on if daily_summary else off}</code>\n"
+        f"  · Market Alerts: <code>{on if market_alerts else off}</code>"
+    )
 
 
 def render_settings_account(
     *,
     wallet_status: str = "Connected",
     mode: str = PAPER,
-    api_status: str = STATUS_RUNNING.replace("Running", "Healthy"),
+    api_status: str = "🟢 Healthy",
     subscription: str = "MVP",
 ) -> str:
-    return join_blocks([
-        title("👤 Account"),
-        section("Details", [
-            ("Wallet", wallet_status),
-            ("Mode", mode),
-            ("API Status", api_status),
-            ("Subscription", subscription),
-        ]),
-    ])
+    return (
+        f"👤 <b>Account</b>\n"
+        f"{DIV}\n\n"
+        f"  · Wallet: <code>{html_escape(wallet_status)}</code>\n"
+        f"  · Mode: <code>{html_escape(mode)}</code>\n"
+        f"  · API Status: <code>{html_escape(api_status)}</code>\n"
+        f"  · Subscription: <code>{html_escape(subscription)}</code>"
+    )
 
 
 def render_settings_advanced(*, debug_enabled: bool = False) -> str:
     debug = "🟢 Enabled" if debug_enabled else "🔴 Disabled"
-    return join_blocks([
-        title("🧪 Advanced"),
-        section("Developer", [
-            ("Strategy Logs", "View execution logs"),
-            ("Debug Mode", debug),
-            ("Data Refresh", "Real-time"),
-            ("System Health", "🟢 Operational"),
-        ]),
-    ])
+    return (
+        f"🧪 <b>Advanced</b>\n"
+        f"{DIV}\n\n"
+        f"  · Strategy Logs: <code>View execution logs</code>\n"
+        f"  · Debug Mode: <code>{debug}</code>\n"
+        f"  · Data Refresh: <code>Real-time</code>\n"
+        f"  · System Health: <code>🟢 Operational</code>"
+    )
 
 
-# ────────────────────────────────────────────────────────────────────────────
-# 14. Help & Onboarding
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# 14. Help
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def render_help_home() -> str:
-    return join_blocks([
-        title("❓ Help"),
-        nested("Topics", [
-            "🚀 Quick Start Guide",
-            "🤖 How Auto Trade Works",
-            "👥 How Copy Wallet Works",
-            "🛡 Risk & Safety",
-            "💬 FAQ",
-            "🆘 Support",
-        ]),
-        cta("Choose a topic:"),
-    ])
+    return (
+        f"❓ <b>Help</b>\n"
+        f"{DIV}\n\n"
+        f"<b>Topics</b>\n"
+        f"  · 🚀 Quick Start Guide\n"
+        f"  · 🤖 How Auto Trade Works\n"
+        f"  · 👥 How Copy Wallet Works\n"
+        f"  · 🛡 Risk &amp; Safety\n"
+        f"  · 💬 FAQ\n"
+        f"  · 🆘 Support\n\n"
+        f"{cta('Choose a topic:')}"
+    )
 
 
 def render_help_quick_start_guide() -> str:
-    return join_blocks([
-        title("🚀 Quick Start Guide"),
-        nested("Steps", [
-            "Configure Auto Trade",
-            "Choose risk & capital",
-            "Start in Paper Mode",
-            "Monitor performance",
-        ]),
-        leaf("Recommendation", "Use Paper Mode first"),
-    ])
+    return (
+        f"🚀 <b>Quick Start Guide</b>\n"
+        f"{DIV}\n\n"
+        f"<b>Steps</b>\n"
+        f"  · Configure Auto Trade\n"
+        f"  · Choose risk &amp; capital\n"
+        f"  · Start in Paper Mode\n"
+        f"  · Monitor performance\n\n"
+        f"Recommendation: <code>Use Paper Mode first</code>"
+    )
 
 
 def render_help_how_auto_trade() -> str:
-    return join_blocks([
-        title("🤖 How Auto Trade Works"),
-        leaf("Purpose", "Bot trades automatically"),
-        leaf("Decision Engine", "Strategy-based execution"),
-        nested("You Control", ["💰 Capital", "⚖️ Risk", "🧠 Strategy"]),
-        leaf("Bot Controls", "Market execution"),
-        leaf("Safety", "Risk protections enabled"),
-    ])
+    return (
+        f"🤖 <b>How Auto Trade Works</b>\n"
+        f"{DIV}\n\n"
+        f"  · Purpose: <code>Bot trades automatically</code>\n"
+        f"  · Decision Engine: <code>Strategy-based execution</code>\n"
+        f"  · You Control: <code>Capital · Risk · Strategy</code>\n"
+        f"  · Bot Controls: <code>Market execution</code>\n"
+        f"  · Safety: <code>Risk protections enabled</code>"
+    )
 
 
 def render_help_how_copy_wallet() -> str:
-    return join_blocks([
-        title("👥 How Copy Wallet Works"),
-        leaf("Purpose", "Mirror target wallet activity"),
-        leaf("What Happens", "Trades may be copied automatically"),
-        nested("You Control", ["💰 Allocation", "⚖️ Risk", "Wallet selection"]),
-        leaf("Important", "Past performance ≠ future results"),
-        leaf("Recommendation", "Start small"),
-    ])
+    return (
+        f"👥 <b>How Copy Wallet Works</b>\n"
+        f"{DIV}\n\n"
+        f"  · Purpose: <code>Mirror target wallet activity</code>\n"
+        f"  · What Happens: <code>Trades may be copied automatically</code>\n"
+        f"  · You Control: <code>Allocation · Risk · Wallet</code>\n"
+        f"  · Important: <code>Past performance ≠ future results</code>\n"
+        f"  · Recommendation: <code>Start small</code>"
+    )
 
 
 def render_help_safety() -> str:
-    return join_blocks([
-        title("🛡 Risk & Safety"),
-        nested("Protections", [
-            "Paper Mode — Practice without real funds",
-            "Daily Loss Limit — Auto stop protection",
-            "Auto Pause — Risk circuit breaker",
-        ]),
-        nested("Warnings", [
-            "Copy Wallet — Past performance ≠ future results",
-            "Never risk more than you can afford",
-        ]),
-    ])
+    return (
+        f"🛡 <b>Risk &amp; Safety</b>\n"
+        f"{DIV}\n\n"
+        f"<b>Protections</b>\n"
+        f"  · Paper Mode — Practice without real funds\n"
+        f"  · Daily Loss Limit — Auto stop protection\n"
+        f"  · Auto Pause — Risk circuit breaker\n\n"
+        f"<b>Warnings</b>\n"
+        f"  · Copy Wallet — Past performance ≠ future results\n"
+        f"  · Never risk more than you can afford"
+    )
 
 
 def render_help_faq() -> str:
-    return join_blocks([
-        title("💬 FAQ"),
-        nested("Questions", [
-            "🤖 Is trading automatic?",
-            "📝 What is Paper Mode?",
-            "💸 Can I lose money?",
-            "👥 How does Copy Wallet work?",
-            "🔒 Is my wallet safe?",
-        ]),
-    ])
+    return (
+        f"💬 <b>FAQ</b>\n"
+        f"{DIV}\n\n"
+        f"  · Is the bot safe? <code>Yes — paper mode by default</code>\n"
+        f"  · Can I lose money? <code>Paper mode uses virtual funds only</code>\n"
+        f"  · How to stop? <code>Tap Pause or Stop Bot in Auto Mode</code>"
+    )
 
 
 def render_help_support() -> str:
-    return join_blocks([
-        title("🆘 Support"),
-        leaf("Help Center", "Common troubleshooting"),
-        leaf("Report Issue", "Found a problem?"),
-        leaf("Status", "🟢 Systems Operational"),
-    ])
+    return (
+        f"🆘 <b>Support</b>\n"
+        f"{DIV}\n\n"
+        f"  · Help Center: <code>Common troubleshooting</code>\n"
+        f"  · Report Issue: <code>Found a problem?</code>\n"
+        f"  · Status: <code>🟢 Systems Operational</code>"
+    )
 
 
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # 15. Notifications
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def render_notif_bot_started(
@@ -814,70 +778,82 @@ def render_notif_bot_started(
     risk: str,
     status: str = STATUS_RUNNING,
 ) -> str:
-    return join_blocks([
-        title("🤖 Auto Trade Started"),
-        leaf("Strategy", strategy),
-        leaf("Capital", f"${capital:,.0f}"),
-        leaf("Risk", risk),
-        leaf("Status", status),
-    ])
+    return (
+        f"🤖 <b>Auto Trade Started</b>\n"
+        f"{DIV}\n"
+        + pre_block([
+            ("Strategy", strategy),
+            ("Capital",  f"${capital:,.2f}"),
+            ("Risk",     risk),
+            ("Status",   status),
+        ])
+    )
 
 
 def render_notif_bot_waiting() -> str:
-    return join_blocks([
-        title("🤖 Auto Trade Started"),
-        leaf("Status", STATUS_RUNNING),
-        leaf("What happens next", "Bot monitors opportunities automatically"),
-        leaf("Note", "First trade may take time"),
-    ])
+    return (
+        f"⏳ <b>Waiting for Signal</b>\n"
+        f"{DIV}\n\n"
+        f"Status: <code>Scanning markets...</code>"
+    )
 
 
 def render_notif_trade_opened(
     *,
     market_title: str,
     side: str,
-    strategy: str,
-    entry: str,
     size: float,
-    reason: str = "High confidence setup",
+    price: float,
+    mode: str = PAPER,
 ) -> str:
-    block = pre_block([
-        ("Market", market_title),
-        ("Side", side),
-        ("Strategy", strategy),
-        ("Entry", f"{entry}¢"),
-        ("Size", f"${size:,.2f}"),
-        ("Reason", reason),
-    ])
-    return f"⚡ <b>Position Opened</b>\n{DIV}\n{block}\n{DIV}"
+    return (
+        f"⚡ <b>Position Opened</b>\n"
+        f"{DIV}\n"
+        + pre_block([
+            ("Market", market_title[:40]),
+            ("Side",   side),
+            ("Size",   f"${size:,.2f}"),
+            ("Price",  f"{price:.3f}"),
+            ("Mode",   mode),
+        ]) +
+        f"\n{DIV}"
+    )
 
 
-def render_notif_first_trade(market_title: str) -> str:
-    return join_blocks([
-        title("🎉 First Trade Opened"),
-        leaf("Nice start", "Your bot placed its first trade"),
-        leaf("Market", market_title),
-        leaf("Status", "Monitoring performance"),
-    ])
+def render_notif_first_trade(
+    *,
+    market_title: str,
+    side: str,
+    size: float,
+) -> str:
+    return (
+        f"🎉 <b>First Trade!</b>\n"
+        f"{DIV}\n"
+        + pre_block([
+            ("Market", market_title[:40]),
+            ("Side",   side),
+            ("Size",   f"${size:,.2f}"),
+        ])
+    )
 
 
 def render_notif_trade_closed(
     *,
     market_title: str,
-    result_pnl: float,
-    exit_reason: str,
-    portfolio_balance: float,
+    side: str,
+    size: float,
+    pnl_value: float,
 ) -> str:
-    head = "🎯 Trade Closed" if result_pnl >= 0 else "📉 Trade Closed"
-    last_label = "Portfolio Balance" if result_pnl >= 0 else "Portfolio Status"
-    last_value = f"${portfolio_balance:,.2f}" if result_pnl >= 0 else "Stable"
-    return join_blocks([
-        title(head),
-        leaf("Market", market_title),
-        leaf("Result", pnl(result_pnl)),
-        leaf("Exit Reason", exit_reason),
-        leaf(last_label, last_value),
-    ])
+    return (
+        f"✅ <b>Position Closed</b>\n"
+        f"{DIV}\n"
+        + pre_block([
+            ("Market", market_title[:40]),
+            ("Side",   side),
+            ("Size",   f"${size:,.2f}"),
+            ("PnL",    pnl(pnl_value)),
+        ])
+    )
 
 
 def render_notif_wallet_copied(
@@ -886,138 +862,133 @@ def render_notif_wallet_copied(
     market_title: str,
     side: str,
     size: float,
-    copy_mode: str = "Proportional",
 ) -> str:
-    return join_blocks([
-        title("👥 Wallet Trade Copied"),
-        leaf("Wallet", address_short),
-        leaf("Market", market_title),
-        leaf("Position", side),
-        leaf("Size", f"${size:,.0f}"),
-        leaf("Copy Mode", copy_mode),
-    ])
+    return (
+        f"🔁 <b>Wallet Copied</b>\n"
+        f"{DIV}\n"
+        + pre_block([
+            ("Wallet", address_short),
+            ("Market", market_title[:40]),
+            ("Side",   side),
+            ("Size",   f"${size:,.2f}"),
+        ])
+    )
 
 
-def render_notif_drawdown_warning(
-    *,
-    daily_loss: float,
-    limit: float,
-) -> str:
-    return join_blocks([
-        title("⚠ Risk Alert"),
-        leaf("Daily Loss", f"${daily_loss:,.0f} / ${limit:,.0f}"),
-        leaf("Protection", "Auto pause nearing"),
-        leaf("Recommendation", "Review exposure"),
-    ])
+def render_notif_drawdown_warning(*, drawdown_pct: float) -> str:
+    return (
+        f"⚠️ <b>Drawdown Warning</b>\n"
+        f"{DIV}\n\n"
+        f"Drawdown: <code>{drawdown_pct:.1f}%</code>\n"
+        f"{cta('Review positions — auto pause may trigger')}"
+    )
 
 
-def render_notif_auto_pause() -> str:
-    return join_blocks([
-        title("🛡 Safety Protection Activated"),
-        leaf("Trigger", "Daily loss limit reached"),
-        leaf("Auto Trade", STATUS_PAUSED),
-        leaf("Open Positions", "Still monitored"),
-        leaf("Action Needed", "Review settings"),
-    ])
+def render_notif_auto_pause(*, reason: str = "Daily loss limit reached") -> str:
+    return (
+        f"⏸ <b>Auto Pause Triggered</b>\n"
+        f"{DIV}\n\n"
+        f"Reason: <code>{html_escape(reason)}</code>\n\n"
+        f"{cta('Review settings before resuming')}"
+    )
 
 
 def render_notif_daily_summary(
     *,
-    portfolio: float,
-    today_pnl: float,
     trades: int,
+    pnl_today: float,
     win_rate: int,
-    best_trade_market: str,
-    best_trade_pnl: float,
-    bot_status: str = STATUS_RUNNING,
+    mode: str = PAPER,
 ) -> str:
-    return join_blocks([
-        title("📅 Daily Summary"),
-        leaf("Portfolio", f"${portfolio:,.2f}"),
-        leaf("Today PnL", pnl(today_pnl)),
-        leaf("Trades", f"{trades} completed"),
-        leaf("Win Rate", f"{win_rate}%"),
-        leaf("Best Trade", f"{best_trade_market} ({pnl(best_trade_pnl)})"),
-        leaf("Bot Status", bot_status),
-    ])
+    return (
+        f"📊 <b>Daily Summary</b>\n"
+        f"{DIV}\n"
+        + pre_block([
+            ("Trades",   str(trades)),
+            ("PnL",      pnl(pnl_today)),
+            ("Win Rate", f"{win_rate}%"),
+            ("Mode",     mode),
+        ])
+    )
 
 
-# ────────────────────────────────────────────────────────────────────────────
-# 17/18. Loading & Error states
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# 16. System states
+# ─────────────────────────────────────────────────────────────────────────────
 
 
-def render_loading(message: str = "Fetching data...") -> str:
-    return join_blocks([title("⏳ Loading"), cta(message)])
-
-
-def render_syncing(message: str = "Updating portfolio data...") -> str:
-    return join_blocks([title("🔄 Syncing"), leaf("Status", message)])
+def render_syncing() -> str:
+    return f"🔄 <b>Syncing...</b>\n\n{cta('Please wait')}"
 
 
 def render_error_api() -> str:
-    return join_blocks([
-        title("⚠ Temporary Issue"),
-        leaf("Status", "Data unavailable"),
-        leaf("Action", "Try refresh in a moment"),
-    ])
+    return (
+        f"❌ <b>API Error</b>\n"
+        f"{DIV}\n\n"
+        f"Status: <code>Connection issue</code>\n\n"
+        f"{cta('Try again in a moment')}"
+    )
 
 
 def render_error_invalid_wallet() -> str:
-    return join_blocks([
-        title("⚠ Invalid Wallet Address"),
-        leaf("Expected Format", "0x... wallet address"),
-        leaf("Action", "Paste a valid address"),
-    ])
+    return (
+        f"❌ <b>Invalid Wallet</b>\n"
+        f"{DIV}\n\n"
+        f"Status: <code>Address not recognized</code>\n\n"
+        f"{cta('Check the address and try again')}"
+    )
 
 
 def render_error_bot_paused() -> str:
-    return join_blocks([
-        title("⏸ Bot Paused"),
-        leaf("New Trades", "Stopped"),
-        leaf("Existing Positions", "Still monitored"),
-    ])
+    return (
+        f"⏸ <b>Bot Paused</b>\n"
+        f"{DIV}\n\n"
+        f"Status: <code>Manually paused</code>\n\n"
+        f"{cta('Resume from Auto Mode')}"
+    )
 
 
 def render_error_live_locked() -> str:
-    return join_blocks([
-        title("🔒 Live Mode Locked"),
-        leaf("Status", "Not enabled"),
-        leaf("Requirement", "Owner activation required"),
-    ])
-
-
-# ────────────────────────────────────────────────────────────────────────────
-# Onboarding
-# ────────────────────────────────────────────────────────────────────────────
-
-
-def render_welcome(*, user_name: str = "trader") -> str:
-    return join_blocks([
-        title(f"👋 Welcome, {user_name}"),
-        leaf("Mode", PAPER),
-        nested("Get Started", [
-            "Initialize your wallet",
-            "Choose a strategy preset",
-            "Start in Paper Mode",
-        ]),
-        cta("Initialize your wallet to begin"),
-    ])
-
-
-def render_wallet_ready(*, address_short: str) -> str:
-    return join_blocks([
-        title("🔑 Wallet Ready"),
-        leaf("Address", address_short),
-        leaf("Mode", PAPER),
-        cta("Choose a starter preset:"),
-    ])
+    return (
+        f"🔒 <b>Live Trading Locked</b>\n"
+        f"{DIV}\n\n"
+        f"Status: <code>Paper mode only</code>\n\n"
+        f"{cta('Contact operator to unlock live trading')}"
+    )
 
 
 def render_deposit_prompt() -> str:
-    return join_blocks([
-        title("💰 Fund Your Bot"),
-        leaf("Mode", PAPER),
-        leaf("Tip", "Paper Mode runs without real capital"),
-        leaf("When ready", "Use Settings → Trading Mode for Live access"),
-    ])
+    return (
+        f"💰 <b>Deposit Funds</b>\n"
+        f"{DIV}\n\n"
+        f"  · Mode: <code>{PAPER}</code>\n"
+        f"  · Demo Capital: <code>Ready</code>\n\n"
+        f"{cta('Fund your account to increase capital')}"
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 17. Onboarding
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def render_welcome(*, user_name: str = "trader") -> str:
+    return (
+        f"🛡️ <b>Welcome, {html_escape(user_name)}!</b>\n"
+        f"{DIV}\n\n"
+        f"<b>CrusaderBot</b> — Trade prediction markets with controlled risk.\n\n"
+        f"  · Mode: <code>{PAPER}</code>\n"
+        f"  · Demo Capital: <code>$1,000 ready</code>\n"
+        f"  · Live Trading: <code>{LOCKED}</code>\n\n"
+        f"{cta('Tap Get Started to begin')}"
+    )
+
+
+def render_wallet_ready(*, address_short: str) -> str:
+    return (
+        f"✅ <b>Wallet Ready</b>\n"
+        f"{DIV}\n\n"
+        f"  · Address: <code>{html_escape(address_short)}</code>\n"
+        f"  · Status: <code>Connected</code>\n\n"
+        f"{cta('Choose a preset to continue')}"
+    )
