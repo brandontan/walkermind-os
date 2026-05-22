@@ -52,13 +52,7 @@ async def start_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     returning, _addr = await _classify(user)
     if returning:
-        # Re-attach persistent keyboard in case it was lost (e.g. app reinstall).
-        msg = update.effective_message
-        if msg is not None:
-            await msg.reply_text(
-                ".",
-                reply_markup=main_menu_kb(auto_on=True, paused=False, open_count=0, configured=returning),
-            )
+        # Re-attach persistent keyboard and show dashboard directly — no phantom message.
         await dash.show_dashboard(update, ctx)
         return
     user_name = (user.first_name or "trader").strip() or "trader"
