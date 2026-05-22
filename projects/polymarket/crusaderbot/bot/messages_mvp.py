@@ -1,4 +1,4 @@
-"""MVP v1 Telegram message renderers (hierarchy tree format).
+"""MVP v1 Telegram message renderers (flat Markdown format).
 
 Every screen defined in docs/ux/telegram-mvp-v1.md has one render_* function
 here. Renderers are pure: they take primitives, return strings. No I/O, no
@@ -9,9 +9,6 @@ from __future__ import annotations
 from typing import Iterable, Sequence
 
 from .ui.tree import (
-    BAR,
-    BRANCH,
-    LAST,
     LIVE,
     LOCKED,
     PAPER,
@@ -22,6 +19,7 @@ from .ui.tree import (
     STATUS_SYNCING,
     join_blocks,
     leaf,
+    md_escape,
     nested,
     pnl,
     section,
@@ -63,7 +61,7 @@ def render_dashboard_new_user() -> str:
         leaf("🚀 Quick Start", "Recommended for beginners"),
         leaf("🤖 Auto Trade", STATUS_NOT_SET),
         leaf("👥 Copy Wallet", STATUS_NOT_SET),
-        f"{LAST} Ready to begin?",
+        "Ready to begin?",
     ]
     return join_blocks(blocks)
 
@@ -122,7 +120,7 @@ def render_autotrade_home(
             ("🔥 Executions", str(executions)),
             ("🎯 Win Rate", f"{win_rate}%"),
         ]),
-        f"{LAST} Choose an action:",
+        "Choose an action:",
     ]
     return join_blocks(blocks)
 
@@ -142,7 +140,7 @@ def render_autotrade_quick_start(
             ("💰 Capital", f"${capital:,.0f}"),
             ("📝 Mode", mode),
         ], last=False),
-        f"{LAST} Ready to begin?",
+        "Ready to begin?",
     ]
     return join_blocks(blocks)
 
@@ -161,7 +159,7 @@ def render_autotrade_configure_capital(current: float = 100.0) -> str:
     blocks = [
         title("🤖 Auto Trade / Configure / Capital"),
         leaf("Current Allocation", f"${current:,.0f}"),
-        f"{LAST} Choose allocation:",
+        "Choose allocation:",
     ]
     return join_blocks(blocks)
 
@@ -189,7 +187,7 @@ def render_autotrade_configure_review(
         leaf("💰 Capital", f"${capital:,.0f}"),
         leaf("⚖️ Risk", risk),
         leaf("📝 Mode", mode),
-        f"{LAST} Looks good?",
+        "Looks good?",
     ]
     return join_blocks(blocks)
 
@@ -211,7 +209,7 @@ def render_autotrade_strategy_status(
             ("PnL Today", pnl(pnl_today)),
             ("Trades", str(trades)),
         ], last=False),
-        f"{LAST} Select an action:",
+        "Select an action:",
     ]
     return join_blocks(blocks)
 
@@ -223,7 +221,7 @@ def render_autotrade_pause_confirm() -> str:
             ("New trades", "Stopped"),
             ("Open positions", "Remain active"),
         ], last=False),
-        f"{LAST} Confirm pause?",
+        "Confirm pause?",
     ]
     return join_blocks(blocks)
 
@@ -235,7 +233,7 @@ def render_autotrade_resume_confirm() -> str:
             ("Market monitoring", "Resumed"),
             ("Trade execution", "Enabled"),
         ], last=False),
-        f"{LAST} Continue trading?",
+        "Continue trading?",
     ]
     return join_blocks(blocks)
 
@@ -256,7 +254,7 @@ def render_copy_home(
         leaf("Status", status),
         leaf("Active Wallets", f"{active_wallets} Following"),
         leaf("Allocation", f"${allocation:,.0f}"),
-        f"{LAST} Choose an action:",
+        "Choose an action:",
     ]
     return join_blocks(blocks)
 
@@ -331,7 +329,7 @@ def render_copy_wallet_card(
             ("PnL Today", pnl(pnl_today)),
             ("Trades Copied", str(trades_copied)),
         ], last=False),
-        f"{LAST} Select an action:",
+        "Select an action:",
     ]
     return join_blocks(blocks)
 
@@ -343,7 +341,7 @@ def render_copy_pause_confirm() -> str:
             ("New copied trades", "Stopped"),
             ("Existing positions", "Stay active"),
         ], last=False),
-        f"{LAST} Confirm pause?",
+        "Confirm pause?",
     ]
     return join_blocks(blocks)
 
@@ -369,13 +367,15 @@ def render_markets_trending(items: Sequence[dict]) -> str:
     """items: [{rank, title, yes, no, volume, sentiment}, ...]"""
     blocks: list[str] = [title("🔥 Trending Markets")]
     for it in items:
-        rank = it.get("rank", "")
-        blocks.append(section(f"{rank} {it.get('title', '')}", [
+        rank = str(it.get("rank", "")).strip()
+        market_title = str(it.get("title", "")).replace("\n", " ").strip()
+        label = f"{rank} {market_title}".strip()
+        blocks.append(section(label, [
             ("Price", f"YES {it.get('yes')}¢ • NO {it.get('no')}¢"),
             ("Volume", it.get("volume", "—")),
             ("Sentiment", it.get("sentiment", "—")),
         ]))
-    blocks.append(f"{LAST} Select a market:")
+    blocks.append("Select a market:")
     return join_blocks(blocks)
 
 
@@ -459,7 +459,7 @@ def render_portfolio_home(
             ("Win Rate", f"{today_win_rate}%"),
         ]),
         leaf("📌 Open Positions", f"{open_positions} Active"),
-        f"{LAST} Choose an action:",
+        "Choose an action:",
     ]
     return join_blocks(blocks)
 
@@ -477,11 +477,14 @@ def render_positions_list(items: Sequence[dict]) -> str:
     """items: [{rank, title, side, pnl}, ...]"""
     blocks: list[str] = [title("📌 Open Positions")]
     for it in items:
-        blocks.append(section(f"{it.get('rank', '')} {it.get('title', '')}", [
+        rank = str(it.get("rank", "")).strip()
+        market_title = str(it.get("title", "")).replace("\n", " ").strip()
+        label = f"{rank} {market_title}".strip()
+        blocks.append(section(label, [
             ("Side", it.get("side", "—")),
             ("PnL", pnl(float(it.get("pnl", 0.0)))),
         ]))
-    blocks.append(f"{LAST} Select a position:")
+    blocks.append("Select a position:")
     return join_blocks(blocks)
 
 
@@ -520,7 +523,7 @@ def render_history_home(*, today: int = 0, week: int = 0) -> str:
         title("📜 Trade History"),
         leaf("Today", f"{today} Trades"),
         leaf("This Week", f"{week} Trades"),
-        f"{LAST} Choose range:",
+        "Choose range:",
     ]
     return join_blocks(blocks)
 
@@ -733,14 +736,15 @@ def render_help_safety() -> str:
 def render_help_faq() -> str:
     blocks = [
         title("💬 FAQ"),
-        f"{BRANCH} 🤖 Is trading automatic?",
-        f"{BRANCH} 📝 What is Paper Mode?",
-        f"{BRANCH} 💸 Can I lose money?",
-        f"{BRANCH} 👥 How does Copy Wallet work?",
-        f"{LAST} 🔒 Is my wallet safe?",
+        nested("Questions", [
+            "🤖 Is trading automatic?",
+            "📝 What is Paper Mode?",
+            "💸 Can I lose money?",
+            "👥 How does Copy Wallet work?",
+            "🔒 Is my wallet safe?",
+        ]),
     ]
-    # Single-leaf FAQ entries; render as a flat list under the title.
-    return "\n".join([blocks[0]] + blocks[1:])
+    return join_blocks(blocks)
 
 
 def render_help_support() -> str:
@@ -908,11 +912,11 @@ def render_notif_daily_summary(
 
 
 def render_loading(message: str = "Fetching data...") -> str:
-    return f"⏳ Loading\n{BAR}\n{LAST} {message}"
+    return join_blocks([title("⏳ Loading"), md_escape(message)])
 
 
 def render_syncing(message: str = "Updating portfolio data...") -> str:
-    return f"🔄 Syncing\n{BAR}\n{LAST} {message}"
+    return join_blocks([title("🔄 Syncing"), md_escape(message)])
 
 
 def render_error_api() -> str:

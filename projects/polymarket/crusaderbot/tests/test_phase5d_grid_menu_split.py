@@ -208,8 +208,13 @@ def test_dashboard_and_portfolio_share_noop_sentinel():
     assert MAIN_MENU_ROUTES["💼 Portfolio"] is not show_portfolio
 
 
-def test_dashboard_and_settings_are_different_handlers():
-    assert MAIN_MENU_ROUTES["📊 Dashboard"] is not MAIN_MENU_ROUTES["⚙️ Settings"]
+def test_settings_and_help_share_noop_sentinel():
+    # WARP-67: Settings + Help render is owned by the group=-1 MessageHandler
+    # (MVP surface). Both map to _group0_noop so the legacy settings/help
+    # handlers no longer fire a second message (double-response fix).
+    from projects.polymarket.crusaderbot.bot.menus.main import _group0_noop
+    assert MAIN_MENU_ROUTES["⚙️ Settings"] is _group0_noop
+    assert MAIN_MENU_ROUTES["❓ Help"] is _group0_noop
 
 
 # ---------- menu_copytrade_handler (via settings/secondary nav) ------------

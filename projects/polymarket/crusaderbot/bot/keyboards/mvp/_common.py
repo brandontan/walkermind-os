@@ -43,11 +43,12 @@ def main_menu_kb(
     auto_on: bool = False,
     paused: bool = False,
     open_count: int = 0,
+    configured: bool = False,
 ) -> ReplyKeyboardMarkup:
     """Persistent bottom navigation keyboard (blueprint v7 Section 3)."""
     if paused:
         auto_label = "▶️ Resume"
-    elif auto_on:
+    elif auto_on or configured:
         auto_label = "🤖 Auto Mode"
     else:
         auto_label = "🤖 Setup Auto"

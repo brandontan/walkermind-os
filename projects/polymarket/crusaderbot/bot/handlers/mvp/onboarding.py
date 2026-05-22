@@ -57,7 +57,7 @@ async def start_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if msg is not None:
             await msg.reply_text(
                 ".",
-                reply_markup=main_menu_kb(auto_on=True, paused=False, open_count=0),
+                reply_markup=main_menu_kb(auto_on=True, paused=False, open_count=0, configured=returning),
             )
         await dash.show_dashboard(update, ctx)
         return

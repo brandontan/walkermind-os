@@ -1,13 +1,20 @@
-"""Hierarchy tree terminal-UI helpers for the MVP v1 Telegram surface.
+"""Flat Markdown message helpers for the MVP v1 Telegram surface.
 
-All major bot messages must render through these helpers so the visual
-language stays consistent across screens (blueprint section 4).
+Box-drawing characters (│ ├── └──) do not render reliably across Telegram
+clients (notably Android system fonts), producing the "berantakan" tree
+output seen in production. All major bot messages therefore render through
+these helpers in a flat, mobile-safe Markdown layout (WARP-67):
 
-Tree characters are fixed:
+    *Section Header*
+    Key: Value
+    Key: Value
 
-    │     vertical bar
-    ├──   middle branch
-    └──   last branch
+Section headers are bold (`*...*`), key/value pairs are plain single lines,
+and blocks are separated by a single blank line after the title. Output is
+sent with ``parse_mode="Markdown"`` (see bot.handlers.mvp._send).
+
+ASCII fallback glyphs are retained for any caller that still references them,
+but the renderers no longer emit Unicode box-drawing characters.
 
 Status glyphs are fixed (blueprint 4.4):
 
@@ -20,9 +27,10 @@ from __future__ import annotations
 
 from typing import Iterable, Sequence
 
-BAR = "│"
-BRANCH = "├──"
-LAST = "└──"
+# Telegram-safe ASCII fallbacks (no Unicode box-drawing characters).
+BAR = "|"
+BRANCH = "|-"
+LAST = "`-"
 
 STATUS_RUNNING = "🟢 Running"
 STATUS_STOPPED = "🔴 Stopped"
@@ -32,6 +40,22 @@ STATUS_SYNCING = "🔵 Syncing"
 PAPER = "📝 Paper Trading"
 LIVE = "💸 Live Trading"
 LOCKED = "🔒 Locked"
+
+# Telegram Markdown (v1) reserved characters that must be escaped inside any
+# dynamic string (market titles, wallet addresses, user names).
+_MD_SPECIAL = ("_", "*", "`", "[")
+
+
+def md_escape(text: str) -> str:
+    """Escape Telegram Markdown (v1) reserved characters in dynamic text.
+
+    Applied to every label/value rendered through these helpers so that
+    user- or market-supplied strings cannot break message formatting.
+    """
+    out = str(text)
+    for ch in _MD_SPECIAL:
+        out = out.replace(ch, f"\\{ch}")
+    return out
 
 
 def pnl(amount: float, currency: str = "$") -> str:
@@ -53,73 +77,58 @@ def pnl(amount: float, currency: str = "$") -> str:
 
 
 def title(text: str) -> str:
-    """Return the title line for a tree-format screen.
-
-    The spacer `│` that the blueprint puts between the title and the first
-    section is inserted by :func:`join_blocks`, so this returns just the title.
-    """
-    return text
+    """Return the bold title line for a screen."""
+    return f"*{md_escape(text)}*"
 
 
 def leaf(label: str, value: str, last: bool = False) -> str:
-    """Return a single-line section: `├── label` + indented `└── value`.
+    """Return a single `Label: Value` line (flat format).
 
-    Renders as:
-
-        ├── label
-        │   └── value
+    The ``last`` flag is accepted for call-site compatibility but no longer
+    affects rendering.
     """
-    head_char = LAST if last else BRANCH
-    cont_bar = " " if last else BAR
-    return f"{head_char} {label}\n{cont_bar}   {LAST} {value}"
+    return f"{md_escape(label)}: {md_escape(value)}"
 
 
 def section(label: str, rows: Sequence[tuple[str, str]], last: bool = False) -> str:
-    """Return a multi-row section block.
-
-    rows: sequence of (label, value) pairs rendered as nested leaves.
+    """Return a bold-headed section block with flat `Key: Value` rows.
 
     Renders as:
 
-        ├── label
-        │   ├── row1.label
-        │   │   └── row1.value
-        │   └── rowN.label
-        │       └── rowN.value
+        *label*
+        row1.label: row1.value
+        rowN.label: rowN.value
     """
-    head_char = LAST if last else BRANCH
-    cont_bar = " " if last else BAR
-    lines: list[str] = [f"{head_char} {label}"]
-    for idx, (sub_label, sub_value) in enumerate(rows):
-        sub_last = idx == len(rows) - 1
-        sub_head = LAST if sub_last else BRANCH
-        sub_cont = " " if sub_last else BAR
-        lines.append(f"{cont_bar}   {sub_head} {sub_label}")
-        lines.append(f"{cont_bar}   {sub_cont}   {LAST} {sub_value}")
+    lines: list[str] = [f"*{md_escape(label)}*"]
+    for sub_label, sub_value in rows:
+        lines.append(f"{md_escape(sub_label)}: {md_escape(sub_value)}")
     return "\n".join(lines)
 
 
 def nested(label: str, lines: Iterable[str], last: bool = False) -> str:
-    """Return a section whose body is a bullet list (each line under a leaf).
+    """Return a bold-headed section whose body is a bullet list.
 
     Renders as:
 
-        ├── label
-        │   ├── line1
-        │   └── lineN
+        *label*
+        • line1
+        • lineN
     """
-    head_char = LAST if last else BRANCH
-    cont_bar = " " if last else BAR
-    body = list(lines)
-    out: list[str] = [f"{head_char} {label}"]
-    for idx, line in enumerate(body):
-        sub_last = idx == len(body) - 1
-        sub_head = LAST if sub_last else BRANCH
-        out.append(f"{cont_bar}   {sub_head} {line}")
+    out: list[str] = [f"*{md_escape(label)}*"]
+    for line in lines:
+        out.append(f"• {md_escape(line)}")
     return "\n".join(out)
 
 
-def join_blocks(blocks: Iterable[str], spacer: str = f"\n{BAR}\n") -> str:
-    """Join section blocks with the standard blank-tree spacer."""
+def join_blocks(blocks: Iterable[str], spacer: str = "\n") -> str:
+    """Join section blocks: blank line after the title, single newline after.
+
+    The first block is treated as the screen title and is followed by one
+    blank line; all subsequent blocks are joined by a single newline.
+    """
     parts = [b for b in blocks if b]
-    return spacer.join(parts)
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0]
+    return parts[0] + "\n\n" + "\n".join(parts[1:])

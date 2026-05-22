@@ -78,6 +78,7 @@ async def show_dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             auto_on=d["running"],
             paused=False,
             open_count=d.get("open_count", 0),
+            configured=d["configured"],
         )
     await send_or_edit(update, text, kb)
 
