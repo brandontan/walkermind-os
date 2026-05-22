@@ -3,6 +3,14 @@
 **Date:** 2026-05-23
 **PR:** #1287 | **Branch:** WARP/warp68-structured-card-ui | **Tier:** STANDARD
 
+## [WARP-73] Phantom dot + clean HTML format hotfix
+**Date:** 2026-05-23 | **Tier:** MINOR (hotfix, direct to main)
+
+1. onboarding.py: remove reply_text(".") from /start returning user path
+2. tree.py: safe unicode divider ─×28, · separator — no ━━ or box chars
+3. messages_mvp.py: full rewrite — all 66 functions clean Telegram HTML
+
+
 ## [WARP-72] Fix phantom dot + capital from _read_state — 93d5709c0c5c
 **Date:** 2026-05-23
 **Commit:** 93d5709c0c5c | **Tier:** MINOR (hotfix, direct to main)
