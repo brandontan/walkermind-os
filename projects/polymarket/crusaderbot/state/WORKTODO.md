@@ -132,3 +132,4 @@ CRUSADERBOT is considered **DONE** only when:
 - [x] SENTINEL re-audit post WARP-62+63 (issue #1276) — APPROVED 96/100 — MERGED d42b7e915356
 - [x] WARP-66 — Telegram UX polish (issue #1282) [STANDARD] — MERGED ab6f397f2741
 - [x] WARP-67 — P1: Telegram UX final clean — flat Markdown (no box-drawing), configured-aware Auto label, paused-aware Resume, Settings/Help double-response fix, positions title artifact (issue #1284) [STANDARD] — DELIVERED WARP/warp67-ux-final-clean 2026-05-22
+- [x] WARP-67 — Telegram UX final clean (issue #1284) [STANDARD] — MERGED 2989b7c6e788
