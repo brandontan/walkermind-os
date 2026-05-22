@@ -9,7 +9,7 @@ from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
 from ... import messages_mvp as mvp
 from ...keyboards.mvp import copy_wallet as kb
-from ...ui.tree import STATUS_NOT_SET, STATUS_RUNNING
+from ...ui.tree import STATUS_NOT_SET, STATUS_RUNNING, STATUS_STOPPED
 from . import _users
 from ._send import callback_parts, send_or_edit
 
@@ -73,7 +73,12 @@ async def show_home(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             wallets = await _read_wallets(u["id"])
     running = any(w.get("enabled") for w in wallets)
     total_alloc = float(sum(float(w.get("allocation") or 0) for w in wallets))
-    status = STATUS_RUNNING if running else STATUS_NOT_SET
+    if running:
+        status = STATUS_RUNNING
+    elif wallets:
+        status = STATUS_STOPPED
+    else:
+        status = STATUS_NOT_SET
     text = mvp.render_copy_home(status=status, active_wallets=len(wallets), allocation=total_alloc)
     await send_or_edit(update, text, kb.home_kb(running=running))
 

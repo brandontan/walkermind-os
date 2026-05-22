@@ -26,7 +26,6 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from ..handlers import (
-    autotrade,
     dashboard,
     onboarding,
     positions,
@@ -60,12 +59,12 @@ MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     # misprocessing the tap (which would surface as a duplicate message).
     "📊 Dashboard":          _group0_noop,
     "💼 Portfolio":          _group0_noop,
-    # "🤖 Auto Mode" surfaces only when a preset is active. Route to the
-    # smart entry that shows preset_active status, falling back to the picker
-    # only when no active preset is present (state recovery).
-    "🤖 Auto Mode":          autotrade.auto_mode_entry,
-    "🤖 Setup Auto":         presets.show_preset_picker,
-    "▶️ Resume":             presets.show_preset_picker,
+    # Auto-mode taps are answered by the group=-1 MessageHandler in
+    # dispatcher.py (routes to the MVP autotrade surface). Noop here so the
+    # text router clears pending wizard state without sending a duplicate.
+    "🤖 Auto Mode":          _group0_noop,
+    "🤖 Setup Auto":         _group0_noop,
+    "▶️ Resume":             _group0_noop,
     "⚙️ Settings":           settings_handler.settings_hub_root,
     "❓ Help":               onboarding.help_handler,
     # Backward-compat aliases (old state-driven labels)

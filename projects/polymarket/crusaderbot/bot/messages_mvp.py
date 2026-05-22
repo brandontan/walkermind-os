@@ -49,7 +49,7 @@ def render_dashboard_default(
             ("PnL", pnl(today_pnl)),
             ("Trades", str(today_trades)),
         ]),
-        leaf("🤖 Auto Trade", active_strategy),
+        leaf("🔄 Auto Trade", active_strategy),
         leaf("👥 Copy Wallet", f"{copy_wallets_active} Active"),
         leaf("💼 Portfolio", f"${portfolio_value:,.2f}", last=True),
     ]

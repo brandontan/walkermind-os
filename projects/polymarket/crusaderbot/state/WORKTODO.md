@@ -128,4 +128,5 @@ CRUSADERBOT is considered **DONE** only when:
 - [x] WARP-63 — P1: migrate CopyTradeStrategy.scan() from copy_targets → copy_trade_tasks (issue #1274) [STANDARD] — DELIVERED WARP/warp62-63-fix 2026-05-22
 - [x] WARP-64 — P0: fix CI pytest failures in test_warp59_copy_wallet_bridge.py (issue #1277) [STANDARD] — DELIVERED WARP/warp64-ci-fix 2026-05-22
 - [x] WARP-65 — P1: fix Telegram UX persistent keyboard + bot status + strategy label (issue #1278) [STANDARD] — DELIVERED WARP/warp65-telegram-ux-fix 2026-05-22
+- [x] WARP-66 — P1: Telegram UX full polish — auto-mode keyboard routing + autotrade/copy-wallet status labels + dashboard emoji dedupe + onboarding keyboard (issue #1282) [STANDARD] — DELIVERED WARP/warp66-ux-polish 2026-05-22
 - [x] SENTINEL re-audit post WARP-62+63 (issue #1276) — APPROVED 96/100 — MERGED d42b7e915356
