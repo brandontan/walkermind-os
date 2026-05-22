@@ -18,12 +18,12 @@ class CopyTradeStrategy(BaseStrategy):
     async def scan(self, user: dict, settings: dict) -> list[SignalCandidate]:
         pool = get_pool()
         async with pool.acquire() as conn:
-            targets = await conn.fetch(
-                "SELECT id, target_wallet_address, scale_factor, last_seen_tx "
-                "FROM copy_targets WHERE user_id=$1 AND status='active'",
+            tasks = await conn.fetch(
+                "SELECT id, wallet_address, copy_amount "
+                "FROM copy_trade_tasks WHERE user_id=$1 AND status='active'",
                 user["id"],
             )
-        if not targets:
+        if not tasks:
             return []
 
         out: list[SignalCandidate] = []
@@ -31,18 +31,15 @@ class CopyTradeStrategy(BaseStrategy):
         balance = Decimal(str(user.get("balance_usdc") or 0))
         budget = balance * capital_pct
 
-        for t in targets:
+        for t in tasks:
             try:
-                trades = await get_user_activity(t["target_wallet_address"], limit=10)
+                trades = await get_user_activity(t["wallet_address"], limit=10)
             except Exception as exc:
                 logger.warning("copy_trade scan err for %s: %s",
-                               t["target_wallet_address"], exc)
+                               t["wallet_address"], exc)
                 continue
-            new_last_tx = t["last_seen_tx"]
             for trade in trades:
                 tx = trade.get("transactionHash") or trade.get("tx_hash")
-                if t["last_seen_tx"] and tx == t["last_seen_tx"]:
-                    break  # caught up
                 market_id = (trade.get("market") or trade.get("conditionId")
                              or trade.get("market_id"))
                 side = (trade.get("outcome") or trade.get("side") or "yes").lower()
@@ -52,8 +49,7 @@ class CopyTradeStrategy(BaseStrategy):
                 size_raw = float(trade.get("size") or trade.get("usdcSize") or 0)
                 if not market_id or size_raw <= 0:
                     continue
-                scale = Decimal(str(t["scale_factor"]))
-                size_usdc = min(Decimal(str(size_raw)) * scale, budget)
+                size_usdc = min(Decimal(str(t["copy_amount"])), budget)
                 if size_usdc <= 0:
                     continue
                 out.append(SignalCandidate(
@@ -64,15 +60,6 @@ class CopyTradeStrategy(BaseStrategy):
                     edge_bps=None,
                     strategy_type=self.name,
                     signal_ts=datetime.now(timezone.utc),
-                    extra={"target": t["target_wallet_address"], "src_tx": tx},
+                    extra={"target": t["wallet_address"], "src_tx": tx},
                 ))
-                if new_last_tx is None or new_last_tx == t["last_seen_tx"]:
-                    new_last_tx = tx
-
-            if new_last_tx and new_last_tx != t["last_seen_tx"]:
-                async with pool.acquire() as conn:
-                    await conn.execute(
-                        "UPDATE copy_targets SET last_seen_tx=$1 WHERE id=$2",
-                        new_last_tx, t["id"],
-                    )
         return out

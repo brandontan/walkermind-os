@@ -8,7 +8,6 @@ Telegram config UI share one consistent strategy catalog per process.
 from __future__ import annotations
 
 import re
-import threading
 from typing import Any
 
 from .base import BaseStrategy
@@ -21,13 +20,8 @@ _NAME_RE = re.compile(r"^[a-z][a-z0-9_]{1,49}$")
 class StrategyRegistry:
     """Process-wide strategy catalog.
 
-    Use `StrategyRegistry.instance()` rather than constructing directly. The
-    underlying singleton is created once per process and returns the same
-    instance to every caller, including across threads.
+    Use `StrategyRegistry.instance()` rather than constructing directly.
     """
-
-    _singleton: "StrategyRegistry | None" = None
-    _singleton_lock = threading.Lock()
 
     def __init__(self) -> None:
         self._strategies: dict[str, BaseStrategy] = {}
@@ -35,22 +29,16 @@ class StrategyRegistry:
     @classmethod
     def instance(cls) -> "StrategyRegistry":
         """Return the process-wide registry singleton."""
-        if cls._singleton is None:
-            with cls._singleton_lock:
-                if cls._singleton is None:
-                    cls._singleton = cls()
-        return cls._singleton
+        return _DEFAULT_REGISTRY
 
     @classmethod
     def _reset_for_tests(cls) -> None:
-        """Test-only hook: drop the singleton so each test starts clean.
+        """Test-only hook: replace singleton so each test starts clean.
 
-        Production code MUST NOT call this. Kept as an underscore-prefixed
-        classmethod so the test suite can isolate registry state without
-        spinning up a new process.
+        Production code MUST NOT call this.
         """
-        with cls._singleton_lock:
-            cls._singleton = None
+        global _DEFAULT_REGISTRY
+        _DEFAULT_REGISTRY = cls()
 
     def register(self, strategy: BaseStrategy) -> None:
         """Add a strategy to the registry.
@@ -190,5 +178,7 @@ def seed_defaults(
     """Alias for bootstrap_default_strategies; called from main.py lifespan."""
     return bootstrap_default_strategies(registry)
 
+
+_DEFAULT_REGISTRY = StrategyRegistry()
 
 __all__ = ["StrategyRegistry", "bootstrap_default_strategies", "seed_defaults"]
