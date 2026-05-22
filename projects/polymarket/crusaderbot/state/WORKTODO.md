@@ -134,3 +134,4 @@ CRUSADERBOT is considered **DONE** only when:
 - [x] WARP-67 — P1: Telegram UX final clean — flat Markdown (no box-drawing), configured-aware Auto label, paused-aware Resume, Settings/Help double-response fix, positions title artifact (issue #1284) [STANDARD] — DELIVERED WARP/warp67-ux-final-clean 2026-05-22
 - [x] WARP-67 — Telegram UX final clean (issue #1284) [STANDARD] — MERGED 2989b7c6e788
 - [x] WARP-68 — Structured card format + positions pagination (issue #1286) [STANDARD] — MERGED b7355541d496
+- [ ] WARP-69 — Full structured card format — all 64 remaining render functions in messages_mvp.py (issue #1288) [STANDARD] — DELIVERED WARP/warp69-full-card-format 2026-05-23
