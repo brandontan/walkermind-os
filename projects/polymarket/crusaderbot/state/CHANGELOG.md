@@ -10,7 +10,6 @@
 2. tree.py: safe unicode divider ─×28, · separator — no ━━ or box chars
 3. messages_mvp.py: full rewrite — all 66 functions clean Telegram HTML
 
-
 ## [WARP-72] Fix phantom dot + capital from _read_state — 93d5709c0c5c
 **Date:** 2026-05-23
 **Commit:** 93d5709c0c5c | **Tier:** MINOR (hotfix, direct to main)
@@ -18,7 +17,6 @@
 1. Remove `reply_text(".")` phantom dot — use `send_or_edit` with `main_menu_kb` instead.
 2. `do_start()` now calls `_read_state(user)` to get real capital (balance x risk fraction)
    instead of `_flow(ctx)["capital"]` which was always `_DEFAULT_CAPITAL=100.0`.
-
 
 ## [WARP-71] Premium terminal UI — HTML parse mode — MERGED e443c212c1e7
 **Date:** 2026-05-23
@@ -28,14 +26,12 @@ tree.py HTML helpers: html\_escape, pre\_block, leaf/section/nested/cta/title.
 DIV=━×32. \_send.py parse\_mode=HTML. All 66 render functions updated.
 Bloomberg-lite terminal: \<pre\> blocks for numbers, \<b\> headers, \<code\> values.
 
-
 ## [WARP-70] Dynamic capital from risk profile — MERGED eb149d18427b
 **Date:** 2026-05-23
 **PR:** #1292 | **Tier:** MINOR
 
 Capital = balance × risk fraction (safe 25%, balanced 50%, aggressive 80%).
 Fallback $100 when balance = 0.
-
 
 ## [WARP-69] Full structured card format — MERGED b50ef1a2ce86
 **Date:** 2026-05-23
@@ -72,7 +68,6 @@ B3: autotrade home\_kb paused param — Start/Pause/Resume state-correct.
 B4: Settings+Help → \_group0\_noop (single response only).
 B5: md\_escape+strip on market titles. 1614 passed.
 
-
 ## [WARP-66] Telegram UX polish — MERGED ab6f397f2741
 **Date:** 2026-05-22
 **PR:** #1283 | **Branch:** WARP/warp66-ux-polish | **Tier:** STANDARD
@@ -81,7 +76,6 @@ B5: md\_escape+strip on market titles. 1614 passed.
 autotrade STATUS_STOPPED, copy_wallet STATUS_STOPPED, returning user keyboard re-attach,
 dashboard 🤖→🔄 Auto Trade emoji dedup, strategy label from PRESET_CONFIG. 1614 passed.
 
-
 ## [SENTINEL RE-AUDIT] APPROVED 96/100 — MERGED d42b7e915356
 **Date:** 2026-05-22
 **PR:** #1281 | **Branch:** WARP/sentinel-reaudit-2026-05-22 | **Issue:** #1276
@@ -89,7 +83,6 @@ dashboard 🤖→🔄 Auto Trade emoji dedup, strategy label from PRESET_CONFIG.
 Prior BLOCKED (60/100) verdict lifted. Score 96/100, zero critical findings.
 H1–H8 all PASS. H2 (threading) CLEARED. F-002 (copy_targets drift) CLEARED.
 1613 passed, 0 failed. Residual P2 deferred (duplicate CopyTradeStrategy + copy_targets orphan).
-
 
 ## [WARP-65] Telegram UX: persistent ReplyKeyboard — MERGED 184753c4b376
 **Date:** 2026-05-22
@@ -101,7 +94,6 @@ _send.py: ReplyKeyboard routed via reply_text. dashboard.py: STATUS_STOPPED for
 configured-not-running; PRESET_CONFIG human label; open_count wired.
 autotrade.py: persistent keyboard sent after bot activation. Closes #1278.
 
-
 ## [WARP-64] CI pytest fix — MERGED 34f5a833b3b9
 **Date:** 2026-05-22
 **PR:** #1279 | **Branch:** WARP/warp64-ci-fix | **Tier:** STANDARD
@@ -109,7 +101,6 @@ autotrade.py: persistent keyboard sent after bot activation. Closes #1278.
 Test-only fix. Fixes 4 CI failures in test_warp59_copy_wallet_bridge.py:
 patch use-site (copy_wallet.send_or_edit), missing effective_message, queue undercount.
 Result: 1613 passed, 0 failed. Closes #1277.
-
 
 ## [WARP-62+63] SENTINEL fix cycle — MERGED 5f84646e1d9c
 **Date:** 2026-05-22
@@ -119,7 +110,6 @@ WARP-62: `domain/strategy/registry.py` — `import threading` removed. Eager mod
 WARP-63: `domain/signal/copy_trade.py` — `CopyTradeStrategy.scan()` reads `copy_trade_tasks` (canonical). `copy_targets` removed. F-002 architectural drift cleared.
 9 hermetic tests. Closes #1273 + #1274.
 
-
 ## [SENTINEL] CrusaderBot Core Audit 2026-05-21 — BLOCKED ac1c207f2238
 **Date:** 2026-05-22
 **PR:** #1272 | **Branch:** WARP/sentinel-core-audit-2026-05-21 | **Score:** 60/100
@@ -127,7 +117,6 @@ WARP-63: `domain/signal/copy_trade.py` — `CopyTradeStrategy.scan()` reads `cop
 Verdict: BLOCKED — H2 threading.Lock violation in registry.py (F-001 P0).
 7/8 subsystems PASS. Risk gate, execution router, kill switch, WebTrader, Telegram, confluence scalper, DB migrations all clean.
 Fix cycle open: WARP-62 (P0 threading) + WARP-63 (P1 copy_targets drift).
-
 
 ## [WARP-61] WebTrader + Full Auto confluence_scalper exposure — MERGED 7cbd8b814533
 **Date:** 2026-05-21
@@ -137,7 +126,6 @@ WebTrader AutoTradePage: Crypto Scalper preset card (engine=ConfluenceScalperStr
 signal_scan_job Phase B: confluence_scalper runs after lib loop, preset-gated, exception-safe.
 eligibility.py: crypto-only whitelist BTC/ETH/SOL/XRP/DOGE/BNB/HYPE — word-boundary regex.
 Full Auto + no-preset users covered. Existing presets isolated. 22 new hermetic tests.
-
 
 ## [WARP-60] ConfluenceScalperStrategy — MERGED b3ec4b7d4930
 **Date:** 2026-05-21
@@ -149,7 +137,6 @@ Side: mean-reversion (drift<0→YES, drift>0→NO). TP 8% / SL 4%.
 Registered via bootstrap_default_strategies() — idempotent. No preset activation wired.
 36 hermetic tests.
 
-
 ## [WARP-59] Copy Wallet e2e bridge — MERGED 68a523e94cd8
 **Date:** 2026-05-21
 **PR:** #1266 | **Branch:** WARP/warp59-copy-wallet-e2e-bridge | **Tier:** STANDARD
@@ -159,7 +146,6 @@ Manual upsert on re-add. `copy_mode='fixed'`, `copy_amount=allocation_usdc`.
 Production scanner (`services/copy_trade/monitor.py`) now picks up MVP-added wallets.
 Closes WARP-57 SENTINEL MEDIUM-4.
 
-
 ## [WARP-58] Fix domain/signal/copy_trade.py schema — MERGED 4501fa8befb2
 **Date:** 2026-05-21
 **PR:** #1264 | **Branch:** WARP/warp58-copy-trade-schema-fix | **Tier:** STANDARD
@@ -168,7 +154,6 @@ Fixed CopyTradeStrategy.scan() column refs to match 009_copy_trade.sql:
 - `wallet_address` → `target_wallet_address`
 - `enabled=TRUE` → `status='active'`
 Copy-wallet domain scan engine restored.
-
 
 ## [WARP-57] Telegram UX MVP v1 Rebuild — MERGED c6ae44b18572
 **Date:** 2026-05-21
@@ -204,12 +189,14 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 - **proof:** `RUNTIME_EVIDENCE.md` — all 7 P2 finish criteria verified against live Supabase (275 signal_scan, 1491 exit_watch, 104 portfolio_snapshots runs; 25 stable paper positions, 0 stuck, 0 user bleed)
 - **🏁 CrusaderBot closed beta DONE.** Activation guards LOCKED pending owner decision.
 - Merged PR #1259 (SHA abd3b43dbe10) — STANDARD, evidence-only
+
 ## [WARP-56] — 2026-05-21
 
 - **fix:** `_coerce_jsonb` in `signal_scan_job.py` now narrows return type to match `fallback` shape — JSON scalar `strategy_params` (e.g. `"balanced"`) no longer leaks into `strategy.initialize()` and triggers `ValueError` (Sentry 9x, scanner dead)
 - **fix:** `domain/risk/gate._log` catches `ForeignKeyViolationError` at DEBUG — `/admin/dry-run` with synthetic user_id no longer floods Sentry with FK errors (Sentry 2x)
 - **fix:** `migrations/001_init.sql` CREATE TABLE `users` — `access_tier SMALLINT` column removed; comments in 024/031/045 cleaned; fresh DB install can no longer recreate the ghost column
 - Merged PR #1258 (SHA c98efc5765d9) — STANDARD, NARROW INTEGRATION
+
 ## [2026-05-21 06:32] WARP-54 MERGED (70d3beff7257) — Closed Beta P1 Hardening
 - `notifications.py`: BadRequest plain-text fallback — no silent HTML parse drop
 - `scheduler.py`: `startup_recovery` job logs resumed monitoring count on restart
@@ -244,81 +231,4 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 - Advisory: portfolio_snapshots has no Python writer — cb_portfolio channel dormant (out-of-scope, tracked)
 - Merge SHA: 54e32a006f4b — STANDARD tier, no SENTINEL required
 - Gate: MERGE ✅
-## [2026-05-21] WARP-GATE — Migrations 027/029/030/031/044 Applied
 
-- **027** `user_settings.notifications_on BOOLEAN DEFAULT TRUE` — added
-- **029** `portfolio_snapshots` + `system_alerts` tables created; NOTIFY triggers wired (orders/fills/positions/user_settings)
-- **030** `job_runs.metadata JSONB` — added
-- **031** Demo + Live signal feeds seeded; 6 users enrolled in `signal_following` strategy; demo feed subscriptions created
-- **044** `access_tier` column DROP confirmed — column absent from `users` schema; `role` column present
-- Executed via WARP🔹CMD direct Supabase Management API (PAT) — no manual SQL Editor required
-## [2026-05-21] WARP-50b — role-based access model (PR #1222)
-## [2026-05-21] Hotfix — disable migration 044 (PR #1223)
-
-- Renamed `044_drop_access_tier.sql` → `044_drop_access_tier.sql.disabled`
-- Prevents crash loop: `run_migrations()` glob skips `.disabled` files
-- `access_tier` column now safe to keep as placeholder on Fly restarts
-- SHA d7164775491e
-
-
-
-- Merged `WARP/fix-access-tier-open-warp50b` → main (SHA aa17b2a7135a)
-- Replaced all `access_tier` integer gating with `users.role` ('admin'|'user') across 16 production files
-- Added migration `045_add_role_column.sql` (idempotent, admin bootstrap)
-- `access_tier` column kept for backward compat; DROP staged behind `044_drop_access_tier.sql`
-- pytest: 1512 passed, 0 failed
-- Closes Issue #1219
-
-
-2026-05-20 23:24 | WARP/fix-drop-access-tier-warp50 | WARP-50 MERGED (67f072a0): 044_drop_access_tier.sql created (NOT applied); Python audit found 16 prod files still reference access_tier; WARP-50b (#1219) dispatched for open-access fix; WARP-51 (#1220) backlogged for full role-based migration. MINOR, audit artifact.
-2026-05-20 23:10 | WARP/fix-migrations-warp49 | WARP-49 MERGED (b7e1fe14): 031 Step 5 access_tier UPDATE removed (role-based scope); 027/029/030 confirmed clean. Migrations 027-031 ready for Supabase execution. MINOR, NARROW INTEGRATION
-2026-05-20 22:50 | WARP-48 MERGED (92fb5e33): fly.toml ADMIN_API_TOKEN placeholder; signal_scan_job silent except→log.warning; paper.py trade open/close structlog; vite build 0 errors; migrations 027/029/030/031 audited NOT APPLIED. STANDARD, NARROW INTEGRATION
-2026-05-20 16:41 | WARP/fix-webtrader-realtime-warp47 | WARP-47 MERGED (766b9864): GET /activity endpoint added (last N trade events per user); D1 terminal auto-refresh confirmed; D2 scanner_tick→TopBar confirmed; D3 activity endpoint fixed; D4 portfolio_update SSE confirmed; D5 PAPER posture confirmed. STANDARD, NARROW INTEGRATION
-2026-05-20 16:10 | WARP/fix-runtime-spine-warp46 | WARP-46: runtime spine evidence matrix — all 12 steps REAL, 2 DEAD strategies (MomentumReversal, SignalFollowing), 15-gate risk evaluation confirmed, all 4 paper-safety guards default False. STANDARD, MODERATE
-2026-05-20 15:30 | WARP/fix-active-issues | WARP-35+WARP-37: Linear status sync — both issues closed to Done; fixes confirmed in main (7f14c42d, 088bad4, 843bb6c); no code changes in this lane. MINOR, FOUNDATION
-2026-05-20 14:52 | WARP/feat-pagination-warp19 | WARP-19 MERGED (2fc2929d): Load More pagination audit — all 4 surfaces confirmed (Market Feed, Leaderboard, Closed Trades, Orders); ScannerContext + TopBar last_scan display wired; vite build clean. STANDARD, NARROW INTEGRATION
-2026-05-20 14:04 | WARP/fix-webtrader-sse-warp21 | WARP-21 MERGED (97e7d25a): Pre-audit 5/6 deliverables present; gap patched (scanner.tick→TopBar display via ScannerContext + useScannerStatus hook). STANDARD, NARROW INTEGRATION
-2026-05-20 13:20 | WARP/fix-sentry-p1-runtime-bugs | WARP-45: _coerce_jsonb() added to signal_scan_job.py; asyncpg JSONB-as-str ValueError fixed (Sentry DAWN-SNOWFLAKE-1729-1Q); STANDARD, NARROW INTEGRATION
-2026-05-20 10:46 | WARP/fix-dashboard-portfolio-routing | WARP-43: dashboard:portfolio callback split from trades branch — now routes to show_portfolio; dashboard:trades retained; MINOR, NARROW INTEGRATION
-2026-05-20 14:00 | WARP/tg-ux-blueprint-v7 | WARP-41+WARP-42: Dashboard inline KB removed; Close buttons labelled per-position; Settings hub TP/SL entry; Help Home button; Trades(N) → show_positions routing; STANDARD, BROAD INTEGRATION
-2026-05-20 07:07 | WARP/fix-full-system-audit | WARP-40 (issue #1186): full system audit — BUG-1+BUG-4 dynamic `💼 Trades (N)` routed at group=-1 + dead `📈 My Trades` handler removed; BUG-2 `🤖 Auto Mode` shows preset_active when active preset; BUG-3 ghost inline-kb cleared on dashboard render; BUG-5 `_unrealized_pnl` strict-interior guard (0<cp<1) for stale CLOB-sentinel DB rows; STANDARD, NARROW INTEGRATION
-2026-05-19 23:49 | WARP/fix-date-str-query-arg | WARP-35: regression tests for _get_daily_spend + _record_spend — asserts datetime.date not str passed to asyncpg; production fix already in #1170; STANDARD, NARROW INTEGRATION
-2026-05-19 23:49 | WARP/fix-tg-edit-not-modified | WARP-37: BadRequest "not modified" guard added to 6 inline-edit handlers (setup.py x5, settings.py x1); bare except BadRequest replaced with targeted not-modified check + re-raise; MINOR, NARROW INTEGRATION
-2026-05-19 23:45 | WARP/fix-leaderboard-numeric-overflow | WARP-36: math.isfinite() guard added to _safe_float; _clamp helper replaces manual max/min blocks; NaN no longer bypasses NUMERIC schema bounds in leaderboard_sync.py; STANDARD, NARROW INTEGRATION
-2026-05-19 20:20 | WARP/public-readiness-gate | WARP-33 MERGED direct-apply (f6525a5c→fdc2367a): README repo-structure tree fix, KNOWLEDGE_BASE header refresh (WalkerMind OS, walkermind-os URL, WARP CMD), Phase 4 forge report added; MINOR, FOUNDATION, PAPER-ONLY
-2026-05-19 19:25 | WARP-32/multi-user-isolation-admin-hud | WARP-32 MERGED PR #1174 (c34a4276): SQL isolation audit PASS, /admin status HUD, Migration 042 DROP TABLE sessions; STANDARD, NARROW INTEGRATION
-2026-05-19 19:05 | WARP/phase-2-power-mode-ux | WARP-31 MERGED PR #1173 (8563d6b1): 8-step concierge onboarding wizard, dynamic state-aware main menu (paused/open_count labels), 32-char DIV standardization across all Telegram screens; STANDARD, NARROW INTEGRATION
-2026-05-19 18:00 | WARP/phase1-hardening-db-cleanup | WARP-30: signal freshness gate tests (4 cases added), SSE reliability audit PASS, migrations 030/031/041 applied to Supabase production; STANDARD, NARROW INTEGRATION
-2026-05-19 14:30 | WARP/sentry-burn-readiness | WARP-29: Sentry fixes verified on main; Signal Freshness Gate verified on main; Telegram Power Mode keyboards — [ 📈 View Position ] [ 🛑 Close Position ] [ ⏸️ Pause Copy ] in notification_service.py + notifier.py; paper.py position_id wired; STANDARD, NARROW INTEGRATION
-2026-05-19 11:15 | WARP/master-cleanup-v5-beta-rebase | WARP-26 MERGED PR #1169: copy trade engine sync + reasoning injection + rm_mirror fix + CI test alignment; CodeRabbit fixes applied; CI + SonarQube green; WARP🔹CMD merged directly
-2026-05-19 | WARP/CRUSADERBOT-SENTRY-FIXES | fix date.isoformat→date object in monitor.py (DataError); job_runs metadata $6::jsonb cast; migration 032 user_id guard; preset_picker_kb→preset_picker alias; STANDARD, NARROW INTEGRATION
-2026-05-19 10:30 | WARP/master-cleanup-v5-beta | WARP-26 follow-up: test_copy_trade.py + test_signal_following.py aligned to new schema; rm_mirror sizing regression fixed (mirror_size_direct); unknown mode guard added
-2026-05-19 09:21 | WARP/master-cleanup-v5-beta | WARP-26: copy_trade.py reads copy_trade_tasks + copy_trade_idempotency dedup; SignalCandidate.reasoning added; all 3 strategies injected; messages.py 32-char dividers; MAJOR, FULL RUNTIME INTEGRATION
-2026-05-19 08:55 | WARP-28/dashboard-corruption-fix | EMERGENCY: restored 3 Base64-corrupted Python files + DIV 26→32 in messages.py; compileall clean; deployment blocker resolved
-2026-05-18 23:45 | WARP/telegram-functional-routing-fix | WARP-25: show_positions() callback fix + Positions Close buttons + Trades history-only nav + preset label shortening; STANDARD, FULL RUNTIME INTEGRATION
-2026-05-18 23:30 | WARP/expand-webtrader-pagination | WARP-19: Load More pagination (offset-based) for Live Market Feed, Leaderboard, Closed Trades, Orders; api.ts offset param added; STANDARD, FULL RUNTIME INTEGRATION
-2026-05-18 21:00 | WARP/truth-integration-mock-cleanup | WARP-21: Live Market Feed 30s poll→SSE, scanner.tick ts payload, Discover case-insensitive category + SSE refresh, mock audit clean; STANDARD, FULL RUNTIME INTEGRATION
-2026-05-19 | WARP/CRUSADERBOT-UI-COLLAPSIBLE-FIX | all CollapsibleSection defaultOpen=true; SHOW/HIDE labeled toggle button; pagination scoped to ledger + market list only; STANDARD, NARROW INTEGRATION
-2026-05-19 | WARP/CRUSADERBOT-UI-FEED-CASHOUT | Dashboard Recent Activity replaced with Live Market Feed (signal_publications, 30s refresh); Cash Out button green=profit / red=loss; STANDARD, NARROW INTEGRATION
-2026-05-19 | WARP/CRUSADERBOT-SPA-AUTH-FIX | SPAStaticFiles 404→index.html fallback; navigate("/") post-login redirect; upsert_user replaces 403 gate — webtrader login works without prior /start; STANDARD, NARROW
-2026-05-19 | WARP/CRUSADERBOT-MARKET-SYNC-FIX | market_sync 1800s→300s; paper fill now uses get_live_market_price() matching exit_watcher source — eliminates entry/exit price gap that caused instant TP; live_price_override is-not-None guard (handles price=0.0); STANDARD, NARROW INTEGRATION
-2026-05-19 09:00 | WARP/webtrader-wallet-qr-activity-pagination | Deposit+QR modal, Withdraw modal, CollapsibleSection (5 pages), ledger Load More pagination + dedup, /wallet/ledger endpoint, paper_mode in WalletInfo; stable ledger IDs; Vite build clean; STANDARD, NARROW INTEGRATION
-2026-05-20 02:10 | WARP/fix-pnl-current-price | WARP-38 (#1182): get_live_market_price strict-interior guard (0<p<1) on CLOB primary + Gamma fallback — rejects CLOB empty-book 1.0/0.0 sentinel that marked open longshot positions at $1.00 (+900% P&L); invalid lookup → None → entry_price mark; 4 regression tests; STANDARD, NARROW INTEGRATION
-
-2026-05-20 19:00 | WARP/strategy-pipeline-user-filter | WARP-44 (#1195): per-user category_filters market filter + strategy_params wire-up; migration 043 (strategy_params JSONB); _filter_markets_by_category helper; run_once Phase A+B merged per-user; 9 unit tests; STANDARD, MODERATE
-
-2026-05-21 18:00 | WARP/warp57-telegram-ux-mvp | WARP-57 (#1260): Telegram UX MVP v1 rebuild — full IA + hierarchy-tree terminal UX (Dashboard / Auto Trade / Copy Wallet / Portfolio / Markets / Settings / Help). New layer: bot/ui/tree.py, bot/messages_mvp.py, bot/keyboards/mvp/*, bot/handlers/mvp/*. Dispatcher rewired for auto:/copy:/portfolio:/markets:/settings:/help: callback prefixes + menu:* routing; persistent reply-kb taps route to MVP. No manual trade buttons, no live-mode bypass, paper default unchanged. Domain/services/migrations untouched. MAJOR, FOUNDATION (UX-only).
-
-2026-05-21 19:30 | WARP/warp57-telegram-ux-mvp | WARP-57 SENTINEL (#1262): audit complete — BLOCKED. Score 78/100, 1 critical (copy_targets schema mismatch — bot/handlers/mvp/copy_wallet.py SQL references `target_address`/`allocation_usdc` columns absent from canonical mig 009 schema; silent persistence failure under defensive try/except). 3 MEDIUMs (wallets.public_address→deposit_address; auto:start no engine bootstrap; legacy /settings sub-routes fall through to MVP home). Activation guards / no-manual-trade / paper-default checks all PASS. Report: reports/sentinel/warp57-telegram-ux-mvp.md.
-
-2026-05-21 20:15 | WARP/warp57-telegram-ux-mvp | WARP-57 SENTINEL re-audit (#1262): verdict APPROVED at SHA aa4fe24c. Score 86/100, 0 critical. Round-1 CRITICAL-1 (copy_targets column mismatch) + MEDIUM-1 (wallets.public_address) both verified RESOLVED by forge fixes 4473482+aa4fe24. New MEDIUM-4 logged for post-merge follow-up: MVP writes to `copy_targets` but production scanner reads `copy_trade_tasks` — table swap needed in a follow-up lane to wire end-to-end mirror. MEDIUM-2/3 remain P2 per prior WARP🔹CMD direction.
-
-2026-05-21 16:16 | WARP/warp58-copy-trade-schema-fix | WARP-58 (#1263): domain/signal/copy_trade.py `copy_targets` SELECT migrated to canonical mig 009 schema — `wallet_address` → `target_wallet_address`, `enabled=TRUE` → `status='active'`; three downstream dict reads (Polymarket Data API call, warning log, `SignalCandidate.extra["target"]`) re-keyed to `target_wallet_address`. Legacy `UPDATE copy_targets SET last_seen_tx=$1 WHERE id=$2` preserved (column retained by 009, keyed on PK `id`). Closes WARP-57 SENTINEL Round-1 read-path drift in domain scanner that `scheduler.py:26` imports as `CopyTradeStrategy`. py_compile clean on touched file + scheduler.py consumer chain; pytest not available in container. No schema change. STANDARD, NARROW INTEGRATION.
-
-2026-05-22 13:05 | WARP/sentinel-reaudit-2026-05-22 | SENTINEL RE-AUDIT (#1276): CORE AUDIT re-run post WARP-62+63 fix cycle — verdict APPROVED, Score 96/100, 0 critical. Prior BLOCKED (60/100, core-audit-2026-05-21.md) LIFTED. F-001 H2 threading FIXED (registry.py eager _DEFAULT_REGISTRY, no import threading); F-002 copy_targets drift CLEARED (domain/signal/copy_trade.py reads copy_trade_tasks). All H1–H8 PASS, zero hard-rule breach. Full suite 1613 passed / 1 skipped / 0 failures. Residual P2 non-blocking: dual CopyTradeStrategy classes + orphaned copy_targets writes (deferred cleanup lane). Live Fly.io /health UNVERIFIED (network allowlist). Report: reports/sentinel/reaudit-2026-05-22.md.
-
-2026-05-22 16:30 | WARP/warp66-ux-polish | WARP-66 (issue #1282): Telegram UX full polish — dispatcher.py auto-mode keyboard regex widened (Auto-Trade|Auto Trade|Auto Mode|Setup Auto) + new `▶️ Resume` group=-1 handler routing to MVP autotrade; menus/main.py auto-mode routes → _group0_noop (no double response); autotrade.py status ladder running/paused/configured→STOPPED/NOT_SET + `configured` field + PRESET_CONFIG.name strategy label; copy_wallet.py running/wallets→STOPPED/NOT_SET; onboarding.py returning user re-armed with persistent main_menu_kb; messages_mvp `🤖 Auto Trade`→`🔄 Auto Trade` dedupe. 1614 passed. STANDARD, FUNCTIONAL.
-
-2026-05-22 22:30 | WARP/warp67-ux-final-clean | WARP-67 (issue #1284): Telegram UX final clean — Bug 1 box-drawing tree (│ ├── └──) replaced by flat Markdown (ui/tree.py helpers re-emit *Header* + Key: Value; md_escape() escapes _ * ` [ in dynamic strings; _send.send_or_edit parse_mode default → "Markdown"). Bug 2 main_menu_kb(configured=) → "🤖 Auto Mode" when preset configured even if Stopped. Bug 3 keyboards/mvp/autotrade.home_kb(paused=) → Pause/Resume/Start. Bug 4 menus/main Settings+Help → _group0_noop (legacy double-response removed). Bug 5 render_positions_list/render_markets_trending sanitize market title. 2 tests realigned (test_phase5d, test_ux_overhaul). 1614 passed. STANDARD, NARROW INTEGRATION.
-
-2026-05-22 23:10 | WARP/warp70-dynamic-capital | WARP-70 (issue #1290): Auto Trade capital derived from balance × risk fraction in bot/handlers/mvp/autotrade.py:_read_state (safe 0.25 / balanced 0.50 / aggressive 0.80); balance 0 → $100 fallback; risk label sourced from stored risk_profile. Single-file change, py_compile clean. MINOR, NARROW INTEGRATION.
