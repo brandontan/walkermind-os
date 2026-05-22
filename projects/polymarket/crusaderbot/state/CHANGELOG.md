@@ -1,4 +1,13 @@
 <!-- gate-notify-verify-v3 -->
+## [WARP-68] Structured card format + positions pagination — MERGED b7355541d496
+**Date:** 2026-05-23
+**PR:** #1287 | **Branch:** WARP/warp68-structured-card-ui | **Tier:** STANDARD
+
+Structured card UI: leaf() → Label·Value, section() indented, divider() ┄┄┄, CARD\_DIVIDER ━━━, cta() italic.
+Dashboard: DIVIDER sections + » summary rows.
+Positions: 3-per-page pagination, card per position, bold title, Prev/Next nav.
+
+
 2026-05-23 01:46 Asia/Jakarta | WARP/warp68-structured-card-ui | WARP-68 (issue #1286): tree.py leaf/section upgraded to · separator + DIVIDER/CARD_DIVIDER; render_dashboard_default DIVIDER sections; render_positions_list paginated cards; positions_list_kb Prev/Next; show_positions_page handler. py_compile clean. STANDARD, NARROW INTEGRATION.
 2026-05-22 12:30 Asia/Jakarta | WARP/warp65-telegram-ux-fix | WARP-65 (issue #1278): main_menu_kb() → ReplyKeyboardMarkup (auto_on/paused/open_count); send_or_edit routes ReplyKeyboard via reply_text; dashboard STATUS_STOPPED + PRESET_CONFIG strategy label + open_count; do_start() sends launch keyboard. 1613 passed.
 2026-05-22 11:30 Asia/Jakarta | WARP/warp64-ci-fix | WARP-64 (issue #1277): fix 4 CI failures in test_warp59_copy_wallet_bridge.py — wrong patch target (_send → copy_wallet namespace), missing effective_message on mock update, bridge e2e queue undercount. 1613 passed, 0 failed. CI unblocked for SENTINEL re-audit.
