@@ -3,6 +3,15 @@
 **Date:** 2026-05-23
 **PR:** #1287 | **Branch:** WARP/warp68-structured-card-ui | **Tier:** STANDARD
 
+## [WARP-69] Full structured card format — MERGED b50ef1a2ce86
+**Date:** 2026-05-23
+**PR:** #1289 | **Branch:** WARP/warp69-full-card-format | **Tier:** STANDARD
+
+All 66 render functions in messages\_mvp.py: leaf() · separator, section() indented,
+nested() bullets, cta() italic, DIVIDER/CARD\_DIVIDER. Settings values shortened.
+autotrade\_home DIVIDER between blocks. Help nested() topic lists.
+
+
 Structured card UI: leaf() → Label·Value, section() indented, divider() ┄┄┄, CARD\_DIVIDER ━━━, cta() italic.
 Dashboard: DIVIDER sections + » summary rows.
 Positions: 3-per-page pagination, card per position, bold title, Prev/Next nav.
