@@ -45,27 +45,52 @@ async def show_home(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await send_or_edit(update, text, kb.home_kb())
 
 
-async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+_PAGE_SIZE = 3
+
+
+async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE, page: int = 1) -> None:
     user = update.effective_user
     p = await _read_portfolio(user) if user else {"positions": []}
     if not p["positions"]:
         await send_or_edit(update, mvp.render_positions_empty(), kb.positions_empty_kb())
         return
+
+    total = len(p["positions"])
+    total_pages = max(1, (total + _PAGE_SIZE - 1) // _PAGE_SIZE)
+    page = max(1, min(page, total_pages))
+
+    if ctx.user_data is not None:
+        ctx.user_data["positions_page"] = page
+
+    start = (page - 1) * _PAGE_SIZE
+    page_positions = p["positions"][start : start + _PAGE_SIZE]
+
     items = []
-    for idx, pos in enumerate(p["positions"][:8]):
+    for idx, pos in enumerate(page_positions):
         side_raw = str(pos.get("side") or "").upper()
         side = "🟢 YES" if side_raw in {"YES", "BUY"} else "🔴 NO"
-        # Best-effort PnL: entry vs current — fallback 0 if unavailable.
         pnl_val = float(pos.get("pnl") or 0.0)
         items.append({
-            "rank": _RANK_ICONS[idx],
-            "title": str(pos.get("market_title") or "Market")[:36],
+            "rank": _RANK_ICONS[start + idx],
+            "title": str(pos.get("market_title") or "Market").strip(),
             "id": str(pos.get("id") or idx),
             "side": side,
             "pnl": pnl_val,
         })
-    text = mvp.render_positions_list(items)
-    await send_or_edit(update, text, kb.positions_list_kb(items))
+
+    text = mvp.render_positions_list(items, page=page, total_pages=total_pages, total=total)
+    await send_or_edit(update, text, kb.positions_list_kb(items, page=page, total_pages=total_pages))
+
+
+async def show_positions_page(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle portfolio:positions:page:{n} callback."""
+    q = update.callback_query
+    parts = (q.data or "").split(":")
+    try:
+        page = int(parts[-1])
+    except (ValueError, IndexError):
+        page = 1
+    await show_positions(update, ctx, page=page)
 
 
 async def show_history(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -123,4 +148,7 @@ async def _port_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 def attach(app: Application) -> None:
+    app.add_handler(CallbackQueryHandler(
+        show_positions_page, pattern=r"^portfolio:positions:page:\d+$"
+    ))
     app.add_handler(CallbackQueryHandler(_port_cb, pattern=r"^portfolio:"))

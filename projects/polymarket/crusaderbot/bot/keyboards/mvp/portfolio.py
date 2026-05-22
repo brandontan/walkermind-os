@@ -5,6 +5,8 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from ._common import BACK, HOME, REFRESH
 
+_PAGE_SIZE = 3
+
 
 def home_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
@@ -28,15 +30,29 @@ def positions_empty_kb() -> InlineKeyboardMarkup:
     ])
 
 
-def positions_list_kb(items: list[dict]) -> InlineKeyboardMarkup:
-    """items: [{rank, title, id}, ...]"""
+def positions_list_kb(
+    items: list[dict],
+    *,
+    page: int = 1,
+    total_pages: int = 1,
+) -> InlineKeyboardMarkup:
+    """Paginated positions keyboard.
+
+    items: [{rank, title, id}, ...] — current page slice only.
+    """
     rows: list[list[InlineKeyboardButton]] = []
-    for it in items[:8]:
+    for it in items:
         label = f"{it.get('rank', '')} {it.get('title', '')}"[:32]
-        rows.append([
-            InlineKeyboardButton(label, callback_data=f"portfolio:position:{it.get('id')}"),
-        ])
-    rows.append([REFRESH, HOME])
+        rows.append([InlineKeyboardButton(label, callback_data=f"portfolio:position:{it.get('id')}")])
+    nav: list[InlineKeyboardButton] = []
+    if page > 1:
+        nav.append(InlineKeyboardButton("⬅ Prev", callback_data=f"portfolio:positions:page:{page - 1}"))
+    nav.append(InlineKeyboardButton(f"{page} / {total_pages}", callback_data="nav:noop"))
+    if page < total_pages:
+        nav.append(InlineKeyboardButton("Next ➡", callback_data=f"portfolio:positions:page:{page + 1}"))
+    if nav:
+        rows.append(nav)
+    rows.append([HOME])
     return InlineKeyboardMarkup(rows)
 
 
