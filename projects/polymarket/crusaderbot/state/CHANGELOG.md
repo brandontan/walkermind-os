@@ -3,6 +3,15 @@
 **Date:** 2026-05-23
 **PR:** #1287 | **Branch:** WARP/warp68-structured-card-ui | **Tier:** STANDARD
 
+## [WARP-72] Fix phantom dot + capital from _read_state — 93d5709c0c5c
+**Date:** 2026-05-23
+**Commit:** 93d5709c0c5c | **Tier:** MINOR (hotfix, direct to main)
+
+1. Remove `reply_text(".")` phantom dot — use `send_or_edit` with `main_menu_kb` instead.
+2. `do_start()` now calls `_read_state(user)` to get real capital (balance x risk fraction)
+   instead of `_flow(ctx)["capital"]` which was always `_DEFAULT_CAPITAL=100.0`.
+
+
 ## [WARP-71] Premium terminal UI — HTML parse mode — MERGED e443c212c1e7
 **Date:** 2026-05-23
 **PR:** #1293 | **Tier:** STANDARD
