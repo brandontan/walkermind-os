@@ -183,7 +183,10 @@ def register(app: Application) -> None:
     app.add_handler(MessageHandler(
         filters.Regex(r"^(📊 )?Dashboard$"), mvp_dashboard.show_dashboard), group=-1)
     app.add_handler(MessageHandler(
-        filters.Regex(r"^🤖 (Auto-Trade|Auto Trade)$"), mvp_autotrade.show_home), group=-1)
+        filters.Regex(r"^🤖 (Auto-Trade|Auto Trade|Auto Mode|Setup Auto)$"),
+        mvp_autotrade.show_home), group=-1)
+    app.add_handler(MessageHandler(
+        filters.Regex(r"^▶️ Resume$"), mvp_autotrade.do_resume), group=-1)
     app.add_handler(MessageHandler(
         filters.Regex(r"^💰 Wallet$"), wallet_root), group=-1)
     app.add_handler(MessageHandler(

@@ -8,7 +8,7 @@ from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
 from ... import messages_mvp as mvp
 from ...keyboards.mvp import autotrade as kb
-from ...ui.tree import STATUS_NOT_SET, STATUS_PAUSED, STATUS_RUNNING
+from ...ui.tree import STATUS_NOT_SET, STATUS_PAUSED, STATUS_RUNNING, STATUS_STOPPED
 from . import _users
 from ._send import callback_parts, send_or_edit
 
@@ -33,6 +33,7 @@ def _flow(ctx: ContextTypes.DEFAULT_TYPE) -> dict:
 async def _read_state(telegram_user) -> dict:
     state: dict = {
         "uuid": None,
+        "configured": False,
         "running": False, "paused": False,
         "strategy": _DEFAULT_STRATEGY, "risk": _DEFAULT_RISK,
         "capital": _DEFAULT_CAPITAL, "pnl_today": 0.0,
@@ -47,7 +48,11 @@ async def _read_state(telegram_user) -> dict:
     settings = await _users.fetch_settings(u["id"])
     preset = settings.get("active_preset")
     if preset:
-        state["strategy"] = f"⚡ {str(preset).title().replace('_', ' ')}"
+        state["configured"] = True
+        from ...presets import PRESET_CONFIG
+        cfg = PRESET_CONFIG.get(preset, {})
+        label = cfg.get("name") or str(preset).title().replace("_", " ")
+        state["strategy"] = label
     state["pnl_today"] = await _users.fetch_daily_pnl(u["id"])
     return state
 
@@ -55,15 +60,19 @@ async def _read_state(telegram_user) -> dict:
 async def show_home(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     s = await _read_state(user) if user else {
-        "running": False, "paused": False, "strategy": _DEFAULT_STRATEGY,
+        "configured": False, "running": False, "paused": False,
+        "strategy": _DEFAULT_STRATEGY,
         "risk": _DEFAULT_RISK, "capital": _DEFAULT_CAPITAL,
         "pnl_today": 0.0, "executions": 0, "win_rate": 0,
     }
-    status = (
-        STATUS_RUNNING if s["running"]
-        else STATUS_PAUSED if s["paused"]
-        else STATUS_NOT_SET
-    )
+    if s["running"]:
+        status = STATUS_RUNNING
+    elif s["paused"]:
+        status = STATUS_PAUSED
+    elif s.get("configured"):
+        status = STATUS_STOPPED
+    else:
+        status = STATUS_NOT_SET
     text = mvp.render_autotrade_home(
         status=status,
         strategy=s["strategy"],

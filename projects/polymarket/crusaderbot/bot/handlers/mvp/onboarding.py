@@ -10,6 +10,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from ... import messages_mvp as mvp
+from ...keyboards.mvp._common import main_menu_kb
 from ...keyboards.mvp.onboarding import (
     deposit_prompt_kb,
     wallet_ready_kb,
@@ -51,6 +52,13 @@ async def start_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     returning, _addr = await _classify(user)
     if returning:
+        # Re-attach persistent keyboard in case it was lost (e.g. app reinstall).
+        msg = update.effective_message
+        if msg is not None:
+            await msg.reply_text(
+                ".",
+                reply_markup=main_menu_kb(auto_on=True, paused=False, open_count=0),
+            )
         await dash.show_dashboard(update, ctx)
         return
     user_name = (user.first_name or "trader").strip() or "trader"
