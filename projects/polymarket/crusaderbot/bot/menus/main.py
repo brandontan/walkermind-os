@@ -27,9 +27,8 @@ from telegram.ext import ContextTypes
 
 from ..handlers import (
     dashboard,
-    onboarding,
     positions,
-    presets, settings as settings_handler,
+    presets,
 )
 
 HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
@@ -65,8 +64,11 @@ MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     "🤖 Auto Mode":          _group0_noop,
     "🤖 Setup Auto":         _group0_noop,
     "▶️ Resume":             _group0_noop,
-    "⚙️ Settings":           settings_handler.settings_hub_root,
-    "❓ Help":               onboarding.help_handler,
+    # Settings + Help responses are sent by the group=-1 MessageHandler in
+    # dispatcher.py (MVP surface). Noop here so the text router clears pending
+    # wizard state without the legacy handler firing a second message.
+    "⚙️ Settings":           _group0_noop,
+    "❓ Help":               _group0_noop,
     # Backward-compat aliases (old state-driven labels)
     "📊 Active Monitor":     dashboard.dashboard,
     "🚀 Start Autobot":      presets.show_preset_picker,

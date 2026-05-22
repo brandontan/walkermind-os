@@ -1,7 +1,7 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-05-21 19:30
+**Last Updated : 2026-05-22 22:30
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
@@ -131,3 +131,4 @@ CRUSADERBOT is considered **DONE** only when:
 - [x] WARP-66 — P1: Telegram UX full polish — auto-mode keyboard routing + autotrade/copy-wallet status labels + dashboard emoji dedupe + onboarding keyboard (issue #1282) [STANDARD] — DELIVERED WARP/warp66-ux-polish 2026-05-22
 - [x] SENTINEL re-audit post WARP-62+63 (issue #1276) — APPROVED 96/100 — MERGED d42b7e915356
 - [x] WARP-66 — Telegram UX polish (issue #1282) [STANDARD] — MERGED ab6f397f2741
+- [x] WARP-67 — P1: Telegram UX final clean — flat Markdown (no box-drawing), configured-aware Auto label, paused-aware Resume, Settings/Help double-response fix, positions title artifact (issue #1284) [STANDARD] — DELIVERED WARP/warp67-ux-final-clean 2026-05-22

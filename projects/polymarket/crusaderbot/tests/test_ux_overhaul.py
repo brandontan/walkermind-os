@@ -437,14 +437,15 @@ def test_my_trades_header_emoji():
 # Part 1 — Menu routes
 # ---------------------------------------------------------------------------
 
-from projects.polymarket.crusaderbot.bot.menus.main import MAIN_MENU_ROUTES, get_menu_route
-from projects.polymarket.crusaderbot.bot.handlers import settings as settings_handler
+from projects.polymarket.crusaderbot.bot.menus.main import MAIN_MENU_ROUTES, get_menu_route, _group0_noop
 from projects.polymarket.crusaderbot.bot.handlers import emergency
 
 
 def test_menu_routes_settings_registered():
+    # WARP-67: Settings render is owned by the group=-1 MessageHandler (MVP
+    # surface); the route maps to the noop sentinel to avoid a double response.
     handler = get_menu_route("⚙️ Settings")
-    assert handler is settings_handler.settings_hub_root
+    assert handler is _group0_noop
 
 
 def test_menu_routes_active_monitor_registered():

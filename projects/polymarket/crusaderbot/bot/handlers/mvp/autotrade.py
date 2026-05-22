@@ -82,7 +82,7 @@ async def show_home(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         executions=s["executions"],
         win_rate=s["win_rate"],
     )
-    await send_or_edit(update, text, kb.home_kb(running=s["running"]))
+    await send_or_edit(update, text, kb.home_kb(running=s["running"], paused=s["paused"]))
 
 
 async def show_quick_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -147,7 +147,7 @@ async def do_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     from ...keyboards.mvp._common import main_menu_kb
     msg = update.effective_message
     if msg is not None:
-        await msg.reply_text(".", reply_markup=main_menu_kb(auto_on=True, paused=False, open_count=0))
+        await msg.reply_text(".", reply_markup=main_menu_kb(auto_on=True, paused=False, open_count=0, configured=True))
 
 
 async def do_pause(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:

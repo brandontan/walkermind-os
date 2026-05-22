@@ -6,12 +6,13 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from ._common import BACK, CANCEL, HOME
 
 
-def home_kb(*, running: bool = False) -> InlineKeyboardMarkup:
-    pause_resume = (
-        InlineKeyboardButton("⏸ Pause", callback_data="auto:pause")
-        if running else
-        InlineKeyboardButton("▶ Resume", callback_data="auto:resume")
-    )
+def home_kb(*, running: bool = False, paused: bool = False) -> InlineKeyboardMarkup:
+    if running:
+        action_btn = InlineKeyboardButton("⏸ Pause", callback_data="auto:pause")
+    elif paused:
+        action_btn = InlineKeyboardButton("▶ Resume", callback_data="auto:resume")
+    else:
+        action_btn = InlineKeyboardButton("▶ Start", callback_data="auto:start")
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🚀 Quick Start", callback_data="auto:quick_start"),
@@ -19,7 +20,7 @@ def home_kb(*, running: bool = False) -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("📊 Status", callback_data="auto:status"),
-            pause_resume,
+            action_btn,
         ],
         [BACK, HOME],
     ])
