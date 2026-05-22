@@ -1,7 +1,8 @@
 """Shared keyboard helpers — back / home / refresh / cancel / confirm rows."""
 from __future__ import annotations
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+
 
 BACK = InlineKeyboardButton("⬅ Back", callback_data="nav:back")
 HOME = InlineKeyboardButton("🏠 Home", callback_data="nav:home")
@@ -38,20 +39,26 @@ def confirm_cancel_row(
     ]
 
 
-def main_menu_kb() -> InlineKeyboardMarkup:
-    """Dashboard 6-button main navigation (blueprint 7.2)."""
-    return InlineKeyboardMarkup([
+def main_menu_kb(
+    auto_on: bool = False,
+    paused: bool = False,
+    open_count: int = 0,
+) -> ReplyKeyboardMarkup:
+    """Persistent bottom navigation keyboard (blueprint v7 Section 3)."""
+    if paused:
+        auto_label = "▶️ Resume"
+    elif auto_on:
+        auto_label = "🤖 Auto Mode"
+    else:
+        auto_label = "🤖 Setup Auto"
+    portfolio_label = f"💼 Trades ({open_count})" if open_count > 0 else "💼 Portfolio"
+    return ReplyKeyboardMarkup(
         [
-            InlineKeyboardButton("🤖 Auto Trade", callback_data="auto:home"),
-            InlineKeyboardButton("👥 Copy Wallet", callback_data="copy:home"),
+            [KeyboardButton("📊 Dashboard"), KeyboardButton(portfolio_label)],
+            [KeyboardButton(auto_label),     KeyboardButton("⚙️ Settings")],
+            [KeyboardButton("❓ Help")],
         ],
-        [
-            InlineKeyboardButton("💼 Portfolio", callback_data="portfolio:home"),
-            InlineKeyboardButton("📈 Markets", callback_data="markets:home"),
-        ],
-        [
-            InlineKeyboardButton("⚙️ Settings", callback_data="settings:home"),
-            InlineKeyboardButton("❓ Help", callback_data="help:home"),
-        ],
-        [REFRESH, HOME],
-    ])
+        resize_keyboard=True,
+        is_persistent=True,
+    )
+
