@@ -6,6 +6,15 @@
 2026-05-21 18:25 | WARP/warp59-copy-wallet-e2e-bridge | WARP-59 (issue #1265): MVP copy-wallet write path realigned from `copy_targets` to canonical `copy_trade_tasks` so wallets added via Telegram MVP UX flow end-to-end through `services/copy_trade/monitor.py:80` → `domain/copy_trade/repository.list_active_tasks`. bot/handlers/mvp/copy_wallet.py SELECT/INSERT/UPDATE swapped, manual upsert on (user_id, wallet_address), `copy_mode='fixed' + copy_amount=allocation_usdc` mapping for MVP $25/$50/$100/$250/Custom buckets, `do_pause` uses canonical `status='paused'`. 6 new hermetic tests (`tests/test_warp59_copy_wallet_bridge.py`). Closes WARP-57 SENTINEL MEDIUM-4. py_compile clean. No schema change. STANDARD, FUNCTIONAL.
 2026-05-21 14:23 | WARP/warp56-sentry-p0-fix | WARP-56 (issue #1257): 3 Sentry P0/P1 fixes — services/signal_scan/signal_scan_job.py `_coerce_jsonb` narrowed so JSON scalar/wrong-shape values return fallback instead of leaking to `strategy.initialize()` (was ValueError: dictionary update sequence element); domain/risk/gate.py `_log` catches asyncpg.ForeignKeyViolationError at DEBUG so /admin/dry-run with synthetic user_id stops paging Sentry on every tick; migrations/001_init.sql drops `access_tier SMALLINT` from users CREATE TABLE (fresh-install DDL only — live DB already dropped via mig 044); historical access_tier comments rewritten in migs 024/031/045. 15 new + 77 existing hermetic tests pass. No schema change. STANDARD, NARROW INTEGRATION.
 
+## [WARP-62+63] SENTINEL fix cycle — MERGED 5f84646e1d9c
+**Date:** 2026-05-22
+**PR:** #1275 | **Branch:** WARP/warp62-63-fix | **Tier:** STANDARD
+
+WARP-62: `domain/strategy/registry.py` — `import threading` removed. Eager module-level `_DEFAULT_REGISTRY = StrategyRegistry()`. H2 HARD RULE cleared.
+WARP-63: `domain/signal/copy_trade.py` — `CopyTradeStrategy.scan()` reads `copy_trade_tasks` (canonical). `copy_targets` removed. F-002 architectural drift cleared.
+9 hermetic tests. Closes #1273 + #1274.
+
+
 ## [SENTINEL] CrusaderBot Core Audit 2026-05-21 — BLOCKED ac1c207f2238
 **Date:** 2026-05-22
 **PR:** #1272 | **Branch:** WARP/sentinel-core-audit-2026-05-21 | **Score:** 60/100
