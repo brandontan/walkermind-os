@@ -161,14 +161,25 @@ async def do_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if u is not None:
             await _users.set_paused(u["id"], False)
             await _users.set_auto_trade(u["id"], True)
+            # Derive real capital from balance × risk fraction (WARP-72 fix)
+            s = await _read_state(user)
+            capital = s["capital"]
+            risk = s["risk"]
+        else:
+            capital = f["capital"]
+            risk = f["risk"]
+    else:
+        capital = f["capital"]
+        risk = f["risk"]
     text = mvp.render_notif_bot_started(
-        strategy=f["strategy"], capital=f["capital"], risk=f["risk"],
+        strategy=f["strategy"], capital=capital, risk=risk,
     )
-    await send_or_edit(update, text, kb.strategy_status_kb(running=True))
     from ...keyboards.mvp._common import main_menu_kb
-    msg = update.effective_message
-    if msg is not None:
-        await msg.reply_text(".", reply_markup=main_menu_kb(auto_on=True, paused=False, open_count=0, configured=True))
+    # Use send_or_edit to avoid phantom "." message (WARP-72 fix)
+    await send_or_edit(
+        update, text,
+        main_menu_kb(auto_on=True, paused=False, open_count=0, configured=True),
+    )
 
 
 async def do_pause(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
