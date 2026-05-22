@@ -126,3 +126,4 @@ CRUSADERBOT is considered **DONE** only when:
 - [x] WARP-46 — Runtime Spine Validation (Issue #1243)
 - [x] WARP-62 — P0: remove threading.Lock from registry.py → eager module-level init (issue #1273) [STANDARD] — DELIVERED WARP/warp62-63-fix 2026-05-22
 - [x] WARP-63 — P1: migrate CopyTradeStrategy.scan() from copy_targets → copy_trade_tasks (issue #1274) [STANDARD] — DELIVERED WARP/warp62-63-fix 2026-05-22
+- [x] WARP-64 — P0: fix CI pytest failures in test_warp59_copy_wallet_bridge.py (issue #1277) [STANDARD] — DELIVERED WARP/warp64-ci-fix 2026-05-22
