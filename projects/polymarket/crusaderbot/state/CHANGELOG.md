@@ -3,6 +3,15 @@
 **Date:** 2026-05-23
 **PR:** #1287 | **Branch:** WARP/warp68-structured-card-ui | **Tier:** STANDARD
 
+## [WARP-71] Premium terminal UI — HTML parse mode — MERGED e443c212c1e7
+**Date:** 2026-05-23
+**PR:** #1293 | **Tier:** STANDARD
+
+tree.py HTML helpers: html\_escape, pre\_block, leaf/section/nested/cta/title.
+DIV=━×32. \_send.py parse\_mode=HTML. All 66 render functions updated.
+Bloomberg-lite terminal: \<pre\> blocks for numbers, \<b\> headers, \<code\> values.
+
+
 ## [WARP-70] Dynamic capital from risk profile — MERGED eb149d18427b
 **Date:** 2026-05-23
 **PR:** #1292 | **Tier:** MINOR
