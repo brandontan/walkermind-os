@@ -3,6 +3,14 @@
 **Date:** 2026-05-23
 **PR:** #1287 | **Branch:** WARP/warp68-structured-card-ui | **Tier:** STANDARD
 
+## [WARP-70] Dynamic capital from risk profile — MERGED eb149d18427b
+**Date:** 2026-05-23
+**PR:** #1292 | **Tier:** MINOR
+
+Capital = balance × risk fraction (safe 25%, balanced 50%, aggressive 80%).
+Fallback $100 when balance = 0.
+
+
 ## [WARP-69] Full structured card format — MERGED b50ef1a2ce86
 **Date:** 2026-05-23
 **PR:** #1289 | **Branch:** WARP/warp69-full-card-format | **Tier:** STANDARD
@@ -287,4 +295,4 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 
 2026-05-22 22:30 | WARP/warp67-ux-final-clean | WARP-67 (issue #1284): Telegram UX final clean — Bug 1 box-drawing tree (│ ├── └──) replaced by flat Markdown (ui/tree.py helpers re-emit *Header* + Key: Value; md_escape() escapes _ * ` [ in dynamic strings; _send.send_or_edit parse_mode default → "Markdown"). Bug 2 main_menu_kb(configured=) → "🤖 Auto Mode" when preset configured even if Stopped. Bug 3 keyboards/mvp/autotrade.home_kb(paused=) → Pause/Resume/Start. Bug 4 menus/main Settings+Help → _group0_noop (legacy double-response removed). Bug 5 render_positions_list/render_markets_trending sanitize market title. 2 tests realigned (test_phase5d, test_ux_overhaul). 1614 passed. STANDARD, NARROW INTEGRATION.
 
-2026-05-22 23:20 | WARP/warp71-premium-terminal-ui | WARP-71 (issue #1291): V5 premium terminal UI — MVP surface switched Markdown → Telegram HTML. bot/ui/tree.py: html_escape (& < >), DIV=━×32 + LIGHT_DIV=┄×16, title→<b>, leaf/section→├──/└── tree with <code> values, cta→<i>, new pre_block monospaced <pre> builder; md_escape/DIVIDER/CARD_DIVIDER kept as back-compat aliases. bot/messages_mvp.py: imports updated + dashboard/dashboard_new_user/autotrade_home/settings_home/portfolio_home/positions_list/copy_wallet_card/markets_trending/notif_trade_opened hand-rewritten to blueprint HTML/pre_block layout; remaining renderers HTML via helpers. bot/handlers/mvp/_send.py parse_mode default → HTML. Deliberate reversal of WARP-67 flat-Markdown. py_compile clean on 3 modules; render smoke test passed. STANDARD, VISUAL/UX.
+2026-05-22 23:10 | WARP/warp70-dynamic-capital | WARP-70 (issue #1290): Auto Trade capital derived from balance × risk fraction in bot/handlers/mvp/autotrade.py:_read_state (safe 0.25 / balanced 0.50 / aggressive 0.80); balance 0 → $100 fallback; risk label sourced from stored risk_profile. Single-file change, py_compile clean. MINOR, NARROW INTEGRATION.
