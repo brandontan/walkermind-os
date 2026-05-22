@@ -18,6 +18,18 @@ _DEFAULT_STRATEGY = "⚡ Momentum"
 _DEFAULT_RISK = "🟡 Balanced"
 _DEFAULT_CAPITAL = 100.0
 
+_RISK_CAPITAL_FRACTIONS: dict[str, float] = {
+    "safe": 0.25,
+    "balanced": 0.50,
+    "aggressive": 0.80,
+}
+_DEFAULT_RISK_KEY = "balanced"
+_RISK_LABELS: dict[str, str] = {
+    "safe": "🟢 Safe",
+    "balanced": "🟡 Balanced",
+    "aggressive": "🔴 Aggressive",
+}
+
 
 def _flow(ctx: ContextTypes.DEFAULT_TYPE) -> dict:
     """Per-user wizard state stored in PTB `user_data`."""
@@ -36,6 +48,7 @@ async def _read_state(telegram_user) -> dict:
         "configured": False,
         "running": False, "paused": False,
         "strategy": _DEFAULT_STRATEGY, "risk": _DEFAULT_RISK,
+        "balance": 0.0,
         "capital": _DEFAULT_CAPITAL, "pnl_today": 0.0,
         "executions": 0, "win_rate": 0,
     }
@@ -46,6 +59,14 @@ async def _read_state(telegram_user) -> dict:
     state["paused"] = bool(u.get("paused"))
     state["running"] = bool(u.get("auto_trade_enabled")) and not state["paused"]
     settings = await _users.fetch_settings(u["id"])
+
+    balance = await _users.fetch_balance(u["id"])
+    state["balance"] = balance
+    risk_raw = str(settings.get("risk_profile") or _DEFAULT_RISK_KEY).lower()
+    fraction = _RISK_CAPITAL_FRACTIONS.get(risk_raw, _RISK_CAPITAL_FRACTIONS[_DEFAULT_RISK_KEY])
+    state["capital"] = round(balance * fraction, 2) if balance > 0 else _DEFAULT_CAPITAL
+    state["risk"] = _RISK_LABELS.get(risk_raw, _DEFAULT_RISK)
+
     preset = settings.get("active_preset")
     if preset:
         state["configured"] = True
