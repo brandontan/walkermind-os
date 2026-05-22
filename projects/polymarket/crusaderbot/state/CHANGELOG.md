@@ -8,6 +8,17 @@
 2026-05-21 18:25 | WARP/warp59-copy-wallet-e2e-bridge | WARP-59 (issue #1265): MVP copy-wallet write path realigned from `copy_targets` to canonical `copy_trade_tasks` so wallets added via Telegram MVP UX flow end-to-end through `services/copy_trade/monitor.py:80` → `domain/copy_trade/repository.list_active_tasks`. bot/handlers/mvp/copy_wallet.py SELECT/INSERT/UPDATE swapped, manual upsert on (user_id, wallet_address), `copy_mode='fixed' + copy_amount=allocation_usdc` mapping for MVP $25/$50/$100/$250/Custom buckets, `do_pause` uses canonical `status='paused'`. 6 new hermetic tests (`tests/test_warp59_copy_wallet_bridge.py`). Closes WARP-57 SENTINEL MEDIUM-4. py_compile clean. No schema change. STANDARD, FUNCTIONAL.
 2026-05-21 14:23 | WARP/warp56-sentry-p0-fix | WARP-56 (issue #1257): 3 Sentry P0/P1 fixes — services/signal_scan/signal_scan_job.py `_coerce_jsonb` narrowed so JSON scalar/wrong-shape values return fallback instead of leaking to `strategy.initialize()` (was ValueError: dictionary update sequence element); domain/risk/gate.py `_log` catches asyncpg.ForeignKeyViolationError at DEBUG so /admin/dry-run with synthetic user_id stops paging Sentry on every tick; migrations/001_init.sql drops `access_tier SMALLINT` from users CREATE TABLE (fresh-install DDL only — live DB already dropped via mig 044); historical access_tier comments rewritten in migs 024/031/045. 15 new + 77 existing hermetic tests pass. No schema change. STANDARD, NARROW INTEGRATION.
 
+## [WARP-67] Telegram UX final clean — MERGED 2989b7c6e788
+**Date:** 2026-05-22
+**PR:** #1285 | **Branch:** WARP/warp67-ux-final-clean | **Tier:** STANDARD
+
+B1: Flat Markdown format (no Unicode box-drawing chars, md\_escape, parse\_mode=Markdown).
+B2: main\_menu\_kb configured param — Auto Mode when preset set but stopped.
+B3: autotrade home\_kb paused param — Start/Pause/Resume state-correct.
+B4: Settings+Help → \_group0\_noop (single response only).
+B5: md\_escape+strip on market titles. 1614 passed.
+
+
 ## [WARP-66] Telegram UX polish — MERGED ab6f397f2741
 **Date:** 2026-05-22
 **PR:** #1283 | **Branch:** WARP/warp66-ux-polish | **Tier:** STANDARD
