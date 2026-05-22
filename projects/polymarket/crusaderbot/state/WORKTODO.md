@@ -135,3 +135,4 @@ CRUSADERBOT is considered **DONE** only when:
 - [x] WARP-67 — Telegram UX final clean (issue #1284) [STANDARD] — MERGED 2989b7c6e788
 - [x] WARP-68 — Structured card format + positions pagination (issue #1286) [STANDARD] — MERGED b7355541d496
 - [x] WARP-69 — Full structured card format all 66 render functions (issue #1288) [STANDARD] — MERGED b50ef1a2ce86
+- [x] WARP-70 — Dynamic Auto Trade capital = balance × risk fraction (issue #1290) [MINOR] — DELIVERED WARP/warp70-dynamic-capital 2026-05-22
