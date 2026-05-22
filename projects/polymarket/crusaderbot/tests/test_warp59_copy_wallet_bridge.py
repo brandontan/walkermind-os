@@ -91,7 +91,12 @@ class _RecPool:
 
 def _make_update() -> SimpleNamespace:
     user = SimpleNamespace(id=42, username="alice")
-    return SimpleNamespace(effective_user=user, message=None, callback_query=None)
+    return SimpleNamespace(
+        effective_user=user,
+        effective_message=None,
+        message=None,
+        callback_query=None,
+    )
 
 
 class _Ctx:
@@ -126,8 +131,10 @@ def _patch_fetch_user():
 
 
 def _patch_send_or_edit():
+    # copy_wallet imports send_or_edit via `from ._send import send_or_edit`,
+    # so the patch must target the name in copy_wallet's namespace, not _send.
     return patch(
-        "projects.polymarket.crusaderbot.bot.handlers.mvp._send.send_or_edit",
+        "projects.polymarket.crusaderbot.bot.handlers.mvp.copy_wallet.send_or_edit",
         new=AsyncMock(return_value=None),
     )
 
@@ -277,10 +284,12 @@ def test_bridge_end_to_end_visibility_to_list_active_tasks():
         "execution_mode": "auto",
         "allow_topups": True,
     }
-    # Conn serves: (a) handler upsert probe (None → triggers INSERT),
-    # (b) scanner-style SELECT against copy_trade_tasks.
+    # Conn serves:
+    #   (a) handler upsert probe (None → triggers INSERT)
+    #   (b) show_home → _read_wallets fetch after INSERT completes (empty OK)
+    #   (c) scanner-style SELECT in list_active_tasks
     conn = _RecConn(rows={
-        "FROM copy_trade_tasks": [None, [inserted_row]],
+        "FROM copy_trade_tasks": [None, [], [inserted_row]],
     })
 
     # Step 1 — MVP write path
