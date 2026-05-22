@@ -1,16 +1,21 @@
-"""MVP v1 Telegram message renderers (flat Markdown format).
+"""MVP v1 Telegram message renderers (V5 premium terminal — HTML format).
 
 Every screen defined in docs/ux/telegram-mvp-v1.md has one render_* function
 here. Renderers are pure: they take primitives, return strings. No I/O, no
 DB calls. Handlers fetch data, call these renderers, and send the result.
+
+WARP-71: all output is Telegram HTML (parse_mode="HTML"). Numerical groups
+render through ``pre_block`` (monospaced ``<pre>`` columns); grouped key/value
+rows use the ``├── / └──`` tree via ``leaf`` / ``section``; ``DIV`` (━ × 32)
+separates major sections.
 """
 from __future__ import annotations
 
-from typing import Iterable, Sequence
+from typing import Sequence
 
 from .ui.tree import (
     CARD_DIVIDER,
-    DIVIDER,
+    DIV,
     LIVE,
     LOCKED,
     PAPER,
@@ -20,12 +25,12 @@ from .ui.tree import (
     STATUS_STOPPED,
     STATUS_SYNCING,
     cta,
-    divider,
+    html_escape,
     join_blocks,
     leaf,
-    md_escape,
     nested,
     pnl,
+    pre_block,
     section,
     title,
 )
@@ -44,28 +49,33 @@ def render_dashboard_default(
     copy_wallets_active: int = 0,
     portfolio_value: float = 0.0,
 ) -> str:
+    today = pre_block([
+        ("PnL", pnl(today_pnl)),
+        ("Trades", str(today_trades)),
+    ])
     return (
-        f"*🏠 Dashboard*\n\n"
-        f"🤖 Bot Status  ·  {md_escape(bot_status)}\n"
-        f"{DIVIDER}\n"
-        f"*💹 Today*\n"
-        f"  PnL  ·  {pnl(today_pnl)}\n"
-        f"  Trades  ·  {today_trades}\n"
-        f"{DIVIDER}\n"
-        f"🔄 Auto Trade  »  {md_escape(active_strategy)}\n"
-        f"👥 Copy Wallet  »  {copy_wallets_active} Active\n"
-        f"💼 Portfolio  »  ${portfolio_value:,.2f}"
+        f"🏠 <b>Dashboard</b>\n"
+        f"{DIV}\n\n"
+        f"{leaf('🤖 Bot Status', bot_status, last=True)}\n\n"
+        f"<b>💹 Today</b>\n{today}\n"
+        f"{DIV}\n"
+        f"<b>📊 Overview</b>\n"
+        f"{leaf('🔄 Auto Trade', active_strategy)}\n"
+        f"{leaf('👥 Copy Wallet', f'{copy_wallets_active} Active')}\n"
+        f"{leaf('💼 Portfolio', f'${portfolio_value:,.2f}', last=True)}"
     )
 
 
 def render_dashboard_new_user() -> str:
     return (
-        f"*🏠 Dashboard*\n\n"
-        f"👋 Welcome  ·  Not configured yet\n"
-        f"{divider()}\n"
-        f"🤖 Auto Trade  »  {STATUS_NOT_SET}\n"
-        f"👥 Copy Wallet  »  {STATUS_NOT_SET}\n"
-        f"\n{cta('Tap Setup Auto to get started')}"
+        f"🏠 <b>Dashboard</b>\n"
+        f"{DIV}\n\n"
+        f"{leaf('👋 Welcome', 'Not configured yet', last=True)}\n"
+        f"{DIV}\n"
+        f"<b>📊 Overview</b>\n"
+        f"{leaf('🔄 Auto Trade', STATUS_NOT_SET)}\n"
+        f"{leaf('👥 Copy Wallet', STATUS_NOT_SET, last=True)}\n\n"
+        f"{cta('Tap Setup Auto to get started')}"
     )
 
 
@@ -107,24 +117,24 @@ def render_autotrade_home(
     executions: int = 0,
     win_rate: int = 0,
 ) -> str:
-    config = section("⚙️ Configuration", [
-        ("Capital", f"${capital:,.0f}"),
+    config = pre_block([
+        ("Capital", f"${capital:,.2f}"),
         ("Risk", risk),
         ("Mode", mode),
     ])
-    perf = section("📊 Performance", [
+    perf = pre_block([
         ("PnL Today", pnl(pnl_today)),
         ("Executions", str(executions)),
         ("Win Rate", f"{win_rate}%"),
     ])
     return (
-        f"*🤖 Auto Trade*\n\n"
+        f"🤖 <b>Auto Trade</b>\n"
+        f"{DIV}\n\n"
         f"{leaf('Status', status)}\n"
-        f"{leaf('Active Strategy', strategy)}\n"
-        f"{divider()}\n"
-        f"{config}\n"
-        f"{divider()}\n"
-        f"{perf}\n\n"
+        f"{leaf('Strategy', strategy, last=True)}\n\n"
+        f"<b>⚙️ Configuration</b>\n{config}\n\n"
+        f"<b>📊 Performance</b>\n{perf}\n"
+        f"{DIV}\n"
         f"{cta('Choose an action:')}"
     )
 
@@ -324,17 +334,18 @@ def render_copy_wallet_card(
     pnl_today: float,
     trades_copied: int,
 ) -> str:
-    card_section = section(f"Wallet #{index}", [
+    card = pre_block([
         ("Address", address_short),
         ("Status", status),
-        ("Allocation", f"${allocation:,.0f}"),
+        ("Allocation", f"${allocation:,.2f}"),
         ("PnL Today", pnl(pnl_today)),
-        ("Trades Copied", str(trades_copied)),
+        ("Trades", str(trades_copied)),
     ])
     return (
-        f"*👛 Active Wallets*\n\n"
-        f"{CARD_DIVIDER}\n"
-        f"{card_section}\n\n"
+        f"👛 <b>Active Wallets</b>\n"
+        f"{DIV}\n\n"
+        f"<b>Wallet #{html_escape(str(index))}</b>\n{card}\n"
+        f"{DIV}\n"
         f"{cta('Select an action:')}"
     )
 
@@ -371,21 +382,21 @@ def render_markets_home() -> str:
 
 def render_markets_trending(items: Sequence[dict]) -> str:
     """items: [{rank, title, yes, no, volume, sentiment}, ...]"""
-    lines: list[str] = [title("🔥 Trending Markets"), ""]
+    lines: list[str] = [f"🔥 <b>Trending Markets</b>\n{DIV}", ""]
     for it in items:
         rank = str(it.get("rank", "")).strip()
         market_title = str(it.get("title", "")).replace("\n", " ").strip()
         label = f"{rank} {market_title}".strip()
-        yes_val = md_escape(str(it.get("yes", "—")))
-        no_val = md_escape(str(it.get("no", "—")))
-        vol = md_escape(str(it.get("volume", "—")))
-        sent = md_escape(str(it.get("sentiment", "—")))
-        lines.append(CARD_DIVIDER)
-        lines.append(f"*{md_escape(label)}*")
-        lines.append(f"  Price  ·  YES {yes_val}¢ • NO {no_val}¢")
-        lines.append(f"  Volume  ·  {vol}")
-        lines.append(f"  Sentiment  ·  {sent}")
-    lines.append(CARD_DIVIDER)
+        block = pre_block([
+            ("YES", f"{it.get('yes', '—')}¢"),
+            ("NO", f"{it.get('no', '—')}¢"),
+            ("Volume", str(it.get("volume", "—"))),
+            ("Sentiment", str(it.get("sentiment", "—"))),
+        ])
+        lines.append(f"<b>{html_escape(label)}</b>")
+        lines.append(block)
+        lines.append("")
+    lines.append(DIV)
     lines.append(cta("Select a market:"))
     return "\n".join(lines)
 
@@ -458,18 +469,18 @@ def render_portfolio_home(
     today_win_rate: int = 0,
     open_positions: int = 0,
 ) -> str:
-    today_section = section("💹 Today", [
+    today = pre_block([
         ("PnL", pnl(today_pnl)),
         ("Trades", str(today_trades)),
         ("Win Rate", f"{today_win_rate}%"),
     ])
     return (
-        f"*💼 Portfolio*\n\n"
-        f"{leaf('💰 Balance', f'${balance:,.2f}')}\n"
-        f"{divider()}\n"
-        f"{today_section}\n"
-        f"{divider()}\n"
-        f"{leaf('📌 Open Positions', f'{open_positions} Active')}\n\n"
+        f"💼 <b>Portfolio</b>\n"
+        f"{DIV}\n\n"
+        f"{leaf('💰 Balance', f'${balance:,.2f}', last=True)}\n\n"
+        f"<b>💹 Today</b>\n{today}\n"
+        f"{DIV}\n"
+        f"{leaf('📌 Open Positions', f'{open_positions} Active', last=True)}\n\n"
         f"{cta('Choose an action:')}"
     )
 
@@ -493,21 +504,20 @@ def render_positions_list(
 
     items: [{rank, title, side, pnl}, ...]
     """
-    header = f"*📌 Open Positions*  ·  {total} active"
+    header = f"📋 <b>Open Positions</b>  ·  {total} active\n{DIV}"
     cards: list[str] = []
     for it in items:
         rank = str(it.get("rank", "")).strip()
         market_title = str(it.get("title", "")).replace("\n", " ").strip()
-        label = f"{rank} {md_escape(market_title)}".strip()
-        card = (
-            f"{CARD_DIVIDER}\n"
-            f"*{label}*\n"
-            f"  Side  ·  {md_escape(str(it.get('side', '—')))}\n"
-            f"  PnL   ·  {pnl(float(it.get('pnl', 0.0)))}"
-        )
-        cards.append(card)
-    footer = f"{CARD_DIVIDER}\n_{page} of {total_pages}_"
-    return "\n".join([header, ""] + cards + [footer])
+        label = f"{rank} {market_title}".strip()
+        block = pre_block([
+            ("Side", str(it.get("side", "—"))),
+            ("PnL", pnl(float(it.get("pnl", 0.0)))),
+        ])
+        cards.append(f"<b>{html_escape(label)}</b>\n{block}")
+    footer = f"{DIV}\n<i>Page {page} of {total_pages}</i>"
+    body = "\n\n".join(cards)
+    return f"{header}\n\n{body}\n{footer}"
 
 
 def render_position_detail(
@@ -593,15 +603,15 @@ def render_balance(
 
 
 def render_settings_home(*, trading_mode: str = PAPER) -> str:
-    return join_blocks([
-        title("⚙️ Settings"),
+    rows = [
         leaf("🔄 Trading Mode", trading_mode),
-        leaf("🛡 Risk", "Daily limits ON"),
-        leaf("🔔 Alerts", "Trade alerts ON"),
-        leaf("👥 Copy Wallet", "Mirroring"),
+        leaf("🛡 Risk", "Balanced"),
+        leaf("🔔 Alerts", "ON"),
+        leaf("👥 Copy Wallet", "OFF"),
         leaf("👤 Account", "Profile"),
-        leaf("🧪 Advanced", "Power user"),
-    ])
+        leaf("🧪 Advanced", "Power user", last=True),
+    ]
+    return f"⚙️ <b>Settings</b>\n{DIV}\n" + "\n".join(rows)
 
 
 def render_settings_trading_mode(*, current: str = PAPER) -> str:
@@ -831,15 +841,15 @@ def render_notif_trade_opened(
     size: float,
     reason: str = "High confidence setup",
 ) -> str:
-    return join_blocks([
-        title("📈 Trade Opened"),
-        leaf("Market", market_title),
-        leaf("Position", side),
-        leaf("Strategy", strategy),
-        leaf("Entry", f"{entry}¢"),
-        leaf("Size", f"${size:,.0f}"),
-        leaf("Reason", reason),
+    block = pre_block([
+        ("Market", market_title),
+        ("Side", side),
+        ("Strategy", strategy),
+        ("Entry", f"{entry}¢"),
+        ("Size", f"${size:,.2f}"),
+        ("Reason", reason),
     ])
+    return f"⚡ <b>Position Opened</b>\n{DIV}\n{block}\n{DIV}"
 
 
 def render_notif_first_trade(market_title: str) -> str:

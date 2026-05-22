@@ -1,20 +1,24 @@
-"""Flat Markdown message helpers for the MVP v1 Telegram surface.
+"""HTML message helpers for the MVP v1 Telegram surface (V5 premium terminal).
 
-Box-drawing characters (│ ├── └──) do not render reliably across Telegram
-clients (notably Android system fonts), producing the "berantakan" tree
-output seen in production. All major bot messages therefore render through
-these helpers in a flat, mobile-safe Markdown layout (WARP-67):
+WARP-71 switches the MVP surface from Markdown to Telegram **HTML** parse mode
+("Bloomberg-lite terminal in your pocket"). HTML lets us use ``<pre>`` blocks
+for numerical data so columns align monospaced on every client, plus ``<b>``
+headers, ``<code>`` inline values and ``<i>`` call-to-action prompts.
 
-    *Section Header*
-    Key: Value
-    Key: Value
+Layout vocabulary:
 
-Section headers are bold (`*...*`), key/value pairs are plain single lines,
-and blocks are separated by a single blank line after the title. Output is
-sent with ``parse_mode="Markdown"`` (see bot.handlers.mvp._send).
+    <b>Section Header</b>
+    ├── Key: <code>Value</code>
+    └── Key: <code>Value</code>
 
-ASCII fallback glyphs are retained for any caller that still references them,
-but the renderers no longer emit Unicode box-drawing characters.
+    <pre>
+    Label    Value
+    Label    Value
+    </pre>
+
+Heavy divider ``DIV`` (━ × 32) separates major sections; ``LIGHT_DIV`` (┄ × 16)
+is the lighter in-card separator. Output is sent with ``parse_mode="HTML"``
+(see bot.handlers.mvp._send).
 
 Status glyphs are fixed (blueprint 4.4):
 
@@ -27,14 +31,18 @@ from __future__ import annotations
 
 from typing import Iterable, Sequence
 
-# Telegram-safe ASCII fallbacks (no Unicode box-drawing characters).
+# Telegram-safe ASCII fallbacks (retained for any caller that references them).
 BAR = "|"
 BRANCH = "|-"
 LAST = "`-"
 
-# Structured card dividers (WARP-68).
-DIVIDER = "┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄"
-CARD_DIVIDER = "━━━━━━━━━━━━━━━━"
+# HTML-mode dividers (WARP-71).
+DIV = "━" * 32
+LIGHT_DIV = "┄" * 16
+
+# Backwards-compatible aliases (pre-WARP-71 callers) → heavy section divider.
+DIVIDER = DIV
+CARD_DIVIDER = DIV
 
 STATUS_RUNNING = "🟢 Running"
 STATUS_STOPPED = "🔴 Stopped"
@@ -45,21 +53,24 @@ PAPER = "📝 Paper Trading"
 LIVE = "💸 Live Trading"
 LOCKED = "🔒 Locked"
 
-# Telegram Markdown (v1) reserved characters that must be escaped inside any
-# dynamic string (market titles, wallet addresses, user names).
-_MD_SPECIAL = ("_", "*", "`", "[")
 
-
-def md_escape(text: str) -> str:
-    """Escape Telegram Markdown (v1) reserved characters in dynamic text.
+def html_escape(text: str) -> str:
+    """Escape the three HTML-reserved characters Telegram HTML mode requires.
 
     Applied to every label/value rendered through these helpers so that
     user- or market-supplied strings cannot break message formatting.
+    Order matters: ``&`` must be escaped first.
     """
-    out = str(text)
-    for ch in _MD_SPECIAL:
-        out = out.replace(ch, f"\\{ch}")
-    return out
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+# Backwards-compatible alias (pre-WARP-71 callers escaped Markdown via md_escape).
+md_escape = html_escape
 
 
 def pnl(amount: float, currency: str = "$") -> str:
@@ -82,30 +93,48 @@ def pnl(amount: float, currency: str = "$") -> str:
 
 def title(text: str) -> str:
     """Return the bold title line for a screen."""
-    return f"*{md_escape(text)}*"
+    return f"<b>{html_escape(text)}</b>"
 
 
 def leaf(label: str, value: str, last: bool = False) -> str:
-    """Return a single `Label  ·  Value` line (structured card format).
+    """Return a single tree row: ``├── Label: <code>Value</code>``.
 
-    The ``last`` flag is accepted for call-site compatibility but no longer
-    affects rendering.
+    ``last`` selects the └── terminator glyph for the final row in a group.
     """
-    return f"{md_escape(label)}  ·  {md_escape(value)}"
+    sep = "└──" if last else "├──"
+    return f"{sep} {html_escape(label)}: <code>{html_escape(value)}</code>"
 
 
 def section(label: str, rows: Sequence[tuple[str, str]], last: bool = False) -> str:
-    """Return a bold-headed section block with indented `Key  ·  Value` rows.
+    """Return a bold-headed section with indented tree rows.
 
     Renders as:
 
-        *label*
-          row1.label  ·  row1.value
-          rowN.label  ·  rowN.value
+        <b>label</b>
+          ├── row1.label: <code>row1.value</code>
+          └── rowN.label: <code>rowN.value</code>
     """
-    lines: list[str] = [f"*{md_escape(label)}*"]
-    for sub_label, sub_value in rows:
-        lines.append(f"  {md_escape(sub_label)}  ·  {md_escape(sub_value)}")
+    lines: list[str] = [f"<b>{html_escape(label)}</b>"]
+    total = len(rows)
+    for idx, (sub_label, sub_value) in enumerate(rows):
+        sep = "└──" if idx == total - 1 else "├──"
+        lines.append(f"  {sep} {html_escape(sub_label)}: <code>{html_escape(sub_value)}</code>")
+    return "\n".join(lines)
+
+
+def pre_block(rows: Sequence[tuple[str, str]]) -> str:
+    """Return a monospaced ``<pre>`` block with left-aligned labels.
+
+    Used for any group of 2+ numerical values so columns align on every
+    Telegram client. Returns an empty string for an empty input.
+    """
+    if not rows:
+        return ""
+    max_label = max(len(str(r[0])) for r in rows)
+    lines = ["<pre>"]
+    for label, value in rows:
+        lines.append(f"{html_escape(str(label)):<{max_label}}  {html_escape(str(value))}")
+    lines.append("</pre>")
     return "\n".join(lines)
 
 
@@ -114,24 +143,24 @@ def nested(label: str, lines: Iterable[str], last: bool = False) -> str:
 
     Renders as:
 
-        *label*
+        <b>label</b>
         • line1
         • lineN
     """
-    out: list[str] = [f"*{md_escape(label)}*"]
+    out: list[str] = [f"<b>{html_escape(label)}</b>"]
     for line in lines:
-        out.append(f"• {md_escape(line)}")
+        out.append(f"• {html_escape(line)}")
     return "\n".join(out)
 
 
 def divider() -> str:
-    """Return the light section divider string."""
-    return DIVIDER
+    """Return the heavy section divider string."""
+    return DIV
 
 
 def cta(text: str) -> str:
     """Return italic call-to-action text."""
-    return f"_{md_escape(text)}_"
+    return f"<i>{html_escape(text)}</i>"
 
 
 def join_blocks(blocks: Iterable[str], spacer: str = "\n") -> str:
