@@ -9,7 +9,7 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler, Cont
 from ... import messages_mvp as mvp
 from ...keyboards.mvp._common import main_menu_kb
 from ...keyboards.mvp.onboarding import new_user_dashboard_kb
-from ...ui.tree import STATUS_NOT_SET, STATUS_PAUSED, STATUS_RUNNING
+from ...ui.tree import STATUS_NOT_SET, STATUS_PAUSED, STATUS_RUNNING, STATUS_STOPPED
 from . import _users
 from ._send import send_or_edit
 
@@ -22,7 +22,7 @@ async def _read_dashboard(telegram_user) -> dict:
         "configured": False, "running": False, "paused": False,
         "today_pnl": 0.0, "today_trades": 0,
         "active_strategy": "⚡ Momentum", "copy_wallets_active": 0,
-        "portfolio_value": 0.0,
+        "portfolio_value": 0.0, "open_count": 0,
     }
     u = await _users.fetch_user(telegram_user.id, telegram_user.username)
     if u is None:
@@ -33,9 +33,13 @@ async def _read_dashboard(telegram_user) -> dict:
     preset = settings.get("active_preset")
     if preset:
         data["configured"] = True
-        data["active_strategy"] = f"⚡ {str(preset).title().replace('_', ' ')}"
+        from ...presets import PRESET_CONFIG
+        cfg = PRESET_CONFIG.get(preset, {})
+        label = cfg.get("name") or str(preset).title().replace("_", " ")
+        data["active_strategy"] = label
     data["portfolio_value"] = await _users.fetch_balance(u["id"])
     data["today_pnl"] = await _users.fetch_daily_pnl(u["id"])
+    data["open_count"] = await _users.fetch_open_position_count(u["id"])
     return data
 
 
@@ -50,9 +54,18 @@ async def show_dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         kb = new_user_dashboard_kb()
     elif d["paused"]:
         text = mvp.render_dashboard_paused(today_pnl=d["today_pnl"])
-        kb = main_menu_kb()
+        kb = main_menu_kb(
+            auto_on=True,
+            paused=True,
+            open_count=d.get("open_count", 0),
+        )
     else:
-        status = STATUS_RUNNING if d["running"] else STATUS_NOT_SET
+        if d["running"]:
+            status = STATUS_RUNNING
+        elif d["configured"]:
+            status = STATUS_STOPPED
+        else:
+            status = STATUS_NOT_SET
         text = mvp.render_dashboard_default(
             bot_status=status,
             today_pnl=d["today_pnl"],
@@ -61,7 +74,11 @@ async def show_dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             copy_wallets_active=d["copy_wallets_active"],
             portfolio_value=d["portfolio_value"],
         )
-        kb = main_menu_kb()
+        kb = main_menu_kb(
+            auto_on=d["running"],
+            paused=False,
+            open_count=d.get("open_count", 0),
+        )
     await send_or_edit(update, text, kb)
 
 

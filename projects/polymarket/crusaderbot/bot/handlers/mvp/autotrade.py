@@ -135,6 +135,10 @@ async def do_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         strategy=f["strategy"], capital=f["capital"], risk=f["risk"],
     )
     await send_or_edit(update, text, kb.strategy_status_kb(running=True))
+    from ...keyboards.mvp._common import main_menu_kb
+    msg = update.effective_message
+    if msg is not None:
+        await msg.reply_text(".", reply_markup=main_menu_kb(auto_on=True, paused=False, open_count=0))
 
 
 async def do_pause(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
