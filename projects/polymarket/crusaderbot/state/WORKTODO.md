@@ -137,3 +137,4 @@ CRUSADERBOT is considered **DONE** only when:
 - [x] WARP-69 — Full structured card format all 66 render functions (issue #1288) [STANDARD] — MERGED b50ef1a2ce86
 - [x] WARP-70 — Dynamic Auto Trade capital = balance × risk fraction (issue #1290) [MINOR] — DELIVERED WARP/warp70-dynamic-capital 2026-05-22
 - [x] WARP-70 — Dynamic capital from risk profile [MINOR] — MERGED eb149d18427b
+- [x] WARP-71 — Premium terminal UI HTML parse mode [STANDARD] — MERGED e443c212c1e7
