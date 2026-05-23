@@ -84,11 +84,14 @@ async def lifespan(_: FastAPI):
     _total_strategies = len(_all_strategy_names)
     log.info(
         "strategies_loaded",
-        count=_total_strategies,
-        domain_count=len(catalog),
-        lib_count=len(_lib_names),
-        names=_domain_names,
-        enabled_lib=list(ENABLED_STRATEGIES),
+        extra={
+            "event": "strategies_loaded",
+            "count": _total_strategies,
+            "domain_count": len(catalog),
+            "lib_count": len(_lib_names),
+            "names": _domain_names,
+            "enabled_lib": list(ENABLED_STRATEGIES),
+        },
     )
     if _total_strategies == 0:
         raise RuntimeError(
