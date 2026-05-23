@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
@@ -64,6 +65,8 @@ def _make_position(
     position_id: UUID | None = None,
     user_id: UUID | None = None,
     market_question: str | None = "Will X happen?",
+    resolution_at: datetime | None = None,
+    risk_profile: str = "balanced",
 ) -> OpenPositionForExit:
     return OpenPositionForExit(
         id=position_id or uuid4(),
@@ -83,6 +86,8 @@ def _make_position(
         yes_price=yes_price,
         no_price=no_price,
         market_resolved=market_resolved,
+        resolution_at=resolution_at,
+        risk_profile=risk_profile,
     )
 
 
@@ -177,6 +182,57 @@ def test_evaluate_ignores_tp_pct_when_applied_is_none():
     """
     p = _make_position(yes_price=0.99, applied_tp_pct=None,
                        applied_sl_pct=None)
+    decision = _run(exit_watcher.evaluate(p))
+    assert not decision.should_exit
+
+
+# ---------------------------------------------------------------------------
+# Resolution-horizon exit (HORIZON_EXCEEDED).
+# ---------------------------------------------------------------------------
+
+def _days_out(n: int) -> datetime:
+    return datetime.now(timezone.utc) + timedelta(days=n)
+
+
+def test_evaluate_horizon_exceeded_closes_balanced():
+    """Balanced profile (30d): a market resolving 60d out is force-closed."""
+    p = _make_position(yes_price=0.40, resolution_at=_days_out(60),
+                       risk_profile="balanced")
+    decision = _run(exit_watcher.evaluate(p))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.HORIZON_EXCEEDED.value
+
+
+def test_evaluate_within_horizon_holds():
+    """Balanced profile (30d): a market resolving 10d out is held."""
+    p = _make_position(yes_price=0.40, resolution_at=_days_out(10),
+                       risk_profile="balanced")
+    decision = _run(exit_watcher.evaluate(p))
+    assert not decision.should_exit
+    assert decision.reason is None
+
+
+def test_evaluate_aggressive_keeps_60d_market():
+    """Aggressive profile (90d): a 60d market is within mandate -> held."""
+    p = _make_position(yes_price=0.40, resolution_at=_days_out(60),
+                       risk_profile="aggressive")
+    decision = _run(exit_watcher.evaluate(p))
+    assert not decision.should_exit
+
+
+def test_evaluate_tp_wins_over_horizon():
+    """A position at TP realises TP_HIT even when also beyond horizon."""
+    p = _make_position(yes_price=0.50, entry_price=0.40, applied_tp_pct=0.20,
+                       resolution_at=_days_out(120), risk_profile="balanced")
+    decision = _run(exit_watcher.evaluate(p))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.TP_HIT.value
+
+
+def test_evaluate_null_resolution_never_horizon_closed():
+    """A NULL resolution date (market not yet synced) is never force-closed."""
+    p = _make_position(yes_price=0.40, resolution_at=None,
+                       risk_profile="conservative")
     decision = _run(exit_watcher.evaluate(p))
     assert not decision.should_exit
 

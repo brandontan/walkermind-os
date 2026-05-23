@@ -16,7 +16,18 @@ Filter enforcement (best-effort, no HTTP available):
                                       HTTP fetches inside scan(). Operators
                                       are trusted to pre-filter on liquidity
                                       before publishing.
-    max_time_to_resolution_days    -> NOT enforced (same rationale).
+    max_time_to_resolution_days    -> ENFORCED via the local markets table.
+                                      ``markets.resolution_at`` is a synchronous
+                                      DB column (synced by the scanner), so the
+                                      no-HTTP constraint is satisfied. Publications
+                                      whose market resolves beyond the profile
+                                      horizon are dropped at the SQL boundary,
+                                      preventing entry into far-dated futures that
+                                      never hit TP/SL and lock a concurrency slot.
+                                      The sentinel value
+                                      (RESOLUTION_DISTANCE_DISABLED_DAYS = 365)
+                                      disables the check. Markets with a NULL
+                                      resolution_at (not yet synced) are kept.
 
 The downstream signal scan loop (P3d) is responsible for risk gate
 enforcement and per-publication-per-user dedup. This module emits one
@@ -43,6 +54,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_CONFIDENCE = 0.6
 DEFAULT_TRADE_SIZE_USDC = 10.0
 MIN_TRADE_SIZE_USDC = 1.0
+# A max_time_to_resolution_days at or above this value disables the
+# resolution-horizon filter (mirrors copy_trade.RESOLUTION_DISTANCE_DISABLED_DAYS).
+RESOLUTION_DISTANCE_DISABLED_DAYS = 365
 
 
 # ---------------------------------------------------------------------------
@@ -185,6 +199,7 @@ async def _load_active_subscriptions(user_id: UUID) -> list[dict[str, Any]]:
 async def _load_active_publications(
     feed_id: UUID,
     subscribed_at: datetime,
+    max_resolution_days: int,
 ) -> list[dict[str, Any]]:
     """Entry publications since user subscribed that haven't expired/exited.
 
@@ -204,31 +219,48 @@ async def _load_active_publications(
     per-publication-per-user dedup, but the SQL boundary is the cheaper
     place to keep the surface clean.
     """
+    # Resolution-horizon guard: drop publications whose market resolves beyond
+    # the user's profile horizon (LEFT JOIN markets — NULL resolution_at, i.e.
+    # not-yet-synced markets, are kept). Disabled when the caller passes the
+    # sentinel so the JOIN/clause cost is skipped entirely.
+    enforce_horizon = (
+        max_resolution_days < RESOLUTION_DISTANCE_DISABLED_DAYS
+        and max_resolution_days >= 0
+    )
+    horizon_clause = (
+        " AND (m.resolution_at IS NULL"
+        " OR m.resolution_at <= NOW() + make_interval(days => $3::int))"
+        if enforce_horizon
+        else ""
+    )
+    query = f"""
+        SELECT p.id, p.feed_id, p.market_id, p.side, p.target_price,
+               p.signal_type, p.payload, p.exit_signal, p.published_at,
+               p.expires_at, p.exit_published_at
+          FROM signal_publications p
+          LEFT JOIN markets m ON m.id = p.market_id
+         WHERE p.feed_id = $1
+           AND p.exit_signal = FALSE
+           AND p.exit_published_at IS NULL
+           AND p.published_at > $2
+           AND (p.expires_at IS NULL OR p.expires_at > NOW())
+           {horizon_clause}
+           AND NOT EXISTS (
+             SELECT 1
+               FROM signal_publications x
+              WHERE x.feed_id = p.feed_id
+                AND x.market_id = p.market_id
+                AND x.exit_signal = TRUE
+                AND x.published_at > p.published_at
+           )
+         ORDER BY p.published_at ASC
+    """
+    params: list[Any] = [feed_id, subscribed_at]
+    if enforce_horizon:
+        params.append(int(max_resolution_days))
     pool = get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id, feed_id, market_id, side, target_price, signal_type,
-                   payload, exit_signal, published_at, expires_at,
-                   exit_published_at
-              FROM signal_publications p
-             WHERE feed_id = $1
-               AND exit_signal = FALSE
-               AND exit_published_at IS NULL
-               AND published_at > $2
-               AND (expires_at IS NULL OR expires_at > NOW())
-               AND NOT EXISTS (
-                 SELECT 1
-                   FROM signal_publications x
-                  WHERE x.feed_id = p.feed_id
-                    AND x.market_id = p.market_id
-                    AND x.exit_signal = TRUE
-                    AND x.published_at > p.published_at
-               )
-             ORDER BY published_at ASC
-            """,
-            feed_id, subscribed_at,
-        )
+        rows = await conn.fetch(query, *params)
     return [dict(r) for r in rows]
 
 
@@ -262,6 +294,7 @@ async def evaluate_publications_for_user(
         try:
             publications = await _load_active_publications(
                 feed_id, sub["subscribed_at"],
+                market_filters.max_time_to_resolution_days,
             )
         except Exception as exc:
             logger.warning(

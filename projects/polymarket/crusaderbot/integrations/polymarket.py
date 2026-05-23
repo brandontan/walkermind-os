@@ -59,14 +59,33 @@ async def _get_json(url: str, params: dict | None = None,
 
 
 async def get_markets(category: Optional[str] = None,
-                      limit: int = 100) -> list[dict]:
-    """Active markets list (Gamma). Cached 5 min."""
-    key = f"mkts:{category or 'all'}:{limit}"
+                      limit: int = 100,
+                      order: Optional[str] = None,
+                      ascending: Optional[bool] = None,
+                      end_date_max: Optional[str] = None) -> list[dict]:
+    """Active markets list (Gamma). Cached 5 min.
+
+    Optional Gamma query params surface a wider, fresher universe for the
+    signal scanner:
+      * ``order``        — sort field (e.g. ``"volume24hr"``, ``"liquidity"``).
+      * ``ascending``    — sort direction; pair with ``order``.
+      * ``end_date_max`` — ISO timestamp upper bound on resolution date, so
+                           far-dated futures (championship winners months out)
+                           are excluded server-side.
+    Defaults (all None) preserve the prior behaviour for existing callers.
+    """
+    key = f"mkts:{category or 'all'}:{limit}:{order or '-'}:{ascending}:{end_date_max or '-'}"
     if hit := await get_cache(key):
         return hit
     params: dict[str, Any] = {"active": "true", "closed": "false", "limit": limit}
     if category:
         params["tag"] = category
+    if order:
+        params["order"] = order
+    if ascending is not None:
+        params["ascending"] = "true" if ascending else "false"
+    if end_date_max:
+        params["end_date_max"] = end_date_max
     try:
         data = await _get_json(f"{GAMMA}/markets", params=params)
         if isinstance(data, dict):

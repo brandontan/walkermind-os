@@ -35,7 +35,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Awaitable, Callable, Optional, Protocol
 
@@ -44,6 +44,7 @@ from ...database import get_pool
 from ...integrations.polymarket import get_live_market_price
 from ...monitoring import alerts as monitoring_alerts
 from ..positions import registry
+from ..risk.constants import PROFILES
 from ..positions.registry import (
     ExitReason,
     OpenPositionForExit,
@@ -61,6 +62,33 @@ DEFAULT_POLL_INTERVAL_SECONDS: float = 30.0
 # of None so a brief API hiccup cannot close an active position incorrectly.
 _EXPIRED_TICK_THRESHOLD: int = 3
 _price_fail_counts: dict[object, int] = {}  # position.id (UUID) -> consecutive None ticks
+
+# A profile max_days at or above this value disables the resolution-horizon
+# exit (mirrors copy_trade.RESOLUTION_DISTANCE_DISABLED_DAYS). All shipped
+# profiles are <= 90d, so the guard is always active in practice.
+_RESOLUTION_DISABLED_DAYS: int = 365
+
+
+def _horizon_exceeded(position: OpenPositionForExit) -> bool:
+    """True when the market resolves beyond the owning user's profile horizon.
+
+    Far-dated futures (championship winners months out) barely move, so they
+    never trip TP/SL and would otherwise occupy a concurrency slot until
+    resolution. Closing them returns the slot to the rotation. A NULL
+    resolution date (market not yet synced) is never force-closed here.
+    """
+    res_at = position.resolution_at
+    if res_at is None:
+        return False
+    preset = PROFILES.get(
+        (position.risk_profile or "balanced").lower(), PROFILES["balanced"]
+    )
+    max_days = int(preset["max_days"])
+    if max_days >= _RESOLUTION_DISABLED_DAYS:
+        return False
+    if res_at.tzinfo is None:
+        res_at = res_at.replace(tzinfo=timezone.utc)
+    return res_at > datetime.now(timezone.utc) + timedelta(days=max_days)
 
 
 class StrategyExitEvaluator(Protocol):
@@ -211,10 +239,19 @@ async def evaluate(
                             reason=ExitReason.SL_HIT.value,
                             current_price=cur)
 
-    # 4. Strategy hook — last priority above hold.
+    # 4. Strategy hook — priority above horizon/hold.
     if await strategy_evaluator(position):
         return ExitDecision(should_exit=True,
                             reason=ExitReason.STRATEGY_EXIT.value,
+                            current_price=cur)
+
+    # 5. Resolution-horizon guard — last priority before hold. Closes positions
+    #    whose market resolves beyond the owner's profile horizon so far-dated
+    #    futures cannot lock a concurrency slot. Evaluated after TP/SL/strategy
+    #    so a position at target still realises its intended exit first.
+    if _horizon_exceeded(position):
+        return ExitDecision(should_exit=True,
+                            reason=ExitReason.HORIZON_EXCEEDED.value,
                             current_price=cur)
 
     return ExitDecision(should_exit=False, reason=None, current_price=cur)

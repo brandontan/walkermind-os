@@ -56,6 +56,7 @@ from ...core import event_bus as _event_bus
 from ...database import get_pool
 from ...domain.execution.router import execute as router_execute
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
+from ...domain.risk.constants import PROFILES
 from ...domain.strategy.registry import StrategyRegistry
 from ...domain.strategy.types import MarketFilters, SignalCandidate, UserContext
 from ...integrations import polymarket as _polymarket
@@ -470,13 +471,18 @@ def _build_user_context(row: dict[str, Any]) -> UserContext:
     )
 
 
-def _build_market_filters() -> MarketFilters:
-    # Permissive defaults — risk gate enforces liquidity floor; category
-    # filter and blacklist are opt-in extensions reserved for a future lane.
+def _build_market_filters(profile: str) -> MarketFilters:
+    # Resolution-horizon and liquidity floor are derived from the user's risk
+    # profile (PROFILES in domain/risk/constants). Conservative=7d / Balanced=30d
+    # / Aggressive=90d. This stops the scanner from entering far-dated futures
+    # (e.g. championship winners resolving months out) that never hit TP/SL and
+    # permanently occupy a concurrent-trade slot. Category filter and blacklist
+    # remain opt-in extensions reserved for a future lane.
+    preset = PROFILES.get((profile or "balanced").lower(), PROFILES["balanced"])
     return MarketFilters(
         categories=[],
-        min_liquidity=0.0,
-        max_time_to_resolution_days=365,
+        min_liquidity=float(preset["min_liquidity"]),
+        max_time_to_resolution_days=int(preset["max_days"]),
         blacklisted_market_ids=[],
     )
 
@@ -1024,7 +1030,7 @@ async def run_once() -> None:
         ):
             try:
                 user_ctx = _build_user_context(row)
-                market_filters = _build_market_filters()
+                market_filters = _build_market_filters(user_ctx.risk_profile)
                 domain_cands = await confluence_strat.scan(market_filters, user_ctx)
             except Exception as exc:
                 user_log.warning("confluence_scalper_run_failed", error=str(exc))
@@ -1059,7 +1065,7 @@ async def run_once() -> None:
         # _process_candidate handles dedup via (user_id, publication_id) unique key.
         try:
             user_ctx = _build_user_context(row)
-            market_filters = _build_market_filters()
+            market_filters = _build_market_filters(user_ctx.risk_profile)
             feed_candidates = await evaluate_publications_for_user(
                 user_context=user_ctx,
                 market_filters=market_filters,
