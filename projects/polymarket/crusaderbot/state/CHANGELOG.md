@@ -2,6 +2,15 @@
 ## [F-HIGH-2] lib strategy load fix — WARP/lib-strategy-load-fix
 **Date:** 2026-05-23 | **Tier:** MAJOR | **Status:** pending SENTINEL
 
+## [F-HIGH-2] Vendor lib/ into crusaderbot — prod strategy load fix — MERGED e235fa294823
+**Date:** 2026-05-23 | **PR:** #1298 | **Tier:** MAJOR | **SENTINEL:** 99/100 APPROVED
+
+lib/ vendored into projects/polymarket/crusaderbot/lib/.
+Loader _LIB_PKG derived via __package__ — dev/prod gap closed.
+7/7 strategies load, 60 tests pass. No content change to lib classes.
+F-HIGH-2 resolved — paper trades will flow on next deploy.
+
+
 Primary F-HIGH-2 cause: lib/ auto-trade strategies never produced candidates —
 (1) lib/ lived at repo root, outside the crusaderbot Docker build context, so it
 was never shipped to prod; (2) the file-path loader (spec_from_file_location)
