@@ -242,3 +242,12 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 - Live verified via Supabase + Sentry + GitHub MCP (secrets not injected locally)
 - Report: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-system-audit.md
 - Gate: BLOCKED — fix F-CRIT-1 + redeploy + re-validate before handoff
+
+
+## [2026-05-23] F-CRIT-1 BOOT FIX — WARP/crusaderbot-system-audit (consolidated into PR #1294)
+
+- Per WARP🔹CMD: fix bundled into audit PR (PR #1295 closed as duplicate)
+- bot/ui/__init__.py: removed dead re-export of BAR/BRANCH/LAST (box-drawing chars dropped from bot/ui/tree.py by WARP-67/73; no consumers); STATUS_*/PAPER/LIVE/LOCKED untouched (tree.py:26-33)
+- Re-verified: bot.dispatcher + messages_mvp import clean; 1613 pytest pass / 1 skip / 0 collection errors; ruff clean; frontend build clean; app boots from PR head
+- Report: projects/polymarket/crusaderbot/reports/forge/fix-bot-ui-tree-constants.md
+- Gate: ready for WARP🔹CMD merge → Fly redeploy + confirm (prod heartbeat stopped 2026-05-22 22:12 UTC)
