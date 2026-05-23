@@ -76,12 +76,27 @@ async def lifespan(_: FastAPI):
     bootstrap_default_strategies()
     seed_defaults()
     from .domain.strategy.registry import StrategyRegistry
+    from .services.signal_scan.lib_strategy_runner import ENABLED_STRATEGIES, DEFERRED_STRATEGIES
     catalog = StrategyRegistry.instance().list_available()
+    _domain_names = [s["name"] for s in catalog]
+    _lib_names = list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES)
+    _all_strategy_names = _domain_names + _lib_names
+    _total_strategies = len(_all_strategy_names)
     log.info(
-        "strategy registry ready: %d strategies registered: %s",
-        len(catalog),
-        [s["name"] for s in catalog],
+        "strategies_loaded",
+        event="strategies_loaded",
+        count=_total_strategies,
+        domain_count=len(catalog),
+        lib_count=len(_lib_names),
+        names=_domain_names,
+        enabled_lib=list(ENABLED_STRATEGIES),
     )
+    if _total_strategies == 0:
+        raise RuntimeError(
+            "FATAL: 0 strategies loaded at startup. "
+            "bootstrap_default_strategies() returned an empty registry. "
+            "Check domain/strategy/strategies/ imports and lib/ vendoring."
+        )
     await webtrader_sse.start_listener(settings.DATABASE_URL, pool)
 
     use_webhook = bool(settings.TELEGRAM_WEBHOOK_URL)

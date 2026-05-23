@@ -543,7 +543,7 @@ def test_run_once_happy_path_calls_process_candidate():
     async def _fake_fetch_markets():
         return []
 
-    async def _fake_process(r, c):
+    async def _fake_process(r, c, tel=None):
         processed["calls"] += 1
 
     with patch.object(job, "_load_enrolled_users", return_value=[row]), \
@@ -580,7 +580,7 @@ def test_run_once_scan_failure_does_not_stop_other_users():
     async def _fake_fetch_markets():
         return []
 
-    async def _fake_process(r, c):
+    async def _fake_process(r, c, tel=None):
         if r["user_id"] == UUID("11111111-1111-1111-1111-111111111111"):
             processed["row1"] += 1
             raise RuntimeError("boom")

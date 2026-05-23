@@ -43,6 +43,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import uuid as _uuid_mod
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -110,6 +112,46 @@ _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
     "full_auto":           _LIB_STRATEGY_NAMES | frozenset({_CONFLUENCE_SCALPER_NAME}),
     None:                  _LIB_STRATEGY_NAMES | frozenset({_CONFLUENCE_SCALPER_NAME}),  # no preset set → full_auto behaviour
 }
+
+
+# ---------------------------------------------------------------------------
+# Scan run telemetry
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ScanTelemetry:
+    """Accumulates per-scan-run observability counts for the scan_runs table."""
+
+    users_evaluated: int = 0
+    markets_seen: int = 0
+    markets_eligible: int = 0
+    candidates_emitted: int = 0
+    risk_approved: int = 0
+    risk_rejected: int = 0
+    paper_orders_created: int = 0
+    positions_created: int = 0
+    snapshots_written: int = 0
+    skip_breakdown: dict[str, int] = field(default_factory=dict)
+    zero_reason_breakdown: dict[str, int] = field(default_factory=dict)
+    rejection_breakdown: dict[str, int] = field(default_factory=dict)
+
+    def record_skip(self, reason: str) -> None:
+        self.skip_breakdown[reason] = self.skip_breakdown.get(reason, 0) + 1
+
+    def record_zero_reason(self, strategy: str, reason: str) -> None:
+        key = f"{strategy}:{reason}"
+        self.zero_reason_breakdown[key] = self.zero_reason_breakdown.get(key, 0) + 1
+
+    def record_rejection(self, step: int | None, reason: str) -> None:
+        key = f"step_{step}_{reason}" if step is not None else f"unknown_{reason}"
+        self.rejection_breakdown[key] = self.rejection_breakdown.get(key, 0) + 1
+        self.risk_rejected += 1
+
+    def record_approved(self) -> None:
+        self.risk_approved += 1
+        self.paper_orders_created += 1
+        self.positions_created += 1
 
 
 def _preset_allows(active_preset: str | None, strategy_name: str) -> bool:
@@ -341,6 +383,75 @@ async def _mark_failed(
 
 
 # ---------------------------------------------------------------------------
+# Scan run DB helpers (telemetry)
+# ---------------------------------------------------------------------------
+
+
+async def _insert_scan_run(
+    run_id: str,
+    *,
+    strategies_loaded: int,
+    live_trading: bool,
+    mode: str,
+) -> None:
+    """Insert a scan_runs row at tick start. Non-fatal on error."""
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO scan_runs (id, strategies_loaded, live_trading, mode)
+                VALUES ($1::uuid, $2, $3, $4)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                run_id, strategies_loaded, live_trading, mode,
+            )
+    except Exception as exc:
+        logger.warning("scan_run_insert_failed", run_id=run_id, error=str(exc))
+
+
+async def _finish_scan_run(run_id: str, tel: ScanTelemetry) -> None:
+    """UPDATE the scan_runs row at tick end with full telemetry. Non-fatal on error."""
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE scan_runs SET
+                    finished_at           = NOW(),
+                    users_evaluated       = $2,
+                    markets_seen          = $3,
+                    markets_eligible      = $4,
+                    candidates_emitted    = $5,
+                    risk_approved         = $6,
+                    risk_rejected         = $7,
+                    paper_orders_created  = $8,
+                    positions_created     = $9,
+                    snapshots_written     = $10,
+                    skip_breakdown        = $11::jsonb,
+                    zero_reason_breakdown = $12::jsonb,
+                    rejection_breakdown   = $13::jsonb
+                WHERE id = $1::uuid
+                """,
+                run_id,
+                tel.users_evaluated,
+                tel.markets_seen,
+                tel.markets_eligible,
+                tel.candidates_emitted,
+                tel.risk_approved,
+                tel.risk_rejected,
+                tel.paper_orders_created,
+                tel.positions_created,
+                tel.snapshots_written,
+                json.dumps(tel.skip_breakdown),
+                json.dumps(tel.zero_reason_breakdown),
+                json.dumps(tel.rejection_breakdown),
+            )
+    except Exception as exc:
+        logger.warning("scan_run_finish_failed", run_id=run_id, error=str(exc))
+
+
+# ---------------------------------------------------------------------------
 # Context builders
 # ---------------------------------------------------------------------------
 
@@ -450,6 +561,7 @@ def _build_trade_signal(
 async def _process_candidate(
     row: dict[str, Any],
     cand: SignalCandidate,
+    telemetry: ScanTelemetry | None = None,
 ) -> None:
     user_id = UUID(str(row["user_id"]))
     side = cand.side.lower()  # execution engines compare lowercase; normalize once here
@@ -484,10 +596,14 @@ async def _process_candidate(
         if stale is not None:
             if await kill_switch_is_active():
                 log.info("scan_outcome", outcome="skipped_kill_switch")
+                if telemetry is not None:
+                    telemetry.record_skip("skipped_kill_switch")
                 return  # leave row as 'queued' — retry when switch is off
             stale_market = await _load_market(stale["market_id"])
             if stale_market is None:
                 log.info("scan_outcome", outcome="skipped_market_not_synced")
+                if telemetry is not None:
+                    telemetry.record_skip("skipped_market_not_synced")
                 return
             _stale_side = str(stale["side"])
             if _stale_side == "no":
@@ -545,6 +661,8 @@ async def _process_candidate(
             already = False
         if already:
             log.info("scan_outcome", outcome="skipped_dedup")
+            if telemetry is not None:
+                telemetry.record_skip("skipped_dedup")
             return
 
     # 1b. Open-position market dedup — skip if user already holds an open
@@ -557,6 +675,8 @@ async def _process_candidate(
             log.info("scan_outcome", outcome="skipped_open_position_exists",
                      market_id=cand.market_id,
                      message="duplicate skipped — open position exists for market")
+            if telemetry is not None:
+                telemetry.record_skip("skipped_open_position_exists")
             return
     except Exception as exc:
         log.warning("open_position_market_check_failed", error=str(exc))
@@ -579,12 +699,16 @@ async def _process_candidate(
                 threshold=_MAX_SIGNAL_AGE_SECONDS,
                 message=f"Signal too old ({round(_signal_age)}s > {_MAX_SIGNAL_AGE_SECONDS}s threshold)",
             )
+            if telemetry is not None:
+                telemetry.record_skip("skipped_signal_stale")
             return
 
     # 2. Market lookup.
     market = await _load_market(cand.market_id)
     if market is None:
         log.info("scan_outcome", outcome="skipped_market_not_synced")
+        if telemetry is not None:
+            telemetry.record_skip("skipped_market_not_synced")
         return
 
     # 2b. Target price drift guard — compare signal's target_price against
@@ -620,6 +744,8 @@ async def _process_candidate(
                         f"> {round(_MAX_TARGET_DRIFT_PCT * 100)}% threshold"
                     ),
                 )
+                if telemetry is not None:
+                    telemetry.record_skip("skipped_price_drifted")
                 return
 
     # 2c. Liquidity filter — skip markets below the user's configured threshold.
@@ -634,6 +760,8 @@ async def _process_candidate(
                 threshold=min_liquidity,
                 message=f"Skipped: liquidity ${market_liquidity:.0f} below threshold ${min_liquidity:.0f}",
             )
+            if telemetry is not None:
+                telemetry.record_skip("skipped_liquidity")
             return
 
     # 3. Build TradeSignal — typed contract for TradeEngine (gate + paper fill).
@@ -673,6 +801,8 @@ async def _process_candidate(
             reason=result.rejection_reason,
             step=result.failed_gate_step,
         )
+        if telemetry is not None:
+            telemetry.record_rejection(result.failed_gate_step, result.rejection_reason or "unknown")
         return
 
     # 5. Record in execution_queue — post-execution audit + permanent dedup anchor.
@@ -700,12 +830,22 @@ async def _process_candidate(
                 await _mark_executed(user_id, pub_uuid, idem_key)
             except Exception as exc:
                 log.warning("exec_queue_mark_executed_failed", error=str(exc))
+        logger.info(
+            "paper_execution",
+            market_id=cand.market_id,
+            side=side,
+            size=str(final_size),
+            mode=result.chosen_mode,
+            strategy=cand.strategy_name,
+        )
         log.info(
             "scan_outcome",
             outcome="accepted",
             mode=result.chosen_mode,
             size=str(final_size),
         )
+        if telemetry is not None:
+            telemetry.record_approved()
     else:
         log.info("scan_outcome", outcome="duplicate", mode=result.chosen_mode)
 
@@ -756,20 +896,50 @@ async def run_once() -> None:
     Each user is processed independently — an exception for one user does
     not prevent other users from being scanned on the same tick.
     """
-    logger.info("signal_scan_job_started")
+    from ...config import get_settings as _get_settings
+    from ...domain.strategy.registry import StrategyRegistry as _Registry
+
+    try:
+        _live_trading: bool = bool(_get_settings().ENABLE_LIVE_TRADING)
+    except Exception:
+        _live_trading = False
+    _mode: str = "LIVE" if _live_trading else "PAPER"
+
+    # Count all strategies known to the process (lib + domain registry).
+    _lib_count = len(ENABLED_STRATEGIES) + len(DEFERRED_STRATEGIES)
+    _domain_count = len(_Registry.instance().list_available())
+    _strategies_loaded = _lib_count + _domain_count
+
+    tel = ScanTelemetry()
+    run_id: str = str(_uuid_mod.uuid4())
+
+    await _insert_scan_run(
+        run_id,
+        strategies_loaded=_strategies_loaded,
+        live_trading=_live_trading,
+        mode=_mode,
+    )
+
+    logger.info("signal_scan_job_started", scan_run_id=run_id, strategies_loaded=_strategies_loaded)
+
     try:
         users = await _load_enrolled_users()
     except Exception as exc:
         logger.error("signal_scan_load_users_failed", error=str(exc))
+        await _finish_scan_run(run_id, tel)
         return
 
     await _event_bus.emit("pipeline.strategy_scan_started", user_count=len(users))
 
     if not users:
+        await _finish_scan_run(run_id, tel)
         return
 
     markets = await _fetch_markets_for_lib_strategies()
     strategies_to_run = list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES)
+
+    tel.users_evaluated = len(users)
+    tel.markets_seen = len(markets)
 
     # Hoist the domain confluence_scalper instance once per tick — registry
     # state is process-wide and the lookup does not depend on per-user data.
@@ -819,10 +989,20 @@ async def run_once() -> None:
                 user_log.warning("lib_strategy_run_failed", strategy=lib_name, error=str(exc))
                 cands = []
 
+            user_log.info(
+                "strategy_run",
+                strategy=lib_name,
+                candidates_emitted=len(cands),
+                zero_reason="filter_or_no_match" if not cands else None,
+            )
+            if not cands:
+                tel.record_zero_reason(lib_name, "filter_or_no_match")
+
             lib_total_signals += len(cands)
+            tel.candidates_emitted += len(cands)
             for cand in cands:
                 try:
-                    await _process_candidate(row, cand)
+                    await _process_candidate(row, cand, tel)
                     candidates_processed += 1
                 except Exception as exc:
                     candidates_errored += 1
@@ -851,9 +1031,18 @@ async def run_once() -> None:
                 domain_cands = []
 
             confluence_signals += len(domain_cands)
+            user_log.info(
+                "strategy_run",
+                strategy=_CONFLUENCE_SCALPER_NAME,
+                candidates_emitted=len(domain_cands),
+                zero_reason="filter_or_no_match" if not domain_cands else None,
+            )
+            if not domain_cands:
+                tel.record_zero_reason(_CONFLUENCE_SCALPER_NAME, "filter_or_no_match")
+            tel.candidates_emitted += len(domain_cands)
             for cand in domain_cands:
                 try:
-                    await _process_candidate(row, cand)
+                    await _process_candidate(row, cand, tel)
                     candidates_processed += 1
                 except Exception as exc:
                     candidates_errored += 1
@@ -880,9 +1069,12 @@ async def run_once() -> None:
             user_log.warning("signal_feed_eval_failed", error=str(exc))
             feed_candidates = []
 
+        if not feed_candidates:
+            tel.record_zero_reason("signal_feed", "no_publications_eligible")
+        tel.candidates_emitted += len(feed_candidates)
         for cand in feed_candidates:
             try:
-                await _process_candidate(row, cand)
+                await _process_candidate(row, cand, tel)
                 candidates_processed += 1
             except Exception as exc:
                 candidates_errored += 1
@@ -893,11 +1085,27 @@ async def run_once() -> None:
                 )
 
     logger.info(
+        "scan_input",
+        scan_run_id=run_id,
+        users_evaluated=tel.users_evaluated,
+        markets_seen=tel.markets_seen,
+        strategies_loaded=_strategies_loaded,
+    )
+    logger.info(
         "lib_strategy_scan_done",
+        scan_run_id=run_id,
         strategies=len(strategies_to_run),
         total_signals=lib_total_signals,
         confluence_signals=confluence_signals,
+        candidates_emitted=tel.candidates_emitted,
+        risk_approved=tel.risk_approved,
+        risk_rejected=tel.risk_rejected,
+        paper_orders_created=tel.paper_orders_created,
+        skip_breakdown=tel.skip_breakdown,
+        zero_reason_breakdown=tel.zero_reason_breakdown,
+        rejection_breakdown=tel.rejection_breakdown,
     )
+    await _finish_scan_run(run_id, tel)
     await _event_bus.emit(
         "pipeline.strategy_scan_done",
         strategy_count=len(strategies_to_run) + 1,  # +1 for confluence_scalper

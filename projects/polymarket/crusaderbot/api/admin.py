@@ -217,6 +217,106 @@ async def force_redeem(authorization: str | None = Header(default=None)):
     return {"ok": True}
 
 
+@router.get("/scan/last")
+async def scan_last(authorization: str | None = Header(default=None)):
+    """Return the most recent scan_runs row as JSON.
+
+    Provides a complete observability snapshot of the last scan tick:
+    markets seen, strategies loaded, candidates emitted, risk gate decisions,
+    paper executions, and per-bucket skip/zero/rejection breakdowns.
+    """
+    token = authorization.removeprefix("Bearer ").strip() if authorization else None
+    _check(token)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, started_at, finished_at,
+                   users_evaluated, markets_seen, markets_eligible,
+                   strategies_loaded, candidates_emitted,
+                   risk_approved, risk_rejected,
+                   paper_orders_created, positions_created, snapshots_written,
+                   skip_breakdown, zero_reason_breakdown, rejection_breakdown,
+                   mode, live_trading
+            FROM scan_runs
+            ORDER BY started_at DESC
+            LIMIT 1
+            """
+        )
+    if row is None:
+        return {"scan_run": None, "note": "no scan runs recorded yet"}
+    r = dict(row)
+    return {
+        "scan_run_id": str(r["id"]),
+        "started_at": r["started_at"].isoformat() if r["started_at"] else None,
+        "finished_at": r["finished_at"].isoformat() if r["finished_at"] else None,
+        "users_evaluated": r["users_evaluated"],
+        "markets_seen": r["markets_seen"],
+        "markets_eligible": r["markets_eligible"],
+        "strategies_loaded": r["strategies_loaded"],
+        "candidates_emitted": r["candidates_emitted"],
+        "risk_approved": r["risk_approved"],
+        "risk_rejected": r["risk_rejected"],
+        "paper_orders_created": r["paper_orders_created"],
+        "positions_created": r["positions_created"],
+        "snapshots_written": r["snapshots_written"],
+        "skip_breakdown": r["skip_breakdown"] or {},
+        "zero_reason_breakdown": r["zero_reason_breakdown"] or {},
+        "rejection_breakdown": r["rejection_breakdown"] or {},
+        "mode": r["mode"],
+        "live_trading": r["live_trading"],
+    }
+
+
+@router.get("/scan/list")
+async def scan_list(
+    limit: int = 20,
+    authorization: str | None = Header(default=None),
+):
+    """Return the last N scan_runs rows as a list (timestamps + headline counts).
+
+    Useful for spotting trends across scan ticks: are candidates emitting?
+    Is the risk gate always rejecting? Are paper orders being created?
+    """
+    token = authorization.removeprefix("Bearer ").strip() if authorization else None
+    _check(token)
+    limit = max(1, min(limit, 100))
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, started_at, finished_at,
+                   users_evaluated, markets_seen, strategies_loaded,
+                   candidates_emitted, risk_approved, risk_rejected,
+                   paper_orders_created, mode, live_trading
+            FROM scan_runs
+            ORDER BY started_at DESC
+            LIMIT $1
+            """,
+            limit,
+        )
+    return {
+        "count": len(rows),
+        "scan_runs": [
+            {
+                "scan_run_id": str(r["id"]),
+                "started_at": r["started_at"].isoformat() if r["started_at"] else None,
+                "finished_at": r["finished_at"].isoformat() if r["finished_at"] else None,
+                "users_evaluated": r["users_evaluated"],
+                "markets_seen": r["markets_seen"],
+                "strategies_loaded": r["strategies_loaded"],
+                "candidates_emitted": r["candidates_emitted"],
+                "risk_approved": r["risk_approved"],
+                "risk_rejected": r["risk_rejected"],
+                "paper_orders_created": r["paper_orders_created"],
+                "mode": r["mode"],
+                "live_trading": r["live_trading"],
+            }
+            for r in rows
+        ],
+    }
+
+
 @router.post("/sentry-test")
 async def sentry_test(authorization: str | None = Header(default=None)):
     """Fire a synthetic Sentry event to verify production wiring.
