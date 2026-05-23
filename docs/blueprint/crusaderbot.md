@@ -2,7 +2,7 @@
 
 **Status:** v3.2 LOCKED — CrusaderBot auto-trade pivot target architecture
 **Version:** 3.2
-**Last Updated:** 2026-05-23 14:30 Asia/Jakarta
+**Last Updated:** 2026-05-23 15:30 Asia/Jakarta
 **Owner:** Bayue Walker (Mr. Walker)
 **Project Path (target):** `projects/polymarket/crusaderbot/`
 **Authority:** This blueprint is target architecture intent. Code truth defines current reality. AGENTS.md remains highest authority.
@@ -191,159 +191,144 @@ class BaseStrategy:
 
 ### Strategies (launch order)
 
-| # | Strategy | MVP Phase | Status | Description |
-|---|---|---|---|---|
-| 1 | **Copy Trade** | Phase 3 | ✅ Built | User picks 1-3 wallets to mirror; bot replicates entries (size-scaled to user's bankroll); follows leader exits |
-| 2 | **Signal Following** | Phase 3 | ✅ Built | Operator-curated signal feed; users subscribe; bot executes published signals |
-| 3 | **Confluence Scalper** | Phase 5 | ✅ Built | Multi-signal confluence on crypto markets (BTC/ETH/SOL/XRP/DOGE/BNB/HYPE); short-duration scalp entries. Crypto-only eligibility gate. Preset: `confluence_scalper` / "Crypto Scalper" |
-| 4 | **Momentum Reversal** | Phase 5 | ✅ Built | Price + volume momentum confirmation over N hours |
-| 5 | **Value/Mispricing** | Phase 7 | 🔲 Deferred | Proprietary probability model vs market price; EV > 0 + edge > 2% |
-| 6 | **Arbitrage** | Phase 9 | 🔲 Deferred | Cross-market triangulation; high-skill, capital-heavy |
-| 7 | **Hybrid / Full Auto** | Phase 8 | 🔲 Deferred | Weighted combination of all active strategies; Full Auto scan covers all eligible strategies |
+#### Domain strategies (registered in `domain/strategy/registry.py`)
 
-> **Implementation note (v3.2):** Strategies 1–4 are registered in `domain/strategy/registry.py` and `bot/presets.py`. Value/Mispricing and Arbitrage remain deferred per original phasing. Full Auto scan loop covers strategies 1–4 with per-market eligibility gates.
+| # | Strategy | Preset key | Status | Risk profiles | Description |
+|---|---|---|---|---|---|
+| 1 | **Copy Trade** | `whale_mirror`, `hybrid` | ✅ Built + registered | all | User picks wallets to mirror; bot replicates entries size-scaled to bankroll |
+| 2 | **Signal Following** | `signal_sniper`, `hybrid`, `trend_breakout`, `contrarian` | ✅ Built + registered | all | Operator-curated signal feed; bot executes published signals |
+| 3 | **Momentum Reversal** | `contrarian` | ✅ Built + registered | balanced, aggressive, custom | Price + volume momentum reversal detection |
+| 4 | **Confluence Scalper** | `confluence_scalper` ("Crypto Scalper") | ✅ Built + registered | balanced, aggressive, custom | Multi-signal confluence on crypto markets. **Crypto-only eligibility gate:** BTC/ETH/SOL/XRP/DOGE/BNB/HYPE |
 
-**Reasoning for launch order:** Copy-trade and signal-following monetize alpha discovery without requiring perfect proprietary model. Confluence Scalper and Momentum added for crypto-specialist users. Value/momentum model deferred until historical data validates.
+#### Lib strategies (loaded via `lib/strategies/` — `lib_strategy_runner.py`)
+
+| Strategy class | Enabled | Preset mapping | Notes |
+|---|---|---|---|
+| `TrendBreakoutStrategy` | ✅ | `trend_breakout` | Trend + breakout confirmation |
+| `MomentumStrategy` | ✅ | `contrarian` | Momentum signals |
+| `ValueInvestorStrategy` | ✅ | `value_hunter`, `full_auto` | EV model — Phase 7+ but class exists |
+| `ExpirationTimingStrategy` | ✅ | — | Expiry-based entry timing |
+| `PairArbStrategy` | ✅ | — | Pair arbitrage |
+| `EnsembleStrategy` | ✅ | — | Multi-strategy ensemble |
+| `WhaleTrackingStrategy` | ⏸ Deferred | — | Requires external prob.trade API |
+| `sentiment` / `logic_arb` / `market_making` / `weather_arb` | 🔲 | — | Present in lib, not in ENABLED_STRATEGIES |
+
+#### Presets (user-facing, `bot/presets.py`)
+
+| Preset key | Name | Strategy backing | Risk label |
+|---|---|---|---|
+| `whale_mirror` | 🐋 Whale Mirror | copy_trade | Safe 🟢 |
+| `signal_sniper` | 📡 Signal Sniper | signal_following | Safe 🟢 |
+| `hybrid` | 🐋📡 Hybrid | copy_trade + signal | Balanced 🟡 |
+| `value_hunter` | 🎯 Value Hunter | value (lib) | Advanced 🟡 |
+| `confluence_scalper` | 🚀 Crypto Scalper | confluence_scalper | Balanced 🟡 |
+| `trend_breakout` | 📈 Trend Breakout | signal_following (lib TrendBreakout) | Balanced 🟡 |
+| `contrarian` | 🔄 Contrarian | signal_following (lib Momentum) | Balanced 🟡 |
+| `full_auto` | 🚀 Full Auto | copy_trade + signal + value | Aggressive 🔴 |
+
+> **Note:** `confluence_scalper` runs in Full Auto scan with crypto-eligibility gate. `value_hunter` and `full_auto` map to `value` strategy which is Phase 7+ deferred at risk gate level (STRATEGY_AVAILABILITY in constants.py gates execution to `balanced`/`aggressive`/`custom` only).
+
+**Deferred (not built):**
+- Arbitrage — Phase 9
+- True Hybrid weighted allocator — Phase 8
+
+ Value/momentum model deferred until historical data validates.
 
 ---
 
 ## 5. Telegram Menu Structure
 
+> **Implementation note (v3.2):** The Telegram UI uses `ReplyKeyboardMarkup` (persistent bottom bar) for primary navigation and `InlineKeyboardMarkup` for contextual actions within screens. The old 10-item tree menu was replaced in WARP-65/66/67/68 with a 5-button state-aware bottom bar.
+
+### Persistent Bottom Bar (ReplyKeyboardMarkup — all screens)
+
 ```
-🏠 MAIN MENU
-│
-├── 📊 Dashboard
-│   ├── Total balance (USDC)
-│   ├── Today's / 7-day / 30-day P&L
-│   ├── Open exposure %
-│   ├── Active strategy summary
-│   └── [Open Positions →]
-│
-├── 💰 Wallet
-│   ├── Deposit (address + QR)
-│   ├── Withdraw funds
-│   ├── Transaction history
-│   └── Wallet info (address, breakdown)
-│
-├── 🤖 Auto-Trade Setup
-│   ├── Strategy: pick or combine
-│   │   ├── Copy Trade → [select wallets]
-│   │   ├── Signal Following → [subscribe to feeds]
-│   │   ├── Value/Mispricing (Phase 7+)
-│   │   ├── Momentum (Phase 8+)
-│   │   └── Hybrid → [weight allocator]
-│   ├── Risk Profile
-│   │   ├── Conservative
-│   │   ├── Balanced
-│   │   └── Aggressive
-│   ├── Market Filters
-│   │   ├── Categories: [Politics/Sports/Crypto/Tech/etc] (Level 1)
-│   │   ├── Sub-categories: [NFL only, NBA only, etc] (Level 2)
-│   │   ├── Min liquidity: $X
-│   │   ├── Max time-to-resolution: X days
-│   │   └── Blacklist markets
-│   ├── Capital Allocation: [slider 0-100%]
-│   └── 🎯 Trade Setting
-│       ├── Default TP %
-│       ├── Default SL %
-│       ├── Use strategy default: [ON/OFF]
-│       └── Per-strategy override (advanced)
-│
-├── 📈 Positions
-│   ├── Live positions with mark price
-│   ├── Unrealized P&L per position
-│   ├── Tap position → details + 🛑 Force Close
-│   └── [Stop following] for copy-trade positions
-│
-├── 📋 Activity
-│   ├── Trade history (filterable)
-│   ├── Performance breakdown by strategy
-│   └── Export CSV
-│
-├── 📅 P&L Calendar (web link)
-│   └── Daily P&L heatmap
-│
-├── 🔔 Alerts & Notifications
-│   ├── Trade opened/closed
-│   ├── P&L threshold alerts
-│   ├── Risk breach warnings
-│   ├── Daily summary opt-in
-│   └── Quiet hours
-│
-├── 👥 Copy-Trade Discovery
-│   ├── Smart money rankings
-│   ├── Follow wallet by address
-│   └── Top followed wallets
-│
-├── 🎁 Referrals
-│   ├── Your referral link/code
-│   ├── Referred users count
-│   ├── Earnings to date
-│   └── Tier benefits
-│
-├── ⚙️ Settings
-│   ├── Auto-Redeem Mode: [Instant / Hourly]
-│   ├── Notifications preferences
-│   ├── 2FA setup
-│   ├── Language
-│   ├── Privacy
-│   └── Advanced (timeouts, retry policy)
-│
-├── 🛑 EMERGENCY
-│   ├── Pause Auto-Trade (keep positions)
-│   ├── Pause + Close All Positions
-│   └── Lock Account (require email verify to unlock)
-│
-└── ℹ️ Help & Support
-    ├── Docs (web)
-    ├── FAQ
-    ├── Contact support
-    └── About / Terms
+[ 📊 Dashboard    ]  [ 💼 Portfolio / 💼 Trades (N) ]
+[ 🤖 Setup Auto   ]  [ ⚙️ Settings                  ]  ← label changes by state
+[ 🤖 Auto Mode    ]     (if auto_trade_on)
+[ ▶️ Resume       ]     (if paused)
+[       ❓ Help        ]
+```
+
+State-aware labels (`keyboards/__init__.py → main_menu_keyboard()`):
+- `auto_label`: `"▶️ Resume"` if paused · `"🤖 Auto Mode"` if active · `"🤖 Setup Auto"` otherwise
+- `portfolio_label`: `"💼 Trades (N)"` if open positions > 0 · `"💼 Portfolio"` otherwise
+
+### Screen map
+
+```
+📊 Dashboard
+  ├── Balance, PnL today, open count, auto status, last scan
+  └── [Open Positions →] (inline button)
+
+💼 Portfolio / Trades
+  ├── Positions list (paginated 3/page, Prev/Next)
+  └── Per-position: entry price, size, unrealized PnL, Force Close
+
+🤖 Auto Trade (Setup Auto / Auto Mode / Resume)
+  ├── Screen 03 — Preset Picker (8 presets shown)
+  ├── Screen 04 — Preset Confirm
+  ├── Screen 04b — Active Preset Status (if already running)
+  ├── Risk Profile submenu (Conservative / Balanced / Aggressive / Custom)
+  └── Toggle ON/OFF
+
+⚙️ Settings
+  ├── Auto-Redeem Mode (Instant / Hourly)
+  ├── Notifications
+  ├── Risk Profile
+  └── Capital / TP / SL overrides
+
+❓ Help
+  └── Feature explanations, FAQ, contact
 ```
 
 **UX principles:**
-- Maximum 2-3 taps to any action
-- Big visual toggle for auto-trade ON/OFF
-- Risk profile presets visible before manual config
-- Emergency menu always accessible
-- Inline confirmations on irreversible actions
-
----
+- Max 2-3 taps to any action
+- Emergency pause always reachable via Auto Mode screen toggle
+- Persistent keyboard never disappears (is_persistent=True)
+- Inline confirmations on irreversible actions (force close, toggle off)
 
 ## 6. Risk System
 
 ### Hard-wired constants
 
 ```python
-# server/domain/risk/constants.py — code-level, NOT YAML
+# domain/risk/constants.py — code-level, NOT YAML, NOT overridable
 KELLY_FRACTION = 0.25
 MAX_POSITION_PCT = 0.10
 MAX_CORRELATED_EXPOSURE = 0.40
 MAX_CONCURRENT_TRADES = 5
-DAILY_LOSS_HARD_STOP = -2000.00
+DAILY_LOSS_HARD_STOP = -2_000.0
 MAX_DRAWDOWN_HALT = 0.08
-MIN_LIQUIDITY = 10_000.00
+MIN_LIQUIDITY = 10_000.0
 MIN_EDGE_BPS = 200
-MIN_NET_EDGE_VS_COSTS_BPS = 200
+SIGNAL_STALE_SECONDS = 14400       # 4h
+DEDUP_WINDOW_SECONDS = 300
+MAX_MARKET_IMPACT_PCT = 0.05       # max 5% of visible depth per order
+MAX_SLIPPAGE_PCT = 0.03            # live path only
+SLIPPAGE_GUARD_PCT = 0.05          # hard pre-submission fence, live path only
 ```
+
+> **Note:** `MIN_NET_EDGE_VS_COSTS_BPS` is not a separate constant — cost check is gate step 13 (`cost_check`). `SIGNAL_STALE_SECONDS` (4h) replaces blueprint mention of stale signal protection.
 
 These constants are PR-protected. Cannot be overridden by config or runtime flag.
 
 ### Risk profile presets
 
 ```
-PROFILE         | CONSERVATIVE   | BALANCED       | AGGRESSIVE
-----------------|----------------|----------------|------------------
-Kelly fraction  | 0.10           | 0.20           | 0.25 (cap)
-Max position %  | 3%             | 6%             | 10%
-Max concurrent  | 3              | 5              | 5
-Daily loss stop | -$200 or -5%   | -$500 or -8%   | -$1000 or -12%
-Min edge req    | 4%             | 3%             | 2%
-Min liquidity   | $20k           | $15k           | $10k
-Max time-to-res | 7 days         | 30 days        | 90 days
-Strategies      | Copy+Signal    | Copy+Signal    | All allowed
-Auto-rebalance  | Daily          | 6-hourly       | Hourly
+PROFILE         | CONSERVATIVE   | BALANCED       | AGGRESSIVE     | CUSTOM
+----------------|----------------|----------------|----------------|------------------
+Kelly fraction  | 0.10           | 0.20           | 0.25 (cap)     | 0.20 (floor)
+Max position %  | 3%             | 6%             | 10%            | 6% (floor)
+Max concurrent  | 3              | 5              | 5              | 5
+Daily loss stop | -$200          | -$500          | -$1000         | -$500 (floor)
+Min edge req    | 4% (400bps)    | 3% (300bps)    | 2% (200bps)    | 3% (floor)
+Min liquidity   | $20k           | $15k           | $10k           | $15k (floor)
+Max time-to-res | 7 days         | 30 days        | 90 days        | 30 days (floor)
+Strategies      | Copy+Signal    | Copy+Signal    | All allowed    | user-configured
 ```
+
+> **Implementation note:** `custom` profile floor values = `balanced`. User sets `capital_pct`, `tp_pct`, `sl_pct` in `user_settings`. Risk gate falls back to balanced floor until custom values are confirmed. Auto-rebalance timing is not implemented as a separate scheduler — exit watcher runs per scheduler tick.
 
 **Strategy compatibility fix:** All profiles support Copy Trade + Signal Following at launch (Phase 3).
 Value/Mispricing and Momentum only unlock at Phase 7+ when the model is validated.
@@ -934,4 +919,4 @@ Explicitly excluded from this blueprint:
 |---|---|---|
 | v3.0 | 2026-05-01 | Initial multi-user auto-trade blueprint |
 | v3.1 | 2026-05-03 | LOCKED — CrusaderBot pivot target; risk constants, activation guards, fee/referral model |
-| v3.2 | 2026-05-23 | Tier section corrected (RBAC reality); Confluence Scalper + Momentum Reversal added to strategy table; deliberate divergences documented; strategy status column added |
+| v3.2 | 2026-05-23 | Full code sync: tier section (RBAC), strategy table rebuilt (domain + lib + presets), main menu updated to ReplyKeyboard bottom bar, risk constants synced to code, custom profile added, deliberate divergences documented |
