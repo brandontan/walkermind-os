@@ -3,9 +3,24 @@
 Last Updated : 2026-05-23 05:53 Asia/Jakarta
 Branch       : WARP/crusaderbot-system-audit
 HEAD         : 9caaabc (== origin/main, 0 ahead / 0 behind — audited state IS the deployable state)
-Verdict      : BLOCKED
-Score        : 62/100
-Critical     : 1
+Verdict      : BLOCKED at baseline (9caaabc) → F-CRIT-1 FIX INCLUDED in this PR (re-verified PASS)
+Score        : 62/100 (baseline) → boot-blocker resolved
+Critical     : 1 (resolved in this PR)
+
+---
+
+## Resolution (same-PR fix, per WARP🔹CMD direction)
+
+F-CRIT-1 is fixed within this PR (commit `warp-forge: fix-bot-ui-tree-constants`):
+`bot/ui/__init__.py` no longer re-exports `BAR`/`BRANCH`/`LAST` (box-drawing constants the
+WARP-67/73 redesign removed from `tree.py`; nothing consumed them). Status/mode constants
+(`STATUS_*`, `PAPER`, `LIVE`, `LOCKED`) already exist in `tree.py:26-33` and are untouched.
+Re-verified after fix: `python -c "import ...bot.dispatcher; import ...bot.messages_mvp"`
+clean; full suite **1613 passed / 1 skipped / 0 collection errors**; ruff clean;
+`test_warp59` + `test_activation_handlers` pass. The app can boot from this PR head.
+Forge report: `projects/polymarket/crusaderbot/reports/forge/fix-bot-ui-tree-constants.md`.
+Post-merge: Fly.io redeploy (prod heartbeat stopped 2026-05-22 22:12 UTC — confirm).
+F-HIGH-2 (zero live trade data) remains open — separate scan→trade smoke lane.
 
 ---
 
