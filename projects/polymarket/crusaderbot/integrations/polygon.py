@@ -173,6 +173,11 @@ async def scan_usdc_transfers(
                 "from": decoded["args"]["from"],
                 "to": decoded["args"]["to"],
                 "amount": decoded["args"]["value"] / (10 ** settings.USDC_DECIMALS),
+                # `removed` is True when this log came from a block that was
+                # orphaned by a reorg. eth_getLogs over a finalized range
+                # returns False; reorg-aware subscriptions set it True so the
+                # deposit watcher can un-credit a reverted transfer.
+                "removed": bool(log.get("removed", False)),
             })
         except Exception as exc:
             logger.error("decode log failed (skipping entry): %s", exc)

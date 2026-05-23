@@ -170,6 +170,10 @@ class Settings(BaseSettings):
     MIN_DEPOSIT_USDC: float = 50.0
     MARKET_SCAN_INTERVAL: int = 300
     DEPOSIT_WATCH_INTERVAL: int = 120
+    # Confirmation depth before a deposit credits the ledger. Polygon reorgs are
+    # rare but real; a USDC transfer seen at block N is only credited once it is
+    # this many blocks deep on the canonical chain. See migration 047.
+    DEPOSIT_CONFIRMATION_DEPTH: int = 32
     SIGNAL_SCAN_INTERVAL: int = 180
     MARKET_SIGNAL_SCAN_INTERVAL: int = 60
     # --- Signal scanner thresholds (demo path edge_finder) ---

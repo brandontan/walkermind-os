@@ -119,13 +119,21 @@ async def sync_markets() -> None:
 # ---------------- Deposit watcher ----------------
 
 async def watch_deposits() -> None:
-    """Atomic deposit insert + ledger credit. Cursor only advances on success.
+    """Confirmation-depth deposit watcher with reorg guard (H6).
 
-    A failed credit ROLLS BACK the deposit insert so the same tx_hash will be
-    re-processed on the next scan. The block-cursor itself is only advanced
-    after the chain scan succeeds AND every transfer in that range has been
-    persisted (or non-credited because the address belongs to no user).
+    A USDC transfer is recorded as ``pending`` on first sighting — no ledger
+    credit yet. It only credits the ledger once it is
+    ``DEPOSIT_CONFIRMATION_DEPTH`` blocks deep on the canonical chain
+    (``confirmed``). A log that re-arrives with ``removed=true`` (orphaned by a
+    reorg) un-credits a confirmed deposit and marks it ``reverted``.
+
+    The block cursor only advances after every transfer in the scanned range is
+    durably recorded; a failed write re-processes on the next tick. Confirmation
+    runs as a separate pass over all pending rows, so a deposit seen near head
+    is still confirmed on a later tick even after the forward cursor moves past
+    its block.
     """
+    settings = get_settings()
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -136,6 +144,12 @@ async def watch_deposits() -> None:
     addr_by_lower = {r["deposit_address"].lower(): r["user_id"] for r in rows}
     addresses = [r["deposit_address"] for r in rows]
 
+    try:
+        head = await polygon.latest_block()
+    except Exception as exc:
+        logger.warning("watch_deposits head read failed (no cursor advance): %s", exc)
+        return
+
     cursor_start = await _read_cursor("usdc_deposits")
     try:
         transfers, scanned_to = await polygon.scan_from_cursor(
@@ -145,58 +159,32 @@ async def watch_deposits() -> None:
         logger.warning("watch_deposits scan failed (no cursor advance): %s", exc)
         return
 
-    notify_after: list[tuple[int, Decimal, str]] = []
     all_ok = True
     for t in transfers:
-        to_addr = t["to"].lower()
-        user_id = addr_by_lower.get(to_addr)
+        user_id = addr_by_lower.get(t["to"].lower())
         if not user_id:
             continue  # address not ours — safe to skip and advance cursor
-        amount = Decimal(str(t["amount"]))
-        # log_index disambiguates multiple USDC Transfer logs in the same tx
-        # routed to distinct tracked addresses. Without it, ON CONFLICT would
-        # silently drop every Transfer past the first and under-credit users.
-        log_index = int(t.get("log_index", 0))
         try:
-            async with pool.acquire() as conn:
-                async with conn.transaction():
-                    row = await conn.fetchrow(
-                        """
-                        INSERT INTO deposits (user_id, tx_hash, log_index,
-                                              amount_usdc, block_number,
-                                              confirmed_at)
-                        VALUES ($1,$2,$3,$4,$5,NOW())
-                        ON CONFLICT (tx_hash, log_index) DO NOTHING
-                        RETURNING id
-                        """,
-                        user_id, t["tx_hash"], log_index, amount,
-                        t["block_number"],
-                    )
-                    if row is None:
-                        continue  # already credited
-                    await ledger.credit_in_conn(
-                        conn, user_id, amount, ledger.T_DEPOSIT,
-                        ref_id=row["id"], note=t["tx_hash"],
-                    )
-                    u = await conn.fetchrow(
-                        "SELECT telegram_user_id FROM users WHERE id=$1",
-                        user_id,
-                    )
-            await audit.write(actor_role="bot", action="deposit_confirmed",
-                              user_id=user_id,
-                              payload={"tx_hash": t["tx_hash"],
-                                       "amount": str(amount)})
-            if u:
-                notify_after.append(
-                    (u["telegram_user_id"], amount, t["tx_hash"])
-                )
+            if t.get("removed"):
+                await _revert_deposit(t)
+            else:
+                await _record_pending_deposit(user_id, t)
         except Exception as exc:
-            logger.error("deposit credit failed for %s: %s — cursor will not advance",
-                         t["tx_hash"], exc)
+            logger.error("deposit record failed for %s: %s — cursor will not advance",
+                         t.get("tx_hash"), exc)
             all_ok = False
 
     if all_ok:
         await _write_cursor("usdc_deposits", scanned_to)
+
+    # Confirm pass: promote pending deposits that are now deep enough.
+    try:
+        notify_after = await _confirm_ready_deposits(
+            head, settings.DEPOSIT_CONFIRMATION_DEPTH,
+        )
+    except Exception as exc:
+        logger.error("deposit confirm pass failed: %s", exc)
+        notify_after = []
 
     deposit_kb = InlineKeyboardMarkup([[
         InlineKeyboardButton("💰 Wallet", callback_data="menu:wallet"),
@@ -209,6 +197,134 @@ async def watch_deposits() -> None:
             f"<code>{html.escape(tx)}</code>",
             reply_markup=deposit_kb,
         )
+
+
+async def _record_pending_deposit(user_id, t: dict) -> None:
+    """Insert a newly-seen transfer as ``pending`` — no ledger credit yet.
+
+    Idempotent on ``(tx_hash, log_index)``: a duplicate sighting is a no-op; a
+    transfer previously ``reverted`` is reset to ``pending`` so it can confirm
+    again if the tx is re-mined on the canonical chain.
+    """
+    log_index = int(t.get("log_index", 0))
+    amount = Decimal(str(t["amount"]))
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                INSERT INTO deposits (user_id, tx_hash, log_index, amount_usdc,
+                                      block_number, status)
+                VALUES ($1,$2,$3,$4,$5,'pending')
+                ON CONFLICT (tx_hash, log_index) DO UPDATE
+                    SET status='pending', confirmed_at_block=NULL
+                    WHERE deposits.status='reverted'
+                RETURNING id
+                """,
+                user_id, t["tx_hash"], log_index, amount, t["block_number"],
+            )
+    if row is not None:
+        await audit.write(
+            actor_role="bot", action="deposit_credit_pending", user_id=user_id,
+            payload={"tx_hash": t["tx_hash"], "log_index": log_index,
+                     "amount": str(amount), "block": t["block_number"]},
+        )
+
+
+async def _revert_deposit(t: dict) -> None:
+    """Honor a ``removed=true`` log: debit a confirmed deposit back out, else
+    just mark a pending one ``reverted``. Idempotent — an already-reverted or
+    never-seen transfer is a no-op.
+    """
+    log_index = int(t.get("log_index", 0))
+    pool = get_pool()
+    reverted: tuple | None = None
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            dep = await conn.fetchrow(
+                """
+                SELECT id, user_id, amount_usdc, status
+                  FROM deposits
+                 WHERE tx_hash=$1 AND log_index=$2
+                 FOR UPDATE
+                """,
+                t["tx_hash"], log_index,
+            )
+            if dep is None or dep["status"] == "reverted":
+                return
+            await conn.execute(
+                "UPDATE deposits SET status='reverted' WHERE id=$1", dep["id"],
+            )
+            amount = Decimal(str(dep["amount_usdc"]))
+            if dep["status"] == "confirmed":
+                # roll the credited funds back out of the user's balance
+                await ledger.debit_in_conn(
+                    conn, dep["user_id"], amount, ledger.T_DEPOSIT,
+                    ref_id=dep["id"], note=f"reorg-revert {t['tx_hash']}",
+                )
+            reverted = (dep["user_id"], dep["status"], amount)
+    user_id, prior, amount = reverted
+    await audit.write(
+        actor_role="bot", action="deposit_credit_reverted", user_id=user_id,
+        payload={"tx_hash": t["tx_hash"], "log_index": log_index,
+                 "amount": str(amount), "prior_status": prior,
+                 "uncredited": prior == "confirmed"},
+    )
+
+
+async def _confirm_ready_deposits(
+    head: int, depth: int,
+) -> list[tuple[int, Decimal, str]]:
+    """Promote pending deposits that are now >= ``depth`` blocks deep to
+    ``confirmed`` and credit the ledger once. The confirming UPDATE is guarded
+    by ``status='pending'`` so a credit can never fire twice for the same row.
+
+    Returns ``(telegram_user_id, amount, tx_hash)`` tuples to notify.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        ready = await conn.fetch(
+            """
+            SELECT id, user_id, tx_hash, amount_usdc, block_number
+              FROM deposits
+             WHERE status='pending'
+               AND block_number IS NOT NULL
+               AND ($1 - block_number) >= $2
+            """,
+            head, depth,
+        )
+    notify: list[tuple[int, Decimal, str]] = []
+    for d in ready:
+        amount = Decimal(str(d["amount_usdc"]))
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    """
+                    UPDATE deposits
+                       SET status='confirmed', confirmed_at_block=$2,
+                           confirmed_at=NOW()
+                     WHERE id=$1 AND status='pending'
+                    RETURNING id
+                    """,
+                    d["id"], head,
+                )
+                if row is None:
+                    continue  # confirmed by a concurrent tick — credit once only
+                await ledger.credit_in_conn(
+                    conn, d["user_id"], amount, ledger.T_DEPOSIT,
+                    ref_id=d["id"], note=d["tx_hash"],
+                )
+                u = await conn.fetchrow(
+                    "SELECT telegram_user_id FROM users WHERE id=$1", d["user_id"],
+                )
+        await audit.write(
+            actor_role="bot", action="deposit_credit_confirmed", user_id=d["user_id"],
+            payload={"tx_hash": d["tx_hash"], "amount": str(amount),
+                     "block": d["block_number"], "confirmed_at_block": head},
+        )
+        if u:
+            notify.append((u["telegram_user_id"], amount, d["tx_hash"]))
+    return notify
 
 
 async def _read_cursor(name: str) -> int:
