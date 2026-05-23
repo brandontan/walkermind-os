@@ -1,8 +1,4 @@
 <!-- gate-notify-verify-v3 -->
-## [WARP-68] Structured card format + positions pagination — MERGED b7355541d496
-**Date:** 2026-05-23
-**PR:** #1287 | **Branch:** WARP/warp68-structured-card-ui | **Tier:** STANDARD
-
 ## [SENTINEL-AUDIT] F-CRIT-1 fix — bot/ui/__init__.py realigned — MERGED fa1bd2537650
 **Date:** 2026-05-23 | **PR:** #1294 | **Tier:** STANDARD
 
@@ -11,7 +7,6 @@ bot/ui/__init__.py: BAR/BRANCH/LAST removed (no longer exported by tree.py since
 App boots clean from main. 1613 tests pass, 0 collection errors.
 F-HIGH-2 (zero live trade data) deferred — separate lane.
 Fly.io redeploy required.
-
 
 ## [WARP-73] Phantom dot + clean HTML format hotfix
 **Date:** 2026-05-23 | **Tier:** MINOR (hotfix, direct to main)
@@ -68,6 +63,10 @@ Positions: 3-per-page pagination, card per position, bold title, Prev/Next nav.
 2026-05-21 18:25 | WARP/warp59-copy-wallet-e2e-bridge | WARP-59 (issue #1265): MVP copy-wallet write path realigned from `copy_targets` to canonical `copy_trade_tasks` so wallets added via Telegram MVP UX flow end-to-end through `services/copy_trade/monitor.py:80` → `domain/copy_trade/repository.list_active_tasks`. bot/handlers/mvp/copy_wallet.py SELECT/INSERT/UPDATE swapped, manual upsert on (user_id, wallet_address), `copy_mode='fixed' + copy_amount=allocation_usdc` mapping for MVP $25/$50/$100/$250/Custom buckets, `do_pause` uses canonical `status='paused'`. 6 new hermetic tests (`tests/test_warp59_copy_wallet_bridge.py`). Closes WARP-57 SENTINEL MEDIUM-4. py_compile clean. No schema change. STANDARD, FUNCTIONAL.
 2026-05-21 14:23 | WARP/warp56-sentry-p0-fix | WARP-56 (issue #1257): 3 Sentry P0/P1 fixes — services/signal_scan/signal_scan_job.py `_coerce_jsonb` narrowed so JSON scalar/wrong-shape values return fallback instead of leaking to `strategy.initialize()` (was ValueError: dictionary update sequence element); domain/risk/gate.py `_log` catches asyncpg.ForeignKeyViolationError at DEBUG so /admin/dry-run with synthetic user_id stops paging Sentry on every tick; migrations/001_init.sql drops `access_tier SMALLINT` from users CREATE TABLE (fresh-install DDL only — live DB already dropped via mig 044); historical access_tier comments rewritten in migs 024/031/045. 15 new + 77 existing hermetic tests pass. No schema change. STANDARD, NARROW INTEGRATION.
 
+## [WARP-68] Structured card format + positions pagination — MERGED b7355541d496
+**Date:** 2026-05-23
+**PR:** #1287 | **Branch:** WARP/warp68-structured-card-ui | **Tier:** STANDARD
+
 ## [WARP-67] Telegram UX final clean — MERGED 2989b7c6e788
 **Date:** 2026-05-22
 **PR:** #1285 | **Branch:** WARP/warp67-ux-final-clean | **Tier:** STANDARD
@@ -94,6 +93,14 @@ Prior BLOCKED (60/100) verdict lifted. Score 96/100, zero critical findings.
 H1–H8 all PASS. H2 (threading) CLEARED. F-002 (copy_targets drift) CLEARED.
 1613 passed, 0 failed. Residual P2 deferred (duplicate CopyTradeStrategy + copy_targets orphan).
 
+## [SENTINEL] CrusaderBot Core Audit 2026-05-21 — BLOCKED ac1c207f2238
+**Date:** 2026-05-22
+**PR:** #1272 | **Branch:** WARP/sentinel-core-audit-2026-05-21 | **Score:** 60/100
+
+Verdict: BLOCKED — H2 threading.Lock violation in registry.py (F-001 P0).
+7/8 subsystems PASS. Risk gate, execution router, kill switch, WebTrader, Telegram, confluence scalper, DB migrations all clean.
+Fix cycle open: WARP-62 (P0 threading) + WARP-63 (P1 copy_targets drift).
+
 ## [WARP-65] Telegram UX: persistent ReplyKeyboard — MERGED 184753c4b376
 **Date:** 2026-05-22
 **PR:** #1280 | **Branch:** WARP/warp65-telegram-ux-fix | **Tier:** STANDARD
@@ -119,14 +126,6 @@ Result: 1613 passed, 0 failed. Closes #1277.
 WARP-62: `domain/strategy/registry.py` — `import threading` removed. Eager module-level `_DEFAULT_REGISTRY = StrategyRegistry()`. H2 HARD RULE cleared.
 WARP-63: `domain/signal/copy_trade.py` — `CopyTradeStrategy.scan()` reads `copy_trade_tasks` (canonical). `copy_targets` removed. F-002 architectural drift cleared.
 9 hermetic tests. Closes #1273 + #1274.
-
-## [SENTINEL] CrusaderBot Core Audit 2026-05-21 — BLOCKED ac1c207f2238
-**Date:** 2026-05-22
-**PR:** #1272 | **Branch:** WARP/sentinel-core-audit-2026-05-21 | **Score:** 60/100
-
-Verdict: BLOCKED — H2 threading.Lock violation in registry.py (F-001 P0).
-7/8 subsystems PASS. Risk gate, execution router, kill switch, WebTrader, Telegram, confluence scalper, DB migrations all clean.
-Fix cycle open: WARP-62 (P0 threading) + WARP-63 (P1 copy_targets drift).
 
 ## [WARP-61] WebTrader + Full Auto confluence_scalper exposure — MERGED 7cbd8b814533
 **Date:** 2026-05-21
@@ -242,7 +241,6 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 - Merge SHA: 54e32a006f4b — STANDARD tier, no SENTINEL required
 - Gate: MERGE ✅
 
-
 ## [2026-05-23] SYSTEM AUDIT — WARP/crusaderbot-system-audit (BLOCKED 62/100)
 
 - WARP•SENTINEL CORE AUDIT pre-client-handoff vs main HEAD 9caaabc + blueprint v3.1
@@ -253,11 +251,3 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 - Report: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-system-audit.md
 - Gate: BLOCKED — fix F-CRIT-1 + redeploy + re-validate before handoff
 
-
-## [2026-05-23] F-CRIT-1 BOOT FIX — WARP/crusaderbot-system-audit (consolidated into PR #1294)
-
-- Per WARP🔹CMD: fix bundled into audit PR (PR #1295 closed as duplicate)
-- bot/ui/__init__.py: removed dead re-export of BAR/BRANCH/LAST (box-drawing chars dropped from bot/ui/tree.py by WARP-67/73; no consumers); STATUS_*/PAPER/LIVE/LOCKED untouched (tree.py:26-33)
-- Re-verified: bot.dispatcher + messages_mvp import clean; 1613 pytest pass / 1 skip / 0 collection errors; ruff clean; frontend build clean; app boots from PR head
-- Report: projects/polymarket/crusaderbot/reports/forge/fix-bot-ui-tree-constants.md
-- Gate: ready for WARP🔹CMD merge → Fly redeploy + confirm (prod heartbeat stopped 2026-05-22 22:12 UTC)
