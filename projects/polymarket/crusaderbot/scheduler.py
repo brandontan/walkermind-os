@@ -5,6 +5,7 @@ import html
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import TypedDict
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -358,7 +359,28 @@ def _resolve_mode() -> str:
     return resolve_trading_mode(get_settings())
 
 
-async def run_signal_scan() -> dict:
+class SignalScanMetrics(TypedDict):
+    """Per-tick signal-scan metrics persisted to ``job_runs.metadata``.
+
+    Cross-layer contract: produced by ``run_signal_scan`` → captured by
+    ``_job_tracker_listener`` → read back by the operator panel
+    (``bot/handlers/operator_panel`` /panel → Stats) via ``job_tracker.fetch_latest``.
+    ``router_executed`` is an execution proxy (successful ``router_execute`` calls),
+    NOT a confirmed orders/positions DB-row count.
+    """
+    mode: str
+    live_trading: bool
+    strategies_loaded: list[str]
+    users_scanned: int
+    markets_seen: int
+    candidates_emitted: int
+    risk_approved: int
+    risk_rejected: int
+    router_executed: int
+    errors: int
+
+
+async def run_signal_scan() -> SignalScanMetrics:
     """Auto-trade scan tick.
 
     Returns a metrics dict captured by ``_job_tracker_listener`` into

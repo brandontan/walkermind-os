@@ -57,9 +57,9 @@ source of truth enforced at the risk gate; `/panel` is a view/controller over it
 ## 3. Files created / modified (full repo-root paths)
 
 Modified:
-- `projects/polymarket/crusaderbot/scheduler.py` — added `_resolve_mode()`; `run_signal_scan()` now returns a metrics dict (mode, live_trading, strategies_loaded, users_scanned, markets_seen, candidates_emitted, risk_approved, risk_rejected, `router_executed`, errors); `_process_candidate()` now returns outcome strings (`skipped`/`rejected`/`executed`/`error`). `snapshot_portfolios()` already returned `{"snapshots_written": N}` — unchanged.
+- `projects/polymarket/crusaderbot/scheduler.py` — added `_resolve_mode()`; `run_signal_scan()` now returns a typed `SignalScanMetrics` (TypedDict: mode, live_trading, strategies_loaded, users_scanned, markets_seen, candidates_emitted, risk_approved, risk_rejected, `router_executed`, errors); `_process_candidate()` now returns outcome strings (`skipped`/`rejected`/`executed`/`error`). `snapshot_portfolios()` already returned `{"snapshots_written": N}` — unchanged.
 - `projects/polymarket/crusaderbot/domain/ops/job_tracker.py` — added `fetch_latest(job_id)` returning the most recent `job_runs` row incl. `metadata`.
-- `projects/polymarket/crusaderbot/bot/keyboards/admin.py` — added `operator_panel_keyboard(kill_active)`.
+- `projects/polymarket/crusaderbot/bot/keyboards/admin.py` — added `operator_panel_keyboard()` (static; run-state shown in the panel body, not the keyboard).
 - `projects/polymarket/crusaderbot/bot/dispatcher.py` — import `operator_panel`; register `/panel` command + `panel:` CallbackQueryHandler.
 
 Created:
