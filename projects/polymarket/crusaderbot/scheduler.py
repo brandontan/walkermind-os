@@ -5,6 +5,7 @@ import html
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import TypedDict
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -15,7 +16,7 @@ from apscheduler.events import (
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from . import audit, notifications
-from .config import get_settings
+from .config import get_settings, resolve_trading_mode
 from .database import get_pool
 from .domain.execution import exit_watcher
 from .domain.execution import lifecycle as order_lifecycle
@@ -353,7 +354,50 @@ async def _write_cursor(name: str, block_number: int) -> None:
 _strategies = {"copy_trade": CopyTradeStrategy()}
 
 
-async def run_signal_scan() -> None:
+def _resolve_mode() -> str:
+    """Paper/live label — delegates to the canonical ``config.resolve_trading_mode``."""
+    return resolve_trading_mode(get_settings())
+
+
+class SignalScanMetrics(TypedDict):
+    """Per-tick signal-scan metrics persisted to ``job_runs.metadata``.
+
+    Cross-layer contract: produced by ``run_signal_scan`` → captured by
+    ``_job_tracker_listener`` → read back by the operator panel
+    (``bot/handlers/operator_panel`` /panel → Stats) via ``job_tracker.fetch_latest``.
+    ``router_executed`` is an execution proxy (successful ``router_execute`` calls),
+    NOT a confirmed orders/positions DB-row count.
+    """
+    mode: str
+    live_trading: bool
+    strategies_loaded: list[str]
+    users_scanned: int
+    markets_seen: int
+    candidates_emitted: int
+    risk_approved: int
+    risk_rejected: int
+    router_executed: int
+    errors: int
+
+
+async def run_signal_scan() -> SignalScanMetrics:
+    """Auto-trade scan tick.
+
+    Returns a metrics dict captured by ``_job_tracker_listener`` into
+    ``job_runs.metadata`` — durable runtime proof of the
+    scan -> candidate -> risk gate -> router_execute pipeline that the operator
+    panel (/panel -> Stats) reads back. ``router_executed`` is an execution proxy
+    (successful router_execute calls), not a count of confirmed orders/positions
+    DB rows. Behaviour is unchanged; the counters are purely observational.
+    """
+    mode = _resolve_mode()
+    markets_seen: set[str] = set()
+    candidates_emitted = 0
+    risk_approved = 0
+    risk_rejected = 0
+    router_executed = 0
+    errors = 0
+
     pool = get_pool()
     async with pool.acquire() as conn:
         users = await conn.fetch(
@@ -380,13 +424,48 @@ async def run_signal_scan() -> None:
                                strat_name, user["id"], exc)
                 continue
             for cand in candidates:
+                candidates_emitted += 1
+                if (m_id := getattr(cand, "market_id", None)):
+                    markets_seen.add(str(m_id))
                 try:
-                    await _process_candidate(user, cand)
+                    outcome = await _process_candidate(user, cand)
                 except Exception as exc:
                     logger.error("candidate processing failed: %s", exc)
+                    errors += 1
+                    continue
+                if outcome == "executed":
+                    risk_approved += 1
+                    router_executed += 1
+                elif outcome == "error":
+                    risk_approved += 1
+                    errors += 1
+                elif outcome == "rejected":
+                    risk_rejected += 1
+
+    return {
+        "mode": mode,
+        "live_trading": get_settings().ENABLE_LIVE_TRADING,
+        "strategies_loaded": sorted(_strategies.keys()),
+        "users_scanned": len(users),
+        "markets_seen": len(markets_seen),
+        "candidates_emitted": candidates_emitted,
+        "risk_approved": risk_approved,
+        "risk_rejected": risk_rejected,
+        # Successful router_execute calls this tick. Execution proxy only — NOT a
+        # guarantee of new orders/positions DB rows (paper.execute dedups via
+        # ON CONFLICT (idempotency_key) DO NOTHING, so a repeat is a no-op).
+        "router_executed": router_executed,
+        "errors": errors,
+    }
 
 
-async def _process_candidate(user: dict, cand) -> None:
+async def _process_candidate(user: dict, cand) -> str:
+    """Evaluate + (if approved) execute one candidate.
+
+    Returns a short outcome label used by ``run_signal_scan`` to tally the
+    pipeline metrics: ``"skipped"`` (market not synced), ``"rejected"`` (risk
+    gate), ``"executed"`` (router succeeded), ``"error"`` (router raised).
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         market = await conn.fetchrow(
@@ -394,7 +473,7 @@ async def _process_candidate(user: dict, cand) -> None:
         )
     if market is None:
         # market not synced yet — skip
-        return
+        return "skipped"
     idem_key = f"{user['id']}:{cand.market_id}:{cand.side}:" \
                f"{cand.extra.get('src_tx', '')[:32]}"
     ctx_g = GateContext(
@@ -422,7 +501,7 @@ async def _process_candidate(user: dict, cand) -> None:
     if not result.approved:
         logger.info("trade rejected user=%s market=%s reason=%s step=%s",
                     user["id"], cand.market_id, result.reason, result.failed_step)
-        return
+        return "rejected"
     try:
         await router_execute(
             chosen_mode=result.chosen_mode,
@@ -445,6 +524,8 @@ async def _process_candidate(user: dict, cand) -> None:
     except Exception as exc:
         logger.error("router execute failed user=%s market=%s mode=%s: %s",
                      user["id"], cand.market_id, result.chosen_mode, exc)
+        return "error"
+    return "executed"
 
 
 # ---------------- Exit watcher ----------------

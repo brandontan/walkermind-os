@@ -23,6 +23,28 @@ def ops_dashboard_keyboard(kill_active: bool) -> InlineKeyboardMarkup:
     ])
 
 
+def operator_panel_keyboard() -> InlineKeyboardMarkup:
+    """Consolidated operator control panel (/panel).
+
+    Start = release kill switch (resume), Stop = engage kill switch (pause).
+    Both stay visible regardless of state so the operator always sees the full
+    control surface; the live run-state is shown in the panel body (_render_root),
+    so the keyboard itself is static. Lock is kept on its own row — it is
+    destructive (forces every user off auto-trade).
+    """
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("▶️ Start", callback_data="panel:start"),
+         InlineKeyboardButton("⏹ Stop",  callback_data="panel:stop")],
+        [InlineKeyboardButton("📊 Status", callback_data="panel:status"),
+         InlineKeyboardButton("📈 Stats",  callback_data="panel:stats")],
+        [InlineKeyboardButton("⚙️ Settings", callback_data="panel:settings"),
+         InlineKeyboardButton("❓ Help",     callback_data="panel:help")],
+        [InlineKeyboardButton("🔒 Lock (force users off)",
+                              callback_data="panel:lock")],
+        [InlineKeyboardButton("🔄 Refresh", callback_data="panel:refresh")],
+    ])
+
+
 def killswitch_confirm_keyboard(action: str) -> InlineKeyboardMarkup:
     """Yes/No confirm for destructive killswitch actions (lock)."""
     return InlineKeyboardMarkup([

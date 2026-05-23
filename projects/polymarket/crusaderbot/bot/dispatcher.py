@@ -29,6 +29,7 @@ from .handlers.dashboard import (
     autotrade_toggle_cb, dashboard, dashboard_nav_cb,
     show_dashboard_for_cb, activity,
 )
+from .handlers import operator_panel
 from .handlers.emergency import emergency_callback, emergency_root, emergency_root_cb
 from .handlers.tg_power_mode import tg_power_mode_cb
 from .handlers.presets import preset_callback
@@ -219,6 +220,7 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("admin",           admin.admin_root))
     app.add_handler(CommandHandler("allowlist",       admin.allowlist_command))
     app.add_handler(CommandHandler("ops_dashboard",   admin.ops_dashboard_command))
+    app.add_handler(CommandHandler("panel",           operator_panel.panel_command))
     app.add_handler(CommandHandler("killswitch",      admin.killswitch_command))
     app.add_handler(CommandHandler("kill",            admin.kill_command))
     app.add_handler(CommandHandler("resume",          admin.resume_command))
@@ -335,6 +337,7 @@ def register(app: Application) -> None:
 
     app.add_handler(CallbackQueryHandler(admin.admin_callback,  pattern=r"^admin:"))
     app.add_handler(CallbackQueryHandler(admin.ops_dashboard_callback, pattern=r"^ops:"))
+    app.add_handler(CallbackQueryHandler(operator_panel.panel_callback, pattern=r"^panel:"))
     app.add_handler(CallbackQueryHandler(copy_trade.copy_trade_callback, pattern=r"^copytrade:"))
     app.add_handler(CallbackQueryHandler(signal_following.signals_callback, pattern=r"^signals:"))
     app.add_handler(CallbackQueryHandler(market_card.market_callback, pattern=r"^market:"))
