@@ -11,11 +11,8 @@ adapts the surrounding data, not the strategies themselves.
 from __future__ import annotations
 
 import importlib
-import importlib.util
 import json
 import logging
-import os
-import sys
 from datetime import datetime, timezone
 from typing import Any
 
@@ -23,10 +20,15 @@ from ...domain.strategy.types import SignalCandidate
 
 logger = logging.getLogger(__name__)
 
-# Path to the shared lib/ directory (repo root / lib)
-_LIB_ROOT = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
-)
+# The vendored lib/ package lives inside the crusaderbot package
+# (projects/polymarket/crusaderbot/lib). Resolve the crusaderbot package root
+# from this module's __package__ so the import works in dev
+# (projects.polymarket.crusaderbot.*) and prod (crusaderbot.*) without any
+# file-path or sys.path manipulation. Loading lib strategies as real
+# subpackages is REQUIRED: the strategy modules use package-relative imports
+# (from ..strategy_base import ...) that cannot resolve under file-path loading.
+_PKG_ROOT = (__package__ or "").rsplit(".services.", 1)[0]
+_LIB_PKG = f"{_PKG_ROOT}.lib" if _PKG_ROOT else "lib"
 
 # Strategies that are enabled for execution. whale_tracking is deferred because
 # it requires an external prob.trade API that may not be reachable.
@@ -55,42 +57,35 @@ _strategy_instances: dict[str, Any] = {}
 
 
 def _load_strategy(name: str) -> Any:
-    """Dynamically load and instantiate a lib strategy class by file name.
+    """Import a lib strategy as a package submodule and instantiate it.
 
-    Adds lib/ to sys.path transiently so lib/strategy_base.py is importable
-    inside the strategy modules without permanent path pollution.
+    Loaded as ``{_LIB_PKG}.strategies.{name}`` (a real subpackage) so the
+    strategy module's relative imports (``from ..strategy_base import ...``,
+    ``from . import get_strategy``) resolve. Raises ImportError if no matching
+    Strategy subclass is present, or propagates the underlying ImportError if
+    the module itself cannot be imported.
     """
-    strategy_file = os.path.join(_LIB_ROOT, "strategies", f"{name}.py")
-    if not os.path.isfile(strategy_file):
-        raise FileNotFoundError(f"lib strategy file not found: {strategy_file}")
+    module = importlib.import_module(f"{_LIB_PKG}.strategies.{name}")
+    base = importlib.import_module(f"{_LIB_PKG}.strategy_base")
+    strategy_cls = base.Strategy
 
-    if _LIB_ROOT not in sys.path:
-        sys.path.insert(0, _LIB_ROOT)
-
-    module_name = f"_lib_strategy_{name}"
-    spec = importlib.util.spec_from_file_location(module_name, strategy_file)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot create module spec for {strategy_file}")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]
-
-    # Find the Strategy subclass in the module
-    from strategy_base import Strategy  # type: ignore[import-not-found]
-
-    for attr_name in dir(mod):
-        obj = getattr(mod, attr_name)
+    for attr_name in dir(module):
+        obj = getattr(module, attr_name)
         try:
             if (
                 isinstance(obj, type)
-                and issubclass(obj, Strategy)
-                and obj is not Strategy
+                and issubclass(obj, strategy_cls)
+                and obj is not strategy_cls
                 and getattr(obj, "name", None) == name
             ):
                 return obj()
         except TypeError:
             pass
 
-    raise ImportError(f"No Strategy subclass with name={name!r} found in {strategy_file}")
+    raise ImportError(
+        f"No Strategy subclass with name={name!r} found in "
+        f"{_LIB_PKG}.strategies.{name}"
+    )
 
 
 def _parse_outcome_prices(market: dict) -> tuple[float | None, float | None]:
