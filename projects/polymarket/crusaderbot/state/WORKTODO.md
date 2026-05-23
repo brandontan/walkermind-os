@@ -64,7 +64,6 @@ Close production gaps before beta:
 - [x] Scheduler health / retry check
 - [x] WARP-52 — portfolio_snapshots Python writer / cb_portfolio NOTIFY wiring (Issue #1245) [STANDARD] — DELIVERED WARP/portfolio-snapshots-writer 2026-05-21
 - [x] Telegram notification reliability — WARP-53 DELIVERED 2026-05-21 (WARP/warp53-reliability-hardening)
-- [x] Paper trading consistency (PNL, positions, ledger) — WARP-53 DELIVERED 2026-05-21 (WARP/warp53-reliability-hardening)
 - [x] Logging and operational sanity
 
 ---
@@ -74,11 +73,6 @@ Close production gaps before beta:
 Observe the runtime under real usage:
 
 - [x] No duplicate trades — WARP-54 DELIVERED 2026-05-21 (paper.execute ON CONFLICT pinned + regression test)
-- [x] No stuck positions — WARP-54 DELIVERED 2026-05-21 (stuck-position row added to /admin HUD)
-- [x] No state bleed between users — WARP-54 DELIVERED 2026-05-21 (paper.close_position user_id scoping pinned + regression test, complements WARP-32)
-- [x] Notification failure review — WARP-54 DELIVERED 2026-05-21 (notifications.send BadRequest → plain-text fallback)
-- [x] Restart recovery validation — WARP-54 DELIVERED 2026-05-21 (scheduler startup_recovery_log job: "Resumed monitoring N open positions")
-- [x] API timeout / failure behavior — WARP-54 DELIVERED 2026-05-21 (existing exit_watcher 3-tick threshold + per-position try/except confirmed correct, no code change)
 
 ---
 
@@ -131,10 +125,8 @@ CRUSADERBOT is considered **DONE** only when:
 - [x] WARP-63 — P1: migrate CopyTradeStrategy.scan() from copy_targets → copy_trade_tasks (issue #1274) [STANDARD] — DELIVERED WARP/warp62-63-fix 2026-05-22
 - [x] WARP-64 — P0: fix CI pytest failures in test_warp59_copy_wallet_bridge.py (issue #1277) [STANDARD] — DELIVERED WARP/warp64-ci-fix 2026-05-22
 - [x] WARP-65 — P1: fix Telegram UX persistent keyboard + bot status + strategy label (issue #1278) [STANDARD] — DELIVERED WARP/warp65-telegram-ux-fix 2026-05-22
-- [x] WARP-66 — P1: Telegram UX full polish — auto-mode keyboard routing + autotrade/copy-wallet status labels + dashboard emoji dedupe + onboarding keyboard (issue #1282) [STANDARD] — DELIVERED WARP/warp66-ux-polish 2026-05-22
-- [x] SENTINEL re-audit post WARP-62+63 (issue #1276) — APPROVED 96/100 — MERGED d42b7e915356
 - [x] WARP-66 — Telegram UX polish (issue #1282) [STANDARD] — MERGED ab6f397f2741
-- [x] WARP-67 — P1: Telegram UX final clean — flat Markdown (no box-drawing), configured-aware Auto label, paused-aware Resume, Settings/Help double-response fix, positions title artifact (issue #1284) [STANDARD] — DELIVERED WARP/warp67-ux-final-clean 2026-05-22
+- [x] SENTINEL re-audit post WARP-62+63 (issue #1276) — APPROVED 96/100 — MERGED d42b7e915356
 - [x] WARP-67 — Telegram UX final clean (issue #1284) [STANDARD] — MERGED 2989b7c6e788
 - [x] WARP-68 — Structured card format + positions pagination (issue #1286) [STANDARD] — MERGED b7355541d496
 - [x] WARP-69 — Full structured card format all 66 render functions (issue #1288) [STANDARD] — MERGED b50ef1a2ce86
