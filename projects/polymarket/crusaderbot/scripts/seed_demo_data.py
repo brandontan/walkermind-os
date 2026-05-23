@@ -463,7 +463,10 @@ async def _run() -> int:
         return 3
 
     try:
-        conn = await asyncpg.connect(dsn=dsn)
+        # statement_cache_size=0: DATABASE_URL may point at a Supabase
+        # transaction-pooled proxy where cached prepared statements do not
+        # survive multiplexed backends. See database.init_pool().
+        conn = await asyncpg.connect(dsn=dsn, statement_cache_size=0)
     except Exception as exc:  # noqa: BLE001 - boundary
         logger.error("DB connect failed: %s", exc)
         return 4

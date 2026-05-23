@@ -1,4 +1,6 @@
 <!-- gate-notify-verify-v3 -->
+2026-05-23 19:40 | WARP/CRUSADERBOT-INFRA-STABILITY | WARP-39 infra-burn lane — statement_cache_size=0 added to the two one-off operator scripts (cleanup_demo_data.py:208, seed_demo_data.py:469) so all asyncpg connect/pool paths disable the prepared-statement cache (DAWN-6..X); max_machines_running=1 added to fly.toml for Telegram single-instance (DAWN-14). FIX3 (pool min/max + clean close + pool-reusing health check) and FIX4 (validate_required_env lists all missing vars) verified already-satisfied — no change. 3-file delta. MAJOR, NARROW INTEGRATION. SENTINEL pending.
+
 ## [F-HIGH-2] lib strategy load fix — WARP/lib-strategy-load-fix
 **Date:** 2026-05-23 | **Tier:** MAJOR | **Status:** pending SENTINEL
 
