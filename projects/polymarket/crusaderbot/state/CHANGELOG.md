@@ -3,6 +3,16 @@
 **Date:** 2026-05-23
 **PR:** #1287 | **Branch:** WARP/warp68-structured-card-ui | **Tier:** STANDARD
 
+## [SENTINEL-AUDIT] F-CRIT-1 fix — bot/ui/__init__.py realigned — MERGED fa1bd2537650
+**Date:** 2026-05-23 | **PR:** #1294 | **Tier:** STANDARD
+
+SENTINEL system audit (pre-handoff): BLOCKED 62/100 → F-CRIT-1 resolved.
+bot/ui/__init__.py: BAR/BRANCH/LAST removed (no longer exported by tree.py since WARP-67/71/73).
+App boots clean from main. 1613 tests pass, 0 collection errors.
+F-HIGH-2 (zero live trade data) deferred — separate lane.
+Fly.io redeploy required.
+
+
 ## [WARP-73] Phantom dot + clean HTML format hotfix
 **Date:** 2026-05-23 | **Tier:** MINOR (hotfix, direct to main)
 
