@@ -1,4 +1,20 @@
 <!-- gate-notify-verify-v3 -->
+## [F-HIGH-2] lib strategy load fix — WARP/lib-strategy-load-fix
+**Date:** 2026-05-23 | **Tier:** MAJOR | **Status:** pending SENTINEL
+
+Primary F-HIGH-2 cause: lib/ auto-trade strategies never produced candidates —
+(1) lib/ lived at repo root, outside the crusaderbot Docker build context, so it
+was never shipped to prod; (2) the file-path loader (spec_from_file_location)
+could not resolve the strategies' package-relative imports → ImportError for every
+strategy even when present. Fix: relocated lib/ into the crusaderbot package
+(git mv), added lib/__init__.py + lib/strategies/__init__.py (get_strategy), and
+rewrote lib_strategy_runner._load_strategy to import strategies as package
+submodules (pkg root derived from __package__; dev+prod safe). lib classes
+unmodified. All 7 lib strategies now load (was 0). 1628 pytest pass / 1 skip / 0
+fail; ruff clean. New regression suite tests/test_lib_strategy_loading.py (15).
+Live trade generation to confirm post-deploy. Phase C feed-eval is a separate
+open follow-up. Forge report: reports/forge/lib-strategy-load-fix.md.
+
 ## [SECURITY-RLS] Enable RLS on all 42 public tables — anon-key lockout
 **Date:** 2026-05-23 | **Branch:** WARP/rls-enable-anon-lockout | **Tier:** MAJOR
 
