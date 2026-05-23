@@ -1,8 +1,8 @@
 # CrusaderBot — Multi-User Auto-Trade Blueprint v3
 
-**Status:** v3.2 LOCKED — CrusaderBot auto-trade pivot target architecture
-**Version:** 3.2
-**Last Updated:** 2026-05-23 15:30 Asia/Jakarta
+**Status:** v3.3 LOCKED — CrusaderBot auto-trade pivot target architecture
+**Version:** 3.3
+**Last Updated:** 2026-05-23 17:00 Asia/Jakarta
 **Owner:** Bayue Walker (Mr. Walker)
 **Project Path (target):** `projects/polymarket/crusaderbot/`
 **Authority:** This blueprint is target architecture intent. Code truth defines current reality. AGENTS.md remains highest authority.
@@ -42,7 +42,7 @@ CrusaderBot is a **multi-user, autonomous trading service for Polymarket**, cont
 | **Tier 3** | Funded beta | `user` + deposit confirmed | Paper auto-trade active, deposit confirmed | Min deposit met |
 | **Tier 4** | Live auto-trade | `admin` / explicit approval | Real money execution | All activation guards SET + operator approval |
 
-Access control is enforced via `users.role` at runtime. `access_tier` field does not exist in the schema. Legal/compliance is an **MVP operating guard** (not a build blocker). Controlled community beta gate is sufficient for Phase 1–beta.
+Access control is enforced via `users.role` at runtime. Note: only two roles exist in code (`admin` / `user`, default `user`). The Tier 1–4 labels in the table above are functional intent, not separate role values. A parallel `user_tiers` table (FREE/PREMIUM/ADMIN strings, migration 023) also exists; only `ADMIN` is load-bearing. `access_tier` field does not exist in the schema. Legal/compliance is an **MVP operating guard** (not a build blocker). Controlled community beta gate is sufficient for Phase 1–beta.
 
 ### Core principles
 
@@ -63,8 +63,8 @@ The following are confirmed divergences from blueprint intent, validated by WARP
 | Blueprint intent | Code reality | Decision | Reference |
 |---|---|---|---|
 | `access_tier` column (Tier 1–4) | Dropped; `users.role` RBAC used | Deliberate — simpler, no schema drift | migration 044, WARP-51 |
-| `copy_targets` table | `copy_trade_tasks` (canonical execution table) | Deliberate — schema rename for clarity | migration 009+, WARP-57/58/59 |
-| Audit log physically-separate DB | Single-DB `audit_log` table (migration 002) | Gap — documented, deferred | SENTINEL audit 2026-05-23 |
+| `copy_targets` as the execution table | `copy_targets` is a legacy follow record (migration 001/009); `copy_trade_tasks` (migration 018) is the canonical execution table with full TP/SL/slippage/daily-spend tracking. Both coexist; new code uses `copy_trade_tasks`. | Deliberate — not a rename; both tables exist with different purposes | migration 018, WARP-57/58/59 |
+| Audit log physically-separate DB | Single-DB `audit_log` table (migration 033) | Gap — documented, deferred | SENTINEL audit 2026-05-23 |
 | Wallet plane: KMS vault, hot/cold/HD per-user | Custodial-light single pool | Partial — per blueprint phasing; full wallet plane deferred | §7 phasing note |
 | `5m/15m` timeframe discriminator on Confluence Scalper | Not implemented (Gamma API does not expose reliable duration field) | Deliberate — UI copy updated, crypto-only eligibility gate retained | WARP-61 post-review |
 
@@ -158,7 +158,9 @@ STAGE 4 — STRATEGY CONFIG (2-5 min)
 STAGE 5 — ACTIVATION
   Toggle Auto-Trade ON
     → Confirmation dialog: "I understand risk, real money at stake"
-    → 2FA via Telegram (one-time setup, persistent thereafter)
+    → 2FA via Telegram: deferred to Phase 5+, currently typed-CONFIRM only
+    <!-- DECISION-NEEDED: Boss to confirm — defaulted to "deferred, typed-CONFIRM only". Options: (a) remove entirely, (b) keep as future intent with deadline. -->
+
     → Access Tier 4 = Live auto-trade enabled (all activation guards SET + operator approval)
     → Bot now scans markets per user's strategy
     → User receives push notifications on trades
@@ -225,6 +227,11 @@ class BaseStrategy:
 | `trend_breakout` | 📈 Trend Breakout | signal_following (lib TrendBreakout) | Balanced 🟡 |
 | `contrarian` | 🔄 Contrarian | signal_following (lib Momentum) | Balanced 🟡 |
 | `full_auto` | 🚀 Full Auto | copy_trade + signal + value | Aggressive 🔴 |
+| `close_sweep` | Close Sweep | ExpirationTimingStrategy (lib) | Advanced 🟡 |
+| `pair_arb` | Pair Arb | PairArbStrategy (lib) | Safe 🟢 |
+| `ensemble` | Ensemble | EnsembleStrategy (lib) | Advanced 🟡 |
+
+> **Note:** Total presets in `bot/presets.py` is 11, not 8.
 
 > **Note:** `confluence_scalper` runs in Full Auto scan with crypto-eligibility gate. `value_hunter` and `full_auto` map to `value` strategy which is Phase 7+ deferred at risk gate level (STRATEGY_AVAILABILITY in constants.py gates execution to `balanced`/`aggressive`/`custom` only).
 
@@ -352,34 +359,40 @@ User profiles can only restrict downward. Hard ceiling = system constants.
 ```
 trade_intent
   ↓
-[1]  kill_switch_check        → if active: REJECT_HALT
+[0]  validate_risk_caps          → operator-tier caps from config.py:159-162
   ↓
-[2]  tenant_scope_check       → user/account/wallet ownership verified
+[1]  kill_switch_check           → if active: REJECT_HALT
   ↓
-[3]  live_mode_check          → if not LIVE: route to paper
+[2]  pause_state_check           → if paused: REJECT
   ↓
-[4]  capital_mode_check       → CAPITAL_MODE_CONFIRMED set + receipt valid
+[3]  role_check                  → admin required for live
   ↓
-[5]  daily_loss_check         → daily PnL > -$2k → REJECT_HALT
+[4]  strategy_availability_check → STRATEGY_AVAILABILITY gate
   ↓
-[6]  drawdown_check           → MDD > 8% → REJECT_HALT
+[5]  daily_loss_check            → daily PnL > -$2k → REJECT_HALT
   ↓
-[7]  exposure_check           → user exposure ≤ 10%, correlated ≤ 40%
+[6]  drawdown_check              → MDD > 8% → REJECT_HALT
   ↓
-[8]  liquidity_check          → orderbook depth ≥ $10k at intended size
+[7]  exposure_check              → per-user ≤ 10%, correlated ≤ 40%
   ↓
-[9]  signal_validity_check    → EV > 0, edge > threshold, signal not stale
+[8]  liquidity_check             → orderbook depth ≥ $10k at intended size
   ↓
-[10] sizing_check             → fractional Kelly α=0.25, max position 10%
+[9]  signal_validity_check       → EV > 0, edge > threshold, signal not stale
   ↓
-[11] dedup_check              → idempotency key not seen in 5min window
+[10] sizing_check                → fractional Kelly α=0.25, max position 10%
   ↓
-[12] concurrent_trade_check   → user has < 5 open
+[11] dedup_check                 → idempotency key not seen in window
   ↓
-[13] cost_check               → fees + slippage est ≤ expected_edge
+[12] concurrent_trade_check      → user has < 5 open
+  ↓
+[13] cost_check                  → fees + slippage est ≤ expected_edge
+  ↓
+[14] market_impact_check         → order ≤ MAX_MARKET_IMPACT_PCT of visible depth
   ↓
 APPROVED → execution
 ```
+
+Source: `domain/risk/gate.py` step composition. No discrete `tenant_scope`, `live_mode`, or `capital_mode` steps — those are enforced upstream by role + activation guards before the gate runs.
 
 Every step returns `(approved: bool, reason: str)`. Every rejection logged to audit. No silent throws.
 
@@ -491,7 +504,7 @@ Read-only Polygon access for:
 | Market metadata refresh | 5 min | Polling Polymarket API |
 | Signal generation per user | 1-5 min | Polling (per user's strategy cadence) |
 | Open position tracking | Real-time | WebSocket subscription per market |
-| Resolution monitoring | 1 min | Polling Polymarket API |
+| Resolution monitoring | 5 min (300s) | Polling Polymarket API (`config.py:225-231`) |
 
 ### Concurrent execution safeguards
 
@@ -503,6 +516,11 @@ When multiple users trigger same signal on same market:
 - **Stale signal protection** — re-validate edge before execution; if edge gone, skip
 - **Backpressure** — if API rate-limited, drop oldest stale signals first
 
+**Not yet implemented (target intent, not at HEAD):**
+- Per-market size aggregation (total bot exposure per market)
+- Stagger/jitter 0-3s execution spacing
+- Scan-loop backpressure on rate limits
+
 ### Execution pipeline
 
 ```
@@ -510,7 +528,7 @@ Signal generated
   ↓
 Per-user filter (does user's strategy match this signal?)
   ↓
-Per-user risk gate (13-step gate from §6)
+Per-user risk gate (15-step gate, steps 0–14, from §6)
   ↓
 Sizing calculation (per user's bankroll + risk profile)
   ↓
@@ -551,9 +569,10 @@ Settings menu:
 
 ```
 auto_redeem_instant_worker
-  - Subscribes to Polymarket resolution events
+  - Instant uses same-tick dispatch off resolution poll (no WS push subscription)
   - For users with mode=Instant: immediate redeem
-  - Gas cap protection: if gas > 100 gwei, queue to next hourly batch
+  - Gas cap protection: if gas > 200 gwei, queue to next hourly batch
+    (config.py:198, INSTANT_REDEEM_GAS_GWEI_MAX=200)
 
 auto_redeem_hourly_worker
   - Cron every hour
@@ -577,18 +596,22 @@ Markets resolve with user position on losing side: no redeem needed (token worth
 
 ### Trading fee structure
 
+> **Fee rate (code truth):** 10% (`0.10`). Spec updated to match code.
+> <!-- DECISION-NEEDED: Boss to confirm — footnote: target rate at launch may differ. Options: (a) keep 1% spec and flag code as bug-to-fix, or (b) commit to 10% as final. -->
+
+
 ```
 User entry $100
   ↓
-Bot calculates fee: $100 × 0.01 = $1.00
+Bot calculates fee: $100 × 0.10 = $10.00
   ↓
 If FEE_COLLECTION_ENABLED:
-  - Bot places order $99.00 (effective entry)
-  - $1.00 deducted from user sub-account
-  - Of that $1.00:
-    - $0.80 → admin fee wallet
-    - $0.20 → referrer wallet (if user was referred)
-  - If no referrer: $1.00 → admin fee wallet
+  - Bot places order $90.00 (effective entry)
+  - $10.00 deducted from user sub-account
+  - Of that $10.00:
+    - $8.00 → admin fee wallet
+    - $2.00 → referrer wallet (if user was referred)
+  - If no referrer: $10.00 → admin fee wallet
 If NOT FEE_COLLECTION_ENABLED:
   - Bot places full $100 entry
   - $0 deducted, $0 distributed
@@ -605,6 +628,8 @@ Referred user trade → 20% of fees forever (or capped period)
 
 Referral attribution:
 - Stored at user creation: user.referrer_user_id
+  (Note: `referrer_id` column exists but is not written; attribution lives in the `referral_events` table.)
+  <!-- DECISION-NEEDED: Boss to confirm — defaulted to "note that column is unwritten". Option: actually wire referrer_id on user creation. -->
 - Attribution applies to ALL future trades from referred user
 - Settled to referrer wallet monthly (or on-demand)
 - Tracked per-trade in audit log
@@ -612,7 +637,7 @@ Referral attribution:
 
 ### Fee transparency
 
-- **Pre-trade preview:** "Entry $100 (incl. $1 fee). Net entry $99."
+- **Pre-trade preview:** "Entry $100 (incl. $10 fee). Net entry $90."
 - **Per-trade record** in Activity history
 - **Daily/weekly summary** in Dashboard
 - **Referral earnings** visible in Referrals menu
@@ -623,26 +648,16 @@ Referral attribution:
 
 ### Identity & access (5 tables)
 ```
-users (id, telegram_user_id, status, access_tier, referrer_user_id, created_at, ...)
-sub_accounts (id, user_id, custodial_balance_usdc, ...)
-sessions (id, user_id, expires_at, revoked_at, ...)
+users (id, telegram_user_id, status, role, referrer_id, created_at, ...)
+sub_accounts (id, user_id, custodial_balance_usdc, ...)   -- ABSENT (deferred)
+sessions (id, user_id, expires_at, revoked_at, ...)        -- DROPPED (migration 042; JWT stateless)
 ```
 
-### Audit log — physical separation (security boundary)
+### Audit log — single-DB table (code reality)
 
-Audit log is NOT a table in the main app DB. It is a **physically separate DB / schema** with strict access controls:
+Audit log is a single-DB table (migration 033). Append-only enforcement (REVOKE UPDATE/DELETE + trigger) is target intent; not yet realized at HEAD. See §1b.
 
 ```
-audit_db (separate Postgres instance or schema):
-  audit_log (id, ts, user_id, actor_role, action, payload, ...)
-
-Access rules:
-  - App service account: INSERT only — no UPDATE, no DELETE
-  - Admin read account: SELECT only — separate credentials
-  - No ORM model with update/delete methods
-  - Retention policy: minimum 2 years, immutable
-  - Backup: separate backup job, separate destination
-
 audit_log schema:
   id          UUID        PRIMARY KEY DEFAULT gen_random_uuid()
   ts          TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -654,16 +669,16 @@ audit_log schema:
   session_id  UUID                   -- which session triggered this
 ```
 
-Rationale: If audit log is in same DB with same service account, a compromised app can delete its own trail. Physical separation + write-only service account enforces append-only guarantee.
+Target intent (not yet realized): physical separation / write-only service account / immutable 2-year retention would enforce an append-only guarantee — a compromised app could otherwise delete its own trail. Tracked as a hardening gap, deferred.
 
 ### Main app tables — Identity & access
 
 ### Wallet & money (4 tables)
 ```
 deposits (id, user_id, tx_hash, amount, confirmed_at, ...)
-withdrawals (id, user_id, tx_hash, amount, status, ...)
-ledger_entries (id, sub_account_id, type, amount, ref_id, ts, ...)
-proxy_wallet_pool (id, label, address, hot_or_cold, ...)
+ledger (id, sub_account_id, type, amount, ref_id, ts, ...)   -- renamed from ledger_entries
+withdrawals      -- ABSENT (deferred)
+proxy_wallet_pool -- ABSENT (deferred — wallet plane partial)
 ```
 
 ### Trading (6 tables)
@@ -672,7 +687,7 @@ markets (id, condition_id, slug, status, resolution_at, ...)
 orders (id, sub_account_id, market_id, side, size, price, status, idempotency_key, ...)
 fills (id, order_id, fill_price, fill_size, fee, ts, ...)
 positions (id, sub_account_id, market_id, side, size, avg_entry, applied_tp_pct, applied_sl_pct, exit_reason, ...)
-risk_decisions (id, intent_id, decision, reason, payload, ts, ...)
+risk_log (id, intent_id, decision, reason, payload, ts, ...)   -- renamed from risk_decisions
 idempotency_keys (key, user_id, action, created_at, expires_at, ...)
 ```
 
@@ -680,9 +695,9 @@ idempotency_keys (key, user_id, action, created_at, expires_at, ...)
 ```
 user_strategies (id, user_id, strategy_type, weight, enabled, params_json, ...)
 user_risk_profile (user_id, profile_name, custom_overrides, updated_at, ...)
-user_market_filters (id, user_id, filter_type, filter_value, ...)
-user_trade_settings (user_id, default_tp_pct, default_sl_pct, use_strategy_default, per_strategy_overrides, ...)
-auto_trade_state (user_id, enabled, paused_at, paused_reason, started_at, ...)
+user_settings (user_id, default_tp_pct, default_sl_pct, use_strategy_default, per_strategy_overrides, ...)   -- renamed from user_trade_settings (consolidated)
+user_market_filters -- ABSENT (in user_settings)
+auto_trade_state    -- ABSENT (state in user_settings)
 strategy_definitions (id, name, version, params_schema, status, ...)
 ```
 
@@ -690,7 +705,7 @@ strategy_definitions (id, name, version, params_schema, status, ...)
 ```
 copy_targets (id, user_id, target_wallet_address, scale_factor, status, ...)
 copy_trade_events (id, copy_target_id, source_tx_hash, mirrored_order_id, ...)
-wallet_leaderboard (address, win_rate, total_volume, pnl_30d, ...)
+leaderboard_stats (address, win_rate, total_volume, pnl_30d, ...)   -- renamed from wallet_leaderboard
 ```
 
 ### Signal feeds (3 tables)
@@ -703,14 +718,15 @@ user_signal_subscriptions (id, user_id, feed_id, subscribed_at, ...)
 ### Portfolio (2 tables)
 ```
 portfolio_snapshots (id, sub_account_id, total_value, exposure, mdd, ts, ...)
-pnl_daily (id, sub_account_id, date, realized, unrealized, fees, ...)
+pnl_daily        -- ABSENT (computed)
 ```
 
 ### Fee & referrals (3 tables)
 ```
-fee_records (id, trade_id, user_id, fee_amount, admin_share, referrer_share, referrer_user_id, ts, ...)
-referral_links (id, user_id, code, created_at, ...)
-referral_earnings (id, referrer_user_id, referred_user_id, amount, source_trade_id, settled_at, ...)
+fees (id, trade_id, user_id, fee_amount, admin_share, referrer_share, referrer_user_id, ts, ...)   -- renamed from fee_records
+fee_config (id, rate_bps, admin_share_pct, referrer_share_pct, ...)   -- migration 022; was folded into fee_records in blueprint
+referral_codes (id, user_id, code, created_at, ...)   -- renamed from referral_links
+referral_events (id, referrer_user_id, referred_user_id, amount, source_trade_id, ...)   -- renamed from referral_earnings (computed-on-read)
 ```
 
 ### Ops (3 tables)
@@ -720,7 +736,19 @@ job_runs (id, job_name, status, started_at, finished_at, error, ...)
 kill_switch_history (id, action, actor_id, reason, ts, ...)
 ```
 
-**Total: ~34 tables.** Scope-bound, ownership-isolated, audit-trailed.
+### Tables present in code, originally omitted from blueprint
+
+```
+copy_trade_tasks (018)        copy_trade_idempotency        copy_trade_daily_spend
+user_tiers (023)              chain_cursor (002)            live_redemptions
+redeem_queue                  system_settings               system_flags
+execution_queue (011)         mode_change_events (021)      referral_events (022)
+fee_config (022)              hd_index_counter              audit.log schema table
+                              (note coexistence with audit_log in 033)
+```
+
+**Total: ~43 tables.** Scope-bound, ownership-isolated, audit-trailed.
+Note: `migrations/046_enable_rls_anon_lockout.sql:10` confirms "42 public tables" at HEAD.
 
 ---
 
@@ -734,16 +762,21 @@ System has multiple guards that must be set before live operations:
 | `CAPITAL_MODE_CONFIRMED` | Operator | Operator receipt flow active |
 | `ENABLE_LIVE_TRADING` | Owner | Final guard — live trades enabled |
 | `RISK_CONTROLS_VALIDATED` | SENTINEL | Risk gate hardening passed |
-| `SECURITY_HARDENING_VALIDATED` | SENTINEL | Security hardening passed |
+| `SECURITY_HARDENING_VALIDATED` | SENTINEL | Security hardening passed (Lane B adds the symbol to `config.py`) |
 | `FEE_COLLECTION_ENABLED` | Owner | Fee charging active |
 | `REFERRAL_PAYOUT_ENABLED` | Owner | Referral settlement active |
 | `AUTO_REDEEM_ENABLED` | Engineering | Auto-redeem worker active |
 
-Guards are **default OFF**. Each requires explicit enable + audit trail. No guard can be set without owner+commander acknowledgment.
+Guards are **default OFF**, except `AUTO_REDEEM_ENABLED` which defaults **ON (paper)** — intentional for paper redeem visibility; flips to OFF before live launch alongside the `ENABLE_LIVE_TRADING` toggle. See `config.py:164`.
+<!-- DECISION-NEEDED: Boss to confirm — defaulted to "intentional ON for paper"; can change to flip-to-OFF if preferred. -->
+Each requires explicit enable + audit trail. No guard can be set without owner+commander acknowledgment.
 
 ---
 
 ## 13. Roadmap
+
+> **Roadmap scheme (code truth):** Repo `state/ROADMAP.md` uses the Fast Track Week/Track scheme as the current execution view; the Phase 0–11 list below is product-arc reference. Both coexist.
+> <!-- DECISION-NEEDED: Boss to confirm — defaulted to "both coexist". Options: (a) migrate ROADMAP.md to Phase 0–11, or (b) drop Phase 0–11 from blueprint. -->
 
 ### Phase numbering — migration note
 
@@ -808,7 +841,7 @@ Note: Legal/compliance is downgraded from hard build blocker to MVP operating gu
 - Strategy setup menus
 - Risk profile presets
 - Trade Setting (TP/SL)
-- Auto-trade toggle with 2FA
+- Auto-trade toggle with 2FA (deferred to Phase 5+; currently typed-CONFIRM only)
 - Position monitor + alerts
 - Force-close per-position
 - Emergency menu
@@ -920,3 +953,4 @@ Explicitly excluded from this blueprint:
 | v3.0 | 2026-05-01 | Initial multi-user auto-trade blueprint |
 | v3.1 | 2026-05-03 | LOCKED — CrusaderBot pivot target; risk constants, activation guards, fee/referral model |
 | v3.2 | 2026-05-23 | Full code sync: tier section (RBAC), strategy table rebuilt (domain + lib + presets), main menu updated to ReplyKeyboard bottom bar, risk constants synced to code, custom profile added, deliberate divergences documented |
+| v3.3 | 2026-05-23 | Code-reality reconciliation per WARP-41 audit (A1–A13): audit-log migration 033 + single-DB framing, copy_targets/copy_trade_tasks coexistence, RBAC roles + user_tiers note, §11 table renames/absent/added + count ~43, risk gate rewritten to 0–14 steps, scan-freq 5min + not-yet-implemented list, auto-redeem 200 gwei + same-tick dispatch, 3 presets added (11 total), activation-guard annotations. Decision-item defaults applied (2FA deferred, fee 10%, roadmap dual-scheme, referrer_id unwritten) — flagged for Boss. |
