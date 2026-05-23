@@ -101,6 +101,24 @@ async def record_job_event(
     # on PR #874).
 
 
+async def fetch_latest(job_id: str) -> Optional[dict[str, Any]]:
+    """Return the most recent ``job_runs`` row for ``job_id`` (incl. metadata).
+
+    Used by the operator panel (/panel -> Stats) to read the latest
+    ``signal_scan`` / ``portfolio_snapshots`` pipeline metrics. Returns
+    ``None`` when the job has never run.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT job_name, status, started_at, finished_at, error, metadata "
+            "FROM job_runs WHERE job_name=$1 "
+            "ORDER BY started_at DESC LIMIT 1",
+            job_id,
+        )
+    return dict(row) if row is not None else None
+
+
 async def fetch_recent(limit: int = 10, *, only_failed: bool = False) -> list[dict[str, Any]]:
     """Return the most recent job runs, newest first."""
     if limit <= 0:

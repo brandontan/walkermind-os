@@ -353,7 +353,35 @@ async def _write_cursor(name: str, block_number: int) -> None:
 _strategies = {"copy_trade": CopyTradeStrategy()}
 
 
-async def run_signal_scan() -> None:
+def _resolve_mode() -> str:
+    """Return ``"paper"`` unless every live-trading guard is open.
+
+    Mirrors ``api.ops._resolve_mode`` / ``api.health`` so the operator panel
+    and the scan metrics report an identical PAPER/live label everywhere.
+    """
+    s = get_settings()
+    if s.ENABLE_LIVE_TRADING and s.EXECUTION_PATH_VALIDATED and s.CAPITAL_MODE_CONFIRMED:
+        return "live"
+    return "paper"
+
+
+async def run_signal_scan() -> dict:
+    """Auto-trade scan tick.
+
+    Returns a metrics dict captured by ``_job_tracker_listener`` into
+    ``job_runs.metadata`` — the durable runtime proof of the
+    scan -> candidate -> risk gate -> paper order -> position pipeline that the
+    operator panel (/panel -> Stats) reads back. Behaviour is unchanged; the
+    counters are purely observational.
+    """
+    mode = _resolve_mode()
+    markets_seen: set[str] = set()
+    candidates_emitted = 0
+    risk_approved = 0
+    risk_rejected = 0
+    orders_created = 0
+    errors = 0
+
     pool = get_pool()
     async with pool.acquire() as conn:
         users = await conn.fetch(
@@ -380,13 +408,45 @@ async def run_signal_scan() -> None:
                                strat_name, user["id"], exc)
                 continue
             for cand in candidates:
+                candidates_emitted += 1
+                markets_seen.add(str(getattr(cand, "market_id", "")))
                 try:
-                    await _process_candidate(user, cand)
+                    outcome = await _process_candidate(user, cand)
                 except Exception as exc:
                     logger.error("candidate processing failed: %s", exc)
+                    errors += 1
+                    continue
+                if outcome == "executed":
+                    risk_approved += 1
+                    orders_created += 1
+                elif outcome == "error":
+                    risk_approved += 1
+                    errors += 1
+                elif outcome == "rejected":
+                    risk_rejected += 1
+
+    return {
+        "mode": mode,
+        "live_trading": get_settings().ENABLE_LIVE_TRADING,
+        "strategies_loaded": sorted(_strategies.keys()),
+        "users_scanned": len(users),
+        "markets_seen": len(markets_seen),
+        "candidates_emitted": candidates_emitted,
+        "risk_approved": risk_approved,
+        "risk_rejected": risk_rejected,
+        "paper_orders_created": orders_created if mode == "paper" else 0,
+        "positions_created": orders_created,
+        "errors": errors,
+    }
 
 
-async def _process_candidate(user: dict, cand) -> None:
+async def _process_candidate(user: dict, cand) -> str:
+    """Evaluate + (if approved) execute one candidate.
+
+    Returns a short outcome label used by ``run_signal_scan`` to tally the
+    pipeline metrics: ``"skipped"`` (market not synced), ``"rejected"`` (risk
+    gate), ``"executed"`` (router succeeded), ``"error"`` (router raised).
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         market = await conn.fetchrow(
@@ -394,7 +454,7 @@ async def _process_candidate(user: dict, cand) -> None:
         )
     if market is None:
         # market not synced yet — skip
-        return
+        return "skipped"
     idem_key = f"{user['id']}:{cand.market_id}:{cand.side}:" \
                f"{cand.extra.get('src_tx', '')[:32]}"
     ctx_g = GateContext(
@@ -422,7 +482,7 @@ async def _process_candidate(user: dict, cand) -> None:
     if not result.approved:
         logger.info("trade rejected user=%s market=%s reason=%s step=%s",
                     user["id"], cand.market_id, result.reason, result.failed_step)
-        return
+        return "rejected"
     try:
         await router_execute(
             chosen_mode=result.chosen_mode,
@@ -445,6 +505,8 @@ async def _process_candidate(user: dict, cand) -> None:
     except Exception as exc:
         logger.error("router execute failed user=%s market=%s mode=%s: %s",
                      user["id"], cand.market_id, result.chosen_mode, exc)
+        return "error"
+    return "executed"
 
 
 # ---------------- Exit watcher ----------------
