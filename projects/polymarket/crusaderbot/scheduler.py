@@ -15,7 +15,7 @@ from apscheduler.events import (
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from . import audit, notifications
-from .config import get_settings
+from .config import get_settings, resolve_trading_mode
 from .database import get_pool
 from .domain.execution import exit_watcher
 from .domain.execution import lifecycle as order_lifecycle
@@ -354,15 +354,8 @@ _strategies = {"copy_trade": CopyTradeStrategy()}
 
 
 def _resolve_mode() -> str:
-    """Return ``"paper"`` unless every live-trading guard is open.
-
-    Mirrors ``api.ops._resolve_mode`` / ``api.health`` so the operator panel
-    and the scan metrics report an identical PAPER/live label everywhere.
-    """
-    s = get_settings()
-    if s.ENABLE_LIVE_TRADING and s.EXECUTION_PATH_VALIDATED and s.CAPITAL_MODE_CONFIRMED:
-        return "live"
-    return "paper"
+    """Paper/live label — delegates to the canonical ``config.resolve_trading_mode``."""
+    return resolve_trading_mode()
 
 
 async def run_signal_scan() -> dict:
@@ -409,7 +402,8 @@ async def run_signal_scan() -> dict:
                 continue
             for cand in candidates:
                 candidates_emitted += 1
-                markets_seen.add(str(getattr(cand, "market_id", "")))
+                if (m_id := getattr(cand, "market_id", None)):
+                    markets_seen.add(str(m_id))
                 try:
                     outcome = await _process_candidate(user, cand)
                 except Exception as exc:

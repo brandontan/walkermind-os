@@ -291,6 +291,19 @@ def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]
 
 
+def resolve_trading_mode() -> str:
+    """Return ``"live"`` only when all three live-trading guards are open.
+
+    Single source of truth for the paper/live label shared by the scheduler,
+    the ops API, and the operator panel. The ``ENABLE_LIVE_TRADING`` guard must
+    never diverge between those surfaces, so the condition lives here once.
+    """
+    s = get_settings()
+    if s.ENABLE_LIVE_TRADING and s.EXECUTION_PATH_VALIDATED and s.CAPITAL_MODE_CONFIRMED:
+        return "live"
+    return "paper"
+
+
 def _load_env_file_values() -> dict[str, str]:
     """Read the same ``.env`` file ``Settings`` consumes, without overriding
     real environment values. Missing or unreadable files yield an empty

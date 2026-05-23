@@ -49,7 +49,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .. import audit
-from ..config import get_settings
+from ..config import get_settings, resolve_trading_mode
 from ..database import get_pool
 from ..domain.ops import kill_switch
 from ..integrations.clob import get_clob_breaker
@@ -85,11 +85,8 @@ def _format_uptime(seconds: int) -> str:
 
 
 def _resolve_mode() -> str:
-    """Mirror ``api.health._resolve_mode`` — paper unless every guard is open."""
-    s = get_settings()
-    if s.ENABLE_LIVE_TRADING and s.EXECUTION_PATH_VALIDATED and s.CAPITAL_MODE_CONFIRMED:
-        return "live"
-    return "paper"
+    """Paper/live label — delegates to the canonical ``config.resolve_trading_mode``."""
+    return resolve_trading_mode()
 
 
 def _resolve_version() -> str:

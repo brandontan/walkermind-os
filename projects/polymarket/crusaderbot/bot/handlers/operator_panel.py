@@ -22,7 +22,7 @@ from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
-from ...config import get_settings
+from ...config import get_settings, resolve_trading_mode
 from ...domain.ops import job_tracker
 from ...domain.ops import kill_switch as ops_kill_switch
 from ..keyboards.admin import operator_panel_keyboard
@@ -38,14 +38,8 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_mode() -> str:
-    """Return ``"paper"`` unless every live-trading guard is open.
-
-    Mirrors ``scheduler._resolve_mode`` / ``api.ops._resolve_mode``.
-    """
-    s = get_settings()
-    if s.ENABLE_LIVE_TRADING and s.EXECUTION_PATH_VALIDATED and s.CAPITAL_MODE_CONFIRMED:
-        return "live"
-    return "paper"
+    """Paper/live label — delegates to the canonical ``config.resolve_trading_mode``."""
+    return resolve_trading_mode()
 
 
 def _coerce_metadata(raw: Any) -> dict[str, Any]:
@@ -149,7 +143,11 @@ async def panel_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_operator(update) or update.message is None:
         await _reject_silently(update)
         return
-    active = await ops_kill_switch.is_active()
+    try:
+        active = await ops_kill_switch.is_active()
+    except Exception as exc:  # noqa: BLE001 — panel must still open during a DB hiccup
+        logger.error("panel command: kill switch read failed: %s", exc)
+        active = False
     await update.message.reply_text(
         await _render_root(),
         parse_mode=ParseMode.HTML,
@@ -160,7 +158,8 @@ async def panel_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 async def _edit(q, text: str) -> None:
     try:
         active = await ops_kill_switch.is_active()
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        logger.error("panel edit: kill switch read failed: %s", exc)
         active = False
     try:
         await q.edit_message_text(
@@ -168,8 +167,14 @@ async def _edit(q, text: str) -> None:
             parse_mode=ParseMode.HTML,
             reply_markup=operator_panel_keyboard(active),
         )
-    except Exception:  # noqa: BLE001 — "message not modified" / transient edit race
-        pass
+    except Exception as exc:  # noqa: BLE001
+        # Telegram raises BadRequest("message is not modified") when the operator
+        # re-taps a view that is already showing — a benign no-op we suppress at
+        # debug; anything else is a real edit failure and must surface in logs.
+        if "message is not modified" in str(exc).lower():
+            logger.debug("panel edit skipped (not modified): %s", exc)
+            return
+        logger.error("panel edit failed: %s", exc)
 
 
 async def panel_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:

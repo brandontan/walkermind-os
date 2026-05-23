@@ -30,7 +30,7 @@ Two parts were built:
 
 ## 2. Current system architecture
 
-```
+```text
 APScheduler (single async loop)
   signal_scan tick ── run_signal_scan() ──► returns metrics dict
                                               │
