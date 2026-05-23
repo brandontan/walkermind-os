@@ -1,8 +1,8 @@
 # CrusaderBot — Multi-User Auto-Trade Blueprint v3
 
-**Status:** v3.1 LOCKED — CrusaderBot auto-trade pivot target architecture
-**Version:** 3.1
-**Last Updated:** 2026-05-03 22:13 Asia/Jakarta
+**Status:** v3.2 LOCKED — CrusaderBot auto-trade pivot target architecture
+**Version:** 3.2
+**Last Updated:** 2026-05-23 14:30 Asia/Jakarta
 **Owner:** Bayue Walker (Mr. Walker)
 **Project Path (target):** `projects/polymarket/crusaderbot/`
 **Authority:** This blueprint is target architecture intent. Code truth defines current reality. AGENTS.md remains highest authority.
@@ -33,14 +33,16 @@ CrusaderBot is a **multi-user, autonomous trading service for Polymarket**, cont
 
 ### Access Tiers
 
-| Tier | Name | Access | Gate |
-|---|---|---|---|
-| **Tier 1** | Browse | Read markets, view docs, paper mode (no config) | Auto on /start |
-| **Tier 2** | Community allowlisted | Configure strategy + paper trade | Operator adds to allowlist |
-| **Tier 3** | Funded beta | Paper auto-trade active, deposit confirmed | Min deposit met |
-| **Tier 4** | Live auto-trade | Real money execution | All activation guards SET + operator approval |
+> **Implementation note (v3.2):** The `access_tier` column (Tier 1–4) was dropped in migration 044 (WARP-51). The running system uses `users.role` (RBAC) as the access control mechanism. The tier descriptions below represent functional intent; the code truth is role-based.
 
-This replaces KYC tier as MVP access control. Legal/compliance is an **MVP operating guard** (not a build blocker). Controlled community beta gate is sufficient for Phase 1–beta.
+| Tier | Name | Role (code truth) | Access | Gate |
+|---|---|---|---|---|
+| **Tier 1** | Browse | `user` (default) | Read markets, view docs, paper mode (no config) | Auto on /start |
+| **Tier 2** | Community allowlisted | `user` + operator flag | Configure strategy + paper trade | Operator adds to allowlist |
+| **Tier 3** | Funded beta | `user` + deposit confirmed | Paper auto-trade active, deposit confirmed | Min deposit met |
+| **Tier 4** | Live auto-trade | `admin` / explicit approval | Real money execution | All activation guards SET + operator approval |
+
+Access control is enforced via `users.role` at runtime. `access_tier` field does not exist in the schema. Legal/compliance is an **MVP operating guard** (not a build blocker). Controlled community beta gate is sufficient for Phase 1–beta.
 
 ### Core principles
 
@@ -51,8 +53,24 @@ This replaces KYC tier as MVP access control. Legal/compliance is an **MVP opera
 5. **Audit everything** — append-only audit log, separate DB, every privileged action recorded
 6. **Replace, never append (state files)** — repo truth always reflects NOW, not history of changes
 
+
 ---
 
+## 1b. Blueprint vs Code — Deliberate Divergences (v3.2)
+
+The following are confirmed divergences from blueprint intent, validated by WARP•SENTINEL audits. These are **code truth** — the blueprint intent was superseded by implementation decisions.
+
+| Blueprint intent | Code reality | Decision | Reference |
+|---|---|---|---|
+| `access_tier` column (Tier 1–4) | Dropped; `users.role` RBAC used | Deliberate — simpler, no schema drift | migration 044, WARP-51 |
+| `copy_targets` table | `copy_trade_tasks` (canonical execution table) | Deliberate — schema rename for clarity | migration 009+, WARP-57/58/59 |
+| Audit log physically-separate DB | Single-DB `audit_log` table (migration 002) | Gap — documented, deferred | SENTINEL audit 2026-05-23 |
+| Wallet plane: KMS vault, hot/cold/HD per-user | Custodial-light single pool | Partial — per blueprint phasing; full wallet plane deferred | §7 phasing note |
+| `5m/15m` timeframe discriminator on Confluence Scalper | Not implemented (Gamma API does not expose reliable duration field) | Deliberate — UI copy updated, crypto-only eligibility gate retained | WARP-61 post-review |
+
+These divergences are stable. Do not "fix" them without explicit WARP🔹CMD decision.
+
+---
 ## 2. System Architecture
 
 ### High-level flow
@@ -173,16 +191,19 @@ class BaseStrategy:
 
 ### Strategies (launch order)
 
-| # | Strategy | MVP Phase | Description |
-|---|---|---|---|
-| 1 | **Copy Trade** | Phase 3 | User picks 1-3 wallets to mirror; bot replicates entries (size-scaled to user's bankroll); follows leader exits |
-| 2 | **Signal Following** | Phase 3 | Operator-curated signal feed; users subscribe; bot executes published signals |
-| 3 | **Value/Mispricing** | Phase 7 | Proprietary probability model vs market price; EV > 0 + edge > 2% |
-| 4 | **Momentum** | Phase 8 | Price + volume momentum confirmation over N hours |
-| 5 | **Arbitrage** | Phase 9 | Cross-market triangulation; high-skill, capital-heavy |
-| 6 | **Hybrid** | Phase 8 | Weighted combination of strategies 1-4 |
+| # | Strategy | MVP Phase | Status | Description |
+|---|---|---|---|---|
+| 1 | **Copy Trade** | Phase 3 | ✅ Built | User picks 1-3 wallets to mirror; bot replicates entries (size-scaled to user's bankroll); follows leader exits |
+| 2 | **Signal Following** | Phase 3 | ✅ Built | Operator-curated signal feed; users subscribe; bot executes published signals |
+| 3 | **Confluence Scalper** | Phase 5 | ✅ Built | Multi-signal confluence on crypto markets (BTC/ETH/SOL/XRP/DOGE/BNB/HYPE); short-duration scalp entries. Crypto-only eligibility gate. Preset: `confluence_scalper` / "Crypto Scalper" |
+| 4 | **Momentum Reversal** | Phase 5 | ✅ Built | Price + volume momentum confirmation over N hours |
+| 5 | **Value/Mispricing** | Phase 7 | 🔲 Deferred | Proprietary probability model vs market price; EV > 0 + edge > 2% |
+| 6 | **Arbitrage** | Phase 9 | 🔲 Deferred | Cross-market triangulation; high-skill, capital-heavy |
+| 7 | **Hybrid / Full Auto** | Phase 8 | 🔲 Deferred | Weighted combination of all active strategies; Full Auto scan covers all eligible strategies |
 
-**Reasoning for launch order:** Copy-trade and signal-following monetize alpha discovery without requiring perfect proprietary model. Value/momentum added when model matures and historical data validates.
+> **Implementation note (v3.2):** Strategies 1–4 are registered in `domain/strategy/registry.py` and `bot/presets.py`. Value/Mispricing and Arbitrage remain deferred per original phasing. Full Auto scan loop covers strategies 1–4 with per-market eligibility gates.
+
+**Reasoning for launch order:** Copy-trade and signal-following monetize alpha discovery without requiring perfect proprietary model. Confluence Scalper and Momentum added for crypto-specialist users. Value/momentum model deferred until historical data validates.
 
 ---
 
@@ -904,3 +925,13 @@ Explicitly excluded from this blueprint:
 ---
 
 **End of Blueprint v3.**
+
+---
+
+## Version History
+
+| Version | Date | Changes |
+|---|---|---|
+| v3.0 | 2026-05-01 | Initial multi-user auto-trade blueprint |
+| v3.1 | 2026-05-03 | LOCKED — CrusaderBot pivot target; risk constants, activation guards, fee/referral model |
+| v3.2 | 2026-05-23 | Tier section corrected (RBAC reality); Confluence Scalper + Momentum Reversal added to strategy table; deliberate divergences documented; strategy status column added |
