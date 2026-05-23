@@ -153,6 +153,10 @@ class Settings(BaseSettings):
     # readiness validator issues PASS on all checks).  Never set without an
     # explicit WARP🔹CMD decision backed by a SENTINEL report.
     RISK_CONTROLS_VALIDATED: bool = False
+    SECURITY_HARDENING_VALIDATED: bool = False
+    # Owner: WARP•SENTINEL. Required ON before any live operation.
+    # Verifies: kill switch drill passed, audit-log append-only enforced,
+    # operator role boundary tested, no PII in logs. See blueprint §12.
     FEE_COLLECTION_ENABLED: bool = False
 
     # --- Risk caps (Track D) — hard caps enforced per-user before any order ---
@@ -161,6 +165,10 @@ class Settings(BaseSettings):
     MAX_DAILY_LOSS_USD: float = -50.00         # configurable via env MAX_DAILY_LOSS_USD
     MAX_OPEN_POSITIONS: int = 20               # hard cap on concurrent open positions
     REFERRAL_PAYOUT_ENABLED: bool = False
+    # AUTO_REDEEM_ENABLED is intentionally True in paper mode so paper users see
+    # redeems happen on resolution. Before live launch, this guard flips to False
+    # alongside ENABLE_LIVE_TRADING — auto-redeem then requires explicit operator
+    # enable per blueprint §12 default-OFF policy.
     AUTO_REDEEM_ENABLED: bool = True
 
     # --- App config ---
