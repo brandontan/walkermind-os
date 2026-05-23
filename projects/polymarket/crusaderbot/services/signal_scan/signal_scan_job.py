@@ -796,7 +796,21 @@ async def run_once() -> None:
         for lib_name in strategies_to_run:
             if not _preset_allows(active_preset, lib_name):
                 continue
-            config = {"strategy_params": strategy_params.get(lib_name, {})}
+            # Per-strategy params come from user_settings.strategy_params (JSONB,
+            # user-controlled). _coerce_jsonb guarantees the top-level value is a
+            # dict, but a malformed row (e.g. {"momentum_reversal": "balanced"})
+            # can still hold a non-dict sub-value. Passing that into the lib
+            # strategy as config would raise ValueError: dictionary update
+            # sequence element #0 has length 1; 2 is required. Drop to {} + log.
+            lib_params = strategy_params.get(lib_name, {})
+            if not isinstance(lib_params, dict):
+                user_log.warning(
+                    "signal_scan_strategy_params_not_dict",
+                    strategy=lib_name,
+                    got=type(lib_params).__name__,
+                )
+                lib_params = {}
+            config = {"strategy_params": lib_params}
             try:
                 cands: list[SignalCandidate] = await asyncio.get_event_loop().run_in_executor(
                     None, run_lib_strategy, lib_name, user_markets, config
