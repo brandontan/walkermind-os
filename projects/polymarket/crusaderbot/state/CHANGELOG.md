@@ -2,6 +2,14 @@
 ## [SECURITY-RLS] Enable RLS on all 42 public tables — anon-key lockout
 **Date:** 2026-05-23 | **Branch:** WARP/rls-enable-anon-lockout | **Tier:** MAJOR
 
+## [RLS-046] Enable RLS all 42 public tables — MERGED 82f08af2a27b
+**Date:** 2026-05-23 | **PR:** #1296 | **Tier:** MAJOR | **SENTINEL:** 98/100 GO-LIVE APPROVED
+
+migration 046: ENABLE ROW LEVEL SECURITY on all 42 public schema tables.
+anon/authenticated denied by default. postgres/service_role bypass RLS — backend unchanged.
+Closes Supabase advisor CRITICAL finding (rls_disabled).
+
+
 Supabase advisor (CRITICAL): all 42 public tables RLS-disabled → anon/authenticated
 key could read/write every row. migrations/046_enable_rls_anon_lockout.sql enables RLS
 (no FORCE, no policies → deny-by-default for anon). Verified safe: tables owned by
