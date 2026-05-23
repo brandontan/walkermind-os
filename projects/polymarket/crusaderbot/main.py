@@ -84,7 +84,6 @@ async def lifespan(_: FastAPI):
     _total_strategies = len(_all_strategy_names)
     log.info(
         "strategies_loaded",
-        event="strategies_loaded",
         count=_total_strategies,
         domain_count=len(catalog),
         lib_count=len(_lib_names),
