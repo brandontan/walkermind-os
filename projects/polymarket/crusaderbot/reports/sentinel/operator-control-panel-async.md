@@ -8,6 +8,13 @@
 - Environment: `dev` (build container — no live DB; asyncpg absent + cryptography Rust panic)
 - Verdict: **CONDITIONAL** — Score 81/100, 0 critical
 
+> SYNC NOTE (WARP•FORGE, per WARP🔹CMD recheck, head `1b5b3a0`): this report was
+> synced to the renamed metric schema. `paper_orders_created` / `positions_created`
+> were collapsed into a single `router_executed` field (execution proxy, not a
+> DB-row count) — **M-1 is now RESOLVED**. Verdict remains **CONDITIONAL** only
+> because the MAJOR live-DB end-to-end gate is still not runnable in-container and
+> must be executed by the operator before merge.
+
 ---
 
 ## TEST PLAN
@@ -39,9 +46,9 @@ Live-DB end-to-end assertions (actual row contents, real state flips, live rende
 Part A — runtime-proof instrumentation:
 
 - `scheduler.run_signal_scan()` returns the metrics dict with all required keys
-  (`scheduler.py:422-433`): mode, live_trading, strategies_loaded, users_scanned,
-  markets_seen, candidates_emitted, risk_approved, risk_rejected, paper_orders_created,
-  positions_created, errors. **PASS**.
+  (`scheduler.py:422-434`): mode, live_trading, strategies_loaded, users_scanned,
+  markets_seen, candidates_emitted, risk_approved, risk_rejected, `router_executed`,
+  errors. **PASS**.
 - Persistence path verified: `_job_tracker_listener` captures any dict `retval`
   (`scheduler.py:732-736`) → `record_job_event` writes `json.dumps(metadata)::jsonb`
   into `job_runs.metadata` (`domain/ops/job_tracker.py` INSERT). Same path `check_exits`
@@ -94,15 +101,16 @@ None found.
 
 ## MEDIUM / LOW FINDINGS
 
-- **M-1 (extra review focus #2 — overclaim):** `paper_orders_created` and
-  `positions_created` are both assigned the same `orders_created` counter
-  (`scheduler.py:430-431`), which increments solely when `router_execute()` does not
-  raise (`_process_candidate` returns `"executed"`). They are **not** verified against
-  actual `orders` / `positions` DB rows, and one router success is reported as both one
-  order **and** one position. The label "positions_created" therefore asserts a DB-row
-  outcome it does not prove. Recommend deriving from confirmed DB writes, or renaming to
-  `router_executed` / documenting it as an execution-attempt proxy. Non-blocking
-  (observational metric only; no trading-path effect).
+- **M-1 (extra review focus #2 — overclaim): RESOLVED at head `1b5b3a0`.** The original
+  finding: `paper_orders_created` and `positions_created` were both assigned the same
+  router-success counter (incremented only when `router_execute()` did not raise), so a
+  single router success was reported as one order **and** one position with no DB-row
+  verification. Fix applied: both fields removed and replaced by one `router_executed`
+  field, documented inline (`scheduler.py:422-434`) as a successful-`router_execute`
+  proxy — explicitly NOT a confirmed `orders`/`positions` DB-row count
+  (`paper.execute` dedups via `ON CONFLICT (idempotency_key) DO NOTHING`). `/panel`
+  Stats, the FORGE report, and PROJECT_STATE were updated to match. No remaining
+  overclaim.
 - **L-1:** `live_trading` field is the raw `get_settings().ENABLE_LIVE_TRADING` flag, not
   the full three-guard `resolve_trading_mode()` result that drives `mode`. Consistent in
   practice (mode=live requires the flag true) but the two fields derive from different
@@ -131,21 +139,23 @@ None found.
 **CONDITIONAL.** The change is additive, behaviour-preserving, and safety-clean at the
 code level: live-trading guards are never written, the kill switch remains the single
 control path, operator gating and silent reject are correct, the metrics-persistence
-chain is sound, and every panel read fails safe. No critical issue. It is **not APPROVED**
-because the MAJOR validation target is explicitly a live-DB end-to-end proof that cannot
-be run in this container, and M-1 (`positions_created` overclaim) should be acknowledged
-before merge.
+chain is sound, and every panel read fails safe. No critical issue. M-1 (the
+`positions_created` overclaim) is now **RESOLVED** via the `router_executed` rename. It
+remains **not APPROVED** solely because the MAJOR validation target is explicitly a
+live-DB end-to-end proof that cannot be run in this container — that operator gate is the
+only outstanding condition.
 
 ---
 
 ## FIX RECOMMENDATIONS (priority order)
 
-1. (M-1) Derive `positions_created` from a confirmed DB position-row write, or rename to an
-   execution-attempt proxy so the metric does not overclaim DB-row proof.
+1. (M-1) **DONE** — renamed to `router_executed` (execution-attempt proxy), no longer
+   overclaiming DB-row proof.
 2. Operator must run the live-DB gate before merge: seed `auto_trade_on=TRUE, paused=FALSE`,
    let `signal_scan` tick, assert latest `job_runs` `signal_scan` metadata carries
-   `mode=paper` / `live_trading=false` + the counters, and `portfolio_snapshots` metadata
-   carries `snapshots_written`.
+   `mode=paper` / `live_trading=false` + the counters (`candidates_emitted` /
+   `risk_approved` / `risk_rejected` / `router_executed`), and `portfolio_snapshots`
+   metadata carries `snapshots_written`.
 3. In Telegram (operator): confirm `/panel` Start/Stop flip `system_settings.kill_switch_active`
    + write `kill_switch_history`; Status/Stats render live values; a non-operator hits the
    silent-reject path; `ENABLE_LIVE_TRADING` stays `false` throughout.
@@ -156,7 +166,7 @@ before merge.
 
 ## TELEGRAM PREVIEW
 
-```
+```text
 🎛 Operator Control Panel
 
 Mode: PAPER
@@ -172,5 +182,5 @@ Start / Stop the auto-trade engine, or open Status / Stats below.
 ```
 
 Stats view (latest `signal_scan` tick): mode, live_trading, strategies_loaded, users_scanned,
-markets_seen, candidates_emitted, risk_approved/rejected, paper_orders_created,
-positions_created, errors, snapshots_written. Non-operator `/panel` → silent no-op.
+markets_seen, candidates_emitted, risk_approved/rejected, `router_executed` (execution
+proxy; not a DB-row guarantee), errors, snapshots_written. Non-operator `/panel` → silent no-op.
