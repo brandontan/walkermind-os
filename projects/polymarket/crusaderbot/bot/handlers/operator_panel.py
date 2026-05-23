@@ -18,7 +18,7 @@ import json
 import logging
 from typing import Any
 
-from telegram import Update
+from telegram import CallbackQuery, Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
@@ -100,8 +100,7 @@ def _render_stats(scan_md: dict[str, Any], snap_md: dict[str, Any]) -> str:
         f"Markets seen: {g(scan_md, 'markets_seen')}\n"
         f"Candidates emitted: {g(scan_md, 'candidates_emitted')}\n"
         f"Risk approved: {g(scan_md, 'risk_approved')}  ·  rejected: {g(scan_md, 'risk_rejected')}\n"
-        f"Paper orders created: {g(scan_md, 'paper_orders_created')}\n"
-        f"Positions created: {g(scan_md, 'positions_created')}\n"
+        f"Router executed: {g(scan_md, 'router_executed')}  <i>(successful router_execute; not a DB-row guarantee)</i>\n"
         f"Errors: {g(scan_md, 'errors')}\n\n"
         f"Snapshots written: {g(snap_md, 'snapshots_written')}"
     )
@@ -143,29 +142,19 @@ async def panel_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_operator(update) or update.message is None:
         await _reject_silently(update)
         return
-    try:
-        active = await ops_kill_switch.is_active()
-    except Exception as exc:  # noqa: BLE001 — panel must still open during a DB hiccup
-        logger.error("panel command: kill switch read failed: %s", exc)
-        active = False
     await update.message.reply_text(
         await _render_root(),
         parse_mode=ParseMode.HTML,
-        reply_markup=operator_panel_keyboard(active),
+        reply_markup=operator_panel_keyboard(),
     )
 
 
-async def _edit(q, text: str) -> None:
-    try:
-        active = await ops_kill_switch.is_active()
-    except Exception as exc:  # noqa: BLE001
-        logger.error("panel edit: kill switch read failed: %s", exc)
-        active = False
+async def _edit(q: CallbackQuery, text: str) -> None:
     try:
         await q.edit_message_text(
             text,
             parse_mode=ParseMode.HTML,
-            reply_markup=operator_panel_keyboard(active),
+            reply_markup=operator_panel_keyboard(),
         )
     except Exception as exc:  # noqa: BLE001
         # Telegram raises BadRequest("message is not modified") when the operator

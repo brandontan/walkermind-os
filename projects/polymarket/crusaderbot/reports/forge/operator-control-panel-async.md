@@ -24,7 +24,10 @@ Two parts were built:
 
 - **Part A — runtime-proof instrumentation (additive, behaviour-preserving).** The scan
   job now emits durable pipeline metrics so the proof
-  `scan → candidate → risk gate → paper order → position → snapshot` is queryable.
+  `scan → candidate → risk gate → router_execute → snapshot` is queryable. NOTE:
+  `router_executed` is an execution proxy (successful `router_execute` calls), NOT a
+  count of confirmed `orders`/`positions` DB rows — `paper.execute` dedups via
+  `ON CONFLICT (idempotency_key) DO NOTHING`, so a repeat candidate is a no-op.
 - **Part B — consolidated operator control panel (`/panel`).** A single operator-only
   inline-keyboard surface composing the controls/views that already existed piecemeal.
 
@@ -54,7 +57,7 @@ source of truth enforced at the risk gate; `/panel` is a view/controller over it
 ## 3. Files created / modified (full repo-root paths)
 
 Modified:
-- `projects/polymarket/crusaderbot/scheduler.py` — added `_resolve_mode()`; `run_signal_scan()` now returns a metrics dict (mode, live_trading, strategies_loaded, users_scanned, markets_seen, candidates_emitted, risk_approved, risk_rejected, paper_orders_created, positions_created, errors); `_process_candidate()` now returns outcome strings (`skipped`/`rejected`/`executed`/`error`). `snapshot_portfolios()` already returned `{"snapshots_written": N}` — unchanged.
+- `projects/polymarket/crusaderbot/scheduler.py` — added `_resolve_mode()`; `run_signal_scan()` now returns a metrics dict (mode, live_trading, strategies_loaded, users_scanned, markets_seen, candidates_emitted, risk_approved, risk_rejected, `router_executed`, errors); `_process_candidate()` now returns outcome strings (`skipped`/`rejected`/`executed`/`error`). `snapshot_portfolios()` already returned `{"snapshots_written": N}` — unchanged.
 - `projects/polymarket/crusaderbot/domain/ops/job_tracker.py` — added `fetch_latest(job_id)` returning the most recent `job_runs` row incl. `metadata`.
 - `projects/polymarket/crusaderbot/bot/keyboards/admin.py` — added `operator_panel_keyboard(kill_active)`.
 - `projects/polymarket/crusaderbot/bot/dispatcher.py` — import `operator_panel`; register `/panel` command + `panel:` CallbackQueryHandler.

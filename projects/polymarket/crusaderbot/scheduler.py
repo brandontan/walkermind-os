@@ -362,17 +362,18 @@ async def run_signal_scan() -> dict:
     """Auto-trade scan tick.
 
     Returns a metrics dict captured by ``_job_tracker_listener`` into
-    ``job_runs.metadata`` — the durable runtime proof of the
-    scan -> candidate -> risk gate -> paper order -> position pipeline that the
-    operator panel (/panel -> Stats) reads back. Behaviour is unchanged; the
-    counters are purely observational.
+    ``job_runs.metadata`` — durable runtime proof of the
+    scan -> candidate -> risk gate -> router_execute pipeline that the operator
+    panel (/panel -> Stats) reads back. ``router_executed`` is an execution proxy
+    (successful router_execute calls), not a count of confirmed orders/positions
+    DB rows. Behaviour is unchanged; the counters are purely observational.
     """
     mode = _resolve_mode()
     markets_seen: set[str] = set()
     candidates_emitted = 0
     risk_approved = 0
     risk_rejected = 0
-    orders_created = 0
+    router_executed = 0
     errors = 0
 
     pool = get_pool()
@@ -412,7 +413,7 @@ async def run_signal_scan() -> dict:
                     continue
                 if outcome == "executed":
                     risk_approved += 1
-                    orders_created += 1
+                    router_executed += 1
                 elif outcome == "error":
                     risk_approved += 1
                     errors += 1
@@ -428,8 +429,10 @@ async def run_signal_scan() -> dict:
         "candidates_emitted": candidates_emitted,
         "risk_approved": risk_approved,
         "risk_rejected": risk_rejected,
-        "paper_orders_created": orders_created if mode == "paper" else 0,
-        "positions_created": orders_created,
+        # Successful router_execute calls this tick. Execution proxy only — NOT a
+        # guarantee of new orders/positions DB rows (paper.execute dedups via
+        # ON CONFLICT (idempotency_key) DO NOTHING, so a repeat is a no-op).
+        "router_executed": router_executed,
         "errors": errors,
     }
 
