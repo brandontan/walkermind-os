@@ -62,6 +62,7 @@ Close production gaps before beta:
 - [x] Apply migration 044 (DROP access_tier) — CONFIRMED APPLIED (access_tier column gone from schema)
 - [x] Fly.io deploy validation
 - [x] Scheduler health / retry check
+- [ ] RLS lockout — enable Row Level Security on all 42 public tables (anon-key exposure); migration 046 drafted in WARP/rls-enable-anon-lockout, pending WARP🔹CMD review + apply
 - [x] WARP-52 — portfolio_snapshots Python writer / cb_portfolio NOTIFY wiring (Issue #1245) [STANDARD] — DELIVERED WARP/portfolio-snapshots-writer 2026-05-21
 - [x] Telegram notification reliability — WARP-53 DELIVERED 2026-05-21 (WARP/warp53-reliability-hardening)
 - [x] Logging and operational sanity

@@ -1,4 +1,15 @@
 <!-- gate-notify-verify-v3 -->
+## [SECURITY-RLS] Enable RLS on all 42 public tables — anon-key lockout
+**Date:** 2026-05-23 | **Branch:** WARP/rls-enable-anon-lockout | **Tier:** MAJOR
+
+Supabase advisor (CRITICAL): all 42 public tables RLS-disabled → anon/authenticated
+key could read/write every row. migrations/046_enable_rls_anon_lockout.sql enables RLS
+(no FORCE, no policies → deny-by-default for anon). Verified safe: tables owned by
+postgres (BYPASSRLS) + service_role BYPASSRLS; frontend uses backend API/SSE only, no
+direct anon path. Validated read-only: 42/42 names exist, covers all public tables, 0
+already enabled. Drafted for review — NOT applied (auto-applies on next deploy via
+database.py). Forge report: reports/forge/rls-enable-anon-lockout.md.
+
 ## [SENTINEL-AUDIT] F-CRIT-1 fix — bot/ui/__init__.py realigned — MERGED fa1bd2537650
 **Date:** 2026-05-23 | **PR:** #1294 | **Tier:** STANDARD
 
