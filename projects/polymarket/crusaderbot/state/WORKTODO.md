@@ -142,3 +142,4 @@ CRUSADERBOT is considered **DONE** only when:
 - [x] WARP-71 — Premium terminal UI HTML parse mode [STANDARD] — MERGED e443c212c1e7
 - [x] WARP-72 — Fix phantom dot + do_start capital from _read_state [MINOR] — 93d5709c0c5c
 - [x] WARP-73 — Phantom dot fix + clean Telegram HTML format [MINOR hotfix] — 5364eb97 + 7bb7a69a + c8de0a5e
+- [x] SENTINEL system audit pre-handoff — F-CRIT-1 RESOLVED, bot/ui/__init__.py fix — MERGED fa1bd2537650
