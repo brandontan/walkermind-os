@@ -34,6 +34,9 @@ Deliverables:
 - [x] Broken/fake/dead path map
 - [x] Multi-user isolation verification
 - [x] Proof PAPER ONLY posture unchanged
+- [x] Pre-handoff CORE AUDIT — WARP/crusaderbot-system-audit 2026-05-23 (sentinel report; F-CRIT-1 boot-blocker found)
+- [x] F-CRIT-1 boot fix — bot/ui/__init__.py stale BAR/BRANCH/LAST re-export removed; import clean + 1613 pytest pass (consolidated into PR #1294, per WARP🔹CMD; PR #1295 closed)
+- [ ] F-HIGH-2 — 0 live trade data (positions/orders/fills/snapshots); run scan→trade paper smoke to populate frontend before handoff
 
 ---
 

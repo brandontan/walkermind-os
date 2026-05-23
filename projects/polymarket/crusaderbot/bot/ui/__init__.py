@@ -1,8 +1,5 @@
 """MVP v1 shared UI helpers (tree formatters, status glyphs)."""
 from .tree import (
-    BAR,
-    BRANCH,
-    LAST,
     STATUS_RUNNING,
     STATUS_STOPPED,
     STATUS_PAUSED,
@@ -19,9 +16,6 @@ from .tree import (
 )
 
 __all__ = [
-    "BAR",
-    "BRANCH",
-    "LAST",
     "STATUS_RUNNING",
     "STATUS_STOPPED",
     "STATUS_PAUSED",
