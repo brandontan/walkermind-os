@@ -355,7 +355,7 @@ _strategies = {"copy_trade": CopyTradeStrategy()}
 
 def _resolve_mode() -> str:
     """Paper/live label — delegates to the canonical ``config.resolve_trading_mode``."""
-    return resolve_trading_mode()
+    return resolve_trading_mode(get_settings())
 
 
 async def run_signal_scan() -> dict:

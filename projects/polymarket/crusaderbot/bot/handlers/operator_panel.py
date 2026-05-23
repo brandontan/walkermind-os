@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 def _resolve_mode() -> str:
     """Paper/live label — delegates to the canonical ``config.resolve_trading_mode``."""
-    return resolve_trading_mode()
+    return resolve_trading_mode(get_settings())
 
 
 def _coerce_metadata(raw: Any) -> dict[str, Any]:

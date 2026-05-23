@@ -291,14 +291,18 @@ def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]
 
 
-def resolve_trading_mode() -> str:
+def resolve_trading_mode(settings: "Settings | None" = None) -> str:
     """Return ``"live"`` only when all three live-trading guards are open.
 
     Single source of truth for the paper/live label shared by the scheduler,
     the ops API, and the operator panel. The ``ENABLE_LIVE_TRADING`` guard must
     never diverge between those surfaces, so the condition lives here once.
+
+    ``settings`` may be passed so a caller's own ``get_settings()`` result is
+    used (each surface imports it locally, which tests monkeypatch); when
+    omitted the canonical cached settings are read.
     """
-    s = get_settings()
+    s = settings or get_settings()
     if s.ENABLE_LIVE_TRADING and s.EXECUTION_PATH_VALIDATED and s.CAPITAL_MODE_CONFIRMED:
         return "live"
     return "paper"

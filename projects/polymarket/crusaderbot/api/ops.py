@@ -86,7 +86,7 @@ def _format_uptime(seconds: int) -> str:
 
 def _resolve_mode() -> str:
     """Paper/live label — delegates to the canonical ``config.resolve_trading_mode``."""
-    return resolve_trading_mode()
+    return resolve_trading_mode(get_settings())
 
 
 def _resolve_version() -> str:
