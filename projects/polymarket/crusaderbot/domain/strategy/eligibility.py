@@ -34,6 +34,48 @@ CONFLUENCE_SCALPER_ASSET_PATTERN: re.Pattern[str] = re.compile(
     re.IGNORECASE,
 )
 
+# UI asset ticker -> the alias words that identify it in market text. Used to
+# restrict crypto-short presets to a user-selected subset (BTC/ETH/SOL/BNB...).
+ASSET_ALIASES: dict[str, tuple[str, ...]] = {
+    "BTC": ("btc", "bitcoin"),
+    "ETH": ("eth", "ethereum"),
+    "SOL": ("sol", "solana"),
+    "BNB": ("bnb", "binance coin"),
+    "XRP": ("xrp", "ripple"),
+    "DOGE": ("doge", "dogecoin"),
+    "HYPE": ("hype", "hyperliquid"),
+}
+
+
+def _assets_pattern(assets: Iterable[str]) -> re.Pattern[str] | None:
+    """Compile a word-boundary regex matching any alias of the given tickers."""
+    aliases: list[str] = []
+    for a in assets:
+        aliases.extend(ASSET_ALIASES.get(str(a).strip().upper(), ()))
+    if not aliases:
+        return None
+    return re.compile(
+        r"\b(" + "|".join(re.escape(x) for x in aliases) + r")\b", re.IGNORECASE
+    )
+
+
+def market_matches_assets(market: Any, assets: Iterable[str] | None) -> bool:
+    """True if ``market`` text names one of the selected asset tickers.
+
+    ``assets`` empty/None means "any whitelisted crypto asset" (no restriction
+    beyond the existing whitelist). Unknown tickers contribute no aliases.
+    """
+    if not isinstance(market, dict):
+        return False
+    pattern = _assets_pattern(assets) if assets else CONFLUENCE_SCALPER_ASSET_PATTERN
+    if pattern is None:
+        pattern = CONFLUENCE_SCALPER_ASSET_PATTERN
+    haystack = " ".join(
+        str(market.get(field) or "")
+        for field in ("question", "title", "slug", "groupItemTitle")
+    )
+    return bool(pattern.search(haystack))
+
 
 def is_confluence_scalper_eligible(market: Any) -> bool:
     """Return True if a Gamma market dict qualifies for the confluence scalper.
@@ -166,7 +208,11 @@ def classify_crypto_timeframe(market: Any) -> CryptoTimeframe | None:
     return None
 
 
-def is_short_crypto_market(market: Any, timeframe: str | None) -> bool:
+def is_short_crypto_market(
+    market: Any,
+    timeframe: str | None,
+    assets: Iterable[str] | None = None,
+) -> bool:
     """True iff ``market`` is a short-duration crypto candle market AND its
     classified timeframe matches ``timeframe``.
 
@@ -185,11 +231,9 @@ def is_short_crypto_market(market: Any, timeframe: str | None) -> bool:
     """
     if not isinstance(market, dict):
         return False
-    haystack = " ".join(
-        str(market.get(field) or "")
-        for field in ("question", "title", "slug", "groupItemTitle")
-    )
-    if not CONFLUENCE_SCALPER_ASSET_PATTERN.search(haystack):
+    # Asset gate: a whitelisted crypto ticker (optionally narrowed to the
+    # user's selected subset, e.g. BTC/ETH/SOL/BNB) must appear in the text.
+    if not market_matches_assets(market, assets):
         return False
     tf = classify_crypto_timeframe(market)
     if tf is None:
@@ -207,4 +251,6 @@ __all__ = [
     "CryptoTimeframe",
     "classify_crypto_timeframe",
     "is_short_crypto_market",
+    "ASSET_ALIASES",
+    "market_matches_assets",
 ]

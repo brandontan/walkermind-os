@@ -95,10 +95,13 @@ class ConfluenceScalperStrategy(BaseStrategy):
         Returns an empty list on any failure or when no market qualifies.
         Never raises — scan errors must not crash the scheduler scan loop.
         """
+        # Crypto Scalper trades short-duration crypto candle markets, which the
+        # generic /markets fetch misses — pull the dedicated newest-first candle
+        # universe (live 5m/15m markets with real in-window liquidity).
         try:
-            markets = await pm.get_markets(limit=SCAN_MARKET_LIMIT)
+            markets = await pm.get_crypto_short_markets()
         except Exception as exc:
-            logger.warning("confluence_scalper scan: get_markets failed err=%s", exc)
+            logger.warning("confluence_scalper scan: get_crypto_short_markets failed err=%s", exc)
             return []
 
         if not markets:
@@ -108,19 +111,16 @@ class ConfluenceScalperStrategy(BaseStrategy):
         blacklist = set(market_filters.blacklisted_market_ids)
         effective_min_liquidity = max(market_filters.min_liquidity, 0.0)
         timeframe = getattr(user_context, "selected_timeframe", None)
+        assets = getattr(user_context, "selected_assets", ()) or None
         tuning = _TIMEFRAME_TUNING.get(timeframe or "", {})
         candidates: list[SignalCandidate] = []
 
         for m in markets:
-            # Issue #1269 eligibility gate — crypto-only category + asset
-            # whitelist (BTC/ETH/SOL/XRP/DOGE/BNB/HYPE) — composed with the
-            # short-duration timeframe gate (5m/15m). Applied inside the
-            # strategy's own market loop so it operates on confluence_scalper's
-            # full universe rather than a capped lib-strategy snapshot in the
-            # scan loop. timeframe=None keeps any 5m/15m crypto market eligible;
-            # non-crypto or unclassifiable markets self-skip (fail-closed)
-            # without affecting other strategies on the same scan tick.
-            if not is_short_crypto_market(m, timeframe):
+            # Gate to crypto candle markets matching the user's timeframe (5m/15m)
+            # and selected assets (BTC/ETH/SOL/BNB...). timeframe=None keeps any
+            # 5m/15m crypto market; non-crypto / unclassifiable / off-asset
+            # markets self-skip (fail-closed) without affecting other strategies.
+            if not is_short_crypto_market(m, timeframe, assets):
                 continue
             try:
                 candidate = _evaluate_market(

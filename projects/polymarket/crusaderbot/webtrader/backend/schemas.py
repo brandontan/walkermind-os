@@ -96,6 +96,7 @@ class AutoTradeState(BaseModel):
     min_volume_24h: float = 100.0
     slippage_tolerance_pct: Optional[float] = None
     selected_timeframe: Optional[str] = None  # '5m' | '15m' for crypto-short presets
+    selected_assets: Optional[list[str]] = None  # e.g. ['BTC','ETH'] for crypto-short presets
 
 
 class AutoTradeToggleRequest(BaseModel):
@@ -105,6 +106,7 @@ class AutoTradeToggleRequest(BaseModel):
 class PresetActivateRequest(BaseModel):
     preset_key: str
     selected_timeframe: Optional[str] = None  # '5m' | '15m' (crypto-short presets only)
+    selected_assets: Optional[list[str]] = None  # crypto-short presets only
 
 
 class CustomizeRequest(BaseModel):

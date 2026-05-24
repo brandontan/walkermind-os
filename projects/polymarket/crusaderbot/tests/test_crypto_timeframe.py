@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 from projects.polymarket.crusaderbot.domain.strategy.eligibility import (
     classify_crypto_timeframe,
     is_short_crypto_market,
+    market_matches_assets,
 )
 
 
@@ -158,3 +159,34 @@ def test_crypto_without_timeframe_rejected():
     m = _market(question="Will BTC hit $200k?", slug="btc-200k")
     assert is_short_crypto_market(m, "5m") is False
     assert is_short_crypto_market(m, None) is False
+
+
+# ── asset selection ─────────────────────────────────────────────────────────
+
+def _btc5m():
+    return {"question": "Bitcoin Up or Down", "slug": "btc-updown-5m-1779249900", "category": "crypto"}
+
+
+def _eth5m():
+    return {"question": "Ethereum Up or Down", "slug": "eth-updown-5m-1779249900", "category": "crypto"}
+
+
+def test_asset_filter_matches_selected():
+    assert is_short_crypto_market(_btc5m(), "5m", ["BTC"]) is True
+    assert is_short_crypto_market(_btc5m(), "5m", ["ETH"]) is False
+
+
+def test_asset_filter_multi_select():
+    assert is_short_crypto_market(_eth5m(), "5m", ["BTC", "ETH"]) is True
+    assert is_short_crypto_market(_eth5m(), "5m", ["BTC", "SOL"]) is False
+
+
+def test_asset_filter_empty_means_any():
+    assert is_short_crypto_market(_btc5m(), "5m", []) is True
+    assert is_short_crypto_market(_btc5m(), "5m", None) is True
+
+
+def test_market_matches_assets_helper():
+    assert market_matches_assets(_btc5m(), ["BTC"]) is True
+    assert market_matches_assets(_btc5m(), ["ETH", "SOL"]) is False
+    assert market_matches_assets(_eth5m(), None) is True  # any whitelisted
