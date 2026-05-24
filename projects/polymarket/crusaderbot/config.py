@@ -185,9 +185,10 @@ class Settings(BaseSettings):
     SIGNAL_SCAN_INTERVAL: int = 180
     MARKET_SIGNAL_SCAN_INTERVAL: int = 60
     # --- Signal scanner thresholds (demo path edge_finder) ---
-    # Market eligibility price range: excludes near-resolved markets
-    SCANNER_EDGE_MIN_PRICE: float = 0.05   # env: SCANNER_EDGE_MIN_PRICE
-    SCANNER_EDGE_MAX_PRICE: float = 0.95   # env: SCANNER_EDGE_MAX_PRICE
+    # Market eligibility price range: excludes near-resolved markets and
+    # extreme longshots / near-certainties where momentum edge is unreliable.
+    SCANNER_EDGE_MIN_PRICE: float = 0.15   # env: SCANNER_EDGE_MIN_PRICE
+    SCANNER_EDGE_MAX_PRICE: float = 0.85   # env: SCANNER_EDGE_MAX_PRICE
     # Minimum edge in basis points (1 bps = 0.01%) to publish a signal
     SCANNER_MIN_EDGE_BPS: int = 200        # env: SCANNER_MIN_EDGE_BPS
     # Minimum confidence score for published signals

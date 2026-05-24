@@ -482,8 +482,14 @@ async def run_job() -> tuple[int, int]:
                     _demo_rejected += 1
                     continue
 
-                # Edge scoring: fair value baseline is 0.5 for binary markets
-                edge = abs(yes_p - 0.5)
+                # Edge scoring: 24h/1h momentum from Gamma price-change fields.
+                # abs(yes_p - 0.5) is NOT used — it peaks at extreme longshots/
+                # certainties (price near 0 or 1) where there is no real edge,
+                # producing systematic losses on championship-winner futures.
+                price_change_1d = float(m.get("oneDayPriceChange") or 0)
+                price_change_1h = float(m.get("oneHourPriceChange") or 0)
+                # Hourly signal is fresher; weight it up when nonzero.
+                edge = max(abs(price_change_1d), abs(price_change_1h) * 1.5)
                 edge_bps = int(edge * 10_000)
 
                 if edge_bps < min_edge_bps:
@@ -496,8 +502,10 @@ async def run_job() -> tuple[int, int]:
                 # All filters passed — count as approved
                 edge_scanned += 1
 
-                # Side: buy the underpriced outcome
-                side = "YES" if yes_p < 0.5 else "NO"
+                # Side: follow the strongest available momentum direction.
+                # Prefer 1h signal when nonzero (fresher), fall back to 1d.
+                active_change = price_change_1h if price_change_1h != 0 else price_change_1d
+                side = "YES" if active_change >= 0 else "NO"
                 confidence = min(min_confidence + edge * 2.0, 0.90)
                 target_price = yes_p if side == "YES" else (no_p or round(1.0 - yes_p, 4))
 

@@ -911,12 +911,18 @@ def _filter_markets_by_category(markets: list[dict], filters: list[str]) -> list
 
 
 async def _fetch_markets_for_lib_strategies() -> list[dict]:
-    """Fetch active market list from Gamma API for lib strategy scans.
+    """Fetch active markets from Gamma /events, annotated with event-level tags.
+
+    Uses get_events_with_markets() so each returned dict carries a ``category``
+    field built from the parent event's tag labels (e.g. ``"crypto finance"``).
+    _filter_markets_by_category() can then correctly match dashboard categories
+    (Politics/Sports/Crypto/Finance/…) instead of substring-matching the raw
+    event slug that Gamma /markets returns in ``groupItemTitle`` / ``slug``.
 
     Returns empty list on failure — lib strategies handle empty input gracefully.
     """
     try:
-        return await _polymarket.get_markets(limit=200)
+        return await _polymarket.get_events_with_markets(limit=200)
     except Exception as exc:
         logger.warning("lib_strategy_market_fetch_failed", error=str(exc))
         return []
