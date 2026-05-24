@@ -240,7 +240,8 @@ async def get_positions(
             f"""SELECT p.id, p.market_id, m.question AS market_question,
                        p.side, p.size_usdc, p.entry_price, p.current_price,
                        p.pnl_usdc, p.status, p.mode, p.opened_at, p.closed_at,
-                       p.exit_reason
+                       p.exit_reason, m.resolved AS market_resolved,
+                       m.winning_side
                 FROM positions p
                 LEFT JOIN markets m ON m.id = p.market_id
                 {where}
@@ -264,9 +265,51 @@ async def get_positions(
             opened_at=r["opened_at"],
             closed_at=r["closed_at"],
             exit_reason=r["exit_reason"],
+            awaiting_redeem=(
+                r["status"] == "open"
+                and bool(r["market_resolved"])
+                and r["winning_side"] is not None
+                and str(r["winning_side"]) == str(r["side"])
+            ),
         )
         for r in rows
     ]
+
+
+@router.post("/positions/{position_id}/redeem")
+async def force_redeem_position(position_id: str, user: _CurrentUser) -> JSONResponse:
+    """Manually trigger redemption of a resolved winning position.
+
+    For hourly auto-redeem users a won position sits 'open' (queued) until the
+    next hourly tick. This lets the user settle it now: it runs the existing
+    instant redeem fast-path on the position's pending redeem_queue row. The
+    position must belong to the user, still be open, and have a pending queue
+    row (i.e. the market resolved in their favour). Idempotent — a missing /
+    already-claimed row returns a clear 409.
+    """
+    from ...services.redeem import instant_worker
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT rq.id AS queue_id
+                 FROM redeem_queue rq
+                 JOIN positions p ON p.id = rq.position_id
+                WHERE rq.position_id = $1::uuid
+                  AND p.user_id = $2::uuid
+                  AND rq.status = 'pending'
+                  AND p.status = 'open'
+                LIMIT 1""",
+            position_id, user["user_id"],
+        )
+    if row is None:
+        raise HTTPException(
+            status_code=409,
+            detail="No pending redemption for this position (not yet won, "
+                   "already settling, or already redeemed).",
+        )
+    await instant_worker.try_process(row["queue_id"])
+    return JSONResponse({"status": "ok", "position_id": position_id})
 
 
 @router.get("/orders")

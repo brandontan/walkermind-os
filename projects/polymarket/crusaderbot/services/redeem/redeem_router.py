@@ -38,6 +38,7 @@ from ...config import get_settings
 from ...database import get_pool
 from ...integrations import polymarket
 from ...wallet import ledger
+from .. import portfolio_snapshots
 
 logger = logging.getLogger(__name__)
 
@@ -359,6 +360,9 @@ async def settle_winning_position(p: dict) -> None:
         msg = (f"🏆 <b>Redeemed</b> — winning side <code>{html.escape(p['side'])}</code>\n"
                f"Payoff: <b>${float(payoff):+.2f}</b>")
         await notifications.send(p["telegram_user_id"], msg)
+    # Best-effort equity snapshot so the cb_portfolio NOTIFY pushes the new
+    # balance/PnL to WebTrader SSE listeners the moment settlement lands.
+    await portfolio_snapshots.write_snapshot(p["user_id"])
 
 
 async def settle_losing_position(p: dict) -> None:
@@ -417,6 +421,9 @@ async def settle_losing_position(p: dict) -> None:
         msg = (f"❌ <b>Market resolved</b> — your position closed at a loss.\n"
                f"Side: <code>{html.escape(p['side'])}</code> · P&amp;L: <b>${float(pnl):+.2f}</b>")
         await notifications.send(p["telegram_user_id"], msg)
+    # Best-effort equity snapshot so the cb_portfolio NOTIFY pushes the new
+    # balance/PnL to WebTrader SSE listeners the moment settlement lands.
+    await portfolio_snapshots.write_snapshot(p["user_id"])
 
 
 async def ensure_live_redemption(market_id: str) -> None:
