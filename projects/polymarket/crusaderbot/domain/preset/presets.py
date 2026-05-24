@@ -27,7 +27,7 @@ class PresetBadge(str, Enum):
     """Risk badge displayed next to each preset in the picker."""
     SAFE = "🟢 Safe"
     BALANCED = "🟡 Balanced"
-    ADVANCED = "🟡 Advanced"
+    ADVANCED = "🟠 Advanced"
     AGGRESSIVE = "🔴 Aggressive"
 
 
@@ -58,9 +58,9 @@ class Preset:
                 f"preset {self.key}: capital_pct must be in (0, 1), "
                 f"got {self.capital_pct}"
             )
-        if not 0.0 < self.tp_pct <= 1.0:
+        if not 0.0 < self.tp_pct <= 2.0:
             raise ValueError(
-                f"preset {self.key}: tp_pct must be in (0, 1], got {self.tp_pct}"
+                f"preset {self.key}: tp_pct must be in (0, 2], got {self.tp_pct}"
             )
         if not 0.0 < self.sl_pct <= 1.0:
             raise ValueError(
@@ -159,18 +159,73 @@ PRESETS: Dict[str, Preset] = {
         badge=PresetBadge.AGGRESSIVE,
         description="All strategies active. Max exposure. For experienced traders.",
     ),
+
+    # ------------------------------------------------------------------
+    # Candle presets — all route to late_entry_v3 with different timing
+    # and conviction thresholds. Designed for BTC/ETH/SOL 5m candles.
+    # ------------------------------------------------------------------
+    "close_sweep": Preset(
+        key="close_sweep",
+        emoji="🧹",
+        name="Close Sweep",
+        strategies=("late_entry_v3",),
+        capital_pct=0.40,
+        tp_pct=0.90,
+        sl_pct=0.40,
+        max_position_pct=0.05,
+        badge=PresetBadge.SAFE,
+        description="Final 35s entry. Strong lean required. Recommended starting point.",
+    ),
+    "safe_close": Preset(
+        key="safe_close",
+        emoji="🔒",
+        name="Safe Close",
+        strategies=("late_entry_v3",),
+        capital_pct=0.30,
+        tp_pct=0.80,
+        sl_pct=0.35,
+        max_position_pct=0.05,
+        badge=PresetBadge.SAFE,
+        description="Final 60s, tighter lean filter. Fewer trades, cleaner entries.",
+    ),
+    "flip_hunter": Preset(
+        key="flip_hunter",
+        emoji="🎯",
+        name="Flip Hunter",
+        strategies=("late_entry_v3",),
+        capital_pct=0.40,
+        tp_pct=1.50,
+        sl_pct=0.50,
+        max_position_pct=0.05,
+        badge=PresetBadge.ADVANCED,
+        description="Early 140s entry on low-odds lean. Asymmetric upside on flips.",
+    ),
 }
 
 # Display order — picker renders top-to-bottom.
+# Candle presets are grouped at the bottom after general presets.
 PRESET_ORDER: Tuple[str, ...] = (
     "whale_mirror",
     "signal_sniper",
     "hybrid",
     "value_hunter",
     "full_auto",
+    "close_sweep",
+    "safe_close",
+    "flip_hunter",
 )
 
-RECOMMENDED_PRESET: str = "whale_mirror"
+# Candle preset keys — used by the picker to render a section divider.
+CANDLE_PRESET_KEYS: frozenset[str] = frozenset({"close_sweep", "safe_close", "flip_hunter"})
+
+# Presets visible in the Telegram picker. Add a key here only after it has
+# been validated in production. Code and routing for hidden presets remain
+# fully functional — they are just not shown to users yet.
+VISIBLE_PRESET_ORDER: Tuple[str, ...] = (
+    "close_sweep",
+)
+
+RECOMMENDED_PRESET: str = "close_sweep"
 
 
 def get_preset(key: str) -> Preset | None:
@@ -179,5 +234,10 @@ def get_preset(key: str) -> Preset | None:
 
 
 def list_presets() -> List[Preset]:
-    """Return the presets in their canonical display order."""
+    """Return visible presets in display order (picker-safe subset)."""
+    return [PRESETS[k] for k in VISIBLE_PRESET_ORDER]
+
+
+def list_all_presets() -> List[Preset]:
+    """Return all presets including hidden ones (for internal use / admin)."""
     return [PRESETS[k] for k in PRESET_ORDER]

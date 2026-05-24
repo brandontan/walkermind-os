@@ -115,6 +115,8 @@ _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
     "contrarian":          frozenset({"momentum"}),
     "value_hunter":        frozenset({"value_investor"}),
     "close_sweep":         frozenset({_LATE_ENTRY_V3_NAME}),
+    "safe_close":          frozenset({_LATE_ENTRY_V3_NAME}),
+    "flip_hunter":         frozenset({_LATE_ENTRY_V3_NAME}),
     "pair_arb":            frozenset({"pair_arb"}),
     "ensemble":            frozenset({"ensemble", "trend_breakout", "momentum", "value_investor"}),
     "confluence_scalper":  frozenset({_CONFLUENCE_SCALPER_NAME}),
@@ -1148,7 +1150,7 @@ async def run_once() -> None:
         # (by deterministic slug), so they see the in-window markets with real
         # liquidity instead of the far-future batch a broad list fetch returns.
         crypto_window_markets: list[dict] = []
-        if active_preset in ("close_sweep", "confluence_scalper"):
+        if active_preset in _CANDLE_PRESETS | {"confluence_scalper"}:
             try:
                 crypto_window_markets = await _polymarket.get_crypto_window_markets(
                     selected_timeframe or "5m", selected_assets or None
@@ -1269,7 +1271,18 @@ async def run_once() -> None:
             try:
                 user_ctx = _build_user_context(row)
                 market_filters = _build_market_filters(user_ctx.risk_profile)
-                late_entry_cands = await late_entry_strat.scan(market_filters, user_ctx)
+                # Pass preset-specific params when the user is on a candle preset;
+                # full_auto/default passes None so scan() falls back to global config.
+                _le_preset_params = _CANDLE_PRESET_PARAMS.get(active_preset)
+                _le_ask_diff: float | None = _le_preset_params[0] if _le_preset_params else None
+                _le_window: float | None = _le_preset_params[1] if _le_preset_params else None
+                _le_fav: float | None = _le_preset_params[2] if _le_preset_params else None
+                late_entry_cands = await late_entry_strat.scan(
+                    market_filters, user_ctx,
+                    min_ask_diff=_le_ask_diff,
+                    entry_window_sec=_le_window,
+                    fav_price_min=_le_fav,
+                )
             except Exception as exc:
                 user_log.warning("late_entry_v3_run_failed", error=str(exc))
                 late_entry_cands = []
@@ -1364,13 +1377,27 @@ async def run_once() -> None:
     )
 
 
-async def run_close_sweep_fast() -> None:
-    """High-frequency scan dedicated to the close_sweep / late_entry_v3 preset.
+_CANDLE_PRESETS: frozenset[str] = frozenset({"close_sweep", "safe_close", "flip_hunter"})
 
-    Late Entry V3 only enters in the final ~35s of a crypto candle. The main
+# Per-preset scan params for late_entry_v3.
+# Each tuple: (min_ask_diff, entry_window_sec, fav_price_min)
+# close_sweep  — final 35s, moderate lean, fav ≥0.55 (recommended, proven)
+# safe_close   — final 60s, tighter lean, fav ≥0.60 (fewer but cleaner entries)
+# flip_hunter  — early 140s, any lean, fav ≥0.50 (asymmetric upside on early flips)
+_CANDLE_PRESET_PARAMS: dict[str, tuple[float, float, float]] = {
+    "close_sweep": (0.05, 35.0,  0.55),
+    "safe_close":  (0.08, 60.0,  0.60),
+    "flip_hunter": (0.05, 140.0, 0.50),
+}
+
+
+async def run_close_sweep_fast() -> None:
+    """High-frequency scan for all candle-preset users (close_sweep, safe_close, flip_hunter).
+
+    Late Entry V3 only enters in a specific window before candle close. The main
     run_once loop fires every SIGNAL_SCAN_INTERVAL (180s) and would step over
     that window, so this lighter loop runs every CLOSE_SWEEP_SCAN_INTERVAL
-    (~15s) and scans ONLY close_sweep users with ONLY the late_entry_v3 domain
+    (~15s) and scans ONLY candle-preset users with ONLY the late_entry_v3 domain
     strategy. It does not write a scan_runs row (telemetry is in-memory) to
     avoid flooding the table at this cadence; _process_candidate's idempotency
     + open-position dedup make the overlap with run_once's Phase-B2 harmless.
@@ -1391,14 +1418,31 @@ async def run_close_sweep_fast() -> None:
         logger.error("close_sweep_fast_load_users_failed", error=str(exc))
         return
 
+    # Load config overrides once per tick (env-tunable per preset)
+    try:
+        _cfg = get_settings()
+        _preset_params: dict[str, tuple[float, float, float]] = {
+            "close_sweep": (_cfg.PRESET_CLOSE_SWEEP_MIN_ASK_DIFF,  _cfg.PRESET_CLOSE_SWEEP_WINDOW_SEC,  _cfg.PRESET_CLOSE_SWEEP_FAV_PRICE_MIN),
+            "safe_close":  (_cfg.PRESET_SAFE_CLOSE_MIN_ASK_DIFF,   _cfg.PRESET_SAFE_CLOSE_WINDOW_SEC,   _cfg.PRESET_SAFE_CLOSE_FAV_PRICE_MIN),
+            "flip_hunter": (_cfg.PRESET_FLIP_HUNTER_MIN_ASK_DIFF,  _cfg.PRESET_FLIP_HUNTER_WINDOW_SEC,  _cfg.PRESET_FLIP_HUNTER_FAV_PRICE_MIN),
+        }
+    except Exception:
+        _preset_params = _CANDLE_PRESET_PARAMS
+
     tel = ScanTelemetry()  # in-memory only — never persisted to scan_runs
     for row in users:
-        if row.get("active_preset") != "close_sweep":
+        active_preset = row.get("active_preset")
+        if active_preset not in _CANDLE_PRESETS:
             continue
+
+        preset_min_ask_diff, preset_window_sec, preset_fav_price_min = _preset_params.get(
+            active_preset, _CANDLE_PRESET_PARAMS["close_sweep"]
+        )
+
         _tf = row.get("selected_timeframe")
         selected_timeframe: str | None = str(_tf) if _tf else None
         selected_assets: list[str] = [str(a) for a in (row.get("selected_assets") or [])]
-        user_log = logger.bind(user_id=str(row["user_id"]), preset="close_sweep")
+        user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
 
         # Upsert the live candle window so _process_candidate's _load_market
         # gate resolves the markets (market_sync never pulls these micro candles).
@@ -1413,7 +1457,13 @@ async def run_close_sweep_fast() -> None:
         try:
             user_ctx = _build_user_context(row)
             market_filters = _build_market_filters(user_ctx.risk_profile)
-            cands = await late_entry_strat.scan(market_filters, user_ctx)
+            cands = await late_entry_strat.scan(
+                market_filters,
+                user_ctx,
+                min_ask_diff=preset_min_ask_diff,
+                entry_window_sec=preset_window_sec,
+                fav_price_min=preset_fav_price_min,
+            )
         except Exception as exc:
             user_log.warning("close_sweep_fast_run_failed", error=str(exc))
             cands = []
@@ -1422,6 +1472,7 @@ async def run_close_sweep_fast() -> None:
             user_log.info(
                 "close_sweep_fast_tick",
                 candidates=0,
+                preset=active_preset,
                 note="scan ran but no candidates passed gates — check late_entry_v3 scan_summary logs",
             )
 

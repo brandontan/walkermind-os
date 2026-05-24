@@ -81,6 +81,9 @@ _MVP_LABELS: dict[str, tuple[str, str]] = {
     "hybrid":        ("🐋📡",  "Hybrid"),
     "value_hunter":  ("🎯",    "Value Hunter"),
     "full_auto":     ("🚀",    "Full Auto"),
+    "close_sweep":   ("🧹",    "Close Sweep"),
+    "safe_close":    ("🔒",    "Safe Close"),
+    "flip_hunter":   ("🎯",    "Flip Hunter"),
 }
 
 _MVP_DESCRIPTIONS: dict[str, str] = {
@@ -113,6 +116,24 @@ _MVP_DESCRIPTIONS: dict[str, str] = {
         "Risk: Aggressive\n"
         "Capital: from risk profile\n"
         "All strategies active. Max exposure. For experienced traders."
+    ),
+    "close_sweep": (
+        "🧹 Close Sweep\n"
+        "Risk: 🟢 Safe\n"
+        "Enters in the final 35s of a candle. Strong lean required (≥55¢ side).\n"
+        "Recommended starting point for candle trading."
+    ),
+    "safe_close": (
+        "🔒 Safe Close\n"
+        "Risk: 🟢 Safe\n"
+        "Enters in the final 60s with a tighter lean filter (≥60¢ side).\n"
+        "Fewer trades, cleaner entries, lower noise."
+    ),
+    "flip_hunter": (
+        "🎯 Flip Hunter\n"
+        "Risk: 🟠 Advanced\n"
+        "Enters early (first 140s) on any lean (≥50¢ side).\n"
+        "Bets on asymmetric upside when the market flips. Higher TP, higher risk."
     ),
 }
 

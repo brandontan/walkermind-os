@@ -83,19 +83,36 @@ class LateEntryV3Strategy(BaseStrategy):
         self,
         market_filters: MarketFilters,
         user_context: UserContext,
+        *,
+        min_ask_diff: float | None = None,
+        entry_window_sec: float | None = None,
+        fav_price_min: float | None = None,
     ) -> list[SignalCandidate]:
         """Emit one favored-side candidate per in-window crypto candle market.
+
+        Callers (e.g. run_close_sweep_fast) may pass preset-specific overrides
+        for min_ask_diff, entry_window_sec, and fav_price_min. When not
+        provided, values fall back to global config / module defaults.
 
         Returns an empty list on any failure or when no market qualifies.
         Never raises — scan errors must not crash the scheduler scan loop.
         """
-        try:
-            cfg = get_settings()
-            min_ask_diff = cfg.LATE_ENTRY_MIN_ASK_DIFF
-            entry_window_sec = cfg.LATE_ENTRY_WINDOW_SEC
-        except Exception:
-            min_ask_diff = MIN_ASK_DIFF
-            entry_window_sec = ENTRY_WINDOW_SEC
+        if min_ask_diff is None or entry_window_sec is None or fav_price_min is None:
+            try:
+                cfg = get_settings()
+                if min_ask_diff is None:
+                    min_ask_diff = cfg.LATE_ENTRY_MIN_ASK_DIFF
+                if entry_window_sec is None:
+                    entry_window_sec = cfg.LATE_ENTRY_WINDOW_SEC
+                if fav_price_min is None:
+                    fav_price_min = cfg.LATE_ENTRY_FAV_PRICE_MIN
+            except Exception:
+                if min_ask_diff is None:
+                    min_ask_diff = MIN_ASK_DIFF
+                if entry_window_sec is None:
+                    entry_window_sec = ENTRY_WINDOW_SEC
+                if fav_price_min is None:
+                    fav_price_min = 0.50
 
         timeframe = getattr(user_context, "selected_timeframe", None)
         assets = getattr(user_context, "selected_assets", ()) or None
@@ -129,6 +146,7 @@ class LateEntryV3Strategy(BaseStrategy):
                     now_ts=now.timestamp(),
                     min_ask_diff=min_ask_diff,
                     entry_window_sec=entry_window_sec,
+                    fav_price_min=fav_price_min,
                 )
             except Exception as exc:
                 logger.debug("late_entry_v3 scan: skip market err=%s", exc)
@@ -151,13 +169,14 @@ class LateEntryV3Strategy(BaseStrategy):
         candidates.sort(key=lambda c: c.confidence, reverse=True)
         logger.info(
             "late_entry_v3 scan_summary markets=%d eligible=%d candidates=%d "
-            "gate_rejects=%s min_ask_diff=%.3f window_sec=%.0f",
+            "gate_rejects=%s min_ask_diff=%.3f window_sec=%.0f fav_price_min=%.2f",
             len(markets),
             eligible,
             len(candidates),
             reject_counts,
             min_ask_diff,
             entry_window_sec,
+            fav_price_min,
         )
         return candidates
 
@@ -283,6 +302,7 @@ async def _evaluate_market(
     now_ts: float,
     min_ask_diff: float = MIN_ASK_DIFF,
     entry_window_sec: float = ENTRY_WINDOW_SEC,
+    fav_price_min: float = 0.50,
 ) -> tuple[SignalCandidate | None, str | None]:
     """Return (candidate, None) on success or (None, reject_reason) on any gate failure."""
     if not isinstance(m, dict):
@@ -372,15 +392,11 @@ async def _evaluate_market(
         )
         return None, "spread_out_of_range"
 
-    # Favored side must be the majority-probability side (> 0.50).
+    # Favored side must be the majority-probability side (≥ fav_price_min).
     # When fav_price < 0.50 both sides are below 50¢ — the market is ambiguous
     # or the CLOB is thin. The flip-stop (0.48) would trigger immediately on
     # entry, producing a 13-second zero-PnL exit that confuses users.
-    try:
-        cfg = get_settings()
-        fav_price_min = cfg.LATE_ENTRY_FAV_PRICE_MIN
-    except Exception:
-        fav_price_min = 0.50
+    # fav_price_min is passed by the caller (preset-specific); default 0.50.
     if fav_price < fav_price_min:
         logger.debug(
             "late_entry_v3 skip fav_price_too_low slug=%s fav=%.4f min=%.4f",

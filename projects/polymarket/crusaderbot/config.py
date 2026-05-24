@@ -192,6 +192,23 @@ class Settings(BaseSettings):
     LATE_ENTRY_WINDOW_SEC: float = 35.0     # env: LATE_ENTRY_WINDOW_SEC
     LATE_ENTRY_FLIP_STOP: float = 0.48      # env: LATE_ENTRY_FLIP_STOP
     LATE_ENTRY_FAV_PRICE_MIN: float = 0.50  # env: LATE_ENTRY_FAV_PRICE_MIN — favored side must be majority-probability
+
+    # Per-preset overrides for late_entry_v3 — each preset passes its own
+    # values to _evaluate_market instead of reading the global env vars above.
+    # close_sweep  : final 35s, moderate lean (≥0.05 diff), fav ≥0.55
+    # safe_close   : final 60s, tighter lean (≥0.08 diff), fav ≥0.60 — fewer but cleaner entries
+    # flip_hunter  : early 140s, any lean (≥0.05 diff), fav ≥0.50 — asymmetric upside on early flips
+    PRESET_CLOSE_SWEEP_WINDOW_SEC: float = 35.0
+    PRESET_CLOSE_SWEEP_MIN_ASK_DIFF: float = 0.05
+    PRESET_CLOSE_SWEEP_FAV_PRICE_MIN: float = 0.55
+
+    PRESET_SAFE_CLOSE_WINDOW_SEC: float = 60.0
+    PRESET_SAFE_CLOSE_MIN_ASK_DIFF: float = 0.08
+    PRESET_SAFE_CLOSE_FAV_PRICE_MIN: float = 0.60
+
+    PRESET_FLIP_HUNTER_WINDOW_SEC: float = 140.0
+    PRESET_FLIP_HUNTER_MIN_ASK_DIFF: float = 0.05
+    PRESET_FLIP_HUNTER_FAV_PRICE_MIN: float = 0.50
     MARKET_SIGNAL_SCAN_INTERVAL: int = 60
     # --- Signal scanner thresholds (demo path edge_finder) ---
     # Market eligibility price range: excludes near-resolved markets and

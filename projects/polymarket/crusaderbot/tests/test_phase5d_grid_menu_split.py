@@ -307,15 +307,13 @@ def test_emergency_menu_is_two_col():
 
 def test_preset_picker_is_two_col():
     kb = preset_picker()
-    # 5 presets → 3 preset grid rows + 1 Back/Home nav row = 4 total
-    assert len(kb.inline_keyboard) == 4
-    assert len(kb.inline_keyboard[0]) == 2
-    assert len(kb.inline_keyboard[1]) == 2
-    assert len(kb.inline_keyboard[2]) == 1  # 5th preset alone
+    # 1 visible preset → 1 preset row + 1 Back/Home nav row = 2 total
+    assert len(kb.inline_keyboard) == 2
+    assert len(kb.inline_keyboard[0]) == 1  # close_sweep alone
     # Nav row uses the new shared home_back_row helper:
     #   Back  → legacy dashboard:main target (preserves in-flight messages)
     #   Home  → new nav:home prefix routed by dispatcher._nav_cb
-    nav = kb.inline_keyboard[3]
+    nav = kb.inline_keyboard[1]
     assert len(nav) == 2
     callback_data = {btn.callback_data for btn in nav}
     assert callback_data == {"dashboard:main", "nav:home"}

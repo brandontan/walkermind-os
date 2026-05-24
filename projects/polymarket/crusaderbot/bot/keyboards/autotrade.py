@@ -207,9 +207,14 @@ def auto_trade_menu_kb() -> InlineKeyboardMarkup:
 
 
 def preset_picker_p5_kb() -> InlineKeyboardMarkup:
-    from ...domain.preset import RECOMMENDED_PRESET, list_presets
+    from ...domain.preset import CANDLE_PRESET_KEYS, RECOMMENDED_PRESET, list_presets
     rows: list[list[InlineKeyboardButton]] = []
+    candle_divider_added = False
     for p in list_presets():
+        # Insert a non-clickable section header before the first candle preset
+        if p.key in CANDLE_PRESET_KEYS and not candle_divider_added:
+            rows.append([InlineKeyboardButton("── Candle Presets ──", callback_data="noop:divider")])
+            candle_divider_added = True
         name = p.name if len(p.name) <= 20 else p.name[:20]
         label = f"{p.emoji} {name}"
         if p.key == RECOMMENDED_PRESET:

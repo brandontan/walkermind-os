@@ -27,7 +27,8 @@ from projects.polymarket.crusaderbot.bot._keyboards_archive.presets import (
     preset_switch_confirm,
 )
 from projects.polymarket.crusaderbot.domain.preset import (
-    PRESETS, PRESET_ORDER, RECOMMENDED_PRESET, get_preset, list_presets,
+    PRESETS, PRESET_ORDER, RECOMMENDED_PRESET, VISIBLE_PRESET_ORDER,
+    get_preset, list_presets,
 )
 from projects.polymarket.crusaderbot.domain.risk.constants import MAX_POSITION_PCT
 
@@ -35,16 +36,19 @@ from projects.polymarket.crusaderbot.domain.risk.constants import MAX_POSITION_P
 # ---------- Preset definitions ----------------------------------------------
 
 def test_five_presets_defined():
-    assert len(PRESETS) == 5
+    assert len(PRESETS) == 8  # 5 general + 3 candle presets
     assert set(PRESET_ORDER) == set(PRESETS.keys())
 
 
 def test_preset_order_matches_spec():
-    assert PRESET_ORDER == ("whale_mirror", "signal_sniper", "hybrid", "value_hunter", "full_auto")
+    assert PRESET_ORDER == (
+        "whale_mirror", "signal_sniper", "hybrid", "value_hunter", "full_auto",
+        "close_sweep", "safe_close", "flip_hunter",
+    )
 
 
-def test_recommended_is_whale_mirror():
-    assert RECOMMENDED_PRESET == "whale_mirror"
+def test_recommended_is_close_sweep():
+    assert RECOMMENDED_PRESET == "close_sweep"
 
 
 def test_whale_mirror_and_hybrid_present():
@@ -70,7 +74,8 @@ def test_get_preset_unknown_returns_none():
 
 
 def test_preset_strategies_use_canonical_keys():
-    allowed = {"copy_trade", "signal", "value"}
+    # General presets use routing keys; candle presets use domain strategy names.
+    allowed = {"copy_trade", "signal", "value", "late_entry_v3"}
     for p in list_presets():
         assert set(p.strategies) <= allowed, p.key
 
@@ -113,20 +118,18 @@ def test_preset_validation_rejects_position_over_cap():
 
 def test_picker_keyboard_has_two_col_grid_layout():
     kb = preset_picker()
-    # 5 presets in 2-col grid → 3 preset rows + 1 Back/Home nav row = 4 total
-    assert len(kb.inline_keyboard) == 4
-    assert len(kb.inline_keyboard[0]) == 2
-    assert len(kb.inline_keyboard[1]) == 2
-    assert len(kb.inline_keyboard[2]) == 1
-    assert len(kb.inline_keyboard[3]) == 2
+    # 1 visible preset → 1 preset row (single button) + 1 Back/Home nav row = 2 total
+    assert len(kb.inline_keyboard) == 2
+    assert len(kb.inline_keyboard[0]) == 1  # close_sweep alone
+    assert len(kb.inline_keyboard[1]) == 2  # nav row
 
 
 def test_picker_keyboard_recommended_marked_and_first():
     kb = preset_picker()
-    # Whale Mirror is recommended — first button in first row has ⭐
+    # close_sweep is recommended — first button has ⭐
     first_btn = kb.inline_keyboard[0][0]
     assert "⭐" in first_btn.text
-    assert first_btn.callback_data == "preset:pick:whale_mirror"
+    assert first_btn.callback_data == "preset:pick:close_sweep"
 
 
 def test_picker_keyboard_all_preset_callbacks_present():
@@ -134,7 +137,7 @@ def test_picker_keyboard_all_preset_callbacks_present():
     # Preset callbacks only — exclude the nav row at the end
     preset_rows = kb.inline_keyboard[:-1]
     all_cbs = [b.callback_data for row in preset_rows for b in row]
-    assert all_cbs == [f"preset:pick:{k}" for k in PRESET_ORDER]
+    assert all_cbs == [f"preset:pick:{k}" for k in VISIBLE_PRESET_ORDER]
 
 
 def test_confirm_keyboard_carries_preset_key():
