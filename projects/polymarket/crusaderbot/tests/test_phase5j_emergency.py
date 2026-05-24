@@ -28,7 +28,7 @@ import pytest
 from projects.polymarket.crusaderbot.bot.handlers import admin as admin_h
 from projects.polymarket.crusaderbot.bot.handlers import emergency as emg_h
 from projects.polymarket.crusaderbot.bot.handlers import presets as presets_h
-from projects.polymarket.crusaderbot.bot.keyboards import (
+from projects.polymarket.crusaderbot.bot._keyboards_archive import (
     emergency_confirm,
     emergency_feedback,
 )
@@ -127,7 +127,7 @@ def test_confirm_dialog_shown_for_action(action):
     assert kb is not None
     all_data = [b.callback_data for row in kb.inline_keyboard for b in row]
     assert f"emergency:confirm:{action}" in all_data
-    assert "emergency:cancel" in all_data
+    assert "emergency:home" in all_data  # WARP-KB-V2: cancel returns to emergency home
 
 
 # ---------------------------------------------------------------------------
@@ -142,8 +142,9 @@ def test_cancel_returns_to_emergency_menu():
     kb = kw.get("reply_markup")
     assert kb is not None
     all_data = [b.callback_data for row in kb.inline_keyboard for b in row]
-    assert "emergency:pause" in all_data
-    assert "emergency:back" in all_data
+    # WARP-KB-V2: progressive-disclosure home menu uses ask:* + More entry.
+    assert "emergency:ask:pause" in all_data
+    assert "emergency:more" in all_data
 
 
 # ---------------------------------------------------------------------------

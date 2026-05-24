@@ -11,7 +11,7 @@ from telegram.ext import ContextTypes
 
 from ...database import get_pool
 from ...users import get_settings_for, update_settings, upsert_user
-from ..keyboards import (
+from ..keyboards.setup import (
     autoredeem_picker, category_picker, mode_picker, risk_picker,
     setup_menu, strategy_card_kb, strategy_picker,
 )
@@ -119,7 +119,7 @@ async def setup_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return
     elif sub == "capital":
         # Remap legacy setup:capital → new settings capital preset flow.
-        from ..keyboards.settings import capital_preset_kb as _cap_kb
+        from ..keyboards import capital_picker_kb as _cap_kb
         from ...wallet.ledger import get_balance as _get_balance
         bal = float(await _get_balance(user["id"]))
         mode = s.get("trading_mode", "paper")
@@ -133,7 +133,7 @@ async def setup_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         )
     elif sub == "tpsl":
         # Remap legacy setup:tpsl → new settings TP/SL preset flow (step 1).
-        from ..keyboards.settings import tp_preset_kb as _tp_kb
+        from ..keyboards import tp_picker_kb as _tp_kb
         current_tp = float(s["tp_pct"]) if s.get("tp_pct") is not None else None
         current_str = f"+{current_tp * 100:.0f}%" if current_tp is not None else "not set"
         await q.message.reply_text(

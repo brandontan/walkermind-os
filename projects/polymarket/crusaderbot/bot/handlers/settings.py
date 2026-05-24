@@ -38,16 +38,15 @@ from ...users import get_settings_for, update_settings, upsert_user
 from ...wallet.ledger import get_balance
 from ...config import get_settings as get_app_settings
 from ...database import get_pool
-from ..keyboards import mvp_risk_kb, risk_picker, setup_menu
+from ..keyboards import risk_picker_kb as mvp_risk_kb
 from ..roles import is_admin as _is_admin
-from ..keyboards.settings import (
-    autoredeem_settings_picker,
-    capital_preset_kb,
+from ..keyboards import (
+    capital_picker_kb as capital_preset_kb,
+    redeem_picker_kb as autoredeem_settings_picker,
     settings_hub_kb,
-    settings_menu,
-    sl_preset_kb,
-    tp_preset_kb,
-    tpsl_confirm_kb,
+    sl_picker_kb as sl_preset_kb,
+    tp_picker_kb as tp_preset_kb,
+    tpsl_done_kb as tpsl_confirm_kb,
 )
 
 
@@ -243,7 +242,7 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         from ...wallet.vault import get_wallet
         w = await get_wallet(user["id"])
         addr = w["deposit_address"] if w else "(not set)"
-        from ..keyboards import wallet_menu
+        from ..keyboards import wallet_home_kb as wallet_menu
         await q.message.reply_text(
             f"<b>💰 Wallet</b>\n\nDeposit address (Polygon USDC):\n<code>{_html.escape(addr)}</code>\n\n"
             "Tap an option below.",
@@ -328,7 +327,7 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     if data == "settings:mode":
-        from ..keyboards.settings import settings_mode_picker
+        from ..keyboards import mode_picker_kb as settings_mode_picker
         s = await get_settings_for(user["id"])
         await q.message.reply_text(
             "<b>📔 Mode</b>\n\nPaper: safe virtual trading. Live: real capital (unlock required).",

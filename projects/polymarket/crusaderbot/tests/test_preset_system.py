@@ -22,7 +22,7 @@ import pytest
 
 from projects.polymarket.crusaderbot.bot.handlers import presets as presets_h
 from projects.polymarket.crusaderbot.bot.handlers import setup as setup_h
-from projects.polymarket.crusaderbot.bot.keyboards.presets import (
+from projects.polymarket.crusaderbot.bot._keyboards_archive.presets import (
     preset_confirm, preset_picker, preset_status, preset_stop_confirm,
     preset_switch_confirm,
 )
@@ -279,7 +279,7 @@ def _patch_pool(monkeypatch, open_count=0):
 
 # ---------- show_preset_picker ----------------------------------------------
 
-def test_show_preset_picker_renders_all_three(monkeypatch):
+def test_show_preset_picker_renders_tier_step(monkeypatch):
     uid = uuid4()
     _patch_tier(monkeypatch, uid)
     _patch_settings(monkeypatch, {"active_preset": None})
@@ -290,10 +290,11 @@ def test_show_preset_picker_renders_all_three(monkeypatch):
     assert len(replies) == 1
     text = replies[0]
     assert "Auto Mode" in text  # V5 AUTOBOT branding: header changed from "Auto Trade" to "Auto Mode"
-    # WARP-24: picker grid rendered directly — preset:pick:{key} buttons present
+    # WARP-KB-V2: picker now renders the risk-tier step (progressive disclosure);
+    # tapping a tier surfaces preset:pick:{key} buttons in the next step.
     kb = kws[0]["reply_markup"]
     all_cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    assert any("preset:pick:" in cb for cb in all_cbs)
+    assert any("preset:tier:" in cb for cb in all_cbs)
 
 
 def test_show_preset_picker_clears_awaiting(monkeypatch):
@@ -373,8 +374,8 @@ def test_pick_renders_confirmation_with_all_values(monkeypatch):
     assert cbs == [
         "preset:activate:value_hunter",
         "preset:customize:value_hunter",
-        "preset:picker",  # Back
-        "nav:home",       # Home
+        "preset:tiers",  # Back → risk-tier step (WARP-KB-V2)
+        "nav:home",      # Home
     ]
 
 

@@ -1,28 +1,76 @@
-"""Onboarding-specific inline keyboards — MVP Reset V1."""
+"""Onboarding keyboards — welcome, wallet setup, deposit prompt.
+
+Flow: /start → Welcome → Get Started → Wallet Ready → Deposit → Dashboard
+Each screen max 3 rows. Clean, non-intimidating for new users.
+"""
 from __future__ import annotations
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from ._common import build_kb
 
-def get_started_kb() -> InlineKeyboardMarkup:
-    """MVP single CTA — Get Started only. No demo dashboard, no settings."""
+
+def welcome_kb() -> InlineKeyboardMarkup:
+    """First contact — Get Started + Learn More. 2 rows."""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 Get Started", callback_data="onboard:get_started")],
+        [InlineKeyboardButton("ℹ️ Learn More",  callback_data="onboard:learn_more")],
     ])
 
 
-# MVP RESET V1 — deprecated UI flow
-def mode_select_kb() -> InlineKeyboardMarkup:
-    """Legacy mode selection keyboard — archived, not part of MVP flow."""
+def wallet_ready_kb() -> InlineKeyboardMarkup:
+    """Wallet generated — copy address + continue. 2 rows."""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📄 Start Paper Trading", callback_data="onboard:mode_paper")],
-        [InlineKeyboardButton("💰 Setup Live Trading",  callback_data="onboard:mode_live")],
+        [InlineKeyboardButton("📋 Copy Address", callback_data="onboard:copy_address")],
+        [InlineKeyboardButton("Next →",          callback_data="onboard:wallet_next")],
     ])
 
 
-# MVP RESET V1 — deprecated UI flow
-def paper_complete_kb() -> InlineKeyboardMarkup:
-    """Legacy paper complete keyboard — archived, not part of MVP flow."""
+def deposit_prompt_kb() -> InlineKeyboardMarkup:
+    """Deposit prompt — copy address or skip. 2 rows."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📋 Copy Address", callback_data="onboard:copy_address")],
+        [InlineKeyboardButton("Skip for now",    callback_data="onboard:skip_deposit")],
+    ])
+
+
+def onboard_complete_kb() -> InlineKeyboardMarkup:
+    """Onboarding complete — go to dashboard or setup. 2 rows."""
+    return build_kb(
+        [[
+            InlineKeyboardButton("📊 Dashboard",      callback_data="menu:home"),
+            InlineKeyboardButton("🤖 Setup Auto",     callback_data="menu:autotrade"),
+        ]],
+    )
+
+
+# ── Legacy P5 /start flow (handlers/start.py) ────────────────────────
+# Callback data preserved exactly for the start ConversationHandler
+# (start:get_started / learn_more / welcome / copy_address / wallet_next
+# / skip_deposit). Distinct names avoid collision with the v2 onboard:* flow.
+
+def welcome_p5_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 Get Started", callback_data="start:get_started")],
+        [InlineKeyboardButton("ℹ️ Learn More",  callback_data="start:learn_more")],
+    ])
+
+
+def welcome_back_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[
-        InlineKeyboardButton("📊 View Dashboard", callback_data="onboard:view_dashboard"),
+        InlineKeyboardButton("⬅ Back", callback_data="start:welcome"),
     ]])
+
+
+def wallet_ready_p5_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📋 Copy Address", callback_data="start:copy_address")],
+        [InlineKeyboardButton("Next →",          callback_data="start:wallet_next")],
+    ])
+
+
+def deposit_prompt_p5_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📋 Copy Address", callback_data="start:copy_address")],
+        [InlineKeyboardButton("Skip for now",    callback_data="start:skip_deposit")],
+    ])

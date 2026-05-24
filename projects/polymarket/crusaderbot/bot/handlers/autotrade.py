@@ -17,7 +17,12 @@ from telegram.ext import ContextTypes
 from ...database import get_pool
 from ...users import set_auto_trade, set_paused, upsert_user, update_settings
 from ...wallet.ledger import daily_pnl
-from ..keyboards import auto_trade_menu_kb, preset_active_kb, preset_confirm_kb, preset_picker
+from ..keyboards.autotrade import (
+    auto_trade_menu_kb,
+    preset_active_kb,
+    preset_confirm_p5_kb as preset_confirm_kb,
+    preset_picker_p5_kb as preset_picker,
+)
 from ..messages import (
     PRESET_PICKER_TEXT,
     preset_activated_success_text,
@@ -232,7 +237,7 @@ async def autotrade_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
 
     if data == "auto_trade:risk":
         from ...users import get_settings_for
-        from ..keyboards import mvp_risk_kb
+        from ..keyboards import risk_picker_kb as mvp_risk_kb
         user = await upsert_user(update.effective_user.id, update.effective_user.username)
         s = await get_settings_for(user["id"])
         current_risk = s.get("risk_profile", "balanced")

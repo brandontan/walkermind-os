@@ -29,11 +29,11 @@ from uuid import UUID, uuid4
 import pytest
 
 from projects.polymarket.crusaderbot.bot.handlers import my_trades as mt
-from projects.polymarket.crusaderbot.bot.keyboards.my_trades import (
-    close_confirm_kb,
+from projects.polymarket.crusaderbot.bot.keyboards.portfolio import (
     close_success_kb,
     history_nav_kb,
     my_trades_main_kb,
+    mytrades_close_confirm_kb as close_confirm_kb,
 )
 from projects.polymarket.crusaderbot.bot.menus.main import MAIN_MENU_ROUTES
 

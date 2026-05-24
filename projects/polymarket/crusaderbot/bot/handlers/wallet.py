@@ -12,7 +12,7 @@ from telegram.ext import ContextTypes
 from ...users import upsert_user
 from ...wallet.ledger import get_balance
 from ...wallet.vault import get_wallet
-from ..keyboards import wallet_p5_kb
+from ..keyboards import wallet_copy_kb as wallet_p5_kb
 from ..messages import wallet_text
 
 logger = logging.getLogger(__name__)

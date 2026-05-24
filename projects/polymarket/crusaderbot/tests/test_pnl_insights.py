@@ -30,11 +30,9 @@ from projects.polymarket.crusaderbot.bot.handlers.pnl_insights import (
     _safe_md,
     format_insights,
 )
-from projects.polymarket.crusaderbot.bot.keyboards import (
-    dashboard_nav,
-    insights_kb,
-)
-from projects.polymarket.crusaderbot.bot.keyboards.my_trades import my_trades_main_kb
+from projects.polymarket.crusaderbot.bot._keyboards_archive import dashboard_nav
+from projects.polymarket.crusaderbot.bot.keyboards import insights_kb
+from projects.polymarket.crusaderbot.bot.keyboards.portfolio import my_trades_main_kb
 
 
 # ---------- Fixtures -----------------------------------------------------------

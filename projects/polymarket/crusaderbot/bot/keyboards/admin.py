@@ -1,18 +1,84 @@
-"""Admin/Ops-plane inline keyboards (R12f operator dashboard)."""
+"""Admin and operator keyboards — restricted surfaces.
+
+These keyboards are ONLY shown to users with admin/operator role.
+Never exposed in public help or discovery paths.
+
+Screens:
+  1. admin_menu       — Kill switch, system status, tools
+  2. ops_dashboard    — Operator panel with runtime controls
+  3. confirm dialogs  — All destructive admin actions
+"""
 from __future__ import annotations
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from . import grid_rows
-from ._common import confirm_cancel_row
+from ._common import back_home_row, build_kb, confirm_cancel_row, grid_rows
+
+
+def admin_menu_kb(*, kill_active: bool = False) -> InlineKeyboardMarkup:
+    """Admin menu — kill switch, status, tools. Max 5 rows."""
+    kill_label = "🟢 Disable Kill Switch" if kill_active else "🔴 Activate Kill Switch"
+    return build_kb(
+        grid_rows([
+            InlineKeyboardButton(kill_label,               callback_data="admin:kill"),
+            InlineKeyboardButton("📊 System Status",       callback_data="admin:status"),
+            InlineKeyboardButton("🔁 Force Redeem",        callback_data="admin:force_redeem"),
+            InlineKeyboardButton("🔄 Reset Onboarding",    callback_data="admin:resetonboard_prompt"),
+        ]),
+        nav=back_home_row("menu:home"),
+    )
+
+
+def ops_dashboard_kb() -> InlineKeyboardMarkup:
+    """Operator panel — monitoring + runtime controls. Max 5 rows."""
+    return build_kb(
+        [
+            [
+                InlineKeyboardButton("📊 Metrics",  callback_data="ops:metrics"),
+                InlineKeyboardButton("🏥 Health",   callback_data="ops:health"),
+            ],
+            [
+                InlineKeyboardButton("📋 Jobs",     callback_data="ops:jobs"),
+                InlineKeyboardButton("📝 Audit",    callback_data="ops:audit"),
+            ],
+            [
+                InlineKeyboardButton("👥 Users",    callback_data="ops:users"),
+                InlineKeyboardButton("🛡️ Alerts",   callback_data="ops:alerts"),
+            ],
+        ],
+        nav=back_home_row("menu:home"),
+    )
+
+
+def admin_confirm_kb(action: str) -> InlineKeyboardMarkup:
+    """Confirm destructive admin action."""
+    return InlineKeyboardMarkup([
+        confirm_cancel_row(
+            confirm_cb=f"admin:confirm:{action}",
+            cancel_cb="admin:menu",
+        ),
+    ])
+
+
+# ── Legacy admin / ops / operator surfaces ───────────────────────────
+# Callback data preserved exactly for admin_callback (admin:*),
+# ops_dashboard_callback (ops:*), and panel_callback (panel:*).
+
+def admin_menu(kill_active: bool) -> InlineKeyboardMarkup:
+    label = "🟢 Disable kill switch" if kill_active else "🔴 Activate kill switch"
+    buttons = [
+        InlineKeyboardButton(label,              callback_data="admin:kill"),
+        InlineKeyboardButton("📊 System status", callback_data="admin:status"),
+        InlineKeyboardButton("🔁 Force redeem pending",
+                             callback_data="admin:force_redeem"),
+        InlineKeyboardButton("🔄 Reset Onboarding",
+                             callback_data="admin:resetonboard_prompt"),
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
 
 
 def ops_dashboard_keyboard(kill_active: bool) -> InlineKeyboardMarkup:
-    """Refresh + quick-action keyboard rendered under /ops_dashboard.
-
-    Lock is intentionally kept alone on the last row — it is destructive and
-    must never be accidentally paired with Refresh or Pause/Resume.
-    """
+    """Refresh + quick-action keyboard rendered under /ops_dashboard."""
     flip_label = "▶️ Resume" if kill_active else "⏸ Pause"
     flip_action = "ops:resume" if kill_active else "ops:pause"
     return InlineKeyboardMarkup([
@@ -24,14 +90,7 @@ def ops_dashboard_keyboard(kill_active: bool) -> InlineKeyboardMarkup:
 
 
 def operator_panel_keyboard() -> InlineKeyboardMarkup:
-    """Consolidated operator control panel (/panel).
-
-    Start = release kill switch (resume), Stop = engage kill switch (pause).
-    Both stay visible regardless of state so the operator always sees the full
-    control surface; the live run-state is shown in the panel body (_render_root),
-    so the keyboard itself is static. Lock is kept on its own row — it is
-    destructive (forces every user off auto-trade).
-    """
+    """Consolidated operator control panel (/panel)."""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("▶️ Start", callback_data="panel:start"),
          InlineKeyboardButton("⏹ Stop",  callback_data="panel:stop")],
@@ -42,13 +101,4 @@ def operator_panel_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("🔒 Lock (force users off)",
                               callback_data="panel:lock")],
         [InlineKeyboardButton("🔄 Refresh", callback_data="panel:refresh")],
-    ])
-
-
-def killswitch_confirm_keyboard(action: str) -> InlineKeyboardMarkup:
-    """Yes/No confirm for destructive killswitch actions (lock)."""
-    return InlineKeyboardMarkup([
-        confirm_cancel_row(
-            f"ops:confirm:{action}", "ops:cancel", "✅ Confirm", "❌ Cancel",
-        ),
     ])

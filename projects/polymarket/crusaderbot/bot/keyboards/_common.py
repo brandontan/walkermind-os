@@ -1,47 +1,80 @@
-"""Shared inline-keyboard row helpers — Tactical Terminal polish.
+"""Shared keyboard helpers — buttons, rows, and layout utilities.
 
-Use the new ``nav:`` / ``act:`` / ``cfg:`` callback_data prefixes for any
-keyboard rewritten as part of the bot polish pass. Legacy prefixes
-(``p5:``, ``setup:``, ``dashboard:``, ``wallet:`` etc.) remain registered
-in the dispatcher for backwards-compat with in-flight messages and are
-phased out gradually.
+Every inline keyboard in this package MUST use these helpers for
+navigation rows, confirmation dialogs, and pagination. This ensures
+consistent UX across all screens.
 
-All helpers return ``list[InlineKeyboardButton]`` (a single row); callers
-wrap them into ``InlineKeyboardMarkup`` with their own keyboard layout.
+Design rules enforced:
+- Back + Home on every nested screen (escape hatch)
+- Confirm/Cancel on every destructive action
+- Pagination with page counter
+- Grid helper respects MAX_COLS
+- All labels use standardized emoji from _constants
 """
 from __future__ import annotations
 
-from telegram import InlineKeyboardButton
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-# ── Navigation prefixes ──────────────────────────────────────────────────────
-NAV_HOME    = "nav:home"
-NAV_BACK    = "nav:back"
-NAV_REFRESH = "nav:refresh"
+from ._constants import (
+    E_BACK, E_CANCEL, E_CONFIRM, E_HOME, E_REFRESH,
+    MAX_COLS, NAV_BACK, NAV_CANCEL, NAV_HOME, NAV_NOOP, NAV_REFRESH,
+)
+
+# ── Singleton buttons (import these, don't recreate) ─────────────
+BACK    = InlineKeyboardButton(f"{E_BACK} Back",    callback_data=NAV_BACK)
+HOME    = InlineKeyboardButton(f"{E_HOME} Home",    callback_data=NAV_HOME)
+REFRESH = InlineKeyboardButton(f"{E_REFRESH} Refresh", callback_data=NAV_REFRESH)
+CANCEL  = InlineKeyboardButton(f"{E_CANCEL} Cancel",  callback_data=NAV_CANCEL)
+NOOP    = InlineKeyboardButton("·",                   callback_data=NAV_NOOP)
+
+
+# ── Row builders ─────────────────────────────────────────────────
+
+def back_row(target: str = NAV_BACK) -> list[InlineKeyboardButton]:
+    """Single back button. Use custom target for specific back destinations."""
+    if target == NAV_BACK:
+        return [BACK]
+    return [InlineKeyboardButton(f"{E_BACK} Back", callback_data=target)]
 
 
 def home_row() -> list[InlineKeyboardButton]:
-    """Single-button row with a Home action."""
-    return [InlineKeyboardButton("🏠 Home", callback_data=NAV_HOME)]
+    return [HOME]
+
+
+def back_home_row(back_target: str = NAV_BACK) -> list[InlineKeyboardButton]:
+    """Standard nav row: back + home. Append to every nested screen."""
+    back_btn = BACK if back_target == NAV_BACK else InlineKeyboardButton(
+        f"{E_BACK} Back", callback_data=back_target,
+    )
+    return [back_btn, HOME]
+
+
+def refresh_home_row() -> list[InlineKeyboardButton]:
+    return [REFRESH, HOME]
 
 
 def home_back_row(back_cb: str = NAV_BACK) -> list[InlineKeyboardButton]:
-    """Two-column nav row: back arrow on the left, home on the right.
+    """Back + Home nav row (legacy name retained for copied modules)."""
+    return back_home_row(back_cb)
 
-    Use this on every nested screen so the user always has an escape hatch.
-    """
+
+def nav_row(back_data: str = "dashboard:main") -> list[InlineKeyboardButton]:
+    """Legacy 3-button persistent nav row. Callbacks preserved for backward
+    compatibility (signal_following, my_trades surfaces)."""
     return [
-        InlineKeyboardButton("⬅ Back", callback_data=back_cb),
-        InlineKeyboardButton("🏠 Home", callback_data=NAV_HOME),
+        InlineKeyboardButton("⬅️ Back",    callback_data=back_data),
+        InlineKeyboardButton("🏠 Home",    callback_data="dashboard:main"),
+        InlineKeyboardButton("🔄 Refresh", callback_data="noop:refresh"),
     ]
 
 
 def confirm_cancel_row(
     confirm_cb: str,
-    cancel_cb: str = NAV_BACK,
-    confirm_label: str = "✓ Confirm",
-    cancel_label:  str = "✕ Cancel",
+    cancel_cb: str = NAV_CANCEL,
+    confirm_label: str = f"{E_CONFIRM} Confirm",
+    cancel_label: str = f"{E_CANCEL} Cancel",
 ) -> list[InlineKeyboardButton]:
-    """Symmetric confirm/cancel row used by any destructive flow."""
+    """Symmetric confirm/cancel for any destructive action."""
     return [
         InlineKeyboardButton(confirm_label, callback_data=confirm_cb),
         InlineKeyboardButton(cancel_label,  callback_data=cancel_cb),
@@ -54,13 +87,43 @@ def pagination_row(
     page: int,
     total: int,
 ) -> list[InlineKeyboardButton]:
-    """Three-column pagination row with a neutral page indicator in the middle.
-
-    Indicator uses ``nav:noop`` so taps are silently absorbed by the
-    dispatcher (handler is a no-op).
-    """
+    """Three-column: ← Prev | 2/5 | Next →. Indicator is a noop tap."""
     return [
         InlineKeyboardButton("← Prev", callback_data=prev_cb),
-        InlineKeyboardButton(f"{page}/{total}", callback_data="nav:noop"),
+        InlineKeyboardButton(f"{page}/{total}", callback_data=NAV_NOOP),
         InlineKeyboardButton("Next →", callback_data=next_cb),
     ]
+
+
+# ── Layout helpers ───────────────────────────────────────────────
+
+def grid_rows(
+    buttons: list[InlineKeyboardButton],
+    cols: int = MAX_COLS,
+) -> list[list[InlineKeyboardButton]]:
+    """Chunk a flat button list into rows of `cols` (default 2)."""
+    return [buttons[i:i + cols] for i in range(0, len(buttons), cols)]
+
+
+def build_kb(
+    rows: list[list[InlineKeyboardButton]],
+    *,
+    nav: list[InlineKeyboardButton] | None = None,
+) -> InlineKeyboardMarkup:
+    """Build InlineKeyboardMarkup with optional nav row appended.
+
+    Usage:
+        build_kb(
+            [[btn1, btn2], [btn3]],
+            nav=back_home_row("dashboard:main"),
+        )
+    """
+    all_rows = list(rows)
+    if nav is not None:
+        all_rows.append(nav)
+    return InlineKeyboardMarkup(all_rows)
+
+
+def mark_selected(label: str, is_selected: bool) -> str:
+    """Prefix label with ✅ if selected, ◻️ otherwise."""
+    return f"{'✅' if is_selected else '◻️'} {label}"

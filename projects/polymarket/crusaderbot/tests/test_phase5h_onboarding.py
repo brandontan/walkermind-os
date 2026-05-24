@@ -30,7 +30,7 @@ from uuid import uuid4
 
 import pytest
 
-from projects.polymarket.crusaderbot.bot.keyboards.onboarding import (
+from projects.polymarket.crusaderbot.bot._keyboards_archive.onboarding import (
     get_started_kb,
     mode_select_kb,
     paper_complete_kb,
