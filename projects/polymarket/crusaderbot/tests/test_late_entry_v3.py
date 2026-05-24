@@ -176,11 +176,30 @@ def test_enters_favored_no_side():
 
 def test_skips_when_ask_diff_below_threshold():
     strat = LateEntryV3Strategy()
-    # diff 0.10 < MIN_ASK_DIFF 0.30
+    # diff 0.02 < MIN_ASK_DIFF 0.05 (near coin-flip candle)
     with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[_make_market()])), \
-         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.55, 0.45))):
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.52, 0.50))):
         cands = _run(strat.scan(_make_filters(), _make_context()))
     assert cands == []
+
+
+def test_enters_on_small_real_lean():
+    """A ~5c lean (0.55 vs 0.50) now qualifies (was filtered by the old 0.30 gate)."""
+    strat = LateEntryV3Strategy()
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[_make_market()])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.55, 0.50))):
+        cands = _run(strat.scan(_make_filters(), _make_context()))
+    assert len(cands) == 1 and cands[0].side == "YES"
+
+
+def test_best_ask_uses_lowest_price_regardless_of_order():
+    """CLOB returns asks DESCENDING; _best_ask must return the lowest price."""
+    from projects.polymarket.crusaderbot.domain.strategy.strategies.late_entry_v3 import _best_ask
+    book = {"asks": [{"price": "0.99", "size": "9"},
+                     {"price": "0.51", "size": "9"},
+                     {"price": "0.74", "size": "9"}]}
+    assert _best_ask(book) == 0.51
+    assert _best_ask({"asks": []}) is None
 
 
 def test_skips_when_favored_price_too_high():
