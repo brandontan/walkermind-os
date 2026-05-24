@@ -7,7 +7,8 @@ runs) into one panel: Start / Stop / Lock / Status / Stats / Settings / Help.
 This module owns NO control logic of its own — Start/Stop/Lock delegate to
 ``admin._apply_killswitch_action`` (the single kill-switch path), Status reuses
 ``admin._collect_dashboard_snapshot``, and Stats reads the durable scan-pipeline
-metrics from ``job_runs.metadata`` via ``job_tracker.fetch_latest``. Access is
+metrics from the ``scan_runs`` table (the real feed-eval engine) via
+``signal_scan_job.fetch_latest_scan_run``. Access is
 gated to ``OPERATOR_CHAT_ID`` via ``admin._is_operator``. Paper-mode only — it
 surfaces guard flags read-only and never opens the live-trading gate.
 """
@@ -25,6 +26,7 @@ from telegram.ext import ContextTypes
 from ...config import get_settings, resolve_trading_mode
 from ...domain.ops import job_tracker
 from ...domain.ops import kill_switch as ops_kill_switch
+from ...services.signal_scan.signal_scan_job import fetch_latest_scan_run
 from ..keyboards.admin import operator_panel_keyboard
 from .admin import (
     _apply_killswitch_action,
@@ -81,27 +83,42 @@ async def _render_root() -> str:
     )
 
 
+def _summarize_breakdown(raw: Any, limit: int = 3) -> str:
+    """Compact one-line summary of a scan_runs JSONB breakdown column.
+
+    asyncpg returns JSONB as a str (no codec), so coerce first. Shows the top
+    buckets by count so the operator sees *why* candidates aren't converting
+    (e.g. step_7_max_concurrent_trades, skipped_signal_stale)."""
+    data = _coerce_metadata(raw)
+    if not data:
+        return "N/A"
+    items = sorted(
+        ((str(k), int(v)) for k, v in data.items() if isinstance(v, (int, float))),
+        key=lambda kv: kv[1],
+        reverse=True,
+    )
+    if not items:
+        return "N/A"
+    return ", ".join(f"{html.escape(k)}: {n}" for k, n in items[:limit])
+
+
 def _render_stats(scan_md: dict[str, Any], snap_md: dict[str, Any]) -> str:
     def g(md: dict[str, Any], key: str, default: str = "N/A") -> str:
         v = md.get(key)
         return default if v is None else html.escape(str(v))
 
-    strategies = scan_md.get("strategies_loaded")
-    strategies_str = (
-        ", ".join(html.escape(str(s)) for s in strategies)
-        if isinstance(strategies, list) and strategies else "N/A"
-    )
     return (
         "<b>📈 Scan Pipeline Stats</b>\n"
-        "<i>(latest signal_scan tick)</i>\n\n"
+        "<i>(latest scan_runs tick — feed-eval engine)</i>\n\n"
         f"Mode: <b>{g(scan_md, 'mode')}</b>  ·  live_trading: {g(scan_md, 'live_trading')}\n"
-        f"Strategies loaded: {strategies_str}\n"
-        f"Users scanned: {g(scan_md, 'users_scanned')}\n"
+        f"Strategies loaded: {g(scan_md, 'strategies_loaded')}\n"
+        f"Users evaluated: {g(scan_md, 'users_evaluated')}\n"
         f"Markets seen: {g(scan_md, 'markets_seen')}\n"
         f"Candidates emitted: {g(scan_md, 'candidates_emitted')}\n"
         f"Risk approved: {g(scan_md, 'risk_approved')}  ·  rejected: {g(scan_md, 'risk_rejected')}\n"
-        f"Router executed: {g(scan_md, 'router_executed')}  <i>(successful router_execute; not a DB-row guarantee)</i>\n"
-        f"Errors: {g(scan_md, 'errors')}\n\n"
+        f"Positions created: {g(scan_md, 'positions_created')}  ·  paper orders: {g(scan_md, 'paper_orders_created')}\n"
+        f"Risk rejections: {_summarize_breakdown(scan_md.get('rejection_breakdown'))}\n"
+        f"Skips: {_summarize_breakdown(scan_md.get('skip_breakdown'))}\n\n"
         f"Snapshots written: {g(snap_md, 'snapshots_written')}"
     )
 
@@ -130,7 +147,7 @@ _HELP_TEXT = (
     "⏹ <b>Stop</b> — engage the kill switch (blocks new trades; open positions stay).\n"
     "🔒 <b>Lock</b> — Stop + force every user's auto-trade OFF (incident use).\n"
     "📊 <b>Status</b> — live system snapshot (DB, users, positions, pool, guards).\n"
-    "📈 <b>Stats</b> — latest scan-pipeline metrics from the last signal_scan tick.\n"
+    "📈 <b>Stats</b> — latest scan-pipeline metrics from the last scan_runs tick.\n"
     "⚙️ <b>Settings</b> — read-only guard flags + scan intervals.\n"
     "🔄 <b>Refresh</b> — re-render this panel.\n\n"
     "Paper mode only. Existing commands /killswitch, /ops_dashboard, /jobs still work."
@@ -195,13 +212,12 @@ async def panel_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
     if sub == "stats":
         try:
-            scan_row = await job_tracker.fetch_latest("signal_scan")
+            scan_md = await fetch_latest_scan_run() or {}
             snap_row = await job_tracker.fetch_latest("portfolio_snapshots")
         except Exception as exc:  # noqa: BLE001
-            logger.error("panel stats: job_tracker read failed: %s", exc)
+            logger.error("panel stats: scan-run read failed: %s", exc)
             await _edit(q, "<b>📈 Scan Pipeline Stats</b>\n\nN/A — data not available.")
             return
-        scan_md = _coerce_metadata(scan_row.get("metadata")) if scan_row else {}
         snap_md = _coerce_metadata(snap_row.get("metadata")) if snap_row else {}
         await _edit(q, _render_stats(scan_md, snap_md))
         return

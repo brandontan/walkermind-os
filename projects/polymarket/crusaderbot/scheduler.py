@@ -360,13 +360,14 @@ def _resolve_mode() -> str:
 
 
 class SignalScanMetrics(TypedDict):
-    """Per-tick signal-scan metrics persisted to ``job_runs.metadata``.
+    """Per-tick legacy copy_trade scan metrics persisted to ``job_runs.metadata``.
 
-    Cross-layer contract: produced by ``run_signal_scan`` → captured by
-    ``_job_tracker_listener`` → read back by the operator panel
-    (``bot/handlers/operator_panel`` /panel → Stats) via ``job_tracker.fetch_latest``.
-    ``router_executed`` is an execution proxy (successful ``router_execute`` calls),
-    NOT a confirmed orders/positions DB-row count.
+    Produced by ``run_signal_scan`` (the legacy copy_trade-only path) → captured
+    by ``_job_tracker_listener`` under job_name ``legacy_copy_trade_scan``. NOTE:
+    the operator panel /panel → Stats now reads the real feed-eval engine from
+    the ``scan_runs`` table (``signal_scan_job.fetch_latest_scan_run``), NOT these
+    counters. ``router_executed`` is an execution proxy (successful
+    ``router_execute`` calls), NOT a confirmed orders/positions DB-row count.
     """
     mode: str
     live_trading: bool
@@ -784,7 +785,7 @@ def setup_scheduler() -> AsyncIOScheduler:
     sched.add_job(watch_deposits, "interval", seconds=s.DEPOSIT_WATCH_INTERVAL,
                   id="deposit_watch", max_instances=1, coalesce=True)
     sched.add_job(run_signal_scan, "interval", seconds=s.SIGNAL_SCAN_INTERVAL,
-                  id="signal_scan", max_instances=1, coalesce=True,
+                  id="legacy_copy_trade_scan", max_instances=1, coalesce=True,
                   next_run_time=datetime.now(timezone.utc))
     sched.add_job(sf_scan_job.run_once, "interval", seconds=s.SIGNAL_SCAN_INTERVAL,
                   id="signal_following_scan", max_instances=1, coalesce=True,

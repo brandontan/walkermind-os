@@ -452,6 +452,38 @@ async def _finish_scan_run(run_id: str, tel: ScanTelemetry) -> None:
         logger.warning("scan_run_finish_failed", run_id=run_id, error=str(exc))
 
 
+async def fetch_latest_scan_run() -> dict[str, Any] | None:
+    """Return the most recent ``scan_runs`` row as a dict, or None.
+
+    Read-only observability accessor for the real feed-eval engine (this
+    module). The Telegram operator panel reads this instead of the legacy
+    ``run_signal_scan`` job_runs row, which only loads copy_trade and always
+    reports zero candidates. Mirrors the column set served by
+    ``api/admin.py`` GET /scan/last.
+    """
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, started_at, finished_at,
+                       users_evaluated, markets_seen, markets_eligible,
+                       strategies_loaded, candidates_emitted,
+                       risk_approved, risk_rejected,
+                       paper_orders_created, positions_created, snapshots_written,
+                       skip_breakdown, zero_reason_breakdown, rejection_breakdown,
+                       mode, live_trading
+                  FROM scan_runs
+                 ORDER BY started_at DESC
+                 LIMIT 1
+                """
+            )
+    except Exception as exc:
+        logger.warning("scan_run_fetch_latest_failed", error=str(exc))
+        return None
+    return dict(row) if row else None
+
+
 # ---------------------------------------------------------------------------
 # Context builders
 # ---------------------------------------------------------------------------
