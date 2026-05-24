@@ -95,6 +95,9 @@ class OpenPositionForExit:
     # which never evaluates horizon, working without populating them).
     resolution_at: Optional[datetime] = None
     risk_profile: str = "balanced"
+    # Owning strategy name; drives the per-strategy exit hook dispatch in the
+    # exit watcher (e.g. late_entry_v3 flip-stop). None when unattributed.
+    strategy_type: Optional[str] = None
 
     def to_router_dict(self) -> dict[str, Any]:
         """Build the payload shape ``router.close`` expects.
@@ -141,6 +144,7 @@ async def list_open_for_exit() -> list[OpenPositionForExit]:
                    p.entry_price, p.size_usdc, p.mode, p.status,
                    p.applied_tp_pct, p.applied_sl_pct,
                    p.force_close_intent, p.close_failure_count,
+                   p.strategy_type,
                    m.question AS market_question,
                    m.yes_price, m.no_price, m.resolved AS market_resolved,
                    m.resolution_at,
@@ -179,6 +183,7 @@ async def list_open_for_exit() -> list[OpenPositionForExit]:
             market_resolved=bool(r["market_resolved"]),
             resolution_at=r["resolution_at"],
             risk_profile=str(r["risk_profile"] or "balanced"),
+            strategy_type=(str(r["strategy_type"]) if r["strategy_type"] else None),
         )
         for r in rows
     ]

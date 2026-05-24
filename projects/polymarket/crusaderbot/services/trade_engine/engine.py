@@ -114,12 +114,6 @@ class TradeResult:
     final_size_usdc: Optional[Decimal] = None
 
 
-def _blocked_reason_display(reason: str, market_liquidity: float) -> str:
-    if reason == "insufficient_liquidity":
-        return f"liquidity below ${market_liquidity:,.0f} threshold"
-    return "slippage exceeded limit"
-
-
 class TradeEngine:
     """Signal-to-position paper trade engine for Track A.
 
@@ -156,14 +150,6 @@ class TradeEngine:
                 signal.user_id, signal.market_id,
                 gate_result.reason, gate_result.failed_step,
             )
-            if gate_result.reason in ("insufficient_liquidity", "market_impact_cap"):
-                await _event_bus.emit(
-                    "trade.blocked",
-                    telegram_user_id=signal.telegram_user_id,
-                    market_id=signal.market_id,
-                    market_question=signal.market_question,
-                    reason=_blocked_reason_display(gate_result.reason, signal.market_liquidity),
-                )
             return TradeResult(
                 approved=False,
                 mode=None,

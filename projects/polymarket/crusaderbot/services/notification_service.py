@@ -3,7 +3,6 @@
 Subscriptions:
     position.opened     -> auto-trade entry receipt   (🚨 Auto Trade Executed)
     copy_trade.executed -> copy-trade receipt         (👥 Copy Trade Triggered)
-    trade.blocked       -> risk-gate block receipt    (⚠️ Trade Blocked)
     position.closed     -> exit receipt               (✅/❌/➖ TRADE CLOSED)
 
 Failure contract:
@@ -18,7 +17,6 @@ from __future__ import annotations
 
 import html
 import logging
-import time
 from decimal import Decimal
 from typing import Any, Optional
 
@@ -52,11 +50,6 @@ _STRAT_LABELS: dict[str, str] = {
     "value":         "🎯 Value",
     "manual":        "Manual",
 }
-
-# Per-user cooldown for trade.blocked alerts (seconds)
-_BLOCKED_COOLDOWN_SECONDS: float = 300.0
-_BLOCKED_COOLDOWN_MAX_ENTRIES: int = 1000
-_blocked_cooldowns: dict[int, float] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -283,33 +276,6 @@ async def _on_copy_trade_executed(
     )
 
 
-async def _on_trade_blocked(
-    *,
-    telegram_user_id: int,
-    market_id: str,
-    market_question: Optional[str] = None,
-    reason: str = "unknown",
-    **_: Any,
-) -> None:
-    now = time.monotonic()
-    last = _blocked_cooldowns.get(telegram_user_id, 0.0)
-    if now - last < _BLOCKED_COOLDOWN_SECONDS:
-        return
-    if len(_blocked_cooldowns) >= _BLOCKED_COOLDOWN_MAX_ENTRIES:
-        # Evict the oldest entry to keep the dict bounded
-        oldest = min(_blocked_cooldowns, key=_blocked_cooldowns.__getitem__)
-        del _blocked_cooldowns[oldest]
-    _blocked_cooldowns[telegram_user_id] = now
-
-    label = _market_label(market_question, market_id)
-    text = (
-        f"⚠️ <b>Trade Blocked</b>\n"
-        f"Market: {html.escape(label)}\n"
-        f"Reason: {html.escape(reason)}"
-    )
-    await _send_safe(telegram_user_id, text, "trade.blocked")
-
-
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
@@ -319,4 +285,3 @@ def register_handlers() -> None:
     subscribe("position.opened",     _on_position_opened)
     subscribe("position.closed",     _on_position_closed)
     subscribe("copy_trade.executed", _on_copy_trade_executed)
-    subscribe("trade.blocked",       _on_trade_blocked)

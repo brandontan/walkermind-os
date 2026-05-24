@@ -60,10 +60,11 @@ STRATEGY_AVAILABILITY: dict[str, list[str]] = {
     "momentum_reversal": ["balanced", "aggressive", "custom"],
     # Crypto-short preset engines — candidates carry the lib/domain strategy
     # name as strategy_type, so they must be allow-listed here or the risk gate
-    # rejects them at step 4 (unknown_strategy). close_sweep -> expiration_timing,
+    # rejects them at step 4 (unknown_strategy). close_sweep -> late_entry_v3,
     # Crypto Scalper -> confluence_scalper (balanced/aggressive/custom only).
     "expiration_timing": ["conservative", "balanced", "aggressive", "custom"],
     "confluence_scalper": ["balanced", "aggressive", "custom"],
+    "late_entry_v3": ["conservative", "balanced", "aggressive", "custom"],
 }
 
 

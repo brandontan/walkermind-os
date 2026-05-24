@@ -7,12 +7,14 @@ imports them here and registers a fresh instance per process.
 
 from .confluence_scalper import ConfluenceScalperStrategy
 from .copy_trade import CopyTradeStrategy
+from .late_entry_v3 import LateEntryV3Strategy
 from .momentum_reversal import MomentumReversalStrategy
 from .signal_following import SignalFollowingStrategy
 
 __all__ = [
     "ConfluenceScalperStrategy",
     "CopyTradeStrategy",
+    "LateEntryV3Strategy",
     "MomentumReversalStrategy",
     "SignalFollowingStrategy",
 ]

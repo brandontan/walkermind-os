@@ -242,8 +242,10 @@ async def test_event_order_risk_then_execution():
 
 
 @pytest.mark.asyncio
-async def test_trade_blocked_event_emitted_on_liquidity_rejection():
-    """trade.blocked is emitted when gate rejects due to insufficient_liquidity."""
+async def test_trade_blocked_notification_suppressed_on_liquidity_rejection():
+    """trade.blocked must NOT be emitted: the user-facing 'Trade Blocked' alert
+    was removed as noise (thin candle markets routinely reject on liquidity).
+    Rejections are still recorded in scan_runs.rejection_breakdown telemetry."""
     engine = TradeEngine()
     gate_mock = AsyncMock(return_value=_gate_reject("insufficient_liquidity", 9))
     emitted_events: list[str] = []
@@ -254,7 +256,7 @@ async def test_trade_blocked_event_emitted_on_liquidity_rejection():
     with patch(_GATE, gate_mock), patch(_EMIT, capture_emit):
         await engine.execute(_signal())
 
-    assert "trade.blocked" in emitted_events
+    assert "trade.blocked" not in emitted_events
 
 
 # ---------------------------------------------------------------------------

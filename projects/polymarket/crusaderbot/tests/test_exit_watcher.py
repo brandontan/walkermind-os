@@ -162,7 +162,7 @@ def test_evaluate_strategy_exit_runs_after_sl():
     """Strategy hook only fires when force/TP/SL all hold."""
     calls: list[OpenPositionForExit] = []
 
-    async def _strategy(pos):
+    async def _strategy(pos, current_price):
         calls.append(pos)
         return True
 
@@ -171,6 +171,42 @@ def test_evaluate_strategy_exit_runs_after_sl():
     assert decision.should_exit
     assert decision.reason == ExitReason.STRATEGY_EXIT.value
     assert calls == [p]
+
+
+def test_registry_evaluator_dispatches_late_entry_flip_stop():
+    """The default registry evaluator routes a position to its owning strategy
+    by strategy_type and fires late_entry_v3's flip-stop on the live price."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        # cur 0.45 <= flip-stop 0.48; TP/SL set so they do not trip first.
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.40,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50),
+            strategy_type="late_entry_v3",
+        )
+        decision = _run(exit_watcher.evaluate(p, live_price=0.45))
+        assert decision.should_exit
+        assert decision.reason == ExitReason.STRATEGY_EXIT.value
+    finally:
+        StrategyRegistry._reset_for_tests()
+
+
+def test_registry_evaluator_holds_unattributed_position():
+    """A position with no strategy_type falls back to no-op (holds)."""
+    # live_price == entry: ret 0 so neither TP nor SL trips; strategy_type is
+    # None so the registry evaluator no-ops and the position holds.
+    p = _make_position(side="yes", entry_price=0.40)  # strategy_type defaults to None
+    decision = _run(exit_watcher.evaluate(p, live_price=0.40))
+    assert not decision.should_exit
+    assert decision.reason is None
 
 
 def test_evaluate_ignores_tp_pct_when_applied_is_none():

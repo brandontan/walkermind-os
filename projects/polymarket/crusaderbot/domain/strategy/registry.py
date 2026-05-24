@@ -155,6 +155,7 @@ def bootstrap_default_strategies(
     from .strategies import (
         ConfluenceScalperStrategy,
         CopyTradeStrategy,
+        LateEntryV3Strategy,
         MomentumReversalStrategy,
         SignalFollowingStrategy,
     )
@@ -164,6 +165,7 @@ def bootstrap_default_strategies(
         MomentumReversalStrategy,
         SignalFollowingStrategy,
         ConfluenceScalperStrategy,
+        LateEntryV3Strategy,
     ):
         try:
             reg.get(cls.name)
