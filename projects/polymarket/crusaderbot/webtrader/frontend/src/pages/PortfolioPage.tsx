@@ -730,9 +730,17 @@ export function PositionRow({ p, onCashOut, onForceRedeem }: {
 }) {
   const isOpen = p.status === "open";
   const awaitingRedeem = isOpen && !!p.awaiting_redeem;
-  const priceUnavailable = isOpen && p.current_price === null;
+  // A won-pending position has no meaningful "unavailable" price — it settles
+  // at the redeem payout regardless of the live mark.
+  const priceUnavailable = isOpen && !awaitingRedeem && p.current_price === null;
 
   const curVal = (() => {
+    if (awaitingRedeem) {
+      // Confirmed win awaiting redemption: value at the $1.00/share payout
+      // (shares = size / entry), not the live mark — the live mark can sit
+      // below entry and misreport a settled win as a loss.
+      return p.entry_price > 0 ? p.size_usdc / p.entry_price : p.size_usdc;
+    }
     if (isOpen) {
       const price = p.current_price ?? p.entry_price;
       return p.entry_price > 0

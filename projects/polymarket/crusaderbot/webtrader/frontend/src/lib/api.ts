@@ -37,6 +37,7 @@ export function makeApi(token: string | null) {
     },
     forceRedeem: (positionId: string) =>
       post<{ status: string; position_id: string }>(`/positions/${positionId}/redeem`),
+    getMarketFeed: () => get<MarketFeedItem[]>("/market-feed"),
     getPortfolioSummary: () => get<PortfolioSummary>("/portfolio/summary"),
     getPortfolioChart: (period: string) =>
       get<ChartPoint[]>(`/portfolio/chart?period=${encodeURIComponent(period)}`),
@@ -119,6 +120,15 @@ export interface PositionItem {
   closed_at: string | null;
   exit_reason: string | null;
   awaiting_redeem?: boolean;
+}
+
+export interface MarketFeedItem {
+  asset: string;
+  label: string;
+  up_prob: number;
+  lean: "UP" | "DOWN" | "EVEN";
+  seconds_to_close: number;
+  liquidity_usdc: number;
 }
 
 export interface PortfolioSummary {

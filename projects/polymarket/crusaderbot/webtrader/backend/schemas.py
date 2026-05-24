@@ -42,6 +42,22 @@ class DashboardSummary(BaseModel):
     active_preset: Optional[str] = None
 
 
+# ── Market feed ───────────────────────────────────────────────────────────────
+
+class MarketFeedItem(BaseModel):
+    """One live crypto up/down candle market for the Home market-feed ticker.
+
+    Sourced from the already-synced ``markets`` table (Polymarket CLOB prices);
+    no external spot-price dependency. ``up_prob`` is the YES (Up) probability.
+    """
+    asset: str
+    label: str
+    up_prob: float
+    lean: str  # "UP" | "DOWN" | "EVEN"
+    seconds_to_close: int
+    liquidity_usdc: float
+
+
 # ── Positions / Orders ────────────────────────────────────────────────────────
 
 class PositionItem(BaseModel):

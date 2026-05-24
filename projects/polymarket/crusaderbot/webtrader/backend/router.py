@@ -29,6 +29,7 @@ from .schemas import (
     LeaderboardEntry,
     LedgerEntry,
     LedgerPage,
+    MarketFeedItem,
     MarketFilterUpdate,
     OrderItem,
     PortfolioAnalytics,
@@ -218,6 +219,56 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
         trading_mode=trading_mode,
         active_preset=settings_row["active_preset"] if settings_row else None,
     )
+
+
+@router.get("/market-feed")
+async def get_market_feed(user: _CurrentUser) -> list[MarketFeedItem]:
+    """Live crypto up/down candle markets — nearest close per asset.
+
+    Reads the already-synced ``markets`` table (Polymarket CLOB prices); no
+    external spot-price dependency. Powers the Home auto-slide market feed.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT DISTINCT ON (split_part(slug, '-updown-', 1))
+                      split_part(slug, '-updown-', 1) AS asset,
+                      yes_price, liquidity_usdc, resolution_at
+               FROM markets
+               WHERE slug LIKE '%updown%'
+                 AND split_part(slug, '-updown-', 1) IN ('btc', 'eth', 'sol', 'bnb')
+                 AND resolved = false
+                 AND resolution_at > now()
+                 AND yes_price IS NOT NULL
+                 AND liquidity_usdc > 0
+               ORDER BY split_part(slug, '-updown-', 1), resolution_at ASC"""
+        )
+
+    now = datetime.now(timezone.utc)
+    asset_labels = {"btc": "BTC", "eth": "ETH", "sol": "SOL", "bnb": "BNB"}
+    feed: list[MarketFeedItem] = []
+    for r in rows:
+        asset_key = str(r["asset"] or "").lower()
+        up_prob = float(r["yes_price"] or 0.0)
+        if up_prob >= 0.52:
+            lean = "UP"
+        elif up_prob <= 0.48:
+            lean = "DOWN"
+        else:
+            lean = "EVEN"
+        secs = int((r["resolution_at"] - now).total_seconds())
+        label = asset_labels.get(asset_key, asset_key.upper())
+        feed.append(
+            MarketFeedItem(
+                asset=label,
+                label=label,
+                up_prob=up_prob,
+                lean=lean,
+                seconds_to_close=max(0, secs),
+                liquidity_usdc=float(r["liquidity_usdc"] or 0.0),
+            )
+        )
+    return feed
 
 
 @router.get("/positions")
