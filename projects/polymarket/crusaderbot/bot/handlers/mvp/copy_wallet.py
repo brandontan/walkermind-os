@@ -8,7 +8,7 @@ from telegram import Update
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
 from ... import messages_mvp as mvp
-from ...keyboards.mvp import copy_wallet as kb
+from ...keyboards_v2.mvp import copy_wallet as kb
 from ...ui.tree import STATUS_NOT_SET, STATUS_RUNNING, STATUS_STOPPED
 from . import _users
 from ._send import callback_parts, send_or_edit

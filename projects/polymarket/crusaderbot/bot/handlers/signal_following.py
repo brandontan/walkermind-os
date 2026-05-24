@@ -37,7 +37,7 @@ from ...services.signal_feed import (
     unsubscribe,
 )
 from ...users import upsert_user
-from ..keyboards.signal_following import signal_subs_list_kb
+from ..keyboards_v2.signal_following import signal_subs_list_kb
 
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ _USAGE = (
 async def _build_signals_screen(user_id) -> tuple[str, InlineKeyboardMarkup]:
     """Build the signal feed hub text and keyboard (hierarchy tree style)."""
     from telegram import InlineKeyboardButton
-    from ..keyboards import nav_row
+    from ..keyboards_v2 import nav_row
 
     subs = await list_user_subscriptions(user_id)
     all_feeds = await list_active_feeds()

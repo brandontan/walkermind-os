@@ -52,7 +52,7 @@ from telegram.ext import (
 
 from ...database import get_pool
 from ...users import upsert_user
-from ..keyboards.copy_trade import (
+from ..keyboards_v2.copy_trade import (
     copy_trade_add_wallet_kb,
     copy_trade_empty_kb,
     copy_trade_task_list_kb,
@@ -69,7 +69,7 @@ from ..keyboards.copy_trade import (
     wizard_step3_kb,
     wizard_success_kb,
 )
-from ..keyboards import main_menu
+from ..keyboards_v2 import main_menu
 from ...domain.copy_trade import repository as repo
 from ...domain.copy_trade.models import CopyTradeTask
 from ...services.copy_trade.wallet_stats import (
@@ -609,7 +609,7 @@ async def _legacy_remove(
 async def _legacy_list(update: Update, user_id: UUID) -> None:
     if update.message is None:
         return
-    from ..keyboards.copy_trade import copy_trade_empty_kb as _empty_kb
+    from ..keyboards_v2.copy_trade import copy_trade_empty_kb as _empty_kb
     targets = await _legacy_list_active(user_id)
     if not targets:
         await update.message.reply_text(
@@ -1854,7 +1854,7 @@ def build_wizard_handler() -> ConversationHandler:
 # 8-step Copy Trade Wizard (CRUSADERBOT-STRATEGY-RISK-COPY)
 # ===========================================================================
 
-from ..keyboards.copy_trade import (
+from ..keyboards_v2.copy_trade import (
     wizard_nickname_kb,
     wizard_stats_confirm_kb,
     wizard_direction_kb,

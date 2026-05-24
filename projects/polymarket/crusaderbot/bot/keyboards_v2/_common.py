@@ -58,6 +58,16 @@ def home_back_row(back_cb: str = NAV_BACK) -> list[InlineKeyboardButton]:
     return back_home_row(back_cb)
 
 
+def nav_row(back_data: str = "dashboard:main") -> list[InlineKeyboardButton]:
+    """Legacy 3-button persistent nav row. Callbacks preserved for backward
+    compatibility (signal_following, my_trades surfaces)."""
+    return [
+        InlineKeyboardButton("⬅️ Back",    callback_data=back_data),
+        InlineKeyboardButton("🏠 Home",    callback_data="dashboard:main"),
+        InlineKeyboardButton("🔄 Refresh", callback_data="noop:refresh"),
+    ]
+
+
 def confirm_cancel_row(
     confirm_cb: str,
     cancel_cb: str = NAV_CANCEL,

@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
 from ... import messages_mvp as mvp
-from ...keyboards.mvp import settings as kb
+from ...keyboards_v2.mvp import settings as kb
 from ...ui.tree import LIVE, PAPER
 from . import _users
 from ._send import callback_parts, send_or_edit

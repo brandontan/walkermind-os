@@ -33,8 +33,8 @@ from __future__ import annotations
 from ._common import (                                       # noqa: F401
     BACK, CANCEL, HOME, NOOP, REFRESH,
     back_home_row, back_row, build_kb, confirm_cancel_row,
-    grid_rows, home_row, mark_selected, pagination_row,
-    refresh_home_row,
+    grid_rows, home_back_row, home_row, mark_selected, nav_row,
+    pagination_row, refresh_home_row,
 )
 
 # ── ReplyKeyboard (bottom bar) ───────────────────────────────────
