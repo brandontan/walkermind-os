@@ -44,7 +44,7 @@ def _safe_fetch(endpoint, params=None):
     try:
         from api_client import fetch
         return fetch(endpoint, params)
-    except SystemExit:
+    except Exception:
         return None
 
 
