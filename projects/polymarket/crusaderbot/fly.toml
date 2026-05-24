@@ -27,7 +27,7 @@ kill_timeout = "30s"
   RISK_CONTROLS_VALIDATED       = "false"
   SECURITY_HARDENING_VALIDATED  = "false"
   FEE_COLLECTION_ENABLED        = "false"
-  AUTO_REDEEM_ENABLED           = "false"
+  AUTO_REDEEM_ENABLED           = "true"
   HEISENBERG_API_TOKEN          = ""
   ADMIN_API_TOKEN               = ""
 
