@@ -167,14 +167,29 @@ def classify_crypto_timeframe(market: Any) -> CryptoTimeframe | None:
 
 
 def is_short_crypto_market(market: Any, timeframe: str | None) -> bool:
-    """True iff ``market`` is a whitelisted crypto market AND its classified
-    timeframe matches ``timeframe``.
+    """True iff ``market`` is a short-duration crypto candle market AND its
+    classified timeframe matches ``timeframe``.
+
+    Crypto-ness is established by a whitelisted asset ticker (BTC/ETH/SOL/...)
+    appearing as a whole word in the market text, NOT by the literal "crypto"
+    category — Polymarket's recurring up/down candle markets carry category =
+    their own series slug (e.g. "btc-updown-5m-1779249900"), so the category
+    gate used by ``is_confluence_scalper_eligible`` would reject them. The
+    timeframe gate (a detected 5m/15m interval) supplies the precision that the
+    category check otherwise provided: a non-crypto market is extremely unlikely
+    to both name a crypto asset AND resolve on a 5/15-minute candle.
 
     ``timeframe=None`` means "any 5m or 15m crypto market" (classification must
-    still resolve to a non-None bucket). Non-crypto markets and markets that
-    cannot be classified are rejected (fail-closed).
+    still resolve to a non-None bucket). Markets that cannot be classified are
+    rejected (fail-closed).
     """
-    if not is_confluence_scalper_eligible(market):
+    if not isinstance(market, dict):
+        return False
+    haystack = " ".join(
+        str(market.get(field) or "")
+        for field in ("question", "title", "slug", "groupItemTitle")
+    )
+    if not CONFLUENCE_SCALPER_ASSET_PATTERN.search(haystack):
         return False
     tf = classify_crypto_timeframe(market)
     if tf is None:

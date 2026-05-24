@@ -47,6 +47,51 @@ def test_keyword_question_field():
     assert classify_crypto_timeframe(m) == "5m"
 
 
+# ── real Polymarket candle slug formats (regression for live data) ──────────
+
+def test_real_btc_updown_5m_slug():
+    # Production format — category is the series slug, NOT the literal "crypto".
+    m = {
+        "question": "Bitcoin Up or Down - May 20, 12:05AM-12:10AM ET",
+        "slug": "btc-updown-5m-1779249900",
+        "category": "btc-updown-5m-1779249900",
+    }
+    assert classify_crypto_timeframe(m) == "5m"
+    assert is_short_crypto_market(m, "5m") is True
+    assert is_short_crypto_market(m, "15m") is False
+
+
+def test_real_btc_updown_15m_slug():
+    m = {
+        "question": "Bitcoin Up or Down - May 21, 1:00AM-1:15AM ET",
+        "slug": "btc-updown-15m-1779339600",
+        "category": "btc-updown-15m-1779339600",
+    }
+    assert classify_crypto_timeframe(m) == "15m"
+    assert is_short_crypto_market(m, "15m") is True
+
+
+def test_real_eth_updown_5m_slug():
+    m = {
+        "question": "Ethereum Up or Down - May 21, 1:50PM-1:55PM ET",
+        "slug": "eth-updown-5m-1779385800",
+        "category": "eth-updown-5m-1779385800",
+    }
+    assert classify_crypto_timeframe(m) == "5m"
+    assert is_short_crypto_market(m, None) is True
+
+
+def test_real_eth_daily_updown_skipped():
+    # Daily up/down market — no 5m/15m interval -> not a short-duration candle.
+    m = {
+        "question": "Ethereum Up or Down on May 19?",
+        "slug": "ethereum-up-or-down-on-may-19-2026",
+        "category": "ethereum-up-or-down-on-may-19-2026",
+    }
+    assert classify_crypto_timeframe(m) is None
+    assert is_short_crypto_market(m, "5m") is False
+
+
 # ── duration fallback ───────────────────────────────────────────────────────
 
 def test_duration_fallback_5m():
