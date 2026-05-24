@@ -97,6 +97,48 @@ async def get_markets(category: Optional[str] = None,
         return []
 
 
+async def get_events_with_markets(limit: int = 200) -> list[dict]:
+    """Fetch active Gamma events and flatten to category-annotated market dicts.
+
+    Gamma ``/markets`` dicts carry no category or tag data — only a
+    ``groupItemTitle`` (market-specific description) and ``slug`` (event slug),
+    so substring matching against dashboard categories (Politics/Sports/Crypto/
+    Finance/…) fails for almost every filter selection.
+
+    This function uses the ``/events`` endpoint, which carries a ``tags`` array
+    (e.g. ``["Crypto", "Finance", "Business"]``) at the event level.  Each
+    market in ``event.markets`` is returned with a ``category`` key set to the
+    lowercase space-joined tag labels of the parent event, enabling
+    ``_filter_markets_by_category`` to match reliably.
+    """
+    key = f"events_with_markets:{limit}"
+    if hit := await get_cache(key):
+        return hit
+    params: dict[str, Any] = {"active": "true", "closed": "false", "limit": limit}
+    try:
+        events = await _get_json(f"{GAMMA}/events", params=params)
+        if isinstance(events, dict):
+            events = events.get("data", [])
+        result: list[dict] = []
+        for event in (events or []):
+            # Build category from event tags, skipping the generic "All" tag.
+            tag_labels = [
+                t["label"].strip()
+                for t in (event.get("tags") or [])
+                if t.get("slug") != "all" and t.get("label", "").strip()
+            ]
+            category = " ".join(tag_labels).lower()
+            if not category:
+                category = (event.get("category") or "").strip().lower()
+            for m in (event.get("markets") or []):
+                result.append({**m, "category": category})
+        await set_cache(key, result, ttl=300)
+        return result
+    except Exception as exc:
+        logger.warning("get_events_with_markets failed: %s", exc)
+        return []
+
+
 async def get_market(market_id: str) -> Optional[dict]:
     """Fetch a single market from Gamma API by conditionId. Cached 2 min.
 

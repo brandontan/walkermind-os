@@ -326,3 +326,6 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 - Report: projects/polymarket/crusaderbot/reports/forge/scan-stats-truth-source.md
 - Gate: STANDARD → WARP🔹CMD review (no SENTINEL)
 
+
+2026-05-24 17:00 | claude/fervent-hawking-yNP0Z | Lane 3: edge-model-momentum — replaced abs(yes_p-0.5) scoring with 24h/1h momentum; tightened price range to 0.15-0.85; side follows momentum direction
+2026-05-24 17:30 | claude/fervent-hawking-yNP0Z | Lane 1: category-mapping — get_events_with_markets() enriches market dicts with Gamma event tags; category filter now works for all dashboard categories
