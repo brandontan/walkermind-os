@@ -35,7 +35,7 @@ from ...users import (
     get_user_by_telegram_id, get_user_by_username,
     set_auto_trade, set_onboarding_complete, set_role, update_settings,
 )
-from ..keyboards_v2.admin import admin_menu, ops_dashboard_keyboard
+from ..keyboards.admin import admin_menu, ops_dashboard_keyboard
 
 logger = logging.getLogger(__name__)
 

@@ -19,7 +19,7 @@ from ...database import get_pool
 from ...jobs.market_signal_scanner import get_scanner_state
 from ...users import upsert_user
 from ...wallet.ledger import daily_pnl, get_balance
-from ..keyboards_v2 import main_menu
+from ..keyboards import main_menu
 from ..messages import dashboard_text
 
 logger = logging.getLogger(__name__)

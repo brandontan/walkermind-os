@@ -10,8 +10,8 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from ... import messages_mvp as mvp
-from ...keyboards_v2.mvp._common import main_menu_kb
-from ...keyboards_v2.mvp.onboarding import (
+from ...keyboards.mvp._common import main_menu_kb
+from ...keyboards.mvp.onboarding import (
     deposit_prompt_kb,
     wallet_ready_kb,
     welcome_kb,

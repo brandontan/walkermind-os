@@ -23,8 +23,9 @@ from uuid import uuid4
 import pytest
 
 from projects.polymarket.crusaderbot.bot.handlers import positions as positions_h
-from projects.polymarket.crusaderbot.bot.keyboards.positions import (
-    force_close_confirm_kb, positions_list_kb,
+from projects.polymarket.crusaderbot.bot.keyboards.portfolio import (
+    force_close_confirm_kb,
+    positions_close_list_kb as positions_list_kb,
 )
 
 

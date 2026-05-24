@@ -12,10 +12,10 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from projects.polymarket.crusaderbot.bot.keyboards import (
+from projects.polymarket.crusaderbot.bot._keyboards_archive import (
     dashboard_nav, emergency_menu, grid_rows, main_menu, wallet_menu,
 )
-from projects.polymarket.crusaderbot.bot.keyboards.presets import preset_picker
+from projects.polymarket.crusaderbot.bot._keyboards_archive.presets import preset_picker
 from projects.polymarket.crusaderbot.bot.menus.main import MAIN_MENU_ROUTES
 
 

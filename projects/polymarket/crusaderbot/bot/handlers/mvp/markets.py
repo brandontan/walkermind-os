@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
 from ... import messages_mvp as mvp
-from ...keyboards_v2.mvp import markets as kb
+from ...keyboards.mvp import markets as kb
 from ._send import callback_parts, send_or_edit
 
 log = logging.getLogger(__name__)

@@ -22,7 +22,7 @@ import pytest
 
 from projects.polymarket.crusaderbot.bot.handlers import presets as presets_h
 from projects.polymarket.crusaderbot.bot.handlers import setup as setup_h
-from projects.polymarket.crusaderbot.bot.keyboards.presets import (
+from projects.polymarket.crusaderbot.bot._keyboards_archive.presets import (
     preset_confirm, preset_picker, preset_status, preset_stop_confirm,
     preset_switch_confirm,
 )

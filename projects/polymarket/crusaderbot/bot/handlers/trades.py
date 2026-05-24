@@ -16,7 +16,7 @@ from telegram.ext import ContextTypes
 
 from ...database import get_pool
 from ...users import upsert_user
-from ..keyboards_v2.portfolio import (
+from ..keyboards.portfolio import (
     close_confirm_p5_kb as close_confirm_kb,
     close_position_p5_kb as close_position_kb,
     trades_empty_kb,

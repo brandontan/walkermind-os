@@ -31,7 +31,7 @@ from ...users import (
     get_settings_for, set_auto_trade, set_paused, update_settings, upsert_user,
 )
 from ...wallet.ledger import daily_pnl, get_balance
-from ..keyboards_v2.autotrade import (
+from ..keyboards.autotrade import (
     preset_confirm_kb as preset_confirm,
     preset_list_kb,
     preset_status_kb as preset_status,
@@ -39,7 +39,7 @@ from ..keyboards_v2.autotrade import (
     preset_switch_confirm_kb as preset_switch_confirm,
     preset_tier_kb as preset_picker,
 )
-from ..keyboards_v2.customize import (
+from ..keyboards.customize import (
     wizard_capital_kb, wizard_custom_input_kb, wizard_done_kb,
     wizard_review_kb, wizard_sl_kb, wizard_tp_kb,
 )

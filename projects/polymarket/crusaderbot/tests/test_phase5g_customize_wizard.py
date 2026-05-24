@@ -31,7 +31,7 @@ from projects.polymarket.crusaderbot.bot.handlers.presets import (
     CUSTOM_CAPITAL, CUSTOM_INPUT, CUSTOM_REVIEW, CUSTOM_SL, CUSTOM_TP,
     _step5_text,
 )
-from projects.polymarket.crusaderbot.bot.keyboards.presets import (
+from projects.polymarket.crusaderbot.bot.keyboards.customize import (
     wizard_capital_kb, wizard_custom_input_kb, wizard_done_kb,
     wizard_review_kb, wizard_sl_kb, wizard_tp_kb,
 )
@@ -539,7 +539,7 @@ def test_review_kb_has_save_and_back():
 def test_done_kb_has_dashboard_and_autotrade():
     kb = wizard_done_kb()
     all_cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    assert "dashboard:main" in all_cbs
+    assert "menu:home" in all_cbs  # WARP-KB-V2: unified Home nav
     assert "preset:status" in all_cbs
 
 

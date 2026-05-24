@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes
 
 from ... import messages_mvp as mvp
-from ...keyboards_v2.mvp import autotrade as kb
+from ...keyboards.mvp import autotrade as kb
 from ...ui.tree import STATUS_NOT_SET, STATUS_PAUSED, STATUS_RUNNING, STATUS_STOPPED
 from . import _users
 from ._send import callback_parts, send_or_edit
@@ -174,7 +174,7 @@ async def do_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     text = mvp.render_notif_bot_started(
         strategy=f["strategy"], capital=capital, risk=risk,
     )
-    from ...keyboards_v2.mvp._common import main_menu_kb
+    from ...keyboards.mvp._common import main_menu_kb
     # Use send_or_edit to avoid phantom "." message (WARP-72 fix)
     await send_or_edit(
         update, text,

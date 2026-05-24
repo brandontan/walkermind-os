@@ -28,7 +28,7 @@ import pytest
 from projects.polymarket.crusaderbot.bot.handlers import admin as admin_h
 from projects.polymarket.crusaderbot.bot.handlers import emergency as emg_h
 from projects.polymarket.crusaderbot.bot.handlers import presets as presets_h
-from projects.polymarket.crusaderbot.bot.keyboards import (
+from projects.polymarket.crusaderbot.bot._keyboards_archive import (
     emergency_confirm,
     emergency_feedback,
 )

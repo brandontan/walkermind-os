@@ -10,7 +10,7 @@ from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 from ...integrations.polymarket import get_market_by_slug
-from ..keyboards_v2.market_card import market_card_kb
+from ..keyboards.market_card import market_card_kb
 
 logger = logging.getLogger(__name__)
 

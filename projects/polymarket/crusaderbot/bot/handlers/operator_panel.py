@@ -27,7 +27,7 @@ from ...config import get_settings, resolve_trading_mode
 from ...domain.ops import job_tracker
 from ...domain.ops import kill_switch as ops_kill_switch
 from ...services.signal_scan.signal_scan_job import fetch_latest_scan_run
-from ..keyboards_v2.admin import operator_panel_keyboard
+from ..keyboards.admin import operator_panel_keyboard
 from .admin import (
     _apply_killswitch_action,
     _collect_dashboard_snapshot,

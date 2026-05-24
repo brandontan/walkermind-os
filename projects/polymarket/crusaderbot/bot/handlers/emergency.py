@@ -16,7 +16,7 @@ from telegram.ext import ContextTypes
 from ... import audit
 from ...database import get_pool
 from ...users import set_auto_trade, set_locked, set_paused, upsert_user
-from ..keyboards_v2.emergency import (
+from ..keyboards.emergency import (
     emergency_confirm_kb as emergency_confirm_p5_kb,
     emergency_done_kb as emergency_done_p5_kb,
     emergency_home_kb as emergency_p5_kb,

@@ -7,8 +7,8 @@ from telegram import Update
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
 from ... import messages_mvp as mvp
-from ...keyboards_v2.mvp._common import main_menu_kb
-from ...keyboards_v2.mvp.onboarding import new_user_dashboard_kb
+from ...keyboards.mvp._common import main_menu_kb
+from ...keyboards.mvp.onboarding import new_user_dashboard_kb
 from ...ui.tree import STATUS_NOT_SET, STATUS_PAUSED, STATUS_RUNNING, STATUS_STOPPED
 from . import _users
 from ._send import send_or_edit

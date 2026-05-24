@@ -90,7 +90,7 @@ def test_main_menu_v5_layout():
 # Part 2 — TP/SL keyboards
 # ---------------------------------------------------------------------------
 
-from projects.polymarket.crusaderbot.bot.keyboards.settings import (
+from projects.polymarket.crusaderbot.bot._keyboards_archive.settings import (
     capital_preset_kb,
     settings_hub_kb,
     sl_preset_kb,
@@ -179,7 +179,7 @@ def test_capital_preset_kb_no_100_pct():
 # Part 4 — Strategy card keyboard
 # ---------------------------------------------------------------------------
 
-from projects.polymarket.crusaderbot.bot.keyboards import strategy_card_kb
+from projects.polymarket.crusaderbot.bot.keyboards.setup import strategy_card_kb
 
 
 def test_strategy_card_kb_has_four_cards():
@@ -354,7 +354,7 @@ def test_settings_hub_has_back():
 # Part 9 — My Trades keyboard (no Dashboard button)
 # ---------------------------------------------------------------------------
 
-from projects.polymarket.crusaderbot.bot.keyboards.my_trades import (
+from projects.polymarket.crusaderbot.bot.keyboards.portfolio import (
     close_success_kb,
     my_trades_main_kb,
 )
