@@ -658,6 +658,17 @@ def _build_trade_signal(
         _price = float(
             _primary if _primary is not None else (_fallback if _fallback is not None else 0.5)
         )
+    # Use CLOB-derived liquidity when the candidate carries it (late_entry_v3
+    # computes live bid depth from both token books). Candle markets have
+    # near-zero Gamma liquidity_usdc in the DB, which causes gate 11 to reject
+    # every candidate. The CLOB book depth is the real available liquidity.
+    _clob_liq = cand.metadata.get("clob_liquidity")
+    _market_liquidity = (
+        float(_clob_liq)
+        if _clob_liq is not None and float(_clob_liq) > 0
+        else float(market.get("liquidity_usdc") or 0.0)
+    )
+
     return TradeSignal(
         user_id=UUID(str(row["user_id"])),
         telegram_user_id=int(row["telegram_user_id"]),
@@ -671,7 +682,7 @@ def _build_trade_signal(
         side=_side,
         proposed_size_usdc=Decimal(str(cand.suggested_size_usdc)),
         price=_price,
-        market_liquidity=float(market.get("liquidity_usdc") or 0.0),
+        market_liquidity=_market_liquidity,
         market_status=str(market.get("status") or ""),
         idempotency_key=idempotency_key,
         strategy_type=cand.strategy_name,
