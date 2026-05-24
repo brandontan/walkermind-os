@@ -39,7 +39,6 @@ async def show_home(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     }
     text = mvp.render_portfolio_home(
         balance=p["balance"], today_pnl=p["today_pnl"],
-        today_trades=p["today_trades"], today_win_rate=p["win_rate"],
         open_positions=len(p["positions"]),
     )
     await send_or_edit(update, text, kb.home_kb())
