@@ -95,13 +95,16 @@ class ConfluenceScalperStrategy(BaseStrategy):
         Returns an empty list on any failure or when no market qualifies.
         Never raises — scan errors must not crash the scheduler scan loop.
         """
-        # Crypto Scalper trades short-duration crypto candle markets, which the
-        # generic /markets fetch misses — pull the dedicated newest-first candle
-        # universe (live 5m/15m markets with real in-window liquidity).
+        timeframe = getattr(user_context, "selected_timeframe", None)
+        assets = getattr(user_context, "selected_assets", ()) or None
+
+        # Crypto Scalper trades the currently-live crypto candle window. Fetch it
+        # by deterministic slug ({coin}-updown-{tf}-{slot}) so we get the in-window
+        # markets with real liquidity, not the far-future batch a list fetch returns.
         try:
-            markets = await pm.get_crypto_short_markets()
+            markets = await pm.get_crypto_window_markets(timeframe or "5m", assets)
         except Exception as exc:
-            logger.warning("confluence_scalper scan: get_crypto_short_markets failed err=%s", exc)
+            logger.warning("confluence_scalper scan: get_crypto_window_markets failed err=%s", exc)
             return []
 
         if not markets:
@@ -110,8 +113,6 @@ class ConfluenceScalperStrategy(BaseStrategy):
         now = datetime.now(timezone.utc)
         blacklist = set(market_filters.blacklisted_market_ids)
         effective_min_liquidity = max(market_filters.min_liquidity, 0.0)
-        timeframe = getattr(user_context, "selected_timeframe", None)
-        assets = getattr(user_context, "selected_assets", ()) or None
         tuning = _TIMEFRAME_TUNING.get(timeframe or "", {})
         candidates: list[SignalCandidate] = []
 

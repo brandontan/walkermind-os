@@ -457,8 +457,13 @@ _VALID_ASSETS: frozenset[str] = frozenset(_CRYPTO_SHORT_ASSETS)
 # needs no JSONB entry here. Keep minimal — only the knobs that map onto the
 # strategy's existing config keys. hours_before_* are in HOURS (6m=0.1, 18m=0.3).
 _CLOSE_SWEEP_TF_PARAMS: dict[str, dict[str, float]] = {
-    "5m":  {"hours_before_min": 0.0, "hours_before_max": 0.1, "min_price": 0.40, "max_price": 0.60},
-    "15m": {"hours_before_min": 0.0, "hours_before_max": 0.3, "min_price": 0.35, "max_price": 0.65},
+    # Short crypto candles are liquid but small; relax the lib strategy's volume/
+    # liquidity floors (defaults 3000/2000) so genuine in-window candles aren't
+    # filtered out. hours_before_max bounds entry to the final minutes (6m / 18m).
+    "5m":  {"hours_before_min": 0.0, "hours_before_max": 0.1, "min_price": 0.40, "max_price": 0.60,
+            "min_volume_24h": 0.0, "min_liquidity": 500.0},
+    "15m": {"hours_before_min": 0.0, "hours_before_max": 0.3, "min_price": 0.35, "max_price": 0.65,
+            "min_volume_24h": 0.0, "min_liquidity": 500.0},
 }
 
 _VALID_RISK_PROFILES: frozenset[str] = frozenset({"conservative", "balanced", "aggressive", "custom"})
