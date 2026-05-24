@@ -98,16 +98,29 @@ async def get_markets(category: Optional[str] = None,
 
 
 async def get_market(market_id: str) -> Optional[dict]:
+    """Fetch a single market from Gamma API by conditionId. Cached 2 min.
+
+    Resolves via ``GET /markets?conditionId={id}`` (query param). The path
+    form ``GET /markets/{id}`` returns 422 for hex conditionIds, and the
+    markets table stores condition_id as the primary key (scanner and
+    market_sync both key on it), so the path form silently broke resolution
+    detection for every position — detect_resolutions could never observe a
+    market as closed, so positions never settled and concurrency slots leaked.
+    """
     key = f"mkt:{market_id}"
     if hit := await get_cache(key):
         return hit
     try:
-        data = await _get_json(f"{GAMMA}/markets/{market_id}")
-        await set_cache(key, data, ttl=120)
-        return data
+        data = await _get_json(f"{GAMMA}/markets", params={"conditionId": market_id})
     except Exception as exc:
         logger.warning("get_market %s failed: %s", market_id, exc)
         return None
+    markets: list = data if isinstance(data, list) else data.get("data", [])
+    if not markets or not isinstance(markets[0], dict):
+        return None
+    result = markets[0]
+    await set_cache(key, result, ttl=120)
+    return result
 
 
 async def get_market_by_slug(slug: str) -> Optional[dict]:

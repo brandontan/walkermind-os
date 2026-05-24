@@ -1,10 +1,15 @@
 """Market signal scanner — edge-finder + momentum_reversal publication writer.
 
-Dual-feed pipeline:
-  Demo path (DEMO_FEED_ID): Polymarket API prices, is_demo=TRUE, edge scoring
-  Live path (LIVE_FEED_ID): Heisenberg agents 568/575/585, is_demo=FALSE, candle logic
+Pipeline:
+  Edge-finder scan: real Polymarket markets (real conditionId/price/liquidity)
+    scored against the 0.5 fair-value baseline. Production publishes to the
+    LIVE feed with is_demo=FALSE (officially resolvable). Only when
+    SCANNER_DEMO_FEED_ENABLED is set (hermetic tests / local dev) does it
+    publish synthetic is_demo=TRUE rows to the demo feed instead.
+  Heisenberg path (LIVE_FEED_ID): agents 568/575/585, candle logic — optional
+    enrichment, dormant without HEISENBERG_API_TOKEN.
 
-Both feeds write to signal_publications for signal_following pipeline to consume.
+Both write to signal_publications for the signal_following pipeline to consume.
 """
 from __future__ import annotations
 
@@ -370,11 +375,18 @@ async def run_job() -> tuple[int, int]:
         log.warning("scanner run_job: kill switch active — skipping tick")
         return 0, 0
 
-    demo_scanned = 0
-    demo_published = 0
+    edge_scanned = 0
+    edge_published = 0
 
-    if await _feed_active(DEMO_FEED_ID):
-        cfg = get_settings()
+    cfg = get_settings()
+    # Route the edge-finder scan output. Production (SCANNER_DEMO_FEED_ENABLED
+    # off) publishes real Polymarket markets to the LIVE feed with
+    # is_demo=FALSE so paper users trade real, officially-resolvable markets.
+    # The demo feed / is_demo=TRUE path is reserved for hermetic tests + dev.
+    edge_feed_id = DEMO_FEED_ID if cfg.SCANNER_DEMO_FEED_ENABLED else LIVE_FEED_ID
+    edge_is_demo = cfg.SCANNER_DEMO_FEED_ENABLED
+
+    if await _feed_active(edge_feed_id):
         edge_min_price: float = cfg.SCANNER_EDGE_MIN_PRICE
         edge_max_price: float = cfg.SCANNER_EDGE_MAX_PRICE
         min_edge_bps: int = cfg.SCANNER_MIN_EDGE_BPS
@@ -482,7 +494,7 @@ async def run_job() -> tuple[int, int]:
                     continue
 
                 # All filters passed — count as approved
-                demo_scanned += 1
+                edge_scanned += 1
 
                 # Side: buy the underpriced outcome
                 side = "YES" if yes_p < 0.5 else "NO"
@@ -502,19 +514,19 @@ async def run_job() -> tuple[int, int]:
                     "yes_price": yes_p,
                 }
 
-                if not await _already_published(DEMO_FEED_ID, mid, side):
+                if not await _already_published(edge_feed_id, mid, side):
                     try:
-                        await _upsert_market(mid, m, yes_p, no_p, liq, is_demo=True)
+                        await _upsert_market(mid, m, yes_p, no_p, liq, is_demo=edge_is_demo)
                     except Exception as _ue:
                         log.warning("scanner_market_upsert_failed",
                                     market_id=mid, error=str(_ue))
                         continue  # skip publish — signal_scan_job cannot resolve this market
                     await _publish(
-                        DEMO_FEED_ID, mid, side, target_price, "edge_finder",
+                        edge_feed_id, mid, side, target_price, "edge_finder",
                         {**base, "signal_reason": f"{side.lower()}_edge"},
-                        True,
+                        edge_is_demo,
                     )
-                    demo_published += 1
+                    edge_published += 1
                 else:
                     log.debug("signal_scan_market", market_id=mid, result="DEDUP",
                               reason="already_published", side=side)
@@ -524,21 +536,24 @@ async def run_job() -> tuple[int, int]:
                 _demo_errors += 1
 
         log.info("signal_scan_cycle_end",
-                 edge_approved=demo_scanned,
+                 feed_id=str(edge_feed_id),
+                 is_demo=edge_is_demo,
+                 edge_approved=edge_scanned,
                  rejected=_demo_rejected,
                  errors=_demo_errors,
-                 published=demo_published)
+                 published=edge_published)
     else:
-        log.warning("demo_feed_inactive",
-                    message="run migration 024_signal_scan_engine_seed.sql")
+        log.warning("edge_feed_inactive",
+                    feed_id=str(edge_feed_id),
+                    message="target edge feed not active — run feed seed migration")
 
-    # Live path — Heisenberg agents
+    # Optional enrichment path — Heisenberg agents (dormant without token)
     live_scanned, live_published = await _run_heisenberg_signals()
 
-    total_scanned = demo_scanned + live_scanned
-    total_published = demo_published + live_published
+    total_scanned = edge_scanned + live_scanned
+    total_published = edge_published + live_published
     log.info("signal_scan_tick_done",
-             demo_scanned=demo_scanned, live_scanned=live_scanned,
+             edge_scanned=edge_scanned, heisenberg_scanned=live_scanned,
              published=total_published)
     _scanner_state["scanned"] = total_scanned
     _scanner_state["published"] = total_published

@@ -77,7 +77,7 @@ async def detect_resolutions() -> None:
               JOIN markets m ON m.id = p.market_id
              WHERE p.redeemed = FALSE
                AND m.resolved = FALSE
-               AND ((p.status = 'open')
+               AND (p.status IN ('open', 'pending_settlement')
                     OR (p.status = 'closed'
                         AND m.resolution_at IS NOT NULL
                         AND m.resolution_at < NOW()))
@@ -110,6 +110,14 @@ async def _process_market_resolution(market_id: str) -> None:
     """
     m = await polymarket.get_market(market_id)
     if not m or not m.get("closed"):
+        # No official resolution yet. If the market's scheduled resolution
+        # time has already passed, surface the wait explicitly: flip
+        # past-due open positions to 'pending_settlement' so they are never
+        # silently stuck 'open' and are NEVER flat-closed on expiry. The
+        # position stays counted against the user's exposure (capital is
+        # still committed) and the next detection tick re-checks it until
+        # Polymarket posts the official close.
+        await _mark_pending_settlement(market_id)
         return
 
     outcomes = m.get("outcomePrices") or [0.5, 0.5]
@@ -177,6 +185,39 @@ async def _process_market_resolution(market_id: str) -> None:
         from . import instant_worker  # local import — break cycle
         for qid in instant_queue_ids:
             asyncio.create_task(instant_worker.try_process(qid))
+
+
+async def _mark_pending_settlement(market_id: str) -> None:
+    """Flip past-due open positions in an unresolved market to pending_settlement.
+
+    Triggered when a market's official resolution is not yet available but its
+    scheduled ``resolution_at`` has passed. Idempotent — the ``status='open'``
+    guard makes a re-run on an already-flipped position a no-op, and the flip
+    is reversible by settlement (settle_* accept both 'open' and
+    'pending_settlement'). No P&L is recorded and no on-chain action is taken;
+    the position simply waits, visibly, for the official close.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            UPDATE positions p
+               SET status = 'pending_settlement'
+              FROM markets m
+             WHERE p.market_id = m.id
+               AND p.market_id = $1
+               AND p.status = 'open'
+               AND p.redeemed = FALSE
+               AND m.resolution_at IS NOT NULL
+               AND m.resolution_at < NOW()
+            RETURNING p.id
+            """,
+            market_id,
+        )
+    if rows:
+        logger.info("marked %d position(s) pending_settlement for market %s "
+                    "(resolution_at passed, official resolution pending)",
+                    len(rows), market_id)
 
 
 async def _enqueue_redeem(p: dict, outcome_index: int) -> UUID | None:
@@ -262,7 +303,8 @@ async def settle_winning_position(p: dict) -> None:
                    SET status='closed', exit_reason='resolution_win',
                        current_price=1.0, pnl_usdc=$2, closed_at=NOW(),
                        redeemed=TRUE, redeemed_at=NOW()
-                 WHERE id=$1 AND status='open' AND redeemed=FALSE
+                 WHERE id=$1 AND status IN ('open','pending_settlement')
+                       AND redeemed=FALSE
                  RETURNING id
                 """,
                 p["id"], pnl,
@@ -323,7 +365,8 @@ async def settle_losing_position(p: dict) -> None:
                SET status='closed', exit_reason='resolution_loss',
                    current_price=0.0, pnl_usdc=$2, closed_at=NOW(),
                    redeemed=TRUE, redeemed_at=NOW()
-             WHERE id=$1 AND status='open' AND redeemed=FALSE
+             WHERE id=$1 AND status IN ('open','pending_settlement')
+                   AND redeemed=FALSE
              RETURNING id
             """,
             p["id"], pnl,

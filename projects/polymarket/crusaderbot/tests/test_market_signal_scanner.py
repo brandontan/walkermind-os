@@ -27,6 +27,7 @@ _FAKE_CFG = SimpleNamespace(
     SCANNER_MIN_LIQUIDITY=5_000.0,
     SCANNER_MARKET_FETCH_LIMIT=500,
     SCANNER_MAX_RESOLUTION_DAYS=30,
+    SCANNER_DEMO_FEED_ENABLED=False,
 )
 
 
@@ -181,6 +182,33 @@ def test_demo_edge_bps_logged_in_payload():
     payload = calls[0][5]
     assert "edge_bps" in payload
     assert payload["edge_bps"] == 2000  # abs(0.30 - 0.50) * 10_000
+
+
+# ---------------------------------------------------------------------------
+# Tests — feed routing (real vs demo)
+# ---------------------------------------------------------------------------
+
+
+def test_production_routes_to_live_feed_with_is_demo_false():
+    """Default (SCANNER_DEMO_FEED_ENABLED off) publishes real markets to the
+    LIVE feed with is_demo=False so paper users trade officially-resolvable
+    markets."""
+    market = _make_market(liquidity=20_000, yes_price=0.30)
+    calls = _run(market)  # _FAKE_CFG has the flag off
+    assert len(calls) == 1
+    assert calls[0][0] == scanner.LIVE_FEED_ID  # feed_id
+    assert calls[0][6] is False                  # is_demo
+
+
+def test_demo_flag_routes_to_demo_feed_with_is_demo_true():
+    """SCANNER_DEMO_FEED_ENABLED on (hermetic tests / dev) publishes synthetic
+    is_demo=True rows to the demo feed."""
+    cfg = SimpleNamespace(**{**vars(_FAKE_CFG), "SCANNER_DEMO_FEED_ENABLED": True})
+    market = _make_market(liquidity=20_000, yes_price=0.30)
+    calls = _run(market, cfg=cfg)
+    assert len(calls) == 1
+    assert calls[0][0] == scanner.DEMO_FEED_ID   # feed_id
+    assert calls[0][6] is True                   # is_demo
 
 
 # ---------------------------------------------------------------------------

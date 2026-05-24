@@ -204,6 +204,12 @@ class Settings(BaseSettings):
     # markets and stops far-dated futures (e.g. 2026/2028 championship winners)
     # from being entered and locking concurrency slots.
     SCANNER_MAX_RESOLUTION_DAYS: int = 30  # env: SCANNER_MAX_RESOLUTION_DAYS
+    # Routes the edge-finder scan output. Default FALSE: the scan publishes
+    # real Polymarket markets (is_demo=FALSE) to the LIVE feed so paper users
+    # trade real, officially-resolvable markets. Set TRUE only for hermetic
+    # tests / local dev — then the scan publishes synthetic is_demo=TRUE rows
+    # to the demo feed. Production must never enable this.
+    SCANNER_DEMO_FEED_ENABLED: bool = False  # env: SCANNER_DEMO_FEED_ENABLED
     COPY_TRADE_MONITOR_INTERVAL: int = 60  # Fast Track B — copy trade tick cadence
     EXIT_WATCH_INTERVAL: int = 30  # Track A: TP/SL poll cadence (30s per spec)
     PORTFOLIO_SNAPSHOT_INTERVAL: int = 60  # WARP-52: cb_portfolio NOTIFY heartbeat
