@@ -316,10 +316,14 @@ async def get_market_by_slug(slug: str) -> Optional[dict]:
 async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
     """Fetch live mid-price for one side of a binary market.
 
-    Resolves market via ``GET /markets?conditionId={market_id}`` (query param,
-    not path segment — path segment causes 422 for hex conditionIds).
-    Primary price source: CLOB ``GET /price?token_id=...&side=buy`` (live order
-    book). Fallback: Gamma ``outcomePrices[0]`` (YES) / ``[1]`` (NO).
+    Resolves market via ``GET /markets?condition_ids={market_id}`` (the plural
+    filter param). The singular ``conditionId`` form is SILENTLY IGNORED by Gamma
+    — it returns the default market list (first row = unrelated market), so TP/SL
+    evaluations and P&L were pricing positions against the WRONG market.
+    The returned row's conditionId is validated before caching to prevent stale
+    mismatched data from persisting. Primary price source: CLOB
+    ``GET /price?token_id=...&side=buy`` (live order book). Fallback: Gamma
+    ``outcomePrices[0]`` (YES) / ``[1]`` (NO).
 
     Cache key ``lp:{market_id}`` is shared across sides — one HTTP round-trip
     per market per 30 s tick, regardless of how many positions share the market.
@@ -330,11 +334,11 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
         market_data: dict = hit
     else:
         try:
-            # /markets?conditionId= is the correct form for hex conditionIds.
-            # /markets/{id} as a path segment returns 422 Unprocessable Entity.
+            # condition_ids (plural) is the correct filter param — see get_market().
+            # The singular conditionId= is silently ignored by Gamma.
             data = await _get_json(
                 f"{GAMMA}/markets",
-                params={"conditionId": market_id},
+                params={"condition_ids": market_id},
                 timeout=5.0,
             )
         except Exception as exc:
@@ -345,10 +349,23 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
         markets: list = data if isinstance(data, list) else data.get("data", [])
         if not markets or not isinstance(markets[0], dict):
             logger.warning(
-                "get_live_market_price no market found conditionId=%s", market_id
+                "get_live_market_price no market found condition_id=%s", market_id
             )
             return None
         market_data = markets[0]
+        # Validate conditionId when present — reject if it doesn't match the
+        # requested id to prevent caching data from a mismatched market.
+        # When the returned market has no conditionId field (thin API responses),
+        # we accept it; Gamma always includes conditionId on real markets.
+        returned_cid = str(
+            market_data.get("conditionId") or market_data.get("condition_id") or ""
+        )
+        if returned_cid and returned_cid != str(market_id):
+            logger.warning(
+                "get_live_market_price conditionId mismatch requested=%s returned=%s",
+                market_id, returned_cid,
+            )
+            return None
         await set_cache(cache_key, market_data, ttl=30)
 
     # Primary: CLOB /price — live order-book mid-price is more accurate than

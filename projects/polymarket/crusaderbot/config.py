@@ -187,6 +187,10 @@ class Settings(BaseSettings):
     # Late Entry V3 only enters in the final ~35s of a crypto candle, so it must
     # be scanned far more often than the 180s main loop or the window is missed.
     CLOSE_SWEEP_SCAN_INTERVAL: int = 15
+    # Late Entry V3 runtime-tuning — override via fly secrets without code change.
+    LATE_ENTRY_MIN_ASK_DIFF: float = 0.05   # env: LATE_ENTRY_MIN_ASK_DIFF
+    LATE_ENTRY_WINDOW_SEC: float = 35.0     # env: LATE_ENTRY_WINDOW_SEC
+    LATE_ENTRY_FLIP_STOP: float = 0.48      # env: LATE_ENTRY_FLIP_STOP
     MARKET_SIGNAL_SCAN_INTERVAL: int = 60
     # --- Signal scanner thresholds (demo path edge_finder) ---
     # Market eligibility price range: excludes near-resolved markets and

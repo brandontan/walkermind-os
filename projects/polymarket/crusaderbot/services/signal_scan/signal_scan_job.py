@@ -1407,6 +1407,13 @@ async def run_close_sweep_fast() -> None:
             user_log.warning("close_sweep_fast_run_failed", error=str(exc))
             cands = []
 
+        if not cands:
+            user_log.info(
+                "close_sweep_fast_tick",
+                candidates=0,
+                note="scan ran but no candidates passed gates — check late_entry_v3 scan_summary logs",
+            )
+
         for cand in _diversify_lib_candidates(cands, row["user_id"]):
             try:
                 await _process_candidate(row, cand, tel)

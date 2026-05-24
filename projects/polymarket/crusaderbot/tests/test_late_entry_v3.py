@@ -5,8 +5,10 @@ Coverage:
     * Present in STRATEGY_AVAILABILITY (else risk gate step 4 rejects it)
     * Enters the favored (higher-ask) side when all gates pass
     * Side selection: higher YES ask -> YES, higher NO ask -> NO
-    * Gates: entry window (<=240s), ask-diff (>=0.30), spread (<=1.05),
+    * Gates: entry window (<=35s), ask-diff (>=0.05), spread (<=1.05),
       favored-price cap (<0.93)
+    * BUG 1: market_id equals conditionId (not Gamma UUID)
+    * BUG 3: active=False on candle (updown) slug does NOT skip the market
     * Empty / errored market data + empty orderbooks return [] / skip
     * default_tp_sl() == (0.15, 0.08)
     * evaluate_exit() flip-stop: exit at <=0.48, hold above
@@ -242,6 +244,48 @@ def test_blacklisted_market_skipped():
     with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[_make_market()])), \
          patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.70, 0.20))):
         cands = _run(strat.scan(_make_filters(blacklisted=["c1"]), _make_context()))
+    assert cands == []
+
+
+def test_market_id_uses_condition_id():
+    """BUG 1: SignalCandidate.market_id must equal conditionId (markets table PK).
+
+    Gamma's 'id' field is a separate UUID. _load_market() keys on conditionId —
+    using the UUID caused every candidate to be skipped as 'skipped_market_not_synced'.
+    """
+    strat = LateEntryV3Strategy()
+    m = _make_market(market_id="gamma-uuid-irrelevant", condition_id="0xdeadbeef")
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[m])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.70, 0.20))):
+        cands = _run(strat.scan(_make_filters(), _make_context()))
+    assert len(cands) == 1
+    assert cands[0].market_id == "0xdeadbeef"    # conditionId, not Gamma UUID
+    assert cands[0].condition_id == "0xdeadbeef"
+
+
+def test_candle_market_active_false_not_skipped():
+    """BUG 3: active=False on a candle (updown slug) must not reject the market.
+
+    Polymarket sets active=False on candle markets before resolution while the
+    CLOB book still has liquidity. The active gate is skipped for candle slugs.
+    """
+    strat = LateEntryV3Strategy()
+    m = _make_market(active=False)
+    assert "updown" in m["slug"], "fixture must use an updown candle slug"
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[m])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.70, 0.20))):
+        cands = _run(strat.scan(_make_filters(), _make_context()))
+    assert len(cands) == 1, "active=False candle should still produce a candidate"
+
+
+def test_non_candle_market_active_false_is_skipped():
+    """Non-candle markets with active=False are still rejected (unchanged behaviour)."""
+    strat = LateEntryV3Strategy()
+    m = _make_market(active=False)
+    m["slug"] = "us-election-winner-2026"  # no "updown" → not a candle
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[m])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.70, 0.20))):
+        cands = _run(strat.scan(_make_filters(), _make_context()))
     assert cands == []
 
 

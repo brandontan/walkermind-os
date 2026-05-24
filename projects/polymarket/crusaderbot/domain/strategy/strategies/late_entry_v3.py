@@ -29,6 +29,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from ....config import get_settings
 from ....integrations import polymarket as pm
 from ..base import BaseStrategy
 from ..eligibility import is_short_crypto_market
@@ -88,6 +89,14 @@ class LateEntryV3Strategy(BaseStrategy):
         Returns an empty list on any failure or when no market qualifies.
         Never raises — scan errors must not crash the scheduler scan loop.
         """
+        try:
+            cfg = get_settings()
+            min_ask_diff = cfg.LATE_ENTRY_MIN_ASK_DIFF
+            entry_window_sec = cfg.LATE_ENTRY_WINDOW_SEC
+        except Exception:
+            min_ask_diff = MIN_ASK_DIFF
+            entry_window_sec = ENTRY_WINDOW_SEC
+
         timeframe = getattr(user_context, "selected_timeframe", None)
         assets = getattr(user_context, "selected_assets", ()) or None
 
@@ -103,26 +112,53 @@ class LateEntryV3Strategy(BaseStrategy):
         now = datetime.now(timezone.utc)
         blacklist = set(market_filters.blacklisted_market_ids)
         candidates: list[SignalCandidate] = []
+        eligible = 0
+        reject_counts: dict[str, int] = {}
 
         for m in markets:
             if not is_short_crypto_market(m, timeframe, assets):
                 continue
+            eligible += 1
             try:
-                candidate = await _evaluate_market(
+                candidate, reject_reason = await _evaluate_market(
                     m,
                     blacklist=blacklist,
                     user_context=user_context,
                     strategy_name=self.name,
                     signal_ts=now,
                     now_ts=now.timestamp(),
+                    min_ask_diff=min_ask_diff,
+                    entry_window_sec=entry_window_sec,
                 )
             except Exception as exc:
                 logger.debug("late_entry_v3 scan: skip market err=%s", exc)
+                reject_counts["exception"] = reject_counts.get("exception", 0) + 1
                 continue
             if candidate is not None:
                 candidates.append(candidate)
+                logger.info(
+                    "late_entry_v3 candidate slug=%s side=%s fav=%.3f diff=%.3f secs=%.0f size=%.2f",
+                    m.get("slug", ""),
+                    candidate.side,
+                    candidate.metadata.get("fav_price", 0),
+                    candidate.metadata.get("ask_diff", 0),
+                    candidate.metadata.get("seconds_to_close", 0),
+                    candidate.suggested_size_usdc,
+                )
+            elif reject_reason:
+                reject_counts[reject_reason] = reject_counts.get(reject_reason, 0) + 1
 
         candidates.sort(key=lambda c: c.confidence, reverse=True)
+        logger.info(
+            "late_entry_v3 scan_summary markets=%d eligible=%d candidates=%d "
+            "gate_rejects=%s min_ask_diff=%.3f window_sec=%.0f",
+            len(markets),
+            eligible,
+            len(candidates),
+            reject_counts,
+            min_ask_diff,
+            entry_window_sec,
+        )
         return candidates
 
     async def evaluate_exit(self, position: dict) -> ExitDecision:
@@ -132,16 +168,20 @@ class LateEntryV3Strategy(BaseStrategy):
         injected by the exit watcher. When it is missing we hold (the watcher's
         TP/SL and market-expiry paths still protect the position).
         """
+        try:
+            flip_stop = get_settings().LATE_ENTRY_FLIP_STOP
+        except Exception:
+            flip_stop = FLIP_STOP_PRICE
         cur = position.get("current_price")
         try:
             price = float(cur) if cur is not None else None
         except (TypeError, ValueError):
             price = None
-        if price is not None and price <= FLIP_STOP_PRICE:
+        if price is not None and price <= flip_stop:
             return ExitDecision(
                 should_exit=True,
                 reason="strategy_exit",
-                metadata={"flip_stop_price": FLIP_STOP_PRICE, "current_price": price},
+                metadata={"flip_stop_price": flip_stop, "current_price": price},
             )
         return ExitDecision(should_exit=False, reason="hold")
 
@@ -217,33 +257,58 @@ async def _evaluate_market(
     strategy_name: str,
     signal_ts: datetime,
     now_ts: float,
-) -> SignalCandidate | None:
-    """Return a SignalCandidate for the favored side, or None if any gate fails."""
+    min_ask_diff: float = MIN_ASK_DIFF,
+    entry_window_sec: float = ENTRY_WINDOW_SEC,
+) -> tuple[SignalCandidate | None, str | None]:
+    """Return (candidate, None) on success or (None, reject_reason) on any gate failure."""
     if not isinstance(m, dict):
-        return None
+        return None, "invalid_market"
 
-    market_id = str(m.get("id") or "")
+    # BUG 1 FIX: use conditionId as canonical market_id (markets table PK).
+    # Gamma's "id" field is a separate UUID that does NOT match the DB PK.
+    # _load_market(cand.market_id) keys on conditionId — using the UUID caused
+    # every candidate to be skipped as "skipped_market_not_synced".
     condition_id = str(
         m.get("conditionId") or m.get("condition_id") or m.get("conditionID") or ""
     )
-    if not market_id or not condition_id:
-        return None
-    if condition_id in blacklist or market_id in blacklist:
-        return None
+    if not condition_id:
+        logger.debug("late_entry_v3 skip: no conditionId slug=%s", m.get("slug", ""))
+        return None, "no_condition_id"
+    market_id = condition_id  # canonical DB key
 
-    if not m.get("active") or m.get("closed"):
-        return None
+    if condition_id in blacklist:
+        return None, "blacklisted"
+
+    slug = str(m.get("slug") or "")
+    is_candle = "updown" in slug
+
+    # BUG 3 FIX: skip active check for crypto candle markets.
+    # Polymarket sets active=False on candle markets shortly before resolution
+    # while the CLOB book still has liquidity and orders. Relying on closed +
+    # acceptingOrders is sufficient; the active flag kills every in-window candidate.
+    if m.get("closed"):
+        logger.debug("late_entry_v3 skip closed slug=%s", slug)
+        return None, "closed"
+    if not is_candle and not m.get("active"):
+        logger.debug("late_entry_v3 skip inactive (non-candle) slug=%s", slug)
+        return None, "inactive"
     if not m.get("acceptingOrders", m.get("accepting_orders", True)):
-        return None
+        logger.debug("late_entry_v3 skip not_accepting_orders slug=%s", slug)
+        return None, "not_accepting_orders"
 
     # Timing gate — only act inside the final window before the candle closes.
     seconds_left = _seconds_to_close(m, now_ts)
-    if seconds_left is None or seconds_left <= 0 or seconds_left > ENTRY_WINDOW_SEC:
-        return None
+    if seconds_left is None or seconds_left <= 0 or seconds_left > entry_window_sec:
+        logger.debug(
+            "late_entry_v3 skip timing slug=%s secs=%s window=%.0f",
+            slug, seconds_left, entry_window_sec,
+        )
+        return None, "outside_window"
 
     tokens = _coerce_str_list(m.get("clobTokenIds")) or _coerce_str_list(m.get("tokenIds"))
     if len(tokens) < 2 or not tokens[0] or not tokens[1]:
-        return None
+        logger.debug("late_entry_v3 skip no_tokens slug=%s", slug)
+        return None, "no_tokens"
     yes_token, no_token = tokens[0], tokens[1]
 
     yes_book, no_book = await asyncio.gather(
@@ -252,23 +317,40 @@ async def _evaluate_market(
     yes_ask = _best_ask(yes_book)
     no_ask = _best_ask(no_book)
     if yes_ask is None or no_ask is None:
-        return None
+        logger.debug(
+            "late_entry_v3 skip empty_book slug=%s yes_ask=%s no_ask=%s",
+            slug, yes_ask, no_ask,
+        )
+        return None, "empty_book"
 
     spread = yes_ask + no_ask
     ask_diff = abs(yes_ask - no_ask)
     favored = "YES" if yes_ask > no_ask else "NO"
     fav_price = max(yes_ask, no_ask)
 
-    if ask_diff < MIN_ASK_DIFF:
-        return None
+    if ask_diff < min_ask_diff:
+        logger.debug(
+            "late_entry_v3 skip low_ask_diff slug=%s diff=%.4f min=%.4f",
+            slug, ask_diff, min_ask_diff,
+        )
+        return None, "low_ask_diff"
     if spread <= 0 or spread > MAX_SPREAD:
-        return None
+        logger.debug(
+            "late_entry_v3 skip spread slug=%s spread=%.4f max=%.4f",
+            slug, spread, MAX_SPREAD,
+        )
+        return None, "spread_out_of_range"
     if fav_price >= FAV_PRICE_MAX:
-        return None
+        logger.debug(
+            "late_entry_v3 skip fav_too_high slug=%s fav=%.4f max=%.4f",
+            slug, fav_price, FAV_PRICE_MAX,
+        )
+        return None, "fav_price_too_high"
 
     confidence = max(0.0, min(ask_diff, 1.0))
 
     allocated = user_context.available_balance_usdc * user_context.capital_allocation_pct
+    flip_stop = FLIP_STOP_PRICE  # module default; evaluate_exit reads from config
     suggested = max(
         _SUGGESTED_SIZE_MIN_USDC,
         min(allocated * _SUGGESTED_SIZE_FRACTION, _SUGGESTED_SIZE_MAX_USDC),
@@ -289,7 +371,7 @@ async def _evaluate_market(
             "ask_diff": ask_diff,
             "spread": spread,
             "seconds_to_close": seconds_left,
-            "flip_stop_price": FLIP_STOP_PRICE,
+            "flip_stop_price": flip_stop,
             "reason": (
                 f"late_entry: {favored} fav {fav_price:.2f}, diff {ask_diff:.2f}, "
                 f"spread {spread:.2f}, {seconds_left:.0f}s to close"
@@ -299,7 +381,7 @@ async def _evaluate_market(
             f"Late entry {favored}: favored ask {fav_price:.2f}, ask-diff {ask_diff:.2f}, "
             f"{seconds_left:.0f}s to close, conf={confidence:.0%}."
         ),
-    )
+    ), None
 
 
 __all__ = ["LateEntryV3Strategy"]
