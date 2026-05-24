@@ -191,6 +191,7 @@ class Settings(BaseSettings):
     LATE_ENTRY_MIN_ASK_DIFF: float = 0.05   # env: LATE_ENTRY_MIN_ASK_DIFF
     LATE_ENTRY_WINDOW_SEC: float = 35.0     # env: LATE_ENTRY_WINDOW_SEC
     LATE_ENTRY_FLIP_STOP: float = 0.48      # env: LATE_ENTRY_FLIP_STOP
+    LATE_ENTRY_FAV_PRICE_MIN: float = 0.50  # env: LATE_ENTRY_FAV_PRICE_MIN — favored side must be majority-probability
     MARKET_SIGNAL_SCAN_INTERVAL: int = 60
     # --- Signal scanner thresholds (demo path edge_finder) ---
     # Market eligibility price range: excludes near-resolved markets and

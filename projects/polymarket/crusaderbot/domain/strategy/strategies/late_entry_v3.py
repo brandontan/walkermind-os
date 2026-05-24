@@ -371,6 +371,23 @@ async def _evaluate_market(
             slug, spread, MAX_SPREAD,
         )
         return None, "spread_out_of_range"
+
+    # Favored side must be the majority-probability side (> 0.50).
+    # When fav_price < 0.50 both sides are below 50¢ — the market is ambiguous
+    # or the CLOB is thin. The flip-stop (0.48) would trigger immediately on
+    # entry, producing a 13-second zero-PnL exit that confuses users.
+    try:
+        cfg = get_settings()
+        fav_price_min = cfg.LATE_ENTRY_FAV_PRICE_MIN
+    except Exception:
+        fav_price_min = 0.50
+    if fav_price < fav_price_min:
+        logger.debug(
+            "late_entry_v3 skip fav_price_too_low slug=%s fav=%.4f min=%.4f",
+            slug, fav_price, fav_price_min,
+        )
+        return None, "fav_price_too_low"
+
     if fav_price >= FAV_PRICE_MAX:
         logger.debug(
             "late_entry_v3 skip fav_too_high slug=%s fav=%.4f max=%.4f",
