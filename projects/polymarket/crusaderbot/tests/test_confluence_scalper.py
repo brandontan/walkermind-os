@@ -275,11 +275,17 @@ def test_scan_skips_malformed_market_dict_without_exception():
 # ---------------------------------------------------------------------------
 
 
-def test_scan_skips_non_crypto_category():
-    # A market that satisfies every confluence signal but lives in a non-crypto
-    # category must self-skip inside scan(); other strategies on the same tick
-    # are unaffected.
-    _assert_scan_empty([_make_market(category="Politics", question="Will BTC ban pass?")])
+def test_scan_skips_non_short_duration_market():
+    # A market that names a crypto asset but is NOT a short-duration candle
+    # (no 5m/15m interval in its text) must self-skip inside scan() — the
+    # timeframe gate is fail-closed. e.g. a long-horizon political "ban" market.
+    _assert_scan_empty([
+        _make_market(
+            category="Politics",
+            question="Will BTC ban pass?",
+            slug="btc-ban-referendum-2026",
+        )
+    ])
 
 
 def test_scan_skips_off_whitelist_crypto_asset():

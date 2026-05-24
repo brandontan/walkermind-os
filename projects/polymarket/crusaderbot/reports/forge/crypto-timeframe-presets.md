@@ -90,6 +90,20 @@ Modified:
   than before, by design.
 - whale_tracking remains degraded (out of scope); only hidden from the web grid.
 
+## 5a. Follow-up fix (WARP/crypto-timeframe-detection-fix)
+
+Live test on deploy (Close Sweep @ 5m) emitted 0 candidates: real Polymarket
+candle markets carry `category` = their own series slug (e.g.
+`btc-updown-5m-1779249900`) with no literal "crypto", so the old
+`is_confluence_scalper_eligible` category gate inside `is_short_crypto_market`
+rejected every real 5m/15m market. Fixed `is_short_crypto_market` to establish
+crypto-ness via the asset-ticker whitelist (BTC/ETH/SOL/...) + a detected
+5m/15m interval instead of the literal category — the timeframe gate supplies
+the precision. The classifier regex already matched the `-5m-`/`-15m-` slug
+tokens. Added real-slug regression tests (btc-updown-5m/15m, eth-updown-5m,
+eth daily skip); updated the non-crypto scan test to assert via the timeframe
+gate. 146 tests green.
+
 ## 6. What is next
 
 - WARP•SENTINEL MAJOR validation.

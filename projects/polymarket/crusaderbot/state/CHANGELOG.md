@@ -331,3 +331,4 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 2026-05-24 17:30 | claude/fervent-hawking-yNP0Z | Lane 1: category-mapping — get_events_with_markets() enriches market dicts with Gamma event tags; category filter now works for all dashboard categories
 
 2026-05-24 19:10 | WARP/crypto-timeframe-presets | crypto-short presets (Crypto Scalper + Close Sweep) gated to 5m/15m short-duration crypto + category auto-lock (mig 049); Ensemble→Smart Mix; hide whale_mirror + Coming Soon in web
+2026-05-24 19:45 | WARP/crypto-timeframe-detection-fix | fix is_short_crypto_market: identify crypto via asset-ticker + 5m/15m interval (not literal category) so real btc/eth-updown candle markets qualify; Close Sweep/Crypto Scalper now match live data
