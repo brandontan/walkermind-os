@@ -314,3 +314,13 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 - Report: projects/polymarket/crusaderbot/reports/forge/trade-discovery-hardening.md
 - Gate: MAJOR → WARP•SENTINEL required before merge
 
+## [2026-05-24] WARP-SST — Scan-Stats Truth-Source (WARP/scan-stats-truth-source, branch claude/crusaderbot-signal-scan-debug-Xnckj, PR open)
+
+- Diagnosis: beta "0 candidates / ~5 trades/week" alarm ROOT-CAUSED to misleading telemetry, not a scan defect — two scan jobs run at SIGNAL_SCAN_INTERVAL; the legacy run_signal_scan (scheduler.py, copy_trade-only, markets_seen=0) writes job_runs(job_name=signal_scan, candidates_emitted=0), while the real feed-eval engine sf_scan_job.run_once writes scan_runs with candidates_emitted≈453/tick (strategies_loaded=11, markets_seen=100)
+- #1312 verified working in prod: balanced user re-entered 5 diverse <7d positions (Hormuz/Knicks/US-Iran), no 2026/2028 futures; handoff hypotheses disproved (capital_alloc_pct fine, category_filters hardcoded [], PR #1298 already merged)
+- Fix: signal_scan_job.fetch_latest_scan_run() reader; operator_panel /panel→Stats repointed to scan_runs + _summarize_breakdown() surfaces step_7_max_concurrent_trades + skipped_signal_stale; scheduler legacy job id signal_scan→legacy_copy_trade_scan (copy_trade NOT removed — architecture call deferred to CMD)
+- 48/48 test_signal_scan_job.py pass (3 new fetch_latest_scan_run cases); py_compile clean on 3 files; render verified standalone; guards untouched (ENABLE_LIVE_TRADING=false)
+- Real throughput limiter (all 5 users at MAX_CONCURRENT=5; 314/453 candidates stale) flagged as separate MAJOR lane
+- Report: projects/polymarket/crusaderbot/reports/forge/scan-stats-truth-source.md
+- Gate: STANDARD → WARP🔹CMD review (no SENTINEL)
+

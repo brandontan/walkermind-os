@@ -926,3 +926,34 @@ def test_process_candidate_freshness_gate_bypassed_for_lib_strategy():
         asyncio.run(job._process_candidate(row, lib_cand))
 
     assert engine_called["called"], "lib-strategy must bypass freshness gate and reach engine"
+
+
+# ---------------------------------------------------------------------------
+# fetch_latest_scan_run — operator-panel truth source (scan_runs, not job_runs)
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_latest_scan_run_returns_dict():
+    row = {
+        "id": uuid4(),
+        "candidates_emitted": 453,
+        "strategies_loaded": 11,
+        "rejection_breakdown": {"step_7_max_concurrent_trades": 33},
+    }
+    conn = _FakeConn(fetchrow_results=[row])
+    with _patch_pool(conn):
+        result = asyncio.run(job.fetch_latest_scan_run())
+    assert result == row
+
+
+def test_fetch_latest_scan_run_none_when_empty():
+    conn = _FakeConn(fetchrow_results=[None])
+    with _patch_pool(conn):
+        result = asyncio.run(job.fetch_latest_scan_run())
+    assert result is None
+
+
+def test_fetch_latest_scan_run_swallows_errors():
+    with patch.object(job, "get_pool", side_effect=RuntimeError("db down")):
+        result = asyncio.run(job.fetch_latest_scan_run())
+    assert result is None  # no silent crash — degrades to None
