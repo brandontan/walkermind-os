@@ -140,6 +140,7 @@ export interface AutoTradeState {
   min_liquidity: number;
   max_resolution_days: number | null;
   min_volume_24h: number;
+  slippage_tolerance_pct: number | null;
 }
 
 export interface CustomizeParams {

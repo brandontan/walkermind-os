@@ -162,9 +162,16 @@ export function AutoTradePage() {
     if (s.min_liquidity != null) setFilterLiquidity(String(s.min_liquidity));
     if (s.max_resolution_days != null) setFilterResolution(String(s.max_resolution_days));
     if (s.min_volume_24h != null) setFilterVolume(String(s.min_volume_24h));
+    if (s.slippage_tolerance_pct != null) setFilterSlippage(String(Math.round(s.slippage_tolerance_pct * 100)));
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
+  // Poll every 30s to catch changes from Telegram bot (auto_trade_on lives in users
+  // table which has no pg_notify trigger, so SSE alone is not sufficient).
+  useEffect(() => {
+    const id = setInterval(() => { void load(); }, 30_000);
+    return () => clearInterval(id);
+  }, [load]);
   useSSE(user?.token ?? null, { settings: () => void load() });
 
   async function handleToggle() {
