@@ -121,7 +121,7 @@ def _preset_pick_kb() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("🎯 Value Hunter",   callback_data="onboard:preset:value_hunter")],
         [InlineKeyboardButton("📈 Trend Breakout", callback_data="onboard:preset:trend_breakout")],
         [InlineKeyboardButton("🔄 Contrarian",     callback_data="onboard:preset:contrarian")],
-        [InlineKeyboardButton("🤖 Ensemble",       callback_data="onboard:preset:ensemble")],
+        [InlineKeyboardButton("🤖 Smart Mix",      callback_data="onboard:preset:ensemble")],
         [InlineKeyboardButton("🚀 Full Auto",      callback_data="onboard:preset:full_auto")],
     ])
 

@@ -37,7 +37,7 @@ from typing import Any
 
 from ....integrations import polymarket as pm
 from ..base import BaseStrategy
-from ..eligibility import is_confluence_scalper_eligible
+from ..eligibility import is_short_crypto_market
 from ..types import ExitDecision, MarketFilters, SignalCandidate, UserContext
 
 logger = logging.getLogger(__name__)
@@ -60,6 +60,14 @@ _W_MIDBAND: float = 0.20
 _SUGGESTED_SIZE_FRACTION: float = 0.04
 _SUGGESTED_SIZE_MIN_USDC: float = 1.0
 _SUGGESTED_SIZE_MAX_USDC: float = 25.0
+
+# Light per-timeframe tuning (the "filter + preset ringan" approach). 5m windows
+# stay nearer a coin-flip with a stronger move required; 15m uses the wider
+# default mid-band. Falls back to the module constants when no timeframe is set.
+_TIMEFRAME_TUNING: dict[str, dict[str, float]] = {
+    "5m": {"min_yes_price": 0.40, "max_yes_price": 0.60, "min_abs_drift": 0.03},
+    "15m": {"min_yes_price": 0.35, "max_yes_price": 0.65, "min_abs_drift": 0.02},
+}
 
 
 class ConfluenceScalperStrategy(BaseStrategy):
@@ -99,16 +107,20 @@ class ConfluenceScalperStrategy(BaseStrategy):
         now = datetime.now(timezone.utc)
         blacklist = set(market_filters.blacklisted_market_ids)
         effective_min_liquidity = max(market_filters.min_liquidity, 0.0)
+        timeframe = getattr(user_context, "selected_timeframe", None)
+        tuning = _TIMEFRAME_TUNING.get(timeframe or "", {})
         candidates: list[SignalCandidate] = []
 
         for m in markets:
             # Issue #1269 eligibility gate — crypto-only category + asset
-            # whitelist (BTC/ETH/SOL/XRP/DOGE/BNB/HYPE). Applied inside the
+            # whitelist (BTC/ETH/SOL/XRP/DOGE/BNB/HYPE) — composed with the
+            # short-duration timeframe gate (5m/15m). Applied inside the
             # strategy's own market loop so it operates on confluence_scalper's
             # full universe rather than a capped lib-strategy snapshot in the
-            # scan loop. Non-crypto markets self-skip without affecting other
-            # strategies on the same scan tick.
-            if not is_confluence_scalper_eligible(m):
+            # scan loop. timeframe=None keeps any 5m/15m crypto market eligible;
+            # non-crypto or unclassifiable markets self-skip (fail-closed)
+            # without affecting other strategies on the same scan tick.
+            if not is_short_crypto_market(m, timeframe):
                 continue
             try:
                 candidate = _evaluate_market(
@@ -118,6 +130,9 @@ class ConfluenceScalperStrategy(BaseStrategy):
                     user_context=user_context,
                     strategy_name=self.name,
                     signal_ts=now,
+                    min_yes_price=tuning.get("min_yes_price", MIN_YES_PRICE),
+                    max_yes_price=tuning.get("max_yes_price", MAX_YES_PRICE),
+                    min_abs_drift=tuning.get("min_abs_drift", MIN_ABS_DRIFT),
                 )
             except Exception as exc:
                 logger.debug("confluence_scalper scan: skip market err=%s", exc)
@@ -141,6 +156,9 @@ def _evaluate_market(
     user_context: UserContext,
     strategy_name: str,
     signal_ts: datetime,
+    min_yes_price: float = MIN_YES_PRICE,
+    max_yes_price: float = MAX_YES_PRICE,
+    min_abs_drift: float = MIN_ABS_DRIFT,
 ) -> SignalCandidate | None:
     """Return a SignalCandidate if the market passes all confluence filters."""
     if not isinstance(m, dict):
@@ -166,14 +184,14 @@ def _evaluate_market(
     yes_price = _extract_yes_price(m)
     if yes_price is None:
         return None
-    if yes_price < MIN_YES_PRICE or yes_price > MAX_YES_PRICE:
+    if yes_price < min_yes_price or yes_price > max_yes_price:
         return None
 
     drift = _extract_24h_price_change(m)
     if drift is None:
         return None
     abs_drift = abs(drift)
-    if abs_drift < MIN_ABS_DRIFT or abs_drift > MAX_ABS_DRIFT:
+    if abs_drift < min_abs_drift or abs_drift > MAX_ABS_DRIFT:
         return None
 
     liquidity = _extract_liquidity(m)

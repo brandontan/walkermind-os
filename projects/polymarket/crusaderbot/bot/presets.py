@@ -143,7 +143,7 @@ PRESET_CONFIG: dict[str, PresetConfig] = {
     },
     "ensemble": {
         "emoji": "🤖",
-        "name": "Ensemble",
+        "name": "Smart Mix",
         "strategy_label": "EnsembleStrategy",
         "strategies": ["signal_following"],
         "risk_label": "Advanced",

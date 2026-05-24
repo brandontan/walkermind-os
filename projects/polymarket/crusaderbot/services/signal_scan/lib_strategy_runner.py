@@ -176,11 +176,19 @@ def _normalize_market(gamma: dict) -> dict:
         # liquidity / volume
         "liquidity": liquidity,
         "volume_24hr": volume_24hr,
+        # expiry — Gamma uses camelCase "endDate"; expiration_timing reads the
+        # snake_case "end_date_iso", so map it explicitly (the raw spread below
+        # would otherwise drop it and the strategy would emit zero signals).
+        "end_date_iso": (
+            gamma.get("end_date_iso")
+            or gamma.get("endDate")
+            or gamma.get("endDateIso")
+        ),
         # pass through all original fields so strategies that access non-standard
         # keys (e.g. whale_tracking accessing prob.trade specific fields) still work
         **{k: v for k, v in gamma.items() if k not in (
             "condition_id", "active", "accepting_orders", "closed",
-            "tokens", "priceChange", "liquidity", "volume_24hr",
+            "tokens", "priceChange", "liquidity", "volume_24hr", "end_date_iso",
         )},
     }
 

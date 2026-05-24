@@ -57,6 +57,7 @@ from ...database import get_pool
 from ...domain.execution.router import execute as router_execute
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
 from ...domain.risk.constants import PROFILES
+from ...domain.strategy.eligibility import is_short_crypto_market
 from ...domain.strategy.registry import StrategyRegistry
 from ...domain.strategy.types import MarketFilters, SignalCandidate, UserContext
 from ...integrations import polymarket as _polymarket
@@ -214,6 +215,7 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 us.weight                AS capital_allocation_pct,
                 COALESCE(urp.profile_name, s.risk_profile, 'balanced') AS resolved_profile,
                 s.active_preset,
+                s.selected_timeframe,
                 COALESCE(s.min_liquidity, 0)         AS min_liquidity_threshold,
                 COALESCE(s.strategy_params, '{}'::jsonb)      AS strategy_params,
                 COALESCE(s.category_filters, ARRAY[]::text[]) AS category_filters
@@ -494,12 +496,14 @@ def _build_user_context(row: dict[str, Any]) -> UserContext:
     allocation = float(_alloc if _alloc is not None else 0.10)
     allocation = max(0.0, min(1.0, allocation))
     sub_account_id = str(row.get("sub_account_id") or row["user_id"])
+    _tf = row.get("selected_timeframe")
     return UserContext(
         user_id=str(row["user_id"]),
         sub_account_id=sub_account_id,
         risk_profile=str(row.get("resolved_profile") or "balanced"),
         capital_allocation_pct=allocation,
         available_balance_usdc=float(row.get("balance_usdc") or 0.0),
+        selected_timeframe=str(_tf) if _tf else None,
     )
 
 
@@ -1020,6 +1024,8 @@ async def run_once() -> None:
         active_preset = row.get("active_preset")
         category_filters: list[str] = list(row.get("category_filters") or [])
         strategy_params: dict = _coerce_jsonb(row.get("strategy_params"), {})
+        _tf = row.get("selected_timeframe")
+        selected_timeframe: str | None = str(_tf) if _tf else None
         user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
 
         # Filter market list to user's chosen categories (empty = all markets).
@@ -1043,9 +1049,22 @@ async def run_once() -> None:
                 )
                 lib_params = {}
             config = {"strategy_params": lib_params}
+
+            # Close Sweep is a short-duration crypto-only preset: when it is the
+            # active preset, gate expiration_timing to crypto markets whose
+            # candle interval matches the user's selected timeframe (5m/15m).
+            # Other presets (full_auto / default) keep expiration_timing's
+            # general behaviour over the full market universe.
+            scan_markets = user_markets
+            if active_preset == "close_sweep" and lib_name == "expiration_timing":
+                scan_markets = [
+                    m for m in user_markets
+                    if is_short_crypto_market(m, selected_timeframe)
+                ]
+
             try:
                 cands: list[SignalCandidate] = await asyncio.get_event_loop().run_in_executor(
-                    None, run_lib_strategy, lib_name, user_markets, config
+                    None, run_lib_strategy, lib_name, scan_markets, config
                 )
             except Exception as exc:
                 user_log.warning("lib_strategy_run_failed", strategy=lib_name, error=str(exc))

@@ -105,10 +105,13 @@ def _make_market(
     liquidity: float = 20_000.0,
     volume_24h: float = 10_000.0,
     # Defaults satisfy the Issue #1269 eligibility gate (category=Crypto +
-    # asset whitelist) which is now enforced inside ConfluenceScalperStrategy.
-    # Override per test when validating the rejection path.
+    # asset whitelist) AND the short-duration timeframe gate (5m/15m) which are
+    # both enforced inside ConfluenceScalperStrategy. The default slug carries a
+    # "5-minute" keyword (no asset token, so the asset gate still keys off the
+    # question). Override per test when validating a rejection path.
     category: str = "Crypto",
     question: str = "Will BTC hit a new high?",
+    slug: str = "up-or-down-5-minute",
 ) -> dict:
     return {
         "id": market_id,
@@ -122,6 +125,7 @@ def _make_market(
         "volume_24hr": volume_24h,
         "category": category,
         "question": question,
+        "slug": slug,
     }
 
 

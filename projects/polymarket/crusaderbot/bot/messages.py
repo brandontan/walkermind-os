@@ -284,7 +284,7 @@ def onboard_preset_pick_text() -> str:
         "<b>🎯 Value Hunter</b> — edge model, mispriced markets\n"
         "<b>📈 Trend Breakout</b> — momentum-based entries\n"
         "<b>🔄 Contrarian</b> — fade the crowd strategy\n"
-        "<b>🤖 Ensemble</b> — multi-strategy, AI-weighted\n"
+        "<b>🤖 Smart Mix</b> — multi-strategy, AI-weighted\n"
         "<b>🚀 Full Auto</b> — all strategies, max exposure\n\n"
         "Pick a preset to continue:"
     )
