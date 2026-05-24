@@ -1007,16 +1007,6 @@ async def run_once() -> None:
     markets = await _fetch_markets_for_lib_strategies()
     strategies_to_run = list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES)
 
-    # Crypto short-duration candle universe (btc/eth/sol/bnb up-down 5m/15m).
-    # These are created continuously and missed by the generic fetch above, so
-    # crypto-short presets (close_sweep / confluence_scalper) need a dedicated,
-    # newest-first fetch to see the currently-live candles with real liquidity.
-    try:
-        crypto_short_markets = await _polymarket.get_crypto_short_markets()
-    except Exception as exc:
-        logger.warning("crypto_short_markets_fetch_failed", error=str(exc))
-        crypto_short_markets = []
-
     tel.users_evaluated = len(users)
     tel.markets_seen = len(markets)
 
@@ -1045,6 +1035,19 @@ async def run_once() -> None:
         # Filter market list to user's chosen categories (empty = all markets).
         user_markets = _filter_markets_by_category(markets, category_filters)
 
+        # Crypto-short presets target the currently-live candle window directly
+        # (by deterministic slug), so they see the in-window markets with real
+        # liquidity instead of the far-future batch a broad list fetch returns.
+        crypto_window_markets: list[dict] = []
+        if active_preset in ("close_sweep", "confluence_scalper"):
+            try:
+                crypto_window_markets = await _polymarket.get_crypto_window_markets(
+                    selected_timeframe or "5m", selected_assets or None
+                )
+            except Exception as exc:
+                user_log.warning("crypto_window_fetch_failed", error=str(exc))
+                crypto_window_markets = []
+
         for lib_name in strategies_to_run:
             if not _preset_allows(active_preset, lib_name):
                 continue
@@ -1072,7 +1075,7 @@ async def run_once() -> None:
             scan_markets = user_markets
             if active_preset == "close_sweep" and lib_name == "expiration_timing":
                 scan_markets = [
-                    m for m in crypto_short_markets
+                    m for m in crypto_window_markets
                     if is_short_crypto_market(m, selected_timeframe, selected_assets)
                 ]
 

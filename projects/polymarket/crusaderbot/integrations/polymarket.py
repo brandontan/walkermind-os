@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any, Optional
 
 import httpx
@@ -142,15 +143,9 @@ async def get_events_with_markets(limit: int = 200) -> list[dict]:
 async def get_crypto_short_markets(limit: int = 500) -> list[dict]:
     """Fetch the freshest active markets, ordered newest-created first.
 
-    Polymarket's recurring crypto up/down candle markets (``btc-updown-5m-...``)
-    are created continuously and only carry live Gamma ``liquidity`` once they
-    enter their short trading window. A default ``/markets`` page (sorted by
-    volume/id) almost never surfaces them, so crypto-short presets see an empty
-    universe. Sorting by ``startDate`` descending brings the currently-live
-    candle markets — the ones with real in-window liquidity — to the top.
-
-    Cached 60s (shorter than the 5-min generic cache) because the live window
-    for a 5-minute candle is itself only minutes long.
+    Retained for callers that want a broad recent-market snapshot. For the
+    crypto-short presets prefer ``get_crypto_window_markets`` which targets the
+    exact currently-live candle window deterministically.
     """
     key = f"crypto_short:{limit}"
     if hit := await get_cache(key):
@@ -172,6 +167,65 @@ async def get_crypto_short_markets(limit: int = 500) -> list[dict]:
     except Exception as exc:
         logger.warning("get_crypto_short_markets failed: %s", exc)
         return []
+
+
+_TF_WINDOW_SECONDS: dict[str, int] = {"5m": 300, "15m": 900}
+
+
+async def get_crypto_window_markets(
+    timeframe: str,
+    assets: "list[str] | tuple[str, ...] | None" = None,
+    *,
+    include_next: bool = True,
+) -> list[dict]:
+    """Fetch the currently-live crypto up/down candle markets by exact slug.
+
+    Polymarket's recurring candle markets encode their resolution window in the
+    slug: ``{coin}-updown-{tf}-{slot}`` where ``slot = now // step * step`` and
+    ``step`` is 300s (5m) or 900s (15m). Computing the slug directly targets the
+    market resolving in the *current* window (and, with ``include_next``, the
+    following one) — the ones with real in-window liquidity and a live CLOB book.
+    A broad list fetch buries these among thousands of markets, which is why the
+    scanner never saw them.
+
+    ``assets`` are UI tickers (BTC/ETH/SOL/BNB); empty/None defaults to all four.
+    Each returned market dict is annotated ``category="crypto"`` so downstream
+    eligibility passes. Returns [] on any failure. Cached 20s (the live window
+    for a 5-minute candle is itself only minutes long).
+    """
+    step = _TF_WINDOW_SECONDS.get(timeframe)
+    if step is None:
+        return []
+    coins = [str(a).strip().lower() for a in (assets or [])] or ["btc", "eth", "sol", "bnb"]
+    now = int(time.time())
+    slot = now // step * step
+    slots = [slot, slot + step] if include_next else [slot]
+
+    key = f"crypto_window:{timeframe}:{','.join(sorted(coins))}:{slot}:{include_next}"
+    if hit := await get_cache(key):
+        return hit
+
+    out: list[dict] = []
+    seen: set[str] = set()
+    for coin in coins:
+        for s in slots:
+            slug = f"{coin}-updown-{timeframe}-{s}"
+            try:
+                events = await _get_json(f"{GAMMA}/events", params={"slug": slug})
+            except Exception as exc:
+                logger.debug("get_crypto_window_markets %s failed: %s", slug, exc)
+                continue
+            if isinstance(events, dict):
+                events = events.get("data", [])
+            for event in (events or []):
+                for m in (event.get("markets") or []):
+                    mid = str(m.get("id") or m.get("conditionId") or slug)
+                    if mid in seen:
+                        continue
+                    seen.add(mid)
+                    out.append({**m, "category": "crypto"})
+    await set_cache(key, out, ttl=20)
+    return out
 
 
 async def get_market(market_id: str) -> Optional[dict]:
