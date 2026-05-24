@@ -58,6 +58,10 @@ class PositionItem(BaseModel):
     opened_at: datetime
     closed_at: Optional[datetime] = None
     exit_reason: Optional[str] = None
+    # True when the market resolved in this position's favour but the position
+    # is still open awaiting redemption (e.g. hourly auto-redeem not yet run).
+    # The UI surfaces a "waiting redeem" state + a Force Redeem action.
+    awaiting_redeem: bool = False
 
 
 class OrderItem(BaseModel):
