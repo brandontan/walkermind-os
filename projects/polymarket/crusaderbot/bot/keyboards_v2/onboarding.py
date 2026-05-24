@@ -42,3 +42,35 @@ def onboard_complete_kb() -> InlineKeyboardMarkup:
             InlineKeyboardButton("🤖 Setup Auto",     callback_data="menu:autotrade"),
         ]],
     )
+
+
+# ── Legacy P5 /start flow (handlers/start.py) ────────────────────────
+# Callback data preserved exactly for the start ConversationHandler
+# (start:get_started / learn_more / welcome / copy_address / wallet_next
+# / skip_deposit). Distinct names avoid collision with the v2 onboard:* flow.
+
+def welcome_p5_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 Get Started", callback_data="start:get_started")],
+        [InlineKeyboardButton("ℹ️ Learn More",  callback_data="start:learn_more")],
+    ])
+
+
+def welcome_back_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("⬅ Back", callback_data="start:welcome"),
+    ]])
+
+
+def wallet_ready_p5_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📋 Copy Address", callback_data="start:copy_address")],
+        [InlineKeyboardButton("Next →",          callback_data="start:wallet_next")],
+    ])
+
+
+def deposit_prompt_p5_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📋 Copy Address", callback_data="start:copy_address")],
+        [InlineKeyboardButton("Skip for now",    callback_data="start:skip_deposit")],
+    ])

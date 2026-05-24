@@ -32,11 +32,11 @@ from ...users import (
 )
 from ...wallet.ledger import get_balance
 from ...wallet.vault import get_wallet
-from ..keyboards import (
-    deposit_prompt_kb,
-    wallet_ready_kb,
+from ..keyboards_v2.onboarding import (
+    deposit_prompt_p5_kb as deposit_prompt_kb,
+    wallet_ready_p5_kb as wallet_ready_kb,
     welcome_back_kb,
-    welcome_kb,
+    welcome_p5_kb as welcome_kb,
 )
 from ..messages import (
     LEARN_MORE_TEXT,
@@ -167,7 +167,7 @@ async def wallet_next_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         return ConversationHandler.END
     await q.answer()
     from ..messages import PRESET_PICKER_TEXT
-    from ..keyboards import preset_picker
+    from ..keyboards_v2.autotrade import preset_picker_p5_kb as preset_picker
     await q.edit_message_text(
         PRESET_PICKER_TEXT,
         parse_mode=ParseMode.HTML,

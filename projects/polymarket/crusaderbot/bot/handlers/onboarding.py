@@ -45,7 +45,7 @@ from ...users import (
 )
 from ...wallet.ledger import get_balance
 from ...wallet.vault import get_wallet
-from ..keyboards import main_menu
+from ..keyboards_v2 import main_menu
 from ..messages import (
     DIV,
     onboard_how_it_works_text,

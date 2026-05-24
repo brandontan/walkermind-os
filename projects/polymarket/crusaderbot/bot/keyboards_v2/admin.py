@@ -58,3 +58,47 @@ def admin_confirm_kb(action: str) -> InlineKeyboardMarkup:
             cancel_cb="admin:menu",
         ),
     ])
+
+
+# ── Legacy admin / ops / operator surfaces ───────────────────────────
+# Callback data preserved exactly for admin_callback (admin:*),
+# ops_dashboard_callback (ops:*), and panel_callback (panel:*).
+
+def admin_menu(kill_active: bool) -> InlineKeyboardMarkup:
+    label = "🟢 Disable kill switch" if kill_active else "🔴 Activate kill switch"
+    buttons = [
+        InlineKeyboardButton(label,              callback_data="admin:kill"),
+        InlineKeyboardButton("📊 System status", callback_data="admin:status"),
+        InlineKeyboardButton("🔁 Force redeem pending",
+                             callback_data="admin:force_redeem"),
+        InlineKeyboardButton("🔄 Reset Onboarding",
+                             callback_data="admin:resetonboard_prompt"),
+    ]
+    return InlineKeyboardMarkup(grid_rows(buttons))
+
+
+def ops_dashboard_keyboard(kill_active: bool) -> InlineKeyboardMarkup:
+    """Refresh + quick-action keyboard rendered under /ops_dashboard."""
+    flip_label = "▶️ Resume" if kill_active else "⏸ Pause"
+    flip_action = "ops:resume" if kill_active else "ops:pause"
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 Refresh", callback_data="ops:refresh"),
+         InlineKeyboardButton(flip_label,   callback_data=flip_action)],
+        [InlineKeyboardButton("🔒 Lock (force users off)",
+                              callback_data="ops:lock")],
+    ])
+
+
+def operator_panel_keyboard() -> InlineKeyboardMarkup:
+    """Consolidated operator control panel (/panel)."""
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("▶️ Start", callback_data="panel:start"),
+         InlineKeyboardButton("⏹ Stop",  callback_data="panel:stop")],
+        [InlineKeyboardButton("📊 Status", callback_data="panel:status"),
+         InlineKeyboardButton("📈 Stats",  callback_data="panel:stats")],
+        [InlineKeyboardButton("⚙️ Settings", callback_data="panel:settings"),
+         InlineKeyboardButton("❓ Help",     callback_data="panel:help")],
+        [InlineKeyboardButton("🔒 Lock (force users off)",
+                              callback_data="panel:lock")],
+        [InlineKeyboardButton("🔄 Refresh", callback_data="panel:refresh")],
+    ])
