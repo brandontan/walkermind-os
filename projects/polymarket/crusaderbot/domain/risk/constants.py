@@ -27,24 +27,24 @@ SLIPPAGE_GUARD_PCT = 0.05
 
 PROFILES: dict[str, dict] = {
     "conservative": {
-        "kelly": 0.10, "max_pos_pct": 0.03, "max_concurrent": 3,
+        "kelly": 0.10, "max_pos_pct": 0.03, "max_concurrent": 5,
         "daily_loss": -200.0, "min_edge_bps": 400,
         "min_liquidity": 20_000.0, "max_days": 7,
     },
     "balanced": {
-        "kelly": 0.20, "max_pos_pct": 0.06, "max_concurrent": 5,
+        "kelly": 0.20, "max_pos_pct": 0.06, "max_concurrent": 12,
         "daily_loss": -500.0, "min_edge_bps": 300,
         "min_liquidity": 15_000.0, "max_days": 30,
     },
     "aggressive": {
-        "kelly": 0.25, "max_pos_pct": 0.10, "max_concurrent": 5,
+        "kelly": 0.25, "max_pos_pct": 0.10, "max_concurrent": 20,
         "daily_loss": -1_000.0, "min_edge_bps": 200,
         "min_liquidity": 10_000.0, "max_days": 90,
     },
     # Custom profile: user sets capital_pct / tp_pct / sl_pct in user_settings.
     # Gate risk limits fall back to balanced floor until custom values are confirmed.
     "custom": {
-        "kelly": 0.20, "max_pos_pct": 0.06, "max_concurrent": 5,
+        "kelly": 0.20, "max_pos_pct": 0.06, "max_concurrent": 12,
         "daily_loss": -500.0, "min_edge_bps": 300,
         "min_liquidity": 15_000.0, "max_days": 30,
         "capital_pct": None, "tp_pct": None, "sl_pct": None,
