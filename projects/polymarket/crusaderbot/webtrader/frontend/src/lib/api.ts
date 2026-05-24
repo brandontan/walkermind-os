@@ -35,6 +35,8 @@ export function makeApi(token: string | null) {
       const qs = params.toString();
       return get<PositionItem[]>(`/positions${qs ? `?${qs}` : ""}`);
     },
+    forceRedeem: (positionId: string) =>
+      post<{ status: string; position_id: string }>(`/positions/${positionId}/redeem`),
     getPortfolioSummary: () => get<PortfolioSummary>("/portfolio/summary"),
     getPortfolioChart: (period: string) =>
       get<ChartPoint[]>(`/portfolio/chart?period=${encodeURIComponent(period)}`),
@@ -116,6 +118,7 @@ export interface PositionItem {
   opened_at: string;
   closed_at: string | null;
   exit_reason: string | null;
+  awaiting_redeem?: boolean;
 }
 
 export interface PortfolioSummary {
