@@ -916,6 +916,7 @@ def test_scheduler_registers_order_lifecycle_job(monkeypatch):
         MARKET_SCAN_INTERVAL = 300
         DEPOSIT_WATCH_INTERVAL = 120
         SIGNAL_SCAN_INTERVAL = 180
+        CLOSE_SWEEP_SCAN_INTERVAL = 15
         EXIT_WATCH_INTERVAL = 60
         PORTFOLIO_SNAPSHOT_INTERVAL = 60
         REDEEM_INTERVAL = 3600

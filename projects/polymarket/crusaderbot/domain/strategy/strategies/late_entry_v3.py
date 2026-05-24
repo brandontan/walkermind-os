@@ -37,7 +37,11 @@ from ..types import ExitDecision, MarketFilters, SignalCandidate, UserContext
 logger = logging.getLogger(__name__)
 
 # Entry gates (mirror of the reference strategy).
-ENTRY_WINDOW_SEC: float = 240.0   # enter only in the final 240s of the candle
+# Final ~35s before close (ref Kreo Close Sweep: 5m Time 265-299s / 15m 865-899s).
+# This narrow window only fires reliably under the dedicated high-frequency
+# close_sweep scan loop (signal_scan_job.run_close_sweep_fast); the 180s main
+# scan would step over it.
+ENTRY_WINDOW_SEC: float = 35.0    # enter only in the final 35s of the candle
 MIN_ASK_DIFF: float = 0.30        # require a clearly favored side
 MAX_SPREAD: float = 1.05          # combined YES+NO asks must not be too wide
 FAV_PRICE_MAX: float = 0.93       # skip when the favored side is already near 1.0

@@ -183,6 +183,10 @@ class Settings(BaseSettings):
     # this many blocks deep on the canonical chain. See migration 047.
     DEPOSIT_CONFIRMATION_DEPTH: int = 32
     SIGNAL_SCAN_INTERVAL: int = 180
+    # Dedicated high-frequency scan for the close_sweep / late_entry_v3 preset.
+    # Late Entry V3 only enters in the final ~35s of a crypto candle, so it must
+    # be scanned far more often than the 180s main loop or the window is missed.
+    CLOSE_SWEEP_SCAN_INTERVAL: int = 15
     MARKET_SIGNAL_SCAN_INTERVAL: int = 60
     # --- Signal scanner thresholds (demo path edge_finder) ---
     # Market eligibility price range: excludes near-resolved markets and

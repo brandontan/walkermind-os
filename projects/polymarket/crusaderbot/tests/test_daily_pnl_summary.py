@@ -434,6 +434,7 @@ def test_scheduler_registers_daily_pnl_summary_job():
         MARKET_SCAN_INTERVAL = 300
         DEPOSIT_WATCH_INTERVAL = 120
         SIGNAL_SCAN_INTERVAL = 180
+        CLOSE_SWEEP_SCAN_INTERVAL = 15
         EXIT_WATCH_INTERVAL = 60
         PORTFOLIO_SNAPSHOT_INTERVAL = 60
         REDEEM_INTERVAL = 3600
@@ -612,6 +613,7 @@ def test_scheduler_registers_run_job_as_daily_callable():
         MARKET_SCAN_INTERVAL = 300
         DEPOSIT_WATCH_INTERVAL = 120
         SIGNAL_SCAN_INTERVAL = 180
+        CLOSE_SWEEP_SCAN_INTERVAL = 15
         EXIT_WATCH_INTERVAL = 60
         PORTFOLIO_SNAPSHOT_INTERVAL = 60
         REDEEM_INTERVAL = 3600

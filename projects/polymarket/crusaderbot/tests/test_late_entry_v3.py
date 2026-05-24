@@ -82,7 +82,7 @@ def _make_market(
     *,
     market_id: str = "m1",
     condition_id: str = "c1",
-    seconds_to_close: float = 120.0,
+    seconds_to_close: float = 20.0,
     active: bool = True,
     closed: bool = False,
 ) -> dict:
