@@ -106,6 +106,7 @@ CRUSADERBOT is considered **DONE** only when:
 
 ## Active — In Progress
 
+- [ ] WARP-RMS — Real-market settlement fix [MAJOR] — PR open (branch claude/crusaderbot-signal-scan-debug-Xnckj). FIX1 polymarket.get_market() 422-on-hex-conditionId (path segment -> ?conditionId= query) that silently blocked ALL resolution/settlement -> slots never freed; FIX2 scanner edge-finder now publishes real markets to the LIVE feed with is_demo=FALSE by default (SCANNER_DEMO_FEED_ENABLED gate for tests/dev); FIX3 pending_settlement status (never flat-close on expiry, counted in exposure, settles on official close). 18+13+62 tests green. SENTINEL MAJOR pending. PENDING PROD OPS (owner-authorized, awaiting go-ahead): void 25 demo positions (return stake, pnl=0) + migrate 6 beta users Demo->Live feed.
 - [x] WARP-61 — WebTrader confluence_scalper exposure (issue #1269) [STANDARD] — MERGED 7cbd8b814533
 - [x] WARP-60 — ConfluenceScalperStrategy (issue #1267) [STANDARD] — MERGED b3ec4b7d4930
 - [x] WARP-59 — Copy Wallet end-to-end bridge: copy_targets → copy_trade_tasks (Issue #1265) [STANDARD] — DELIVERED WARP/warp59-copy-wallet-e2e-bridge 2026-05-21 (MVP write path realigned to canonical execution table read by services/copy_trade/monitor.py).

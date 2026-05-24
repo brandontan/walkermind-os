@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -379,3 +379,50 @@ def test_hourly_empty_queue_noop():
         gs.return_value.AUTO_REDEEM_ENABLED = True
         _run(hourly_worker.run_once())
         claim.assert_not_called()
+
+
+# ---------------- pending_settlement (resolution wait window) ----------------
+
+def test_mark_pending_settlement_runs_update_when_past_due():
+    """_mark_pending_settlement issues the flip UPDATE for past-due open rows."""
+    captured: dict[str, Any] = {}
+
+    class _Conn:
+        async def fetch(self, query, market_id):
+            captured["query"] = query
+            captured["market_id"] = market_id
+            return [{"id": uuid4()}]
+
+    class _Acquire:
+        async def __aenter__(self):
+            return _Conn()
+        async def __aexit__(self, *a):
+            return None
+
+    class _Pool:
+        def acquire(self):
+            return _Acquire()
+
+    with patch.object(redeem_router, "get_pool", return_value=_Pool()):
+        _run(redeem_router._mark_pending_settlement("mkt-1"))
+
+    assert captured["market_id"] == "mkt-1"
+    assert "pending_settlement" in captured["query"]
+    assert "status = 'open'" in captured["query"]  # only flips open rows
+
+
+def test_unresolved_market_routes_to_pending_settlement_not_settle():
+    """When Polymarket has not closed the market yet, _process_market_resolution
+    must mark pending_settlement and NEVER fabricate a settlement."""
+    with patch.object(redeem_router.polymarket, "get_market",
+                      new=AsyncMock(return_value={"closed": False})), \
+         patch.object(redeem_router, "_mark_pending_settlement",
+                      new=AsyncMock()) as mark, \
+         patch.object(redeem_router, "settle_winning_position",
+                      new=AsyncMock()) as win, \
+         patch.object(redeem_router, "settle_losing_position",
+                      new=AsyncMock()) as lose:
+        _run(redeem_router._process_market_resolution("mkt-1"))
+        mark.assert_awaited_once_with("mkt-1")
+        win.assert_not_called()
+        lose.assert_not_called()

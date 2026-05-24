@@ -74,7 +74,8 @@ async def _open_position_count(user_id: UUID) -> int:
     pool = get_pool()
     async with pool.acquire() as conn:
         return int(await conn.fetchval(
-            "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status='open'",
+            "SELECT COUNT(*) FROM positions WHERE user_id=$1 "
+            "AND status IN ('open','pending_settlement')",
             user_id,
         ))
 
@@ -84,7 +85,7 @@ async def _open_exposure(user_id: UUID) -> Decimal:
     async with pool.acquire() as conn:
         return Decimal(await conn.fetchval(
             "SELECT COALESCE(SUM(size_usdc),0) FROM positions "
-            "WHERE user_id=$1 AND status='open'",
+            "WHERE user_id=$1 AND status IN ('open','pending_settlement')",
             user_id,
         ))
 
