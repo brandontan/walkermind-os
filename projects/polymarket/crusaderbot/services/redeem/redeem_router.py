@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import html
+import json
 import logging
 from decimal import Decimal
 from typing import Any
@@ -72,7 +73,7 @@ async def detect_resolutions() -> None:
     async with pool.acquire() as conn:
         candidate_rows = await conn.fetch(
             """
-            SELECT DISTINCT p.market_id
+            SELECT DISTINCT p.market_id, m.slug
               FROM positions p
               JOIN markets m ON m.id = p.market_id
              WHERE p.redeemed = FALSE
@@ -86,13 +87,34 @@ async def detect_resolutions() -> None:
 
     for r in candidate_rows:
         try:
-            await _process_market_resolution(r["market_id"])
+            await _process_market_resolution(r["market_id"], r["slug"])
         except Exception as exc:
             logger.error("resolution processing failed for %s: %s",
                          r["market_id"], exc)
 
 
-async def _process_market_resolution(market_id: str) -> None:
+def _coerce_outcome_prices(val: Any) -> list[float]:
+    """Gamma ``outcomePrices`` may be a real list or a JSON-encoded string
+    (candle markets return ``'["1", "0"]'``). Return a list of floats, or []
+    on failure so the caller can fall back to a neutral split.
+    """
+    if isinstance(val, str):
+        try:
+            val = json.loads(val)
+        except (ValueError, TypeError):
+            return []
+    if isinstance(val, (list, tuple)):
+        out: list[float] = []
+        for x in val:
+            try:
+                out.append(float(x))
+            except (TypeError, ValueError):
+                return []
+        return out
+    return []
+
+
+async def _process_market_resolution(market_id: str, slug: str | None = None) -> None:
     """Detect + classify positions for a single market.
 
     The markets-row flip is deferred until classification finishes
@@ -109,6 +131,17 @@ async def _process_market_resolution(market_id: str) -> None:
     cannot double-flip; only one UPDATE sticks.
     """
     m = await polymarket.get_market(market_id)
+    if m is None and slug:
+        # Recurring crypto up/down candle markets are not individually indexed
+        # under /markets (get_market returns None), so resolve them by slug via
+        # /events. Validate the nested conditionId so we never settle against
+        # the wrong market.
+        candidate = await polymarket.get_event_market_by_slug(slug)
+        if candidate is not None and str(
+            candidate.get("conditionId") or candidate.get("condition_id") or ""
+        ) == str(market_id):
+            m = candidate
+
     if not m or not m.get("closed"):
         # No official resolution yet. If the market's scheduled resolution
         # time has already passed, surface the wait explicitly: flip
@@ -120,7 +153,7 @@ async def _process_market_resolution(market_id: str) -> None:
         await _mark_pending_settlement(market_id)
         return
 
-    outcomes = m.get("outcomePrices") or [0.5, 0.5]
+    outcomes = _coerce_outcome_prices(m.get("outcomePrices")) or [0.5, 0.5]
     yes_price = float(outcomes[0])
     winning = "yes" if yes_price > 0.5 else "no"
     outcome_index = 0 if winning == "yes" else 1
