@@ -910,6 +910,24 @@ def _filter_markets_by_category(markets: list[dict], filters: list[str]) -> list
     return result
 
 
+def _diversify_lib_candidates(
+    candidates: list[SignalCandidate], user_id: Any
+) -> list[SignalCandidate]:
+    """Order lib-strategy candidates by sha1(user_id:market_id) so different
+    users enter different markets when multiple candidates are available.
+
+    Mirrors signal_evaluator._diversify_order — same deterministic key so a
+    user does not churn positions between ticks, but different users see a
+    different prefix of the eligible candidate set.
+    """
+    seed = str(user_id)
+
+    def _key(c: SignalCandidate) -> str:
+        return hashlib.sha1(f"{seed}:{c.market_id}".encode()).hexdigest()
+
+    return sorted(candidates, key=_key)
+
+
 async def _fetch_markets_for_lib_strategies() -> list[dict]:
     """Fetch active markets from Gamma /events, annotated with event-level tags.
 
@@ -1044,7 +1062,7 @@ async def run_once() -> None:
 
             lib_total_signals += len(cands)
             tel.candidates_emitted += len(cands)
-            for cand in cands:
+            for cand in _diversify_lib_candidates(cands, row["user_id"]):
                 try:
                     await _process_candidate(row, cand, tel)
                     candidates_processed += 1
@@ -1084,7 +1102,7 @@ async def run_once() -> None:
             if not domain_cands:
                 tel.record_zero_reason(_CONFLUENCE_SCALPER_NAME, "filter_or_no_match")
             tel.candidates_emitted += len(domain_cands)
-            for cand in domain_cands:
+            for cand in _diversify_lib_candidates(domain_cands, row["user_id"]):
                 try:
                     await _process_candidate(row, cand, tel)
                     candidates_processed += 1
@@ -1163,4 +1181,4 @@ async def run_once() -> None:
     )
 
 
-__all__ = ["run_once", "_filter_markets_by_category"]
+__all__ = ["run_once", "_filter_markets_by_category", "_diversify_lib_candidates"]
