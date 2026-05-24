@@ -395,7 +395,7 @@ async def _has_open_position_for_market(user_id: UUID, market_id: str) -> bool:
             SELECT 1 FROM positions
              WHERE user_id = $1 AND market_id = $2
                AND (
-                   status = 'open'
+                   status IN ('open', 'pending_settlement')
                    OR (status = 'closed' AND closed_at >= NOW() - INTERVAL '24 hours')
                )
             """,
@@ -1186,7 +1186,7 @@ async def run_once() -> None:
             scan_markets = user_markets
 
             try:
-                cands: list[SignalCandidate] = await asyncio.get_event_loop().run_in_executor(
+                cands: list[SignalCandidate] = await asyncio.get_running_loop().run_in_executor(
                     None, run_lib_strategy, lib_name, scan_markets, config
                 )
             except Exception as exc:

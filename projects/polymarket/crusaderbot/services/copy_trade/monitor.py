@@ -105,6 +105,13 @@ async def _process_wallet(
         trades = await fetch_recent_wallet_trades(
             wallet_address, limit=_LEADER_FETCH_LIMIT
         )
+    except WalletWatcherUnavailable as exc:
+        logger.warning(
+            "copy_trade_monitor: wallet watcher unavailable, skipping wallet",
+            wallet=wallet_address,
+            reason=str(exc),
+        )
+        return
     except Exception:
         logger.exception(
             "copy_trade_monitor: unexpected error fetching wallet trades",
@@ -250,7 +257,7 @@ async def _process_one(
         pool = get_pool()
         async with pool.acquire() as conn:
             already_held = await conn.fetchval(
-                "SELECT 1 FROM positions WHERE user_id=$1 AND market_id=$2 AND status='open' LIMIT 1",
+                "SELECT 1 FROM positions WHERE user_id=$1 AND market_id=$2 AND status IN ('open','pending_settlement') LIMIT 1",
                 task.user_id, market_id,
             )
         if already_held:

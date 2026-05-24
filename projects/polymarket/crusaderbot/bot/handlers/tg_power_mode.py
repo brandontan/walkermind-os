@@ -26,8 +26,8 @@ async def _send_or_answer(update: Update, text: str, show_alert: bool = False) -
     if q is not None:
         try:
             await q.answer(text[:200] if show_alert else None, show_alert=show_alert)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("tg_power_mode: q.answer() failed (harmless): %s", exc)
         if not show_alert and update.effective_chat:
             try:
                 await update.effective_chat.send_message(text, parse_mode=ParseMode.HTML)
