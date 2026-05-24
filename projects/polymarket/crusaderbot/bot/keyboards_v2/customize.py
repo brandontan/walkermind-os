@@ -96,3 +96,57 @@ def wizard_done_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton("📊 Auto Trade Status", callback_data="preset:status"),
         InlineKeyboardButton("🏠 Home",              callback_data="menu:home"),
     ]])
+
+
+# ── Legacy p5:customize:* wizard (handlers/customize.py surface) ─────
+# Callback data preserved exactly for the existing ConversationHandler parser.
+
+def customize_capital_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("25%",  callback_data="p5:customize:cap:25"),
+            InlineKeyboardButton("50%",  callback_data="p5:customize:cap:50"),
+            InlineKeyboardButton("75%",  callback_data="p5:customize:cap:75"),
+            InlineKeyboardButton("100%", callback_data="p5:customize:cap:100"),
+        ],
+    ])
+
+
+def customize_tp_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("+10%", callback_data="p5:customize:tp:10"),
+            InlineKeyboardButton("+15%", callback_data="p5:customize:tp:15"),
+            InlineKeyboardButton("+20%", callback_data="p5:customize:tp:20"),
+            InlineKeyboardButton("+30%", callback_data="p5:customize:tp:30"),
+        ],
+        [InlineKeyboardButton("Custom", callback_data="p5:customize:tp:custom")],
+    ])
+
+
+def customize_sl_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("-5%",  callback_data="p5:customize:sl:5"),
+            InlineKeyboardButton("-8%",  callback_data="p5:customize:sl:8"),
+            InlineKeyboardButton("-10%", callback_data="p5:customize:sl:10"),
+            InlineKeyboardButton("-15%", callback_data="p5:customize:sl:15"),
+        ],
+        [InlineKeyboardButton("Custom", callback_data="p5:customize:sl:custom")],
+    ])
+
+
+def customize_targets_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🐋 Browse Top Wallets", callback_data="p5:customize:targets:browse")],
+        [InlineKeyboardButton("Skip",                   callback_data="p5:customize:targets:skip")],
+    ])
+
+
+def customize_review_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Save", callback_data="p5:customize:save"),
+            InlineKeyboardButton("⬅ Back", callback_data="p5:customize:back"),
+        ],
+    ])

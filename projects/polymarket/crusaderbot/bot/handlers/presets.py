@@ -31,12 +31,19 @@ from ...users import (
     get_settings_for, set_auto_trade, set_paused, update_settings, upsert_user,
 )
 from ...wallet.ledger import daily_pnl, get_balance
-from ..keyboards.presets import (
-    preset_confirm, preset_picker, preset_status, preset_stop_confirm,
-    preset_switch_confirm,
+from ..keyboards_v2.autotrade import (
+    preset_confirm_kb as preset_confirm,
+    preset_list_kb,
+    preset_status_kb as preset_status,
+    preset_stop_confirm_kb as preset_stop_confirm,
+    preset_switch_confirm_kb as preset_switch_confirm,
+    preset_tier_kb as preset_picker,
+)
+from ..keyboards_v2.customize import (
     wizard_capital_kb, wizard_custom_input_kb, wizard_done_kb,
     wizard_review_kb, wizard_sl_kb, wizard_tp_kb,
 )
+from ..presets import PRESET_CONFIG
 
 
 logger = logging.getLogger(__name__)
@@ -267,6 +274,12 @@ async def preset_callback(update: Update,
     if action == "picker":
         await show_preset_picker(update, ctx)
         return
+    if action == "tiers":
+        await show_preset_picker(update, ctx)
+        return
+    if action == "tier":
+        await _on_tier(update, arg)
+        return
     if action == "status":
         await show_preset_status(update, ctx)
         return
@@ -314,6 +327,16 @@ async def preset_callback(update: Update,
 # ---------------------------------------------------------------------------
 # Action handlers
 # ---------------------------------------------------------------------------
+
+async def _on_tier(update: Update, tier_key: str) -> None:
+    """Step 2 of preset selection: show presets within the chosen risk tier."""
+    await _reply(
+        update,
+        "📋 <b>Available strategies</b>\nTap a preset to see details.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=preset_list_kb(tier_key, PRESET_CONFIG),
+    )
+
 
 async def _on_pick(update: Update, preset_key: str) -> None:
     p = get_preset(preset_key)

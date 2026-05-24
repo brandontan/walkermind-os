@@ -23,7 +23,7 @@ from telegram.ext import (
 
 from ...database import get_pool
 from ...users import upsert_user
-from ..keyboards import (
+from ..keyboards_v2.customize import (
     customize_capital_kb,
     customize_review_kb,
     customize_sl_kb,

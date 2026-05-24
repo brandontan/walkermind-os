@@ -192,3 +192,52 @@ def resume_confirm_kb() -> InlineKeyboardMarkup:
         confirm_cancel_row("auto:resume:confirm", "nav:cancel",
                            "✅ Resume Bot", "❌ Cancel"),
     ])
+
+
+# ── Legacy p5 auto-trade surface (handlers/autotrade.py) ─────────────
+# Callback data preserved exactly for the autotrade_callback parser
+# (pattern ^(p5:(preset|confirm|active):|auto_trade:)).
+
+def auto_trade_menu_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📊 Strategy Preset", callback_data="auto_trade:strategy")],
+        [InlineKeyboardButton("⚖️ Risk Profile",    callback_data="auto_trade:risk")],
+        [InlineKeyboardButton("⬅ Back",             callback_data="menu:dashboard")],
+    ])
+
+
+def preset_picker_p5_kb() -> InlineKeyboardMarkup:
+    from ...domain.preset import RECOMMENDED_PRESET, list_presets
+    rows: list[list[InlineKeyboardButton]] = []
+    for p in list_presets():
+        name = p.name if len(p.name) <= 20 else p.name[:20]
+        label = f"{p.emoji} {name}"
+        if p.key == RECOMMENDED_PRESET:
+            label = f"{label} ⭐"
+        rows.append([InlineKeyboardButton(label, callback_data=f"p5:preset:{p.key}")])
+    rows.append([InlineKeyboardButton("⬅ Back", callback_data="auto_trade:back")])
+    return InlineKeyboardMarkup(rows)
+
+
+def preset_confirm_p5_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Activate",  callback_data="p5:confirm:activate"),
+            InlineKeyboardButton("✏️ Customize", callback_data="p5:confirm:customize"),
+        ],
+        [InlineKeyboardButton("⬅ Back",          callback_data="p5:confirm:back")],
+    ])
+
+
+def preset_active_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✏️ Edit Config",   callback_data="p5:active:edit"),
+            InlineKeyboardButton("🔄 Switch Preset", callback_data="p5:active:switch"),
+        ],
+        [
+            InlineKeyboardButton("⏸ Pause", callback_data="p5:active:pause"),
+            InlineKeyboardButton("🛑 Stop",  callback_data="p5:active:stop"),
+        ],
+        [InlineKeyboardButton("🏠 Home", callback_data="menu:dashboard")],
+    ])
