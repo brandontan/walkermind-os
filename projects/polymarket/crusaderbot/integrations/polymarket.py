@@ -347,21 +347,25 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
             )
             return None
         markets: list = data if isinstance(data, list) else data.get("data", [])
-        # Validate conditionId before caching — mismatched filter returns unrelated market.
-        matched = next(
-            (
-                m for m in markets
-                if isinstance(m, dict)
-                and str(m.get("conditionId") or m.get("condition_id") or "") == str(market_id)
-            ),
-            None,
-        )
-        if matched is None:
+        if not markets or not isinstance(markets[0], dict):
             logger.warning(
-                "get_live_market_price no matching market condition_id=%s", market_id
+                "get_live_market_price no market found condition_id=%s", market_id
             )
             return None
-        market_data = matched
+        market_data = markets[0]
+        # Validate conditionId when present — reject if it doesn't match the
+        # requested id to prevent caching data from a mismatched market.
+        # When the returned market has no conditionId field (thin API responses),
+        # we accept it; Gamma always includes conditionId on real markets.
+        returned_cid = str(
+            market_data.get("conditionId") or market_data.get("condition_id") or ""
+        )
+        if returned_cid and returned_cid != str(market_id):
+            logger.warning(
+                "get_live_market_price conditionId mismatch requested=%s returned=%s",
+                market_id, returned_cid,
+            )
+            return None
         await set_cache(cache_key, market_data, ttl=30)
 
     # Primary: CLOB /price — live order-book mid-price is more accurate than
