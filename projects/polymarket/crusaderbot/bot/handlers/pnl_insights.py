@@ -22,7 +22,7 @@ from telegram.ext import ContextTypes
 from ...database import get_pool
 from ...jobs.weekly_insights import _fetch_weekly_stats, format_weekly_insights
 from ...users import upsert_user
-from ..keyboards import insights_kb
+from ..keyboards_v2 import insights_kb
 
 
 logger = logging.getLogger(__name__)

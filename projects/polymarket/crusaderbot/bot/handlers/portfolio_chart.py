@@ -19,7 +19,7 @@ from telegram.ext import ContextTypes
 
 from ...services.portfolio_chart import generate_portfolio_chart
 from ...users import upsert_user
-from ..keyboards import chart_kb
+from ..keyboards_v2 import chart_kb
 
 logger = logging.getLogger(__name__)
 

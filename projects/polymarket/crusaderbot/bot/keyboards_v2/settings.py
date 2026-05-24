@@ -60,8 +60,12 @@ def risk_picker_kb(current: str = "") -> InlineKeyboardMarkup:
     )
 
 
-def tp_picker_kb() -> InlineKeyboardMarkup:
-    """Take Profit presets — 2-col grid + custom + nav. 4 rows."""
+def tp_picker_kb(current_tp: float | None = None) -> InlineKeyboardMarkup:
+    """Take Profit presets — 2-col grid + custom + nav. 4 rows.
+
+    current_tp is shown in the message text, not the keyboard (accepted
+    for call-site compatibility)."""
+    _ = current_tp
     return build_kb(
         [
             [
@@ -78,8 +82,12 @@ def tp_picker_kb() -> InlineKeyboardMarkup:
     )
 
 
-def sl_picker_kb() -> InlineKeyboardMarkup:
-    """Stop Loss presets — 2-col grid + custom + nav. 4 rows."""
+def sl_picker_kb(current_sl: float | None = None) -> InlineKeyboardMarkup:
+    """Stop Loss presets — 2-col grid + custom + nav. 4 rows.
+
+    current_sl is shown in the message text, not the keyboard (accepted
+    for call-site compatibility)."""
+    _ = current_sl
     return build_kb(
         [
             [
@@ -130,8 +138,11 @@ def redeem_picker_kb(current: str = "hourly") -> InlineKeyboardMarkup:
     )
 
 
-def capital_picker_kb(balance: float) -> InlineKeyboardMarkup:
-    """Capital allocation — shows real $ amounts. Max 5 rows."""
+def capital_picker_kb(balance: float, mode: str = "") -> InlineKeyboardMarkup:
+    """Capital allocation — shows real $ amounts. Max 5 rows.
+
+    mode is accepted for call-site compatibility (shown in message text)."""
+    _ = mode
     def _btn(pct: int) -> InlineKeyboardButton:
         amount = balance * pct / 100.0
         return InlineKeyboardButton(
