@@ -22,6 +22,7 @@ def main_menu(
     auto_on: bool = False,
     paused: bool = False,
     open_count: int = 0,
+    configured: bool = False,
 ) -> ReplyKeyboardMarkup:
     """State-aware persistent bottom-bar keyboard.
 
@@ -29,11 +30,12 @@ def main_menu(
         auto_on: True if auto-trade is running or configured.
         paused: True if auto-trade is paused (overrides auto_on label).
         open_count: Number of open positions (shown in portfolio label).
+        configured: True if a strategy is configured (shows "Auto Mode").
     """
     # Auto-trade button — 3 states
     if paused:
         auto_label = "▶️ Resume"
-    elif auto_on:
+    elif auto_on or configured:
         auto_label = "🤖 Auto Mode"
     else:
         auto_label = "🤖 Setup Auto"

@@ -53,6 +53,11 @@ def refresh_home_row() -> list[InlineKeyboardButton]:
     return [REFRESH, HOME]
 
 
+def home_back_row(back_cb: str = NAV_BACK) -> list[InlineKeyboardButton]:
+    """Back + Home nav row (legacy name retained for copied modules)."""
+    return back_home_row(back_cb)
+
+
 def confirm_cancel_row(
     confirm_cb: str,
     cancel_cb: str = NAV_CANCEL,
