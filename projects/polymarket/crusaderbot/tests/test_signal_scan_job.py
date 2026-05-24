@@ -957,3 +957,64 @@ def test_fetch_latest_scan_run_swallows_errors():
     with patch.object(job, "get_pool", side_effect=RuntimeError("db down")):
         result = asyncio.run(job.fetch_latest_scan_run())
     assert result is None  # no silent crash — degrades to None
+
+
+# ===========================================================================
+# _diversify_lib_candidates — lib-strategy scan diversification
+# ===========================================================================
+
+from projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job import (
+    _diversify_lib_candidates,
+)
+from projects.polymarket.crusaderbot.domain.strategy.types import SignalCandidate
+from datetime import datetime, timezone
+
+
+def _cand(market_id: str) -> SignalCandidate:
+    return SignalCandidate(
+        market_id=market_id,
+        condition_id=market_id,
+        side="YES",
+        confidence=0.7,
+        suggested_size_usdc=10.0,
+        strategy_name="test_strategy",
+        signal_ts=datetime.now(tz=timezone.utc),
+    )
+
+
+def test_diversify_lib_candidates_empty():
+    """Empty candidate list returns empty list."""
+    assert _diversify_lib_candidates([], "user-a") == []
+
+
+def test_diversify_lib_candidates_single():
+    """Single candidate is returned regardless of user."""
+    c = _cand("mkt-1")
+    assert _diversify_lib_candidates([c], "user-a") == [c]
+
+
+def test_diversify_lib_candidates_different_order_for_different_users():
+    """Two different users must receive candidates in different order when
+    multiple candidates are available — this is the core invariant."""
+    cands = [_cand(f"mkt-{i}") for i in range(5)]
+    order_a = [c.market_id for c in _diversify_lib_candidates(cands, "user-aaa")]
+    order_b = [c.market_id for c in _diversify_lib_candidates(cands, "user-bbb")]
+    # With 5 markets and two distinct user IDs the sha1 keys will differ —
+    # it is astronomically unlikely for them to produce the same ordering.
+    assert order_a != order_b
+
+
+def test_diversify_lib_candidates_deterministic_same_user():
+    """Same user always gets the same ordering (no churn between ticks)."""
+    cands = [_cand(f"mkt-{i}") for i in range(5)]
+    order_1 = [c.market_id for c in _diversify_lib_candidates(cands, "user-x")]
+    order_2 = [c.market_id for c in _diversify_lib_candidates(cands, "user-x")]
+    assert order_1 == order_2
+
+
+def test_diversify_lib_candidates_all_markets_preserved():
+    """All candidates are returned — none dropped by diversification."""
+    cands = [_cand(f"mkt-{i}") for i in range(8)]
+    result = _diversify_lib_candidates(cands, "user-a")
+    assert len(result) == 8
+    assert {c.market_id for c in result} == {f"mkt-{i}" for i in range(8)}
