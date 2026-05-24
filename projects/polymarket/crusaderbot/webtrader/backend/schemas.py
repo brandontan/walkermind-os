@@ -94,6 +94,7 @@ class AutoTradeState(BaseModel):
     min_liquidity: float = 1000.0
     max_resolution_days: Optional[int] = None
     min_volume_24h: float = 100.0
+    slippage_tolerance_pct: Optional[float] = None
 
 
 class AutoTradeToggleRequest(BaseModel):

@@ -386,7 +386,8 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         )
         s_row = await conn.fetchrow(
             """SELECT risk_profile, capital_alloc_pct, tp_pct, sl_pct, active_preset,
-                      category_filters, min_liquidity, max_resolution_days, min_volume_24h
+                      category_filters, min_liquidity, max_resolution_days, min_volume_24h,
+                      slippage_tolerance_pct
                FROM user_settings WHERE user_id=$1::uuid""",
             user_id,
         )
@@ -403,6 +404,7 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         min_liquidity=float(s_row["min_liquidity"]) if s_row and s_row["min_liquidity"] is not None else 1000.0,
         max_resolution_days=int(s_row["max_resolution_days"]) if s_row and s_row["max_resolution_days"] is not None else None,
         min_volume_24h=float(s_row["min_volume_24h"]) if s_row and s_row["min_volume_24h"] is not None else 100.0,
+        slippage_tolerance_pct=float(s_row["slippage_tolerance_pct"]) if s_row and s_row["slippage_tolerance_pct"] is not None else None,
     )
 
 
