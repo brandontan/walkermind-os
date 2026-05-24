@@ -231,27 +231,69 @@ async def get_crypto_window_markets(
 async def get_market(market_id: str) -> Optional[dict]:
     """Fetch a single market from Gamma API by conditionId. Cached 2 min.
 
-    Resolves via ``GET /markets?conditionId={id}`` (query param). The path
-    form ``GET /markets/{id}`` returns 422 for hex conditionIds, and the
-    markets table stores condition_id as the primary key (scanner and
-    market_sync both key on it), so the path form silently broke resolution
-    detection for every position — detect_resolutions could never observe a
-    market as closed, so positions never settled and concurrency slots leaked.
+    Resolves via ``GET /markets?condition_ids={id}`` (the plural filter param).
+    The singular ``conditionId`` form is SILENTLY IGNORED by Gamma — it returns
+    the default market list (first row regardless of the id), so resolution
+    detection was reading an unrelated market and never observed a real close.
+    The returned row's conditionId is validated against ``market_id`` before
+    caching so a mismatched/ignored filter can never settle a position against
+    the wrong market.
+
+    Returns None when the id is not individually indexed under ``/markets``
+    (e.g. recurring crypto up/down candle markets, which live only under
+    ``/events`` — callers fall back to ``get_event_market_by_slug``).
     """
     key = f"mkt:{market_id}"
     if hit := await get_cache(key):
         return hit
     try:
-        data = await _get_json(f"{GAMMA}/markets", params={"conditionId": market_id})
+        data = await _get_json(f"{GAMMA}/markets", params={"condition_ids": market_id})
     except Exception as exc:
         logger.warning("get_market %s failed: %s", market_id, exc)
         return None
     markets: list = data if isinstance(data, list) else data.get("data", [])
-    if not markets or not isinstance(markets[0], dict):
+    result = next(
+        (
+            m
+            for m in markets
+            if isinstance(m, dict)
+            and str(m.get("conditionId") or m.get("condition_id") or "") == str(market_id)
+        ),
+        None,
+    )
+    if result is None:
         return None
-    result = markets[0]
     await set_cache(key, result, ttl=120)
     return result
+
+
+async def get_event_market_by_slug(slug: str) -> Optional[dict]:
+    """Resolve a recurring/event market (e.g. crypto up/down candles) by slug.
+
+    Crypto candle markets are NOT individually indexed under ``/markets``
+    (``condition_ids`` returns empty), so resolution detection must read the
+    nested market from ``GET /events?slug={slug}``. Returns the nested market
+    dict whose slug matches (or the event's sole market as a fallback), or
+    None. Not cached — resolution polling needs the fresh ``closed`` flag.
+    """
+    if not slug:
+        return None
+    try:
+        events = await _get_json(f"{GAMMA}/events", params={"slug": slug})
+    except Exception as exc:
+        logger.warning("get_event_market_by_slug %s failed: %s", slug, exc)
+        return None
+    if isinstance(events, dict):
+        events = events.get("data", [])
+    for event in (events or []):
+        markets = event.get("markets") or []
+        for m in markets:
+            if isinstance(m, dict) and str(m.get("slug") or "") == slug:
+                return m
+        if markets and isinstance(markets[0], dict):
+            return markets[0]
+    return None
+
 
 
 async def get_market_by_slug(slug: str) -> Optional[dict]:
