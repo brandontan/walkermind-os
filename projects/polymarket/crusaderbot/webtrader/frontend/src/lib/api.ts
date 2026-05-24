@@ -40,7 +40,8 @@ export function makeApi(token: string | null) {
       get<ChartPoint[]>(`/portfolio/chart?period=${encodeURIComponent(period)}`),
     getAutotrade: () => get<AutoTradeState>("/autotrade"),
     toggleAutotrade: (enabled: boolean) => post<{ auto_trade_on: boolean }>("/autotrade/toggle", { enabled }),
-    activatePreset: (preset_key: string) => post<{ active_preset: string }>("/autotrade/preset", { preset_key }),
+    activatePreset: (preset_key: string, selected_timeframe?: "5m" | "15m") =>
+      post<{ active_preset: string; selected_timeframe: string | null }>("/autotrade/preset", { preset_key, selected_timeframe }),
     setRiskProfile: (params: RiskProfileParams) => patch<{ risk_profile: string }>("/autotrade/risk-profile", params),
     customizeStrategy: (params: CustomizeParams) => post<{ updated: boolean }>("/autotrade/customize", params),
     getWallet: () => get<WalletInfo>("/wallet"),
@@ -141,6 +142,7 @@ export interface AutoTradeState {
   max_resolution_days: number | null;
   min_volume_24h: number;
   slippage_tolerance_pct: number | null;
+  selected_timeframe: string | null;
 }
 
 export interface CustomizeParams {

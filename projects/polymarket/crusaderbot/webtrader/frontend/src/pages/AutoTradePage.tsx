@@ -14,15 +14,6 @@ const ALL_CATEGORIES = ["Politics","Sports","Crypto","Finance","Science","Entert
 
 const STRATEGY_PRESETS = [
   {
-    key: "whale_mirror",
-    name: "Whale Mirror",
-    emoji: "🐋",
-    engine: "WhaleTrackingStrategy",
-    signal: "High volume + unusual whale activity",
-    risk: "safe" as const,
-    freq: "Low",
-  },
-  {
     key: "trend_breakout",
     name: "Trend Breakout",
     emoji: "📈",
@@ -69,7 +60,7 @@ const STRATEGY_PRESETS = [
   },
   {
     key: "ensemble",
-    name: "Ensemble",
+    name: "Smart Mix",
     emoji: "🤖",
     engine: "EnsembleStrategy",
     signal: "3/5 strategy consensus voting",
@@ -96,10 +87,11 @@ const STRATEGY_PRESETS = [
   },
 ] as const;
 
-const COMING_SOON = [
-  { name: "Logic Arb",  emoji: "🧠", note: "Needs LLM API" },
-  { name: "Sentiment",  emoji: "📰", note: "Needs social API" },
-];
+// Presets restricted to short-duration crypto markets — selecting one locks the
+// market category to Crypto and surfaces the 5m/15m timeframe toggle.
+const CRYPTO_SHORT_PRESETS: readonly string[] = ["confluence_scalper", "close_sweep"];
+const TIMEFRAMES = ["5m", "15m"] as const;
+type Timeframe = (typeof TIMEFRAMES)[number];
 
 // ── Section B: Risk Profiles ──────────────────────────────────────────────────
 
@@ -186,7 +178,19 @@ export function AutoTradePage() {
   }
 
   async function handleActivatePreset(key: string) {
-    await api.activatePreset(key);
+    if (CRYPTO_SHORT_PRESETS.includes(key)) {
+      // Crypto-short presets require a timeframe; reuse the current one or default 5m.
+      const tf = (state?.selected_timeframe as Timeframe) ?? "5m";
+      await api.activatePreset(key, tf);
+    } else {
+      await api.activatePreset(key);
+    }
+    await load();
+  }
+
+  async function handleSelectTimeframe(tf: Timeframe) {
+    if (!state?.active_preset) return;
+    await api.activatePreset(state.active_preset, tf);
     await load();
   }
 
@@ -266,6 +270,9 @@ export function AutoTradePage() {
 
   const activeStrategy = STRATEGY_PRESETS.find(p => p.key === state.active_preset);
   const heroValue = activeStrategy ? activeStrategy.name.toUpperCase() : "IDLE";
+  const isCryptoShortActive =
+    !!state.active_preset && CRYPTO_SHORT_PRESETS.includes(state.active_preset);
+  const activeTimeframe = (state.selected_timeframe as Timeframe | null) ?? "5m";
 
   return (
     <>
@@ -379,27 +386,43 @@ export function AutoTradePage() {
             );
           })}
 
-          {/* Coming Soon cards */}
-          {COMING_SOON.map((cs) => (
-            <div
-              key={cs.name}
-              className="w-full p-3 rounded-lg border border-surface-3 bg-surface-1/50 opacity-50 cursor-not-allowed md:col-span-1"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{cs.emoji}</span>
-                <div>
-                  <div className="font-hud text-sm font-bold text-ink-2 flex items-center gap-2">
-                    {cs.name}
-                    <span className="text-[9px] font-bold tracking-widest text-ink-3 uppercase px-1.5 py-0.5 rounded border border-surface-3/40 bg-surface-2">
-                      COMING SOON
-                    </span>
-                  </div>
-                  <div className="text-xs text-ink-4">{cs.note}</div>
-                </div>
-              </div>
-            </div>
-          ))}
         </div>
+
+        {/* ── Timeframe (crypto-short presets only) ── */}
+        {isCryptoShortActive && (
+          <div className="mt-3 p-3 rounded-lg border border-gold/40 bg-surface-2">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono">
+                Timeframe
+              </p>
+              <span className="text-[9px] font-bold tracking-widest text-gold uppercase px-1.5 py-0.5 rounded border border-gold/40 bg-gold/10">
+                Crypto only
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {TIMEFRAMES.map((tf) => {
+                const tfActive = activeTimeframe === tf;
+                return (
+                  <button
+                    key={tf}
+                    onClick={() => void handleSelectTimeframe(tf)}
+                    className={[
+                      "py-2 rounded-lg border text-sm font-hud font-bold transition-all",
+                      tfActive
+                        ? "border-gold bg-gold/10 text-gold shadow-[0_0_8px_rgba(191,155,48,0.25)]"
+                        : "border-surface-3 bg-surface-1 text-ink-2 hover:border-ink-3",
+                    ].join(" ")}
+                  >
+                    {tf}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-ink-4 font-mono mt-2">
+              Bot trades only short-duration crypto markets ({activeTimeframe}). Market category is locked to Crypto.
+            </p>
+          </div>
+        )}
 
         {/* ── SECTION B: Risk Profile ── */}
         <SectionTitle>Risk Profile</SectionTitle>
@@ -493,6 +516,11 @@ export function AutoTradePage() {
           {/* Categories */}
           <div>
             <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-2">Categories</p>
+            {isCryptoShortActive && (
+              <p className="text-[10px] text-gold font-mono mb-2">
+                Locked to Crypto by the active {activeStrategy?.name ?? "strategy"} preset.
+              </p>
+            )}
             <div className="grid grid-cols-3 gap-1.5">
               {ALL_CATEGORIES.map((cat) => {
                 const on = filterCats.includes(cat);
@@ -500,7 +528,10 @@ export function AutoTradePage() {
                   <label
                     key={cat}
                     className={[
-                      "flex items-center gap-1.5 px-2 py-1.5 rounded border cursor-pointer text-[10px] font-mono transition-colors",
+                      "flex items-center gap-1.5 px-2 py-1.5 rounded border text-[10px] font-mono transition-colors",
+                      isCryptoShortActive
+                        ? "cursor-not-allowed opacity-50"
+                        : "cursor-pointer",
                       on
                         ? "border-gold/50 bg-gold/10 text-gold"
                         : "border-surface-3 bg-surface-2 text-ink-3 hover:border-ink-3",
@@ -509,6 +540,7 @@ export function AutoTradePage() {
                     <input
                       type="checkbox"
                       checked={on}
+                      disabled={isCryptoShortActive}
                       onChange={() => toggleCategory(cat)}
                       className="accent-gold w-3 h-3 shrink-0"
                     />

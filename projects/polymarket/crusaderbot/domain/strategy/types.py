@@ -105,6 +105,9 @@ class UserContext:
     risk_profile: str
     capital_allocation_pct: float
     available_balance_usdc: float
+    # Crypto short-duration timeframe ('5m' | '15m') for confluence_scalper /
+    # close_sweep presets. None when the active preset is not a crypto-short one.
+    selected_timeframe: str | None = None
 
     def __post_init__(self) -> None:
         if self.risk_profile not in VALID_RISK_PROFILES:

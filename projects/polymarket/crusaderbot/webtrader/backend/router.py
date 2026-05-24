@@ -387,7 +387,7 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         s_row = await conn.fetchrow(
             """SELECT risk_profile, capital_alloc_pct, tp_pct, sl_pct, active_preset,
                       category_filters, min_liquidity, max_resolution_days, min_volume_24h,
-                      slippage_tolerance_pct
+                      slippage_tolerance_pct, selected_timeframe
                FROM user_settings WHERE user_id=$1::uuid""",
             user_id,
         )
@@ -405,6 +405,7 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         max_resolution_days=int(s_row["max_resolution_days"]) if s_row and s_row["max_resolution_days"] is not None else None,
         min_volume_24h=float(s_row["min_volume_24h"]) if s_row and s_row["min_volume_24h"] is not None else 100.0,
         slippage_tolerance_pct=float(s_row["slippage_tolerance_pct"]) if s_row and s_row["slippage_tolerance_pct"] is not None else None,
+        selected_timeframe=s_row["selected_timeframe"] if s_row else None,
     )
 
 
@@ -441,6 +442,21 @@ _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
     "confluence_scalper": {"risk_profile": "balanced", "capital_alloc_pct": 0.40, "tp_pct": 0.08, "sl_pct": 0.04},
 }
 
+# Presets restricted to short-duration crypto markets. Activating one auto-locks
+# the market category filter to Crypto only and requires a timeframe (5m/15m).
+_CRYPTO_SHORT_PRESETS: frozenset[str] = frozenset({"confluence_scalper", "close_sweep"})
+_VALID_TIMEFRAMES: frozenset[str] = frozenset({"5m", "15m"})
+
+# Light per-timeframe params merged into user_settings.strategy_params (JSONB)
+# for the close_sweep preset (expiration_timing lib strategy reads config). The
+# confluence_scalper tunes itself in-code from the selected timeframe, so it
+# needs no JSONB entry here. Keep minimal — only the knobs that map onto the
+# strategy's existing config keys. hours_before_* are in HOURS (6m=0.1, 18m=0.3).
+_CLOSE_SWEEP_TF_PARAMS: dict[str, dict[str, float]] = {
+    "5m":  {"hours_before_min": 0.0, "hours_before_max": 0.1, "min_price": 0.40, "max_price": 0.60},
+    "15m": {"hours_before_min": 0.0, "hours_before_max": 0.3, "min_price": 0.35, "max_price": 0.65},
+}
+
 _VALID_RISK_PROFILES: frozenset[str] = frozenset({"conservative", "balanced", "aggressive", "custom"})
 
 _RISK_PROFILE_DEFAULTS: dict[str, dict[str, float]] = {
@@ -457,6 +473,28 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
     pool = get_pool()
     user_id = user["user_id"]
     params = _PRESET_PARAMS[body.preset_key]
+
+    is_crypto_short = body.preset_key in _CRYPTO_SHORT_PRESETS
+
+    # Resolve timeframe: crypto-short presets require one (default 5m); all other
+    # presets clear it so the web UI hides the timeframe toggle and category lock.
+    timeframe: str | None = None
+    if is_crypto_short:
+        timeframe = body.selected_timeframe or "5m"
+        if timeframe not in _VALID_TIMEFRAMES:
+            raise HTTPException(
+                status_code=400, detail=f"invalid timeframe: {timeframe} (expected 5m or 15m)"
+            )
+
+    # Auto-lock market category to Crypto only for crypto-short presets;
+    # None leaves the existing category_filters untouched for other presets.
+    category_filters = ["Crypto"] if is_crypto_short else None
+
+    # Light per-timeframe params for close_sweep -> merged into strategy_params.
+    tf_params_json: str | None = None
+    if body.preset_key == "close_sweep" and timeframe in _CLOSE_SWEEP_TF_PARAMS:
+        tf_params_json = json.dumps({"expiration_timing": _CLOSE_SWEEP_TF_PARAMS[timeframe]})
+
     async with pool.acquire() as conn:
         await conn.execute(
             """UPDATE user_settings
@@ -465,16 +503,25 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
                       capital_alloc_pct   = COALESCE($3, capital_alloc_pct),
                       tp_pct              = COALESCE($4, tp_pct),
                       sl_pct              = COALESCE($5, sl_pct),
+                      selected_timeframe  = $6,
+                      category_filters    = COALESCE($7, category_filters),
+                      strategy_params     = CASE
+                                              WHEN $8::jsonb IS NULL THEN strategy_params
+                                              ELSE COALESCE(strategy_params, '{}'::jsonb) || $8::jsonb
+                                            END,
                       updated_at          = NOW()
-               WHERE user_id = $6::uuid""",
+               WHERE user_id = $9::uuid""",
             body.preset_key,
             params.get("risk_profile"),
             params.get("capital_alloc_pct"),
             params.get("tp_pct"),
             params.get("sl_pct"),
+            timeframe,
+            category_filters,
+            tf_params_json,
             user_id,
         )
-    return {"active_preset": body.preset_key}
+    return {"active_preset": body.preset_key, "selected_timeframe": timeframe}
 
 
 @router.post("/autotrade/customize")
