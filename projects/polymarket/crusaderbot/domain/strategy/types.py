@@ -108,6 +108,9 @@ class UserContext:
     # Crypto short-duration timeframe ('5m' | '15m') for confluence_scalper /
     # close_sweep presets. None when the active preset is not a crypto-short one.
     selected_timeframe: str | None = None
+    # Crypto assets to trade for crypto-short presets (e.g. ['BTC','ETH']).
+    # None/empty means all whitelisted assets.
+    selected_assets: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.risk_profile not in VALID_RISK_PROFILES:

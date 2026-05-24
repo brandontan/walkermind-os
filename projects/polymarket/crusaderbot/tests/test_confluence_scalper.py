@@ -49,7 +49,7 @@ from projects.polymarket.crusaderbot.domain.strategy.types import (
 
 _PM_PATCH = (
     "projects.polymarket.crusaderbot.domain.strategy.strategies"
-    ".confluence_scalper.pm.get_markets"
+    ".confluence_scalper.pm.get_crypto_short_markets"
 )
 
 

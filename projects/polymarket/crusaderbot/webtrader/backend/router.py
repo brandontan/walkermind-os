@@ -387,7 +387,7 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         s_row = await conn.fetchrow(
             """SELECT risk_profile, capital_alloc_pct, tp_pct, sl_pct, active_preset,
                       category_filters, min_liquidity, max_resolution_days, min_volume_24h,
-                      slippage_tolerance_pct, selected_timeframe
+                      slippage_tolerance_pct, selected_timeframe, selected_assets
                FROM user_settings WHERE user_id=$1::uuid""",
             user_id,
         )
@@ -406,6 +406,7 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         min_volume_24h=float(s_row["min_volume_24h"]) if s_row and s_row["min_volume_24h"] is not None else 100.0,
         slippage_tolerance_pct=float(s_row["slippage_tolerance_pct"]) if s_row and s_row["slippage_tolerance_pct"] is not None else None,
         selected_timeframe=s_row["selected_timeframe"] if s_row else None,
+        selected_assets=list(s_row["selected_assets"]) if s_row and s_row["selected_assets"] else None,
     )
 
 
@@ -446,6 +447,9 @@ _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
 # the market category filter to Crypto only and requires a timeframe (5m/15m).
 _CRYPTO_SHORT_PRESETS: frozenset[str] = frozenset({"confluence_scalper", "close_sweep"})
 _VALID_TIMEFRAMES: frozenset[str] = frozenset({"5m", "15m"})
+# Assets offered for crypto-short presets; activation defaults to all of them.
+_CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH", "SOL", "BNB")
+_VALID_ASSETS: frozenset[str] = frozenset(_CRYPTO_SHORT_ASSETS)
 
 # Light per-timeframe params merged into user_settings.strategy_params (JSONB)
 # for the close_sweep preset (expiration_timing lib strategy reads config). The
@@ -479,12 +483,24 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
     # Resolve timeframe: crypto-short presets require one (default 5m); all other
     # presets clear it so the web UI hides the timeframe toggle and category lock.
     timeframe: str | None = None
+    assets: list[str] | None = None
     if is_crypto_short:
         timeframe = body.selected_timeframe or "5m"
         if timeframe not in _VALID_TIMEFRAMES:
             raise HTTPException(
                 status_code=400, detail=f"invalid timeframe: {timeframe} (expected 5m or 15m)"
             )
+        # Normalize + validate the asset selection; default to all offered assets.
+        raw_assets = [str(a).strip().upper() for a in (body.selected_assets or [])]
+        assets = [a for a in raw_assets if a in _VALID_ASSETS]
+        bad = [a for a in raw_assets if a not in _VALID_ASSETS]
+        if bad:
+            raise HTTPException(
+                status_code=400,
+                detail=f"invalid asset(s): {', '.join(bad)} (expected any of {', '.join(_CRYPTO_SHORT_ASSETS)})",
+            )
+        if not assets:
+            assets = list(_CRYPTO_SHORT_ASSETS)
 
     # Auto-lock market category to Crypto only for crypto-short presets;
     # None leaves the existing category_filters untouched for other presets.
@@ -509,8 +525,9 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
                                               WHEN $8::jsonb IS NULL THEN strategy_params
                                               ELSE COALESCE(strategy_params, '{}'::jsonb) || $8::jsonb
                                             END,
+                      selected_assets     = $9,
                       updated_at          = NOW()
-               WHERE user_id = $9::uuid""",
+               WHERE user_id = $10::uuid""",
             body.preset_key,
             params.get("risk_profile"),
             params.get("capital_alloc_pct"),
@@ -519,9 +536,14 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
             timeframe,
             category_filters,
             tf_params_json,
+            assets,
             user_id,
         )
-    return {"active_preset": body.preset_key, "selected_timeframe": timeframe}
+    return {
+        "active_preset": body.preset_key,
+        "selected_timeframe": timeframe,
+        "selected_assets": assets,
+    }
 
 
 @router.post("/autotrade/customize")

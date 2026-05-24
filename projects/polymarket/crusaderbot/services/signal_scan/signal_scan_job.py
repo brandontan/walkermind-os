@@ -216,6 +216,7 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 COALESCE(urp.profile_name, s.risk_profile, 'balanced') AS resolved_profile,
                 s.active_preset,
                 s.selected_timeframe,
+                s.selected_assets,
                 COALESCE(s.min_liquidity, 0)         AS min_liquidity_threshold,
                 COALESCE(s.strategy_params, '{}'::jsonb)      AS strategy_params,
                 COALESCE(s.category_filters, ARRAY[]::text[]) AS category_filters
@@ -497,6 +498,7 @@ def _build_user_context(row: dict[str, Any]) -> UserContext:
     allocation = max(0.0, min(1.0, allocation))
     sub_account_id = str(row.get("sub_account_id") or row["user_id"])
     _tf = row.get("selected_timeframe")
+    _assets = tuple(str(a) for a in (row.get("selected_assets") or []))
     return UserContext(
         user_id=str(row["user_id"]),
         sub_account_id=sub_account_id,
@@ -504,6 +506,7 @@ def _build_user_context(row: dict[str, Any]) -> UserContext:
         capital_allocation_pct=allocation,
         available_balance_usdc=float(row.get("balance_usdc") or 0.0),
         selected_timeframe=str(_tf) if _tf else None,
+        selected_assets=_assets,
     )
 
 
@@ -1004,6 +1007,16 @@ async def run_once() -> None:
     markets = await _fetch_markets_for_lib_strategies()
     strategies_to_run = list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES)
 
+    # Crypto short-duration candle universe (btc/eth/sol/bnb up-down 5m/15m).
+    # These are created continuously and missed by the generic fetch above, so
+    # crypto-short presets (close_sweep / confluence_scalper) need a dedicated,
+    # newest-first fetch to see the currently-live candles with real liquidity.
+    try:
+        crypto_short_markets = await _polymarket.get_crypto_short_markets()
+    except Exception as exc:
+        logger.warning("crypto_short_markets_fetch_failed", error=str(exc))
+        crypto_short_markets = []
+
     tel.users_evaluated = len(users)
     tel.markets_seen = len(markets)
 
@@ -1026,6 +1039,7 @@ async def run_once() -> None:
         strategy_params: dict = _coerce_jsonb(row.get("strategy_params"), {})
         _tf = row.get("selected_timeframe")
         selected_timeframe: str | None = str(_tf) if _tf else None
+        selected_assets: list[str] = [str(a) for a in (row.get("selected_assets") or [])]
         user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
 
         # Filter market list to user's chosen categories (empty = all markets).
@@ -1050,16 +1064,16 @@ async def run_once() -> None:
                 lib_params = {}
             config = {"strategy_params": lib_params}
 
-            # Close Sweep is a short-duration crypto-only preset: when it is the
-            # active preset, gate expiration_timing to crypto markets whose
-            # candle interval matches the user's selected timeframe (5m/15m).
-            # Other presets (full_auto / default) keep expiration_timing's
-            # general behaviour over the full market universe.
+            # Close Sweep is a short-duration crypto preset: when active, scan
+            # the dedicated newest-first crypto candle universe (so the live
+            # 5m/15m markets with real in-window liquidity are actually seen),
+            # gated to the user's timeframe + selected assets. Other presets
+            # (full_auto / default) keep expiration_timing's general behaviour.
             scan_markets = user_markets
             if active_preset == "close_sweep" and lib_name == "expiration_timing":
                 scan_markets = [
-                    m for m in user_markets
-                    if is_short_crypto_market(m, selected_timeframe)
+                    m for m in crypto_short_markets
+                    if is_short_crypto_market(m, selected_timeframe, selected_assets)
                 ]
 
             try:

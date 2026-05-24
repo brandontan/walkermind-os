@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CollapsibleSection } from "../components/CollapsibleSection";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
@@ -92,6 +92,7 @@ const STRATEGY_PRESETS = [
 const CRYPTO_SHORT_PRESETS: readonly string[] = ["confluence_scalper", "close_sweep"];
 const TIMEFRAMES = ["5m", "15m"] as const;
 type Timeframe = (typeof TIMEFRAMES)[number];
+const CRYPTO_ASSETS = ["BTC", "ETH", "SOL", "BNB"] as const;
 
 // ── Section B: Risk Profiles ──────────────────────────────────────────────────
 
@@ -135,6 +136,8 @@ export function AutoTradePage() {
   const [filterSlippage, setFilterSlippage]   = useState<string>("3");
   const [savingFilters, setSavingFilters]     = useState(false);
   const [filterSaved, setFilterSaved]         = useState(false);
+  // Crypto-short preset config (assets shown inline inside the active card)
+  const [selectedAssets, setSelectedAssets]   = useState<string[]>([...CRYPTO_ASSETS]);
 
   const load = useCallback(async () => {
     const [autotradeResult, dashResult] = await Promise.allSettled([
@@ -155,6 +158,8 @@ export function AutoTradePage() {
     if (s.max_resolution_days != null) setFilterResolution(String(s.max_resolution_days));
     if (s.min_volume_24h != null) setFilterVolume(String(s.min_volume_24h));
     if (s.slippage_tolerance_pct != null) setFilterSlippage(String(Math.round(s.slippage_tolerance_pct * 100)));
+    if (s.selected_assets && s.selected_assets.length > 0) setSelectedAssets(s.selected_assets);
+    else setSelectedAssets([...CRYPTO_ASSETS]);
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
@@ -179,9 +184,10 @@ export function AutoTradePage() {
 
   async function handleActivatePreset(key: string) {
     if (CRYPTO_SHORT_PRESETS.includes(key)) {
-      // Crypto-short presets require a timeframe; reuse the current one or default 5m.
+      // Crypto-short presets carry a timeframe + asset selection.
       const tf = (state?.selected_timeframe as Timeframe) ?? "5m";
-      await api.activatePreset(key, tf);
+      const assets = selectedAssets.length > 0 ? selectedAssets : [...CRYPTO_ASSETS];
+      await api.activatePreset(key, tf, assets);
     } else {
       await api.activatePreset(key);
     }
@@ -190,7 +196,21 @@ export function AutoTradePage() {
 
   async function handleSelectTimeframe(tf: Timeframe) {
     if (!state?.active_preset) return;
-    await api.activatePreset(state.active_preset, tf);
+    const assets = selectedAssets.length > 0 ? selectedAssets : [...CRYPTO_ASSETS];
+    await api.activatePreset(state.active_preset, tf, assets);
+    await load();
+  }
+
+  async function handleToggleAsset(asset: string) {
+    if (!state?.active_preset) return;
+    // Keep at least one asset selected.
+    const next = selectedAssets.includes(asset)
+      ? selectedAssets.filter(a => a !== asset)
+      : [...selectedAssets, asset];
+    if (next.length === 0) return;
+    setSelectedAssets(next);
+    const tf = (state.selected_timeframe as Timeframe) ?? "5m";
+    await api.activatePreset(state.active_preset, tf, next);
     await load();
   }
 
@@ -348,81 +368,102 @@ export function AutoTradePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           {STRATEGY_PRESETS.map((p) => {
             const isActive = state.active_preset === p.key;
+            const showConfig = isActive && CRYPTO_SHORT_PRESETS.includes(p.key);
             return (
-              <button
-                key={p.key}
-                onClick={() => void handleActivatePreset(p.key)}
-                className={[
-                  "w-full text-left p-3 rounded-lg border transition-all",
-                  isActive
-                    ? "border-gold bg-surface-2 shadow-[0_0_8px_rgba(191,155,48,0.25)]"
-                    : "border-surface-3 bg-surface-1 hover:border-ink-3",
-                ].join(" ")}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-lg">{p.emoji}</span>
-                    <div className="min-w-0">
-                      <div className="font-hud text-sm font-bold text-ink-1 flex items-center gap-2">
-                        {p.name}
-                        {isActive && (
-                          <span className="text-[9px] font-bold tracking-widest text-gold uppercase px-1.5 py-0.5 rounded border border-gold/40 bg-gold/10">
-                            ACTIVE
-                          </span>
-                        )}
+              <Fragment key={p.key}>
+                <button
+                  onClick={() => void handleActivatePreset(p.key)}
+                  className={[
+                    "w-full text-left p-3 rounded-lg border transition-all",
+                    showConfig ? "rounded-b-none" : "",
+                    isActive
+                      ? "border-gold bg-surface-2 shadow-[0_0_8px_rgba(191,155,48,0.25)]"
+                      : "border-surface-3 bg-surface-1 hover:border-ink-3",
+                  ].join(" ")}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-lg">{p.emoji}</span>
+                      <div className="min-w-0">
+                        <div className="font-hud text-sm font-bold text-ink-1 flex items-center gap-2">
+                          {p.name}
+                          {isActive && (
+                            <span className="text-[9px] font-bold tracking-widest text-gold uppercase px-1.5 py-0.5 rounded border border-gold/40 bg-gold/10">
+                              ACTIVE
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-ink-3 truncate mt-0.5">{p.signal}</div>
                       </div>
-                      <div className="text-xs text-ink-3 truncate mt-0.5">{p.signal}</div>
+                    </div>
+                    <div className="text-right shrink-0 text-xs text-ink-3">
+                      <div className={`font-bold ${riskColor[p.risk]} uppercase`}>{p.risk}</div>
+                      <div className="text-ink-4">{p.freq} freq</div>
                     </div>
                   </div>
-                  <div className="text-right shrink-0 text-xs text-ink-3">
-                    <div className={`font-bold ${riskColor[p.risk]} uppercase`}>{p.risk}</div>
-                    <div className="text-ink-4">{p.freq} freq</div>
+                  <div className="mt-1.5 text-[10px] text-ink-4 font-mono">
+                    Engine: {p.engine}
                   </div>
-                </div>
-                <div className="mt-1.5 text-[10px] text-ink-4 font-mono">
-                  Engine: {p.engine}
-                </div>
-              </button>
+                </button>
+
+                {/* Inline config for crypto-short presets: assets + timeframe */}
+                {showConfig && (
+                  <div className="md:col-span-3 p-3 rounded-lg rounded-t-none border border-t-0 border-gold/40 bg-surface-2">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono">Assets</p>
+                      <span className="text-[9px] font-bold tracking-widest text-gold uppercase px-1.5 py-0.5 rounded border border-gold/40 bg-gold/10">
+                        Crypto only
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 mb-3">
+                      {CRYPTO_ASSETS.map((asset) => {
+                        const on = selectedAssets.includes(asset);
+                        return (
+                          <button
+                            key={asset}
+                            onClick={() => void handleToggleAsset(asset)}
+                            className={[
+                              "py-2 rounded-lg border text-xs font-hud font-bold transition-all",
+                              on
+                                ? "border-gold bg-gold/10 text-gold"
+                                : "border-surface-3 bg-surface-1 text-ink-3 hover:border-ink-3",
+                            ].join(" ")}
+                          >
+                            {asset}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-2">Timeframe</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {TIMEFRAMES.map((tf) => {
+                        const tfActive = activeTimeframe === tf;
+                        return (
+                          <button
+                            key={tf}
+                            onClick={() => void handleSelectTimeframe(tf)}
+                            className={[
+                              "py-2 rounded-lg border text-sm font-hud font-bold transition-all",
+                              tfActive
+                                ? "border-gold bg-gold/10 text-gold shadow-[0_0_8px_rgba(191,155,48,0.25)]"
+                                : "border-surface-3 bg-surface-1 text-ink-2 hover:border-ink-3",
+                            ].join(" ")}
+                          >
+                            {tf}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-ink-4 font-mono mt-2">
+                      Trades only {selectedAssets.join("/")} short-duration markets ({activeTimeframe}). Category locked to Crypto.
+                    </p>
+                  </div>
+                )}
+              </Fragment>
             );
           })}
 
         </div>
-
-        {/* ── Timeframe (crypto-short presets only) ── */}
-        {isCryptoShortActive && (
-          <div className="mt-3 p-3 rounded-lg border border-gold/40 bg-surface-2">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono">
-                Timeframe
-              </p>
-              <span className="text-[9px] font-bold tracking-widest text-gold uppercase px-1.5 py-0.5 rounded border border-gold/40 bg-gold/10">
-                Crypto only
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {TIMEFRAMES.map((tf) => {
-                const tfActive = activeTimeframe === tf;
-                return (
-                  <button
-                    key={tf}
-                    onClick={() => void handleSelectTimeframe(tf)}
-                    className={[
-                      "py-2 rounded-lg border text-sm font-hud font-bold transition-all",
-                      tfActive
-                        ? "border-gold bg-gold/10 text-gold shadow-[0_0_8px_rgba(191,155,48,0.25)]"
-                        : "border-surface-3 bg-surface-1 text-ink-2 hover:border-ink-3",
-                    ].join(" ")}
-                  >
-                    {tf}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-[10px] text-ink-4 font-mono mt-2">
-              Bot trades only short-duration crypto markets ({activeTimeframe}). Market category is locked to Crypto.
-            </p>
-          </div>
-        )}
 
         {/* ── SECTION B: Risk Profile ── */}
         <SectionTitle>Risk Profile</SectionTitle>

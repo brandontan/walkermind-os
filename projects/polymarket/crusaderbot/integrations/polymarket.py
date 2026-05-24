@@ -139,6 +139,41 @@ async def get_events_with_markets(limit: int = 200) -> list[dict]:
         return []
 
 
+async def get_crypto_short_markets(limit: int = 500) -> list[dict]:
+    """Fetch the freshest active markets, ordered newest-created first.
+
+    Polymarket's recurring crypto up/down candle markets (``btc-updown-5m-...``)
+    are created continuously and only carry live Gamma ``liquidity`` once they
+    enter their short trading window. A default ``/markets`` page (sorted by
+    volume/id) almost never surfaces them, so crypto-short presets see an empty
+    universe. Sorting by ``startDate`` descending brings the currently-live
+    candle markets — the ones with real in-window liquidity — to the top.
+
+    Cached 60s (shorter than the 5-min generic cache) because the live window
+    for a 5-minute candle is itself only minutes long.
+    """
+    key = f"crypto_short:{limit}"
+    if hit := await get_cache(key):
+        return hit
+    params: dict[str, Any] = {
+        "active": "true",
+        "closed": "false",
+        "limit": limit,
+        "order": "startDate",
+        "ascending": "false",
+    }
+    try:
+        data = await _get_json(f"{GAMMA}/markets", params=params)
+        if isinstance(data, dict):
+            data = data.get("data", [])
+        data = data or []
+        await set_cache(key, data, ttl=60)
+        return data
+    except Exception as exc:
+        logger.warning("get_crypto_short_markets failed: %s", exc)
+        return []
+
+
 async def get_market(market_id: str) -> Optional[dict]:
     """Fetch a single market from Gamma API by conditionId. Cached 2 min.
 
