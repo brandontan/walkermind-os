@@ -8,9 +8,11 @@ import { StatCard } from "../components/StatCard";
 import { StatsGrid } from "../components/StatsGrid";
 import { Terminal, type TerminalLine } from "../components/Terminal";
 import { Ticker } from "../components/Ticker";
+import { PositionCarousel } from "../components/PositionCarousel";
+import { MarketFeed } from "../components/MarketFeed";
 import { TopBar } from "../components/TopBar";
 import { useAlertCenter } from "../App";
-import { makeApi, type AlertItem, type DashboardSummary, type PositionItem } from "../lib/api";
+import { makeApi, type AlertItem, type DashboardSummary, type MarketFeedItem, type PositionItem } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 import { PositionRow } from "./PortfolioPage";
@@ -37,11 +39,24 @@ export function DashboardPage() {
   const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [openPositions, setOpenPositions] = useState<PositionItem[]>([]);
+  const [marketFeed, setMarketFeed] = useState<MarketFeedItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [lastTick, setLastTick] = useState<number | null>(null);
   // Alerts come from the global AlertCenterContext (fetched once at AppShell level)
   const { alerts: ctxAlerts } = useAlertCenter();
   const alerts: AlertItem[] = ctxAlerts.slice(0, 5);
+
+  // Won-but-not-yet-redeemed positions are settled outcomes pending payout, not
+  // live trades — surface them in a dedicated "Awaiting Redeem" strip so the
+  // Open Positions list reflects only positions still exposed to the market.
+  const liveOpen = useMemo(
+    () => openPositions.filter((p) => !p.awaiting_redeem),
+    [openPositions],
+  );
+  const awaitingRedeem = useMemo(
+    () => openPositions.filter((p) => p.awaiting_redeem),
+    [openPositions],
+  );
 
   const load = useCallback(async () => {
     try {
@@ -58,14 +73,23 @@ export function DashboardPage() {
     } catch { /* silent */ }
   }, [api]);
 
+  const loadMarketFeed = useCallback(async () => {
+    try {
+      setMarketFeed(await api.getMarketFeed());
+    } catch { /* silent — feed is non-critical */ }
+  }, [api]);
+
   const refreshAll = useCallback(() => {
     void load();
     void loadOpenPositions();
-  }, [load, loadOpenPositions]);
+    void loadMarketFeed();
+  }, [load, loadOpenPositions, loadMarketFeed]);
 
   useEffect(() => { void load(); }, [load]);
 
   useEffect(() => { void loadOpenPositions(); }, [loadOpenPositions]);
+
+  useEffect(() => { void loadMarketFeed(); }, [loadMarketFeed]);
 
   useSSE(user?.token ?? null, {
     positions:        refreshAll,
@@ -167,6 +191,8 @@ export function DashboardPage() {
           </div>
         )}
 
+        <MarketFeed items={marketFeed} />
+
         {/* Desktop: 2-column grid — Left: Hero + Stats | Right: Scanner + Activity */}
         <div className="md:grid md:grid-cols-1 lg:grid-cols-2 md:gap-5 md:items-start min-w-0 overflow-x-hidden">
 
@@ -258,28 +284,48 @@ export function DashboardPage() {
               <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2
                               uppercase flex items-center gap-2">
                 <span className="w-3 h-px bg-gold" aria-hidden />
-                Open Positions ({openPositions.length})
+                Open Positions ({liveOpen.length})
               </div>
               <span className="font-mono text-[9px] text-ink-4">
                 live · sse push
               </span>
             </div>
 
-            {openPositions.length === 0 ? (
+            {liveOpen.length === 0 ? (
               <div className="text-[12px] text-ink-3 px-1 py-3 font-mono">
                 No open positions.
               </div>
             ) : (
-              openPositions.map((p) => (
-                <PositionRow
-                  key={p.id}
-                  p={p}
-                  onForceRedeem={async () => {
-                    try { await api.forceRedeem(p.id); } catch { /* surfaced via refresh */ }
-                    refreshAll();
-                  }}
-                />
-              ))
+              <PositionCarousel>
+                {liveOpen.map((p) => (
+                  <PositionRow key={p.id} p={p} />
+                ))}
+              </PositionCarousel>
+            )}
+
+            {awaitingRedeem.length > 0 && (
+              <>
+                <div className="flex items-center justify-between mt-4 mb-2 mx-0.5">
+                  <div className="font-hud text-[10px] font-bold tracking-[3px] text-grn
+                                  uppercase flex items-center gap-2">
+                    <span className="w-3 h-px bg-grn" aria-hidden />
+                    Awaiting Redeem ({awaitingRedeem.length})
+                  </div>
+                  <span className="font-mono text-[9px] text-ink-4">
+                    won · settle
+                  </span>
+                </div>
+                {awaitingRedeem.map((p) => (
+                  <PositionRow
+                    key={p.id}
+                    p={p}
+                    onForceRedeem={async () => {
+                      try { await api.forceRedeem(p.id); } catch { /* surfaced via refresh */ }
+                      refreshAll();
+                    }}
+                  />
+                ))}
+              </>
             )}
 
             <div className="mt-4">
