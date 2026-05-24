@@ -16,7 +16,12 @@ from telegram.ext import ContextTypes
 
 from ...database import get_pool
 from ...users import upsert_user
-from ..keyboards import close_confirm_kb, close_position_kb, trades_empty_kb, trades_kb
+from ..keyboards_v2.portfolio import (
+    close_confirm_p5_kb as close_confirm_kb,
+    close_position_p5_kb as close_position_kb,
+    trades_empty_kb,
+    trades_p5_kb as trades_kb,
+)
 from ..messages import close_confirm_text, trades_empty_text, trades_text
 
 logger = logging.getLogger(__name__)

@@ -50,12 +50,12 @@ from ...domain.trading import repository as repo
 from ...integrations.polymarket import get_book
 from ...monitoring import alerts as monitoring_alerts
 from ...users import get_settings_for, upsert_user
-from ..keyboards import nav_row
-from ..keyboards.my_trades import (
-    close_confirm_kb,
+from ..keyboards_v2 import nav_row
+from ..keyboards_v2.portfolio import (
     close_success_kb,
     history_nav_kb,
     my_trades_main_kb,
+    mytrades_close_confirm_kb as close_confirm_kb,
 )
 
 

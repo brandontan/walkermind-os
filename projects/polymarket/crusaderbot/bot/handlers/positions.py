@@ -44,8 +44,12 @@ from ...database import get_pool
 from ...integrations.polymarket import get_book
 from ...users import upsert_user
 from ...wallet.ledger import daily_pnl, get_balance
-from ..keyboards import main_menu, portfolio_kb
-from ..keyboards.positions import force_close_confirm_kb, positions_list_kb
+from ..keyboards_v2 import main_menu
+from ..keyboards_v2.portfolio import (
+    force_close_confirm_kb,
+    portfolio_kb,
+    positions_close_list_kb as positions_list_kb,
+)
 
 from .emergency import mark_force_close_intent_for_position
 
