@@ -1018,3 +1018,83 @@ def test_diversify_lib_candidates_all_markets_preserved():
     result = _diversify_lib_candidates(cands, "user-a")
     assert len(result) == 8
     assert {c.market_id for c in result} == {f"mkt-{i}" for i in range(8)}
+
+
+# ---------------------------------------------------------------------------
+# run_close_sweep_fast — dedicated high-frequency close_sweep loop
+# ---------------------------------------------------------------------------
+
+
+def _close_sweep_user(preset: str) -> dict:
+    row = _user_row()
+    row["active_preset"] = preset
+    row["selected_timeframe"] = "5m"
+    row["selected_assets"] = ["BTC"]
+    return row
+
+
+def test_run_close_sweep_fast_scans_only_close_sweep_users():
+    """Only active_preset=='close_sweep' rows reach late_entry_v3; others skip."""
+    cs_user = _close_sweep_user("close_sweep")
+    other_user = _close_sweep_user("full_auto")
+    cand = _candidate(market_id="cand-mkt")
+
+    fake_strat = MagicMock()
+    fake_strat.scan = AsyncMock(return_value=[cand])
+    reg = StrategyRegistry.instance()
+
+    ctx = UserContext(
+        user_id=str(cs_user["user_id"]), sub_account_id=str(uuid4()),
+        risk_profile="balanced", capital_allocation_pct=0.1,
+        available_balance_usdc=500.0, selected_timeframe="5m",
+        selected_assets=("BTC",),
+    )
+    filters = MarketFilters(categories=[], min_liquidity=0.0,
+                            max_time_to_resolution_days=365,
+                            blacklisted_market_ids=[])
+    proc = AsyncMock()
+
+    with patch.object(reg, "get", return_value=fake_strat), \
+            patch.object(job, "_load_enrolled_users",
+                         new=AsyncMock(return_value=[cs_user, other_user])), \
+            patch.object(job._polymarket, "get_crypto_window_markets",
+                         new=AsyncMock(return_value=[])), \
+            patch.object(job, "_upsert_crypto_window_markets", new=AsyncMock()), \
+            patch.object(job, "_build_user_context", return_value=ctx), \
+            patch.object(job, "_build_market_filters", return_value=filters), \
+            patch.object(job, "_process_candidate", new=proc):
+        asyncio.run(job.run_close_sweep_fast())
+
+    # late_entry scan ran for exactly the one close_sweep user.
+    assert fake_strat.scan.await_count == 1
+    proc.assert_awaited_once()
+
+
+def test_run_close_sweep_fast_no_close_sweep_users_is_noop():
+    other_user = _close_sweep_user("full_auto")
+    fake_strat = MagicMock()
+    fake_strat.scan = AsyncMock(return_value=[])
+    reg = StrategyRegistry.instance()
+    proc = AsyncMock()
+
+    with patch.object(reg, "get", return_value=fake_strat), \
+            patch.object(job, "_load_enrolled_users",
+                         new=AsyncMock(return_value=[other_user])), \
+            patch.object(job._polymarket, "get_crypto_window_markets",
+                         new=AsyncMock(return_value=[])), \
+            patch.object(job, "_upsert_crypto_window_markets", new=AsyncMock()), \
+            patch.object(job, "_process_candidate", new=proc):
+        asyncio.run(job.run_close_sweep_fast())
+
+    fake_strat.scan.assert_not_called()
+    proc.assert_not_called()
+
+
+def test_run_close_sweep_fast_unregistered_strategy_returns():
+    """When late_entry_v3 is not registered, the loop returns without loading users."""
+    reg = StrategyRegistry.instance()
+    load = AsyncMock(return_value=[])
+    with patch.object(reg, "get", side_effect=KeyError("late_entry_v3")), \
+            patch.object(job, "_load_enrolled_users", new=load):
+        asyncio.run(job.run_close_sweep_fast())
+    load.assert_not_called()

@@ -790,6 +790,13 @@ def setup_scheduler() -> AsyncIOScheduler:
     sched.add_job(sf_scan_job.run_once, "interval", seconds=s.SIGNAL_SCAN_INTERVAL,
                   id="signal_following_scan", max_instances=1, coalesce=True,
                   next_run_time=datetime.now(timezone.utc))
+    # Dedicated high-frequency loop for the close_sweep / late_entry_v3 preset:
+    # Late Entry V3 only enters in the final ~35s of a crypto candle, which the
+    # 180s main scan would miss. Runs only close_sweep users + late_entry_v3.
+    sched.add_job(sf_scan_job.run_close_sweep_fast, "interval",
+                  seconds=s.CLOSE_SWEEP_SCAN_INTERVAL,
+                  id="close_sweep_fast_scan", max_instances=1, coalesce=True,
+                  next_run_time=datetime.now(timezone.utc))
     sched.add_job(market_signal_scanner.run_job, "interval",
                   seconds=s.MARKET_SIGNAL_SCAN_INTERVAL,
                   id=market_signal_scanner.JOB_ID, max_instances=1, coalesce=True,

@@ -1353,4 +1353,74 @@ async def run_once() -> None:
     )
 
 
-__all__ = ["run_once", "_filter_markets_by_category", "_diversify_lib_candidates"]
+async def run_close_sweep_fast() -> None:
+    """High-frequency scan dedicated to the close_sweep / late_entry_v3 preset.
+
+    Late Entry V3 only enters in the final ~35s of a crypto candle. The main
+    run_once loop fires every SIGNAL_SCAN_INTERVAL (180s) and would step over
+    that window, so this lighter loop runs every CLOSE_SWEEP_SCAN_INTERVAL
+    (~15s) and scans ONLY close_sweep users with ONLY the late_entry_v3 domain
+    strategy. It does not write a scan_runs row (telemetry is in-memory) to
+    avoid flooding the table at this cadence; _process_candidate's idempotency
+    + open-position dedup make the overlap with run_once's Phase-B2 harmless.
+
+    Each user is isolated — one user's failure never blocks the rest.
+    """
+    from ...domain.strategy.registry import StrategyRegistry as _Registry
+
+    try:
+        late_entry_strat = _Registry.instance().get(_LATE_ENTRY_V3_NAME)
+    except KeyError:
+        logger.debug("close_sweep_fast: late_entry_v3 not registered")
+        return
+
+    try:
+        users = await _load_enrolled_users()
+    except Exception as exc:
+        logger.error("close_sweep_fast_load_users_failed", error=str(exc))
+        return
+
+    tel = ScanTelemetry()  # in-memory only — never persisted to scan_runs
+    for row in users:
+        if row.get("active_preset") != "close_sweep":
+            continue
+        _tf = row.get("selected_timeframe")
+        selected_timeframe: str | None = str(_tf) if _tf else None
+        selected_assets: list[str] = [str(a) for a in (row.get("selected_assets") or [])]
+        user_log = logger.bind(user_id=str(row["user_id"]), preset="close_sweep")
+
+        # Upsert the live candle window so _process_candidate's _load_market
+        # gate resolves the markets (market_sync never pulls these micro candles).
+        try:
+            crypto_window_markets = await _polymarket.get_crypto_window_markets(
+                selected_timeframe or "5m", selected_assets or None
+            )
+            await _upsert_crypto_window_markets(crypto_window_markets)
+        except Exception as exc:
+            user_log.warning("close_sweep_fast_window_fetch_failed", error=str(exc))
+
+        try:
+            user_ctx = _build_user_context(row)
+            market_filters = _build_market_filters(user_ctx.risk_profile)
+            cands = await late_entry_strat.scan(market_filters, user_ctx)
+        except Exception as exc:
+            user_log.warning("close_sweep_fast_run_failed", error=str(exc))
+            cands = []
+
+        for cand in _diversify_lib_candidates(cands, row["user_id"]):
+            try:
+                await _process_candidate(row, cand, tel)
+            except Exception as exc:
+                user_log.error(
+                    "close_sweep_fast_candidate_unhandled",
+                    market_id=cand.market_id,
+                    error=str(exc),
+                )
+
+
+__all__ = [
+    "run_once",
+    "run_close_sweep_fast",
+    "_filter_markets_by_category",
+    "_diversify_lib_candidates",
+]
