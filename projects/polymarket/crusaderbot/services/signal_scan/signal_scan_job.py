@@ -245,6 +245,90 @@ async def _load_market(market_id: str) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
+def _coerce_str_list(val: Any) -> list[str]:
+    """Gamma list fields (outcomePrices, clobTokenIds) may arrive as a JSON
+    string or a real list. Return a list of strings, or [] on failure."""
+    if isinstance(val, str):
+        try:
+            val = json.loads(val)
+        except (ValueError, TypeError):
+            return []
+    if isinstance(val, list):
+        return [str(x) for x in val]
+    return []
+
+
+async def _upsert_crypto_window_markets(markets: list[dict[str, Any]]) -> None:
+    """Upsert live crypto candle markets into the markets table.
+
+    The signal pipeline's _load_market gate requires the candidate's market to
+    exist locally, but market_sync (Heisenberg, min_volume>=50k) never pulls
+    these continuously-created micro candle markets — so close_sweep/scalper
+    candidates were skipped as ``skipped_market_not_synced``. Upserting them here
+    (keyed by condition_id, the markets PK) makes the candidate resolvable and
+    carries the CLOB token ids the trade engine needs. Idempotent ON CONFLICT.
+    """
+    if not markets:
+        return
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        for m in markets:
+            try:
+                condition_id = str(m.get("conditionId") or m.get("condition_id") or "")
+                if not condition_id:
+                    continue
+                slug = str(m.get("slug") or "")[:80]
+                question = str(m.get("question") or m.get("title") or "")[:500]
+                prices = _coerce_str_list(m.get("outcomePrices"))
+                tokens = _coerce_str_list(m.get("clobTokenIds"))
+
+                def _f(v: Any, d: float) -> float:
+                    try:
+                        return float(v)
+                    except (TypeError, ValueError):
+                        return d
+                yes_price = _f(prices[0] if prices else None, 0.5)
+                no_price = _f(prices[1] if len(prices) > 1 else None, 0.5)
+                yes_token = tokens[0] if tokens else None
+                no_token = tokens[1] if len(tokens) > 1 else None
+                liquidity = _f(m.get("liquidity"), 0.0)
+                end_iso = m.get("endDate") or m.get("end_date_iso")
+                resolution_at = None
+                if end_iso:
+                    try:
+                        resolution_at = datetime.fromisoformat(
+                            str(end_iso).replace("Z", "+00:00")
+                        )
+                    except (ValueError, TypeError):
+                        resolution_at = None
+                await conn.execute(
+                    """
+                    INSERT INTO markets
+                        (id, slug, question, category, status,
+                         yes_price, no_price, yes_token_id, no_token_id,
+                         liquidity_usdc, resolution_at, condition_id, is_demo, synced_at)
+                    VALUES ($1,$2,$3,'crypto','active',$4,$5,$6,$7,$8,$9,$1,FALSE,NOW())
+                    ON CONFLICT (id) DO UPDATE SET
+                        slug           = EXCLUDED.slug,
+                        question       = EXCLUDED.question,
+                        status         = 'active',
+                        yes_price      = EXCLUDED.yes_price,
+                        no_price       = EXCLUDED.no_price,
+                        yes_token_id   = EXCLUDED.yes_token_id,
+                        no_token_id    = EXCLUDED.no_token_id,
+                        liquidity_usdc = EXCLUDED.liquidity_usdc,
+                        resolution_at  = EXCLUDED.resolution_at,
+                        synced_at      = NOW()
+                    """,
+                    condition_id, slug, question,
+                    yes_price, no_price, yes_token, no_token,
+                    liquidity, resolution_at,
+                )
+            except Exception as exc:
+                logger.warning("crypto_window_upsert_failed", error=str(exc))
+
+
+
 async def _publication_already_queued(user_id: UUID, publication_id: UUID) -> bool:
     """Return True when (user_id, publication_id) already in execution_queue."""
     pool = get_pool()
@@ -1044,6 +1128,10 @@ async def run_once() -> None:
                 crypto_window_markets = await _polymarket.get_crypto_window_markets(
                     selected_timeframe or "5m", selected_assets or None
                 )
+                # Upsert into the markets table so _process_candidate's
+                # _load_market gate resolves them (market_sync never pulls these
+                # micro candle markets) and the trade engine gets their tokens.
+                await _upsert_crypto_window_markets(crypto_window_markets)
             except Exception as exc:
                 user_log.warning("crypto_window_fetch_failed", error=str(exc))
                 crypto_window_markets = []
