@@ -172,8 +172,17 @@ export function PortfolioPage() {
     positions: refresh,
     position_opened: refresh,
     position_closed: refresh,
+    position_updated: refresh,
+    portfolio: refresh,
     portfolio_update: refresh,
   });
+
+  // Polling fallback so equity/positions stay fresh even if the SSE stream
+  // stalls (reconnect gaps, proxy idle-timeouts). SSE remains the fast path.
+  useEffect(() => {
+    const id = setInterval(refresh, 15000);
+    return () => clearInterval(id);
+  }, [refresh]);
 
   const handleCashOutConfirm = useCallback(async () => {
     if (!cashOutTarget) return;
@@ -301,6 +310,10 @@ export function PortfolioPage() {
                     key={p.id}
                     p={p}
                     onCashOut={() => { setCashOutTarget(p); setCashOutError(null); }}
+                    onForceRedeem={async () => {
+                      try { await api.forceRedeem(p.id); } catch { /* surfaced via refresh */ }
+                      refresh();
+                    }}
                   />
                 ))}
               </div>
@@ -710,8 +723,13 @@ const EXIT_TONE: Record<string, string> = {
   market_expired: "text-ink-3",
 };
 
-function PositionRow({ p, onCashOut }: { p: PositionItem; onCashOut?: () => void }) {
+export function PositionRow({ p, onCashOut, onForceRedeem }: {
+  p: PositionItem;
+  onCashOut?: () => void;
+  onForceRedeem?: () => void;
+}) {
   const isOpen = p.status === "open";
+  const awaitingRedeem = isOpen && !!p.awaiting_redeem;
   const priceUnavailable = isOpen && p.current_price === null;
 
   const curVal = (() => {
@@ -751,6 +769,13 @@ function PositionRow({ p, onCashOut }: { p: PositionItem; onCashOut?: () => void
     <span key="cost" className="text-ink-3">
       ${p.size_usdc.toFixed(2)}
     </span>,
+    ...(awaitingRedeem
+      ? [
+          <span key="won" className="font-bold text-grn">
+            WON · AWAITING REDEEM
+          </span>,
+        ]
+      : []),
     <span key="pnl" className={pnlToneClass}>
       {pnlStr}
     </span>,
@@ -779,7 +804,20 @@ function PositionRow({ p, onCashOut }: { p: PositionItem; onCashOut?: () => void
         </span>,
       ]}
       footer={
-        isOpen && onCashOut ? (
+        awaitingRedeem && onForceRedeem ? (
+          <button
+            type="button"
+            onClick={onForceRedeem}
+            className="w-full mt-2 clip-btn font-hud text-[9px] font-bold tracking-[1.5px] uppercase py-2 transition-colors"
+            style={{
+              background: "rgba(0,255,156,0.08)",
+              border: "1px solid rgba(0,255,156,0.35)",
+              color: "var(--grn, #00FF9C)",
+            }}
+          >
+            ⚡ Force Redeem
+          </button>
+        ) : isOpen && onCashOut ? (
           <button
             type="button"
             onClick={onCashOut}
