@@ -196,6 +196,14 @@ class Settings(BaseSettings):
     SCANNER_EDGE_DEVIATION_PCT: float = 0.05  # env: SCANNER_EDGE_DEVIATION_PCT
     # Discovery liquidity floor — lower than execution floor (10k) to widen pool
     SCANNER_MIN_LIQUIDITY: float = 5_000.0  # env: SCANNER_MIN_LIQUIDITY
+    # Max markets pulled from Gamma per scan tick (sorted by 24h volume desc).
+    # Wider than the prior fixed 200 so the short-dated liquid universe surfaces.
+    SCANNER_MARKET_FETCH_LIMIT: int = 500  # env: SCANNER_MARKET_FETCH_LIMIT
+    # Resolution-horizon cap for the demo edge generator: markets resolving
+    # beyond this many days are NOT published. Keeps the feed on near-dated
+    # markets and stops far-dated futures (e.g. 2026/2028 championship winners)
+    # from being entered and locking concurrency slots.
+    SCANNER_MAX_RESOLUTION_DAYS: int = 30  # env: SCANNER_MAX_RESOLUTION_DAYS
     COPY_TRADE_MONITOR_INTERVAL: int = 60  # Fast Track B — copy trade tick cadence
     EXIT_WATCH_INTERVAL: int = 30  # Track A: TP/SL poll cadence (30s per spec)
     PORTFOLIO_SNAPSHOT_INTERVAL: int = 60  # WARP-52: cb_portfolio NOTIFY heartbeat

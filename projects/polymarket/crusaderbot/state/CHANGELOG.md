@@ -303,3 +303,14 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 - Report: projects/polymarket/crusaderbot/reports/sentinel/crusaderbot-system-audit.md
 - Gate: BLOCKED — fix F-CRIT-1 + redeploy + re-validate before handoff
 
+## [2026-05-24] WARP-TDH — Trade-Discovery Hardening (WARP/trade-discovery-hardening, PR open)
+
+- Root cause (beta tester "same 5 futures, 0 profit, can't find other positions"): all 25 open positions across 5 auto-on users are far-dated 2026/2028 championship-winner futures (NHL/NBA/World Cup) locking every concurrency slot (cap 5/user)
+- #2 resolution horizon now per-profile: signal_scan_job._build_market_filters() uses PROFILES (7/30/90d + liquidity floor) instead of the hardcoded 365 disable-sentinel; signal_evaluator enforces markets.resolution_at via LEFT JOIN (pure DB read — prior "needs HTTP" rationale was wrong)
+- #3 demo scanner universe: market_signal_scanner fetches SCANNER_MARKET_FETCH_LIMIT=500 markets ordered by 24h volume with SCANNER_MAX_RESOLUTION_DAYS=30 cap (get_markets gains order/ascending/end_date_max; client-side guard) → far-dated futures never published
+- #4 slot release: ExitReason.HORIZON_EXCEEDED + exit_watcher per-profile horizon exit (after TP/SL/strategy) frees stuck slots; OpenPositionForExit carries resolution_at + risk_profile (list_open_for_exit LEFT JOINs user_settings)
+- 185 affected tests pass (test_exit_watcher +5 new horizon cases, scanner fixture updated, signal_following / signal_scan_job / copy_trade / confluence / momentum green); py_compile clean; guards untouched (ENABLE_LIVE_TRADING=false)
+- Deferred: edge-model bug #1 (edge=|price-0.5| favours longshots) — separate strategy lane; the 20 aggressive-user futures are within their 90d mandate and are NOT auto-closed (owner decision)
+- Report: projects/polymarket/crusaderbot/reports/forge/trade-discovery-hardening.md
+- Gate: MAJOR → WARP•SENTINEL required before merge
+

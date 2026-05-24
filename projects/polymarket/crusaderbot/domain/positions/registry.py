@@ -22,6 +22,7 @@ from __future__ import annotations
 import enum
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Optional, Union
 from uuid import UUID
@@ -47,6 +48,7 @@ class ExitReason(str, enum.Enum):
     FORCE_CLOSE = "force_close"
     CLOSE_FAILED = "close_failed"
     MARKET_EXPIRED = "market_expired"
+    HORIZON_EXCEEDED = "horizon_exceeded"
 
 
 # Reasons emitted by the exit watcher (resolution settles via the redeem
@@ -58,6 +60,7 @@ WATCHER_EXIT_REASONS: frozenset[str] = frozenset({
     ExitReason.STRATEGY_EXIT.value,
     ExitReason.FORCE_CLOSE.value,
     ExitReason.MARKET_EXPIRED.value,
+    ExitReason.HORIZON_EXCEEDED.value,
 })
 
 
@@ -87,6 +90,11 @@ class OpenPositionForExit:
     yes_price: Optional[float]
     no_price: Optional[float]
     market_resolved: bool
+    # Resolution horizon + owning user's risk profile drive the watcher's
+    # HORIZON_EXCEEDED exit (defaults keep the resolved-market Phase B loop,
+    # which never evaluates horizon, working without populating them).
+    resolution_at: Optional[datetime] = None
+    risk_profile: str = "balanced"
 
     def to_router_dict(self) -> dict[str, Any]:
         """Build the payload shape ``router.close`` expects.
@@ -135,10 +143,13 @@ async def list_open_for_exit() -> list[OpenPositionForExit]:
                    p.force_close_intent, p.close_failure_count,
                    m.question AS market_question,
                    m.yes_price, m.no_price, m.resolved AS market_resolved,
+                   m.resolution_at,
+                   COALESCE(s.risk_profile, 'balanced') AS risk_profile,
                    u.telegram_user_id
               FROM positions p
               JOIN markets m ON m.id = p.market_id
               JOIN users u ON u.id = p.user_id
+              LEFT JOIN user_settings s ON s.user_id = p.user_id
              WHERE p.status = 'open'
                AND m.resolved = FALSE
             """
@@ -166,6 +177,8 @@ async def list_open_for_exit() -> list[OpenPositionForExit]:
             no_price=(float(r["no_price"])
                       if r["no_price"] is not None else None),
             market_resolved=bool(r["market_resolved"]),
+            resolution_at=r["resolution_at"],
+            risk_profile=str(r["risk_profile"] or "balanced"),
         )
         for r in rows
     ]

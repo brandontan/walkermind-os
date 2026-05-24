@@ -380,9 +380,21 @@ async def run_job() -> tuple[int, int]:
         min_edge_bps: int = cfg.SCANNER_MIN_EDGE_BPS
         min_confidence: float = cfg.SCANNER_MIN_CONFIDENCE
         min_liq: float = cfg.SCANNER_MIN_LIQUIDITY
+        fetch_limit: int = cfg.SCANNER_MARKET_FETCH_LIMIT
+        max_res_days: int = cfg.SCANNER_MAX_RESOLUTION_DAYS
+        horizon_cutoff = datetime.now(timezone.utc) + timedelta(days=max_res_days)
 
         try:
-            markets = await polymarket.get_markets(limit=200)
+            # Sort by 24h volume (desc) and cap the resolution horizon so the
+            # demo feed surfaces liquid, near-dated markets instead of a narrow
+            # set of far-dated futures (championship winners months out) that
+            # never resolve and permanently lock concurrency slots.
+            markets = await polymarket.get_markets(
+                limit=fetch_limit,
+                order="volume24hr",
+                ascending=False,
+                end_date_max=horizon_cutoff.isoformat(),
+            )
         except Exception as exc:
             log.warning("polymarket_fetch_failed", error=str(exc))
             markets = []
@@ -402,6 +414,21 @@ async def run_job() -> tuple[int, int]:
                 if not mid:
                     _demo_errors += 1
                     continue
+                # Resolution-horizon guard (client-side defense in case the
+                # Gamma end_date_max param is unsupported/ignored): skip markets
+                # resolving beyond the cap so far-dated futures are never published.
+                _end = m.get("endDate") or m.get("end_date")
+                if _end:
+                    try:
+                        _res_at = datetime.fromisoformat(str(_end).replace("Z", "+00:00"))
+                        if _res_at > horizon_cutoff:
+                            log.debug("signal_scan_market", market_id=mid,
+                                      result="REJECTED", reason="beyond_horizon",
+                                      resolution_at=str(_res_at))
+                            _demo_rejected += 1
+                            continue
+                    except Exception:
+                        pass
                 liq = float(m.get("liquidity") or 0)
                 if liq < min_liq:
                     log.debug("signal_scan_market", market_id=mid, result="REJECTED",
