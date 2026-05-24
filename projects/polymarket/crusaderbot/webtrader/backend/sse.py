@@ -129,7 +129,7 @@ def _make_notification_handler(pool: asyncpg.Pool):
             # fills has no user_id — resolve via orders table
             order_id = data.get("order_id")
             if order_id:
-                asyncio.get_event_loop().create_task(
+                asyncio.get_running_loop().create_task(
                     _resolve_fill_user(order_id, channel, data)
                 )
         else:

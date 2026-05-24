@@ -219,6 +219,30 @@ def _best_ask(book: dict[str, Any] | None) -> float | None:
     return best
 
 
+def _book_depth_usdc(book: dict[str, Any] | None) -> float:
+    """Total bid-side depth in USDC from a CLOB orderbook.
+
+    Candle markets are not tracked by Gamma's liquidity aggregator, so
+    ``markets.liquidity_usdc`` is near-zero after upsert. The risk gate
+    (step 11) uses ``market_liquidity`` from the TradeSignal, which defaults
+    to the DB value and rejects every candle candidate with
+    ``insufficient_liquidity``. Computing depth from the live CLOB book
+    (sum of bid size × price) gives the true available liquidity and lets
+    the gate evaluate correctly.
+
+    Returns 0.0 on any failure — callers treat 0 as "unknown, use DB value".
+    """
+    if not isinstance(book, dict):
+        return 0.0
+    total = 0.0
+    for b in (book.get("bids") or []):
+        try:
+            total += float(b["price"]) * float(b["size"])
+        except (KeyError, TypeError, ValueError):
+            continue
+    return total
+
+
 def _seconds_to_close(m: dict[str, Any], now_ts: float) -> float | None:
     """Seconds until the candle resolves.
 
@@ -323,6 +347,13 @@ async def _evaluate_market(
         )
         return None, "empty_book"
 
+    # CLOB-derived liquidity: sum of bid depth across both sides.
+    # Gamma's liquidity field is near-zero for candle markets (not tracked by
+    # their aggregator), so the risk gate step 11 would reject every candidate
+    # using the DB-cached value. Passing the live CLOB depth through metadata
+    # lets _build_trade_signal override market_liquidity with a real value.
+    clob_liquidity = _book_depth_usdc(yes_book) + _book_depth_usdc(no_book)
+
     spread = yes_ask + no_ask
     ask_diff = abs(yes_ask - no_ask)
     favored = "YES" if yes_ask > no_ask else "NO"
@@ -372,6 +403,10 @@ async def _evaluate_market(
             "spread": spread,
             "seconds_to_close": seconds_left,
             "flip_stop_price": flip_stop,
+            # Live CLOB bid depth (both sides combined). Used by _build_trade_signal
+            # to override market_liquidity so gate 11 evaluates real depth instead
+            # of the near-zero Gamma liquidity field stored in markets.liquidity_usdc.
+            "clob_liquidity": clob_liquidity,
             "reason": (
                 f"late_entry: {favored} fav {fav_price:.2f}, diff {ask_diff:.2f}, "
                 f"spread {spread:.2f}, {seconds_left:.0f}s to close"

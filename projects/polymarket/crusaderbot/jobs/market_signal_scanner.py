@@ -14,7 +14,6 @@ Both write to signal_publications for the signal_following pipeline to consume.
 from __future__ import annotations
 
 import json
-import logging
 import os
 import time
 from datetime import datetime, timedelta, timezone
@@ -125,8 +124,8 @@ async def _upsert_market(
     if end:
         try:
             resolution_at = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
-        except Exception:
-            pass
+        except Exception as exc:
+            log.warning("market_signal_scanner: bad endDate value, skipping resolution_at", value=str(end), error=str(exc))
     pool = get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
@@ -439,8 +438,8 @@ async def run_job() -> tuple[int, int]:
                                       resolution_at=str(_res_at))
                             _demo_rejected += 1
                             continue
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        log.warning("market_signal_scanner: bad endDate in horizon check, skipping filter", market_id=mid, error=str(exc))
                 liq = float(m.get("liquidity") or 0)
                 if liq < min_liq:
                     log.debug("signal_scan_market", market_id=mid, result="REJECTED",

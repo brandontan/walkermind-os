@@ -6,7 +6,6 @@ be bypassed without explicit WARP🔹CMD authorization.
 """
 from __future__ import annotations
 
-import logging
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID

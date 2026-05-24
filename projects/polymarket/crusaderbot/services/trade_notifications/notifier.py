@@ -27,7 +27,6 @@ import html
 import logging
 from decimal import Decimal
 from typing import Optional
-from uuid import UUID
 
 import structlog
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
