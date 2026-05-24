@@ -89,9 +89,13 @@ class LateEntryV3Strategy(BaseStrategy):
         Returns an empty list on any failure or when no market qualifies.
         Never raises — scan errors must not crash the scheduler scan loop.
         """
-        cfg = get_settings()
-        min_ask_diff = cfg.LATE_ENTRY_MIN_ASK_DIFF
-        entry_window_sec = cfg.LATE_ENTRY_WINDOW_SEC
+        try:
+            cfg = get_settings()
+            min_ask_diff = cfg.LATE_ENTRY_MIN_ASK_DIFF
+            entry_window_sec = cfg.LATE_ENTRY_WINDOW_SEC
+        except Exception:
+            min_ask_diff = MIN_ASK_DIFF
+            entry_window_sec = ENTRY_WINDOW_SEC
 
         timeframe = getattr(user_context, "selected_timeframe", None)
         assets = getattr(user_context, "selected_assets", ()) or None
@@ -164,7 +168,10 @@ class LateEntryV3Strategy(BaseStrategy):
         injected by the exit watcher. When it is missing we hold (the watcher's
         TP/SL and market-expiry paths still protect the position).
         """
-        flip_stop = get_settings().LATE_ENTRY_FLIP_STOP
+        try:
+            flip_stop = get_settings().LATE_ENTRY_FLIP_STOP
+        except Exception:
+            flip_stop = FLIP_STOP_PRICE
         cur = position.get("current_price")
         try:
             price = float(cur) if cur is not None else None
