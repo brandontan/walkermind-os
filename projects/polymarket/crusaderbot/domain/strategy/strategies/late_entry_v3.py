@@ -42,7 +42,11 @@ logger = logging.getLogger(__name__)
 # close_sweep scan loop (signal_scan_job.run_close_sweep_fast); the 180s main
 # scan would step over it.
 ENTRY_WINDOW_SEC: float = 35.0    # enter only in the final 35s of the candle
-MIN_ASK_DIFF: float = 0.30        # require a clearly favored side
+# Minimum best-ask lean between the two sides. BTC/ETH 5m/15m candles sit near
+# 0.50/0.50, so a 0.30 lean basically never occurs and the strategy never
+# traded; 0.05 captures a real late lean (~5c, ≈ the reference "min edge")
+# while still skipping pure coin-flips. Key tunable — raise for stricter entries.
+MIN_ASK_DIFF: float = 0.05
 MAX_SPREAD: float = 1.05          # combined YES+NO asks must not be too wide
 FAV_PRICE_MAX: float = 0.93       # skip when the favored side is already near 1.0
 FLIP_STOP_PRICE: float = 0.48     # exit when favored side's live price <= this
@@ -155,16 +159,24 @@ def _coerce_str_list(val: Any) -> list[str]:
 
 
 def _best_ask(book: dict[str, Any] | None) -> float | None:
-    """Top-of-book ask price from a CLOB orderbook, or None when empty/malformed."""
+    """Best (lowest-price) ask from a CLOB orderbook, or None when empty/malformed.
+
+    Polymarket's CLOB /book returns ``asks`` sorted by price DESCENDING (worst
+    first), so ``asks[0]`` is the HIGHEST ask — using it priced both sides near
+    1.0 and the strategy never qualified. Scan every level and take the minimum
+    positive price so the true best ask is used regardless of ordering.
+    """
     if not isinstance(book, dict):
         return None
-    asks = book.get("asks") or []
-    if not asks:
-        return None
-    try:
-        return float(asks[0]["price"])
-    except (KeyError, TypeError, ValueError, IndexError):
-        return None
+    best: float | None = None
+    for a in (book.get("asks") or []):
+        try:
+            p = float(a["price"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if p > 0.0 and (best is None or p < best):
+            best = p
+    return best
 
 
 def _seconds_to_close(m: dict[str, Any], now_ts: float) -> float | None:
