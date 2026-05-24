@@ -35,6 +35,7 @@ SignalCandidate per publication that survives the filter envelope.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from datetime import datetime, timezone
@@ -318,7 +319,30 @@ async def evaluate_publications_for_user(
                 continue
             if candidate is not None:
                 candidates.append(candidate)
-    return candidates
+    return _diversify_order(candidates, user_uuid)
+
+
+def _diversify_order(
+    candidates: list[SignalCandidate], user_id: Any
+) -> list[SignalCandidate]:
+    """Order candidates by a stable per-user key so subscribers do not all
+    converge on the same published prefix.
+
+    Publications are loaded in identical ``published_at`` order for every
+    subscriber, and the downstream scan enters that prefix until the
+    concurrency cap stops it — so N users ended up holding the *same* handful
+    of markets ("bot only ever trades the same 5"). Every candidate here has
+    already cleared the edge / liquidity / resolution-horizon filters, so any
+    is an acceptable entry; ordering by sha1(user_id:market_id) spreads the
+    eligible set across users (distinct holdings) while staying deterministic
+    per (user, market) so a user does not churn positions between ticks.
+    """
+    seed = str(user_id)
+
+    def _key(c: SignalCandidate) -> str:
+        return hashlib.sha1(f"{seed}:{c.market_id}".encode()).hexdigest()
+
+    return sorted(candidates, key=_key)
 
 
 def _build_candidate(
