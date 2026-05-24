@@ -16,7 +16,12 @@ from telegram.ext import ContextTypes
 from ... import audit
 from ...database import get_pool
 from ...users import set_auto_trade, set_locked, set_paused, upsert_user
-from ..keyboards import emergency_confirm_p5_kb, emergency_done_p5_kb, emergency_p5_kb
+from ..keyboards_v2.emergency import (
+    emergency_confirm_kb as emergency_confirm_p5_kb,
+    emergency_done_kb as emergency_done_p5_kb,
+    emergency_home_kb as emergency_p5_kb,
+    emergency_more_kb,
+)
 from ..messages import (
     EMERGENCY_TEXT,
     emergency_confirm_text,
@@ -228,36 +233,47 @@ async def _execute_action(
 async def _handle_legacy_emergency(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE, data: str,
 ) -> None:
-    """Backward compat for legacy emergency:pause / emergency:pause_close / emergency:lock."""
+    """Route emergency:* callbacks (v2 progressive-disclosure surface + legacy)."""
     q = update.callback_query
     sub = data.split(":", 1)[-1]
 
-    if sub in ("pause", "pause_close", "lock"):
-        text = emergency_confirm_text(sub)
-        # Use legacy callback data so legacy tests and any existing keyboards keep working
-        legacy_kb = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("✅ Confirm", callback_data=f"emergency:confirm:{sub}"),
-                InlineKeyboardButton("← Cancel",  callback_data="emergency:cancel"),
-            ],
-        ])
-        if q is not None and q.message is not None:
-            await _safe_edit(q, text, parse_mode=ParseMode.HTML, reply_markup=legacy_kb)
-    elif sub.startswith("confirm:"):
-        action = sub[len("confirm:"):]
-        await _execute_action(update, ctx, action)
-    elif sub in ("back", "cancel"):
-        # Legacy callers expect emergency:pause / emergency:back in the returned menu
-        legacy_menu_kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("⏸ Pause Auto-Trade",    callback_data="emergency:pause")],
-            [InlineKeyboardButton("⏸🛑 Pause + Close All", callback_data="emergency:pause_close")],
-            [InlineKeyboardButton("🔒 Lock Account",        callback_data="emergency:lock")],
-            [InlineKeyboardButton("← Back",                 callback_data="emergency:back")],
-        ])
+    if sub == "more":
+        # Level 2 — secondary emergency actions.
         if q is not None and q.message is not None:
             await _safe_edit(
-                q, EMERGENCY_TEXT,
-                parse_mode=ParseMode.HTML, reply_markup=legacy_menu_kb,
+                q,
+                "⚠️ <b>Additional Emergency Actions</b>\n\n"
+                "These are high-impact actions. Use with caution.",
+                parse_mode=ParseMode.HTML, reply_markup=emergency_more_kb(),
+            )
+        return
+    if sub in ("home", "back", "cancel"):
+        # Return to the primary emergency menu (Level 1).
+        await _render_menu(update, ctx)
+        return
+    if sub == "status":
+        await _execute_action(update, ctx, "system_status")
+        return
+    if sub.startswith("ask:"):
+        action = sub[len("ask:"):]
+        text = emergency_confirm_text(action)
+        if q is not None and q.message is not None:
+            await _safe_edit(
+                q, text, parse_mode=ParseMode.HTML,
+                reply_markup=emergency_confirm_p5_kb(action),
+            )
+        return
+    if sub.startswith("confirm:"):
+        action = sub[len("confirm:"):]
+        await _execute_action(update, ctx, action)
+        return
+    if sub in ("pause", "pause_close", "lock"):
+        # Legacy bare actions → confirm dialog.
+        text = emergency_confirm_text(sub)
+        if q is not None and q.message is not None:
+            await _safe_edit(
+                q, text, parse_mode=ParseMode.HTML,
+                reply_markup=emergency_confirm_p5_kb(sub),
             )
 
 
