@@ -49,6 +49,7 @@ from ..positions.registry import (
     ExitReason,
     OpenPositionForExit,
 )
+from ..strategy.registry import StrategyRegistry
 from . import order as order_module
 from . import router
 
@@ -95,19 +96,63 @@ class StrategyExitEvaluator(Protocol):
     """Hook contract for per-strategy exit decisions.
 
     Returns ``True`` to instruct the watcher to close the position with
-    ``ExitReason.STRATEGY_EXIT``. Defaults to a no-op for now (see
-    ``default_strategy_evaluator``); copy_trade enters and relies on TP/SL.
+    ``ExitReason.STRATEGY_EXIT``. ``current_price`` is the freshly-fetched live
+    mark for the position's side, so strategies can apply price-level exits
+    (e.g. late_entry_v3's flip-stop) against real data, not stale columns.
     """
 
-    async def __call__(self, position: OpenPositionForExit) -> bool: ...
+    async def __call__(
+        self, position: OpenPositionForExit, current_price: float
+    ) -> bool: ...
 
 
-async def default_strategy_evaluator(position: OpenPositionForExit) -> bool:
-    """No current strategy emits standalone exit signals — copy_trade enters
-    and relies on TP/SL. The hook exists so future signal-driven exits drop
-    in without disturbing priority order.
+async def default_strategy_evaluator(
+    position: OpenPositionForExit, current_price: float
+) -> bool:
+    """No-op fallback for positions with no owning strategy. Used when a
+    position's ``strategy_type`` is unset or not registered.
     """
     return False
+
+
+async def registry_strategy_evaluator(
+    position: OpenPositionForExit, current_price: float
+) -> bool:
+    """Dispatch the per-position strategy exit hook by ``strategy_type``.
+
+    Looks the owning strategy up in the process-wide ``StrategyRegistry`` and
+    asks its ``evaluate_exit`` whether to close, passing the live favored-side
+    price as ``current_price``. Falls back to no-op (False) when the position
+    is unattributed, the strategy is not registered, or the hook errors —
+    a strategy exit hook must never poison the watcher loop.
+    """
+    name = position.strategy_type
+    if not name:
+        return False
+    try:
+        strat = StrategyRegistry.instance().get(name)
+    except KeyError:
+        return False
+    try:
+        decision = await strat.evaluate_exit(
+            {
+                "id": position.id,
+                "user_id": position.user_id,
+                "market_id": position.market_id,
+                "side": position.side,
+                "entry_price": position.entry_price,
+                "size_usdc": position.size_usdc,
+                "current_price": current_price,
+                "strategy_type": name,
+            }
+        )
+    except Exception as exc:
+        logger.warning(
+            "exit_watcher strategy hook failed strat=%s pos=%s err=%s",
+            name, position.id, exc,
+        )
+        return False
+    return bool(getattr(decision, "should_exit", False))
 
 
 async def _fetch_live_price(market_id: str, side: str) -> Optional[float]:
@@ -190,7 +235,7 @@ def _return_pct(*, side: str, entry_price: float, current_price: float) -> float
 
 async def evaluate(
     position: OpenPositionForExit,
-    strategy_evaluator: StrategyExitEvaluator = default_strategy_evaluator,
+    strategy_evaluator: StrategyExitEvaluator = registry_strategy_evaluator,
     live_price: Optional[float] = None,
 ) -> ExitDecision:
     """Decide whether to close ``position`` this tick.
@@ -239,8 +284,9 @@ async def evaluate(
                             reason=ExitReason.SL_HIT.value,
                             current_price=cur)
 
-    # 4. Strategy hook — priority above horizon/hold.
-    if await strategy_evaluator(position):
+    # 4. Strategy hook — priority above horizon/hold. Pass the live favored-side
+    #    price so price-level exits (e.g. late_entry_v3 flip-stop) use real data.
+    if await strategy_evaluator(position, cur):
         return ExitDecision(should_exit=True,
                             reason=ExitReason.STRATEGY_EXIT.value,
                             current_price=cur)
@@ -454,7 +500,7 @@ async def _close_expired_position(position: OpenPositionForExit) -> bool:
 
 async def run_once(
     *,
-    strategy_evaluator: StrategyExitEvaluator = default_strategy_evaluator,
+    strategy_evaluator: StrategyExitEvaluator = registry_strategy_evaluator,
     close_submitter: Optional[order_module.CloseSubmitter] = None,
 ) -> RunResult:
     """One full pass over every open position. Returns a ``RunResult`` with counts.
@@ -565,7 +611,7 @@ async def run_once(
 async def run_forever(
     *,
     interval_seconds: float = DEFAULT_POLL_INTERVAL_SECONDS,
-    strategy_evaluator: StrategyExitEvaluator = default_strategy_evaluator,
+    strategy_evaluator: StrategyExitEvaluator = registry_strategy_evaluator,
     close_submitter: Optional[order_module.CloseSubmitter] = None,
     stop: Optional[Callable[[], bool]] = None,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
