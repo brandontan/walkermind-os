@@ -21,7 +21,7 @@ type Props = {
   sparkline?: [number, number, number];
 };
 
-function Sparkline({ values, color }: { values: [number, number, number]; color: string }) {
+function Sparkline({ values }: { values: [number, number, number] }) {
   const w = 36, h = 14;
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -117,7 +117,7 @@ export function StatCard({
       )}
       {sparkline && (
         <div className="mt-2 opacity-80">
-          <Sparkline values={sparkline} color={BAR_COLOR[color]} />
+          <Sparkline values={sparkline} />
         </div>
       )}
     </div>
