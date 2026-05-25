@@ -9,7 +9,6 @@ import { UiModeContext, useUiModeState } from "./lib/uiMode";
 import { makeApi, setUnauthorizedHandler, type AlertItem } from "./lib/api";
 import { AuthPage } from "./pages/AuthPage";
 import { AutoTradePage } from "./pages/AutoTradePage";
-import { CopyTradePage } from "./pages/CopyTradePage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DiscoverPage } from "./pages/DiscoverPage";
 import { PortfolioPage } from "./pages/PortfolioPage";
@@ -67,8 +66,33 @@ function AppShell() {
   const fetchAlerts = useCallback(async () => {
     if (!user) return;
     try {
-      const data = await api.getAlerts();
-      setAlerts(data);
+      const [sysResult, posResult] = await Promise.allSettled([
+        api.getAlerts(),
+        api.getPositions("closed", 10, 0),
+      ]);
+      const sysAlerts: AlertItem[] = sysResult.status === "fulfilled" ? sysResult.value : [];
+      const closed = posResult.status === "fulfilled" ? posResult.value : [];
+
+      // Synthesize trade alerts from recent closed positions when system_alerts is empty
+      const tradeAlerts: AlertItem[] = closed
+        .filter((p) => p.closed_at)
+        .map((p) => {
+          const pnl = p.pnl_usdc ?? 0;
+          const won = pnl >= 0;
+          return {
+            id: `pos-${p.id}`,
+            severity: "trade",
+            title: won
+              ? `✓ Trade Closed  +$${pnl.toFixed(2)}`
+              : `Trade Closed  −$${Math.abs(pnl).toFixed(2)}`,
+            body: p.market_question ?? null,
+            created_at: p.closed_at!,
+          };
+        });
+
+      const seen = new Set(sysAlerts.map((a) => a.id));
+      const merged = [...sysAlerts, ...tradeAlerts.filter((a) => !seen.has(a.id))];
+      setAlerts(merged);
     } catch {
       // non-critical — panel shows empty state
     }
@@ -159,7 +183,7 @@ function AppShell() {
             />
             <Route
               path="/copy-trade"
-              element={user ? <CopyTradePage /> : <Navigate to="/auth" replace />}
+              element={<Navigate to="/autotrade?tab=copy" replace />}
             />
             <Route
               path="/discover"

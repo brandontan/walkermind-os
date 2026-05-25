@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { CollapsibleSection } from "../components/CollapsibleSection";
 import { FilterTabs, type FilterTab } from "../components/FilterTabs";
 import { TopBar } from "../components/TopBar";
@@ -20,6 +21,33 @@ interface CopyTask {
   execution_mode: string;
   allow_topups: boolean;
   created_at: string;
+}
+
+export function PageTabs({ active, onSwitch }: { active: "auto" | "copy"; onSwitch: (tab: "auto" | "copy") => void }) {
+  return (
+    <div
+      className="flex border-b border-border-1 px-3.5"
+      style={{ background: "rgba(2,5,11,0.6)" }}
+    >
+      {(["auto", "copy"] as const).map((t) => {
+        const isActive = active === t;
+        return (
+          <button
+            key={t}
+            onClick={() => onSwitch(t)}
+            className={[
+              "py-2.5 px-3 font-hud text-[9.5px] font-bold tracking-[2px] uppercase transition-all border-b-2 -mb-px",
+              isActive
+                ? "text-gold border-gold"
+                : "text-ink-3 border-transparent hover:text-ink-2",
+            ].join(" ")}
+          >
+            {t === "auto" ? "Auto Trade" : "Copy Trade"}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function FieldHelper({ text }: { text: string }) {
@@ -188,10 +216,13 @@ export function CopyTradePage() {
     { key: "leaderboard", label: "Leaderboard" },
   ];
 
+  const navigate = useNavigate();
+
   return (
     <>
       <TopBar />
-      <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
+      <PageTabs active="copy" onSwitch={(t) => navigate(t === "auto" ? "/autotrade" : "/autotrade?tab=copy")} />
+      <div className="px-3.5 pt-2 pb-6 animate-page-in">
 
         {/* Page header */}
         <div className="mb-3 mx-0.5">

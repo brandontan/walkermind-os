@@ -3,8 +3,7 @@ import { useSSEStatus } from "../lib/sse";
 
 const MAIN_NAV = [
   { to: "/dashboard",  label: "Dashboard",  icon: "🏠" },
-  { to: "/autotrade",  label: "Auto Trade", icon: "🤖" },
-  { to: "/copy-trade", label: "Copy Trade", icon: "🐋" },
+  { to: "/autotrade",  label: "Auto Trade", icon: "🤖", sub: { to: "/autotrade?tab=copy", label: "↳ Copy Trade" } },
   { to: "/portfolio",  label: "Portfolio",  icon: "📊" },
   { to: "/wallet",     label: "Wallet",     icon: "💰" },
 ] as const;
@@ -32,24 +31,40 @@ export function DesktopSidebar() {
         >
           Navigation
         </div>
-        {MAIN_NAV.map(({ to, label, icon }) => {
-          const active = isActive(to);
+        {MAIN_NAV.map((item) => {
+          const active = isActive(item.to);
+          const copyActive = location.pathname === "/copy-trade" || location.search.includes("tab=copy");
           return (
-            <button
-              key={to}
-              onClick={() => navigate(to)}
-              className={[
-                "w-full flex items-center gap-2.5 px-4 py-2.5 text-left font-sans text-[14px] font-semibold transition-all duration-150",
-                "border-l-2",
-                active
-                  ? "text-gold border-gold"
-                  : "text-ink-3 border-transparent hover:text-ink-2",
-              ].join(" ")}
-              style={active ? { background: "rgba(245,200,66,0.06)" } : {}}
-            >
-              <span className="text-[15px] w-5 text-center flex-shrink-0">{icon}</span>
-              {label}
-            </button>
+            <div key={item.to}>
+              <button
+                onClick={() => navigate(item.to)}
+                className={[
+                  "w-full flex items-center gap-2.5 px-4 py-2.5 text-left font-sans text-[14px] font-semibold transition-all duration-150",
+                  "border-l-2",
+                  active
+                    ? "text-gold border-gold"
+                    : "text-ink-3 border-transparent hover:text-ink-2",
+                ].join(" ")}
+                style={active ? { background: "rgba(245,200,66,0.06)" } : {}}
+              >
+                <span className="text-[15px] w-5 text-center flex-shrink-0">{item.icon}</span>
+                {item.label}
+              </button>
+              {"sub" in item && item.sub && (
+                <button
+                  onClick={() => navigate(item.sub!.to)}
+                  className={[
+                    "w-full flex items-center gap-2 pl-10 pr-4 py-1.5 text-left font-sans text-[12px] font-medium transition-all duration-150 border-l-2",
+                    copyActive
+                      ? "text-gold border-gold"
+                      : "text-ink-4 border-transparent hover:text-ink-3",
+                  ].join(" ")}
+                  style={copyActive ? { background: "rgba(245,200,66,0.04)" } : {}}
+                >
+                  {item.sub.label}
+                </button>
+              )}
+            </div>
           );
         })}
       </div>

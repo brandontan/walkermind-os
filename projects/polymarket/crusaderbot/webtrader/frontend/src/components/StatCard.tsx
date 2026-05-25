@@ -79,7 +79,7 @@ export function StatCard({
   return (
     <div
       className={`relative overflow-hidden clip-card bg-surface border border-border-1 transition-colors hover:border-border-3 ${
-        large ? "row-span-2 p-[16px_14px_14px]" : "p-[12px_12px_11px]"
+        large ? "row-span-2 p-[14px_12px_12px]" : "p-[10px_10px_9px]"
       }`}
     >
       <span

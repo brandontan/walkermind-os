@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { CopyTradePage, PageTabs } from "./CopyTradePage";
 import { CollapsibleSection } from "../components/CollapsibleSection";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { HeroCard } from "../components/HeroCard";
@@ -76,7 +77,12 @@ export function AutoTradePage() {
   const { user } = useAuth();
   const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const tab = searchParams.get("tab") ?? "auto";
   const marketName = searchParams.get("market_name") ?? null;
+
+  // Copy Trade is embedded here — no separate route needed
+  if (tab === "copy") return <CopyTradePage />;
   const [state, setState] = useState<AutoTradeState | null>(null);
   const [tradingMode, setTradingMode] = useState<string>("paper");
   const [loading, setLoading] = useState(false);
@@ -257,7 +263,8 @@ export function AutoTradePage() {
   return (
     <>
       <TopBar tradingMode={tradingMode} />
-      <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
+      <PageTabs active="auto" onSwitch={(t) => navigate(t === "copy" ? "/autotrade?tab=copy" : "/autotrade")} />
+      <div className="px-3.5 pt-2 pb-6 animate-page-in">
 
         {/* Market context banner — shown when navigated from Discover page */}
         {marketName && (
