@@ -41,6 +41,7 @@ from typing import Awaitable, Callable, Optional, Protocol
 
 from ... import audit
 from ...database import get_pool
+from ...integrations.clob.market_data import MarketDataClient
 from ...integrations.polymarket import get_live_market_price
 from ...monitoring import alerts as monitoring_alerts
 from ..positions import registry
@@ -56,6 +57,18 @@ from . import router
 logger = logging.getLogger(__name__)
 
 DEFAULT_POLL_INTERVAL_SECONDS: float = 30.0
+
+# Shared MarketDataClient for CLOB /midpoint queries. Constructed lazily so
+# paper-mode test runs that never call _fetch_live_price don't open a socket.
+_market_data_client: Optional[MarketDataClient] = None
+
+
+def _get_market_data_client() -> MarketDataClient:
+    global _market_data_client
+    if _market_data_client is None:
+        _market_data_client = MarketDataClient()
+    return _market_data_client
+
 
 # Per-position consecutive None-price tick counter. A None result on a single
 # tick may be a transient Gamma outage (tenacity already retries network errors
@@ -155,15 +168,41 @@ async def registry_strategy_evaluator(
     return bool(getattr(decision, "should_exit", False))
 
 
-async def _fetch_live_price(market_id: str, side: str) -> Optional[float]:
+async def _fetch_live_price(
+    market_id: str,
+    side: str,
+    *,
+    token_id: Optional[str] = None,
+) -> Optional[float]:
     """Fetch the live Polymarket price for this position's side.
 
-    Error-isolated wrapper around ``get_live_market_price``. Returns None when
-    the API is unreachable or returns an unparseable response — the caller in
-    ``evaluate`` falls back to ``position.current_price()`` (which returns
-    ``entry_price`` when market columns are stale), keeping ret_pct == 0 and
-    preventing spurious TP/SL triggers on missing data.
+    Primary path: CLOB ``GET /midpoint?token_id=X`` when a token_id is
+    available. This skips the Gamma round-trip entirely — one HTTP call
+    instead of two, and the midpoint is always fresh (no 30s Gamma cache).
+
+    Fallback: ``get_live_market_price`` (Gamma → CLOB /price chain) when
+    token_id is absent or the midpoint call fails.
+
+    Returns None on any error — callers fall back to
+    ``position.current_price()`` (entry_price when stale), keeping
+    ret_pct == 0 and preventing spurious TP/SL triggers on missing data.
     """
+    if token_id:
+        try:
+            mdc = _get_market_data_client()
+            resp = await mdc.get_midpoint(token_id)
+            raw = resp.get("mid")
+            if raw is not None:
+                price = float(raw)
+                if 0.0 < price < 1.0:
+                    return price
+        except Exception as exc:
+            logger.debug(
+                "exit_watcher._fetch_live_price midpoint failed "
+                "token=%s market=%s side=%s error=%s — falling back",
+                token_id, market_id, side, exc,
+            )
+    # Fallback: Gamma → CLOB /price chain.
     try:
         return await get_live_market_price(market_id, side)
     except Exception as exc:
@@ -532,18 +571,23 @@ async def run_once(
     positions = await registry.list_open_for_exit()
     for p in positions:
         try:
+            # Resolve the CLOB token_id for this position's side so
+            # _fetch_live_price can use the faster /midpoint endpoint.
+            token_id = (
+                p.yes_token_id if p.side == "yes" else p.no_token_id
+            )
             # Skip live price fetch for force-close: FORCE_CLOSE has highest
             # priority in evaluate(); fetching first would gate an urgent
             # unwind behind Gamma API retry/backoff during outages.
             live_price = (
                 None if p.force_close_intent
-                else await _fetch_live_price(p.market_id, p.side)
+                else await _fetch_live_price(p.market_id, p.side, token_id=token_id)
             )
             # Retry once on None for non-force-close positions. The Gamma
             # cache is populated only on a successful fetch, so a None
             # result is never cached — the retry always makes a fresh call.
             if live_price is None and not p.force_close_intent:
-                live_price = await _fetch_live_price(p.market_id, p.side)
+                live_price = await _fetch_live_price(p.market_id, p.side, token_id=token_id)
                 if live_price is None:
                     # Increment the consecutive-None counter for this position.
                     # Only close after _EXPIRED_TICK_THRESHOLD consecutive ticks

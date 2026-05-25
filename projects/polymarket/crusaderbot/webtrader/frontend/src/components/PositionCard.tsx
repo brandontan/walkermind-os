@@ -72,7 +72,7 @@ export function PositionCard({ market, positionValue, side, meta, metaAdvanced, 
         aria-hidden
       />
       <div className="flex justify-between gap-2.5 mb-2">
-        <div className="font-sans text-[13px] font-semibold leading-[1.3] text-ink-1 flex-1">
+        <div className="font-sans text-[13px] font-semibold leading-[1.3] text-ink-1 flex-1 min-w-0 truncate">
           {market}
         </div>
         <div className={`font-mono text-[13px] font-bold whitespace-nowrap ${PNL_TONE[positionValue.tone]}`}>

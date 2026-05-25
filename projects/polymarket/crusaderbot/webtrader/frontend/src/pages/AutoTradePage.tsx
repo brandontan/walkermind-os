@@ -10,86 +10,46 @@ import { useSSE } from "../lib/sse";
 
 const ALL_CATEGORIES = ["Politics","Sports","Crypto","Finance","Science","Entertainment","World","Weather","Other"];
 
-// ── Section A: Strategy Presets (mapped to lib/strategies/ classes) ───────────
+// ── Section A: Strategy Presets ───────────────────────────────────────────────
+// Mirrors VISIBLE_PRESET_ORDER in domain/preset/presets.py.
+// Only presets validated in production are selectable. Hidden presets are shown
+// as "coming soon" cards for visibility but cannot be activated.
 
 const STRATEGY_PRESETS = [
   {
-    key: "trend_breakout",
-    name: "Trend Breakout",
-    emoji: "📈",
-    engine: "TrendBreakoutStrategy",
-    signal: "Price rise ≥8% in 24h + volume spike",
-    risk: "balanced" as const,
-    freq: "Medium",
-  },
-  {
-    key: "contrarian",
-    name: "Contrarian",
-    emoji: "🔄",
-    engine: "MomentumStrategy",
-    signal: "Price drop ≥10% in 24h + liquidity OK",
-    risk: "balanced" as const,
-    freq: "Medium",
-  },
-  {
-    key: "value_hunter",
-    name: "Value Hunter",
-    emoji: "🎯",
-    engine: "ValueInvestorStrategy",
-    signal: "Fair value gap ≥15% vs market price",
-    risk: "advanced" as const,
-    freq: "Low",
-  },
-  {
     key: "close_sweep",
     name: "Close Sweep",
-    emoji: "⏰",
-    engine: "ExpirationTimingStrategy",
-    signal: "Near-expiry + momentum direction",
-    risk: "advanced" as const,
-    freq: "Low",
-  },
-  {
-    key: "pair_arb",
-    name: "Pair Arb",
-    emoji: "💰",
-    engine: "PairArbStrategy",
-    signal: "YES + NO price < $0.95 (guaranteed spread)",
+    emoji: "🧹",
+    engine: "late_entry_v3",
+    signal: "Final 35s entry on BTC/ETH/SOL candles. Strong lean required.",
     risk: "safe" as const,
     freq: "Medium",
-  },
-  {
-    key: "ensemble",
-    name: "Smart Mix",
-    emoji: "🤖",
-    engine: "EnsembleStrategy",
-    signal: "3/5 strategy consensus voting",
-    risk: "advanced" as const,
-    freq: "High",
-  },
-  {
-    key: "confluence_scalper",
-    name: "Crypto Scalper",
-    emoji: "🚀",
-    engine: "ConfluenceScalperStrategy",
-    signal: "Fast crypto momentum (BTC/ETH/SOL/XRP/DOGE/BNB/HYPE)",
-    risk: "advanced" as const,
-    freq: "High",
-  },
-  {
-    key: "full_auto",
-    name: "Full Auto",
-    emoji: "🚀",
-    engine: "All strategies",
-    signal: "Maximum signal coverage",
-    risk: "aggressive" as const,
-    freq: "High",
+    visible: true,
   },
 ] as const;
 
-// Presets restricted to short-duration crypto markets — selecting one locks the
-// market category to Crypto and surfaces the 5m/15m timeframe toggle.
-const CRYPTO_SHORT_PRESETS: readonly string[] = ["confluence_scalper", "close_sweep"];
+// Presets that exist in the backend but are not yet visible to users.
+// Shown as locked cards — cannot be activated.
+const COMING_SOON_PRESETS = [
+  {
+    key: "safe_close",
+    name: "Safe Close",
+    emoji: "🔒",
+    signal: "Final 60s, tighter lean filter. Fewer trades, cleaner entries.",
+    risk: "safe" as const,
+  },
+  {
+    key: "flip_hunter",
+    name: "Flip Hunter",
+    emoji: "🎯",
+    signal: "Early 140s entry on low-odds lean. Asymmetric upside on flips.",
+    risk: "advanced" as const,
+  },
+] as const;
+
+// All candle presets route to late_entry_v3 on short-duration crypto markets.
+// Selecting one locks the market category to Crypto and surfaces the 5m/15m toggle.
+const CRYPTO_SHORT_PRESETS: readonly string[] = ["close_sweep", "safe_close", "flip_hunter"];
 const TIMEFRAMES = ["5m", "15m"] as const;
 type Timeframe = (typeof TIMEFRAMES)[number];
 const CRYPTO_ASSETS = ["BTC", "ETH", "SOL", "BNB"] as const;
@@ -462,6 +422,32 @@ export function AutoTradePage() {
               </Fragment>
             );
           })}
+
+          {/* Coming-soon presets — locked, not selectable */}
+          {COMING_SOON_PRESETS.map((p) => (
+            <div
+              key={p.key}
+              className="w-full text-left p-3 rounded-lg border border-surface-3 bg-surface-1 opacity-50 cursor-not-allowed select-none"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-lg">{p.emoji}</span>
+                  <div className="min-w-0">
+                    <div className="font-hud text-sm font-bold text-ink-2 flex items-center gap-2">
+                      {p.name}
+                      <span className="text-[9px] font-bold tracking-widest text-ink-4 uppercase px-1.5 py-0.5 rounded border border-surface-3 bg-surface-2">
+                        SOON
+                      </span>
+                    </div>
+                    <div className="text-xs text-ink-4 truncate mt-0.5">{p.signal}</div>
+                  </div>
+                </div>
+                <div className="text-right shrink-0 text-xs text-ink-4">
+                  <div className={`font-bold ${riskColor[p.risk]} uppercase opacity-60`}>{p.risk}</div>
+                </div>
+              </div>
+            </div>
+          ))}
 
         </div>
 

@@ -98,6 +98,10 @@ class OpenPositionForExit:
     # Owning strategy name; drives the per-strategy exit hook dispatch in the
     # exit watcher (e.g. late_entry_v3 flip-stop). None when unattributed.
     strategy_type: Optional[str] = None
+    # CLOB token IDs for direct /midpoint queries — avoids a Gamma round-trip
+    # in the exit watcher. None when the market row predates this column.
+    yes_token_id: Optional[str] = None
+    no_token_id: Optional[str] = None
 
     def to_router_dict(self) -> dict[str, Any]:
         """Build the payload shape ``router.close`` expects.
@@ -147,7 +151,7 @@ async def list_open_for_exit() -> list[OpenPositionForExit]:
                    p.strategy_type,
                    m.question AS market_question,
                    m.yes_price, m.no_price, m.resolved AS market_resolved,
-                   m.resolution_at,
+                   m.resolution_at, m.yes_token_id, m.no_token_id,
                    COALESCE(s.risk_profile, 'balanced') AS risk_profile,
                    u.telegram_user_id
               FROM positions p
@@ -184,6 +188,8 @@ async def list_open_for_exit() -> list[OpenPositionForExit]:
             resolution_at=r["resolution_at"],
             risk_profile=str(r["risk_profile"] or "balanced"),
             strategy_type=(str(r["strategy_type"]) if r["strategy_type"] else None),
+            yes_token_id=(str(r["yes_token_id"]) if r["yes_token_id"] else None),
+            no_token_id=(str(r["no_token_id"]) if r["no_token_id"] else None),
         )
         for r in rows
     ]

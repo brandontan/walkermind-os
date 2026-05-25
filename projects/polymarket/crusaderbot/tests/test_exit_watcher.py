@@ -488,7 +488,7 @@ def _patch_registry(
 
     pos_prices = {(p.market_id, p.side): p.current_price() for p in positions}
 
-    async def _fetch_price(market_id: str, side: str) -> float | None:
+    async def _fetch_price(market_id: str, side: str, *, token_id=None) -> float | None:
         return pos_prices.get((market_id, side))
 
     return (

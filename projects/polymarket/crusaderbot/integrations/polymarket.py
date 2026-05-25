@@ -13,12 +13,21 @@ from tenacity import (
 
 from ..cache import get_cache, set_cache
 from ..config import get_settings
+from .clob.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
 GAMMA = "https://gamma-api.polymarket.com"
 CLOB = "https://clob.polymarket.com"
 DATA_API = "https://data-api.polymarket.com"
+
+# Module-level rate limiters for outbound read traffic.
+# Gamma public API: 100 req/min documented limit → 5 RPS steady-state with
+# burst of 10 absorbs scan bursts without tripping 429s.
+# CLOB read endpoints share the same 10 RPS budget as the write adapter so
+# combined read+write traffic stays within the per-account limit.
+_gamma_limiter = RateLimiter(rps=5.0, burst=10.0)
+_clob_read_limiter = RateLimiter(rps=10.0, burst=10.0)
 
 # Gnosis ConditionalTokens contract used by Polymarket on Polygon mainnet.
 # Source: docs.polymarket.com — required for redeemPositions().
@@ -51,6 +60,11 @@ def _retry():
 
 async def _get_json(url: str, params: dict | None = None,
                     timeout: float = 10.0) -> Any:
+    # Throttle before each attempt so retries also respect the rate limit.
+    if url.startswith(CLOB):
+        await _clob_read_limiter.acquire()
+    else:
+        await _gamma_limiter.acquire()
     async for attempt in _retry():
         with attempt:
             async with httpx.AsyncClient(timeout=timeout) as c:

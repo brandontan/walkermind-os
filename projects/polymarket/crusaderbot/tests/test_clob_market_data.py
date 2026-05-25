@@ -14,13 +14,15 @@ from projects.polymarket.crusaderbot.integrations.clob.exceptions import (
 from projects.polymarket.crusaderbot.integrations.clob.market_data import (
     MarketDataClient,
 )
-
+from projects.polymarket.crusaderbot.integrations.clob.rate_limiter import RateLimiter
 
 pytestmark = pytest.mark.asyncio
 
+_NO_THROTTLE = RateLimiter(rps=0)
+
 
 def _client(handler):
-    return MarketDataClient(transport=httpx.MockTransport(handler))
+    return MarketDataClient(transport=httpx.MockTransport(handler), rate_limiter=_NO_THROTTLE)
 
 
 async def test_get_orderbook_passes_token_id_param():
