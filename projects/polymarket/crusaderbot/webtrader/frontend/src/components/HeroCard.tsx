@@ -199,19 +199,22 @@ function Cross({ pos, className }: { pos: "tl" | "tr" | "bl" | "br"; className?:
   );
 }
 
+const RISK_COLOR: Record<RiskLevel, { bg: string; text: string; border: string }> = {
+  safe:       { bg: "rgba(0,229,255,0.10)",  text: "var(--cyan,#00E5FF)", border: "rgba(0,229,255,0.30)" },
+  balanced:   { bg: "rgba(245,200,66,0.10)", text: "var(--gold,#F5C842)", border: "rgba(245,200,66,0.30)" },
+  aggressive: { bg: "rgba(255,45,85,0.10)",  text: "var(--red,#FF2D55)",  border: "rgba(255,45,85,0.30)" },
+};
+
 function RiskTag({ risk }: { risk: RiskLevel }) {
+  const c = RISK_COLOR[risk];
   return (
     <span
       className="inline-flex items-baseline gap-1.5 font-mono text-[9px] font-bold tracking-[2px] py-1 px-2.5 uppercase clip-tab"
-      style={{
-        background: "rgba(245,200,66,0.10)",
-        color: "var(--gold,#F5C842)",
-        border: "1px solid rgba(245,200,66,0.3)",
-      }}
+      style={{ background: c.bg, color: c.text, border: `1px solid ${c.border}` }}
     >
-      <span className="text-ink-3 mr-0.5">[</span>
+      <span className="opacity-50 mr-0.5">[</span>
       {RISK_LABEL[risk]}
-      <span className="text-ink-3 ml-0.5">]</span>
+      <span className="opacity-50 ml-0.5">]</span>
     </span>
   );
 }

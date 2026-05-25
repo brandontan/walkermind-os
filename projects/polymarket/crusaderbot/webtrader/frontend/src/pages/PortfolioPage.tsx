@@ -777,6 +777,14 @@ export function PositionRow({ p, onCashOut, onForceRedeem }: {
     <span key="cost" className="text-ink-3">
       ${p.size_usdc.toFixed(2)}
     </span>,
+    // Entry price — essential context for any open position
+    ...(isOpen && !awaitingRedeem && p.entry_price > 0
+      ? [
+          <span key="entry" className="text-ink-2">
+            {p.side.toUpperCase()} @ {(p.entry_price * 100).toFixed(1)}¢
+          </span>,
+        ]
+      : []),
     ...(awaitingRedeem
       ? [
           <span key="won" className="font-bold text-grn">
@@ -806,11 +814,7 @@ export function PositionRow({ p, onCashOut, onForceRedeem }: {
       side={side}
       borderTone={tone}
       meta={metaItems}
-      metaAdvanced={[
-        <span key="entry">
-          {p.side.toUpperCase()} @ {(p.entry_price * 100).toFixed(1)}¢
-        </span>,
-      ]}
+      metaAdvanced={[]}
       footer={
         awaitingRedeem && onForceRedeem ? (
           <button

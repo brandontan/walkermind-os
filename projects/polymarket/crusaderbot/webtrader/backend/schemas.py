@@ -56,6 +56,7 @@ class DashboardSummary(BaseModel):
     kill_switch_active: bool
     trading_mode: str
     active_preset: Optional[str] = None
+    risk_profile: str = "balanced"
 
 
 # ── Market feed ───────────────────────────────────────────────────────────────

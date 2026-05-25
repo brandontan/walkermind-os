@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AdvancedOnly } from "../components/AdvancedGate";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
+import { EmptyState } from "../components/EmptyState";
 import { HeroCard, type RiskLevel } from "../components/HeroCard";
 import { KillSwitchButton } from "../components/KillSwitchButton";
 import { StatCard } from "../components/StatCard";
@@ -17,20 +18,10 @@ import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 import { PositionRow } from "./PortfolioPage";
 
-const PRESET_RISK: Record<string, RiskLevel> = {
-  signal_sniper: "safe",
-  whale_mirror:  "balanced",
-  hybrid:        "balanced",
-  full_auto:     "balanced",
-  value_hunter:  "aggressive",
-};
-
 const PRESET_CODE: Record<string, string> = {
-  signal_sniper: "SIG",
-  whale_mirror:  "CPY",
-  hybrid:        "SIG·CPY",
-  full_auto:     "SIG·CPY·VAL",
-  value_hunter:  "VAL",
+  close_sweep:  "CANDLE",
+  safe_close:   "CANDLE·SAFE",
+  flip_hunter:  "CANDLE·FLIP",
 };
 
 export function DashboardPage() {
@@ -91,7 +82,7 @@ export function DashboardPage() {
 
   useEffect(() => { void loadMarketFeed(); }, [loadMarketFeed]);
 
-  useSSE(user?.token ?? null, {
+  const { connected: sseConnected } = useSSE(user?.token ?? null, {
     positions:        refreshAll,
     portfolio:        refreshAll,
     system:           () => void load(),
@@ -128,8 +119,9 @@ export function DashboardPage() {
   );
 
   const presetKey = data.active_preset ?? "";
-  const risk: RiskLevel | null = data.active_preset
-    ? (PRESET_RISK[presetKey] ?? "balanced")
+  // Use the actual risk_profile from the backend — not a hardcoded preset map.
+  const risk: RiskLevel | null = data.auto_trade_on
+    ? (data.risk_profile as RiskLevel ?? "balanced")
     : null;
   const presetCode = data.active_preset ? PRESET_CODE[presetKey] : undefined;
 
@@ -286,15 +278,29 @@ export function DashboardPage() {
                 <span className="w-3 h-px bg-gold" aria-hidden />
                 Open Positions ({liveOpen.length})
               </div>
-              <span className="font-mono text-[9px] text-ink-4">
-                live · sse push
+              <span className="font-mono text-[9px] text-ink-4 flex items-center gap-1.5">
+                <span
+                  className={sseConnected ? "animate-status-pulse" : ""}
+                  style={{
+                    display: "inline-block",
+                    width: "6px",
+                    height: "6px",
+                    borderRadius: "50%",
+                    background: sseConnected ? "var(--grn,#00FF9C)" : "var(--ink-3,#455370)",
+                    boxShadow: sseConnected ? "0 0 6px var(--grn,#00FF9C)" : "none",
+                  }}
+                  aria-label={sseConnected ? "live" : "reconnecting"}
+                />
+                {sseConnected ? "live" : "reconnecting…"}
               </span>
             </div>
 
             {liveOpen.length === 0 ? (
-              <div className="text-[12px] text-ink-3 px-1 py-3 font-mono">
-                No open positions.
-              </div>
+              <EmptyState
+                icon="◈"
+                title="No Open Positions"
+                text="Scanner watching markets"
+              />
             ) : (
               <PositionCarousel>
                 {liveOpen.map((p) => (

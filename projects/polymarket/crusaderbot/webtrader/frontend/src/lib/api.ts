@@ -141,6 +141,7 @@ export interface DashboardSummary {
   kill_switch_active: boolean;
   trading_mode: string;
   active_preset: string | null;
+  risk_profile: string;
 }
 
 export interface PositionItem {

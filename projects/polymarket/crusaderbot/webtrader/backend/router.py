@@ -242,6 +242,7 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
         kill_switch_active=ks_active,
         trading_mode=trading_mode,
         active_preset=settings_row["active_preset"] if settings_row else None,
+        risk_profile=str(settings_row["risk_profile"] or "balanced") if settings_row else "balanced",
     )
 
 
