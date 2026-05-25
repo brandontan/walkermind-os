@@ -557,7 +557,7 @@ class TestExitWatcherTrackACloseReasons:
         assert decision.reason is None
 
     def test_resolved_market_skipped(self):
-        """Watcher must not close resolved markets — redeemer settles them."""
+        """Watcher closes resolved markets with market_expired (takes priority over TP)."""
         pos = _make_position(
             side="yes", entry_price=0.40,
             yes_price=1.0,     # would be huge TP
@@ -565,7 +565,8 @@ class TestExitWatcherTrackACloseReasons:
             market_resolved=True,
         )
         decision = asyncio.run(watcher_evaluate(pos))
-        assert decision.should_exit is False
+        assert decision.should_exit is True
+        assert decision.reason == "market_expired"
 
     def test_hold_when_no_tp_sl_set(self):
         """No auto-close when applied_tp/sl are None and force_close_intent=False."""

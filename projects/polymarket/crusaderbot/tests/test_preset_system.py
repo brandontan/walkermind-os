@@ -293,11 +293,10 @@ def test_show_preset_picker_renders_tier_step(monkeypatch):
     assert len(replies) == 1
     text = replies[0]
     assert "Auto Mode" in text  # V5 AUTOBOT branding: header changed from "Auto Trade" to "Auto Mode"
-    # WARP-KB-V2: picker now renders the risk-tier step (progressive disclosure);
-    # tapping a tier surfaces preset:pick:{key} buttons in the next step.
+    # Picker renders preset:pick:{key} buttons directly (tier step removed).
     kb = kws[0]["reply_markup"]
     all_cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    assert any("preset:tier:" in cb for cb in all_cbs)
+    assert any("preset:pick:" in cb for cb in all_cbs)
 
 
 def test_show_preset_picker_clears_awaiting(monkeypatch):

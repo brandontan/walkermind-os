@@ -123,6 +123,8 @@ async def register_email(data: EmailRegisterRequest) -> TokenResponse:
         raise HTTPException(status_code=422, detail="invalid email address")
     if len(data.password) < 8:
         raise HTTPException(status_code=422, detail="password must be at least 8 characters")
+    if len(data.password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=422, detail="password must be 72 characters or fewer")
     if not data.first_name.strip():
         raise HTTPException(status_code=422, detail="first_name is required")
 
@@ -154,6 +156,8 @@ async def register_email(data: EmailRegisterRequest) -> TokenResponse:
 
 async def login_email(data: EmailLoginRequest) -> TokenResponse:
     """Authenticate with email + password."""
+    if len(data.password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=401, detail="invalid email or password")
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -178,6 +182,8 @@ async def link_email(user_id: str, data: LinkEmailRequest) -> dict:
         raise HTTPException(status_code=422, detail="invalid email address")
     if len(data.password) < 8:
         raise HTTPException(status_code=422, detail="password must be at least 8 characters")
+    if len(data.password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=422, detail="password must be 72 characters or fewer")
 
     pool = get_pool()
     async with pool.acquire() as conn:

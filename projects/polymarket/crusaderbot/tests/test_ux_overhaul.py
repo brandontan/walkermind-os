@@ -50,13 +50,13 @@ from projects.polymarket.crusaderbot.bot.keyboards import main_menu
 
 
 def test_main_menu_button_count():
-    # fixed 5-button grid regardless of bot state
+    # fixed 6-button grid regardless of bot state (Wallet added in keyboard v2)
     kb = main_menu()
     all_buttons = [btn for row in kb.keyboard for btn in row]
-    assert len(all_buttons) == 5
-    # Running state: also 5 buttons
+    assert len(all_buttons) == 6
+    # Running state: also 6 buttons
     kb2 = main_menu(auto_on=True)
-    assert len([btn for row in kb2.keyboard for btn in row]) == 5
+    assert len([btn for row in kb2.keyboard for btn in row]) == 6
 
 
 def test_main_menu_has_settings_not_wallet():
@@ -76,14 +76,14 @@ def test_main_menu_has_help_not_emergency():
 
 
 def test_main_menu_v5_layout():
-    # 2-col grid — [Dashboard|Portfolio] / [Auto Mode|Settings] / [Help]
+    # 2-col grid — [Dashboard|Portfolio] / [Auto Mode|Settings] / [Wallet|Help]
     kb = main_menu(auto_on=True)
     row0 = {btn.text for btn in kb.keyboard[0]}
     row1 = {btn.text for btn in kb.keyboard[1]}
-    row2 = [btn.text for btn in kb.keyboard[2]]
+    row2 = {btn.text for btn in kb.keyboard[2]}
     assert row0 == {"📊 Dashboard", "💼 Portfolio"}
     assert row1 == {"🤖 Auto Mode", "⚙️ Settings"}
-    assert row2 == ["❓ Help"]
+    assert row2 == {"💳 Wallet", "❓ Help"}
 
 
 # ---------------------------------------------------------------------------
