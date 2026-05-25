@@ -195,6 +195,7 @@ async def set_auto_trade(user_id: UUID, on: bool) -> None:
         await conn.execute(
             "UPDATE users SET auto_trade_on=$2 WHERE id=$1", user_id, on,
         )
+    await _emit_settings_changed(user_id)
 
 
 async def set_paused(user_id: UUID, paused: bool) -> None:
@@ -203,6 +204,16 @@ async def set_paused(user_id: UUID, paused: bool) -> None:
         await conn.execute(
             "UPDATE users SET paused=$2 WHERE id=$1", user_id, paused,
         )
+    await _emit_settings_changed(user_id)
+
+
+async def _emit_settings_changed(user_id: UUID) -> None:
+    """Fire-and-forget event so WebTrader SSE pushes a settings refresh."""
+    try:
+        from .core.event_bus import emit as _emit
+        await _emit("user.settings_changed", user_id=str(user_id))
+    except Exception:
+        pass
 
 
 async def set_locked(user_id: UUID, locked: bool) -> None:

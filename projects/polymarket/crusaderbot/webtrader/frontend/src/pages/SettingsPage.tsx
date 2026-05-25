@@ -7,6 +7,7 @@ import { Toggle } from "../components/Toggle";
 import { TopBar } from "../components/TopBar";
 import { makeApi, type UserSettings } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useSSE } from "../lib/sse";
 import { useUiMode } from "../lib/uiMode";
 
 export function SettingsPage() {
@@ -34,6 +35,15 @@ export function SettingsPage() {
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // SSE: reflect settings changes made via Telegram bot without manual refresh.
+  useSSE(user?.token ?? null, { settings: load });
+
+  // 30s polling fallback.
+  useEffect(() => {
+    const id = setInterval(load, 30_000);
+    return () => clearInterval(id);
+  }, [load]);
 
   // All three notification toggles bind to the single `notifications_on` flag.
   async function handleNotifToggle(next: boolean) {

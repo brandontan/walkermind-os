@@ -10,6 +10,7 @@ import { WalletCard } from "../components/WalletCard";
 import { WithdrawModal } from "../components/WithdrawModal";
 import { makeApi, type LedgerEntry, type WalletInfo } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useSSE } from "../lib/sse";
 
 export function WalletPage() {
   const { user } = useAuth();
@@ -36,6 +37,19 @@ export function WalletPage() {
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // SSE: refresh balance + ledger when trades open/close or balance changes.
+  useSSE(user?.token ?? null, {
+    position_opened:  load,
+    position_closed:  load,
+    portfolio_update: load,
+  });
+
+  // 30s polling fallback for SSE stalls.
+  useEffect(() => {
+    const id = setInterval(load, 30_000);
+    return () => clearInterval(id);
+  }, [load]);
 
   const loadMore = useCallback(async () => {
     setLoadingMore(true);

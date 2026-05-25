@@ -257,6 +257,20 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             realized = float(result.get("pnl_usdc", 0))
             sign = "+" if realized > 0 else ""
             msg = f"✅ Position closed. Realized P&L: {sign}${realized:.2f}"
+            # Push position.closed so WebTrader updates in realtime.
+            try:
+                from ...core.event_bus import emit as _emit
+                await _emit(
+                    "position.closed",
+                    telegram_user_id=user["telegram_user_id"],
+                    market_id=str(row["market_id"]),
+                    market_question=str(row.get("market_question") or ""),
+                    side=str(row["side"]),
+                    pnl_usdc=realized,
+                    close_reason="manual",
+                )
+            except Exception:
+                pass
         except Exception as exc:
             logger.error("close_confirm_cb paper close failed pos=%s err=%s", pos_id, exc)
             msg = "⚠️ Could not close position. Please try again."

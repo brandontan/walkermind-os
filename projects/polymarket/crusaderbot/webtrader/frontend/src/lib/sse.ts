@@ -45,6 +45,7 @@ export function useSSE(token: string | null, handlers: SSEHandlers): { connected
         "position_opened", "position_closed",
         "position_updated",
         "portfolio_update", "scanner_tick",
+        "copy_trade_executed",
       ] as const;
 
       for (const eventType of EVENT_TYPES) {

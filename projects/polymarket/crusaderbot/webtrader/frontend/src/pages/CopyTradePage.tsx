@@ -5,6 +5,7 @@ import { TopBar } from "../components/TopBar";
 import { TxHash } from "../components/TxHash";
 import { makeApi, type LeaderboardEntry, type Wallet360 } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useSSE } from "../lib/sse";
 
 type CopyTab = "manual" | "leaderboard";
 
@@ -79,6 +80,19 @@ export function CopyTradePage() {
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // SSE: refresh copy tasks when a copy trade executes or a position changes.
+  useSSE(user?.token ?? null, {
+    copy_trade_executed: load,
+    position_opened: load,
+    position_closed: load,
+  });
+
+  // 15s polling fallback for SSE stalls.
+  useEffect(() => {
+    const id = setInterval(load, 15_000);
+    return () => clearInterval(id);
+  }, [load]);
 
   const loadLeaderboard = useCallback(async () => {
     setLbLoading(true);

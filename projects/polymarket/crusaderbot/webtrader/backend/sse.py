@@ -283,6 +283,48 @@ async def _on_scanner_tick_sse(
     _push_broadcast("scanner_tick", {"markets": markets, "signals": signals, "ts": ts})
 
 
+async def _on_user_settings_changed_sse(
+    *,
+    user_id: str,
+    **_: Any,
+) -> None:
+    """Push a settings refresh to the user's WebTrader session.
+
+    Triggered when auto_trade_on or paused changes via Telegram so the
+    WebTrader AutoTradePage reflects the new state without a manual refresh.
+    """
+    if not _user_queues or not user_id:
+        return
+    _push_to_user(user_id, "settings", {})
+
+
+async def _on_copy_trade_executed_sse(
+    *,
+    telegram_user_id: int,
+    market_id: str = "",
+    market_question: str | None = None,
+    side: str = "",
+    size_usdc: float = 0.0,
+    **_: Any,
+) -> None:
+    """Push copy_trade_executed to the follower's WebTrader session."""
+    if not _user_queues:
+        return
+    user_id = _telegram_to_user_id.get(telegram_user_id)
+    if not user_id:
+        user_id = await _resolve_user_id_by_telegram(telegram_user_id)
+    if not user_id:
+        return
+    _push_to_user(user_id, "copy_trade_executed", {
+        "market_id": market_id,
+        "market_question": market_question,
+        "side": side,
+        "size_usdc": float(size_usdc),
+    })
+    # Also push portfolio_update so balance/positions refresh.
+    _push_to_user(user_id, "portfolio_update", {})
+
+
 def push_position_updated(user_id: str, position_id: str, current_price: float, pnl_usdc: float) -> None:
     """Push a position_updated tick to the user's SSE stream."""
     _push_to_user(user_id, "position_updated", {
@@ -295,9 +337,11 @@ def push_position_updated(user_id: str, position_id: str, current_price: float, 
 def register_event_bus_handlers() -> None:
     """Subscribe SSE broadcaster to in-process event_bus events. Call once at startup."""
     from ...core.event_bus import subscribe
-    subscribe("position.opened", _on_position_opened_sse)
-    subscribe("position.closed", _on_position_closed_sse)
-    subscribe("scanner.tick",    _on_scanner_tick_sse)
+    subscribe("position.opened",        _on_position_opened_sse)
+    subscribe("position.closed",        _on_position_closed_sse)
+    subscribe("scanner.tick",           _on_scanner_tick_sse)
+    subscribe("copy_trade.executed",    _on_copy_trade_executed_sse)
+    subscribe("user.settings_changed",  _on_user_settings_changed_sse)
     log.info("SSE: event_bus handlers registered")
 
 
