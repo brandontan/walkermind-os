@@ -80,9 +80,6 @@ export function AutoTradePage() {
   const navigate = useNavigate();
   const tab = searchParams.get("tab") ?? "auto";
   const marketName = searchParams.get("market_name") ?? null;
-
-  // Copy Trade is embedded here — no separate route needed
-  if (tab === "copy") return <CopyTradePage />;
   const [state, setState] = useState<AutoTradeState | null>(null);
   const [tradingMode, setTradingMode] = useState<string>("paper");
   const [loading, setLoading] = useState(false);
@@ -246,6 +243,9 @@ export function AutoTradePage() {
       setSavingRisk(false);
     }
   }
+
+  // All hooks declared above — safe to early-return here
+  if (tab === "copy") return <CopyTradePage />;
 
   if (!state) return (
     <>
@@ -464,81 +464,101 @@ export function AutoTradePage() {
           Controls capital %, take profit, and stop loss. Applies to all trade types.
         </p>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {RISK_PROFILES.map((rp) => {
+        {/* 3 preset cards — equal width row */}
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          {RISK_PROFILES.filter(rp => rp.key !== "custom").map((rp) => {
             const isActive = state.risk_profile === rp.key;
             return (
               <button
                 key={rp.key}
                 onClick={() => void handleActivateRisk(rp.key)}
                 className={[
-                  "text-left p-3 rounded-lg border transition-all",
+                  "text-left p-2.5 rounded-lg border transition-all",
                   isActive
-                    ? "border-gold bg-surface-2 shadow-[0_0_8px_rgba(191,155,48,0.2)]"
-                    : "border-surface-3 bg-surface-1 hover:border-ink-3",
-                  rp.key === "custom" ? "col-span-2 md:col-span-1" : "",
+                    ? "border-gold bg-surface-2 shadow-[0_0_10px_rgba(245,200,66,0.15)]"
+                    : "border-border-1 bg-surface-1 hover:border-border-3",
                 ].join(" ")}
               >
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span>{rp.emoji}</span>
-                  <span className="font-hud text-xs font-bold text-ink-1">{rp.name}</span>
-                  {isActive && (
-                    <span className="ml-auto text-[9px] font-bold tracking-widest text-gold uppercase px-1 py-0.5 rounded border border-gold/40 bg-gold/10">
+                <div className="flex items-center gap-1 mb-1.5">
+                  <span className="text-[13px]">{rp.emoji}</span>
+                  <span className="font-hud text-[9px] font-bold text-ink-1 leading-none">{rp.name}</span>
+                </div>
+                {isActive && (
+                  <div className="mb-1.5">
+                    <span className="text-[8px] font-bold tracking-widest text-gold uppercase px-1 py-0.5 rounded border border-gold/40 bg-gold/10">
                       ACTIVE
                     </span>
-                  )}
-                </div>
-                {rp.key !== "custom" ? (
-                  <div className="grid grid-cols-3 gap-1 text-center mt-1">
-                    {[
-                      { label: "Cap", val: `${rp.capital}%` },
-                      { label: "TP",  val: `+${rp.tp}%` },
-                      { label: "SL",  val: `-${rp.sl}%` },
-                    ].map(({ label, val }) => (
-                      <div key={label} className="bg-surface-2 rounded px-1 py-0.5">
-                        <div className="text-[9px] text-ink-4 uppercase">{label}</div>
-                        <div className="text-xs font-mono font-bold text-ink-1">{val}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-2 space-y-1.5" onClick={e => e.stopPropagation()}>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { label: "Capital %", val: customCapital, set: setCustomCapital, max: 80 },
-                        { label: "TP %",      val: customTp,      set: setCustomTp,      max: 99 },
-                        { label: "SL %",      val: customSl,      set: setCustomSl,      max: 99 },
-                      ].map(({ label, val, set }) => (
-                        <div key={label}>
-                          <label className="text-[9px] text-ink-4 uppercase block mb-0.5">{label}</label>
-                          <input
-                            type="number"
-                            min={1}
-                            max={99}
-                            value={val}
-                            onChange={e => set(e.target.value)}
-                            className="w-full bg-surface-3 border border-surface-3 rounded px-1.5 py-1 text-xs font-mono text-ink-1 placeholder:text-ink-3 focus:border-gold focus:outline-none"
-                            style={{ color: "white" }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    {customErr && (
-                      <p className="text-xs text-red-400">{customErr}</p>
-                    )}
-                    <button
-                      onClick={() => void handleSaveCustomRisk()}
-                      disabled={savingRisk}
-                      className="w-full mt-1 py-1.5 rounded bg-gold/20 border border-gold/40 text-gold text-xs font-bold hover:bg-gold/30 disabled:opacity-50"
-                    >
-                      {savingRisk ? "Saving…" : "Save Custom Profile"}
-                    </button>
                   </div>
                 )}
+                <div className="space-y-1">
+                  {[
+                    { label: "CAP", val: `${rp.capital}%` },
+                    { label: "TP",  val: `+${rp.tp}%` },
+                    { label: "SL",  val: `-${rp.sl}%` },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="flex justify-between items-center">
+                      <span className="text-[8px] text-ink-4 font-mono uppercase">{label}</span>
+                      <span className="text-[10px] font-mono font-bold text-ink-1">{val}</span>
+                    </div>
+                  ))}
+                </div>
               </button>
             );
           })}
         </div>
+
+        {/* Custom Risk — full-width, separate block */}
+        {(() => {
+          const rp = RISK_PROFILES.find(r => r.key === "custom")!;
+          const isActive = state.risk_profile === "custom";
+          return (
+            <div
+              className={[
+                "p-3 rounded-lg border transition-all",
+                isActive
+                  ? "border-gold/60 bg-surface-2"
+                  : "border-border-1 bg-surface-1",
+              ].join(" ")}
+            >
+              <div className="flex items-center gap-2 mb-2.5">
+                <span className="text-[14px]">{rp.emoji}</span>
+                <span className="font-hud text-[10px] font-bold text-ink-1">{rp.name}</span>
+                {isActive && (
+                  <span className="ml-auto text-[8px] font-bold tracking-widest text-gold uppercase px-1.5 py-0.5 rounded border border-gold/40 bg-gold/10">
+                    ACTIVE
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-2 mb-2" onClick={e => e.stopPropagation()}>
+                {[
+                  { label: "Capital %", val: customCapital, set: setCustomCapital },
+                  { label: "TP %",      val: customTp,      set: setCustomTp      },
+                  { label: "SL %",      val: customSl,      set: setCustomSl      },
+                ].map(({ label, val, set }) => (
+                  <div key={label}>
+                    <label className="text-[9px] text-ink-4 uppercase block mb-0.5 font-mono">{label}</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={val}
+                      onChange={e => set(e.target.value)}
+                      className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+              {customErr && <p className="text-xs text-red mb-2">{customErr}</p>}
+              <button
+                onClick={() => void handleSaveCustomRisk()}
+                disabled={savingRisk}
+                className="w-full py-2 rounded border border-gold/40 bg-gold/10 text-gold text-[10px] font-bold tracking-[1.5px] uppercase hover:bg-gold/20 disabled:opacity-50 transition-colors"
+              >
+                {savingRisk ? "Saving…" : "Save Custom Profile"}
+              </button>
+            </div>
+          );
+        })()}
 
         {/* ── SECTION C: Market Filter ── */}
         <CollapsibleSection id="autotrade_market_filter" label="Market Filter" defaultOpen={true}>

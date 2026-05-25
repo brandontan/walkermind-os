@@ -1,3 +1,4 @@
+import { useAlertCenter } from "../App";
 import type { AlertItem } from "../lib/api";
 
 type Category = "TRADE" | "RISK" | "COPY" | "SYSTEM";
@@ -7,6 +8,13 @@ const CATEGORY_STYLE: Record<Category, { color: string; bg: string; border: stri
   RISK:   { color: "var(--red)",   bg: "var(--red-10)",   border: "var(--red-30)"   },
   COPY:   { color: "var(--cyan)",  bg: "var(--cyan-10)",  border: "var(--cyan-30)"  },
   SYSTEM: { color: "var(--ink-2)", bg: "var(--ink-2-08)", border: "var(--ink-2-20)" },
+};
+
+const CATEGORY_ICON: Record<Category, string> = {
+  TRADE:  "⚡",
+  RISK:   "⚠️",
+  COPY:   "📡",
+  SYSTEM: "🖥",
 };
 
 function deriveCategory(alert: AlertItem): Category {
@@ -43,6 +51,8 @@ type Props = {
 };
 
 export function AlertCenter({ isOpen, alerts, onClose }: Props) {
+  const { dismissAlert, loadMoreAlerts, hasMoreAlerts, unreadCount } = useAlertCenter();
+
   return (
     <>
       {/* Backdrop */}
@@ -61,7 +71,7 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
         aria-label="Alert Center"
         className="fixed top-0 right-0 h-full z-[201] flex flex-col"
         style={{
-          width: "min(360px, 92vw)",
+          width: "min(380px, 96vw)",
           background: "var(--surface-2)",
           borderLeft: "1px solid var(--border-2)",
           transform: isOpen ? "translateX(0)" : "translateX(100%)",
@@ -70,17 +80,25 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3.5 border-b border-border-2">
-          <span
-            className="font-hud text-[13px] font-bold tracking-[3px] uppercase text-gold"
-          >
-            ALERT CENTER
-          </span>
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-border-2 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="font-hud text-[13px] font-bold tracking-[3px] uppercase text-gold">
+              Notifications
+            </span>
+            {unreadCount > 0 && (
+              <span
+                className="font-mono text-[9px] font-bold px-2 py-0.5 rounded-full"
+                style={{ background: "rgba(245,200,66,0.15)", color: "var(--gold,#F5C842)", border: "1px solid rgba(245,200,66,0.3)" }}
+              >
+                {unreadCount} NEW
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}
             className="w-7 h-7 flex items-center justify-center rounded text-ink-3 hover:text-ink-1 transition-colors bg-border-1"
-            aria-label="Close Alert Center"
+            aria-label="Close"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
               fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -93,46 +111,85 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
         {/* Alert list */}
         <div className="flex-1 overflow-y-auto">
           {alerts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-2 py-12">
-              <span className="text-2xl" aria-hidden>🔔</span>
-              <span className="font-mono text-[12px] text-ink-3">No alerts yet.</span>
+            <div className="flex flex-col items-center justify-center h-full gap-3 py-12">
+              <span className="text-3xl opacity-40" aria-hidden>🔔</span>
+              <span className="font-mono text-[11px] text-ink-4">No notifications yet.</span>
+              <span className="font-mono text-[10px] text-ink-4 text-center px-8 leading-relaxed">
+                Trade closures and system events will appear here.
+              </span>
             </div>
           ) : (
-            <div className="divide-y divide-border-1">
-              {alerts.map((alert) => {
-                const cat = deriveCategory(alert);
-                const style = CATEGORY_STYLE[cat];
-                return (
-                  <div
-                    key={alert.id}
-                    className="px-4 py-3"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      {/* Category badge */}
-                      <span
-                        className="font-hud text-[8px] font-bold tracking-[1.5px] px-1.5 py-0.5 rounded-sm uppercase"
-                        style={{ color: style.color, background: style.bg, border: `1px solid ${style.border}` }}
+            <div>
+              <div className="divide-y divide-border-1">
+                {alerts.map((alert) => {
+                  const cat = deriveCategory(alert);
+                  const style = CATEGORY_STYLE[cat];
+                  const icon = CATEGORY_ICON[cat];
+                  return (
+                    <div key={alert.id} className="px-4 py-3 flex gap-3 group hover:bg-surface-3 transition-colors">
+                      {/* Icon badge */}
+                      <div
+                        className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-[16px] mt-0.5"
+                        style={{ background: style.bg, border: `1px solid ${style.border}` }}
                       >
-                        {cat}
-                      </span>
-                      {/* Relative timestamp */}
-                      <span className="font-mono text-[9px] text-ink-3 ml-auto">
-                        {relativeTime(alert.created_at)}
-                      </span>
-                    </div>
-                    <div className="font-sans text-[12px] text-ink-1 font-semibold leading-snug">
-                      {alert.title}
-                    </div>
-                    {alert.body && (
-                      <div className="font-mono text-[10px] text-ink-3 mt-0.5 leading-snug">
-                        {alert.body}
+                        {icon}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start gap-1.5 mb-0.5">
+                          <span className="font-sans text-[12px] text-ink-1 font-semibold leading-snug flex-1">
+                            {alert.title}
+                          </span>
+                          {/* Dismiss */}
+                          <button
+                            type="button"
+                            onClick={() => dismissAlert(alert.id)}
+                            className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-ink-4 hover:text-ink-2 opacity-0 group-hover:opacity-100 transition-all mt-0.5"
+                            aria-label="Dismiss"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
+                              fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
+                        </div>
+                        {alert.body && (
+                          <div className="font-mono text-[10px] text-ink-3 leading-snug mb-1 truncate">
+                            {alert.body}
+                          </div>
+                        )}
+                        <span className="font-mono text-[9px] text-ink-4">
+                          {relativeTime(alert.created_at)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Load more */}
+              {hasMoreAlerts && (
+                <button
+                  type="button"
+                  onClick={() => void loadMoreAlerts()}
+                  className="w-full py-3 font-mono text-[10px] text-ink-3 hover:text-gold transition-colors border-t border-border-1"
+                >
+                  Load more
+                </button>
+              )}
             </div>
           )}
+        </div>
+
+        {/* Footer */}
+        <div
+          className="px-4 py-2.5 border-t border-border-2 flex items-center justify-between flex-shrink-0"
+          style={{ background: "var(--surface)" }}
+        >
+          <span className="font-mono text-[9px] text-ink-4">
+            {alerts.length} shown · tap × to dismiss
+          </span>
         </div>
       </div>
     </>

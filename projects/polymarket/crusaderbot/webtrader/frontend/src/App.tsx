@@ -23,6 +23,9 @@ interface AlertCenterCtx {
   isOpen: boolean;
   openAlertCenter: () => void;
   closeAlertCenter: () => void;
+  dismissAlert: (id: string) => void;
+  loadMoreAlerts: () => Promise<void>;
+  hasMoreAlerts: boolean;
 }
 
 export const AlertCenterContext = createContext<AlertCenterCtx>({
@@ -31,6 +34,9 @@ export const AlertCenterContext = createContext<AlertCenterCtx>({
   isOpen: false,
   openAlertCenter: () => undefined,
   closeAlertCenter: () => undefined,
+  dismissAlert: () => undefined,
+  loadMoreAlerts: async () => undefined,
+  hasMoreAlerts: false,
 });
 
 export function useAlertCenter(): AlertCenterCtx {
@@ -57,23 +63,28 @@ function AppShell() {
 
   // ── Alert Center global state ────────────────────────────────────────────
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [alertOffset, setAlertOffset] = useState(0);
+  const [hasMoreAlerts, setHasMoreAlerts] = useState(false);
+  const ALERT_PAGE = 10;
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [lastSeen, setLastSeen] = useState<number>(() => {
     const stored = localStorage.getItem(LAST_SEEN_KEY);
     return stored ? Number(stored) : 0;
   });
 
-  const fetchAlerts = useCallback(async () => {
+  const fetchAlerts = useCallback(async (offset = 0, append = false) => {
     if (!user) return;
     try {
       const [sysResult, posResult] = await Promise.allSettled([
-        api.getAlerts(),
-        api.getPositions("closed", 10, 0),
+        offset === 0 ? api.getAlerts() : Promise.resolve([] as AlertItem[]),
+        api.getPositions("closed", ALERT_PAGE + 1, offset),
       ]);
       const sysAlerts: AlertItem[] = sysResult.status === "fulfilled" ? sysResult.value : [];
-      const closed = posResult.status === "fulfilled" ? posResult.value : [];
+      const closedRaw = posResult.status === "fulfilled" ? posResult.value : [];
+      const hasMore = closedRaw.length > ALERT_PAGE;
+      const closed = closedRaw.slice(0, ALERT_PAGE);
 
-      // Synthesize trade alerts from recent closed positions when system_alerts is empty
       const tradeAlerts: AlertItem[] = closed
         .filter((p) => p.closed_at)
         .map((p) => {
@@ -83,7 +94,7 @@ function AppShell() {
             id: `pos-${p.id}`,
             severity: "trade",
             title: won
-              ? `✓ Trade Closed  +$${pnl.toFixed(2)}`
+              ? `Trade Closed  +$${pnl.toFixed(2)}`
               : `Trade Closed  −$${Math.abs(pnl).toFixed(2)}`,
             body: p.market_question ?? null,
             created_at: p.closed_at!,
@@ -91,20 +102,31 @@ function AppShell() {
         });
 
       const seen = new Set(sysAlerts.map((a) => a.id));
-      const merged = [...sysAlerts, ...tradeAlerts.filter((a) => !seen.has(a.id))];
-      setAlerts(merged);
+      const newItems = [...(offset === 0 ? sysAlerts : []), ...tradeAlerts.filter((a) => !seen.has(a.id))];
+      setAlerts(prev => append ? [...prev, ...newItems] : newItems);
+      setHasMoreAlerts(hasMore);
     } catch {
       // non-critical — panel shows empty state
     }
   }, [api, user]);
+
+  const loadMoreAlerts = useCallback(async () => {
+    const next = alertOffset + ALERT_PAGE;
+    setAlertOffset(next);
+    await fetchAlerts(next, true);
+  }, [alertOffset, fetchAlerts]);
+
+  const dismissAlert = useCallback((id: string) => {
+    setDismissed(prev => new Set([...prev, id]));
+  }, []);
 
   const [lastScanMs, setLastScanMs] = useState<number | null>(null);
 
   // SSE connection — fetchAlerts defined above so it's safe to reference here.
   // Re-fetch on both system and alert events to keep the Alert Center in sync.
   const { connected: sseConnected } = useSSE(user?.token ?? null, {
-    system: fetchAlerts,
-    alert: fetchAlerts,
+    system: () => { setAlertOffset(0); void fetchAlerts(0, false); },
+    alert:  () => { setAlertOffset(0); void fetchAlerts(0, false); },
     scanner_tick: (raw) => {
       const payload = raw as { ts?: number };
       if (payload.ts) setLastScanMs(payload.ts * 1000);
@@ -112,12 +134,17 @@ function AppShell() {
   });
 
   useEffect(() => {
-    void fetchAlerts();
+    void fetchAlerts(0, false);
   }, [fetchAlerts]);
 
+  const visibleAlerts = useMemo(
+    () => alerts.filter((a) => !dismissed.has(a.id)),
+    [alerts, dismissed],
+  );
+
   const unreadCount = useMemo(
-    () => alerts.filter((a) => new Date(a.created_at).getTime() > lastSeen).length,
-    [alerts, lastSeen],
+    () => visibleAlerts.filter((a) => new Date(a.created_at).getTime() > lastSeen).length,
+    [visibleAlerts, lastSeen],
   );
 
   const openAlertCenter = useCallback(() => {
@@ -130,8 +157,17 @@ function AppShell() {
   const closeAlertCenter = useCallback(() => setIsAlertOpen(false), []);
 
   const alertCtx: AlertCenterCtx = useMemo(
-    () => ({ alerts, unreadCount, isOpen: isAlertOpen, openAlertCenter, closeAlertCenter }),
-    [alerts, unreadCount, isAlertOpen, openAlertCenter, closeAlertCenter],
+    () => ({
+      alerts: visibleAlerts,
+      unreadCount,
+      isOpen: isAlertOpen,
+      openAlertCenter,
+      closeAlertCenter,
+      dismissAlert,
+      loadMoreAlerts,
+      hasMoreAlerts,
+    }),
+    [visibleAlerts, unreadCount, isAlertOpen, openAlertCenter, closeAlertCenter, dismissAlert, loadMoreAlerts, hasMoreAlerts],
   );
 
   return (
