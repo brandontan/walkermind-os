@@ -7,9 +7,16 @@
 -- telegram_user_id becomes nullable so web-only registrations are possible.
 -- The UNIQUE constraint is preserved (two Telegram accounts cannot share a row).
 
--- 1. Make telegram_user_id nullable (was NOT NULL).
-ALTER TABLE users
-  ALTER COLUMN telegram_user_id DROP NOT NULL;
+-- 1. Make telegram_user_id nullable (was NOT NULL). Safe to run twice.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='users' AND column_name='telegram_user_id' AND is_nullable='NO'
+  ) THEN
+    ALTER TABLE users ALTER COLUMN telegram_user_id DROP NOT NULL;
+  END IF;
+END$$;
 
 -- 2. Add email (unique, nullable — NULL for Telegram-only accounts).
 ALTER TABLE users
@@ -23,6 +30,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique
   WHERE email IS NOT NULL;
 
 -- 3. Enforce: every user must have at least one identity (Telegram OR email).
-ALTER TABLE users
-  ADD CONSTRAINT users_identity_required
-  CHECK (telegram_user_id IS NOT NULL OR email IS NOT NULL);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'users_identity_required'
+      AND table_name = 'users'
+  ) THEN
+    ALTER TABLE users
+      ADD CONSTRAINT users_identity_required
+      CHECK (telegram_user_id IS NOT NULL OR email IS NOT NULL);
+  END IF;
+END$$;
