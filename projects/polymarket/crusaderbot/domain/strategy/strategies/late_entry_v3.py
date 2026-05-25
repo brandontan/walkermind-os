@@ -259,6 +259,12 @@ def _book_depth_usdc(book: dict[str, Any] | None) -> float:
             total += float(b["price"]) * float(b["size"])
         except (KeyError, TypeError, ValueError):
             continue
+    for a in (book.get("asks") or []):
+        try:
+            # Ask depth in USDC: cost to fill = (1 - ask_price) × size
+            total += (1.0 - float(a["price"])) * float(a["size"])
+        except (KeyError, TypeError, ValueError):
+            continue
     return total
 
 

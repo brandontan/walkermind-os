@@ -603,17 +603,24 @@ def _build_user_context(row: dict[str, Any]) -> UserContext:
     )
 
 
-def _build_market_filters(profile: str) -> MarketFilters:
+def _build_market_filters(profile: str, row: dict | None = None) -> MarketFilters:
     # Resolution-horizon and liquidity floor are derived from the user's risk
     # profile (PROFILES in domain/risk/constants). Conservative=7d / Balanced=30d
-    # / Aggressive=90d. This stops the scanner from entering far-dated futures
-    # (e.g. championship winners resolving months out) that never hit TP/SL and
-    # permanently occupy a concurrent-trade slot. Category filter and blacklist
-    # remain opt-in extensions reserved for a future lane.
+    # / Aggressive=90d. User settings (min_liquidity_threshold, category_filters)
+    # override the profile defaults when set — this is what the WebTrader
+    # Market Filter UI saves to user_settings.
     preset = PROFILES.get((profile or "balanced").lower(), PROFILES["balanced"])
+
+    # User-configured liquidity floor overrides profile default when > 0.
+    user_min_liq = float((row or {}).get("min_liquidity_threshold") or 0.0)
+    min_liq = user_min_liq if user_min_liq > 0 else float(preset["min_liquidity"])
+
+    # User-configured category filter overrides empty default when set.
+    user_cats = list((row or {}).get("category_filters") or [])
+
     return MarketFilters(
-        categories=[],
-        min_liquidity=float(preset["min_liquidity"]),
+        categories=user_cats,
+        min_liquidity=min_liq,
         max_time_to_resolution_days=int(preset["max_days"]),
         blacklisted_market_ids=[],
     )
@@ -1230,7 +1237,7 @@ async def run_once() -> None:
         ):
             try:
                 user_ctx = _build_user_context(row)
-                market_filters = _build_market_filters(user_ctx.risk_profile)
+                market_filters = _build_market_filters(user_ctx.risk_profile, row)
                 domain_cands = await confluence_strat.scan(market_filters, user_ctx)
             except Exception as exc:
                 user_log.warning("confluence_scalper_run_failed", error=str(exc))
@@ -1270,7 +1277,7 @@ async def run_once() -> None:
         ):
             try:
                 user_ctx = _build_user_context(row)
-                market_filters = _build_market_filters(user_ctx.risk_profile)
+                market_filters = _build_market_filters(user_ctx.risk_profile, row)
                 # Pass preset-specific params when the user is on a candle preset;
                 # full_auto/default passes None so scan() falls back to global config.
                 _le_preset_params = _CANDLE_PRESET_PARAMS.get(active_preset)
@@ -1316,7 +1323,7 @@ async def run_once() -> None:
         # _process_candidate handles dedup via (user_id, publication_id) unique key.
         try:
             user_ctx = _build_user_context(row)
-            market_filters = _build_market_filters(user_ctx.risk_profile)
+            market_filters = _build_market_filters(user_ctx.risk_profile, row)
             feed_candidates = await evaluate_publications_for_user(
                 user_context=user_ctx,
                 market_filters=market_filters,
@@ -1456,7 +1463,7 @@ async def run_close_sweep_fast() -> None:
 
         try:
             user_ctx = _build_user_context(row)
-            market_filters = _build_market_filters(user_ctx.risk_profile)
+            market_filters = _build_market_filters(user_ctx.risk_profile, row)
             cands = await late_entry_strat.scan(
                 market_filters,
                 user_ctx,
