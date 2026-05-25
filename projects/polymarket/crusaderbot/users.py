@@ -101,10 +101,18 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
 
 
 async def _bootstrap_new_user(user_id: UUID) -> None:
-    """Create wallet, seed paper capital, and enroll signal following for a new user.
+    """Create wallet, seed paper capital, and configure defaults for a new user.
 
     Called after the users row is committed. Safe to call multiple times —
     all operations are idempotent (ON CONFLICT DO NOTHING / balance guards).
+
+    Default config (bot OFF, preset ready):
+      risk_profile  = aggressive
+      active_preset = close_sweep
+      capital_alloc = 0.40  (40% per trade)
+      tp_pct        = 0.90  (+90% TP)
+      sl_pct        = 0.40  (-40% SL)
+      auto_trade_on = FALSE (user must explicitly enable)
     """
     from .wallet.vault import create_wallet_for_user
     try:
@@ -115,6 +123,23 @@ async def _bootstrap_new_user(user_id: UUID) -> None:
         await seed_paper_capital(user_id)
     except Exception:
         logger.exception("paper seed failed for new user user_id=%s", user_id)
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE user_settings SET
+                    risk_profile      = 'aggressive',
+                    active_preset     = 'close_sweep',
+                    capital_alloc_pct = 0.40,
+                    tp_pct            = 0.90,
+                    sl_pct            = 0.40
+                WHERE user_id = $1
+                """,
+                user_id,
+            )
+    except Exception:
+        logger.exception("default settings failed for new user user_id=%s", user_id)
     try:
         await _enroll_signal_following(user_id)
     except Exception:
