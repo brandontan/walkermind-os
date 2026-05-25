@@ -52,19 +52,24 @@ PROFILES: dict[str, dict] = {
 }
 
 STRATEGY_AVAILABILITY: dict[str, list[str]] = {
-    "copy_trade":       ["conservative", "balanced", "aggressive", "custom"],
-    "signal":           ["conservative", "balanced", "aggressive", "custom"],
-    "signal_following": ["conservative", "balanced", "aggressive", "custom"],
-    "value":            ["balanced", "aggressive", "custom"],   # Phase R6b+
-    "momentum":         ["aggressive", "custom"],               # Phase R9+
+    "copy_trade":        ["conservative", "balanced", "aggressive", "custom"],
+    "signal":            ["conservative", "balanced", "aggressive", "custom"],
+    "signal_following":  ["conservative", "balanced", "aggressive", "custom"],
+    "value":             ["balanced", "aggressive", "custom"],
+    "momentum":          ["balanced", "aggressive", "custom"],
     "momentum_reversal": ["balanced", "aggressive", "custom"],
+    "trend_breakout":    ["balanced", "aggressive", "custom"],
+    "value_investor":    ["balanced", "aggressive", "custom"],
+    "whale_tracking":    ["conservative", "balanced", "aggressive", "custom"],
+    # ensemble emits candidates with strategy_name="ensemble" — must be listed
+    # or gate step 4 rejects every ensemble candidate as unknown_strategy.
+    "ensemble":          ["balanced", "aggressive", "custom"],
     # Crypto-short preset engines — candidates carry the lib/domain strategy
-    # name as strategy_type, so they must be allow-listed here or the risk gate
-    # rejects them at step 4 (unknown_strategy). close_sweep -> late_entry_v3,
-    # Crypto Scalper -> confluence_scalper (balanced/aggressive/custom only).
-    "expiration_timing": ["conservative", "balanced", "aggressive", "custom"],
+    # name as strategy_type. close_sweep -> late_entry_v3,
+    # Crypto Scalper -> confluence_scalper.
+    "expiration_timing":  ["conservative", "balanced", "aggressive", "custom"],
     "confluence_scalper": ["balanced", "aggressive", "custom"],
-    "late_entry_v3": ["conservative", "balanced", "aggressive", "custom"],
+    "late_entry_v3":      ["conservative", "balanced", "aggressive", "custom"],
 }
 
 

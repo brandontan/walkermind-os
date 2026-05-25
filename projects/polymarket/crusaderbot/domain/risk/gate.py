@@ -39,6 +39,10 @@ class GateContext:
     risk_profile: str
     daily_loss_override: float | None
     trading_mode: str         # 'paper' | 'live'
+    # User-configured liquidity floor from user_settings.min_liquidity.
+    # When > 0, overrides the profile default in gate step 11.
+    # Allows users to lower the floor for thin markets (e.g. candle markets).
+    user_min_liquidity: float = 0.0
 
 
 @dataclass
@@ -330,8 +334,12 @@ async def evaluate(ctx: GateContext) -> GateResult:
         return GateResult(False, "dedup_window_active", 10)
     await _log(ctx.user_id, ctx.market_id, 10, True, "ok")
 
-    # 11. Liquidity floor
-    min_liq = max(profile["min_liquidity"], K.MIN_LIQUIDITY)
+    # 11. Liquidity floor — user override takes precedence when set.
+    # User sets min_liquidity in WebTrader Market Filter (user_settings.min_liquidity).
+    # For candle markets the profile floor (10k-20k) is too high; user can lower it.
+    _profile_floor = float(profile["min_liquidity"])
+    _user_floor = float(ctx.user_min_liquidity) if ctx.user_min_liquidity > 0 else _profile_floor
+    min_liq = max(_user_floor, K.MIN_LIQUIDITY * 0.1)  # hard floor: 10% of system MIN (1k USDC)
     if ctx.market_liquidity < min_liq:
         await _log(ctx.user_id, ctx.market_id, 11, False,
                    f"liquidity {ctx.market_liquidity}<{min_liq}")

@@ -706,6 +706,7 @@ def _build_trade_signal(
             if row.get("daily_loss_override") is not None
             else None
         ),
+        user_min_liquidity=float(row.get("min_liquidity_threshold") or 0.0),
     )
 
 
