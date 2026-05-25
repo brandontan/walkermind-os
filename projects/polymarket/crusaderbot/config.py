@@ -190,7 +190,7 @@ class Settings(BaseSettings):
     # Late Entry V3 runtime-tuning — override via fly secrets without code change.
     LATE_ENTRY_MIN_ASK_DIFF: float = 0.05   # env: LATE_ENTRY_MIN_ASK_DIFF
     LATE_ENTRY_WINDOW_SEC: float = 35.0     # env: LATE_ENTRY_WINDOW_SEC
-    LATE_ENTRY_FLIP_STOP: float = 0.48      # env: LATE_ENTRY_FLIP_STOP
+    LATE_ENTRY_FLIP_STOP: float = 0.10      # env: LATE_ENTRY_FLIP_STOP — near-disabled for close_sweep (hold to resolution)
     LATE_ENTRY_FAV_PRICE_MIN: float = 0.50  # env: LATE_ENTRY_FAV_PRICE_MIN — favored side must be majority-probability
 
     # Per-preset overrides for late_entry_v3 — each preset passes its own
@@ -242,7 +242,7 @@ class Settings(BaseSettings):
     PORTFOLIO_SNAPSHOT_INTERVAL: int = 60  # WARP-52: cb_portfolio NOTIFY heartbeat
     REDEEM_INTERVAL: int = 3600
     RESOLUTION_CHECK_INTERVAL: int = 300
-    DB_POOL_MAX: int = 4
+    DB_POOL_MAX: int = 10
     TIMEZONE: str = "Asia/Jakarta"
     DAILY_REPORT_HOUR: int = 23  # env: DAILY_REPORT_HOUR (0-23 UTC)
 
