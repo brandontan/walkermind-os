@@ -27,7 +27,7 @@ export function PageTabs({ active, onSwitch }: { active: "auto" | "copy"; onSwit
   return (
     <div
       className="flex border-b border-border-1 px-3.5"
-      style={{ background: "rgba(2,5,11,0.6)" }}
+      style={{ background: "rgba(6,11,22,0.85)" }}
     >
       {(["auto", "copy"] as const).map((t) => {
         const isActive = active === t;
@@ -36,10 +36,10 @@ export function PageTabs({ active, onSwitch }: { active: "auto" | "copy"; onSwit
             key={t}
             onClick={() => onSwitch(t)}
             className={[
-              "py-2.5 px-3 font-hud text-[9.5px] font-bold tracking-[2px] uppercase transition-all border-b-2 -mb-px",
+              "py-3 px-4 font-hud text-[10px] font-bold tracking-[2px] uppercase transition-all border-b-2 -mb-px",
               isActive
                 ? "text-gold border-gold"
-                : "text-ink-3 border-transparent hover:text-ink-2",
+                : "text-ink-1 border-transparent hover:text-gold/70 opacity-50 hover:opacity-80",
             ].join(" ")}
           >
             {t === "auto" ? "Auto Trade" : "Copy Trade"}
