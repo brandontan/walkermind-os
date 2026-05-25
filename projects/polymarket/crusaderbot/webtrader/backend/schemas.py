@@ -25,6 +25,22 @@ class TokenResponse(BaseModel):
     first_name: str
 
 
+class EmailRegisterRequest(BaseModel):
+    email: str
+    password: str
+    first_name: str
+
+
+class EmailLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class LinkEmailRequest(BaseModel):
+    email: str
+    password: str
+
+
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 class DashboardSummary(BaseModel):

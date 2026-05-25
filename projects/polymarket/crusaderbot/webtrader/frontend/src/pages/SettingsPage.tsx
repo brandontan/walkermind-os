@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AdvancedOnly } from "../components/AdvancedGate";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
@@ -17,6 +17,33 @@ export function SettingsPage() {
   const { advanced, toggle: toggleAdvanced } = useUiMode();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [tradingMode, setTradingMode] = useState<string>("paper");
+
+  // Link email state
+  const [showLinkEmail, setShowLinkEmail] = useState(false);
+  const [linkEmail, setLinkEmail] = useState("");
+  const [linkPassword, setLinkPassword] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [linkSuccess, setLinkSuccess] = useState(false);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const linkFormRef = useRef<HTMLFormElement>(null);
+
+  async function handleLinkEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setLinkError(null);
+    setLinkLoading(true);
+    try {
+      await api.linkEmail(linkEmail.trim(), linkPassword);
+      setLinkSuccess(true);
+      setShowLinkEmail(false);
+      setLinkEmail("");
+      setLinkPassword("");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to link email";
+      setLinkError(msg.replace(/^\d+:\s*/, ""));
+    } finally {
+      setLinkLoading(false);
+    }
+  }
 
   // Auto-redeem local state
   const [autoRedeem, setAutoRedeem] = useState(false);
@@ -225,6 +252,61 @@ export function SettingsPage() {
                   control={<span className="text-gold">🔒 LOCKED</span>}
                 />
               </AdvancedOnly>
+
+              {/* Link Email */}
+              <div className="pt-2 border-t border-surface-3 mt-2">
+                {linkSuccess ? (
+                  <p className="text-grn text-[11px] font-mono py-1">✅ Email linked — you can now log in with email + password.</p>
+                ) : !showLinkEmail ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowLinkEmail(true)}
+                    className="text-[11px] text-gold font-hud tracking-widest uppercase hover:underline"
+                  >
+                    + Link Email Login
+                  </button>
+                ) : (
+                  <form ref={linkFormRef} onSubmit={(e) => void handleLinkEmail(e)} className="space-y-2 pt-1">
+                    <p className="text-ink-3 text-[11px] font-mono mb-2">
+                      Add email + password so you can log in without Telegram.
+                    </p>
+                    <input
+                      type="email"
+                      value={linkEmail}
+                      onChange={(e) => setLinkEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      required
+                      className="w-full bg-surface-2 border border-border-2 rounded px-3 py-1.5 text-[12px] text-ink-1 placeholder:text-ink-4 focus:outline-none focus:border-gold"
+                    />
+                    <input
+                      type="password"
+                      value={linkPassword}
+                      onChange={(e) => setLinkPassword(e.target.value)}
+                      placeholder="Min 8 characters"
+                      required
+                      minLength={8}
+                      className="w-full bg-surface-2 border border-border-2 rounded px-3 py-1.5 text-[12px] text-ink-1 placeholder:text-ink-4 focus:outline-none focus:border-gold"
+                    />
+                    {linkError && <p className="text-red-400 text-[11px] font-mono">{linkError}</p>}
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        disabled={linkLoading}
+                        className="flex-1 py-1.5 bg-gold text-black font-hud text-[10px] tracking-widest uppercase rounded hover:bg-gold/90 disabled:opacity-50"
+                      >
+                        {linkLoading ? "…" : "Link Email"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowLinkEmail(false); setLinkError(null); }}
+                        className="px-3 py-1.5 border border-surface-3 text-ink-3 font-hud text-[10px] tracking-widest uppercase rounded hover:border-ink-3"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
             </SettingsGroup>
           </div>
         </div>

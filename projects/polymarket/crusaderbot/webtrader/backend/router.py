@@ -16,7 +16,7 @@ from ...domain.ops import kill_switch
 from ... import notifications as notif_module
 from ...integrations import polymarket as _polymarket
 from . import sse as webtrader_sse
-from .auth import authenticate_telegram, get_current_user
+from .auth import authenticate_telegram, get_current_user, login_email, register_email, link_email
 from .schemas import (
     AlertItem,
     AutoTradeState,
@@ -39,6 +39,9 @@ from .schemas import (
     RiskProfileRequest,
     RuntimeStatus,
     StrategyPnl,
+    EmailLoginRequest,
+    EmailRegisterRequest,
+    LinkEmailRequest,
     TelegramAuthPayload,
     TokenResponse,
     TradeHighlight,
@@ -78,6 +81,27 @@ async def get_markets_list(
 @router.post("/auth/telegram", response_model=TokenResponse)
 async def auth_telegram(data: TelegramAuthPayload) -> TokenResponse:
     return await authenticate_telegram(data)
+
+
+@router.post("/auth/register", response_model=TokenResponse)
+async def auth_register(data: EmailRegisterRequest) -> TokenResponse:
+    """Register a new account with email + password (no Telegram required)."""
+    return await register_email(data)
+
+
+@router.post("/auth/login", response_model=TokenResponse)
+async def auth_login(data: EmailLoginRequest) -> TokenResponse:
+    """Authenticate with email + password."""
+    return await login_email(data)
+
+
+@router.post("/auth/link-email")
+async def auth_link_email(
+    data: LinkEmailRequest,
+    user: dict = Depends(get_current_user),
+) -> dict:
+    """Link an email + password to an existing Telegram account."""
+    return await link_email(user["user_id"], data)
 
 
 @router.get("/me")

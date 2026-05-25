@@ -6,7 +6,7 @@ import { DesktopSidebar } from "./components/DesktopSidebar";
 import { AuthContext, useAuth, useAuthState } from "./lib/auth";
 import { SSEStatusContext, useSSE } from "./lib/sse";
 import { UiModeContext, useUiModeState } from "./lib/uiMode";
-import { makeApi, type AlertItem } from "./lib/api";
+import { makeApi, setUnauthorizedHandler, type AlertItem } from "./lib/api";
 import { AuthPage } from "./pages/AuthPage";
 import { AutoTradePage } from "./pages/AutoTradePage";
 import { CopyTradePage } from "./pages/CopyTradePage";
@@ -191,6 +191,12 @@ function AppShell() {
 export function App() {
   const authState = useAuthState();
   const uiMode = useUiModeState();
+
+  // Wire the global 401 handler so any expired-token API response triggers
+  // logout + redirect to login without requiring a manual page refresh.
+  useEffect(() => {
+    setUnauthorizedHandler(authState.logout);
+  }, [authState.logout]);
 
   return (
     <AuthContext.Provider value={authState}>

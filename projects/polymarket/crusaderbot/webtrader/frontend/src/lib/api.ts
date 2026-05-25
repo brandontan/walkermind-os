@@ -1,5 +1,12 @@
 const BASE = "/api/web";
 
+// Fired when the server returns 401 — clears persisted auth so the next
+// render redirects to the login page instead of looping on expired tokens.
+let _onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: () => void): void {
+  _onUnauthorized = fn;
+}
+
 async function request<T>(
   path: string,
   token: string | null,
@@ -11,10 +18,39 @@ async function request<T>(
   };
   const res = await fetch(`${BASE}${path}`, { ...opts, headers });
   if (!res.ok) {
+    if (res.status === 401) {
+      _onUnauthorized?.();
+    }
     const text = await res.text().catch(() => "unknown error");
     throw new Error(`${res.status}: ${text}`);
   }
   return res.json() as Promise<T>;
+}
+
+// ── Unauthenticated auth calls ────────────────────────────────────────────────
+
+export interface TokenResponse {
+  access_token: string;
+  user_id: string;
+  first_name: string;
+}
+
+export async function apiRegisterEmail(
+  email: string, password: string, first_name: string,
+): Promise<TokenResponse> {
+  return request<TokenResponse>("/auth/register", null, {
+    method: "POST",
+    body: JSON.stringify({ email, password, first_name }),
+  });
+}
+
+export async function apiLoginEmail(
+  email: string, password: string,
+): Promise<TokenResponse> {
+  return request<TokenResponse>("/auth/login", null, {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
 }
 
 export function makeApi(token: string | null) {
@@ -53,6 +89,8 @@ export function makeApi(token: string | null) {
       get<LedgerPage>(`/wallet/ledger?offset=${offset}&limit=${limit}`),
     getSettings: () => get<UserSettings>("/settings"),
     updateSettings: (data: Partial<UserSettings>) => patch<{ updated: boolean }>("/settings", data),
+    linkEmail: (email: string, password: string) =>
+      post<{ ok: boolean }>("/auth/link-email", { email, password }),
     getAlerts: () => get<AlertItem[]>("/alerts"),
     getKillSwitch: () => get<{ active: boolean }>("/killswitch"),
     postKill: () => post<{ ok: boolean }>("/kill"),

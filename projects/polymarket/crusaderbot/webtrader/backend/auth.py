@@ -1,18 +1,30 @@
-"""Telegram Login Widget validation and JWT issuance for the WebTrader dashboard."""
+"""Telegram Login Widget + email/password auth and JWT issuance for WebTrader."""
 from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 import time
 from typing import Optional
 
 import jwt
 from fastapi import Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from passlib.context import CryptContext
 
 from ...config import get_settings
-from ...users import upsert_user
-from .schemas import TelegramAuthPayload, TokenResponse
+from ...database import get_pool
+from ...users import _bootstrap_new_user, upsert_user
+from .schemas import (
+    EmailLoginRequest,
+    EmailRegisterRequest,
+    LinkEmailRequest,
+    TelegramAuthPayload,
+    TokenResponse,
+)
+
+_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 _MAX_AUTH_AGE = 86400  # 24 hours
 
@@ -86,3 +98,105 @@ async def get_current_user(
     if not raw:
         raise HTTPException(status_code=401, detail="not authenticated")
     return decode_jwt(raw)
+
+
+def _issue_token(user_id: str, first_name: str, telegram_id: Optional[int] = None) -> TokenResponse:
+    settings = get_settings()
+    if not settings.WEBTRADER_JWT_SECRET:
+        raise HTTPException(status_code=503, detail="web dashboard not configured — JWT_SECRET missing")
+    now = int(time.time())
+    payload: dict = {
+        "user_id": user_id,
+        "first_name": first_name,
+        "iat": now,
+        "exp": now + _MAX_AUTH_AGE,
+    }
+    if telegram_id is not None:
+        payload["telegram_id"] = telegram_id
+    token = jwt.encode(payload, settings.WEBTRADER_JWT_SECRET, algorithm="HS256")
+    return TokenResponse(access_token=token, user_id=user_id, first_name=first_name)
+
+
+async def register_email(data: EmailRegisterRequest) -> TokenResponse:
+    """Register a new account with email + password (no Telegram required)."""
+    if not _EMAIL_RE.match(data.email):
+        raise HTTPException(status_code=422, detail="invalid email address")
+    if len(data.password) < 8:
+        raise HTTPException(status_code=422, detail="password must be at least 8 characters")
+    if not data.first_name.strip():
+        raise HTTPException(status_code=422, detail="first_name is required")
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow(
+            "SELECT id FROM users WHERE email = $1", data.email.lower()
+        )
+        if existing:
+            raise HTTPException(status_code=409, detail="email already registered")
+
+        pw_hash = _pwd_ctx.hash(data.password)
+        row = await conn.fetchrow(
+            """INSERT INTO users (email, password_hash, username, role)
+               VALUES ($1, $2, $3, 'user')
+               RETURNING id""",
+            data.email.lower(), pw_hash, data.first_name.strip(),
+        )
+        user_id = str(row["id"])
+
+        # Bootstrap wallet + settings the same way upsert_user does for Telegram.
+        try:
+            await _bootstrap_new_user(row["id"])
+        except Exception:
+            pass  # bootstrap is best-effort; user row already created
+
+    return _issue_token(user_id, data.first_name.strip())
+
+
+async def login_email(data: EmailLoginRequest) -> TokenResponse:
+    """Authenticate with email + password."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, password_hash, username, telegram_user_id FROM users WHERE email = $1",
+            data.email.lower(),
+        )
+    if not row or not row["password_hash"]:
+        raise HTTPException(status_code=401, detail="invalid email or password")
+    if not _pwd_ctx.verify(data.password, row["password_hash"]):
+        raise HTTPException(status_code=401, detail="invalid email or password")
+
+    first_name = str(row["username"] or data.email.split("@")[0])
+    return _issue_token(
+        str(row["id"]), first_name,
+        telegram_id=row["telegram_user_id"],
+    )
+
+
+async def link_email(user_id: str, data: LinkEmailRequest) -> dict:
+    """Add email + password to an existing Telegram account (from Settings)."""
+    if not _EMAIL_RE.match(data.email):
+        raise HTTPException(status_code=422, detail="invalid email address")
+    if len(data.password) < 8:
+        raise HTTPException(status_code=422, detail="password must be at least 8 characters")
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        conflict = await conn.fetchrow(
+            "SELECT id FROM users WHERE email = $1 AND id != $2::uuid",
+            data.email.lower(), user_id,
+        )
+        if conflict:
+            raise HTTPException(status_code=409, detail="email already in use")
+
+        existing = await conn.fetchrow(
+            "SELECT email FROM users WHERE id = $1::uuid", user_id
+        )
+        if existing and existing["email"]:
+            raise HTTPException(status_code=409, detail="account already has an email linked")
+
+        pw_hash = _pwd_ctx.hash(data.password)
+        await conn.execute(
+            "UPDATE users SET email = $1, password_hash = $2 WHERE id = $3::uuid",
+            data.email.lower(), pw_hash, user_id,
+        )
+    return {"ok": True}

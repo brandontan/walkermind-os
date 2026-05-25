@@ -90,19 +90,7 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
     # Must run AFTER transaction commits — vault.py uses its own connection.
     # ON CONFLICT DO NOTHING in create_wallet_for_user makes this safe on retries.
     if _is_new_user:
-        from .wallet.vault import create_wallet_for_user
-        try:
-            await create_wallet_for_user(row["id"])
-        except Exception:
-            logger.exception(
-                "wallet creation failed for new user user_id=%s", row["id"]
-            )
-        try:
-            await seed_paper_capital(row["id"])
-        except Exception:
-            logger.exception(
-                "paper seed failed for new user user_id=%s", row["id"]
-            )
+        await _bootstrap_new_user(row["id"])
     try:
         await _enroll_signal_following(row["id"])
     except Exception:
@@ -110,6 +98,27 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
             "signal enrollment failed for user user_id=%s", row["id"]
         )
     return dict(row)
+
+
+async def _bootstrap_new_user(user_id: UUID) -> None:
+    """Create wallet, seed paper capital, and enroll signal following for a new user.
+
+    Called after the users row is committed. Safe to call multiple times —
+    all operations are idempotent (ON CONFLICT DO NOTHING / balance guards).
+    """
+    from .wallet.vault import create_wallet_for_user
+    try:
+        await create_wallet_for_user(user_id)
+    except Exception:
+        logger.exception("wallet creation failed for new user user_id=%s", user_id)
+    try:
+        await seed_paper_capital(user_id)
+    except Exception:
+        logger.exception("paper seed failed for new user user_id=%s", user_id)
+    try:
+        await _enroll_signal_following(user_id)
+    except Exception:
+        logger.exception("signal enrollment failed for user user_id=%s", user_id)
 
 
 async def seed_paper_capital(user_id: UUID) -> bool:
