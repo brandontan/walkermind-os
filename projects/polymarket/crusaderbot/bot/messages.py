@@ -397,23 +397,25 @@ def dashboard_text(
 ) -> str:
     status_emoji = "🟢" if autotrade_on else "⚫"
     status_label = "RUNNING" if autotrade_on else "OFF"
-    today_icon = "🟢" if float(pnl_today) >= 0 else "🔴"
+    today_icon = "📈" if float(pnl_today) >= 0 else "📉"
     preset_display = (
         f"{html.escape(preset_emoji)} {html.escape(preset_name)}"
-        if preset_key else "Not configured"
+        if preset_key else "—"
     )
 
     return (
         "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
+        f"{DIV}\n\n"
+        # Live pulse — what the bot just did
+        f"{html.escape(pulse_line)}\n"
+        f"<code>Last scan: {html.escape(last_scan)}</code>\n\n"
         f"{DIV}\n"
-        f"📡 Last Scan: <code>{html.escape(last_scan)}</code>\n\n"
-        "<b>💼 PORTFOLIO</b>\n"
+        "<b>💼 Portfolio</b>\n"
         "<pre>"
         + _table([
             ("Equity:",   _fmt(total_equity)),
             ("Balance:",  _fmt(balance)),
             ("Exposure:", _fmt(positions_value)),
-            ("W/L:",      f"{wins}W / {losses}L"),
         ], width=10)
         + "</pre>\n"
         f"{DIV}\n"
@@ -422,27 +424,17 @@ def dashboard_text(
         + _table([
             ("Today:",    f"{today_icon} {_signed(pnl_today)} ({_pct(pnl_today_pct)}%)"),
             ("7-Day:",    f"{_signed(pnl_7d)} ({_pct(pnl_7d_pct)}%)"),
-            ("30-Day:",   f"{_signed(pnl_30d)} ({_pct(pnl_30d_pct)}%)"),
             ("All-Time:", _signed(pnl_alltime)),
         ], width=10)
         + "</pre>\n"
         f"{DIV}\n"
-        "<b>📈 STATS</b>\n"
-        "<pre>"
-        + _table([
-            ("Trades:",  f"{total_trades}  WR: {float(win_rate):.1f}%"),
-            ("Volume:",  _fmt(total_volume)),
-            ("Markets:", str(markets_count)),
-        ], width=9)
-        + "</pre>\n"
-        f"{DIV}\n"
-        "<b>🤖 AUTO MODE</b>\n"
+        "<b>🤖 Auto Mode</b>\n"
         "<pre>"
         + _table([
             ("Status:", f"{status_emoji} {status_label}"),
             ("Preset:", preset_display),
             ("Risk:",   f"{html.escape(risk_emoji)} {html.escape(risk_label)}"),
-            ("Mode:",   "📝 Paper"),
+            ("Trades:", f"{total_trades}  WR: {float(win_rate):.0f}%"),
         ], width=8)
         + "</pre>"
     )
@@ -451,28 +443,18 @@ def dashboard_text(
 # ── Screen 03 — Preset Picker ──────────────────────────────────────────────────
 
 PRESET_PICKER_TEXT = (
-    "<b>🤖 Auto-Trade Presets</b>\n"
+    "<b>🤖 Auto-Trade — Strategy</b>\n"
     + DIV + "\n\n"
-    "Pick a trading style that fits you.\n"
-    "Each preset bundles strategy + risk + sizing.\n\n"
-    "<b>⭐ Recommended</b>\n\n"
-    "<b>🐋 Whale Mirror</b>  🟢 Safe\n"
-    "Follow proven Polymarket wallets with\n"
-    "verified track records. Low effort,\n"
-    "steady returns.\n\n"
-    + DIV + "\n\n"
-    "<b>📡 Signal Sniper</b>  🟢 Safe\n"
-    "Auto-trade from curated signal feeds.\n"
-    "Lower frequency, higher conviction.\n\n"
-    "<b>🐋📡 Hybrid</b>  🟡 Balanced\n"
-    "Whale Mirror + Signal combined.\n"
-    "More opportunities, moderate risk.\n\n"
-    "<b>🎯 Value Hunter</b>  🟡 Advanced\n"
-    "Finds mispriced markets using edge model.\n"
-    "Higher reward, requires patience.\n\n"
-    "<b>🚀 Full Auto</b>  🔴 Aggressive\n"
-    "All strategies active. Max exposure.\n"
-    "For experienced traders only."
+    "<b>🧹 Close Sweep</b>  🟢 Safe  ⭐\n\n"
+    "Enters in the final 35s of a BTC/ETH/SOL\n"
+    "candle. Requires a strong lean (≥55¢ side).\n\n"
+    "<pre>"
+    "TP:      +90%\n"
+    "SL:      -40%\n"
+    "Capital: 40% per trade\n"
+    "Mode:    📝 Paper"
+    "</pre>\n\n"
+    "Tap below to activate:"
 )
 
 

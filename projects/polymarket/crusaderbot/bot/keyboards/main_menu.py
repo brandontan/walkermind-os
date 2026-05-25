@@ -3,10 +3,10 @@
 This is the ONLY file that produces ReplyKeyboardMarkup. All other
 keyboards in this package produce InlineKeyboardMarkup.
 
-Layout (5 buttons, 3 rows, max 2 cols):
+Layout (6 buttons, 3 rows, 2 cols):
     [ 📊 Dashboard    ] [ 💼 Portfolio     ]
     [ 🤖 {auto_label} ] [ ⚙️ Settings      ]
-    [           ❓ Help              ]
+    [ 💳 Wallet       ] [ ❓ Help           ]
 
 State-aware labels:
 - auto_label adapts to user state (Setup/Active/Resume)
@@ -40,7 +40,7 @@ def main_menu(
     else:
         auto_label = "🤖 Setup Auto"
 
-    # Portfolio button — show count badge
+    # Portfolio button — show count badge when positions are open
     portfolio_label = (
         f"💼 Trades ({open_count})" if open_count > 0
         else "💼 Portfolio"
@@ -48,9 +48,9 @@ def main_menu(
 
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("📊 Dashboard"), KeyboardButton(portfolio_label)],
-            [KeyboardButton(auto_label),     KeyboardButton("⚙️ Settings")],
-            [KeyboardButton("❓ Help")],
+            [KeyboardButton("📊 Dashboard"),  KeyboardButton(portfolio_label)],
+            [KeyboardButton(auto_label),      KeyboardButton("⚙️ Settings")],
+            [KeyboardButton("💳 Wallet"),     KeyboardButton("❓ Help")],
         ],
         resize_keyboard=True,
         one_time_keyboard=False,

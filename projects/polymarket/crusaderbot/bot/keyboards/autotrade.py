@@ -61,27 +61,27 @@ def quick_start_kb() -> InlineKeyboardMarkup:
     )
 
 
-# ── Screen 2: Risk Tier Picker (progressive disclosure) ──────────
+# ── Screen 2: Preset Picker (direct list — no tier indirection) ──
+# Tier picker was removed: only close_sweep is visible, so showing a
+# risk-tier selection step first added friction with no benefit.
+# When more presets become visible, re-introduce tiers at that point.
 
 def preset_tier_kb() -> InlineKeyboardMarkup:
-    """Step 1 of preset selection: pick risk tier.
+    """Direct preset list — skips the tier step entirely.
 
-    4 tiers + 1 back row = 5 rows (max allowed).
-    Each tier shows count of available presets.
+    Renders all visible presets (from VISIBLE_PRESET_ORDER) as a flat
+    list, max 4 presets + nav = 5 rows.
     """
-    rows = []
-    tier_callbacks = {
-        "🟢 Safe":       "preset:tier:safe",
-        "🟡 Balanced":   "preset:tier:balanced",
-        "🟡 Advanced":   "preset:tier:advanced",
-        "🔴 Aggressive": "preset:tier:aggressive",
-    }
-    for tier_label, presets in RISK_TIERS.items():
-        count = len(presets)
-        cb = tier_callbacks[tier_label]
-        rows.append([InlineKeyboardButton(
-            f"{tier_label} ({count})", callback_data=cb,
-        )])
+    from ...domain.preset import list_presets
+    from ...domain.preset.presets import RECOMMENDED_PRESET
+    rows: list[list[InlineKeyboardButton]] = []
+    for p in list_presets():
+        label = f"{p.emoji} {p.name}"
+        if p.key == RECOMMENDED_PRESET:
+            label = f"{label} ⭐"
+        if len(label) > 20:
+            label = label[:19] + "…"
+        rows.append([InlineKeyboardButton(label, callback_data=f"preset:pick:{p.key}")])
     rows.append(back_home_row("menu:autotrade"))
     return InlineKeyboardMarkup(rows)
 
@@ -207,14 +207,9 @@ def auto_trade_menu_kb() -> InlineKeyboardMarkup:
 
 
 def preset_picker_p5_kb() -> InlineKeyboardMarkup:
-    from ...domain.preset import CANDLE_PRESET_KEYS, RECOMMENDED_PRESET, list_presets
+    from ...domain.preset import RECOMMENDED_PRESET, list_presets
     rows: list[list[InlineKeyboardButton]] = []
-    candle_divider_added = False
     for p in list_presets():
-        # Insert a non-clickable section header before the first candle preset
-        if p.key in CANDLE_PRESET_KEYS and not candle_divider_added:
-            rows.append([InlineKeyboardButton("── Candle Presets ──", callback_data="noop:divider")])
-            candle_divider_added = True
         name = p.name if len(p.name) <= 20 else p.name[:20]
         label = f"{p.emoji} {name}"
         if p.key == RECOMMENDED_PRESET:
