@@ -288,12 +288,24 @@ async def evaluate(
     TP/SL evaluations use real mark-to-market data instead of the stale
     ``markets.yes_price``/``no_price`` columns (which may lag or be NULL).
     """
-    if position.market_resolved:
-        # Resolved markets settle through the redemption pipeline, not CLOB.
-        cur = live_price if live_price is not None else position.current_price()
-        return ExitDecision(should_exit=False, reason=None, current_price=cur)
-
     cur = live_price if live_price is not None else position.current_price()
+
+    # 0. Market end time — close at actual PnL regardless of TP/SL state.
+    #    Whichever comes first: TP hit, SL hit, or market end time.
+    #    market_resolved = Gamma already marked it resolved (binary settled).
+    #    resolution_at past = candle market closed, price is final.
+    _now = datetime.now(tz=timezone.utc)
+    _past_end = (
+        position.resolution_at is not None
+        and position.resolution_at.tzinfo is not None
+        and _now >= position.resolution_at
+    )
+    if position.market_resolved or _past_end:
+        return ExitDecision(
+            should_exit=True,
+            reason=ExitReason.MARKET_EXPIRED.value,
+            current_price=cur,
+        )
 
     # 1. force_close_intent — highest priority. The Pause+Close-All Telegram
     #    flow sets this marker so the watcher unwinds on the next tick
@@ -352,6 +364,8 @@ def _user_alert_for_reason(reason: str):
         return monitoring_alerts.alert_user_force_close
     if reason == ExitReason.STRATEGY_EXIT.value:
         return monitoring_alerts.alert_user_strategy_exit
+    if reason == ExitReason.MARKET_EXPIRED.value:
+        return monitoring_alerts.alert_user_market_expired
     return None
 
 
