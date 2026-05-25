@@ -151,12 +151,12 @@ def test_evaluate_force_close_intent_overrides_sl():
 
 
 def test_evaluate_resolved_market_skipped():
-    """Resolved markets are closed by the watcher with market_expired (not via TP/SL)."""
+    """Resolved markets are NOT closed by evaluate() — redemption pipeline owns the exit."""
     p = _make_position(yes_price=0.99, applied_tp_pct=0.05,
                        market_resolved=True)
     decision = _run(exit_watcher.evaluate(p))
-    assert decision.should_exit
-    assert decision.reason == ExitReason.MARKET_EXPIRED.value
+    assert not decision.should_exit
+    assert decision.reason is None
 
 
 def test_evaluate_strategy_exit_runs_after_sl():
