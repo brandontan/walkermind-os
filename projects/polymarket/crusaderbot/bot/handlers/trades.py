@@ -257,7 +257,7 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             realized = float(result.get("pnl_usdc", 0))
             sign = "+" if realized > 0 else ""
             msg = f"✅ Position closed. Realized P&L: {sign}${realized:.2f}"
-            # Push position.closed so WebTrader updates in realtime.
+            # Push position.closed so WebTrader + Telegram notification fire.
             try:
                 from ...core.event_bus import emit as _emit
                 await _emit(
@@ -266,8 +266,11 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
                     market_id=str(row["market_id"]),
                     market_question=str(row.get("market_question") or ""),
                     side=str(row["side"]),
+                    entry_price=float(row["entry_price"] or 0),
+                    exit_price=float(exit_price),
                     pnl_usdc=realized,
                     close_reason="manual",
+                    mode=str(row.get("mode") or "paper"),
                 )
             except Exception:
                 pass

@@ -458,8 +458,7 @@ async def _act_on_decision(
             mode=position.mode,
         )
 
-    # Emit position.closed so the SSE bridge pushes a position_closed event
-    # to any connected WebTrader session for this user.
+    # Emit position.closed so the SSE bridge and notification_service both fire.
     try:
         from ...core.event_bus import emit as _emit
         await _emit(
@@ -468,8 +467,11 @@ async def _act_on_decision(
             market_id=position.market_id,
             market_question=position.market_question,
             side=position.side,
+            entry_price=float(position.entry_price),
+            exit_price=float(decision.current_price or position.entry_price),
             pnl_usdc=pnl,
             close_reason=reason,
+            mode=position.mode,
         )
     except Exception as _exc:
         logger.debug("exit_watcher: position.closed emit failed: %s", _exc)
