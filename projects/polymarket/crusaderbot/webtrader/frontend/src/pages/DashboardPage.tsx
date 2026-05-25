@@ -33,6 +33,7 @@ export function DashboardPage() {
   const [marketFeed, setMarketFeed] = useState<MarketFeedItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [lastTick, setLastTick] = useState<number | null>(null);
+  const [lastSignals, setLastSignals] = useState<number>(0);
   // Alerts come from the global AlertCenterContext (fetched once at AppShell level)
   const { alerts: ctxAlerts } = useAlertCenter();
   const alerts: AlertItem[] = ctxAlerts.slice(0, 5);
@@ -93,8 +94,9 @@ export function DashboardPage() {
     portfolio_update: refreshAll,
     scanner_tick: (raw) => {
       refreshAll();
-      const payload = raw as { ts?: number };
+      const payload = raw as { ts?: number; signals?: number };
       if (payload.ts) setLastTick(payload.ts * 1000);
+      if (typeof payload.signals === "number") setLastSignals(payload.signals);
     },
   });
 
@@ -269,7 +271,7 @@ export function DashboardPage() {
           {/* RIGHT COLUMN: Scanner terminal + Recent Activity */}
           <div className="md:min-w-0 md:overflow-hidden">
             <AdvancedOnly>
-              <Terminal lines={buildScannerLines(alerts, data, lastTick)} />
+              <Terminal lines={buildScannerLines(data, lastTick, lastSignals)} />
             </AdvancedOnly>
 
             <div className="flex items-center justify-between mt-3.5 mb-2 mx-0.5 md:mt-0">
@@ -350,10 +352,11 @@ export function DashboardPage() {
   );
 }
 
-function buildScannerLines(alerts: AlertItem[], data: DashboardSummary, lastTick: number | null): TerminalLine[] {
+function buildScannerLines(data: DashboardSummary, lastTick: number | null, lastSignals: number): TerminalLine[] {
   const tickLabel = lastTick
     ? new Date(lastTick).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
     : "—";
+  const signalText = lastSignals > 0 ? `${lastSignals} candidates` : "scanning…";
   return [
     {
       parts: [
@@ -363,26 +366,25 @@ function buildScannerLines(alerts: AlertItem[], data: DashboardSummary, lastTick
     },
     {
       parts: [
-        { type: "out",  text: "scanning markets " },
-        { type: "warn", text: data.open_positions > 0 ? `${data.open_positions} open` : "monitoring markets" },
+        { type: "out",  text: "mode " },
+        { type: "warn", text: data.trading_mode?.toUpperCase() ?? "PAPER" },
+        { type: "dim",  text: "  preset " },
+        { type: "ok",   text: data.active_preset ?? "—" },
       ],
     },
     {
       parts: [
-        { type: "out",  text: "published " },
-        { type: "warn", text: `${alerts.length} signals` },
-        { type: "dim",  text: " (edge_finder)" },
+        { type: "out",  text: "last_tick " },
+        { type: "ok",   text: tickLabel },
+        { type: "dim",  text: "  signals " },
+        { type: lastSignals > 0 ? "ok" : "dim", text: signalText },
       ],
     },
     {
       parts: [
-        { type: "out", text: "last_tick " },
-        { type: "ok",  text: tickLabel },
-      ],
-    },
-    {
-      parts: [
-        { type: "out", text: data.kill_switch_active ? "kill_switch ARMED " : data.open_positions > 0 ? "managing open positions" : "awaiting signal" },
+        { type: "out", text: data.kill_switch_active ? "kill_switch " : data.open_positions > 0 ? "managing " : "status " },
+        { type: data.kill_switch_active ? "warn" : data.open_positions > 0 ? "ok" : "dim",
+          text: data.kill_switch_active ? "ARMED" : data.open_positions > 0 ? `${data.open_positions} open` : "awaiting signal" },
       ],
       cursor: true,
     },
