@@ -214,6 +214,10 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
                  AND closed_at >= NOW() - INTERVAL '7 days'""",
             user_id,
         )
+        pnl_alltime = await conn.fetchval(
+            "SELECT COALESCE(SUM(pnl_usdc),0) FROM positions WHERE user_id=$1::uuid AND status='closed'",
+            user_id,
+        )
         # settled YES = pnl_usdc > 0 (win), settled NO = pnl_usdc <= 0 (loss).
         # Expired markets (exit_reason='market_expired') are excluded — expiry ≠ settled outcome.
         totals = await conn.fetchrow(
@@ -243,6 +247,7 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
         trading_mode=trading_mode,
         active_preset=settings_row["active_preset"] if settings_row else None,
         risk_profile=str(settings_row["risk_profile"] or "balanced") if settings_row else "balanced",
+        pnl_alltime=float(pnl_alltime or 0),
     )
 
 

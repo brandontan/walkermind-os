@@ -17,7 +17,36 @@ type Props = {
   large?: boolean;
   /** Small icon glyph before label. */
   icon?: ReactNode;
+  /** 3-point sparkline values (e.g. [pnl_today, pnl_7d, pnl_alltime]). */
+  sparkline?: [number, number, number];
 };
+
+function Sparkline({ values, color }: { values: [number, number, number]; color: string }) {
+  const w = 36, h = 14;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const pts = values.map((v, i) => {
+    const x = (i / 2) * w;
+    const y = h - ((v - min) / range) * (h - 2) - 1;
+    return `${x},${y}`;
+  });
+  const last = values[2] >= values[0];
+  const lineColor = last ? "#00FF9C" : "#FF2D55";
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} fill="none" aria-hidden>
+      <polyline
+        points={pts.join(" ")}
+        stroke={lineColor}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.7"
+      />
+      <circle cx={pts[2].split(",")[0]} cy={pts[2].split(",")[1]} r="2" fill={lineColor} opacity="0.9" />
+    </svg>
+  );
+}
 
 const BAR_COLOR: Record<StatColor, string> = {
   grn:  "#00FF9C",
@@ -44,6 +73,7 @@ export function StatCard({
   color = "gold",
   large = false,
   icon,
+  sparkline,
 }: Props) {
   const bar = BAR_COLOR[color];
   return (
@@ -83,6 +113,11 @@ export function StatCard({
           }`}
         >
           {sub}
+        </div>
+      )}
+      {sparkline && (
+        <div className="mt-2 opacity-80">
+          <Sparkline values={sparkline} color={BAR_COLOR[color]} />
         </div>
       )}
     </div>

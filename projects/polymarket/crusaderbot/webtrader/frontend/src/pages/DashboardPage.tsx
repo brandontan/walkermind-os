@@ -34,6 +34,7 @@ export function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastTick, setLastTick] = useState<number | null>(null);
   const [lastSignals, setLastSignals] = useState<number>(0);
+  const [pnlFlash, setPnlFlash] = useState<"up" | "down" | null>(null);
   // Alerts come from the global AlertCenterContext (fetched once at AppShell level)
   const { alerts: ctxAlerts } = useAlertCenter();
   const alerts: AlertItem[] = ctxAlerts.slice(0, 5);
@@ -89,7 +90,11 @@ export function DashboardPage() {
     system:           () => void load(),
     settings:         () => void load(),
     position_opened:  refreshAll,
-    position_closed:  refreshAll,
+    position_closed: (raw) => {
+      refreshAll();
+      const p = raw as { pnl_usdc?: number };
+      setPnlFlash(typeof p.pnl_usdc === "number" && p.pnl_usdc >= 0 ? "up" : "down");
+    },
     position_updated: refreshAll,
     portfolio_update: refreshAll,
     scanner_tick: (raw) => {
@@ -146,21 +151,7 @@ export function DashboardPage() {
       <TopBar tradingMode={data.trading_mode} />
       <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
 
-        {/* Paper Mode reassurance — visible on trading pages when not in live mode */}
-        {data.trading_mode !== "live" && (
-          <div
-            className="mb-3 px-3 py-2 flex items-center gap-2 text-[10px] font-mono font-bold tracking-[1.5px] clip-card border"
-            style={{
-              background: "rgba(245,200,66,0.04)",
-              borderColor: "rgba(245,200,66,0.15)",
-              color: "var(--gold,#F5C842)",
-            }}
-            role="status"
-          >
-            <span style={{ fontSize: "12px" }}>🛡</span>
-            PAPER MODE — No real funds at risk
-          </div>
-        )}
+        {/* Paper mode indicator lives in TopBar StatusPill — no banner needed here */}
 
         {/* Desktop page header — hidden on mobile */}
         <DesktopPageHeader
@@ -213,6 +204,7 @@ export function DashboardPage() {
                   </AdvancedOnly>
                 </>
               }
+              flashDir={pnlFlash}
               ctaPrimary={{ label: "Configure", onClick: () => navigate("/autotrade") }}
               ctaSecondary={{ label: "Portfolio", onClick: () => navigate("/portfolio") }}
             />
@@ -227,6 +219,7 @@ export function DashboardPage() {
                     value={data.balance_usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                     unit="USDC"
                     sub={data.trading_mode === "live" ? "Live Mode" : "Paper Mode"}
+                    sparkline={[data.pnl_today, data.pnl_7d, data.pnl_alltime]}
                   />
                   <StatCard
                     color="gold"
@@ -254,6 +247,7 @@ export function DashboardPage() {
                     label="Win Rate"
                     value={winRate}
                     sub={`${data.wins}/${data.total_trades} closed`}
+                    sparkline={[data.pnl_today, data.pnl_7d, data.pnl_alltime]}
                   />
                   <StatCard
                     color="cyan"

@@ -27,6 +27,8 @@ type Props = {
   ctaSecondary?: { label: string; onClick: () => void };
   /** Full-width danger CTA (replaces the two CTAs above). */
   ctaDanger?: { label: string; onClick: () => void };
+  /** Flash direction on PnL event — "up" = green, "down" = red, null = none. */
+  flashDir?: "up" | "down" | null;
 };
 
 const RISK_LABEL: Record<RiskLevel, string> = {
@@ -48,11 +50,26 @@ export function HeroCard({
   ctaPrimary,
   ctaSecondary,
   ctaDanger,
+  flashDir = null,
 }: Props) {
   const numeric = typeof value === "number";
   // Hook must run unconditionally; ignore the value when `value` is a string.
   const counted = useCountUp(numeric ? value : 0);
   const display = numeric ? counted : value;
+
+  // Flash overlay — brief radial pulse on PnL event.
+  const [flashing, setFlashing] = useState(false);
+  const flashColor = flashDir === "up" ? "rgba(0,255,156,0.12)" : "rgba(255,45,85,0.12)";
+  const prevFlashDir = useRef(flashDir);
+  useEffect(() => {
+    if (flashDir && flashDir !== prevFlashDir.current) {
+      setFlashing(true);
+      const t = setTimeout(() => setFlashing(false), 600);
+      prevFlashDir.current = flashDir;
+      return () => clearTimeout(t);
+    }
+    prevFlashDir.current = flashDir;
+  }, [flashDir]);
 
   return (
     <div
@@ -62,6 +79,17 @@ export function HeroCard({
           "radial-gradient(circle at 80% 0%, rgba(245,200,66,0.10) 0%, transparent 50%), linear-gradient(170deg, #0E1830 0%, #0A1322 50%, #060B16 100%)",
       }}
     >
+      {/* PnL flash overlay */}
+      {flashing && (
+        <span
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `radial-gradient(circle at 50% 50%, ${flashColor} 0%, transparent 70%)`,
+            transition: "opacity 600ms ease-out",
+          }}
+          aria-hidden
+        />
+      )}
       {/* HUD corner crosses */}
       <Cross className="top-2 left-2" pos="tl" />
       <Cross className="top-2 right-2" pos="tr" />

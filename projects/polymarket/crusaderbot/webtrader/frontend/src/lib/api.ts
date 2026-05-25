@@ -142,6 +142,7 @@ export interface DashboardSummary {
   trading_mode: string;
   active_preset: string | null;
   risk_profile: string;
+  pnl_alltime: number;
 }
 
 export interface PositionItem {
