@@ -353,3 +353,4 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 2026-05-25 06:16 | WARP/ONA | codebase audit: C1 double-exposure dedup (pending_settlement), H1/H2 get_event_loop→get_running_loop, H3 copy-trade dedup, M1-M6 dead imports, M3 WalletWatcherUnavailable explicit catch, L1-L2 silent excepts → log
 2026-05-25 07:02 | main | WARP-WPF: AutoTradePage.tsx preset list synced to backend — close_sweep selectable, safe_close/flip_hunter shown as SOON, stale presets removed
 2026-05-25 08:19 | main | WARP-MDC: exit_watcher uses CLOB /midpoint as primary price source; rate limiters on Gamma (5 RPS) + CLOB reads (10 RPS); 4 demo positions voided
+2026-05-25 12:30 | WARP/auth-password-byte-limit | fix Sentry DAWN-SNOWFLAKE-1729-26: ValueError password >72 bytes — added byte-length guard before all bcrypt call sites in webtrader/backend/auth.py (register/login/link_email)
