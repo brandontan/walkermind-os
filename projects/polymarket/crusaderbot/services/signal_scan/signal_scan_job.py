@@ -1412,6 +1412,7 @@ async def run_close_sweep_fast() -> None:
 
     Each user is isolated — one user's failure never blocks the rest.
     """
+    from ...config import get_settings as _get_settings
     from ...domain.strategy.registry import StrategyRegistry as _Registry
 
     try:
@@ -1428,7 +1429,7 @@ async def run_close_sweep_fast() -> None:
 
     # Load config overrides once per tick (env-tunable per preset)
     try:
-        _cfg = get_settings()
+        _cfg = _get_settings()
         _preset_params: dict[str, tuple[float, float, float]] = {
             "close_sweep": (_cfg.PRESET_CLOSE_SWEEP_MIN_ASK_DIFF,  _cfg.PRESET_CLOSE_SWEEP_WINDOW_SEC,  _cfg.PRESET_CLOSE_SWEEP_FAV_PRICE_MIN),
             "safe_close":  (_cfg.PRESET_SAFE_CLOSE_MIN_ASK_DIFF,   _cfg.PRESET_SAFE_CLOSE_WINDOW_SEC,   _cfg.PRESET_SAFE_CLOSE_FAV_PRICE_MIN),
