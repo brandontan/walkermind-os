@@ -739,14 +739,20 @@ const EXIT_FULL_LABEL: Record<string, string> = {
   close_failed: "Close Failed",
 };
 
-// Friendly labels for the strategy that opened the trade (positions.strategy_type).
+// Preset display names for the strategy that opened the trade
+// (positions.strategy_type holds the underlying strategy class; map it to the
+// preset name the user actually selected, e.g. late_entry_v3 → "Close Sweep").
 const STRATEGY_LABEL: Record<string, string> = {
-  late_entry_v3: "Late Entry V3",
+  late_entry_v3: "Close Sweep",
+  confluence_scalper: "Crypto Scalper",
   trend_breakout: "Trend Breakout",
-  momentum: "Momentum",
+  momentum: "Contrarian",
+  value_investor: "Value Hunter",
+  copy_trade: "Whale Mirror",
+  signal: "Signal Sniper",
   signal_following: "Signal Following",
-  value_investor: "Value Investor",
-  copy_trade: "Copy Trade",
+  pair_arb: "Pair Arb",
+  ensemble: "Smart Mix",
 };
 
 function fmtStrategy(s?: string | null): string | null {
