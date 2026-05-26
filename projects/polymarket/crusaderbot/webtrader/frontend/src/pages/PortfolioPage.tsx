@@ -412,6 +412,8 @@ export function PortfolioPage() {
           paperMode={isPaperMode}
           balance={summary?.available_usdc ?? 0}
           onClose={() => setShowWithdraw(false)}
+          onWithdraw={api.requestWithdrawal}
+          onSuccess={() => { setShowWithdraw(false); void loadPositions(); }}
         />
       )}
 
