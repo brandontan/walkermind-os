@@ -1560,7 +1560,8 @@ async def run_close_sweep_fast() -> None:
     # Skipping zero-order ticks keeps the table clean at 15s cadence.
     if tel.paper_orders_created > 0:
         tel.users_evaluated = candle_users_evaluated
-        _cfg_live = get_settings()
+        from ...config import get_settings as _get_settings
+        _cfg_live = _get_settings()
         _is_live = _cfg_live.ENABLE_LIVE_TRADING and _cfg_live.EXECUTION_PATH_VALIDATED and _cfg_live.CAPITAL_MODE_CONFIRMED
         await _insert_scan_run(
             fast_run_id,
