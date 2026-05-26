@@ -302,6 +302,27 @@ async def get_market_feed(user: _CurrentUser) -> list[MarketFeedItem]:
     return feed
 
 
+def _tp_sl_price(entry: float, side: str, pct, *, is_tp: bool) -> Optional[float]:
+    """Derive the TP/SL trigger price (YES-price units, matching entry_price).
+
+    Mirrors the PnL formula in domain/execution/paper.close_position: a YES
+    position profits as the price rises, a NO position as it falls. Returns None
+    when no TP/SL fraction is set. Result clamped to (0, 1).
+    """
+    if pct is None:
+        return None
+    p = float(pct)
+    if p <= 0:
+        return None
+    if str(side).lower() == "no":
+        # NO profits when YES price falls; TP is below entry, SL above.
+        comp = 1.0 - entry
+        price = 1.0 - comp * (1.0 + p) if is_tp else 1.0 - comp * (1.0 - p)
+    else:
+        price = entry * (1.0 + p) if is_tp else entry * (1.0 - p)
+    return max(0.001, min(0.999, price))
+
+
 @router.get("/positions")
 async def get_positions(
     user: _CurrentUser,
@@ -323,7 +344,9 @@ async def get_positions(
                        p.side, p.size_usdc, p.entry_price, p.current_price,
                        p.pnl_usdc, p.status, p.mode, p.opened_at, p.closed_at,
                        p.exit_reason, m.resolved AS market_resolved,
-                       m.winning_side
+                       m.winning_side,
+                       COALESCE(p.applied_tp_pct, p.tp_pct) AS tp_pct,
+                       COALESCE(p.applied_sl_pct, p.sl_pct) AS sl_pct
                 FROM positions p
                 LEFT JOIN markets m ON m.id = p.market_id
                 {where}
@@ -347,6 +370,10 @@ async def get_positions(
             opened_at=r["opened_at"],
             closed_at=r["closed_at"],
             exit_reason=r["exit_reason"],
+            tp_pct=float(r["tp_pct"]) if r["tp_pct"] is not None else None,
+            sl_pct=float(r["sl_pct"]) if r["sl_pct"] is not None else None,
+            tp_price=_tp_sl_price(float(r["entry_price"]), r["side"], r["tp_pct"], is_tp=True),
+            sl_price=_tp_sl_price(float(r["entry_price"]), r["side"], r["sl_pct"], is_tp=False),
             awaiting_redeem=(
                 r["status"] == "open"
                 and bool(r["market_resolved"])

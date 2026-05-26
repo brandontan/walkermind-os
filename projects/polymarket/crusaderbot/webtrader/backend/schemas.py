@@ -92,6 +92,13 @@ class PositionItem(BaseModel):
     opened_at: datetime
     closed_at: Optional[datetime] = None
     exit_reason: Optional[str] = None
+    # TP/SL as configured fractions + the derived trigger price levels (in the
+    # same YES-price units as entry_price/current_price). Powers the expandable
+    # trade detail view. None when the position carries no TP/SL.
+    tp_pct: Optional[float] = None
+    sl_pct: Optional[float] = None
+    tp_price: Optional[float] = None
+    sl_price: Optional[float] = None
     # True when the market resolved in this position's favour but the position
     # is still open awaiting redemption (e.g. hourly auto-redeem not yet run).
     # The UI surfaces a "waiting redeem" state + a Force Redeem action.

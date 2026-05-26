@@ -49,7 +49,7 @@ ENTRY_WINDOW_SEC: float = 35.0    # enter only in the final 35s of the candle
 # while still skipping pure coin-flips. Key tunable — raise for stricter entries.
 MIN_ASK_DIFF: float = 0.05
 MAX_SPREAD: float = 1.05          # combined YES+NO asks must not be too wide
-FAV_PRICE_MAX: float = 0.93       # skip when the favored side is already near 1.0
+FAV_PRICE_MAX: float = 0.70       # skip expensive favored entries; fav>0.70 is a net-loss zone (low win-rate + asymmetric ~100% downside). Module fallback; env-tunable via LATE_ENTRY_FAV_PRICE_MAX.
 FLIP_STOP_PRICE: float = 0.48     # exit when favored side's live price <= this
 
 DEFAULT_TP_PCT: float = 0.15
@@ -87,6 +87,7 @@ class LateEntryV3Strategy(BaseStrategy):
         min_ask_diff: float | None = None,
         entry_window_sec: float | None = None,
         fav_price_min: float | None = None,
+        fav_price_max: float | None = None,
     ) -> list[SignalCandidate]:
         """Emit one favored-side candidate per in-window crypto candle market.
 
@@ -97,7 +98,8 @@ class LateEntryV3Strategy(BaseStrategy):
         Returns an empty list on any failure or when no market qualifies.
         Never raises — scan errors must not crash the scheduler scan loop.
         """
-        if min_ask_diff is None or entry_window_sec is None or fav_price_min is None:
+        if (min_ask_diff is None or entry_window_sec is None
+                or fav_price_min is None or fav_price_max is None):
             try:
                 cfg = get_settings()
                 if min_ask_diff is None:
@@ -106,6 +108,8 @@ class LateEntryV3Strategy(BaseStrategy):
                     entry_window_sec = cfg.LATE_ENTRY_WINDOW_SEC
                 if fav_price_min is None:
                     fav_price_min = cfg.LATE_ENTRY_FAV_PRICE_MIN
+                if fav_price_max is None:
+                    fav_price_max = cfg.LATE_ENTRY_FAV_PRICE_MAX
             except Exception:
                 if min_ask_diff is None:
                     min_ask_diff = MIN_ASK_DIFF
@@ -113,6 +117,8 @@ class LateEntryV3Strategy(BaseStrategy):
                     entry_window_sec = ENTRY_WINDOW_SEC
                 if fav_price_min is None:
                     fav_price_min = 0.50
+                if fav_price_max is None:
+                    fav_price_max = FAV_PRICE_MAX
 
         timeframe = getattr(user_context, "selected_timeframe", None)
         assets = getattr(user_context, "selected_assets", ()) or None
@@ -147,6 +153,7 @@ class LateEntryV3Strategy(BaseStrategy):
                     min_ask_diff=min_ask_diff,
                     entry_window_sec=entry_window_sec,
                     fav_price_min=fav_price_min,
+                    fav_price_max=fav_price_max,
                 )
             except Exception as exc:
                 logger.debug("late_entry_v3 scan: skip market err=%s", exc)
@@ -169,7 +176,7 @@ class LateEntryV3Strategy(BaseStrategy):
         candidates.sort(key=lambda c: c.confidence, reverse=True)
         logger.info(
             "late_entry_v3 scan_summary markets=%d eligible=%d candidates=%d "
-            "gate_rejects=%s min_ask_diff=%.3f window_sec=%.0f fav_price_min=%.2f",
+            "gate_rejects=%s min_ask_diff=%.3f window_sec=%.0f fav_price_min=%.2f fav_price_max=%.2f",
             len(markets),
             eligible,
             len(candidates),
@@ -177,6 +184,7 @@ class LateEntryV3Strategy(BaseStrategy):
             min_ask_diff,
             entry_window_sec,
             fav_price_min,
+            fav_price_max,
         )
         return candidates
 
@@ -309,6 +317,7 @@ async def _evaluate_market(
     min_ask_diff: float = MIN_ASK_DIFF,
     entry_window_sec: float = ENTRY_WINDOW_SEC,
     fav_price_min: float = 0.50,
+    fav_price_max: float = FAV_PRICE_MAX,
 ) -> tuple[SignalCandidate | None, str | None]:
     """Return (candidate, None) on success or (None, reject_reason) on any gate failure."""
     if not isinstance(m, dict):
@@ -410,10 +419,10 @@ async def _evaluate_market(
         )
         return None, "fav_price_too_low"
 
-    if fav_price >= FAV_PRICE_MAX:
+    if fav_price >= fav_price_max:
         logger.debug(
             "late_entry_v3 skip fav_too_high slug=%s fav=%.4f max=%.4f",
-            slug, fav_price, FAV_PRICE_MAX,
+            slug, fav_price, fav_price_max,
         )
         return None, "fav_price_too_high"
 

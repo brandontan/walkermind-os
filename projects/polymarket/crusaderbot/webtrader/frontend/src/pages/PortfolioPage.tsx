@@ -723,6 +723,20 @@ const EXIT_TONE: Record<string, string> = {
   market_expired: "text-ink-3",
 };
 
+// Human-readable "Closed by" reason for the expandable trade detail.
+const EXIT_FULL_LABEL: Record<string, string> = {
+  tp_hit: "Take Profit (TP)",
+  sl_hit: "Stop Loss (SL)",
+  resolution: "Market Resolution",
+  resolution_win: "Market Resolution (Won)",
+  resolution_loss: "Market Resolution (Lost)",
+  market_expired: "Expired Time",
+  manual: "Manual Close",
+  strategy_exit: "Strategy Exit",
+  force_close: "Force Close",
+  close_failed: "Close Failed",
+};
+
 export function PositionRow({ p, onCashOut, onForceRedeem }: {
   p: PositionItem;
   onCashOut?: () => void;
@@ -807,6 +821,26 @@ export function PositionRow({ p, onCashOut, onForceRedeem }: {
     </span>,
   ];
 
+  // Expandable trade detail. Exit time/price stay blank ("—") while the
+  // position is open; they fill in once the close is confirmed.
+  const detail = (
+    <div>
+      <DetailRow label="Entry Time" value={fmtDateTime(p.opened_at)} />
+      <DetailRow label="Entry Price" value={`${p.side.toUpperCase()} @ ${fmtCents(p.entry_price)}`} />
+      <DetailRow label="Exit Time" value={isOpen ? "—" : fmtDateTime(p.closed_at)} />
+      <DetailRow label="Exit Price" value={isOpen ? "—" : fmtCents(p.current_price)} />
+      <DetailRow label="TP Price" value={fmtCents(p.tp_price)} tone="text-grn" />
+      <DetailRow label="SL Price" value={fmtCents(p.sl_price)} tone="text-red" />
+      {!isOpen && p.exit_reason ? (
+        <DetailRow
+          label="Closed By"
+          value={EXIT_FULL_LABEL[p.exit_reason] ?? p.exit_reason}
+          tone={EXIT_TONE[p.exit_reason] ?? "text-ink-1"}
+        />
+      ) : null}
+    </div>
+  );
+
   return (
     <PositionCard
       market={p.market_question ?? `${p.market_id.slice(0, 18)}…`}
@@ -815,6 +849,7 @@ export function PositionRow({ p, onCashOut, onForceRedeem }: {
       borderTone={tone}
       meta={metaItems}
       metaAdvanced={[]}
+      detail={detail}
       footer={
         awaitingRedeem && onForceRedeem ? (
           <button
@@ -934,6 +969,35 @@ function fmtDate(ts: string): string {
   } catch {
     return ts.slice(0, 10);
   }
+}
+
+function fmtDateTime(ts: string | null | undefined): string {
+  if (!ts) return "—";
+  try {
+    return new Date(ts).toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    return ts;
+  }
+}
+
+function fmtCents(price: number | null | undefined): string {
+  return price == null ? "—" : `${(price * 100).toFixed(1)}¢`;
+}
+
+// One label/value row inside the expandable trade detail panel.
+function DetailRow({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="flex justify-between gap-3 py-0.5 font-mono text-[10px]">
+      <span className="text-ink-3 uppercase tracking-[1px]">{label}</span>
+      <span className={tone ?? "text-ink-1"}>{value}</span>
+    </div>
+  );
 }
 
 // ── Analytics Panel ────────────────────────────────────────────────────────────────

@@ -159,6 +159,10 @@ export interface PositionItem {
   opened_at: string;
   closed_at: string | null;
   exit_reason: string | null;
+  tp_pct?: number | null;
+  sl_pct?: number | null;
+  tp_price?: number | null;
+  sl_price?: number | null;
   awaiting_redeem?: boolean;
 }
 

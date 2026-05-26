@@ -192,6 +192,7 @@ class Settings(BaseSettings):
     LATE_ENTRY_WINDOW_SEC: float = 35.0     # env: LATE_ENTRY_WINDOW_SEC
     LATE_ENTRY_FLIP_STOP: float = 0.10      # env: LATE_ENTRY_FLIP_STOP — near-disabled for close_sweep (hold to resolution)
     LATE_ENTRY_FAV_PRICE_MIN: float = 0.50  # env: LATE_ENTRY_FAV_PRICE_MIN — favored side must be majority-probability
+    LATE_ENTRY_FAV_PRICE_MAX: float = 0.70  # env: LATE_ENTRY_FAV_PRICE_MAX — skip expensive favored entries (fav>0.70 net-loss zone: 17-31% win, asymmetric ~100% downside)
 
     # Per-preset overrides for late_entry_v3 — each preset passes its own
     # values to _evaluate_market instead of reading the global env vars above.

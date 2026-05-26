@@ -61,6 +61,8 @@ def _pos_row(*, status="open", side="yes", resolved=False, winning_side=None):
         "exit_reason": None,
         "market_resolved": resolved,
         "winning_side": winning_side,
+        "tp_pct": 0.15,
+        "sl_pct": 0.08,
     }
 
 

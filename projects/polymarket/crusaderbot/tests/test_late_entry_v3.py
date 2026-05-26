@@ -6,7 +6,7 @@ Coverage:
     * Enters the favored (higher-ask) side when all gates pass
     * Side selection: higher YES ask -> YES, higher NO ask -> NO
     * Gates: entry window (<=35s), ask-diff (>=0.05), spread (<=1.05),
-      favored-price cap (<0.93)
+      favored-price cap (<0.70 — fav>=0.70 is a net-loss zone)
     * BUG 1: market_id equals conditionId (not Gamma UUID)
     * BUG 3: active=False on candle (updown) slug does NOT skip the market
     * Empty / errored market data + empty orderbooks return [] / skip
@@ -156,7 +156,7 @@ def test_present_in_strategy_availability():
 def test_enters_favored_yes_side():
     strat = LateEntryV3Strategy()
     with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[_make_market()])), \
-         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.70, 0.20))):
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.65, 0.20))):
         cands = _run(strat.scan(_make_filters(), _make_context()))
     assert len(cands) == 1
     c = cands[0]
@@ -164,13 +164,13 @@ def test_enters_favored_yes_side():
     assert c.side == "YES"
     assert c.strategy_name == "late_entry_v3"
     assert c.suggested_size_usdc > 0.0
-    assert c.metadata["fav_price"] == pytest.approx(0.70)
+    assert c.metadata["fav_price"] == pytest.approx(0.65)
 
 
 def test_enters_favored_no_side():
     strat = LateEntryV3Strategy()
     with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[_make_market()])), \
-         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.20, 0.75))):
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.20, 0.65))):
         cands = _run(strat.scan(_make_filters(), _make_context()))
     assert len(cands) == 1
     assert cands[0].side == "NO"
@@ -206,11 +206,29 @@ def test_best_ask_uses_lowest_price_regardless_of_order():
 
 def test_skips_when_favored_price_too_high():
     strat = LateEntryV3Strategy()
-    # fav 0.95 >= FAV_PRICE_MAX 0.93 (no_ask 0.05 keeps spread valid, diff valid)
+    # fav 0.95 >= FAV_PRICE_MAX 0.70 (no_ask 0.05 keeps spread valid, diff valid)
     with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[_make_market()])), \
          patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.95, 0.05))):
         cands = _run(strat.scan(_make_filters(), _make_context()))
     assert cands == []
+
+
+def test_skips_when_favored_price_just_above_cap():
+    """fav 0.72 >= FAV_PRICE_MAX 0.70 is rejected — the new net-loss-zone cap."""
+    strat = LateEntryV3Strategy()
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[_make_market()])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.72, 0.20))):
+        cands = _run(strat.scan(_make_filters(), _make_context()))
+    assert cands == []
+
+
+def test_enters_just_below_cap():
+    """fav 0.68 < FAV_PRICE_MAX 0.70 still enters — top of the valid band."""
+    strat = LateEntryV3Strategy()
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[_make_market()])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.68, 0.20))):
+        cands = _run(strat.scan(_make_filters(), _make_context()))
+    assert len(cands) == 1 and cands[0].metadata["fav_price"] == pytest.approx(0.68)
 
 
 def test_skips_when_spread_too_wide():
@@ -256,7 +274,7 @@ def test_market_id_uses_condition_id():
     strat = LateEntryV3Strategy()
     m = _make_market(market_id="gamma-uuid-irrelevant", condition_id="0xdeadbeef")
     with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[m])), \
-         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.70, 0.20))):
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.65, 0.20))):
         cands = _run(strat.scan(_make_filters(), _make_context()))
     assert len(cands) == 1
     assert cands[0].market_id == "0xdeadbeef"    # conditionId, not Gamma UUID
@@ -273,7 +291,7 @@ def test_candle_market_active_false_not_skipped():
     m = _make_market(active=False)
     assert "updown" in m["slug"], "fixture must use an updown candle slug"
     with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[m])), \
-         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.70, 0.20))):
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.65, 0.20))):
         cands = _run(strat.scan(_make_filters(), _make_context()))
     assert len(cands) == 1, "active=False candle should still produce a candidate"
 
