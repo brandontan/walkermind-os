@@ -1,5 +1,4 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { AdvancedOnly } from "./AdvancedGate";
 import { useSSEStatus } from "../lib/sse";
 import { useAlertCenter, useScannerStatus } from "../App";
 
@@ -54,12 +53,12 @@ export function TopBar({ tradingMode = "paper", notifCount: _notifCount, onBellC
       />
 
       {/* Brand — left, never shrinks */}
-      <div className="flex items-center gap-2.5 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0">
         <img
-          src={`${import.meta.env.BASE_URL}crusaderbot-logo.png`}
+          src={`${import.meta.env.BASE_URL}crusaderbot-emblem.png`}
           alt="CrusaderBot"
-          width={40}
-          height={27}
+          width={29}
+          height={35}
           className="flex-shrink-0 object-contain"
           style={{ filter: "drop-shadow(0 0 10px rgba(245,200,66,0.45))" }}
           onError={(e) => {
@@ -70,14 +69,6 @@ export function TopBar({ tradingMode = "paper", notifCount: _notifCount, onBellC
           <div className="font-display text-[18px] tracking-[1.5px] text-ink-1 uppercase">
             CRUSADER<span className="text-gold">BOT</span>
           </div>
-          <AdvancedOnly>
-            <div
-              className="font-mono text-[8px] tracking-[2.5px] text-ink-3 uppercase mt-[3px]"
-              style={{ marginTop: "3px" }}
-            >
-              <span className="text-gold">◢ </span>TACTICAL · POLYMARKET
-            </div>
-          </AdvancedOnly>
         </div>
       </div>
 

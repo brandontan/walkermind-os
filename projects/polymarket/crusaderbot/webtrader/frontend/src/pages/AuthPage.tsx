@@ -42,27 +42,23 @@ export function AuthPage() {
     <div className="min-h-screen flex flex-col items-center justify-center px-6 animate-page-in">
       <div className="w-full max-w-[400px] text-center">
 
-        {/* Brand */}
+        {/* Brand — full wordmark logo (text baked in) */}
         <div className="mb-8">
           <img
-            src={`${import.meta.env.BASE_URL}crusaderbot-logo.png`}
-            alt="CrusaderBot"
-            width={120}
-            height={80}
+            src={`${import.meta.env.BASE_URL}crusaderbot-wordmark.png`}
+            alt="CrusaderBot — Built for Battle, Programmed to Protect"
+            width={300}
+            height={200}
+            className="rounded-2xl"
             style={{
               objectFit: "contain",
-              filter: "drop-shadow(0 0 12px rgba(245,200,66,0.5))",
-              margin: "0 auto 18px",
+              filter: "drop-shadow(0 0 24px rgba(245,200,66,0.25))",
+              margin: "0 auto",
               display: "block",
+              maxWidth: "100%",
             }}
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
-          <div className="font-display text-[32px] tracking-[1.5px] text-ink-1 uppercase leading-none">
-            CRUSADER<span className="text-gold">BOT</span>
-          </div>
-          <div className="font-mono text-[8px] tracking-[2.5px] text-ink-3 uppercase mt-2">
-            <span className="text-gold">◢ </span>TACTICAL · POLYMARKET
-          </div>
         </div>
 
         {/* HUD-styled login card */}

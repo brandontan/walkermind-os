@@ -398,22 +398,23 @@ export function DashboardPage() {
   );
 }
 
-const RECENT_EXIT_LABEL: Record<string, string> = {
-  tp_hit:          "TP",
-  sl_hit:          "SL",
-  market_expired:  "EXP",
-  resolution_win:  "WIN",
-  resolution_loss: "LOSS",
-  force_close:     "FORCE",
+const RECENT_PILL_LABEL: Record<string, string> = {
+  tp_hit:          "TP HIT",
+  sl_hit:          "SL HIT",
+  market_expired:  "EXPIRED",
+  resolution_win:  "WON",
+  resolution_loss: "LOST",
+  force_close:     "FORCED",
   manual:          "MANUAL",
 };
 
 function RecentActivityCarousel({ items }: { items: PositionItem[] }) {
+  const navigate = useNavigate();
   const [idx, setIdx] = useState(0);
 
   useEffect(() => {
     if (items.length <= 1) return;
-    const t = setInterval(() => setIdx((i) => (i + 1) % items.length), 3500);
+    const t = setInterval(() => setIdx((i) => (i + 1) % items.length), 4000);
     return () => clearInterval(t);
   }, [items.length]);
 
@@ -421,45 +422,62 @@ function RecentActivityCarousel({ items }: { items: PositionItem[] }) {
   const pnl = p.pnl_usdc ?? 0;
   const isPos = pnl > 0.005;
   const isNeg = pnl < -0.005;
-  const pnlClass = isPos ? "text-grn" : isNeg ? "text-red" : "text-ink-3";
+  const pnlClass = isPos ? "text-grn" : isNeg ? "text-red" : "text-ink-2";
   const stripe = isPos ? "var(--grn,#00FF9C)" : isNeg ? "var(--red,#FF2D55)" : "var(--ink-3,#455370)";
+  const pill = RECENT_PILL_LABEL[p.exit_reason ?? ""] ?? "CLOSED";
+  const priceCents = (p.entry_price * 100).toFixed(1);
+  const ts = p.closed_at ?? p.opened_at;
+  const timeLabel = ts
+    ? new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : "—";
 
   return (
     <div className="mt-4">
-      <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2 mb-2 mx-0.5">
-        <span className="w-3 h-px bg-ink-3" aria-hidden />
-        Recent Activity
+      {/* header */}
+      <div className="flex items-center justify-between mb-2 mx-0.5">
+        <div className="font-hud text-[11px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
+          <span className="w-3.5 h-px bg-gold" aria-hidden />
+          Recent Activity
+        </div>
+        <button
+          onClick={() => navigate("/portfolio")}
+          className="font-mono text-[10px] font-bold tracking-[1px] text-gold uppercase hover:opacity-80 transition-opacity"
+        >
+          View all →
+        </button>
       </div>
       {/* card */}
       <div
-        className="relative p-2 pl-3.5 rounded-lg border border-surface-3 bg-surface-1 overflow-hidden cursor-pointer select-none"
+        className="relative p-3 pl-4 bg-surface-1 border border-surface-3 clip-card-sm overflow-hidden cursor-pointer select-none"
         onClick={() => setIdx((i) => (i + 1) % items.length)}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setIdx((i) => (i + 1) % items.length); }}
         aria-label={`Recent activity ${idx + 1} of ${items.length}`}
       >
-        <span className="absolute left-0 top-0 bottom-0 w-0.5" style={{ background: stripe }} aria-hidden />
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-[9px] font-mono text-ink-4 truncate leading-tight flex-1 min-w-0">
+        <span className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ background: stripe }} aria-hidden />
+        {/* top row: question + pnl */}
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-[13px] font-semibold text-ink-1 leading-snug flex-1 min-w-0 truncate">
             {p.market_question ?? p.market_id}
           </p>
-          <span className="text-[8px] font-mono text-ink-4 whitespace-nowrap flex-shrink-0">
-            {RECENT_EXIT_LABEL[p.exit_reason ?? ""] ?? "—"}
-          </span>
-        </div>
-        <div className="flex items-center gap-3 mt-1">
-          <span className={`text-[13px] font-bold font-mono leading-none ${pnlClass}`}>
+          <span className={`text-[15px] font-bold font-mono leading-none flex-shrink-0 ${pnlClass}`}>
             {pnl >= 0 ? "+" : "−"}${Math.abs(pnl).toFixed(2)}
           </span>
-          <span className={`text-[8px] font-hud uppercase ${p.side === "yes" ? "text-grn" : "text-red"}`}>
-            {p.side.toUpperCase()}
+        </div>
+        {/* bottom row: status pill + meta */}
+        <div className="flex items-center gap-2.5 mt-2.5">
+          <span className="px-2 py-1 rounded bg-surface-3 font-hud text-[8px] font-bold tracking-[2px] text-ink-3 uppercase flex-shrink-0">
+            {pill}
+          </span>
+          <span className="font-mono text-[10px] text-ink-4 tracking-[0.5px] truncate">
+            ${p.size_usdc.toFixed(2)} · {p.side.toUpperCase()} @ {priceCents}¢ · {timeLabel}
           </span>
         </div>
       </div>
       {/* dot indicators */}
       {items.length > 1 && (
-        <div className="flex justify-center gap-1 mt-1.5">
+        <div className="flex justify-center gap-1 mt-2">
           {items.map((_, i) => (
             <button
               key={i}
@@ -467,8 +485,8 @@ function RecentActivityCarousel({ items }: { items: PositionItem[] }) {
               aria-label={`Go to item ${i + 1}`}
               className={`rounded-full transition-all ${
                 i === idx
-                  ? "w-3.5 h-1.5 bg-ink-2"
-                  : "w-1.5 h-1.5 bg-surface-4"
+                  ? "w-3.5 h-1.5 bg-gold"
+                  : "w-1.5 h-1.5 bg-surface-3"
               }`}
             />
           ))}
