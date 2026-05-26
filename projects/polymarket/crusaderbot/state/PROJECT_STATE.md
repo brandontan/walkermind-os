@@ -65,7 +65,7 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs #1350/#135
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for WebTrader Emergency Stop (kill switch + force-close all open positions). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-emergency-stop.md. Tier: MAJOR.
+- WebTrader Emergency Stop — WARP•SENTINEL (by WARP•R00T) APPROVED 94/100, 0 critical. force_close→close chain verified (evaluate() highest-priority branch + tests), no guard bypass, user-scoped, idempotent/fail-safe. 233 related tests pass. Report: projects/polymarket/crusaderbot/reports/sentinel/webtrader-emergency-stop.md. Cleared to merge on CI green + Fly deploy.
 - WARP🔹CMD: activate Heisenberg by running `fly secrets set HEISENBERG_API_TOKEN=<token> -a crusaderbot` — code already shipped (services/heisenberg.py, market_sync job, scanner live path, leaderboard H-Score sync); token is the only gate.
 - Gate 3: verify exit price on next natural TP/SL close post-deploy (observation only).
 - Gate 5: 48h profitability check on late_entry_v3 under FAV_PRICE_MAX=0.70 (observation only).
