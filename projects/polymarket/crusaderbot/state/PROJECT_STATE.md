@@ -1,5 +1,5 @@
-Last Updated : 2026-05-26 20:15
-Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PR #1371 merged+deployed (wallet deposit/withdraw). WARP-57 MEDIUM-4 resolved: copy_targets retired, all paths migrated to copy_trade_tasks (migration 058). 1792 tests pass.
+Last Updated : 2026-05-27 01:30
+Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). Lanes merged: copy_targets retired→copy_trade_tasks (#1372), on-chain withdraw skeleton behind EXECUTION_PATH_VALIDATED (#1375). WebTrader withdraw UI (#1373) + F-HIGH-2 copy-task repo KeyError fix (#1374) merging.
 
 - WARP-57 (issue #1260): SENTINEL re-audited — APPROVED (Round 2 Score 86/100, 0 critical). PR #1261 / WARP/warp57-telegram-ux-mvp at SHA aa4fe24c55e8. Round-1 CRITICAL-1 (copy_targets schema mismatch) RESOLVED — `bot/handlers/mvp/copy_wallet.py` SELECT/INSERT/UPDATE now use canonical columns (`target_wallet_address`, `status='active'/'inactive'`, `scale_factor`) per mig 009. Round-1 MEDIUM-1 (`wallets.public_address` → `deposit_address` in onboarding.py:38) also RESOLVED. NEW MEDIUM-4 (post-merge follow-up): MVP writes to `copy_targets` but production scanner `services/copy_trade/monitor.py:80` reads `copy_trade_tasks` via `domain/copy_trade/repository.py:list_active_tasks` — end-to-end mirror not yet active until a follow-up lane swaps the MVP table to `copy_trade_tasks`; legacy `/copytrade` 8-step wizard remains the only path that produces mirrored trades. Round-1 MEDIUM-2 (auto:start engine bootstrap) + MEDIUM-3 (legacy `/settings` sub-route regression) P2-deferred per WARP🔹CMD direction. Activation guards untouched (Risk 3 PASS), no manual trade buttons (Risk 2 PASS), paper-mode default preserved (Risk 6 PASS). Report: projects/polymarket/crusaderbot/reports/sentinel/warp57-telegram-ux-mvp.md.
 - WARP-55 (issue #1256): MERGED (abd3b43dbe10) — RUNTIME_EVIDENCE.md: 7/7 P2 finish criteria proven. 🏁 CrusaderBot closed beta DONE. Guards LOCKED. STANDARD, evidence-only.
@@ -47,8 +47,10 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PR #1371 merge
   - WARP-43 RUNTIME-TRADE-SMOKE (WARP/runtime-trade-smoke, PR open): scan_runs telemetry table (migration 048) + ScanTelemetry dataclass + structured log events (strategies_loaded, scan_input, strategy_run, risk_gate, paper_execution) + startup loud-failure RuntimeError guard + GET /admin/scan/last + GET /admin/scan/list. 5 files modified/created; py_compile clean. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- WARP/withdraw-onchain-skeleton: on-chain withdraw skeleton added — _attempt_onchain_transfer() behind EXECUTION_PATH_VALIDATED guard; paper deferred (logs + returns), live raises NotImplementedError until polygon_usdc wired. 18/18 tests pass. PR open. Report: projects/polymarket/crusaderbot/reports/forge/withdraw-onchain-skeleton.md.
-- WARP/R00T-copy-targets-migration: MERGED (#1372) — WARP-57 MEDIUM-4 — copy_targets table retired. Migration 058 (backfill + DROP), all 3 legacy write sites migrated to copy_trade_tasks. 1792 tests pass. Report: projects/polymarket/crusaderbot/reports/forge/copy-targets-migration.md.
+- WARP/copy-task-repo-returning-fix: F-HIGH-2 root cause — create_task/update_task RETURNING missing nickname/copy_direction/execution_mode/allow_topups → KeyError → copy task creation always silently failed. Fixed both RETURNING clauses. PR #1374. Report: projects/polymarket/crusaderbot/reports/forge/copy-task-repo-returning-fix.md.
+- WARP/R00T-webtrader-wallet: MERGED (#1373) — WebTrader withdraw UI — POST /wallet/withdraw, WithdrawModal 3-step, api.requestWithdrawal, WalletPage wired.
+- WARP/withdraw-onchain-skeleton: MERGED (#1375) — on-chain withdraw skeleton — _attempt_onchain_transfer() behind EXECUTION_PATH_VALIDATED guard; paper deferred, live raises NotImplementedError until polygon_usdc wired. Report: projects/polymarket/crusaderbot/reports/forge/withdraw-onchain-skeleton.md.
+- WARP/R00T-copy-targets-migration: MERGED (#1372) — WARP-57 MEDIUM-4 — copy_targets table retired. Migration 058 (backfill + DROP), all 3 legacy write sites migrated to copy_trade_tasks. Report: projects/polymarket/crusaderbot/reports/forge/copy-targets-migration.md.
 - WARP/R00T-wallet-deposit-withdraw: MERGED + DEPLOYED. Migration 057 applied. Paper withdraw flow + deposit UX live. Report: projects/polymarket/crusaderbot/reports/forge/wallet-deposit-withdraw.md.
 - WARP/R00T-sse-session-pooler-listen: MERGED + DEPLOYED — SSE LISTEN reconnect-loop fixed. 5 tests, 1774 pass. Report: projects/polymarket/crusaderbot/reports/forge/sse-session-pooler-listen.md.
 - WARP/R00T-mock-clob-parity: MERGED + DEPLOYED — MockClobClient get_usdc_balance() stub + SENTINEL MAJOR live execution path audit (CONDITIONAL 84/100, 0 critical) + all 5 activation guards enforced + Kelly assert→raise. Report: reports/sentinel/live-execution-path.md.
@@ -69,10 +71,9 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PR #1371 merge
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD: apply migration 057 to Supabase (withdrawals table + withdrawal_approval_mode setting) via SQL editor or MCP tool — required before deploy.
-- WARP🔹CMD: review + merge PR WARP/R00T-wallet-deposit-withdraw on CI green + fly deploy. STANDARD tier.
-- Post-deploy: test withdraw flow end-to-end (user submits → operator notified → admin approves → user notified). Verify refund on reject.
-- Pre-live activation sequence (future): set RISK_CONTROLS_VALIDATED=true + SECURITY_HARDENING_VALIDATED=true in fly secrets, then /admin live.
+- WARP🔹CMD: review + merge WARP/copy-task-repo-returning-fix — fixes F-HIGH-2 copy-task creation KeyError that silently blocked all copy tasks from the Telegram wizard. STANDARD tier.
+- WARP🔹CMD: review + merge WARP/R00T-webtrader-wallet (PR #1373) on CI green + fly deploy. STANDARD tier.
+- Post-deploy: test Telegram copy-task wizard → confirm task created successfully + copy monitor picks it up.
 - 48h observation window: ends 2026-05-28 16:00 WIB — confirm TooManyConnectionsError silent + paper PnL positive trend.
 
 [KNOWN ISSUES]

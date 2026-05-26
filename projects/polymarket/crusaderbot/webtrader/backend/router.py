@@ -57,6 +57,8 @@ from .schemas import (
     TradingSettingsUpdate,
     UserSettingsUpdate,
     WalletInfo,
+    WithdrawRequest,
+    WithdrawResponse,
 )
 
 log = logging.getLogger(__name__)
@@ -994,6 +996,46 @@ async def get_wallet_ledger(
         entries=entries,
         has_more=(offset + len(entries)) < total,
         total=total,
+    )
+
+
+@router.post("/wallet/withdraw", response_model=WithdrawResponse)
+async def request_withdrawal(body: WithdrawRequest, user: _CurrentUser) -> WithdrawResponse:
+    """Submit a withdrawal request (paper: queued for admin; live: same flow)."""
+    from decimal import Decimal
+    from ...wallet.withdrawals import (
+        MIN_WITHDRAWAL_USDC,
+        create_withdrawal_request,
+        get_approval_mode,
+    )
+
+    amount = Decimal(str(body.amount_usdc))
+    if amount < MIN_WITHDRAWAL_USDC:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Minimum withdrawal is ${float(MIN_WITHDRAWAL_USDC):.2f} USDC",
+        )
+
+    import re
+    if not re.fullmatch(r"0x[0-9a-fA-F]{40}", body.destination_address):
+        raise HTTPException(status_code=400, detail="Invalid EVM destination address")
+
+    user_id = user["user_id"]
+    try:
+        withdrawal_id = await create_withdrawal_request(
+            user_id=user_id,
+            amount_usdc=amount,
+            destination_address=body.destination_address,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    approval_mode = await get_approval_mode()
+    return WithdrawResponse(
+        id=str(withdrawal_id),
+        status="pending",
+        approval_mode=approval_mode,
+        amount_usdc=float(amount),
     )
 
 

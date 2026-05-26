@@ -221,6 +221,18 @@ class LedgerPage(BaseModel):
     total: int
 
 
+class WithdrawRequest(BaseModel):
+    amount_usdc: float
+    destination_address: str
+
+
+class WithdrawResponse(BaseModel):
+    id: str
+    status: str
+    approval_mode: str
+    amount_usdc: float
+
+
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 class UserSettingsUpdate(BaseModel):
