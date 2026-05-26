@@ -132,12 +132,16 @@ def _settings(
     enable_live: bool = True,
     exec_validated: bool = True,
     capital_confirmed: bool = True,
+    risk_controls_validated: bool = True,
+    security_hardening_validated: bool = True,
     use_real_clob: bool = True,
 ) -> Any:
     class _S:
         ENABLE_LIVE_TRADING = enable_live
         EXECUTION_PATH_VALIDATED = exec_validated
         CAPITAL_MODE_CONFIRMED = capital_confirmed
+        RISK_CONTROLS_VALIDATED = risk_controls_validated
+        SECURITY_HARDENING_VALIDATED = security_hardening_validated
         USE_REAL_CLOB = use_real_clob
 
     return _S()
@@ -221,6 +225,24 @@ class TestAssertLiveGuards:
             patch("projects.polymarket.crusaderbot.domain.execution.live.get_settings",
                   return_value=s),
             pytest.raises(LivePreSubmitError, match="CAPITAL_MODE_CONFIRMED"),
+        ):
+            assert_live_guards(role="admin", trading_mode="live")
+
+    def test_risk_controls_not_validated_raises(self) -> None:
+        s = _settings(risk_controls_validated=False)
+        with (
+            patch("projects.polymarket.crusaderbot.domain.execution.live.get_settings",
+                  return_value=s),
+            pytest.raises(LivePreSubmitError, match="RISK_CONTROLS_VALIDATED"),
+        ):
+            assert_live_guards(role="admin", trading_mode="live")
+
+    def test_security_hardening_not_validated_raises(self) -> None:
+        s = _settings(security_hardening_validated=False)
+        with (
+            patch("projects.polymarket.crusaderbot.domain.execution.live.get_settings",
+                  return_value=s),
+            pytest.raises(LivePreSubmitError, match="SECURITY_HARDENING_VALIDATED"),
         ):
             assert_live_guards(role="admin", trading_mode="live")
 
