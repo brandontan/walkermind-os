@@ -82,7 +82,7 @@ logger = logging.getLogger(__name__)
 
 _WALLET_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 
-# Legacy constant (copy_targets table cap — unchanged from P3 implementation)
+# Max concurrent active copy tasks per user
 MAX_COPY_TARGETS_PER_USER = 3
 
 
@@ -454,7 +454,7 @@ async def copy_trade_command(
 
 
 # ---------------------------------------------------------------------------
-# Legacy helpers — copy_targets table
+# copy_trade_tasks helpers (canonical table)
 # ---------------------------------------------------------------------------
 
 
@@ -463,8 +463,10 @@ async def _legacy_list_active(user_id: UUID) -> list[dict]:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT target_wallet_address, trades_mirrored, created_at
-              FROM copy_targets
+            SELECT wallet_address AS target_wallet_address,
+                   0              AS trades_mirrored,
+                   created_at
+              FROM copy_trade_tasks
              WHERE user_id = $1 AND status = 'active'
              ORDER BY created_at ASC
             """,
@@ -481,26 +483,30 @@ async def _insert_active_target(user_id: UUID, wallet: str) -> str:
                 "SELECT pg_advisory_xact_lock(hashtext($1))", str(user_id),
             )
             existing = await conn.fetchrow(
-                "SELECT id, status FROM copy_targets "
-                "WHERE user_id = $1 AND target_wallet_address = $2",
+                "SELECT id, status FROM copy_trade_tasks "
+                "WHERE user_id = $1 AND wallet_address = $2",
                 user_id, wallet,
             )
             if existing is not None and existing["status"] == "active":
                 return "exists"
             count = int(await conn.fetchval(
-                "SELECT COUNT(*) FROM copy_targets "
+                "SELECT COUNT(*) FROM copy_trade_tasks "
                 "WHERE user_id = $1 AND status = 'active'", user_id,
             ))
             if count >= MAX_COPY_TARGETS_PER_USER:
                 return "cap_exceeded"
             if existing is None:
+                task_name = f"copy-{wallet[:6]}…{wallet[-4:]}"
                 await conn.execute(
-                    "INSERT INTO copy_targets (user_id, target_wallet_address) "
-                    "VALUES ($1, $2)", user_id, wallet,
+                    "INSERT INTO copy_trade_tasks "
+                    "(user_id, wallet_address, task_name, status, copy_mode, copy_amount) "
+                    "VALUES ($1, $2, $3, 'active', 'fixed', 5.00)",
+                    user_id, wallet, task_name,
                 )
             else:
                 await conn.execute(
-                    "UPDATE copy_targets SET status = 'active' WHERE id = $1",
+                    "UPDATE copy_trade_tasks SET status = 'active', updated_at = NOW() "
+                    "WHERE id = $1",
                     existing["id"],
                 )
     return "added"
@@ -510,8 +516,8 @@ async def _legacy_deactivate_target(user_id: UUID, wallet: str) -> bool:
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "UPDATE copy_targets SET status = 'inactive' "
-            "WHERE user_id = $1 AND target_wallet_address = $2 AND status = 'active' "
+            "UPDATE copy_trade_tasks SET status = 'paused', updated_at = NOW() "
+            "WHERE user_id = $1 AND wallet_address = $2 AND status = 'active' "
             "RETURNING id",
             user_id, wallet,
         )

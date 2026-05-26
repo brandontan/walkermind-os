@@ -6,6 +6,12 @@ No on-chain transfer until EXECUTION_PATH_VALIDATED guard is activated.
 Approval modes (system_settings key 'withdrawal_approval_mode'):
   'manual' — admin must explicitly approve/reject each request
   'auto'   — auto-approved on submission (ledger already debited at request time)
+
+On-chain transfer lifecycle:
+  create_withdrawal_request() → DB row + ledger debit (always)
+  approve_withdrawal()        → DB row 'approved' + _attempt_onchain_transfer()
+  _attempt_onchain_transfer() → no-op when EXECUTION_PATH_VALIDATED=False
+                                NotImplementedError when True (until wired)
 """
 from __future__ import annotations
 
@@ -108,6 +114,54 @@ async def get_user_withdrawals(user_id: UUID, limit: int = 10) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+async def _attempt_onchain_transfer(
+    withdrawal_id: UUID,
+    destination_address: str,
+    amount_usdc: Decimal,
+) -> None:
+    """Attempt to send USDC on-chain for an approved withdrawal.
+
+    Paper-safe: exits immediately when EXECUTION_PATH_VALIDATED=False.
+
+    Live path: not yet wired — raises NotImplementedError until
+    integrations/polygon_usdc.py:transfer_usdc() is implemented and
+    master hot-pool signing credentials are available.
+
+    Safety: called AFTER the DB approval row is committed. A failed
+    transfer does NOT undo the approval — debit is permanent; admin
+    handles out-of-band reconciliation. All outcomes are logged.
+    """
+    from ..config import get_settings
+    s = get_settings()
+    if not s.EXECUTION_PATH_VALIDATED:
+        logger.info(
+            "withdrawal_onchain_deferred EXECUTION_PATH_VALIDATED=false "
+            "withdrawal_id=%s destination=%s amount=%s",
+            withdrawal_id, destination_address, amount_usdc,
+        )
+        return
+    # Live signing path — wire here when hot-pool infrastructure is ready:
+    #
+    #   from ..integrations.polygon_usdc import transfer_usdc
+    #   tx_hash = await transfer_usdc(
+    #       to=destination_address,
+    #       amount_usdc=amount_usdc,
+    #   )
+    #   from .. import audit
+    #   await audit.write(
+    #       actor_role="bot", action="withdrawal_onchain_sent",
+    #       payload={"withdrawal_id": str(withdrawal_id),
+    #                "destination": destination_address,
+    #                "amount_usdc": str(amount_usdc),
+    #                "tx_hash": tx_hash},
+    #   )
+    raise NotImplementedError(
+        "On-chain USDC transfer requires live signing infrastructure. "
+        "Implement integrations/polygon_usdc.py:transfer_usdc() and "
+        "uncomment the live path above when EXECUTION_PATH_VALIDATED."
+    )
+
+
 async def approve_withdrawal(
     withdrawal_id: UUID,
     admin_notes: Optional[str] = None,
@@ -127,7 +181,24 @@ async def approve_withdrawal(
         )
     if row is None:
         raise ValueError(f"Withdrawal {withdrawal_id} not found or not pending")
-    return dict(row)
+    w = dict(row)
+    # Fire on-chain transfer (paper: deferred; live: NotImplementedError until wired)
+    try:
+        await _attempt_onchain_transfer(
+            withdrawal_id=w["id"],
+            destination_address=w["destination_address"],
+            amount_usdc=w["amount_usdc"],
+        )
+    except NotImplementedError as exc:
+        logger.error(
+            "withdrawal_onchain_not_wired withdrawal_id=%s: %s", withdrawal_id, exc
+        )
+    except Exception as exc:
+        logger.error(
+            "withdrawal_onchain_transfer_failed withdrawal_id=%s error=%s",
+            withdrawal_id, exc,
+        )
+    return w
 
 
 async def reject_withdrawal(
