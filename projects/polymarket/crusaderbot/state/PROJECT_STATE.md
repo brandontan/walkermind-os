@@ -1,5 +1,5 @@
-Last Updated : 2026-05-26 23:59
-Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). WebTrader wallet withdraw UI complete: POST /wallet/withdraw endpoint + 3-step WithdrawModal (amount→address→confirm→success/error) + api.requestWithdrawal wired. PR open: WARP/R00T-webtrader-wallet.
+Last Updated : 2026-05-27 01:45
+Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). 4 lanes merged: copy_targets retired→copy_trade_tasks (#1372), F-HIGH-2 copy-task repo KeyError fix (#1374), on-chain withdraw skeleton behind EXECUTION_PATH_VALIDATED (#1375), WebTrader withdraw UI (#1373). Pending: migration 058 apply + fly deploy.
 
 - WARP-57 (issue #1260): SENTINEL re-audited — APPROVED (Round 2 Score 86/100, 0 critical). PR #1261 / WARP/warp57-telegram-ux-mvp at SHA aa4fe24c55e8. Round-1 CRITICAL-1 (copy_targets schema mismatch) RESOLVED — `bot/handlers/mvp/copy_wallet.py` SELECT/INSERT/UPDATE now use canonical columns (`target_wallet_address`, `status='active'/'inactive'`, `scale_factor`) per mig 009. Round-1 MEDIUM-1 (`wallets.public_address` → `deposit_address` in onboarding.py:38) also RESOLVED. NEW MEDIUM-4 (post-merge follow-up): MVP writes to `copy_targets` but production scanner `services/copy_trade/monitor.py:80` reads `copy_trade_tasks` via `domain/copy_trade/repository.py:list_active_tasks` — end-to-end mirror not yet active until a follow-up lane swaps the MVP table to `copy_trade_tasks`; legacy `/copytrade` 8-step wizard remains the only path that produces mirrored trades. Round-1 MEDIUM-2 (auto:start engine bootstrap) + MEDIUM-3 (legacy `/settings` sub-route regression) P2-deferred per WARP🔹CMD direction. Activation guards untouched (Risk 3 PASS), no manual trade buttons (Risk 2 PASS), paper-mode default preserved (Risk 6 PASS). Report: projects/polymarket/crusaderbot/reports/sentinel/warp57-telegram-ux-mvp.md.
 - WARP-55 (issue #1256): MERGED (abd3b43dbe10) — RUNTIME_EVIDENCE.md: 7/7 P2 finish criteria proven. 🏁 CrusaderBot closed beta DONE. Guards LOCKED. STANDARD, evidence-only.
@@ -47,8 +47,11 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). WebTrader wall
   - WARP-43 RUNTIME-TRADE-SMOKE (WARP/runtime-trade-smoke, PR open): scan_runs telemetry table (migration 048) + ScanTelemetry dataclass + structured log events (strategies_loaded, scan_input, strategy_run, risk_gate, paper_execution) + startup loud-failure RuntimeError guard + GET /admin/scan/last + GET /admin/scan/list. 5 files modified/created; py_compile clean. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- WARP/R00T-wallet-deposit-withdraw: MERGED + DEPLOYED (PR #1371). Migration 057 applied. Telegram withdraw flow live.
-- WARP/R00T-webtrader-wallet: WebTrader withdraw UI — POST /wallet/withdraw, WithdrawModal 3-step, api.requestWithdrawal, WalletPage wired. PR open. Report: projects/polymarket/crusaderbot/reports/forge/webtrader-wallet-withdraw.md.
+- WARP/R00T-webtrader-wallet: MERGED (#1373) — WebTrader withdraw UI — POST /wallet/withdraw, WithdrawModal 3-step, api.requestWithdrawal, WalletPage wired. Report: projects/polymarket/crusaderbot/reports/forge/webtrader-wallet-withdraw.md.
+- WARP/copy-task-repo-returning-fix: MERGED (#1374) — F-HIGH-2 root cause — create_task/update_task RETURNING missing nickname/copy_direction/execution_mode/allow_topups → KeyError → copy task creation always silently failed. Fixed both RETURNING clauses. Report: projects/polymarket/crusaderbot/reports/forge/copy-task-repo-returning-fix.md.
+- WARP/withdraw-onchain-skeleton: MERGED (#1375) — on-chain withdraw skeleton — _attempt_onchain_transfer() behind EXECUTION_PATH_VALIDATED guard; paper deferred, live raises NotImplementedError until polygon_usdc wired. Report: projects/polymarket/crusaderbot/reports/forge/withdraw-onchain-skeleton.md.
+- WARP/R00T-copy-targets-migration: MERGED (#1372) — WARP-57 MEDIUM-4 — copy_targets table retired. Migration 058 (backfill + DROP), all 3 legacy write sites migrated to copy_trade_tasks. Report: projects/polymarket/crusaderbot/reports/forge/copy-targets-migration.md.
+- WARP/R00T-wallet-deposit-withdraw: MERGED + DEPLOYED. Migration 057 applied. Paper withdraw flow + deposit UX live. Report: projects/polymarket/crusaderbot/reports/forge/wallet-deposit-withdraw.md.
 - WARP/R00T-sse-session-pooler-listen: MERGED + DEPLOYED — SSE LISTEN reconnect-loop fixed. 5 tests, 1774 pass. Report: projects/polymarket/crusaderbot/reports/forge/sse-session-pooler-listen.md.
 - WARP/R00T-mock-clob-parity: MERGED + DEPLOYED — MockClobClient get_usdc_balance() stub + SENTINEL MAJOR live execution path audit (CONDITIONAL 84/100, 0 critical) + all 5 activation guards enforced + Kelly assert→raise. Report: reports/sentinel/live-execution-path.md.
 - 48h observation window started 2026-05-26 16:00 WIB — TooManyConnectionsError confirmed silent (0 events last 1h). Ends 2026-05-28 16:00.
@@ -68,9 +71,10 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). WebTrader wall
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD: review + merge PR WARP/R00T-webtrader-wallet on CI green + fly deploy. STANDARD tier. Migration 057 already applied.
+- WARP🔹CMD: apply migration 058 (DROP copy_targets, backfill into copy_trade_tasks) to Supabase before fly deploy.
+- WARP🔹CMD: fly deploy main (all 4 lanes merged) — fly CLI unavailable in cloud env, manual deploy required.
+- Post-deploy: test Telegram copy-task wizard → confirm task created successfully + copy monitor picks it up (F-HIGH-2 fix).
 - Post-deploy: test WebTrader withdraw flow (enter amount → address → confirm → submit → pending status shown).
-- Continue: Lane 3 (copy-trade scanner F-HIGH-2 secondary root-cause) + Lane 4 (on-chain withdraw signing skeleton behind EXECUTION_PATH_VALIDATED).
 - 48h observation window: ends 2026-05-28 16:00 WIB — confirm TooManyConnectionsError silent + paper PnL positive trend.
 
 [KNOWN ISSUES]

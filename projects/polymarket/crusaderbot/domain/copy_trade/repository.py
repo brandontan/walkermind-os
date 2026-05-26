@@ -82,7 +82,11 @@ async def create_task(
             RETURNING id, user_id, wallet_address, task_name, status,
                       copy_mode, copy_amount, copy_pct,
                       tp_pct, sl_pct, max_daily_spend, slippage_pct,
-                      min_trade_size, reverse_copy, created_at, updated_at
+                      min_trade_size, reverse_copy, created_at, updated_at,
+                      nickname,
+                      COALESCE(copy_direction, 'buys_only') AS copy_direction,
+                      COALESCE(execution_mode, 'auto')       AS execution_mode,
+                      COALESCE(allow_topups, true)           AS allow_topups
             """,
             user_id, wallet_address, task_name, copy_mode,
             copy_amount, copy_pct, tp_pct, sl_pct,
@@ -123,7 +127,11 @@ async def update_task(
             RETURNING id, user_id, wallet_address, task_name, status,
                       copy_mode, copy_amount, copy_pct,
                       tp_pct, sl_pct, max_daily_spend, slippage_pct,
-                      min_trade_size, reverse_copy, created_at, updated_at
+                      min_trade_size, reverse_copy, created_at, updated_at,
+                      nickname,
+                      COALESCE(copy_direction, 'buys_only') AS copy_direction,
+                      COALESCE(execution_mode, 'auto')       AS execution_mode,
+                      COALESCE(allow_topups, true)           AS allow_topups
             """,
             task_id, user_id, *values,
         )
