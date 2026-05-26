@@ -110,7 +110,7 @@ def test_evaluate_tp_hit_yes_side():
     decision = _run(exit_watcher.evaluate(p))
     assert decision.should_exit
     assert decision.reason == ExitReason.TP_HIT.value
-    assert decision.current_price == pytest.approx(0.50)
+    assert decision.current_price == pytest.approx(0.48)  # _tp_exit_price: 0.40 * 1.20
 
 
 def test_evaluate_sl_hit_yes_side():
@@ -564,7 +564,7 @@ def test_run_once_sl_hit_alerts_user():
         for p_ in patches:
             p_.stop()
     assert len(captured.sl_hit) == 1
-    assert captured.sl_hit[0]["exit_price"] == pytest.approx(0.32)
+    assert captured.sl_hit[0]["exit_price"] == pytest.approx(0.36)  # _sl_exit_price: 0.40 * 0.90
 
 
 def test_run_once_force_close_intent_executes_immediately():

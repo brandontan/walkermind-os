@@ -254,6 +254,27 @@ class RunResult:
     errors: int = 0
 
 
+def _tp_exit_price(side: str, entry_price: float, applied_tp_pct: float) -> float:
+    """Exact price at which the TP threshold is crossed — used as fill price.
+
+    Prevents the polling gap from inflating P&L: a position whose market
+    jumps far past TP between polls would otherwise record the full gap as
+    profit. The TP target price is the fair paper-fill assumption.
+    """
+    if side == "yes":
+        return entry_price * (1.0 + applied_tp_pct)
+    # NO: ret = (entry - cur) / (1-entry) >= tp → cur = entry - tp*(1-entry)
+    return entry_price - applied_tp_pct * max(1.0 - entry_price, 1e-6)
+
+
+def _sl_exit_price(side: str, entry_price: float, applied_sl_pct: float) -> float:
+    """Exact price at which the SL threshold is crossed — used as fill price."""
+    if side == "yes":
+        return entry_price * (1.0 - applied_sl_pct)
+    # NO: ret = (entry - cur) / (1-entry) <= -sl → cur = entry + sl*(1-entry)
+    return entry_price + applied_sl_pct * max(1.0 - entry_price, 1e-6)
+
+
 def _return_pct(*, side: str, entry_price: float, current_price: float) -> float:
     """Per-side P&L percentage at the current mark.
 
@@ -313,7 +334,8 @@ async def evaluate(
     if position.applied_tp_pct is not None and ret >= position.applied_tp_pct:
         return ExitDecision(should_exit=True,
                             reason=ExitReason.TP_HIT.value,
-                            current_price=cur)
+                            current_price=_tp_exit_price(
+                                position.side, position.entry_price, position.applied_tp_pct))
 
     # 3. SL — same snapshot rule. Note SL is stored as a positive magnitude;
     #    the trigger condition compares against -applied_sl_pct so a 0.10
@@ -321,7 +343,8 @@ async def evaluate(
     if position.applied_sl_pct is not None and ret <= -position.applied_sl_pct:
         return ExitDecision(should_exit=True,
                             reason=ExitReason.SL_HIT.value,
-                            current_price=cur)
+                            current_price=_sl_exit_price(
+                                position.side, position.entry_price, position.applied_sl_pct))
 
     # 4. Strategy hook — priority above horizon/hold. Pass the live favored-side
     #    price so price-level exits (e.g. late_entry_v3 flip-stop) use real data.

@@ -58,6 +58,7 @@ class DashboardSummary(BaseModel):
     active_preset: Optional[str] = None
     risk_profile: str = "balanced"
     pnl_alltime: float = 0.0
+    signals_today: int = 0
 
 
 # ── Market feed ───────────────────────────────────────────────────────────────

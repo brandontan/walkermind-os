@@ -143,6 +143,7 @@ export interface DashboardSummary {
   active_preset: string | null;
   risk_profile: string;
   pnl_alltime: number;
+  signals_today: number;
 }
 
 export interface PositionItem {

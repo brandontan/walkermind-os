@@ -737,10 +737,11 @@ const EXIT_FULL_LABEL: Record<string, string> = {
   close_failed: "Close Failed",
 };
 
-export function PositionRow({ p, onCashOut, onForceRedeem }: {
+export function PositionRow({ p, onCashOut, onForceRedeem, defaultExpanded }: {
   p: PositionItem;
   onCashOut?: () => void;
   onForceRedeem?: () => void;
+  defaultExpanded?: boolean;
 }) {
   const isOpen = p.status === "open";
   const awaitingRedeem = isOpen && !!p.awaiting_redeem;
@@ -789,7 +790,7 @@ export function PositionRow({ p, onCashOut, onForceRedeem }: {
 
   const metaItems = [
     <span key="cost" className="text-ink-3">
-      ${p.size_usdc.toFixed(2)}
+      <span className="text-ink-4 text-[8px]">IN</span> ${p.size_usdc.toFixed(2)}
     </span>,
     // Entry price — essential context for any open position
     ...(isOpen && !awaitingRedeem && p.entry_price > 0
@@ -850,6 +851,7 @@ export function PositionRow({ p, onCashOut, onForceRedeem }: {
       meta={metaItems}
       metaAdvanced={[]}
       detail={detail}
+      defaultExpanded={defaultExpanded}
       footer={
         awaitingRedeem && onForceRedeem ? (
           <button

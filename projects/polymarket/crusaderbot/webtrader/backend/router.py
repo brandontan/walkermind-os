@@ -232,6 +232,12 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
                FROM positions WHERE user_id=$1::uuid AND status='closed'""",
             user_id,
         )
+        signals_today = await conn.fetchval(
+            """SELECT COUNT(*) FROM positions
+               WHERE user_id=$1::uuid
+                 AND opened_at >= NOW() - INTERVAL '24 hours'""",
+            user_id,
+        )
         ks_active = await kill_switch.is_active()
 
     balance = float(wallet_row["balance_usdc"]) if wallet_row else 0.0
@@ -252,6 +258,7 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
         active_preset=settings_row["active_preset"] if settings_row else None,
         risk_profile=str(settings_row["risk_profile"] or "balanced") if settings_row else "balanced",
         pnl_alltime=float(pnl_alltime or 0),
+        signals_today=int(signals_today or 0),
     )
 
 

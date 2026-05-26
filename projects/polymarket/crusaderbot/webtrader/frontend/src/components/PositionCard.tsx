@@ -18,6 +18,7 @@ type Props = {
   /** Optional expandable detail panel (entry/exit/SL/TP). Tap the card to toggle. */
   detail?: ReactNode;
   onClick?: () => void;
+  defaultExpanded?: boolean;
 };
 
 const SIDE_LABEL: Record<PositionSide, string> = {
@@ -56,9 +57,9 @@ const PNL_TONE = {
   dn:   "text-red",
 } as const;
 
-export function PositionCard({ market, positionValue, side, meta, metaAdvanced, borderTone, footer, detail, onClick }: Props) {
+export function PositionCard({ market, positionValue, side, meta, metaAdvanced, borderTone, footer, detail, onClick, defaultExpanded }: Props) {
   const stripeColor = borderTone ? STRIPE_TONE[borderTone] : STRIPE[side];
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded ?? false);
   const expandable = !!detail;
   const toggle = () => setExpanded((v) => !v);
   const interactive = onClick ?? (expandable ? toggle : undefined);

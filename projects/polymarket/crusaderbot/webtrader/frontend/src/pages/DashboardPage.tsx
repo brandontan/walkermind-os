@@ -34,6 +34,7 @@ export function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastTick, setLastTick] = useState<number | null>(null);
   const [lastSignals, setLastSignals] = useState<number>(0);
+  const [recentClosed, setRecentClosed] = useState<PositionItem[]>([]);
   const [pnlFlash, setPnlFlash] = useState<"up" | "down" | null>(null);
   // Alerts come from the global AlertCenterContext (fetched once at AppShell level)
   const { alerts: ctxAlerts } = useAlertCenter();
@@ -72,17 +73,26 @@ export function DashboardPage() {
     } catch { /* silent — feed is non-critical */ }
   }, [api]);
 
+  const loadRecentClosed = useCallback(async () => {
+    try {
+      setRecentClosed(await api.getPositions("closed", 5));
+    } catch { /* silent */ }
+  }, [api]);
+
   const refreshAll = useCallback(() => {
     void load();
     void loadOpenPositions();
     void loadMarketFeed();
-  }, [load, loadOpenPositions, loadMarketFeed]);
+    void loadRecentClosed();
+  }, [load, loadOpenPositions, loadMarketFeed, loadRecentClosed]);
 
   useEffect(() => { void load(); }, [load]);
 
   useEffect(() => { void loadOpenPositions(); }, [loadOpenPositions]);
 
   useEffect(() => { void loadMarketFeed(); }, [loadMarketFeed]);
+
+  useEffect(() => { void loadRecentClosed(); }, [loadRecentClosed]);
 
   const { connected: sseConnected } = useSSE(user?.token ?? null, {
     positions:        refreshAll,
@@ -268,6 +278,44 @@ export function DashboardPage() {
               <Terminal lines={buildScannerLines(data, lastTick, lastSignals)} />
             </AdvancedOnly>
 
+            {/* Scanner status strip — visible to all users */}
+            <div className="mt-3 mb-2 mx-0.5 md:mt-0 px-2.5 py-1.5 rounded-lg border border-surface-3 bg-surface-1 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={data.auto_trade_on ? "animate-status-pulse" : ""}
+                  style={{
+                    display: "inline-block", width: "6px", height: "6px", borderRadius: "50%",
+                    background: data.auto_trade_on ? "var(--grn,#00FF9C)" : "var(--ink-3,#455370)",
+                    boxShadow: data.auto_trade_on ? "0 0 5px var(--grn,#00FF9C)" : "none",
+                  }}
+                  aria-label={data.auto_trade_on ? "scanner active" : "scanner idle"}
+                />
+                <span className="font-hud text-[9px] uppercase tracking-[1.5px] text-ink-3">Scanner</span>
+              </div>
+              <div className="flex items-center gap-3 font-mono text-[9px]">
+                <span>
+                  <span className="text-ink-4">last </span>
+                  <span className="text-ink-1">
+                    {lastTick
+                      ? new Date(lastTick).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+                      : "—"}
+                  </span>
+                </span>
+                <span>
+                  <span className={(data.signals_today ?? 0) > 0 ? "text-grn font-bold" : "text-ink-3"}>
+                    {data.signals_today ?? 0}
+                  </span>
+                  <span className="text-ink-4"> today</span>
+                </span>
+                {lastSignals > 0 && (
+                  <span>
+                    <span className="text-ink-1">{lastSignals}</span>
+                    <span className="text-ink-4"> cands</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
             <div className="flex items-center justify-between mt-3.5 mb-2 mx-0.5 md:mt-0">
               <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2
                               uppercase flex items-center gap-2">
@@ -300,7 +348,7 @@ export function DashboardPage() {
             ) : (
               <PositionCarousel>
                 {liveOpen.map((p) => (
-                  <PositionRow key={p.id} p={p} />
+                  <PositionRow key={p.id} p={p} defaultExpanded />
                 ))}
               </PositionCarousel>
             )}
@@ -330,6 +378,20 @@ export function DashboardPage() {
               </>
             )}
 
+            {recentClosed.length > 0 && (
+              <div className="mt-4">
+                <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2 mb-2 mx-0.5">
+                  <span className="w-3 h-px bg-ink-3" aria-hidden />
+                  Recent Activity
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+                  {recentClosed.map((p) => (
+                    <RecentActivityCard key={p.id} p={p} />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="mt-4">
               <KillSwitchButton
                 active={data.kill_switch_active}
@@ -343,6 +405,49 @@ export function DashboardPage() {
         </div>
       </div>
     </>
+  );
+}
+
+const RECENT_EXIT_LABEL: Record<string, string> = {
+  tp_hit:          "TP",
+  sl_hit:          "SL",
+  market_expired:  "EXP",
+  resolution_win:  "WIN",
+  resolution_loss: "LOSS",
+  force_close:     "FORCE",
+  manual:          "MANUAL",
+};
+
+function RecentActivityCard({ p }: { p: PositionItem }) {
+  const pnl = p.pnl_usdc ?? 0;
+  const isPos = pnl > 0.005;
+  const isNeg = pnl < -0.005;
+  const pnlClass = isPos ? "text-grn" : isNeg ? "text-red" : "text-ink-3";
+  const stripe = isPos ? "var(--grn,#00FF9C)" : isNeg ? "var(--red,#FF2D55)" : "var(--ink-3,#455370)";
+  return (
+    <div
+      className="relative flex-shrink-0 w-[130px] p-2 pl-3 rounded-lg border border-surface-3 bg-surface-1 overflow-hidden"
+    >
+      <span
+        className="absolute left-0 top-0 bottom-0 w-0.5"
+        style={{ background: stripe }}
+        aria-hidden
+      />
+      <p className="text-[8px] font-mono text-ink-4 truncate leading-tight mb-1">
+        {p.market_question ?? p.market_id}
+      </p>
+      <p className={`text-[12px] font-bold font-mono leading-none mb-1 ${pnlClass}`}>
+        {pnl >= 0 ? "+" : "−"}${Math.abs(pnl).toFixed(2)}
+      </p>
+      <div className="flex items-center justify-between gap-1">
+        <span className={`text-[8px] font-hud uppercase ${p.side === "yes" ? "text-grn" : "text-red"}`}>
+          {p.side.toUpperCase()}
+        </span>
+        <span className="text-[8px] font-mono text-ink-4">
+          {RECENT_EXIT_LABEL[p.exit_reason ?? ""] ?? "—"}
+        </span>
+      </div>
+    </div>
   );
 }
 
