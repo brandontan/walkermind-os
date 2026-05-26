@@ -5,7 +5,7 @@ import { CollapsibleSection } from "../components/CollapsibleSection";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { HeroCard } from "../components/HeroCard";
 import { TopBar } from "../components/TopBar";
-import { makeApi, type AutoTradeState, type MarketFilterSettings, type RiskProfileParams, type TradingSettings } from "../lib/api";
+import { makeApi, type AutoTradeState, type CustomizeParams, type MarketFilterSettings, type RiskProfileParams, type TradingSettings } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 
@@ -469,14 +469,16 @@ export function AutoTradePage() {
         </p>
         {/* CAP% is the deployable POOL, not the per-trade size. Surface the real
             max-per-trade so users don't read "60%" as "$600 per trade". */}
-        {state.max_per_trade_usdc != null && (
-          <p className="text-[11px] font-mono mb-3 mx-0.5 px-2 py-1.5 rounded border border-gold/30 bg-gold/5 text-ink-2">
-            <span className="text-gold font-bold">Max per trade: ${state.max_per_trade_usdc.toFixed(2)}</span>
+        {state.effective_max_per_trade_usdc != null && (
+          <p className="text-[11px] font-mono mb-2 mx-0.5 px-2 py-1.5 rounded border border-gold/30 bg-gold/5 text-ink-2">
+            <span className="text-gold font-bold">Max per trade: ${state.effective_max_per_trade_usdc.toFixed(2)}</span>
             {state.equity_usdc != null && (
               <span className="text-ink-3"> · CAP {Math.round(state.capital_alloc_pct * 100)}% of ${state.equity_usdc.toFixed(2)} equity is the deployable pool, not one trade</span>
             )}
           </p>
         )}
+        <MaxPerTradeControl state={state} api={api} onSaved={() => void load()} />
+
 
         {/* 3 preset cards — equal width row */}
         <div className="grid grid-cols-3 gap-2 mb-2">
@@ -711,6 +713,87 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
         <span className="w-3 h-px bg-gold" aria-hidden />
         {children}
       </div>
+    </div>
+  );
+}
+
+// ── Max per trade control ─────────────────────────────────────────────────────
+// Lets a user cap the $ size of any single trade in one of two modes (or leave
+// it on the system default). Hard system limits ($1–$500 / 0.5–10% of equity)
+// are re-enforced server-side at sizing time, so this can only tighten risk
+// within those bounds. CAP% remains the deployable pool, not the trade size.
+function MaxPerTradeControl({ state, api, onSaved }: {
+  state: AutoTradeState;
+  api: ReturnType<typeof makeApi>;
+  onSaved: () => void;
+}) {
+  const [mode, setMode] = useState<"auto" | "fixed" | "pct">(state.max_per_trade_mode ?? "auto");
+  const [usd, setUsd] = useState(state.max_per_trade_usdc != null ? String(state.max_per_trade_usdc) : "");
+  const [pct, setPct] = useState(state.max_per_trade_pct != null ? String(Math.round(state.max_per_trade_pct * 100)) : "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const params: CustomizeParams = { max_per_trade_mode: mode };
+      if (mode === "fixed") params.max_per_trade_usdc = Math.max(1, Math.min(500, Number(usd) || 0));
+      if (mode === "pct") params.max_per_trade_pct = Math.max(0.005, Math.min(0.10, (Number(pct) || 0) / 100));
+      await api.customizeStrategy(params);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const MODES: { key: "auto" | "fixed" | "pct"; label: string }[] = [
+    { key: "auto", label: "Auto ($25)" },
+    { key: "fixed", label: "Fixed $" },
+    { key: "pct", label: "% Equity" },
+  ];
+
+  return (
+    <div className="mb-3 mx-0.5 p-2.5 rounded-lg border border-surface-3 bg-surface-1">
+      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-2">Max per trade</p>
+      <div className="grid grid-cols-3 gap-2 mb-2">
+        {MODES.map((m) => (
+          <button
+            key={m.key}
+            onClick={() => setMode(m.key)}
+            className={[
+              "py-1.5 rounded-md border text-[11px] font-hud font-bold transition-all",
+              mode === m.key ? "border-gold bg-gold/10 text-gold" : "border-surface-3 bg-surface-2 text-ink-3 hover:border-ink-3",
+            ].join(" ")}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+      {mode === "fixed" && (
+        <input
+          type="number" inputMode="decimal" min={1} max={500} value={usd}
+          onChange={(e) => setUsd(e.target.value)}
+          placeholder="$ per trade (1–500)"
+          className="w-full mb-2 px-2 py-1.5 rounded-md bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono"
+        />
+      )}
+      {mode === "pct" && (
+        <input
+          type="number" inputMode="decimal" min={0.5} max={10} step={0.5} value={pct}
+          onChange={(e) => setPct(e.target.value)}
+          placeholder="% of equity (0.5–10)"
+          className="w-full mb-2 px-2 py-1.5 rounded-md bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono"
+        />
+      )}
+      <button
+        onClick={() => void save()}
+        disabled={saving}
+        className="w-full py-1.5 rounded-md border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
+      >
+        {saved ? "Saved ✓" : saving ? "Saving…" : "Save Max Per Trade"}
+      </button>
     </div>
   );
 }

@@ -146,7 +146,13 @@ class AutoTradeState(BaseModel):
     # per-trade size for the active CAP%. Surfaces in the UI so users see that
     # CAP% is the deployable pool, not the size of a single trade.
     equity_usdc: Optional[float] = None
+    # The effective per-trade $ ceiling the engine will use right now (after the
+    # user's max-per-trade mode is applied). This is the "Max per trade: $X".
+    effective_max_per_trade_usdc: Optional[float] = None
+    # The user's configured max-per-trade control (echoed back for the UI form).
+    max_per_trade_mode: str = "auto"
     max_per_trade_usdc: Optional[float] = None
+    max_per_trade_pct: Optional[float] = None
 
 
 class AutoTradeToggleRequest(BaseModel):
@@ -166,6 +172,9 @@ class CustomizeRequest(BaseModel):
     max_position_pct: Optional[float] = None
     auto_redeem_mode: Optional[str] = None
     category_filters: Optional[list[str]] = None
+    max_per_trade_mode: Optional[str] = None   # auto | fixed | pct
+    max_per_trade_usdc: Optional[float] = None
+    max_per_trade_pct: Optional[float] = None
 
 
 class RiskProfileRequest(BaseModel):

@@ -116,6 +116,12 @@ class UserContext:
     # Crypto assets to trade for crypto-short presets (e.g. ['BTC','ETH']).
     # None/empty means all whitelisted assets.
     selected_assets: tuple[str, ...] = ()
+    # User-configurable per-trade $ ceiling. mode 'auto' (default) uses the
+    # system $25 cap; 'fixed' uses max_per_trade_usdc; 'pct' uses
+    # max_per_trade_pct of equity. Bounded by hard system limits at sizing time.
+    max_per_trade_mode: str = "auto"
+    max_per_trade_usdc: float | None = None
+    max_per_trade_pct: float | None = None
 
     def __post_init__(self) -> None:
         if self.risk_profile not in VALID_RISK_PROFILES:

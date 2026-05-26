@@ -62,24 +62,61 @@ _TF_STEP_SECONDS: dict[str, int] = {"5m": 300, "15m": 900}
 # Suggested-size envelope (the gate re-sizes downward via Kelly + caps).
 _SUGGESTED_SIZE_FRACTION: float = 0.04
 _SUGGESTED_SIZE_MIN_USDC: float = 1.0
-_SUGGESTED_SIZE_MAX_USDC: float = 25.0
+_SUGGESTED_SIZE_MAX_USDC: float = 25.0       # 'auto' mode default ceiling
+# Hard ceilings for the user-configurable per-trade cap. A user may raise the
+# 'auto' $25 ceiling but NEVER beyond these absolute system limits; the risk
+# gate's fractional Kelly + 10%-of-equity position fence still apply on top.
+_ABS_MAX_PER_TRADE_USDC: float = 500.0
+_MIN_PER_TRADE_PCT: float = 0.005            # 0.5% of equity
+_MAX_PER_TRADE_PCT: float = 0.10             # 10% of equity
 
 
-def suggested_trade_size(base_usdc: float, capital_allocation_pct: float) -> float:
+def resolve_per_trade_ceiling(
+    equity_usdc: float,
+    mode: str | None,
+    max_usdc: float | None,
+    max_pct: float | None,
+) -> float:
+    """Per-trade $ ceiling for the user's chosen mode, bounded by system limits.
+
+    'fixed' -> max_usdc clamped to [$1, $500]. 'pct' -> equity x max_pct with
+    max_pct clamped to [0.5%, 10%]. Anything else ('auto'/None/missing value)
+    falls back to the system default ($25). Never returns more than the absolute
+    per-trade cap.
+    """
+    if mode == "fixed" and max_usdc is not None and max_usdc > 0:
+        return max(_SUGGESTED_SIZE_MIN_USDC, min(float(max_usdc), _ABS_MAX_PER_TRADE_USDC))
+    if mode == "pct" and max_pct is not None and max_pct > 0:
+        pct = min(max(float(max_pct), _MIN_PER_TRADE_PCT), _MAX_PER_TRADE_PCT)
+        return max(
+            _SUGGESTED_SIZE_MIN_USDC,
+            min(max(0.0, equity_usdc) * pct, _ABS_MAX_PER_TRADE_USDC),
+        )
+    return _SUGGESTED_SIZE_MAX_USDC
+
+
+def suggested_trade_size(
+    base_usdc: float,
+    capital_allocation_pct: float,
+    *,
+    ceiling_usdc: float | None = None,
+) -> float:
     """Per-trade size = (equity x capital_allocation_pct) x fraction, clamped.
 
     ``base_usdc`` is the account equity (free balance + open-position value).
     The capital_allocation_pct (risk-profile CAP%) defines the deployable pool;
     a single trade takes only a small fraction of that pool, hard-capped at
-    _SUGGESTED_SIZE_MAX_USDC. So CAP% is NOT the per-trade size — e.g. equity
-    $1000 x 60% x 4% = $24, capped $25. The risk gate then re-sizes downward
-    via fractional Kelly and the max-position fence. Shared with the WebTrader
-    autotrade endpoint so the UI shows the same number the engine will use.
+    ``ceiling_usdc`` (default $25). So CAP% is NOT the per-trade size — e.g.
+    equity $1000 x 60% x 4% = $24, capped $25. ``ceiling_usdc`` is the user's
+    resolved max-per-trade (see resolve_per_trade_ceiling). The risk gate then
+    re-sizes downward via fractional Kelly and the max-position fence. Shared
+    with the WebTrader autotrade endpoint so the UI shows the engine's number.
     """
+    cap = _SUGGESTED_SIZE_MAX_USDC if ceiling_usdc is None else max(0.0, ceiling_usdc)
     allocated = max(0.0, base_usdc) * max(0.0, capital_allocation_pct)
     return max(
         _SUGGESTED_SIZE_MIN_USDC,
-        min(allocated * _SUGGESTED_SIZE_FRACTION, _SUGGESTED_SIZE_MAX_USDC),
+        min(allocated * _SUGGESTED_SIZE_FRACTION, cap),
     )
 
 
@@ -450,8 +487,16 @@ async def _evaluate_market(
     # so the deployable pool reflects the whole account. Fall back to free
     # balance when equity is not supplied (older callers / tests).
     size_base = user_context.equity_usdc or user_context.available_balance_usdc
+    ceiling = resolve_per_trade_ceiling(
+        size_base,
+        getattr(user_context, "max_per_trade_mode", None),
+        getattr(user_context, "max_per_trade_usdc", None),
+        getattr(user_context, "max_per_trade_pct", None),
+    )
     flip_stop = FLIP_STOP_PRICE  # module default; evaluate_exit reads from config
-    suggested = suggested_trade_size(size_base, user_context.capital_allocation_pct)
+    suggested = suggested_trade_size(
+        size_base, user_context.capital_allocation_pct, ceiling_usdc=ceiling,
+    )
 
     return SignalCandidate(
         market_id=market_id,
@@ -485,4 +530,4 @@ async def _evaluate_market(
     ), None
 
 
-__all__ = ["LateEntryV3Strategy", "suggested_trade_size"]
+__all__ = ["LateEntryV3Strategy", "suggested_trade_size", "resolve_per_trade_ceiling"]

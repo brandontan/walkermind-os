@@ -13,7 +13,10 @@ from sse_starlette.sse import EventSourceResponse
 from ...database import get_pool
 from ...domain.execution import router as exec_router
 from ...domain.ops import kill_switch
-from ...domain.strategy.strategies.late_entry_v3 import suggested_trade_size
+from ...domain.strategy.strategies.late_entry_v3 import (
+    resolve_per_trade_ceiling,
+    suggested_trade_size,
+)
 from ... import notifications as notif_module
 from ...integrations import polymarket as _polymarket
 from . import sse as webtrader_sse
@@ -541,7 +544,8 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         s_row = await conn.fetchrow(
             """SELECT risk_profile, capital_alloc_pct, tp_pct, sl_pct, active_preset,
                       category_filters, min_liquidity, max_resolution_days, min_volume_24h,
-                      slippage_tolerance_pct, selected_timeframe, selected_assets
+                      slippage_tolerance_pct, selected_timeframe, selected_assets,
+                      max_per_trade_mode, max_per_trade_usdc, max_per_trade_pct
                FROM user_settings WHERE user_id=$1::uuid""",
             user_id,
         )
@@ -557,6 +561,10 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
     cats: list[str] = list(s_row["category_filters"]) if s_row and s_row["category_filters"] else []
     cap_pct = float(s_row["capital_alloc_pct"]) if s_row else 0.5
     equity = float(eq_row["equity_usdc"]) if eq_row and eq_row["equity_usdc"] is not None else 0.0
+    mpt_mode = (s_row["max_per_trade_mode"] if s_row and s_row["max_per_trade_mode"] else "auto")
+    mpt_usdc = (float(s_row["max_per_trade_usdc"]) if s_row and s_row["max_per_trade_usdc"] is not None else None)
+    mpt_pct = (float(s_row["max_per_trade_pct"]) if s_row and s_row["max_per_trade_pct"] is not None else None)
+    ceiling = resolve_per_trade_ceiling(equity, mpt_mode, mpt_usdc, mpt_pct)
     return AutoTradeState(
         auto_trade_on=bool(u_row["auto_trade_on"]) if u_row else False,
         active_preset=s_row["active_preset"] if s_row else None,
@@ -572,7 +580,10 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         selected_timeframe=s_row["selected_timeframe"] if s_row else None,
         selected_assets=list(s_row["selected_assets"]) if s_row and s_row["selected_assets"] else None,
         equity_usdc=round(equity, 2),
-        max_per_trade_usdc=round(suggested_trade_size(equity, cap_pct), 2),
+        effective_max_per_trade_usdc=round(suggested_trade_size(equity, cap_pct, ceiling_usdc=ceiling), 2),
+        max_per_trade_mode=mpt_mode,
+        max_per_trade_usdc=mpt_usdc,
+        max_per_trade_pct=mpt_pct,
     )
 
 
@@ -738,6 +749,14 @@ async def customize_strategy(body: CustomizeRequest, user: _CurrentUser):
     _add("max_position_pct", body.max_position_pct)
     _add("auto_redeem_mode", body.auto_redeem_mode)
     _add("category_filters", body.category_filters)
+
+    # Per-trade cap mode + values (owner-directed; bounded in code at sizing time).
+    if body.max_per_trade_mode is not None:
+        if body.max_per_trade_mode not in ("auto", "fixed", "pct"):
+            raise HTTPException(status_code=400, detail="max_per_trade_mode must be auto|fixed|pct")
+        _add("max_per_trade_mode", body.max_per_trade_mode)
+    _add("max_per_trade_usdc", body.max_per_trade_usdc)
+    _add("max_per_trade_pct", body.max_per_trade_pct)
 
     if not updates:
         return {"updated": False}

@@ -203,7 +203,10 @@ export interface AutoTradeState {
   selected_timeframe: string | null;
   selected_assets: string[] | null;
   equity_usdc?: number | null;
+  effective_max_per_trade_usdc?: number | null;
+  max_per_trade_mode?: "auto" | "fixed" | "pct";
   max_per_trade_usdc?: number | null;
+  max_per_trade_pct?: number | null;
 }
 
 export interface CustomizeParams {
@@ -213,6 +216,9 @@ export interface CustomizeParams {
   max_position_pct?: number;
   auto_redeem_mode?: string;
   category_filters?: string[];
+  max_per_trade_mode?: "auto" | "fixed" | "pct";
+  max_per_trade_usdc?: number | null;
+  max_per_trade_pct?: number | null;
 }
 
 export interface RiskProfileParams {

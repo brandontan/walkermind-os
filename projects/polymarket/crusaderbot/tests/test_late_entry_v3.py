@@ -34,6 +34,7 @@ from projects.polymarket.crusaderbot.domain.strategy.strategies.late_entry_v3 im
     DEFAULT_TP_PCT,
     FLIP_STOP_PRICE,
     LateEntryV3Strategy,
+    resolve_per_trade_ceiling,
     suggested_trade_size,
 )
 from projects.polymarket.crusaderbot.domain.strategy.types import (
@@ -70,7 +71,8 @@ def _make_filters(*, blacklisted: list[str] | None = None) -> MarketFilters:
 
 
 def _make_context(*, available: float = 1000.0, alloc: float = 0.5,
-                  equity: float = 0.0) -> UserContext:
+                  equity: float = 0.0, mpt_mode: str = "auto",
+                  mpt_usdc: float | None = None, mpt_pct: float | None = None) -> UserContext:
     return UserContext(
         user_id="u1",
         sub_account_id="s1",
@@ -80,6 +82,9 @@ def _make_context(*, available: float = 1000.0, alloc: float = 0.5,
         equity_usdc=equity,
         selected_timeframe="5m",
         selected_assets=("BTC",),
+        max_per_trade_mode=mpt_mode,
+        max_per_trade_usdc=mpt_usdc,
+        max_per_trade_pct=mpt_pct,
     )
 
 
@@ -242,6 +247,40 @@ def test_suggested_trade_size_floor_and_cap():
     assert suggested_trade_size(100_000.0, 0.60) == 25.0
     # tiny pool -> floored at $1
     assert suggested_trade_size(5.0, 0.20) == 1.0
+
+
+def test_resolve_per_trade_ceiling_modes():
+    # auto / unknown -> system $25 default
+    assert resolve_per_trade_ceiling(1000.0, "auto", None, None) == 25.0
+    assert resolve_per_trade_ceiling(1000.0, None, 999, 0.5) == 25.0
+    # fixed clamps to [$1, $500]
+    assert resolve_per_trade_ceiling(1000.0, "fixed", 50.0, None) == 50.0
+    assert resolve_per_trade_ceiling(1000.0, "fixed", 9999.0, None) == 500.0
+    assert resolve_per_trade_ceiling(1000.0, "fixed", 0.1, None) == 1.0
+    # pct -> equity x pct, pct clamped to [0.5%, 10%]
+    assert resolve_per_trade_ceiling(1000.0, "pct", None, 0.05) == pytest.approx(50.0)
+    assert resolve_per_trade_ceiling(1000.0, "pct", None, 0.50) == pytest.approx(100.0)  # capped 10%
+    assert resolve_per_trade_ceiling(1000.0, "pct", None, 0.001) == pytest.approx(5.0)   # floored 0.5%
+
+
+def test_user_fixed_cap_limits_trade_size():
+    """mode='fixed' max_usdc=$10 caps the trade even though natural size is larger."""
+    strat = LateEntryV3Strategy()
+    ctx = _make_context(equity=10_000.0, alloc=0.5, mpt_mode="fixed", mpt_usdc=10.0)
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[_make_market()])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.65, 0.20))):
+        cands = _run(strat.scan(_make_filters(), ctx))
+    assert len(cands) == 1 and cands[0].suggested_size_usdc == pytest.approx(10.0)
+
+
+def test_user_pct_cap_limits_trade_size():
+    """mode='pct' 0.5% of $10k equity = $50 ceiling; natural $200 -> capped $50."""
+    strat = LateEntryV3Strategy()
+    ctx = _make_context(equity=10_000.0, alloc=0.5, mpt_mode="pct", mpt_pct=0.005)
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[_make_market()])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.65, 0.20))):
+        cands = _run(strat.scan(_make_filters(), ctx))
+    assert len(cands) == 1 and cands[0].suggested_size_usdc == pytest.approx(50.0)
 
 
 def test_sizes_off_equity_not_free_balance():

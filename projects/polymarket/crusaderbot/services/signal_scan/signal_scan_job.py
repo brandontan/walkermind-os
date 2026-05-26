@@ -228,6 +228,9 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 s.active_preset,
                 s.selected_timeframe,
                 s.selected_assets,
+                s.max_per_trade_mode,
+                s.max_per_trade_usdc,
+                s.max_per_trade_pct,
                 COALESCE(s.min_liquidity, 0)         AS min_liquidity_threshold,
                 COALESCE(s.strategy_params, '{}'::jsonb)      AS strategy_params,
                 COALESCE(s.category_filters, ARRAY[]::text[]) AS category_filters
@@ -608,6 +611,13 @@ def _build_user_context(row: dict[str, Any]) -> UserContext:
         equity_usdc=equity,
         selected_timeframe=str(_tf) if _tf else None,
         selected_assets=_assets,
+        max_per_trade_mode=str(row.get("max_per_trade_mode") or "auto"),
+        max_per_trade_usdc=(
+            float(row["max_per_trade_usdc"]) if row.get("max_per_trade_usdc") is not None else None
+        ),
+        max_per_trade_pct=(
+            float(row["max_per_trade_pct"]) if row.get("max_per_trade_pct") is not None else None
+        ),
     )
 
 
