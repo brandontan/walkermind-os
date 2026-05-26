@@ -26,6 +26,17 @@ function PageLoader() {
 }
 
 const LAST_SEEN_KEY = "alertCenter_lastSeen";
+const DISMISSED_KEY = "alertCenter_dismissed";
+const DISMISSED_CAP = 500;
+
+function loadDismissed(): Set<string> {
+  try {
+    const stored = localStorage.getItem(DISMISSED_KEY);
+    return stored ? new Set<string>(JSON.parse(stored) as string[]) : new Set<string>();
+  } catch {
+    return new Set<string>();
+  }
+}
 
 interface AlertCenterCtx {
   alerts: AlertItem[];
@@ -73,7 +84,7 @@ function AppShell() {
 
   // ── Alert Center global state ────────────────────────────────────────────
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [dismissed, setDismissed] = useState<Set<string>>(loadDismissed);
   const [alertOffset, setAlertOffset] = useState(0);
   const [hasMoreAlerts, setHasMoreAlerts] = useState(false);
   const ALERT_PAGE = 10;
@@ -127,7 +138,13 @@ function AppShell() {
   }, [alertOffset, fetchAlerts]);
 
   const dismissAlert = useCallback((id: string) => {
-    setDismissed(prev => new Set([...prev, id]));
+    setDismissed(prev => {
+      const next = [...prev, id];
+      // Bound localStorage growth — keep the most recent ids only.
+      const capped = next.length > DISMISSED_CAP ? next.slice(next.length - DISMISSED_CAP) : next;
+      try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(capped)); } catch { /* quota — ignore */ }
+      return new Set(capped);
+    });
   }, []);
 
   const [lastScanMs, setLastScanMs] = useState<number | null>(null);

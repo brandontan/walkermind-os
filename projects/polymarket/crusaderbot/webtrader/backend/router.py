@@ -368,7 +368,7 @@ async def get_positions(
                 FROM positions p
                 LEFT JOIN markets m ON m.id = p.market_id
                 {where}
-                ORDER BY p.opened_at DESC
+                ORDER BY COALESCE(p.closed_at, p.opened_at) DESC
                 LIMIT ${len(params)+1} OFFSET ${len(params)+2}""",
             *params, limit, offset,
         )
