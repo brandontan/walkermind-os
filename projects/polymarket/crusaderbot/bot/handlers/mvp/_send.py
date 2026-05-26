@@ -16,7 +16,7 @@ async def send_or_edit(
     text: str,
     keyboard: Optional[Union[InlineKeyboardMarkup, ReplyKeyboardMarkup]] = None,
     *,
-    parse_mode: Optional[str] = "HTML",
+    parse_mode: Optional[str] = "MarkdownV2",
 ) -> None:
     """Send a new message on /command, edit in place on callback.
 
