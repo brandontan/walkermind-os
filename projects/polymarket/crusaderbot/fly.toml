@@ -19,7 +19,7 @@ kill_timeout = "30s"
   PORT                          = "8080"
   HOST                          = "0.0.0.0"
   TIMEZONE                      = "Asia/Jakarta"
-  DB_POOL_MAX                   = "5"
+  DB_POOL_MAX                   = "10"
   LOG_LEVEL                     = "INFO"
   ENABLE_LIVE_TRADING           = "false"
   EXECUTION_PATH_VALIDATED      = "false"
@@ -28,8 +28,6 @@ kill_timeout = "30s"
   SECURITY_HARDENING_VALIDATED  = "false"
   FEE_COLLECTION_ENABLED        = "false"
   AUTO_REDEEM_ENABLED           = "true"
-  HEISENBERG_API_TOKEN          = ""
-  ADMIN_API_TOKEN               = ""
 
 [http_service]
   internal_port = 8080
