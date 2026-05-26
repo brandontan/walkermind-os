@@ -1,5 +1,5 @@
-Last Updated : 2026-05-27 00:00
-Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs #1350/#1351/#1352 MERGED + deployed. Migration 054+055 applied. RLS 43/43. Bad tp_hit positions corrected (qwneer8 87 pos, Maver1ch69 32 pos). Trades flowing 722/24h. Guards untouched, ENABLE_LIVE_TRADING=false, paper-only.
+Last Updated : 2026-05-26 13:30
+Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs #1350/#1351/#1352/#1354/#1355 MERGED + deployed. Migration 054+055 applied. RLS 43/43. Bad tp_hit positions corrected (qwneer8 87 pos, Maver1ch69 32 pos). Trades flowing 722/24h. Guards untouched, ENABLE_LIVE_TRADING=false, paper-only. WebTrader bundle split + logo + sidebar brand delivered.
 
 - WARP-57 (issue #1260): SENTINEL re-audited — APPROVED (Round 2 Score 86/100, 0 critical). PR #1261 / WARP/warp57-telegram-ux-mvp at SHA aa4fe24c55e8. Round-1 CRITICAL-1 (copy_targets schema mismatch) RESOLVED — `bot/handlers/mvp/copy_wallet.py` SELECT/INSERT/UPDATE now use canonical columns (`target_wallet_address`, `status='active'/'inactive'`, `scale_factor`) per mig 009. Round-1 MEDIUM-1 (`wallets.public_address` → `deposit_address` in onboarding.py:38) also RESOLVED. NEW MEDIUM-4 (post-merge follow-up): MVP writes to `copy_targets` but production scanner `services/copy_trade/monitor.py:80` reads `copy_trade_tasks` via `domain/copy_trade/repository.py:list_active_tasks` — end-to-end mirror not yet active until a follow-up lane swaps the MVP table to `copy_trade_tasks`; legacy `/copytrade` 8-step wizard remains the only path that produces mirrored trades. Round-1 MEDIUM-2 (auto:start engine bootstrap) + MEDIUM-3 (legacy `/settings` sub-route regression) P2-deferred per WARP🔹CMD direction. Activation guards untouched (Risk 3 PASS), no manual trade buttons (Risk 2 PASS), paper-mode default preserved (Risk 6 PASS). Report: projects/polymarket/crusaderbot/reports/sentinel/warp57-telegram-ux-mvp.md.
 - WARP-55 (issue #1256): MERGED (abd3b43dbe10) — RUNTIME_EVIDENCE.md: 7/7 P2 finish criteria proven. 🏁 CrusaderBot closed beta DONE. Guards LOCKED. STANDARD, evidence-only.
@@ -49,7 +49,7 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs #1350/#135
 [IN PROGRESS]
 - Production monitoring of late_entry_v3 on Fly (paper): FAV_PRICE_MAX=0.70 ceiling live. Watch 24-48h net PnL — expect loss zone (fav 0.70-0.93) to be eliminated. If still negative, raise fav_price_min from 0.46 to 0.55.
 - Pre-public checklist: Gate 3 (verify exit price correct on next natural TP/SL close), Gate 5 (48h profitability check). Both observation-only, no code changes.
-- WebTrader bundle size: 690 kB single chunk — plan code splitting before public launch.
+- Pre-launch polish lane in progress: DesktopSidebar brand header + migration 055 formalized + state sync.
 
 [NOT STARTED]
 - Apply migration 030 (job_runs metadata JSONB) to production before Fly.io deploy (trading-unblock MERGED PR #1065, live on main).
@@ -65,14 +65,14 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs #1350/#135
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- [NEXT CODE LANE] WebTrader bundle splitting — 690 kB single chunk → lazy-load heavy pages (PortfolioPage, AutoTradePage, CopyTradePage) to cut initial load. STANDARD.
-- [NEXT CODE LANE] crusaderbot-logo.png — provide PNG to commit to webtrader/frontend/public/; broken img reference until done. WARP🔹CMD must supply the file.
+- WARP🔹CMD: activate Heisenberg by running `fly secrets set HEISENBERG_API_TOKEN=<token> -a crusaderbot` — code already shipped (services/heisenberg.py, market_sync job, scanner live path, leaderboard H-Score sync); token is the only gate.
 - Gate 3: verify exit price on next natural TP/SL close post-deploy (observation only).
 - Gate 5: 48h profitability check on late_entry_v3 under FAV_PRICE_MAX=0.70 (observation only).
-- Heisenberg API integration (HEISENBERG_API_TOKEN in Fly secrets) — candlesticks for late_entry_v3 signal quality + H-Score for copy-trade ranking. Logged for next lane.
-- Continue closed-beta runtime observation; watch Sentry for new errors after the 2026-05-25 deploys (PR #1340/#1342/#1343/#1344).
-- "Only BTC/ETH open" report (2026-05-26) — diagnosed NOT a bug: per-user audit shows every late_entry_v3 user trades all four majors (e.g. user 7e6fbd20 = BTC 101 / ETH 84 / SOL 68 / BNB 9); SOL ~26% of fills, BNB ~3% (thin candle books). The live open-positions view only shows the current candle window, so at any instant a user may see only BTC/ETH. No fix needed; BNB starvation is liquidity, not logic.
-- FIXED (claude/zealous-brahmagupta-LZaZV): positions.market_question now persisted at open time (paper + live executors) + COALESCE(m.question, p.market_question, …) fallback in WebTrader position read queries. Makes Port/Activity/closed-position labels durable against markets-table pruning of ephemeral candle markets. Historical rows stay NULL but still label via the live markets JOIN.
+- Continue closed-beta runtime observation; watch Sentry for new errors post-deploy.
+- DONE (PR #1354): WebTrader bundle splitting — React.lazy + manualChunks vendor-react/vendor-charts. Initial load ~150-200 kB.
+- DONE (PR #1354): crusaderbot-logo.png — path fixed to BASE_URL prefix; dimensions corrected 3:2 landscape in TopBar (40x27) + AuthPage (120x80).
+- DONE (PR #1355): TS6133 build error fixed — unused RecentActivityCard removed from DashboardPage.tsx.
+- IN LANE: DesktopSidebar brand header + migration 055 formalized.
 
 [KNOWN ISSUES]
 - [ACTIVE] DB_POOL_MAX raised 4→10 (2026-05-25). Monitor if TooManyConnectionsError recurs — Fly Postgres free tier max_connections=25, pool 10 leaves 15 for other clients. If recurs: add PgBouncer or upgrade Fly Postgres plan.
