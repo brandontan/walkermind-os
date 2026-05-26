@@ -1,5 +1,5 @@
-Last Updated : 2026-05-26 23:30
-Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). late_entry_v3 close_sweep trading BTC/ETH/SOL/BNB/XRP/DOGE/HYPE (BTC default) 5m/15m candles. PR #1349 (lane #3) MERGED 88531e1. PR #1350 (lane #4 daily $-loss override + max drawdown %) MERGED 98376a0. Migration 054 applied to prod. Home enhancements + exit_price TP/SL fix (PR #1351) pending deploy. Guards untouched, ENABLE_LIVE_TRADING=false, paper-only.
+Last Updated : 2026-05-27 00:00
+Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs #1350/#1351/#1352 MERGED + deployed. Migration 054+055 applied. RLS 43/43. Bad tp_hit positions corrected (qwneer8 87 pos, Maver1ch69 32 pos). Trades flowing 722/24h. Guards untouched, ENABLE_LIVE_TRADING=false, paper-only.
 
 - WARP-57 (issue #1260): SENTINEL re-audited — APPROVED (Round 2 Score 86/100, 0 critical). PR #1261 / WARP/warp57-telegram-ux-mvp at SHA aa4fe24c55e8. Round-1 CRITICAL-1 (copy_targets schema mismatch) RESOLVED — `bot/handlers/mvp/copy_wallet.py` SELECT/INSERT/UPDATE now use canonical columns (`target_wallet_address`, `status='active'/'inactive'`, `scale_factor`) per mig 009. Round-1 MEDIUM-1 (`wallets.public_address` → `deposit_address` in onboarding.py:38) also RESOLVED. NEW MEDIUM-4 (post-merge follow-up): MVP writes to `copy_targets` but production scanner `services/copy_trade/monitor.py:80` reads `copy_trade_tasks` via `domain/copy_trade/repository.py:list_active_tasks` — end-to-end mirror not yet active until a follow-up lane swaps the MVP table to `copy_trade_tasks`; legacy `/copytrade` 8-step wizard remains the only path that produces mirrored trades. Round-1 MEDIUM-2 (auto:start engine bootstrap) + MEDIUM-3 (legacy `/settings` sub-route regression) P2-deferred per WARP🔹CMD direction. Activation guards untouched (Risk 3 PASS), no manual trade buttons (Risk 2 PASS), paper-mode default preserved (Risk 6 PASS). Report: projects/polymarket/crusaderbot/reports/sentinel/warp57-telegram-ux-mvp.md.
 - WARP-55 (issue #1256): MERGED (abd3b43dbe10) — RUNTIME_EVIDENCE.md: 7/7 P2 finish criteria proven. 🏁 CrusaderBot closed beta DONE. Guards LOCKED. STANDARD, evidence-only.
@@ -47,12 +47,11 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). late_entry_v3 
   - WARP-43 RUNTIME-TRADE-SMOKE (WARP/runtime-trade-smoke, PR open): scan_runs telemetry table (migration 048) + ScanTelemetry dataclass + structured log events (strategies_loaded, scan_input, strategy_run, risk_gate, paper_execution) + startup loud-failure RuntimeError guard + GET /admin/scan/last + GET /admin/scan/list. 5 files modified/created; py_compile clean. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- Production monitoring of late_entry_v3 on Fly (paper): each candle batch, verify TP/SL/market_expired/resolution exits close correctly and watch the direction win-rate. MERGED + deployed: PR #1346 (HYPE/XRP/DOGE opt-in + BTC default, build f51fd09) and PR #1347 (FAV_PRICE_MAX 0.93->0.70 ceiling + expandable trade-detail view, build 43f590d). Watch whether the 0.70 ceiling turns net PnL positive.
-- Lane #4 (daily $-loss override + max drawdown %): MERGED PR #1350 98376a0. Migration 054 applied to prod. Pending Fly.io redeploy. Report: reports/forge/daily-loss-drawdown.md.
-- Home enhancements + exit_price TP/SL fix (PR #1351): scanner status strip, open positions defaultExpanded in Home, recent activity slide (5 latest closed), "IN" size label, TP/SL exact threshold price fix. 1762 tests pass. STANDARD. Report: reports/forge/home-enhancements.md.
+- Production monitoring of late_entry_v3 on Fly (paper): FAV_PRICE_MAX=0.70 ceiling live. Watch 24-48h net PnL — expect loss zone (fav 0.70-0.93) to be eliminated. If still negative, raise fav_price_min from 0.46 to 0.55.
+- Pre-public checklist: Gate 3 (verify exit price correct on next natural TP/SL close), Gate 5 (48h profitability check). Both observation-only, no code changes.
+- WebTrader bundle size: 690 kB single chunk — plan code splitting before public launch.
 
 [NOT STARTED]
-- Apply migration 054 (max_drawdown_pct column in user_settings) to production Supabase before Fly.io redeploy (lane #4 MERGED PR #1350).
 - Apply migration 030 (job_runs metadata JSONB) to production before Fly.io deploy (trading-unblock MERGED PR #1065, live on main).
 - Apply migration 029 (portfolio_snapshots, system_alerts, NOTIFY triggers) to production before deploying WARP/CRUSADERBOT-WEBTRADER.
 - Set fly secret WEBTRADER_JWT_SECRET=<openssl rand -hex 32> before deploying WebTrader.
@@ -66,12 +65,11 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). late_entry_v3 
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review + merge PR #1351 (home enhancements + TP/SL fix) + Fly.io redeploy. Report: projects/polymarket/crusaderbot/reports/forge/home-enhancements.md. Tier: STANDARD.
-- Monitor TP/SL exit prices post-deploy: verify realistic P&L on new closes (no more inflated 1244% returns from polling lag).
-- Monitor late_entry_v3 edge AFTER the FAV_PRICE_MAX=0.70 ceiling deploys: confirm net PnL turns positive and the fav 0.70-0.93 loss zone is gone. If still negative, next levers are raising fav_price_min (kills the 0.46-0.55 coin-flip zone, -$129) and/or tightening the entry window. Supabase project ykyagjdeqcgcktnpdhes, positions WHERE strategy_type='late_entry_v3'; bucket by entry_price.
-- Heisenberg API integration (HEISENBERG_API_TOKEN in Fly secrets) -- candlesticks for late_entry_v3 signal quality + H-Score for copy-trade ranking. Logged for next lane.
-- Complete the Production checklist (WORKTODO P2 final unchecked item) before public launch.
-- 1 of 43 public tables still has RLS disabled (42 enabled) -- identify the table and enable RLS if it holds user data.
+- [NEXT CODE LANE] WebTrader bundle splitting — 690 kB single chunk → lazy-load heavy pages (PortfolioPage, AutoTradePage, CopyTradePage) to cut initial load. STANDARD.
+- [NEXT CODE LANE] crusaderbot-logo.png — provide PNG to commit to webtrader/frontend/public/; broken img reference until done. WARP🔹CMD must supply the file.
+- Gate 3: verify exit price on next natural TP/SL close post-deploy (observation only).
+- Gate 5: 48h profitability check on late_entry_v3 under FAV_PRICE_MAX=0.70 (observation only).
+- Heisenberg API integration (HEISENBERG_API_TOKEN in Fly secrets) — candlesticks for late_entry_v3 signal quality + H-Score for copy-trade ranking. Logged for next lane.
 - Continue closed-beta runtime observation; watch Sentry for new errors after the 2026-05-25 deploys (PR #1340/#1342/#1343/#1344).
 - "Only BTC/ETH open" report (2026-05-26) — diagnosed NOT a bug: per-user audit shows every late_entry_v3 user trades all four majors (e.g. user 7e6fbd20 = BTC 101 / ETH 84 / SOL 68 / BNB 9); SOL ~26% of fills, BNB ~3% (thin candle books). The live open-positions view only shows the current candle window, so at any instant a user may see only BTC/ETH. No fix needed; BNB starvation is liquidity, not logic.
 - FIXED (claude/zealous-brahmagupta-LZaZV): positions.market_question now persisted at open time (paper + live executors) + COALESCE(m.question, p.market_question, …) fallback in WebTrader position read queries. Makes Port/Activity/closed-position labels durable against markets-table pruning of ephemeral candle markets. Historical rows stay NULL but still label via the live markets JOIN.
