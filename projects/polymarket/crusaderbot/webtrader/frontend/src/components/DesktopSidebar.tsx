@@ -45,10 +45,10 @@ export function DesktopSidebar() {
       <div className="px-4 pb-4 mb-2" style={{ borderBottom: "1px solid rgba(245,200,66,0.08)" }}>
         <div className="flex items-center gap-2.5">
           <img
-            src={`${import.meta.env.BASE_URL}crusaderbot-logo.png`}
+            src={`${import.meta.env.BASE_URL}crusaderbot-emblem.png`}
             alt="CrusaderBot"
-            width={32}
-            height={21}
+            width={26}
+            height={31}
             className="flex-shrink-0 object-contain"
             style={{ filter: "drop-shadow(0 0 8px rgba(245,200,66,0.4))" }}
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
