@@ -1305,15 +1305,15 @@ async def run_once() -> None:
                 market_filters = _build_market_filters(user_ctx.risk_profile, row)
                 # Pass preset-specific params when the user is on a candle preset;
                 # full_auto/default passes None so scan() falls back to global config.
-                _le_preset_params = _CANDLE_PRESET_PARAMS.get(active_preset)
-                _le_ask_diff: float | None = _le_preset_params[0] if _le_preset_params else None
-                _le_window: float | None = _le_preset_params[1] if _le_preset_params else None
-                _le_fav: float | None = _le_preset_params[2] if _le_preset_params else None
+                _le_pp = _CANDLE_PRESET_PARAMS.get(active_preset)
                 late_entry_cands = await late_entry_strat.scan(
                     market_filters, user_ctx,
-                    min_ask_diff=_le_ask_diff,
-                    entry_window_sec=_le_window,
-                    fav_price_min=_le_fav,
+                    min_ask_diff=float(_le_pp["min_ask_diff"]) if _le_pp else None,
+                    entry_window_sec=float(_le_pp["entry_window_sec"]) if _le_pp else None,
+                    fav_price_min=float(_le_pp["fav_price_min"]) if _le_pp else None,
+                    fav_price_max=float(_le_pp["fav_price_max"]) if _le_pp else None,
+                    min_entry_sec=float(_le_pp["min_entry_sec"]) if _le_pp and "min_entry_sec" in _le_pp else None,
+                    underdog_mode=bool(_le_pp.get("underdog_mode", False)) if _le_pp else False,
                 )
             except Exception as exc:
                 user_log.warning("late_entry_v3_run_failed", error=str(exc))
@@ -1412,14 +1412,30 @@ async def run_once() -> None:
 _CANDLE_PRESETS: frozenset[str] = frozenset({"close_sweep", "safe_close", "flip_hunter"})
 
 # Per-preset scan params for late_entry_v3.
-# Each tuple: (min_ask_diff, entry_window_sec, fav_price_min)
-# close_sweep  — final 35s, moderate lean, fav ≥0.55 (recommended, proven)
-# safe_close   — final 60s, tighter lean, fav ≥0.60 (fewer but cleaner entries)
-# flip_hunter  — early 140s, any lean, fav ≥0.50 (asymmetric upside on early flips)
-_CANDLE_PRESET_PARAMS: dict[str, tuple[float, float, float]] = {
-    "close_sweep": (0.05, 35.0,  0.55),
-    "safe_close":  (0.08, 60.0,  0.60),
-    "flip_hunter": (0.05, 140.0, 0.50),
+# close_sweep : final 35s, moderate lean, fav ≥0.55 — recommended, proven
+# safe_close  : entry 30–60s before close (elapsed 240–270s for 5m), tighter lean
+# flip_hunter : early 140s, enter cheap side 0.26–0.35 expecting a late flip
+_CANDLE_PRESET_PARAMS: dict[str, dict[str, object]] = {
+    "close_sweep": {
+        "min_ask_diff":    0.05,
+        "entry_window_sec": 35.0,
+        "fav_price_min":   0.55,
+        "fav_price_max":   0.70,
+    },
+    "safe_close": {
+        "min_ask_diff":    0.08,
+        "entry_window_sec": 60.0,
+        "fav_price_min":   0.60,
+        "fav_price_max":   0.70,
+        "min_entry_sec":   30.0,   # skip final 30s — only enter between 30–60s before close
+    },
+    "flip_hunter": {
+        "min_ask_diff":    0.05,
+        "entry_window_sec": 140.0,
+        "fav_price_min":   0.26,   # underdog price floor (cheap side)
+        "fav_price_max":   0.36,   # underdog price ceiling
+        "underdog_mode":   True,   # enter the cheap side, not the favored side
+    },
 }
 
 
@@ -1454,13 +1470,30 @@ async def run_close_sweep_fast() -> None:
     # Load config overrides once per tick (env-tunable per preset)
     try:
         _cfg = _get_settings()
-        _preset_params: dict[str, tuple[float, float, float]] = {
-            "close_sweep": (_cfg.PRESET_CLOSE_SWEEP_MIN_ASK_DIFF,  _cfg.PRESET_CLOSE_SWEEP_WINDOW_SEC,  _cfg.PRESET_CLOSE_SWEEP_FAV_PRICE_MIN),
-            "safe_close":  (_cfg.PRESET_SAFE_CLOSE_MIN_ASK_DIFF,   _cfg.PRESET_SAFE_CLOSE_WINDOW_SEC,   _cfg.PRESET_SAFE_CLOSE_FAV_PRICE_MIN),
-            "flip_hunter": (_cfg.PRESET_FLIP_HUNTER_MIN_ASK_DIFF,  _cfg.PRESET_FLIP_HUNTER_WINDOW_SEC,  _cfg.PRESET_FLIP_HUNTER_FAV_PRICE_MIN),
+        _preset_params: dict[str, dict[str, object]] = {
+            "close_sweep": {
+                "min_ask_diff":    _cfg.PRESET_CLOSE_SWEEP_MIN_ASK_DIFF,
+                "entry_window_sec": _cfg.PRESET_CLOSE_SWEEP_WINDOW_SEC,
+                "fav_price_min":   _cfg.PRESET_CLOSE_SWEEP_FAV_PRICE_MIN,
+                "fav_price_max":   0.70,
+            },
+            "safe_close": {
+                "min_ask_diff":    _cfg.PRESET_SAFE_CLOSE_MIN_ASK_DIFF,
+                "entry_window_sec": _cfg.PRESET_SAFE_CLOSE_WINDOW_SEC,
+                "fav_price_min":   _cfg.PRESET_SAFE_CLOSE_FAV_PRICE_MIN,
+                "fav_price_max":   0.70,
+                "min_entry_sec":   _cfg.PRESET_SAFE_CLOSE_MIN_ENTRY_SEC,
+            },
+            "flip_hunter": {
+                "min_ask_diff":    _cfg.PRESET_FLIP_HUNTER_MIN_ASK_DIFF,
+                "entry_window_sec": _cfg.PRESET_FLIP_HUNTER_WINDOW_SEC,
+                "fav_price_min":   _cfg.PRESET_FLIP_HUNTER_FAV_PRICE_MIN,
+                "fav_price_max":   _cfg.PRESET_FLIP_HUNTER_FAV_PRICE_MAX,
+                "underdog_mode":   True,
+            },
         }
     except Exception:
-        _preset_params = _CANDLE_PRESET_PARAMS
+        _preset_params = _CANDLE_PRESET_PARAMS  # type: ignore[assignment]
 
     tel = ScanTelemetry()  # in-memory only — never persisted to scan_runs
     for row in users:
@@ -1468,9 +1501,7 @@ async def run_close_sweep_fast() -> None:
         if active_preset not in _CANDLE_PRESETS:
             continue
 
-        preset_min_ask_diff, preset_window_sec, preset_fav_price_min = _preset_params.get(
-            active_preset, _CANDLE_PRESET_PARAMS["close_sweep"]
-        )
+        pp = _preset_params.get(active_preset, _CANDLE_PRESET_PARAMS["close_sweep"])
 
         _tf = row.get("selected_timeframe")
         selected_timeframe: str | None = str(_tf) if _tf else None
@@ -1493,9 +1524,12 @@ async def run_close_sweep_fast() -> None:
             cands = await late_entry_strat.scan(
                 market_filters,
                 user_ctx,
-                min_ask_diff=preset_min_ask_diff,
-                entry_window_sec=preset_window_sec,
-                fav_price_min=preset_fav_price_min,
+                min_ask_diff=float(pp["min_ask_diff"]),
+                entry_window_sec=float(pp["entry_window_sec"]),
+                fav_price_min=float(pp["fav_price_min"]),
+                fav_price_max=float(pp["fav_price_max"]),
+                min_entry_sec=float(pp["min_entry_sec"]) if "min_entry_sec" in pp else None,
+                underdog_mode=bool(pp.get("underdog_mode", False)),
             )
         except Exception as exc:
             user_log.warning("close_sweep_fast_run_failed", error=str(exc))

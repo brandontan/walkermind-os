@@ -638,6 +638,8 @@ _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
     "trend_breakout": {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
     "contrarian":     {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.15, "sl_pct": 0.10},
     "close_sweep":    {"risk_profile": "balanced",     "capital_alloc_pct": 0.30, "tp_pct": 0.15, "sl_pct": 0.08},
+    "safe_close":     {"risk_profile": "balanced",     "capital_alloc_pct": 0.25, "tp_pct": 0.12, "sl_pct": 0.06},
+    "flip_hunter":    {"risk_profile": "balanced",     "capital_alloc_pct": 0.30, "tp_pct": 0.25, "sl_pct": 0.12},
     "pair_arb":       {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.05, "sl_pct": 0.03},
     "ensemble":       {"risk_profile": "balanced",   "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.12},
     "confluence_scalper": {"risk_profile": "balanced", "capital_alloc_pct": 0.40, "tp_pct": 0.08, "sl_pct": 0.04},
@@ -645,7 +647,7 @@ _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
 
 # Presets restricted to short-duration crypto markets. Activating one auto-locks
 # the market category filter to Crypto only and requires a timeframe (5m/15m).
-_CRYPTO_SHORT_PRESETS: frozenset[str] = frozenset({"confluence_scalper", "close_sweep"})
+_CRYPTO_SHORT_PRESETS: frozenset[str] = frozenset({"confluence_scalper", "close_sweep", "safe_close", "flip_hunter"})
 _VALID_TIMEFRAMES: frozenset[str] = frozenset({"5m", "15m"})
 # Assets offered for crypto-short presets. BTC/ETH/SOL/BNB have deep candle
 # books; XRP/DOGE/HYPE are offered but their books are thinner so they are
@@ -654,18 +656,29 @@ _CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH", "SOL", "BNB", "XRP", "DOG
 _VALID_ASSETS: frozenset[str] = frozenset(_CRYPTO_SHORT_ASSETS)
 _DEFAULT_CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC",)
 
-# Light per-timeframe params merged into user_settings.strategy_params (JSONB)
-# for the close_sweep preset (expiration_timing lib strategy reads config). The
-# confluence_scalper tunes itself in-code from the selected timeframe, so it
-# needs no JSONB entry here. Keep minimal — only the knobs that map onto the
-# strategy's existing config keys. hours_before_* are in HOURS (6m=0.1, 18m=0.3).
+# Light per-timeframe params merged into user_settings.strategy_params (JSONB).
+# close_sweep / safe_close: expiration_timing lib strategy reads these config knobs.
+# flip_hunter: same market filters; underdog direction is hardcoded in the strategy.
+# hours_before_* are in HOURS (6m=0.1, 18m=0.3).
 _CLOSE_SWEEP_TF_PARAMS: dict[str, dict[str, float]] = {
-    # Short crypto candles are liquid but small; relax the lib strategy's volume/
-    # liquidity floors (defaults 3000/2000) so genuine in-window candles aren't
-    # filtered out. hours_before_max bounds entry to the final minutes (6m / 18m).
     "5m":  {"hours_before_min": 0.0, "hours_before_max": 0.1, "min_price": 0.40, "max_price": 0.60,
             "min_volume_24h": 0.0, "min_liquidity": 500.0},
     "15m": {"hours_before_min": 0.0, "hours_before_max": 0.3, "min_price": 0.35, "max_price": 0.65,
+            "min_volume_24h": 0.0, "min_liquidity": 500.0},
+}
+# safe_close: tighter price range (majority side must be 0.60–0.70); 30–60s window.
+_SAFE_CLOSE_TF_PARAMS: dict[str, dict[str, float]] = {
+    "5m":  {"hours_before_min": 0.0, "hours_before_max": 0.1, "min_price": 0.40, "max_price": 0.60,
+            "min_volume_24h": 0.0, "min_liquidity": 500.0},
+    "15m": {"hours_before_min": 0.0, "hours_before_max": 0.3, "min_price": 0.35, "max_price": 0.65,
+            "min_volume_24h": 0.0, "min_liquidity": 500.0},
+}
+# flip_hunter: broader price filter — underdog side is 0.26–0.35, market overall
+# is less leaned. hours_before_max = 0.04h ≈ 2.4m covers the 140s window.
+_FLIP_HUNTER_TF_PARAMS: dict[str, dict[str, float]] = {
+    "5m":  {"hours_before_min": 0.0, "hours_before_max": 0.04, "min_price": 0.25, "max_price": 0.75,
+            "min_volume_24h": 0.0, "min_liquidity": 500.0},
+    "15m": {"hours_before_min": 0.0, "hours_before_max": 0.1,  "min_price": 0.25, "max_price": 0.75,
             "min_volume_24h": 0.0, "min_liquidity": 500.0},
 }
 
@@ -714,10 +727,14 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
     # None leaves the existing category_filters untouched for other presets.
     category_filters = ["Crypto"] if is_crypto_short else None
 
-    # Light per-timeframe params for close_sweep -> merged into strategy_params.
+    # Light per-timeframe params → merged into strategy_params for candle presets.
     tf_params_json: str | None = None
     if body.preset_key == "close_sweep" and timeframe in _CLOSE_SWEEP_TF_PARAMS:
         tf_params_json = json.dumps({"expiration_timing": _CLOSE_SWEEP_TF_PARAMS[timeframe]})
+    elif body.preset_key == "safe_close" and timeframe in _SAFE_CLOSE_TF_PARAMS:
+        tf_params_json = json.dumps({"expiration_timing": _SAFE_CLOSE_TF_PARAMS[timeframe]})
+    elif body.preset_key == "flip_hunter" and timeframe in _FLIP_HUNTER_TF_PARAMS:
+        tf_params_json = json.dumps({"expiration_timing": _FLIP_HUNTER_TF_PARAMS[timeframe]})
 
     async with pool.acquire() as conn:
         await conn.execute(

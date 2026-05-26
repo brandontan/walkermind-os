@@ -27,26 +27,36 @@ const STRATEGY_PRESETS = [
     freq: "Medium",
     visible: true,
   },
-] as const;
-
-// Presets that exist in the backend but are not yet visible to users.
-// Shown as locked cards — cannot be activated.
-const COMING_SOON_PRESETS = [
   {
     key: "safe_close",
     name: "Safe Close",
     emoji: "🔒",
-    signal: "Final 60s, tighter lean filter. Fewer trades, cleaner entries.",
+    engine: "late_entry_v3",
+    signal: "Entry 30–60s before close. Tighter lean filter, fewer but cleaner entries.",
     risk: "safe" as const,
+    freq: "Low",
+    visible: true,
   },
   {
     key: "flip_hunter",
     name: "Flip Hunter",
     emoji: "🎯",
-    signal: "Early 140s entry on low-odds lean. Asymmetric upside on flips.",
+    engine: "late_entry_v3",
+    signal: "Early 140s entry on cheap side (0.26–0.35). Asymmetric upside on flips.",
     risk: "advanced" as const,
+    freq: "Low",
+    visible: true,
   },
 ] as const;
+
+// No presets currently locked — all candle presets are active.
+const COMING_SOON_PRESETS: readonly {
+  key: string;
+  name: string;
+  emoji: string;
+  signal: string;
+  risk: "safe" | "balanced" | "advanced" | "aggressive";
+}[] = [];
 
 // All candle presets route to late_entry_v3 on short-duration crypto markets.
 // Selecting one locks the market category to Crypto and surfaces the 5m/15m toggle.

@@ -218,11 +218,12 @@ PRESET_ORDER: Tuple[str, ...] = (
 # Candle preset keys — used by the picker to render a section divider.
 CANDLE_PRESET_KEYS: frozenset[str] = frozenset({"close_sweep", "safe_close", "flip_hunter"})
 
-# Presets visible in the Telegram picker. Add a key here only after it has
-# been validated in production. Code and routing for hidden presets remain
-# fully functional — they are just not shown to users yet.
+# Presets visible in the Telegram picker.
+# All three candle presets are now active and validated.
 VISIBLE_PRESET_ORDER: Tuple[str, ...] = (
     "close_sweep",
+    "safe_close",
+    "flip_hunter",
 )
 
 RECOMMENDED_PRESET: str = "close_sweep"

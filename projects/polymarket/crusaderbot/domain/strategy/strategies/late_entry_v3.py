@@ -143,12 +143,20 @@ class LateEntryV3Strategy(BaseStrategy):
         entry_window_sec: float | None = None,
         fav_price_min: float | None = None,
         fav_price_max: float | None = None,
+        min_entry_sec: float | None = None,
+        underdog_mode: bool = False,
     ) -> list[SignalCandidate]:
-        """Emit one favored-side candidate per in-window crypto candle market.
+        """Emit one candidate per in-window crypto candle market.
 
-        Callers (e.g. run_close_sweep_fast) may pass preset-specific overrides
-        for min_ask_diff, entry_window_sec, and fav_price_min. When not
-        provided, values fall back to global config / module defaults.
+        Callers (e.g. run_close_sweep_fast) may pass preset-specific overrides.
+        When not provided, values fall back to global config / module defaults.
+
+        ``min_entry_sec``: if set, skip markets with fewer seconds_left than
+        this floor (safe_close: 30s — don't enter in the final 30s).
+
+        ``underdog_mode``: when True, enter the cheap (low-probability) side
+        priced within [fav_price_min, fav_price_max] instead of the majority
+        side. Used by flip_hunter to catch asymmetric upside on late flips.
 
         Returns an empty list on any failure or when no market qualifies.
         Never raises — scan errors must not crash the scheduler scan loop.
@@ -209,6 +217,8 @@ class LateEntryV3Strategy(BaseStrategy):
                     entry_window_sec=entry_window_sec,
                     fav_price_min=fav_price_min,
                     fav_price_max=fav_price_max,
+                    min_entry_sec=min_entry_sec,
+                    underdog_mode=underdog_mode,
                 )
             except Exception as exc:
                 logger.debug("late_entry_v3 scan: skip market err=%s", exc)
@@ -217,13 +227,14 @@ class LateEntryV3Strategy(BaseStrategy):
             if candidate is not None:
                 candidates.append(candidate)
                 logger.info(
-                    "late_entry_v3 candidate slug=%s side=%s fav=%.3f diff=%.3f secs=%.0f size=%.2f",
+                    "late_entry_v3 candidate slug=%s side=%s entry_price=%.3f diff=%.3f secs=%.0f size=%.2f underdog=%s",
                     m.get("slug", ""),
                     candidate.side,
-                    candidate.metadata.get("fav_price", 0),
+                    candidate.metadata.get("entry_price", candidate.metadata.get("fav_price", 0)),
                     candidate.metadata.get("ask_diff", 0),
                     candidate.metadata.get("seconds_to_close", 0),
                     candidate.suggested_size_usdc,
+                    candidate.metadata.get("underdog_mode", False),
                 )
             elif reject_reason:
                 reject_counts[reject_reason] = reject_counts.get(reject_reason, 0) + 1
@@ -231,7 +242,8 @@ class LateEntryV3Strategy(BaseStrategy):
         candidates.sort(key=lambda c: c.confidence, reverse=True)
         logger.info(
             "late_entry_v3 scan_summary markets=%d eligible=%d candidates=%d "
-            "gate_rejects=%s min_ask_diff=%.3f window_sec=%.0f fav_price_min=%.2f fav_price_max=%.2f",
+            "gate_rejects=%s min_ask_diff=%.3f window_sec=%.0f fav_price_min=%.2f fav_price_max=%.2f "
+            "min_entry_sec=%s underdog=%s",
             len(markets),
             eligible,
             len(candidates),
@@ -240,6 +252,8 @@ class LateEntryV3Strategy(BaseStrategy):
             entry_window_sec,
             fav_price_min,
             fav_price_max,
+            min_entry_sec,
+            underdog_mode,
         )
         return candidates
 
@@ -373,8 +387,16 @@ async def _evaluate_market(
     entry_window_sec: float = ENTRY_WINDOW_SEC,
     fav_price_min: float = 0.50,
     fav_price_max: float = FAV_PRICE_MAX,
+    min_entry_sec: float | None = None,
+    underdog_mode: bool = False,
 ) -> tuple[SignalCandidate | None, str | None]:
-    """Return (candidate, None) on success or (None, reject_reason) on any gate failure."""
+    """Return (candidate, None) on success or (None, reject_reason) on any gate failure.
+
+    ``min_entry_sec``: lower bound on seconds_left — skip if candle is too close to
+    close (safe_close 30s floor: don't enter in the final 30s).
+    ``underdog_mode``: enter the cheap side [fav_price_min, fav_price_max] instead
+    of the majority side. flip_hunter uses this for asymmetric flip upside.
+    """
     if not isinstance(m, dict):
         return None, "invalid_market"
 
@@ -410,7 +432,7 @@ async def _evaluate_market(
         logger.debug("late_entry_v3 skip not_accepting_orders slug=%s", slug)
         return None, "not_accepting_orders"
 
-    # Timing gate — only act inside the final window before the candle closes.
+    # Timing gate — only act inside the configured window before candle close.
     seconds_left = _seconds_to_close(m, now_ts)
     if seconds_left is None or seconds_left <= 0 or seconds_left > entry_window_sec:
         logger.debug(
@@ -418,6 +440,13 @@ async def _evaluate_market(
             slug, seconds_left, entry_window_sec,
         )
         return None, "outside_window"
+    # Lower bound: safe_close skips the final <30s to avoid last-second fills.
+    if min_entry_sec is not None and seconds_left < min_entry_sec:
+        logger.debug(
+            "late_entry_v3 skip inside_min slug=%s secs=%.1f min=%.0f",
+            slug, seconds_left, min_entry_sec,
+        )
+        return None, "inside_min_entry_sec"
 
     tokens = _coerce_str_list(m.get("clobTokenIds")) or _coerce_str_list(m.get("tokenIds"))
     if len(tokens) < 2 or not tokens[0] or not tokens[1]:
@@ -446,7 +475,8 @@ async def _evaluate_market(
 
     spread = yes_ask + no_ask
     ask_diff = abs(yes_ask - no_ask)
-    favored = "YES" if yes_ask > no_ask else "NO"
+    # Majority side — always the higher-priced side.
+    fav_side = "YES" if yes_ask > no_ask else "NO"
     fav_price = max(yes_ask, no_ask)
 
     if ask_diff < min_ask_diff:
@@ -462,22 +492,27 @@ async def _evaluate_market(
         )
         return None, "spread_out_of_range"
 
-    # Favored side must be the majority-probability side (≥ fav_price_min).
-    # When fav_price < 0.50 both sides are below 50¢ — the market is ambiguous
-    # or the CLOB is thin. The flip-stop (0.48) would trigger immediately on
-    # entry, producing a 13-second zero-PnL exit that confuses users.
-    # fav_price_min is passed by the caller (preset-specific); default 0.50.
-    if fav_price < fav_price_min:
+    # Entry side and price gate.
+    # Standard mode: enter the majority (favored) side; price must be ≥ fav_price_min.
+    # Underdog mode (flip_hunter): enter the cheap side priced in [fav_price_min, fav_price_max].
+    if underdog_mode:
+        entry_side = "NO" if fav_side == "YES" else "YES"
+        entry_price = min(yes_ask, no_ask)
+    else:
+        entry_side = fav_side
+        entry_price = fav_price
+
+    if entry_price < fav_price_min:
         logger.debug(
-            "late_entry_v3 skip fav_price_too_low slug=%s fav=%.4f min=%.4f",
-            slug, fav_price, fav_price_min,
+            "late_entry_v3 skip entry_price_too_low slug=%s price=%.4f min=%.4f underdog=%s",
+            slug, entry_price, fav_price_min, underdog_mode,
         )
         return None, "fav_price_too_low"
 
-    if fav_price >= fav_price_max:
+    if entry_price >= fav_price_max:
         logger.debug(
-            "late_entry_v3 skip fav_too_high slug=%s fav=%.4f max=%.4f",
-            slug, fav_price, fav_price_max,
+            "late_entry_v3 skip entry_price_too_high slug=%s price=%.4f max=%.4f underdog=%s",
+            slug, entry_price, fav_price_max, underdog_mode,
         )
         return None, "fav_price_too_high"
 
@@ -501,7 +536,7 @@ async def _evaluate_market(
     return SignalCandidate(
         market_id=market_id,
         condition_id=condition_id,
-        side=favored,
+        side=entry_side,
         confidence=confidence,
         suggested_size_usdc=suggested,
         strategy_name=strategy_name,
@@ -510,21 +545,22 @@ async def _evaluate_market(
             "yes_ask": yes_ask,
             "no_ask": no_ask,
             "fav_price": fav_price,
+            "entry_price": entry_price,
+            "underdog_mode": underdog_mode,
             "ask_diff": ask_diff,
             "spread": spread,
             "seconds_to_close": seconds_left,
             "flip_stop_price": flip_stop,
-            # Live CLOB bid depth (both sides combined). Used by _build_trade_signal
-            # to override market_liquidity so gate 11 evaluates real depth instead
-            # of the near-zero Gamma liquidity field stored in markets.liquidity_usdc.
             "clob_liquidity": clob_liquidity,
             "reason": (
-                f"late_entry: {favored} fav {fav_price:.2f}, diff {ask_diff:.2f}, "
+                f"late_entry: {entry_side} {'underdog' if underdog_mode else 'fav'} "
+                f"{entry_price:.2f}, diff {ask_diff:.2f}, "
                 f"spread {spread:.2f}, {seconds_left:.0f}s to close"
             ),
         },
         reasoning=(
-            f"Late entry {favored}: favored ask {fav_price:.2f}, ask-diff {ask_diff:.2f}, "
+            f"Late entry {entry_side} ({'underdog' if underdog_mode else 'favored'}) "
+            f"price {entry_price:.2f}, ask-diff {ask_diff:.2f}, "
             f"{seconds_left:.0f}s to close, conf={confidence:.0%}."
         ),
     ), None

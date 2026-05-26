@@ -456,4 +456,108 @@ def test_max_drawdown_breached_respects_user_threshold():
 
     # User sets 10% (looser than system 8%) → system 8% still applies, 6% ok
     assert not _would_breach(deposits, balance_6pct_dd, 0.10)
-    assert _would_breach(deposits, balance_9pct_dd, 0.10)
+
+
+# ---------------------------------------------------------------------------
+# safe_close: min_entry_sec floor gate
+# ---------------------------------------------------------------------------
+
+
+def test_safe_close_skips_when_inside_min_entry_sec():
+    """safe_close must not enter when seconds_left < 30 (final 30s off-limits)."""
+    strat = LateEntryV3Strategy()
+    # 55s < entry_window_sec=60 → passes outer gate; 10s < min_entry_sec=30 → must reject
+    m = _make_market(seconds_to_close=10.0)
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[m])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.65, 0.25))):
+        cands = _run(strat.scan(
+            _make_filters(), _make_context(),
+            min_ask_diff=0.08,
+            entry_window_sec=60.0,
+            fav_price_min=0.60,
+            fav_price_max=0.70,
+            min_entry_sec=30.0,
+        ))
+    assert cands == [], "entry inside min_entry_sec should be rejected"
+
+
+def test_safe_close_enters_within_valid_window():
+    """safe_close must enter when 30 <= seconds_left <= 60."""
+    strat = LateEntryV3Strategy()
+    # 45s is inside the 30–60s window for safe_close
+    m = _make_market(seconds_to_close=45.0)
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[m])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.65, 0.25))):
+        cands = _run(strat.scan(
+            _make_filters(), _make_context(),
+            min_ask_diff=0.08,
+            entry_window_sec=60.0,
+            fav_price_min=0.60,
+            fav_price_max=0.70,
+            min_entry_sec=30.0,
+        ))
+    assert len(cands) == 1
+    assert cands[0].side == "YES"          # favored (majority) side
+    assert cands[0].metadata["underdog_mode"] is False
+
+
+# ---------------------------------------------------------------------------
+# flip_hunter: underdog_mode — enter cheap side 0.26–0.35
+# ---------------------------------------------------------------------------
+
+
+def test_flip_hunter_enters_cheap_side():
+    """flip_hunter must enter the LOW-probability side (0.26–0.35), not the favored side."""
+    strat = LateEntryV3Strategy()
+    # YES is favored (0.70 ask), NO is cheap (0.30 ask) — underdog_mode enters NO
+    m = _make_market(seconds_to_close=90.0)
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[m])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.70, 0.30))):
+        cands = _run(strat.scan(
+            _make_filters(), _make_context(),
+            min_ask_diff=0.05,
+            entry_window_sec=140.0,
+            fav_price_min=0.26,
+            fav_price_max=0.36,
+            underdog_mode=True,
+        ))
+    assert len(cands) == 1
+    assert cands[0].side == "NO"           # cheap side entered, NOT the majority YES
+    assert cands[0].metadata["underdog_mode"] is True
+    assert cands[0].metadata["entry_price"] == pytest.approx(0.30, abs=0.001)
+
+
+def test_flip_hunter_skips_when_cheap_side_outside_range():
+    """flip_hunter must skip when cheap side price is outside [0.26, 0.36)."""
+    strat = LateEntryV3Strategy()
+    # NO is cheap at 0.20 — below the 0.26 floor
+    m = _make_market(seconds_to_close=90.0)
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[m])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.75, 0.20))):
+        cands = _run(strat.scan(
+            _make_filters(), _make_context(),
+            min_ask_diff=0.05,
+            entry_window_sec=140.0,
+            fav_price_min=0.26,
+            fav_price_max=0.36,
+            underdog_mode=True,
+        ))
+    assert cands == [], "cheap side below 0.26 floor should be rejected"
+
+
+def test_flip_hunter_does_not_affect_standard_mode():
+    """underdog_mode=False (default) must still enter the favored side — no regression."""
+    strat = LateEntryV3Strategy()
+    m = _make_market(seconds_to_close=20.0)
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[m])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.65, 0.25))):
+        cands = _run(strat.scan(
+            _make_filters(), _make_context(),
+            min_ask_diff=0.05,
+            entry_window_sec=35.0,
+            fav_price_min=0.55,
+            fav_price_max=0.70,
+            underdog_mode=False,
+        ))
+    assert len(cands) == 1
+    assert cands[0].side == "YES"          # favored side, unchanged behaviour

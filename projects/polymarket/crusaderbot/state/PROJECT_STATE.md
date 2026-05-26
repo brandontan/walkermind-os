@@ -1,5 +1,5 @@
-Last Updated : 2026-05-26 15:00
-Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs #1350/#1351/#1352/#1354/#1355/#1356 MERGED + deployed. Migration 054+055 applied. RLS 43/43. Bad tp_hit positions corrected (qwneer8 87 pos, Maver1ch69 32 pos). Trades flowing 722/24h. Guards untouched, ENABLE_LIVE_TRADING=false, paper-only. WebTrader bundle split + logo + sidebar brand delivered. WebTrader Emergency Stop (kill switch + force-close all) — SENTINEL APPROVED 94/100, ready to merge.
+Last Updated : 2026-05-26 16:30
+Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs merged + deployed. Guards untouched, ENABLE_LIVE_TRADING=false, paper-only. Safe Close + Flip Hunter activation — late_entry_v3 extended (min_entry_sec + underdog_mode), all routing gates unlocked, 122 tests pass. SENTINEL MAJOR validation required before merge.
 
 - WARP-57 (issue #1260): SENTINEL re-audited — APPROVED (Round 2 Score 86/100, 0 critical). PR #1261 / WARP/warp57-telegram-ux-mvp at SHA aa4fe24c55e8. Round-1 CRITICAL-1 (copy_targets schema mismatch) RESOLVED — `bot/handlers/mvp/copy_wallet.py` SELECT/INSERT/UPDATE now use canonical columns (`target_wallet_address`, `status='active'/'inactive'`, `scale_factor`) per mig 009. Round-1 MEDIUM-1 (`wallets.public_address` → `deposit_address` in onboarding.py:38) also RESOLVED. NEW MEDIUM-4 (post-merge follow-up): MVP writes to `copy_targets` but production scanner `services/copy_trade/monitor.py:80` reads `copy_trade_tasks` via `domain/copy_trade/repository.py:list_active_tasks` — end-to-end mirror not yet active until a follow-up lane swaps the MVP table to `copy_trade_tasks`; legacy `/copytrade` 8-step wizard remains the only path that produces mirrored trades. Round-1 MEDIUM-2 (auto:start engine bootstrap) + MEDIUM-3 (legacy `/settings` sub-route regression) P2-deferred per WARP🔹CMD direction. Activation guards untouched (Risk 3 PASS), no manual trade buttons (Risk 2 PASS), paper-mode default preserved (Risk 6 PASS). Report: projects/polymarket/crusaderbot/reports/sentinel/warp57-telegram-ux-mvp.md.
 - WARP-55 (issue #1256): MERGED (abd3b43dbe10) — RUNTIME_EVIDENCE.md: 7/7 P2 finish criteria proven. 🏁 CrusaderBot closed beta DONE. Guards LOCKED. STANDARD, evidence-only.
@@ -47,9 +47,9 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs #1350/#135
   - WARP-43 RUNTIME-TRADE-SMOKE (WARP/runtime-trade-smoke, PR open): scan_runs telemetry table (migration 048) + ScanTelemetry dataclass + structured log events (strategies_loaded, scan_input, strategy_run, risk_gate, paper_execution) + startup loud-failure RuntimeError guard + GET /admin/scan/last + GET /admin/scan/list. 5 files modified/created; py_compile clean. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- Production monitoring of late_entry_v3 on Fly (paper): FAV_PRICE_MAX=0.70 ceiling live. Watch 24-48h net PnL — expect loss zone (fav 0.70-0.93) to be eliminated. If still negative, raise fav_price_min from 0.46 to 0.55.
+- WARP/R00T-preset-activate: Safe Close + Flip Hunter activation — PR open, SENTINEL APPROVED 91/100, 0 critical. 1767 tests pass. Cleared to merge on CI green. Report: reports/sentinel/preset-activate.md.
+- Production monitoring of late_entry_v3 on Fly (paper): FAV_PRICE_MAX=0.70 ceiling live. Watch 24-48h net PnL.
 - Pre-public checklist: Gate 3 (verify exit price correct on next natural TP/SL close), Gate 5 (48h profitability check). Both observation-only, no code changes.
-- Pre-launch polish lane in progress: DesktopSidebar brand header + migration 055 formalized + state sync.
 
 [NOT STARTED]
 - Apply migration 030 (job_runs metadata JSONB) to production before Fly.io deploy (trading-unblock MERGED PR #1065, live on main).
@@ -65,7 +65,7 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs #1350/#135
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WebTrader Emergency Stop — WARP•SENTINEL (by WARP•R00T) APPROVED 94/100, 0 critical. force_close→close chain verified (evaluate() highest-priority branch + tests), no guard bypass, user-scoped, idempotent/fail-safe. 233 related tests pass. Report: projects/polymarket/crusaderbot/reports/sentinel/webtrader-emergency-stop.md. Cleared to merge on CI green + Fly deploy.
+- WARP🔹CMD: merge PR #1359 (WARP/R00T-preset-activate) on CI green + run `fly deploy --remote-only` to activate Safe Close + Flip Hunter. SENTINEL APPROVED 91/100, 0 critical. Report: projects/polymarket/crusaderbot/reports/sentinel/preset-activate.md.
 - WARP🔹CMD: activate Heisenberg by running `fly secrets set HEISENBERG_API_TOKEN=<token> -a crusaderbot` — code already shipped (services/heisenberg.py, market_sync job, scanner live path, leaderboard H-Score sync); token is the only gate.
 - Gate 3: verify exit price on next natural TP/SL close post-deploy (observation only).
 - Gate 5: 48h profitability check on late_entry_v3 under FAV_PRICE_MAX=0.70 (observation only).
