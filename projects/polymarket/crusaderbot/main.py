@@ -100,6 +100,18 @@ async def lifespan(_: FastAPI):
             "bootstrap_default_strategies() returned an empty registry. "
             "Check domain/strategy/strategies/ imports and lib/ vendoring."
         )
+    # Auto-derive Polymarket API credentials from private key when USE_REAL_CLOB=True
+    # but POLYMARKET_API_KEY is not set in the environment. No-op in paper mode.
+    if settings.USE_REAL_CLOB:
+        try:
+            from .integrations.clob import ensure_clob_credentials
+            await ensure_clob_credentials(settings)
+        except Exception as _cred_exc:
+            log.error(
+                "startup: CLOB credential derivation failed — live orders will "
+                "fail until credentials are provided: %s", _cred_exc,
+            )
+
     await webtrader_sse.start_listener(settings.DATABASE_URL, pool)
 
     use_webhook = bool(settings.TELEGRAM_WEBHOOK_URL)

@@ -70,6 +70,7 @@ _ADMIN_HELP = (
     "• Logs — /auditlog, /jobs\n"
     "• Roles — /admin settier {user_id} {user|admin}\n"
     "• Broadcast — /admin broadcast {message}\n"
+    "• Live readiness — /admin live\n"
     "• /resetonboard {telegram_user_id} — reset onboarding for testing"
 )
 
@@ -109,6 +110,8 @@ async def admin_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             await _admin_status_hud(update.message)
         elif sub == "broadcast":
             await _admin_broadcast(update.message, args[1:], ctx)
+        elif sub == "live":
+            await _live_readiness_hud(update.message)
         else:
             await update.message.reply_text(
                 _ADMIN_HELP, parse_mode=ParseMode.HTML
@@ -324,6 +327,97 @@ async def _admin_status_hud(message: Message) -> None:
             lines.append(
                 f"  {status_icon} <code>{html.escape(j['job_name'])}</code> · {duration}"
             )
+    await message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
+
+
+async def _live_readiness_hud(message) -> None:
+    """Show live trading readiness checklist — /admin live."""
+    from ...config import get_settings as _cfg
+    from ...integrations.clob import _derived as _clob_derived
+
+    s = _cfg()
+
+    # Credential status
+    has_private_key = bool(s.POLYMARKET_PRIVATE_KEY)
+    has_api_key_env = bool(s.POLYMARKET_API_KEY)
+    has_api_key_derived = bool((_clob_derived or {}).get("api_key"))
+    has_api_key = has_api_key_env or has_api_key_derived
+    api_key_source = "env" if has_api_key_env else ("auto-derived" if has_api_key_derived else "missing")
+
+    # Live wallet balance (only if USE_REAL_CLOB=True and credentials ready)
+    wallet_balance: str = "N/A (USE_REAL_CLOB=False)"
+    if s.USE_REAL_CLOB and has_private_key and has_api_key:
+        try:
+            from ...integrations.clob import get_clob_client
+            client = get_clob_client(s)
+            bal = await client.get_usdc_balance()
+            wallet_balance = f"${bal:,.2f} USDC"
+        except Exception as exc:
+            wallet_balance = f"error: {exc}"
+
+    def _g(flag: bool) -> str:
+        return "✅" if flag else "❌"
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        admin_count = int(await conn.fetchval(
+            "SELECT COUNT(*) FROM user_tiers WHERE tier='ADMIN'"
+        ) or 0)
+
+    lines = [
+        "<b>🔴 Live Trading Readiness</b>",
+        "",
+        "<b>Activation Guards:</b>",
+        f"  {_g(s.ENABLE_LIVE_TRADING)} ENABLE_LIVE_TRADING",
+        f"  {_g(s.EXECUTION_PATH_VALIDATED)} EXECUTION_PATH_VALIDATED",
+        f"  {_g(s.CAPITAL_MODE_CONFIRMED)} CAPITAL_MODE_CONFIRMED",
+        f"  {_g(s.RISK_CONTROLS_VALIDATED)} RISK_CONTROLS_VALIDATED",
+        f"  {_g(s.SECURITY_HARDENING_VALIDATED)} SECURITY_HARDENING_VALIDATED",
+        f"  {_g(s.USE_REAL_CLOB)} USE_REAL_CLOB",
+        "",
+        "<b>Credentials:</b>",
+        f"  {_g(has_private_key)} POLYMARKET_PRIVATE_KEY",
+        f"  {_g(has_api_key)} API credentials ({api_key_source})",
+        "",
+        "<b>Wallet:</b>",
+        f"  Balance: {wallet_balance}",
+        "",
+        "<b>Users:</b>",
+        f"  Admin role holders: {admin_count}",
+    ]
+
+    all_guards = all([
+        s.ENABLE_LIVE_TRADING, s.EXECUTION_PATH_VALIDATED,
+        s.CAPITAL_MODE_CONFIRMED, s.RISK_CONTROLS_VALIDATED,
+        s.SECURITY_HARDENING_VALIDATED, s.USE_REAL_CLOB,
+    ])
+    all_creds = has_private_key and has_api_key
+    if all_guards and all_creds and admin_count > 0:
+        lines += ["", "🟢 <b>READY — all gates clear.</b>"]
+    else:
+        missing = []
+        if not s.ENABLE_LIVE_TRADING:
+            missing.append("Set ENABLE_LIVE_TRADING=true")
+        if not s.EXECUTION_PATH_VALIDATED:
+            missing.append("Set EXECUTION_PATH_VALIDATED=true")
+        if not s.CAPITAL_MODE_CONFIRMED:
+            missing.append("Set CAPITAL_MODE_CONFIRMED=true")
+        if not s.RISK_CONTROLS_VALIDATED:
+            missing.append("Set RISK_CONTROLS_VALIDATED=true")
+        if not s.SECURITY_HARDENING_VALIDATED:
+            missing.append("Set SECURITY_HARDENING_VALIDATED=true")
+        if not s.USE_REAL_CLOB:
+            missing.append("Set USE_REAL_CLOB=true")
+        if not has_private_key:
+            missing.append("Set POLYMARKET_PRIVATE_KEY")
+        if not has_api_key:
+            missing.append("Set POLYMARKET_API_KEY or call ensure_clob_credentials()")
+        if admin_count == 0:
+            missing.append("Grant admin role to at least one user")
+        lines += ["", "🔴 <b>NOT READY:</b>"]
+        for m in missing:
+            lines.append(f"  • {m}")
+
     await message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
 
 

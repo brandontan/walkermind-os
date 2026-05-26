@@ -394,6 +394,27 @@ class ClobAdapter:
         data = resp.get("data") if isinstance(resp, dict) else None
         return list(data) if isinstance(data, list) else []
 
+    async def get_usdc_balance(self) -> float:
+        """Return the USDC collateral balance for this account.
+
+        Calls ``GET /data/balance-allowances?asset_type=COLLATERAL``.
+        The CLOB returns the balance as a decimal string (human-readable
+        USDC units, e.g. "123.456789"). Returns 0.0 on any parse error.
+        """
+        resp = await self._signed_request(
+            "GET", "/data/balance-allowances?asset_type=COLLATERAL"
+        )
+        data: dict = resp if isinstance(resp, dict) else (
+            resp[0] if isinstance(resp, list) and resp else {}
+        )
+        raw = data.get("balance", "0") or "0"
+        try:
+            val = float(raw)
+            # Guard: if value looks like raw micro-units (> $1M) divide by 1e6
+            return val / 1_000_000 if val > 1_000_000 else val
+        except (TypeError, ValueError):
+            return 0.0
+
     async def request(
         self,
         method: str,

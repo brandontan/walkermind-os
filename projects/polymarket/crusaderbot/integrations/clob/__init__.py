@@ -93,6 +93,7 @@ __all__ = [
     "get_clob_breaker",
     "get_clob_rate_limiter",
     "reset_clob_resilience",
+    "ensure_clob_credentials",
 ]
 
 
@@ -140,6 +141,62 @@ class ClobClientProtocol(Protocol):
 # them.
 _breaker: Optional[CircuitBreaker] = None
 _limiter: Optional[RateLimiter] = None
+
+# Auto-derived credential cache (populated by ensure_clob_credentials at boot).
+# Only used when POLYMARKET_API_KEY is absent from env. Never persisted.
+_derived: Optional[dict] = None
+
+
+async def ensure_clob_credentials(
+    settings: Optional[Settings] = None,
+) -> None:
+    """Derive and cache Polymarket API credentials from POLYMARKET_PRIVATE_KEY.
+
+    Call once at application startup when USE_REAL_CLOB=True but
+    POLYMARKET_API_KEY/SECRET/PASSPHRASE are not set in the environment.
+    Credentials are stored in the module-level ``_derived`` dict and
+    consumed by ``get_clob_client()`` transparently.
+
+    No-op when:
+      * USE_REAL_CLOB=False (paper mode — credentials not needed)
+      * POLYMARKET_API_KEY already set in env (manual creds take priority)
+      * POLYMARKET_PRIVATE_KEY not set (nothing to derive from)
+
+    Raises ``ClobAuthError`` / ``ClobNetworkError`` on failure so the
+    operator sees the error immediately at boot rather than on the first
+    live order.
+    """
+    global _derived
+    s = settings or get_settings()
+    if not s.USE_REAL_CLOB:
+        return
+    if s.POLYMARKET_API_KEY:
+        logger.info("clob: POLYMARKET_API_KEY set in env — skipping auto-derive")
+        return
+    if not s.POLYMARKET_PRIVATE_KEY:
+        logger.warning("clob: USE_REAL_CLOB=True but POLYMARKET_PRIVATE_KEY not set — cannot derive credentials")
+        return
+
+    logger.info("clob: deriving API credentials from POLYMARKET_PRIVATE_KEY …")
+    tmp = ClobAdapter(
+        api_key="",
+        api_secret="",
+        passphrase="",
+        private_key=s.POLYMARKET_PRIVATE_KEY,
+        funder_address=s.POLYMARKET_FUNDER_ADDRESS,
+        signature_type=s.POLYMARKET_SIGNATURE_TYPE,
+        circuit_breaker=get_clob_breaker(s),
+        rate_limiter=get_clob_rate_limiter(s),
+    )
+    creds = await tmp.derive_api_credentials()
+    _derived = {
+        "api_key": creds.get("apiKey") or creds.get("api_key", ""),
+        "api_secret": creds.get("secret") or creds.get("api_secret", ""),
+        "passphrase": creds.get("passphrase", ""),
+    }
+    logger.info(
+        "clob: API credentials auto-derived (key=%.8s…)", _derived["api_key"]
+    )
 
 
 async def _on_circuit_open(name: str) -> None:
@@ -240,12 +297,20 @@ def get_clob_client(
     if not s.USE_REAL_CLOB:
         return MockClobClient()
 
+    # Resolve credentials: env vars take priority; fall back to auto-derived cache.
+    api_key = s.POLYMARKET_API_KEY or (_derived or {}).get("api_key", "")
+    api_secret = s.POLYMARKET_API_SECRET or (_derived or {}).get("api_secret", "")
+    passphrase = (
+        s.POLYMARKET_API_PASSPHRASE
+        or s.POLYMARKET_PASSPHRASE
+        or (_derived or {}).get("passphrase", "")
+    )
+
     missing: list[str] = []
-    if not s.POLYMARKET_API_KEY:
-        missing.append("POLYMARKET_API_KEY")
-    if not s.POLYMARKET_API_SECRET:
+    if not api_key:
+        missing.append("POLYMARKET_API_KEY (or run ensure_clob_credentials() at startup)")
+    if not api_secret:
         missing.append("POLYMARKET_API_SECRET")
-    passphrase = s.POLYMARKET_API_PASSPHRASE or s.POLYMARKET_PASSPHRASE
     if not passphrase:
         missing.append("POLYMARKET_API_PASSPHRASE")
     if not s.POLYMARKET_PRIVATE_KEY:
@@ -257,9 +322,9 @@ def get_clob_client(
         )
 
     return ClobAdapter(
-        api_key=s.POLYMARKET_API_KEY,  # type: ignore[arg-type]
-        api_secret=s.POLYMARKET_API_SECRET,  # type: ignore[arg-type]
-        passphrase=passphrase,  # type: ignore[arg-type]
+        api_key=api_key,
+        api_secret=api_secret,
+        passphrase=passphrase,
         private_key=s.POLYMARKET_PRIVATE_KEY,  # type: ignore[arg-type]
         funder_address=s.POLYMARKET_FUNDER_ADDRESS,
         signature_type=s.POLYMARKET_SIGNATURE_TYPE,
