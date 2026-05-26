@@ -1495,11 +1495,14 @@ async def run_close_sweep_fast() -> None:
     except Exception:
         _preset_params = _CANDLE_PRESET_PARAMS  # type: ignore[assignment]
 
-    tel = ScanTelemetry()  # in-memory only — never persisted to scan_runs
+    tel = ScanTelemetry()
+    fast_run_id: str = str(_uuid_mod.uuid4())
+    candle_users_evaluated = 0
     for row in users:
         active_preset = row.get("active_preset")
         if active_preset not in _CANDLE_PRESETS:
             continue
+        candle_users_evaluated += 1
 
         pp = _preset_params.get(active_preset, _CANDLE_PRESET_PARAMS["close_sweep"])
 
@@ -1552,6 +1555,21 @@ async def run_close_sweep_fast() -> None:
                     market_id=cand.market_id,
                     error=str(exc),
                 )
+
+    # Persist a scan_runs row only when this tick actually created paper orders.
+    # Skipping zero-order ticks keeps the table clean at 15s cadence.
+    if tel.paper_orders_created > 0:
+        tel.users_evaluated = candle_users_evaluated
+        from ...config import get_settings as _get_settings
+        _cfg_live = _get_settings()
+        _is_live = _cfg_live.ENABLE_LIVE_TRADING and _cfg_live.EXECUTION_PATH_VALIDATED and _cfg_live.CAPITAL_MODE_CONFIRMED
+        await _insert_scan_run(
+            fast_run_id,
+            strategies_loaded=1,
+            live_trading=_is_live,
+            mode="LIVE" if _is_live else "PAPER",
+        )
+        await _finish_scan_run(fast_run_id, tel)
 
 
 __all__ = [
