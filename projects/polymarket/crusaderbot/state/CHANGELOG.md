@@ -380,3 +380,4 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 2026-05-27 02:15 | WARP/fix-portfolio-withdraw-modal-props | fix fly deploy build break: PortfolioPage.tsx WithdrawModal missing onWithdraw/onSuccess props (TS2741); npm run build clean
 2026-05-27 06:40 | WARP/webtrader-alert-persist-sort | WebTrader: persist dismissed alerts to localStorage (read alerts stop reappearing); /positions ORDER BY COALESCE(closed_at, opened_at) DESC + All-tab sort aligned (newest-closed on top)
 2026-05-27 07:10 | WARP/webtrader-trade-strategy-label | WebTrader: surface positions.strategy_type on open/closed trade cards (API field + meta chip + Strategy detail row)
+2026-05-27 07:30 | WARP/trade-strategy-preset-names | WebTrader trade cards: map strategy_type → preset display name (late_entry_v3 → "Close Sweep", etc.) per owner request
