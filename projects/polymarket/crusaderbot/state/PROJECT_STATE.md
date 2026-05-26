@@ -47,7 +47,7 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs merged + d
   - WARP-43 RUNTIME-TRADE-SMOKE (WARP/runtime-trade-smoke, PR open): scan_runs telemetry table (migration 048) + ScanTelemetry dataclass + structured log events (strategies_loaded, scan_input, strategy_run, risk_gate, paper_execution) + startup loud-failure RuntimeError guard + GET /admin/scan/last + GET /admin/scan/list. 5 files modified/created; py_compile clean. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- WARP/R00T-preset-activate: Safe Close + Flip Hunter activation — PR open, SENTINEL MAJOR validation required. late_entry_v3 extended with min_entry_sec floor + underdog_mode direction. All 3 gates unlocked (scanner, router, frontend). 122 tests pass. Report: reports/forge/preset-activate.md.
+- WARP/R00T-preset-activate: Safe Close + Flip Hunter activation — PR open, SENTINEL APPROVED 91/100, 0 critical. 1767 tests pass. Cleared to merge on CI green. Report: reports/sentinel/preset-activate.md.
 - Production monitoring of late_entry_v3 on Fly (paper): FAV_PRICE_MAX=0.70 ceiling live. Watch 24-48h net PnL.
 - Pre-public checklist: Gate 3 (verify exit price correct on next natural TP/SL close), Gate 5 (48h profitability check). Both observation-only, no code changes.
 
@@ -65,7 +65,7 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs merged + d
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for WARP/R00T-preset-activate (preset-activate) before merge. Source: projects/polymarket/crusaderbot/reports/forge/preset-activate.md. Tier: MAJOR.
+- WARP🔹CMD: merge PR #1359 (WARP/R00T-preset-activate) on CI green + run `fly deploy --remote-only` to activate Safe Close + Flip Hunter. SENTINEL APPROVED 91/100, 0 critical. Report: projects/polymarket/crusaderbot/reports/sentinel/preset-activate.md.
 - WARP🔹CMD: activate Heisenberg by running `fly secrets set HEISENBERG_API_TOKEN=<token> -a crusaderbot` — code already shipped (services/heisenberg.py, market_sync job, scanner live path, leaderboard H-Score sync); token is the only gate.
 - Gate 3: verify exit price on next natural TP/SL close post-deploy (observation only).
 - Gate 5: 48h profitability check on late_entry_v3 under FAV_PRICE_MAX=0.70 (observation only).
