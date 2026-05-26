@@ -21,7 +21,7 @@ const STRATEGY_PRESETS = [
     key: "close_sweep",
     name: "Close Sweep",
     emoji: "🧹",
-    engine: "late_entry_v3",
+    engine: "W.A.R.P_STRIKE",
     signal: "Final 35s entry on BTC/ETH/SOL candles. Strong lean required.",
     risk: "safe" as const,
     freq: "Medium",
@@ -31,7 +31,7 @@ const STRATEGY_PRESETS = [
     key: "safe_close",
     name: "Safe Close",
     emoji: "🔒",
-    engine: "late_entry_v3",
+    engine: "W.A.R.P_STRIKE",
     signal: "Entry 30–60s before close. Tighter lean filter, fewer but cleaner entries.",
     risk: "safe" as const,
     freq: "Low",
@@ -41,7 +41,7 @@ const STRATEGY_PRESETS = [
     key: "flip_hunter",
     name: "Flip Hunter",
     emoji: "🎯",
-    engine: "late_entry_v3",
+    engine: "W.A.R.P_STRIKE",
     signal: "Early 140s entry on cheap side (0.26–0.35). Asymmetric upside on flips.",
     risk: "advanced" as const,
     freq: "Low",
@@ -58,7 +58,7 @@ const COMING_SOON_PRESETS: readonly {
   risk: "safe" | "balanced" | "advanced" | "aggressive";
 }[] = [];
 
-// All candle presets route to late_entry_v3 on short-duration crypto markets.
+// All candle presets route to W.A.R.P_STRIKE engine on short-duration crypto markets.
 // Selecting one locks the market category to Crypto and surfaces the 5m/15m toggle.
 const CRYPTO_SHORT_PRESETS: readonly string[] = ["close_sweep", "safe_close", "flip_hunter"];
 const TIMEFRAMES = ["5m", "15m"] as const;
