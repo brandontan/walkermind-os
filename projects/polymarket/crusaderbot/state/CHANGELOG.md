@@ -376,3 +376,5 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 2026-05-27 00:00 | WARP/R00T-webtrader-wallet | WebTrader wallet withdraw: POST /wallet/withdraw + 3-step WithdrawModal (amount→address→confirm) + api.requestWithdrawal wired
 2026-05-27 00:30 | WARP/copy-task-repo-returning-fix | fix F-HIGH-2: create_task/update_task RETURNING missing 4 migration-035 columns → KeyError → copy task creation always failed silently
 2026-05-27 01:00 | WARP/withdraw-onchain-skeleton | on-chain withdraw skeleton: _attempt_onchain_transfer() behind EXECUTION_PATH_VALIDATED guard; paper deferred, live raises NotImplementedError until polygon_usdc wired
+2026-05-27 02:00 | WARP/migration-058-fk-fix | fix migration 058: drop copy_trade_events_copy_target_id_fkey before DROP TABLE copy_targets (applied to Supabase prod; both tables empty, 0 data impact)
+2026-05-27 02:15 | WARP/fix-portfolio-withdraw-modal-props | fix fly deploy build break: PortfolioPage.tsx WithdrawModal missing onWithdraw/onSuccess props (TS2741); npm run build clean
