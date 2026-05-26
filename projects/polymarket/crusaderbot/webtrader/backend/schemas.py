@@ -142,6 +142,11 @@ class AutoTradeState(BaseModel):
     slippage_tolerance_pct: Optional[float] = None
     selected_timeframe: Optional[str] = None  # '5m' | '15m' for crypto-short presets
     selected_assets: Optional[list[str]] = None  # e.g. ['BTC','ETH'] for crypto-short presets
+    # Account equity (free balance + open-position value) and the resulting
+    # per-trade size for the active CAP%. Surfaces in the UI so users see that
+    # CAP% is the deployable pool, not the size of a single trade.
+    equity_usdc: Optional[float] = None
+    max_per_trade_usdc: Optional[float] = None
 
 
 class AutoTradeToggleRequest(BaseModel):

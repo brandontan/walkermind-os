@@ -65,6 +65,24 @@ _SUGGESTED_SIZE_MIN_USDC: float = 1.0
 _SUGGESTED_SIZE_MAX_USDC: float = 25.0
 
 
+def suggested_trade_size(base_usdc: float, capital_allocation_pct: float) -> float:
+    """Per-trade size = (equity x capital_allocation_pct) x fraction, clamped.
+
+    ``base_usdc`` is the account equity (free balance + open-position value).
+    The capital_allocation_pct (risk-profile CAP%) defines the deployable pool;
+    a single trade takes only a small fraction of that pool, hard-capped at
+    _SUGGESTED_SIZE_MAX_USDC. So CAP% is NOT the per-trade size — e.g. equity
+    $1000 x 60% x 4% = $24, capped $25. The risk gate then re-sizes downward
+    via fractional Kelly and the max-position fence. Shared with the WebTrader
+    autotrade endpoint so the UI shows the same number the engine will use.
+    """
+    allocated = max(0.0, base_usdc) * max(0.0, capital_allocation_pct)
+    return max(
+        _SUGGESTED_SIZE_MIN_USDC,
+        min(allocated * _SUGGESTED_SIZE_FRACTION, _SUGGESTED_SIZE_MAX_USDC),
+    )
+
+
 class LateEntryV3Strategy(BaseStrategy):
     """Final-seconds momentum entry powering the Close Sweep preset.
 
@@ -428,12 +446,12 @@ async def _evaluate_market(
 
     confidence = max(0.0, min(ask_diff, 1.0))
 
-    allocated = user_context.available_balance_usdc * user_context.capital_allocation_pct
+    # Size off equity (free balance + open-position value), not just free cash,
+    # so the deployable pool reflects the whole account. Fall back to free
+    # balance when equity is not supplied (older callers / tests).
+    size_base = user_context.equity_usdc or user_context.available_balance_usdc
     flip_stop = FLIP_STOP_PRICE  # module default; evaluate_exit reads from config
-    suggested = max(
-        _SUGGESTED_SIZE_MIN_USDC,
-        min(allocated * _SUGGESTED_SIZE_FRACTION, _SUGGESTED_SIZE_MAX_USDC),
-    )
+    suggested = suggested_trade_size(size_base, user_context.capital_allocation_pct)
 
     return SignalCandidate(
         market_id=market_id,
@@ -467,4 +485,4 @@ async def _evaluate_market(
     ), None
 
 
-__all__ = ["LateEntryV3Strategy"]
+__all__ = ["LateEntryV3Strategy", "suggested_trade_size"]

@@ -34,6 +34,7 @@ from projects.polymarket.crusaderbot.domain.strategy.strategies.late_entry_v3 im
     DEFAULT_TP_PCT,
     FLIP_STOP_PRICE,
     LateEntryV3Strategy,
+    suggested_trade_size,
 )
 from projects.polymarket.crusaderbot.domain.strategy.types import (
     ExitDecision,
@@ -68,13 +69,15 @@ def _make_filters(*, blacklisted: list[str] | None = None) -> MarketFilters:
     )
 
 
-def _make_context(*, available: float = 1000.0, alloc: float = 0.5) -> UserContext:
+def _make_context(*, available: float = 1000.0, alloc: float = 0.5,
+                  equity: float = 0.0) -> UserContext:
     return UserContext(
         user_id="u1",
         sub_account_id="s1",
         risk_profile="balanced",
         capital_allocation_pct=alloc,
         available_balance_usdc=available,
+        equity_usdc=equity,
         selected_timeframe="5m",
         selected_assets=("BTC",),
     )
@@ -229,6 +232,28 @@ def test_enters_just_below_cap():
          patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.68, 0.20))):
         cands = _run(strat.scan(_make_filters(), _make_context()))
     assert len(cands) == 1 and cands[0].metadata["fav_price"] == pytest.approx(0.68)
+
+
+def test_suggested_trade_size_floor_and_cap():
+    """Per-trade = base x CAP% x 4%, clamped to [$1, $25]. CAP% is NOT the trade size."""
+    # $1000 equity x 60% x 4% = $24 (under the $25 cap)
+    assert suggested_trade_size(1000.0, 0.60) == pytest.approx(24.0)
+    # huge pool -> hard-capped at $25
+    assert suggested_trade_size(100_000.0, 0.60) == 25.0
+    # tiny pool -> floored at $1
+    assert suggested_trade_size(5.0, 0.20) == 1.0
+
+
+def test_sizes_off_equity_not_free_balance():
+    """Sizing uses equity (balance + open value), not idle cash."""
+    strat = LateEntryV3Strategy()
+    # equity 10000 -> 10000 x 0.5 x 0.04 = 200 -> capped 25; free balance only 10
+    ctx = _make_context(available=10.0, alloc=0.5, equity=10_000.0)
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[_make_market()])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.65, 0.20))):
+        cands = _run(strat.scan(_make_filters(), ctx))
+    assert len(cands) == 1
+    assert cands[0].suggested_size_usdc == pytest.approx(25.0)
 
 
 def test_skips_when_spread_too_wide():

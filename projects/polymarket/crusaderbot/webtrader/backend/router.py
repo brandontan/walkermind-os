@@ -13,6 +13,7 @@ from sse_starlette.sse import EventSourceResponse
 from ...database import get_pool
 from ...domain.execution import router as exec_router
 from ...domain.ops import kill_switch
+from ...domain.strategy.strategies.late_entry_v3 import suggested_trade_size
 from ... import notifications as notif_module
 from ...integrations import polymarket as _polymarket
 from . import sse as webtrader_sse
@@ -544,8 +545,18 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
                FROM user_settings WHERE user_id=$1::uuid""",
             user_id,
         )
+        eq_row = await conn.fetchrow(
+            """SELECT COALESCE(w.balance_usdc, 0)
+                     + COALESCE((SELECT SUM(p.size_usdc) FROM positions p
+                                 WHERE p.user_id = $1::uuid AND p.status = 'open'), 0)
+                       AS equity_usdc
+                 FROM wallets w WHERE w.user_id = $1::uuid""",
+            user_id,
+        )
 
     cats: list[str] = list(s_row["category_filters"]) if s_row and s_row["category_filters"] else []
+    cap_pct = float(s_row["capital_alloc_pct"]) if s_row else 0.5
+    equity = float(eq_row["equity_usdc"]) if eq_row and eq_row["equity_usdc"] is not None else 0.0
     return AutoTradeState(
         auto_trade_on=bool(u_row["auto_trade_on"]) if u_row else False,
         active_preset=s_row["active_preset"] if s_row else None,
@@ -560,6 +571,8 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         slippage_tolerance_pct=float(s_row["slippage_tolerance_pct"]) if s_row and s_row["slippage_tolerance_pct"] is not None else None,
         selected_timeframe=s_row["selected_timeframe"] if s_row else None,
         selected_assets=list(s_row["selected_assets"]) if s_row and s_row["selected_assets"] else None,
+        equity_usdc=round(equity, 2),
+        max_per_trade_usdc=round(suggested_trade_size(equity, cap_pct), 2),
     )
 
 

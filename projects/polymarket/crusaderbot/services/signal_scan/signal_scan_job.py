@@ -216,6 +216,8 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 u.auto_trade_on,
                 u.paused,
                 COALESCE(w.balance_usdc, 0)   AS balance_usdc,
+                COALESCE((SELECT SUM(p.size_usdc) FROM positions p
+                          WHERE p.user_id = u.id AND p.status = 'open'), 0) AS open_cost_usdc,
                 COALESCE(s.risk_profile, 'balanced') AS risk_profile,
                 COALESCE(s.trading_mode, 'paper')    AS trading_mode,
                 s.tp_pct,
@@ -592,12 +594,18 @@ def _build_user_context(row: dict[str, Any]) -> UserContext:
     sub_account_id = str(row.get("sub_account_id") or row["user_id"])
     _tf = row.get("selected_timeframe")
     _assets = tuple(str(a) for a in (row.get("selected_assets") or []))
+    balance = float(row.get("balance_usdc") or 0.0)
+    # Equity = free balance + capital already deployed in open positions (cost
+    # basis). Sizing is based on equity so the deployable pool reflects the
+    # whole account rather than only the idle cash.
+    equity = balance + float(row.get("open_cost_usdc") or 0.0)
     return UserContext(
         user_id=str(row["user_id"]),
         sub_account_id=sub_account_id,
         risk_profile=str(row.get("resolved_profile") or "balanced"),
         capital_allocation_pct=allocation,
-        available_balance_usdc=float(row.get("balance_usdc") or 0.0),
+        available_balance_usdc=balance,
+        equity_usdc=equity,
         selected_timeframe=str(_tf) if _tf else None,
         selected_assets=_assets,
     )

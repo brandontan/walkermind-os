@@ -464,9 +464,19 @@ export function AutoTradePage() {
 
         {/* ── SECTION B: Risk Profile ── */}
         <SectionTitle>Risk Profile</SectionTitle>
-        <p className="text-ink-3 text-xs font-mono mb-3 mx-0.5">
+        <p className="text-ink-3 text-xs font-mono mb-2 mx-0.5">
           Controls capital %, take profit, and stop loss. Applies to all trade types.
         </p>
+        {/* CAP% is the deployable POOL, not the per-trade size. Surface the real
+            max-per-trade so users don't read "60%" as "$600 per trade". */}
+        {state.max_per_trade_usdc != null && (
+          <p className="text-[11px] font-mono mb-3 mx-0.5 px-2 py-1.5 rounded border border-gold/30 bg-gold/5 text-ink-2">
+            <span className="text-gold font-bold">Max per trade: ${state.max_per_trade_usdc.toFixed(2)}</span>
+            {state.equity_usdc != null && (
+              <span className="text-ink-3"> · CAP {Math.round(state.capital_alloc_pct * 100)}% of ${state.equity_usdc.toFixed(2)} equity is the deployable pool, not one trade</span>
+            )}
+          </p>
+        )}
 
         {/* 3 preset cards — equal width row */}
         <div className="grid grid-cols-3 gap-2 mb-2">

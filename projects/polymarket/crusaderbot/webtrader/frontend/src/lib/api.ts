@@ -202,6 +202,8 @@ export interface AutoTradeState {
   slippage_tolerance_pct: number | null;
   selected_timeframe: string | null;
   selected_assets: string[] | null;
+  equity_usdc?: number | null;
+  max_per_trade_usdc?: number | null;
 }
 
 export interface CustomizeParams {
