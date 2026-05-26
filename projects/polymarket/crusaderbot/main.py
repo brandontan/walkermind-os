@@ -1,6 +1,7 @@
 """Entry point: FastAPI + Telegram (polling OR webhook) + APScheduler in one process."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import secrets
@@ -113,7 +114,24 @@ async def lifespan(_: FastAPI):
     register_handlers(bot_app)
     notifications.set_bot(bot_app.bot)
 
-    await bot_app.initialize()
+    # Retry Telegram initialize() on transient network errors during boot.
+    # Fly.io network proxy may not be fully ready the moment lifespan starts.
+    for _attempt in range(5):
+        try:
+            await bot_app.initialize()
+            break
+        except Exception as _exc:  # noqa: BLE001
+            import telegram.error as _tg_err
+            if not isinstance(_exc, (_tg_err.NetworkError, _tg_err.TimedOut)):
+                raise
+            if _attempt == 4:
+                raise
+            _wait = 2 ** _attempt
+            log.warning(
+                "Telegram initialize failed (attempt %d/5): %s — retrying in %ds",
+                _attempt + 1, _exc, _wait,
+            )
+            await asyncio.sleep(_wait)
     await bot_app.start()
     register_notification_handlers()
     webtrader_sse.register_event_bus_handlers()
