@@ -202,10 +202,10 @@ export function PortfolioPage() {
 
   const allPositions = useMemo(() => {
     const combined = [...open, ...closed];
-    combined.sort(
-      (a, b) =>
-        new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
-    );
+    // Most recent activity on top: closed trades by close time, open by open time.
+    const recency = (p: PositionItem) =>
+      new Date(p.closed_at ?? p.opened_at).getTime();
+    combined.sort((a, b) => recency(b) - recency(a));
     return combined;
   }, [open, closed]);
 
