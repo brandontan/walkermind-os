@@ -379,17 +379,7 @@ export function DashboardPage() {
             )}
 
             {recentClosed.length > 0 && (
-              <div className="mt-4">
-                <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2 mb-2 mx-0.5">
-                  <span className="w-3 h-px bg-ink-3" aria-hidden />
-                  Recent Activity
-                </div>
-                <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
-                  {recentClosed.map((p) => (
-                    <RecentActivityCard key={p.id} p={p} />
-                  ))}
-                </div>
-              </div>
+              <RecentActivityCarousel items={recentClosed} />
             )}
 
             <div className="mt-4">
@@ -418,6 +408,76 @@ const RECENT_EXIT_LABEL: Record<string, string> = {
   manual:          "MANUAL",
 };
 
+function RecentActivityCarousel({ items }: { items: PositionItem[] }) {
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    if (items.length <= 1) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % items.length), 3500);
+    return () => clearInterval(t);
+  }, [items.length]);
+
+  const p = items[idx];
+  const pnl = p.pnl_usdc ?? 0;
+  const isPos = pnl > 0.005;
+  const isNeg = pnl < -0.005;
+  const pnlClass = isPos ? "text-grn" : isNeg ? "text-red" : "text-ink-3";
+  const stripe = isPos ? "var(--grn,#00FF9C)" : isNeg ? "var(--red,#FF2D55)" : "var(--ink-3,#455370)";
+
+  return (
+    <div className="mt-4">
+      <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2 mb-2 mx-0.5">
+        <span className="w-3 h-px bg-ink-3" aria-hidden />
+        Recent Activity
+      </div>
+      {/* card */}
+      <div
+        className="relative p-2 pl-3.5 rounded-lg border border-surface-3 bg-surface-1 overflow-hidden cursor-pointer select-none"
+        onClick={() => setIdx((i) => (i + 1) % items.length)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setIdx((i) => (i + 1) % items.length); }}
+        aria-label={`Recent activity ${idx + 1} of ${items.length}`}
+      >
+        <span className="absolute left-0 top-0 bottom-0 w-0.5" style={{ background: stripe }} aria-hidden />
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[9px] font-mono text-ink-4 truncate leading-tight flex-1 min-w-0">
+            {p.market_question ?? p.market_id}
+          </p>
+          <span className="text-[8px] font-mono text-ink-4 whitespace-nowrap flex-shrink-0">
+            {RECENT_EXIT_LABEL[p.exit_reason ?? ""] ?? "—"}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 mt-1">
+          <span className={`text-[13px] font-bold font-mono leading-none ${pnlClass}`}>
+            {pnl >= 0 ? "+" : "−"}${Math.abs(pnl).toFixed(2)}
+          </span>
+          <span className={`text-[8px] font-hud uppercase ${p.side === "yes" ? "text-grn" : "text-red"}`}>
+            {p.side.toUpperCase()}
+          </span>
+        </div>
+      </div>
+      {/* dot indicators */}
+      {items.length > 1 && (
+        <div className="flex justify-center gap-1 mt-1.5">
+          {items.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setIdx(i)}
+              aria-label={`Go to item ${i + 1}`}
+              className={`rounded-full transition-all ${
+                i === idx
+                  ? "w-3.5 h-1.5 bg-ink-2"
+                  : "w-1.5 h-1.5 bg-surface-4"
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RecentActivityCard({ p }: { p: PositionItem }) {
   const pnl = p.pnl_usdc ?? 0;
   const isPos = pnl > 0.005;
@@ -425,14 +485,8 @@ function RecentActivityCard({ p }: { p: PositionItem }) {
   const pnlClass = isPos ? "text-grn" : isNeg ? "text-red" : "text-ink-3";
   const stripe = isPos ? "var(--grn,#00FF9C)" : isNeg ? "var(--red,#FF2D55)" : "var(--ink-3,#455370)";
   return (
-    <div
-      className="relative flex-shrink-0 w-[130px] p-2 pl-3 rounded-lg border border-surface-3 bg-surface-1 overflow-hidden"
-    >
-      <span
-        className="absolute left-0 top-0 bottom-0 w-0.5"
-        style={{ background: stripe }}
-        aria-hidden
-      />
+    <div className="relative flex-shrink-0 w-[130px] p-2 pl-3 rounded-lg border border-surface-3 bg-surface-1 overflow-hidden">
+      <span className="absolute left-0 top-0 bottom-0 w-0.5" style={{ background: stripe }} aria-hidden />
       <p className="text-[8px] font-mono text-ink-4 truncate leading-tight mb-1">
         {p.market_question ?? p.market_id}
       </p>
