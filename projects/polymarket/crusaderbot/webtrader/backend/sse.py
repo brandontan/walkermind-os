@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 from typing import Any, AsyncIterator
 from urllib.parse import urlparse, urlunparse
 
@@ -49,27 +48,33 @@ _telegram_to_user_id: dict[int, str] = {}
 
 
 def _normalize_dsn_for_listen(dsn: str) -> str:
-    """Switch pooler URL to direct connection so LISTEN/NOTIFY works.
+    """Resolve a DSN that supports LISTEN/NOTIFY for the SSE listener.
 
-    Supabase Supavisor (port 6543, host *.pooler.supabase.com) silently
-    drops LISTEN. Swap to the direct Postgres endpoint (port 5432).
+    Supabase Supavisor has two modes on the same pooler host:
+      * transaction mode (port 6543) — recycles connections per txn, so
+        LISTEN is silently dropped. Unusable for the listener.
+      * session mode (port 5432) — holds a dedicated backend per client
+        session; LISTEN/NOTIFY works. This is what we want.
+
+    The direct endpoint (db.<ref>.supabase.co:5432) is NOT used: Supabase
+    disabled direct IPv4 connections on the free tier, so connecting there
+    is refused (Errno 111) and the listener reconnect-loops forever. Instead
+    we keep the pooler host and switch a transaction-mode port (6543) to the
+    session-mode port (5432). A DSN already on 5432 is used as-is.
     """
     parsed = urlparse(dsn)
     host = parsed.hostname or ""
 
     if "pooler.supabase.com" in host:
-        # Extract project ref from pooler hostname, e.g. "aws-0-us-east-1.pooler.supabase.com"
-        # The direct host is "db.<project_ref>.supabase.co"
-        # We derive the project ref from the path/user (username is the project ref on pooler)
-        username = parsed.username or ""
-        # Supabase pooler user format: postgres.<project_ref>
-        m = re.match(r"postgres\.([a-z0-9]+)", username)
-        project_ref = m.group(1) if m else username
-        direct_host = f"db.{project_ref}.supabase.co"
-        parsed = parsed._replace(
-            netloc=f"{parsed.username}:{parsed.password}@{direct_host}:5432"
-        )
-        log.info("SSE: normalised pooler URL to direct host %s:5432", direct_host)
+        if parsed.port == 6543:
+            parsed = parsed._replace(
+                netloc=parsed.netloc.replace(":6543", ":5432")
+            )
+            log.info(
+                "SSE: switched transaction pooler (6543) → session pooler "
+                "(5432) for LISTEN connection"
+            )
+        # else already session pooler (5432) — supports LISTEN, use as-is
     elif parsed.port == 6543:
         parsed = parsed._replace(
             netloc=parsed.netloc.replace(":6543", ":5432")
