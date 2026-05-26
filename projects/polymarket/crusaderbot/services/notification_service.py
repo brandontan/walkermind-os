@@ -39,16 +39,30 @@ _CLOSE_REASON_LABELS: dict[str, str] = {
 }
 
 _STRAT_LABELS: dict[str, str] = {
-    "whale_mirror":  "🐋 Whale Mirror",
-    "signal_sniper": "📡 Signal Sniper",
-    "hybrid":        "🐋📡 Hybrid",
-    "value_hunter":  "🎯 Value Hunter",
-    "full_auto":     "🚀 Full Auto",
-    "confluence_scalper": "🚀 Crypto Scalper",
-    "copy_trade":    "🐋 Copy Trade",
-    "signal":        "📡 Signal",
-    "value":         "🎯 Value",
-    "manual":        "Manual",
+    # Legacy preset keys
+    "whale_mirror":       "🐋 Whale Mirror",
+    "signal_sniper":      "📡 Signal Sniper",
+    "hybrid":             "🐋📡 Hybrid",
+    "value_hunter":       "🎯 Value Hunter",
+    "full_auto":          "🚀 Full Auto",
+    "copy_trade":         "🐋 Copy Trade",
+    "signal":             "📡 Signal",
+    "value":              "🎯 Value",
+    "manual":             "Manual",
+    # Strategy class names (stored as strategy_type on positions)
+    "late_entry_v3":      "Close Sweep",
+    "expiration_timing":  "Close Sweep",
+    "confluence_scalper": "Crypto Scalper",
+    "trend_breakout":     "Trend Breakout",
+    "momentum":           "Contrarian",
+    "value_investor":     "Value Hunter",
+    "signal_following":   "Signal Following",
+    "pair_arb":           "Pair Arb",
+    "ensemble":           "Smart Mix",
+    # Preset keys (fallback if preset key stored directly)
+    "close_sweep":        "Close Sweep",
+    "flip_hunter":        "Flip Hunter",
+    "safe_close":         "Safe Close",
 }
 
 

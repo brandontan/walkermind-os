@@ -39,6 +39,7 @@ async def _read_dashboard(telegram_user) -> dict:
         data["active_strategy"] = label
     data["portfolio_value"] = await _users.fetch_balance(u["id"])
     data["today_pnl"] = await _users.fetch_daily_pnl(u["id"])
+    data["today_trades"] = await _users.fetch_today_trade_count(u["id"])
     data["open_count"] = await _users.fetch_open_position_count(u["id"])
     return data
 

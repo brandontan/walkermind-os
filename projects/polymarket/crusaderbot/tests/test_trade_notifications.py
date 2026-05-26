@@ -132,7 +132,7 @@ async def test_notify_entry_strategy_type_shown():
             strategy_type="signal_following",
         )
     text: str = mock_send.call_args[0][1]
-    assert "signal_following" in text
+    assert "Signal Following" in text
 
 
 @pytest.mark.asyncio
