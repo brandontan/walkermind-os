@@ -1,5 +1,5 @@
-Last Updated : 2026-05-26 22:00
-Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). late_entry_v3 close_sweep trading BTC/ETH/SOL/BNB/XRP/DOGE/HYPE (BTC default) 5m/15m candles. PR #1349 (lane #3 user max-$-per-trade) MERGED 88531e1. Building lane #4: daily $-loss override exposure + user max drawdown % + bug fix exit price display. Guards untouched, ENABLE_LIVE_TRADING=false, paper-only.
+Last Updated : 2026-05-26 04:40
+Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). late_entry_v3 close_sweep trading BTC/ETH/SOL/BNB/XRP/DOGE/HYPE (BTC default) 5m/15m candles. PR #1349 (lane #3 user max-$-per-trade) MERGED 88531e1. PR #1350 (lane #4 daily $-loss override + max drawdown % + exit-price fix) MERGED 98376a0. Pending: migration 054 apply to prod + Fly.io redeploy. Guards untouched, ENABLE_LIVE_TRADING=false, paper-only.
 
 - WARP-57 (issue #1260): SENTINEL re-audited — APPROVED (Round 2 Score 86/100, 0 critical). PR #1261 / WARP/warp57-telegram-ux-mvp at SHA aa4fe24c55e8. Round-1 CRITICAL-1 (copy_targets schema mismatch) RESOLVED — `bot/handlers/mvp/copy_wallet.py` SELECT/INSERT/UPDATE now use canonical columns (`target_wallet_address`, `status='active'/'inactive'`, `scale_factor`) per mig 009. Round-1 MEDIUM-1 (`wallets.public_address` → `deposit_address` in onboarding.py:38) also RESOLVED. NEW MEDIUM-4 (post-merge follow-up): MVP writes to `copy_targets` but production scanner `services/copy_trade/monitor.py:80` reads `copy_trade_tasks` via `domain/copy_trade/repository.py:list_active_tasks` — end-to-end mirror not yet active until a follow-up lane swaps the MVP table to `copy_trade_tasks`; legacy `/copytrade` 8-step wizard remains the only path that produces mirrored trades. Round-1 MEDIUM-2 (auto:start engine bootstrap) + MEDIUM-3 (legacy `/settings` sub-route regression) P2-deferred per WARP🔹CMD direction. Activation guards untouched (Risk 3 PASS), no manual trade buttons (Risk 2 PASS), paper-mode default preserved (Risk 6 PASS). Report: projects/polymarket/crusaderbot/reports/sentinel/warp57-telegram-ux-mvp.md.
 - WARP-55 (issue #1256): MERGED (abd3b43dbe10) — RUNTIME_EVIDENCE.md: 7/7 P2 finish criteria proven. 🏁 CrusaderBot closed beta DONE. Guards LOCKED. STANDARD, evidence-only.
@@ -47,10 +47,10 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). late_entry_v3 
   - WARP-43 RUNTIME-TRADE-SMOKE (WARP/runtime-trade-smoke, PR open): scan_runs telemetry table (migration 048) + ScanTelemetry dataclass + structured log events (strategies_loaded, scan_input, strategy_run, risk_gate, paper_execution) + startup loud-failure RuntimeError guard + GET /admin/scan/last + GET /admin/scan/list. 5 files modified/created; py_compile clean. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- Production monitoring of late_entry_v3 on Fly (paper): each candle batch, verify TP/SL/market_expired/resolution exits close correctly and watch the direction win-rate. MERGED + deployed: PR #1346 (HYPE/XRP/DOGE opt-in + BTC default, build f51fd09) and PR #1347 (FAV_PRICE_MAX 0.93->0.70 ceiling + expandable trade-detail view, build 43f590d). Watch whether the 0.70 ceiling turns net PnL positive.
-- Lane #4 (daily $-loss override + max drawdown %): migration 054 (max_drawdown_pct col), gate.py _max_drawdown_breached accepts user threshold (min(8%, user)), GateContext.max_drawdown_pct threaded through TradeSignal → engine → gate, schemas+router expose+persist both fields, DailyLossControl + MaxDrawdownControl UI, bugfix exit_price display for 0.0 (resolution_loss), 1762 tests pass + ruff clean. MAJOR, pending deploy. Report: reports/forge/daily-loss-drawdown.md.
+- Production monitoring of late_entry_v3 on Fly (paper): each candle batch, verify TP/SL/market_expired/resolution exits close correctly and watch the direction win-rate. MERGED + deployed: PR #1346 (HYPE/XRP/DOGE opt-in + BTC default, build f51fd09) and PR #1347 (FAV_PRICE_MAX 0.93->0.70 ceiling + expandable trade-detail view, build 43f590d). Watch whether the 0.70 ceiling turns net PnL positive. Also monitoring PR #1350 (lane #4 daily $-loss override + max drawdown %) — awaiting migration 054 prod apply + Fly redeploy.
 
 [NOT STARTED]
+- Apply migration 054 (max_drawdown_pct column in user_settings) to production Supabase before Fly.io redeploy (lane #4 MERGED PR #1350).
 - Apply migration 030 (job_runs metadata JSONB) to production before Fly.io deploy (trading-unblock MERGED PR #1065, live on main).
 - Apply migration 029 (portfolio_snapshots, system_alerts, NOTIFY triggers) to production before deploying WARP/CRUSADERBOT-WEBTRADER.
 - Set fly secret WEBTRADER_JWT_SECRET=<openssl rand -hex 32> before deploying WebTrader.
@@ -64,8 +64,7 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). late_entry_v3 
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review + deploy lane #4 (migration 054 + gate/engine/router/UI changes). Report: projects/polymarket/crusaderbot/reports/forge/daily-loss-drawdown.md. Tier: MAJOR.
-- Apply migration 054 (max_drawdown_pct column in user_settings) to production Supabase before deploy.
+- Apply migration 054 to production Supabase, then WARP🔹CMD review + Fly.io redeploy (lane #4 MERGED PR #1350). Report: projects/polymarket/crusaderbot/reports/forge/daily-loss-drawdown.md. Tier: MAJOR.
 - Home page enhancements (owner-requested): signal scanner "more alive" (time + daily signal count), open positions expanded by default in Home, recent activity slide (5 latest) below open positions.
 - Monitor late_entry_v3 edge AFTER the FAV_PRICE_MAX=0.70 ceiling deploys: confirm net PnL turns positive and the fav 0.70-0.93 loss zone is gone. If still negative, next levers are raising fav_price_min (kills the 0.46-0.55 coin-flip zone, -$129) and/or tightening the entry window. Supabase project ykyagjdeqcgcktnpdhes, positions WHERE strategy_type='late_entry_v3'; bucket by entry_price.
 - Heisenberg API integration (HEISENBERG_API_TOKEN in Fly secrets) -- candlesticks for late_entry_v3 signal quality + H-Score for copy-trade ranking. Logged for next lane.
