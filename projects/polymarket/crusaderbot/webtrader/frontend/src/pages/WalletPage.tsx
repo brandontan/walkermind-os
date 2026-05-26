@@ -186,6 +186,8 @@ export function WalletPage() {
           paperMode={paperMode}
           balance={info.balance_usdc}
           onClose={() => setShowWithdraw(false)}
+          onWithdraw={api.requestWithdrawal}
+          onSuccess={() => { setShowWithdraw(false); void load(); }}
         />
       )}
     </>

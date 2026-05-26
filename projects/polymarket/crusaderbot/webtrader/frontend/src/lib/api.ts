@@ -87,6 +87,8 @@ export function makeApi(token: string | null) {
     getWallet: () => get<WalletInfo>("/wallet"),
     getLedger: (offset: number, limit = 20) =>
       get<LedgerPage>(`/wallet/ledger?offset=${offset}&limit=${limit}`),
+    requestWithdrawal: (amount_usdc: number, destination_address: string) =>
+      post<WithdrawResponse>("/wallet/withdraw", { amount_usdc, destination_address }),
     getSettings: () => get<UserSettings>("/settings"),
     updateSettings: (data: Partial<UserSettings>) => patch<{ updated: boolean }>("/settings", data),
     linkEmail: (email: string, password: string) =>
@@ -391,6 +393,18 @@ export interface FeedSignal {
   target_price: number | null;
   signal_type: string;
   published_at: string;
+}
+
+export interface WithdrawRequest {
+  amount_usdc: number;
+  destination_address: string;
+}
+
+export interface WithdrawResponse {
+  id: string;
+  status: string;
+  approval_mode: string;
+  amount_usdc: number;
 }
 
 export interface Wallet360 {

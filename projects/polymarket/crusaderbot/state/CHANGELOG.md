@@ -372,3 +372,4 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 2026-05-25 08:19 | main | WARP-MDC: exit_watcher uses CLOB /midpoint as primary price source; rate limiters on Gamma (5 RPS) + CLOB reads (10 RPS); 4 demo positions voided
 2026-05-25 12:30 | WARP/auth-password-byte-limit | fix Sentry DAWN-SNOWFLAKE-1729-26: ValueError password >72 bytes — added byte-length guard before all bcrypt call sites in webtrader/backend/auth.py (register/login/link_email)
 2026-05-26 22:00 | claude/zealous-brahmagupta-LZaZV | lane #4: user daily $-loss override exposure + user max drawdown % halt gate + exit_price 0.0 display bugfix
+2026-05-27 00:00 | WARP/R00T-webtrader-wallet | WebTrader wallet withdraw: POST /wallet/withdraw + 3-step WithdrawModal (amount→address→confirm) + api.requestWithdrawal wired
