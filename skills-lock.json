@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "grimoire-polymarket": {
+      "source": "franalgaba/grimoire",
+      "sourceType": "github",
+      "skillPath": "skills/grimoire-polymarket/SKILL.md",
+      "computedHash": "fac17b7cfaf4522b75f4f7e7ed6b8decca1ff9af986d9ad3d18b1e394fd20963"
+    },
+    "web3-polymarket": {
+      "source": "polymarket/agent-skills",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "281e0a43cc1a5864ffb95f69c9e193964c1b332af6fded869280527a9d9b565b"
+    }
+  }
+}
