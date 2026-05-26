@@ -148,10 +148,8 @@ async def setup_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         await q.message.reply_text("Pick categories:",
                                    reply_markup=category_picker(s["category_filters"]))
     elif sub == "copy":
-        ctx.user_data["awaiting"] = "copy_target"
         await q.message.reply_text(
-            "Send a Polygon wallet address (0x…) to copy-trade. Send <code>list</code> to see "
-            "current targets, or <code>remove 0x…</code> to remove one.",
+            "Use the <b>🐋 Copy Trade</b> button in the main menu to manage copy wallets.",
             parse_mode=ParseMode.HTML,
         )
     elif sub == "mode":
@@ -378,8 +376,6 @@ async def text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
             await update.message.reply_text(
                 f"✅ Capital allocation set to {pct:.0f}%."
             )
-        elif awaiting == "copy_target":
-            await _handle_copy_target_input(update, user, text)
         else:
             # Unknown awaiting value — could belong to another consumer
             # (e.g. activation's CONFIRM flow). Do NOT pop it, otherwise
