@@ -361,7 +361,7 @@ async def get_positions(
             f"""SELECT p.id, p.market_id, COALESCE(m.question, p.market_question) AS market_question,
                        p.side, p.size_usdc, p.entry_price, p.current_price,
                        p.pnl_usdc, p.status, p.mode, p.opened_at, p.closed_at,
-                       p.exit_reason, m.resolved AS market_resolved,
+                       p.exit_reason, p.strategy_type, m.resolved AS market_resolved,
                        m.winning_side,
                        COALESCE(p.applied_tp_pct, p.tp_pct) AS tp_pct,
                        COALESCE(p.applied_sl_pct, p.sl_pct) AS sl_pct
@@ -388,6 +388,7 @@ async def get_positions(
             opened_at=r["opened_at"],
             closed_at=r["closed_at"],
             exit_reason=r["exit_reason"],
+            strategy_type=r["strategy_type"],
             tp_pct=float(r["tp_pct"]) if r["tp_pct"] is not None else None,
             sl_pct=float(r["sl_pct"]) if r["sl_pct"] is not None else None,
             tp_price=_tp_sl_price(float(r["entry_price"]), r["side"], r["tp_pct"], is_tp=True),

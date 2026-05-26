@@ -739,6 +739,21 @@ const EXIT_FULL_LABEL: Record<string, string> = {
   close_failed: "Close Failed",
 };
 
+// Friendly labels for the strategy that opened the trade (positions.strategy_type).
+const STRATEGY_LABEL: Record<string, string> = {
+  late_entry_v3: "Late Entry V3",
+  trend_breakout: "Trend Breakout",
+  momentum: "Momentum",
+  signal_following: "Signal Following",
+  value_investor: "Value Investor",
+  copy_trade: "Copy Trade",
+};
+
+function fmtStrategy(s?: string | null): string | null {
+  if (!s) return null;
+  return STRATEGY_LABEL[s] ?? s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function PositionRow({ p, onCashOut, onForceRedeem, defaultExpanded }: {
   p: PositionItem;
   onCashOut?: () => void;
@@ -790,7 +805,16 @@ export function PositionRow({ p, onCashOut, onForceRedeem, defaultExpanded }: {
   const pnlToneClass =
     tone === "zero" ? "text-ink-2" : tone === "up" ? "text-grn" : "text-red";
 
+  const strategyLabel = fmtStrategy(p.strategy_type);
+
   const metaItems = [
+    ...(strategyLabel
+      ? [
+          <span key="strat" className="text-ink-4 uppercase tracking-wide">
+            {strategyLabel}
+          </span>,
+        ]
+      : []),
     <span key="cost" className="text-ink-3">
       <span className="text-ink-4 text-[8px]">IN</span> ${p.size_usdc.toFixed(2)}
     </span>,
@@ -828,6 +852,7 @@ export function PositionRow({ p, onCashOut, onForceRedeem, defaultExpanded }: {
   // position is open; they fill in once the close is confirmed.
   const detail = (
     <div>
+      {strategyLabel ? <DetailRow label="Strategy" value={strategyLabel} tone="text-cyan" /> : null}
       <DetailRow label="Entry Time" value={fmtDateTime(p.opened_at)} />
       <DetailRow label="Entry Price" value={`${p.side.toUpperCase()} @ ${fmtCents(p.entry_price)}`} />
       <DetailRow label="Exit Time" value={isOpen ? "—" : fmtDateTime(p.closed_at)} />
