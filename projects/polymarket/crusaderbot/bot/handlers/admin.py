@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Iterable
 
 from telegram import Message, Update
+from telegram.error import BadRequest
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
@@ -71,6 +72,7 @@ _ADMIN_HELP = (
     "• Roles — /admin settier {user_id} {user|admin}\n"
     "• Broadcast — /admin broadcast {message}\n"
     "• Live readiness — /admin live\n"
+    "• Withdrawals — /admin withdrawals\n"
     "• /resetonboard {telegram_user_id} — reset onboarding for testing"
 )
 
@@ -112,6 +114,8 @@ async def admin_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             await _admin_broadcast(update.message, args[1:], ctx)
         elif sub == "live":
             await _live_readiness_hud(update.message)
+        elif sub == "withdrawals":
+            await _admin_withdrawals_text(update.message)
         else:
             await update.message.reply_text(
                 _ADMIN_HELP, parse_mode=ParseMode.HTML
@@ -470,7 +474,9 @@ async def admin_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             await q.answer("Admin access required.", show_alert=True)
         return
     await q.answer()
-    sub = (q.data or "").split(":", 1)[-1]
+    raw = q.data or ""
+    # full data is "admin:{sub}" — split on first colon only
+    sub = raw.split(":", 1)[-1]
 
     if sub == "kill":
         active = await is_kill_switch_active()
@@ -495,6 +501,164 @@ async def admin_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             "<code>/resetonboard {telegram_user_id}</code>",
             parse_mode=ParseMode.HTML,
         )
+    elif sub == "withdrawals" or sub.startswith("withdrawals:"):
+        await _admin_withdrawals_callback(update, q, sub)
+
+
+async def _admin_withdrawals_text(message) -> None:
+    from ...wallet.withdrawals import get_approval_mode, get_pending_withdrawals
+    from ..keyboards.wallet import admin_withdrawals_kb
+
+    pending = await get_pending_withdrawals(limit=50)
+    mode = await get_approval_mode()
+    text = (
+        "<b>💸 Withdrawal Management</b>\n\n"
+        f"Approval mode: <b>{'🤖 Auto' if mode == 'auto' else '👤 Manual'}</b>\n"
+        f"Pending requests: <b>{len(pending)}</b>"
+    )
+    await message.reply_text(text, parse_mode=ParseMode.HTML,
+                             reply_markup=admin_withdrawals_kb(len(pending)))
+
+
+async def _admin_withdrawals_callback(update: Update, q, sub: str) -> None:
+    from ...wallet.withdrawals import (
+        approve_withdrawal, get_approval_mode, get_pending_withdrawals,
+        reject_withdrawal, set_approval_mode,
+    )
+    from ..keyboards.wallet import (
+        admin_approval_mode_kb, admin_approve_reject_kb, admin_withdrawals_kb,
+    )
+    from ..messages import admin_withdrawal_item_text
+
+    # sub formats:
+    #   "withdrawals"              → panel home
+    #   "withdrawals:list"         → list pending
+    #   "withdrawals:mode"         → show approval mode picker
+    #   "withdrawals:set_mode:auto/manual"
+    #   "withdrawals:approve:{uuid}"
+    #   "withdrawals:reject:{uuid}"
+    parts = sub.split(":", 1)
+    action = parts[1] if len(parts) > 1 else ""
+
+    msg = q.message
+
+    if not action or action == "":
+        pending = await get_pending_withdrawals(limit=50)
+        mode = await get_approval_mode()
+        text = (
+            "<b>💸 Withdrawal Management</b>\n\n"
+            f"Approval mode: <b>{'🤖 Auto' if mode == 'auto' else '👤 Manual'}</b>\n"
+            f"Pending requests: <b>{len(pending)}</b>"
+        )
+        try:
+            await msg.edit_text(text, parse_mode=ParseMode.HTML,
+                                reply_markup=admin_withdrawals_kb(len(pending)))
+        except BadRequest:
+            await msg.reply_text(text, parse_mode=ParseMode.HTML,
+                                 reply_markup=admin_withdrawals_kb(len(pending)))
+
+    elif action == "list":
+        pending = await get_pending_withdrawals(limit=20)
+        if not pending:
+            await msg.reply_text("<i>No pending withdrawal requests.</i>",
+                                 parse_mode=ParseMode.HTML)
+            return
+        for w in pending:
+            item_text = admin_withdrawal_item_text(w)
+            kb = admin_approve_reject_kb(str(w["id"]))
+            await msg.reply_text(item_text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    elif action == "mode":
+        mode = await get_approval_mode()
+        await msg.reply_text(
+            "<b>⚙️ Withdrawal Approval Mode</b>\n\n"
+            "Auto: new requests approved immediately.\n"
+            "Manual: admin must approve each request.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=admin_approval_mode_kb(mode),
+        )
+
+    elif action.startswith("set_mode:"):
+        new_mode = action.split(":", 1)[-1]
+        try:
+            await set_approval_mode(new_mode)
+            await audit.write(actor_role="operator", action="set_withdrawal_mode",
+                              payload={"mode": new_mode})
+            await msg.reply_text(
+                f"✅ Withdrawal approval mode set to <b>{html.escape(new_mode)}</b>.",
+                parse_mode=ParseMode.HTML,
+            )
+        except ValueError as exc:
+            await msg.reply_text(f"❌ {html.escape(str(exc))}", parse_mode=ParseMode.HTML)
+
+    elif action.startswith("approve:"):
+        import uuid as _uuid
+        wid_str = action.split(":", 1)[-1]
+        try:
+            wid = _uuid.UUID(wid_str)
+        except ValueError:
+            await msg.reply_text("❌ Invalid withdrawal ID.")
+            return
+        try:
+            w = await approve_withdrawal(wid, admin_notes="approved via Telegram")
+            await audit.write(actor_role="operator", action="approve_withdrawal",
+                              payload={"withdrawal_id": wid_str,
+                                       "amount": str(w["amount_usdc"])})
+            await msg.reply_text(
+                f"✅ Withdrawal <code>{wid_str[:8]}…</code> approved.\n"
+                f"Amount: ${w['amount_usdc']:.2f}",
+                parse_mode=ParseMode.HTML,
+            )
+            # Notify user
+            try:
+                from ...users import get_user_by_id
+                user_row = await get_user_by_id(w["user_id"])
+                if user_row and user_row.get("telegram_id"):
+                    from ... import notifications as notif
+                    await notif.notify_user_by_telegram_id(
+                        user_row["telegram_id"],
+                        f"✅ Your withdrawal of <b>${w['amount_usdc']:.2f} USDC</b> has been approved.\n"
+                        "<i>(Paper mode — no on-chain transfer yet)</i>",
+                    )
+            except Exception as exc:
+                logger.warning("Failed to notify user of approval: %s", exc)
+        except Exception as exc:
+            logger.error("approve_withdrawal failed: %s", exc)
+            await msg.reply_text(f"❌ {html.escape(str(exc))}", parse_mode=ParseMode.HTML)
+
+    elif action.startswith("reject:"):
+        import uuid as _uuid
+        wid_str = action.split(":", 1)[-1]
+        try:
+            wid = _uuid.UUID(wid_str)
+        except ValueError:
+            await msg.reply_text("❌ Invalid withdrawal ID.")
+            return
+        try:
+            w = await reject_withdrawal(wid, admin_notes="rejected via Telegram")
+            await audit.write(actor_role="operator", action="reject_withdrawal",
+                              payload={"withdrawal_id": wid_str,
+                                       "amount": str(w["amount_usdc"])})
+            await msg.reply_text(
+                f"✅ Withdrawal <code>{wid_str[:8]}…</code> rejected. Balance refunded.",
+                parse_mode=ParseMode.HTML,
+            )
+            # Notify user
+            try:
+                from ...users import get_user_by_id
+                user_row = await get_user_by_id(w["user_id"])
+                if user_row and user_row.get("telegram_id"):
+                    from ... import notifications as notif
+                    await notif.notify_user_by_telegram_id(
+                        user_row["telegram_id"],
+                        f"❌ Your withdrawal of <b>${w['amount_usdc']:.2f} USDC</b> was rejected.\n"
+                        "Your balance has been refunded.",
+                    )
+            except Exception as exc:
+                logger.warning("Failed to notify user of rejection: %s", exc)
+        except Exception as exc:
+            logger.error("reject_withdrawal failed: %s", exc)
+            await msg.reply_text(f"❌ {html.escape(str(exc))}", parse_mode=ParseMode.HTML)
 
 
 async def _send_status(message) -> None:

@@ -606,6 +606,110 @@ def wallet_text(balance: Decimal | float, address: str) -> str:
     )
 
 
+def wallet_deposit_text(address: str, balance: Decimal | float) -> str:
+    short = address[:6] + "..." + address[-4:] if len(address) > 10 else address
+    return (
+        "<b>📥 Deposit USDC</b>\n"
+        + DIV + "\n\n"
+        "<b>How to deposit:</b>\n"
+        "1. Send USDC on <b>Polygon (MATIC)</b> network only\n"
+        "2. Min deposit: <b>$50 USDC</b>\n"
+        "3. Allow ~2 min for 32-block confirmation\n\n"
+        "<b>Your deposit address:</b>\n"
+        f"<code>{html.escape(address)}</code>\n\n"
+        f"<i>Short: {html.escape(short)}</i>\n\n"
+        f"Current balance: <b>{_fmt(balance)}</b>\n\n"
+        "⚠️ <i>Do NOT send from exchange — use self-custody wallet.\n"
+        "Only Polygon network. Other chains = lost funds.</i>"
+    )
+
+
+def withdraw_ask_amount_text(balance: Decimal | float) -> str:
+    return (
+        "<b>📤 Withdraw USDC</b>\n"
+        + DIV + "\n\n"
+        f"Available balance: <b>{_fmt(balance)}</b>\n\n"
+        "Enter the amount to withdraw (min $5):\n"
+        "<i>Example: 25.00</i>"
+    )
+
+
+def withdraw_ask_address_text(amount: str) -> str:
+    return (
+        "<b>📤 Withdraw — Step 2/3</b>\n"
+        + DIV + "\n\n"
+        f"Amount: <b>${html.escape(amount)} USDC</b>\n\n"
+        "Enter your Polygon wallet address:\n"
+        "<i>Example: 0xAbCd...1234</i>"
+    )
+
+
+def withdraw_confirm_text(amount: str, address: str) -> str:
+    short = address[:6] + "..." + address[-4:] if len(address) > 10 else address
+    return (
+        "<b>📤 Confirm Withdrawal</b>\n"
+        + DIV + "\n\n"
+        f"Amount:  <b>${html.escape(amount)} USDC</b>\n"
+        f"To:      <code>{html.escape(address)}</code>\n"
+        f"         <i>({html.escape(short)})</i>\n\n"
+        "<blockquote>📋 Paper mode — no on-chain transfer yet.\n"
+        "Funds will be debited from your paper balance.\n"
+        "Admin approval required.</blockquote>"
+    )
+
+
+def withdraw_submitted_text(amount: str, mode: str) -> str:
+    if mode == "auto":
+        approval_line = "✅ Auto-approved — balance debited."
+    else:
+        approval_line = "⏳ Pending admin approval."
+    return (
+        "<b>📤 Withdrawal Submitted</b>\n"
+        + DIV + "\n\n"
+        f"Amount: <b>${html.escape(amount)} USDC</b>\n"
+        f"{approval_line}\n\n"
+        "You will be notified once processed."
+    )
+
+
+def withdraw_history_text(withdrawals: list[dict]) -> str:
+    if not withdrawals:
+        return (
+            "<b>📜 Withdrawal History</b>\n"
+            + DIV + "\n\n"
+            "<i>No withdrawals yet.</i>"
+        )
+    lines = ["<b>📜 Withdrawal History</b>", DIV, ""]
+    status_icons = {
+        "pending": "⏳", "approved": "✅", "rejected": "❌",
+        "processing": "🔄", "completed": "✅", "failed": "❌",
+    }
+    for w in withdrawals[:8]:
+        icon = status_icons.get(w["status"], "❓")
+        ts = w["created_at"].strftime("%m-%d %H:%M") if w.get("created_at") else "—"
+        short_addr = str(w["destination_address"])[:6] + "…" + str(w["destination_address"])[-4:]
+        lines.append(
+            f"{icon} <b>${w['amount_usdc']:.2f}</b> → "
+            f"<code>{html.escape(short_addr)}</code> · {ts}"
+        )
+    return "\n".join(lines)
+
+
+def admin_withdrawal_item_text(w: dict) -> str:
+    short_addr = str(w["destination_address"])[:6] + "…" + str(w["destination_address"])[-4:]
+    ts = w["created_at"].strftime("%Y-%m-%d %H:%M") if w.get("created_at") else "—"
+    user_label = w.get("username") or str(w["telegram_id"])
+    return (
+        f"<b>Withdrawal Request</b>\n"
+        f"User:    @{html.escape(str(user_label))}\n"
+        f"Amount:  <b>${w['amount_usdc']:.2f} USDC</b>\n"
+        f"To:      <code>{html.escape(str(w['destination_address']))}</code>\n"
+        f"         <i>({html.escape(short_addr)})</i>\n"
+        f"Time:    {ts}\n"
+        f"ID:      <code>{str(w['id'])[:8]}…</code>"
+    )
+
+
 # ── Emergency Menu ─────────────────────────────────────────────────────────────
 
 EMERGENCY_TEXT = (
