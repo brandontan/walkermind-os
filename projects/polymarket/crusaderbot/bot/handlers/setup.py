@@ -398,14 +398,14 @@ async def _handle_copy_target_input(update: Update, user: dict, text: str) -> No
     if text.lower() == "list":
         async with pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT wallet_address, scale_factor, enabled FROM copy_targets "
-                "WHERE user_id=$1", user["id"],
+                "SELECT wallet_address, copy_amount, status FROM copy_trade_tasks "
+                "WHERE user_id=$1 ORDER BY created_at ASC", user["id"],
             )
         if not rows:
             await update.message.reply_text("No copy targets yet.")
             return
-        lines = [f"<code>{html.escape(r['wallet_address'])}</code> x{float(r['scale_factor'])} "
-                 f"{'✅' if r['enabled'] else '❌'}" for r in rows]
+        lines = [f"<code>{html.escape(r['wallet_address'])}</code> ${float(r['copy_amount']):.2f} "
+                 f"{'✅' if r['status'] == 'active' else '❌'}" for r in rows]
         await update.message.reply_text("\n".join(lines),
                                         parse_mode=ParseMode.HTML)
         return
@@ -413,7 +413,7 @@ async def _handle_copy_target_input(update: Update, user: dict, text: str) -> No
         addr = text.split(" ", 1)[1].strip()
         async with pool.acquire() as conn:
             await conn.execute(
-                "DELETE FROM copy_targets WHERE user_id=$1 AND wallet_address=$2",
+                "DELETE FROM copy_trade_tasks WHERE user_id=$1 AND wallet_address=$2",
                 user["id"], addr,
             )
         await update.message.reply_text(f"Removed {addr}.")
@@ -422,11 +422,14 @@ async def _handle_copy_target_input(update: Update, user: dict, text: str) -> No
     if not (addr.startswith("0x") and len(addr) == 42):
         await update.message.reply_text("❌ Not a valid 0x address.")
         return
+    task_name = f"copy-{addr[:6]}…{addr[-4:]}"
     async with pool.acquire() as conn:
         await conn.execute(
-            "INSERT INTO copy_targets (user_id, wallet_address) VALUES ($1, $2) "
-            "ON CONFLICT (user_id, wallet_address) DO NOTHING",
-            user["id"], addr,
+            "INSERT INTO copy_trade_tasks "
+            "(user_id, wallet_address, task_name, status, copy_mode, copy_amount) "
+            "VALUES ($1, $2, $3, 'active', 'fixed', 5.00) "
+            "ON CONFLICT DO NOTHING",
+            user["id"], addr, task_name,
         )
     await update.message.reply_text(f"✅ Added copy target <code>{html.escape(addr)}</code>",
                                     parse_mode=ParseMode.HTML)
