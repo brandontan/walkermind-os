@@ -66,6 +66,10 @@ def assert_live_guards(role: str, trading_mode: str) -> None:
         raise LivePreSubmitError("EXECUTION_PATH_VALIDATED=false")
     if not s.CAPITAL_MODE_CONFIRMED:
         raise LivePreSubmitError("CAPITAL_MODE_CONFIRMED=false")
+    if not s.RISK_CONTROLS_VALIDATED:
+        raise LivePreSubmitError("RISK_CONTROLS_VALIDATED=false")
+    if not s.SECURITY_HARDENING_VALIDATED:
+        raise LivePreSubmitError("SECURITY_HARDENING_VALIDATED=false")
     if s.ENABLE_LIVE_TRADING and not s.USE_REAL_CLOB:
         raise LivePreSubmitError(
             "USE_REAL_CLOB must be True when ENABLE_LIVE_TRADING is set"

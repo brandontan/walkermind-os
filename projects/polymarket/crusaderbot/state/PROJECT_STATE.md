@@ -1,5 +1,5 @@
-Last Updated : 2026-05-26 18:30
-Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs merged + deployed. Guards untouched, ENABLE_LIVE_TRADING=false, paper-only. Safe Close + Flip Hunter activation — late_entry_v3 extended (min_entry_sec + underdog_mode), all routing gates unlocked, 122 tests pass. SENTINEL MAJOR validation required before merge.
+Last Updated : 2026-05-26 17:00
+Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). SENTINEL MAJOR audit of live execution path COMPLETE (CONDITIONAL 84/100, 0 critical). Two medium fixes implemented: RISK_CONTROLS_VALIDATED + SECURITY_HARDENING_VALIDATED now enforced in assert_live_guards() + _passes_live_guards(); Kelly assert replaced with raise ValueError. MockClobClient get_usdc_balance() stub added. All 5 activation guards now enforced in code. 1769 tests pass.
 
 - WARP-57 (issue #1260): SENTINEL re-audited — APPROVED (Round 2 Score 86/100, 0 critical). PR #1261 / WARP/warp57-telegram-ux-mvp at SHA aa4fe24c55e8. Round-1 CRITICAL-1 (copy_targets schema mismatch) RESOLVED — `bot/handlers/mvp/copy_wallet.py` SELECT/INSERT/UPDATE now use canonical columns (`target_wallet_address`, `status='active'/'inactive'`, `scale_factor`) per mig 009. Round-1 MEDIUM-1 (`wallets.public_address` → `deposit_address` in onboarding.py:38) also RESOLVED. NEW MEDIUM-4 (post-merge follow-up): MVP writes to `copy_targets` but production scanner `services/copy_trade/monitor.py:80` reads `copy_trade_tasks` via `domain/copy_trade/repository.py:list_active_tasks` — end-to-end mirror not yet active until a follow-up lane swaps the MVP table to `copy_trade_tasks`; legacy `/copytrade` 8-step wizard remains the only path that produces mirrored trades. Round-1 MEDIUM-2 (auto:start engine bootstrap) + MEDIUM-3 (legacy `/settings` sub-route regression) P2-deferred per WARP🔹CMD direction. Activation guards untouched (Risk 3 PASS), no manual trade buttons (Risk 2 PASS), paper-mode default preserved (Risk 6 PASS). Report: projects/polymarket/crusaderbot/reports/sentinel/warp57-telegram-ux-mvp.md.
 - WARP-55 (issue #1256): MERGED (abd3b43dbe10) — RUNTIME_EVIDENCE.md: 7/7 P2 finish criteria proven. 🏁 CrusaderBot closed beta DONE. Guards LOCKED. STANDARD, evidence-only.
@@ -47,10 +47,9 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs merged + d
   - WARP-43 RUNTIME-TRADE-SMOKE (WARP/runtime-trade-smoke, PR open): scan_runs telemetry table (migration 048) + ScanTelemetry dataclass + structured log events (strategies_loaded, scan_input, strategy_run, risk_gate, paper_execution) + startup loud-failure RuntimeError guard + GET /admin/scan/last + GET /admin/scan/list. 5 files modified/created; py_compile clean. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
-- WARP/R00T-db-perf-indexes: migration 056 — add 9 FK covering indexes (orders.market_id, positions.market_id/order_id, users.referrer_id, idempotency_keys.user_id, fees.order_id/referrer_id, user_signal_subscriptions.feed_id, copy_trade_events.position_id) + drop 1 duplicate index (idx_fees_trade_id) + drop 10 confirmed-unused cold-table indexes. Fully idempotent. PR open. Report: projects/polymarket/crusaderbot/reports/forge/db-perf-indexes.md.
-- WARP/R00T-preset-activate: Safe Close + Flip Hunter activation — PR open, SENTINEL APPROVED 91/100, 0 critical. 1767 tests pass. Cleared to merge on CI green. Report: reports/sentinel/preset-activate.md.
+- WARP/R00T-mock-clob-parity: MockClobClient get_usdc_balance() stub + SENTINEL MAJOR live execution path audit (CONDITIONAL 84/100, 0 critical) + M1 fix (RISK_CONTROLS_VALIDATED + SECURITY_HARDENING_VALIDATED enforced in assert_live_guards + _passes_live_guards) + M2 fix (Kelly assert → raise ValueError). 1769 tests. PR #1369. Report: projects/polymarket/crusaderbot/reports/sentinel/live-execution-path.md.
+- 48h observation window started 2026-05-26 16:00 WIB — watch TooManyConnectionsError silence + paper trade activity. Ends 2026-05-28 16:00.
 - Production monitoring of late_entry_v3 on Fly (paper): FAV_PRICE_MAX=0.70 ceiling live. Watch 24-48h net PnL.
-- Pre-public checklist: Gate 3 (verify exit price correct on next natural TP/SL close), Gate 5 (48h profitability check). Both observation-only, no code changes.
 
 [NOT STARTED]
 - Apply migration 030 (job_runs metadata JSONB) to production before Fly.io deploy (trading-unblock MERGED PR #1065, live on main).
@@ -66,18 +65,13 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs merged + d
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD: merge PR #1359 (WARP/R00T-preset-activate) on CI green + run `fly deploy --remote-only` to activate Safe Close + Flip Hunter. SENTINEL APPROVED 91/100, 0 critical. Report: projects/polymarket/crusaderbot/reports/sentinel/preset-activate.md.
-- WARP🔹CMD: activate Heisenberg by running `fly secrets set HEISENBERG_API_TOKEN=<token> -a crusaderbot` — code already shipped (services/heisenberg.py, market_sync job, scanner live path, leaderboard H-Score sync); token is the only gate.
-- Gate 3: verify exit price on next natural TP/SL close post-deploy (observation only).
-- Gate 5: 48h profitability check on late_entry_v3 under FAV_PRICE_MAX=0.70 (observation only).
-- Continue closed-beta runtime observation; watch Sentry for new errors post-deploy.
-- DONE (PR #1354): WebTrader bundle splitting — React.lazy + manualChunks vendor-react/vendor-charts. Initial load ~150-200 kB.
-- DONE (PR #1354): crusaderbot-logo.png — path fixed to BASE_URL prefix; dimensions corrected 3:2 landscape in TopBar (40x27) + AuthPage (120x80).
-- DONE (PR #1355): TS6133 build error fixed — unused RecentActivityCard removed from DashboardPage.tsx.
-- IN LANE: DesktopSidebar brand header + migration 055 formalized.
+- WARP🔹CMD: review + merge PR #1369 (WARP/R00T-mock-clob-parity) on CI green + run fly deploy. SENTINEL CONDITIONAL 84/100, 0 critical. All 5 activation guards now enforced in code.
+- After deploy: verify /admin live shows all 5 guards ✓ before activating ENABLE_LIVE_TRADING.
+- Pre-live activation sequence: set RISK_CONTROLS_VALIDATED=true + SECURITY_HARDENING_VALIDATED=true in fly secrets, then re-run /admin live to confirm readiness.
+- 48h observation window: ends 2026-05-28 16:00 WIB — confirm TooManyConnectionsError silent + paper PnL positive trend.
 
 [KNOWN ISSUES]
-- [ACTIVE] DB_POOL_MAX raised 4→10 (2026-05-25). Monitor if TooManyConnectionsError recurs — Fly Postgres free tier max_connections=25, pool 10 leaves 15 for other clients. If recurs: add PgBouncer or upgrade Fly Postgres plan.
+- [MONITORING] DB_POOL_MAX lowered 10→3 (PR #1366, 2026-05-26). Supabase Session Pooler active. 48h window to confirm TooManyConnectionsError silent in Sentry.
 - [ACTIVE] FLIP_STOP_PRICE lowered 0.48→0.10 (near-disabled) for close_sweep. Monitor if this causes positions to hold past resolution without closing — market_expired exit should catch it.
 - [RESOLVED — RLS, verified 2026-05-26] Row Level Security ENABLED on 42/43 public tables (migration 046 applied). 1 table remains RLS-disabled — tracked in NEXT PRIORITY.
 - [RESOLVED — LANE-3 2026-05-24, branch claude/fervent-hawking-yNP0Z] Edge-model bug #1 FIXED: abs(yes_p-0.5) removed from jobs/market_signal_scanner.py; replaced with max(|oneDayPriceChange|, |oneHourPriceChange|×1.5) momentum scoring + price range tightened to 0.15–0.85 to reject extreme longshots. Side follows momentum direction. Report: projects/polymarket/crusaderbot/reports/forge/edge-model-momentum.md. The 20 aggressive-user positions already in flight are unaffected (they resolve naturally ~Jun–Jul 2026); new signals after deploy will not enter extreme-longshot futures.

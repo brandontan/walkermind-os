@@ -155,6 +155,9 @@ class MockClobClient:
             if rec.get("market") == market or rec.get("tokenID") == market
         ]
 
+    async def get_usdc_balance(self) -> float:
+        return 0.0
+
     def record_fill(self, order_id: str, fill: dict) -> None:
         """Test helper — attach a fill payload onto an existing order."""
         order = self._orders.get(order_id)

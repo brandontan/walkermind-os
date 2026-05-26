@@ -161,6 +161,8 @@ def _passes_live_guards(ctx: GateContext, settings) -> bool:
         settings.ENABLE_LIVE_TRADING
         and settings.EXECUTION_PATH_VALIDATED
         and settings.CAPITAL_MODE_CONFIRMED
+        and settings.RISK_CONTROLS_VALIDATED
+        and settings.SECURITY_HARDENING_VALIDATED
         and ctx.role == "admin"
         and ctx.trading_mode == "live"
     )
@@ -373,8 +375,10 @@ async def evaluate(ctx: GateContext) -> GateResult:
         return GateResult(False, "market_inactive", 13)
     # Fractional Kelly enforcement (CLAUDE.md hard rule: a=0.25, full Kelly forbidden).
     # Global K.KELLY_FRACTION acts as the hard cap; per-profile kelly is clamped to it.
-    assert 0 < K.KELLY_FRACTION <= 0.5, \
-        f"KELLY_FRACTION {K.KELLY_FRACTION} out of safe range"
+    if not (0 < K.KELLY_FRACTION <= 0.5):
+        raise ValueError(
+            f"KELLY_FRACTION {K.KELLY_FRACTION} out of safe range (0, 0.5]"
+        )
     kelly = min(float(profile.get("kelly", K.KELLY_FRACTION)), K.KELLY_FRACTION)
     max_pos_pct = float(profile["max_pos_pct"])
     assert 0 < max_pos_pct < 1.0, \
