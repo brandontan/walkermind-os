@@ -437,41 +437,20 @@ async def text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Legacy /copytrade command (copy_targets table — unchanged from P3)
+# /copytrade command — redirects to the Copy Trade menu
 # ---------------------------------------------------------------------------
-
-
-_USAGE = (
-    "<b>/copytrade</b> commands:\n"
-    "<code>/copytrade add &lt;wallet_address&gt;</code>\n"
-    "<code>/copytrade remove &lt;wallet_address&gt;</code>\n"
-    "<code>/copytrade list</code>\n\n"
-    f"Max {MAX_COPY_TARGETS_PER_USER} active leaders per account."
-)
 
 
 async def copy_trade_command(
     update: Update, ctx: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    """Legacy /copytrade command dispatcher (copy_targets table)."""
+    """Redirect /copytrade to the Copy Trade menu (wizard path)."""
     if update.message is None:
         return
-    user, ok = await _resolve_user(update)
-    if not ok or user is None:
-        return
-    args = ctx.args or []
-    if not args:
-        await update.message.reply_text(_USAGE, parse_mode=ParseMode.HTML)
-        return
-    sub = args[0].lower()
-    if sub == "add":
-        await _legacy_add(update, user["id"], args[1:])
-    elif sub == "remove":
-        await _legacy_remove(update, user["id"], args[1:])
-    elif sub == "list":
-        await _legacy_list(update, user["id"])
-    else:
-        await update.message.reply_text(_USAGE, parse_mode=ParseMode.HTML)
+    await update.message.reply_text(
+        "Use the <b>🐋 Copy Trade</b> button in the main menu to manage copy wallets.",
+        parse_mode=ParseMode.HTML,
+    )
 
 
 # ---------------------------------------------------------------------------
