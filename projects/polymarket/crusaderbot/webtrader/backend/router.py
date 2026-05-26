@@ -10,9 +10,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
+from uuid import UUID
+
 from ...database import get_pool
+from ... import audit
 from ...domain.execution import router as exec_router
 from ...domain.ops import kill_switch
+from ...domain.positions import mark_force_close_intent_for_user
 from ...domain.strategy.strategies.late_entry_v3 import (
     resolve_per_trade_ceiling,
     suggested_trade_size,
@@ -28,6 +32,7 @@ from .schemas import (
     ChartPoint,
     ClosePositionResponse,
     CustomizeRequest,
+    EmergencyStopResponse,
     DashboardSummary,
     KillSwitchStatus,
     LeaderboardEntry,
@@ -1103,6 +1108,37 @@ async def web_kill(user: _CurrentUser):
         log.error("web kill switch failed: %s", exc)
         raise HTTPException(status_code=500, detail="kill switch failed")
     return {"ok": True, "kill_switch_active": True}
+
+
+@router.post("/emergency-stop", response_model=EmergencyStopResponse)
+async def web_emergency_stop(user: _CurrentUser) -> EmergencyStopResponse:
+    """Halt trading and force-close every open position for the user.
+
+    Two effects, mirroring the Telegram pause+close-all flow:
+      1. Activate the global kill switch (blocks all new trades).
+      2. Mark every open position with force_close_intent=TRUE — the exit
+         watcher closes them on its next tick at current market price,
+         regardless of profit or loss.
+    """
+    user_id = user["user_id"]
+    try:
+        await kill_switch.set_active(
+            action="pause",
+            actor_id=None,
+            reason=f"webtrader emergency stop — user {user_id}",
+        )
+        marked = await mark_force_close_intent_for_user(UUID(str(user_id)))
+    except Exception as exc:
+        log.error("web emergency stop failed user=%s: %s", user_id, exc)
+        raise HTTPException(status_code=500, detail="emergency stop failed")
+
+    await audit.write(
+        actor_role="user",
+        action="webtrader_emergency_stop_close_all",
+        user_id=UUID(str(user_id)),
+        payload={"positions_marked": marked},
+    )
+    return EmergencyStopResponse(positions_marked=marked, kill_switch_active=True)
 
 
 @router.get("/status", response_model=RuntimeStatus)

@@ -127,6 +127,11 @@ class ClosePositionResponse(BaseModel):
     status: str
 
 
+class EmergencyStopResponse(BaseModel):
+    positions_marked: int
+    kill_switch_active: bool
+
+
 # ── Auto-Trade ────────────────────────────────────────────────────────────────
 
 class AutoTradeState(BaseModel):

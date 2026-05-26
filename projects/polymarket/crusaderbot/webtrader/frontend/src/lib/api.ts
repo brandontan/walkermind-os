@@ -94,6 +94,8 @@ export function makeApi(token: string | null) {
     getAlerts: () => get<AlertItem[]>("/alerts"),
     getKillSwitch: () => get<{ active: boolean }>("/killswitch"),
     postKill: () => post<{ ok: boolean }>("/kill"),
+    postEmergencyStop: () =>
+      post<{ positions_marked: number; kill_switch_active: boolean }>("/emergency-stop"),
     listCopyTasks: () => get<CopyTask[]>("/copy-trade/tasks"),
     createCopyTask: (body: CopyTaskCreate) =>
       post<{ id: string; status: string }>("/copy-trade/tasks", body),
