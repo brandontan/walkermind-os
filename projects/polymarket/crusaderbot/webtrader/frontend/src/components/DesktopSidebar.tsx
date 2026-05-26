@@ -23,6 +23,29 @@ export function DesktopSidebar() {
         borderRight: "1px solid rgba(245,200,66,0.14)",
       }}
     >
+      {/* Brand header */}
+      <div className="px-4 pb-4 mb-2" style={{ borderBottom: "1px solid rgba(245,200,66,0.08)" }}>
+        <div className="flex items-center gap-2.5">
+          <img
+            src={`${import.meta.env.BASE_URL}crusaderbot-logo.png`}
+            alt="CrusaderBot"
+            width={32}
+            height={21}
+            className="flex-shrink-0 object-contain"
+            style={{ filter: "drop-shadow(0 0 8px rgba(245,200,66,0.4))" }}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+          <div className="leading-none">
+            <div className="font-display text-[13px] tracking-[1.5px] text-ink-1 uppercase">
+              CRUSADER<span className="text-gold">BOT</span>
+            </div>
+            <div className="font-mono text-[7px] tracking-[2px] text-ink-4 uppercase mt-[2px]">
+              TACTICAL · PAPER
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main nav section */}
       <div className="mb-5">
         <div
