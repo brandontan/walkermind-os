@@ -382,3 +382,4 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 2026-05-27 07:10 | WARP/webtrader-trade-strategy-label | WebTrader: surface positions.strategy_type on open/closed trade cards (API field + meta chip + Strategy detail row)
 2026-05-27 07:30 | WARP/trade-strategy-preset-names | WebTrader trade cards: map strategy_type → preset display name (late_entry_v3 → "Close Sweep", etc.) per owner request
 2026-05-26 23:04 | WARP/telegram-ux-v2 | Telegram MVP UI: HTML → MarkdownV2 (ui/tree.py + messages_mvp.py + _send.py); render_positions_empty() added; dead if-False removed
+2026-05-26 23:40 | WARP/telegram-legacy-markdownv2 | Legacy wallet + emergency screens HTML → MarkdownV2 (messages.py 10 fns + wallet.py + emergency.py); admin_withdrawal_item_text kept HTML (operator path)
