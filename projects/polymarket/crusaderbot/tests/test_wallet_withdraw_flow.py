@@ -59,7 +59,8 @@ def test_withdraw_confirm_text_truncates_address() -> None:
 
 def test_withdraw_submitted_text_auto() -> None:
     text = withdraw_submitted_text("30.00", "auto")
-    assert "Auto-approved" in text
+    # MarkdownV2 escapes the hyphen in "Auto-approved"
+    assert "Auto\\-approved" in text
     assert "30.00" in text
 
 

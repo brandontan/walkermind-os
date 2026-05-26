@@ -5,7 +5,6 @@ Withdraw state machine (stored in ConversationHandler or user_data):
 """
 from __future__ import annotations
 
-import html
 import logging
 import re
 from decimal import Decimal, InvalidOperation
@@ -43,6 +42,7 @@ from ..messages import (
     withdraw_submitted_text,
 )
 from ... import notifications
+from ..ui.tree import md_v2_escape as _md
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ async def _edit_or_reply(
     text: str,
     reply_markup=None,
 ) -> None:
-    kwargs: dict = {"parse_mode": ParseMode.HTML}
+    kwargs: dict = {"parse_mode": ParseMode.MARKDOWN_V2}
     if reply_markup:
         kwargs["reply_markup"] = reply_markup
     q = update.callback_query
@@ -185,8 +185,8 @@ async def _start_withdraw(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     if balance < MIN_WITHDRAWAL_USDC:
         await _edit_or_reply(
             update,
-            f"<b>Insufficient balance</b>\n\nMinimum withdrawal: ${MIN_WITHDRAWAL_USDC}\n"
-            f"Your balance: {balance:.2f} USDC",
+            f"*Insufficient balance*\n\nMinimum withdrawal: `${MIN_WITHDRAWAL_USDC}`\n"
+            f"Your balance: `{balance:.2f} USDC`",
             withdraw_cancel_kb(),
         )
         return
@@ -214,23 +214,23 @@ async def handle_withdraw_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -
             amount = Decimal(text.replace("$", "").replace(",", ""))
         except InvalidOperation:
             await update.message.reply_text(
-                "Invalid amount. Enter a number like <b>25.00</b>",
-                parse_mode=ParseMode.HTML,
+                "Invalid amount\\. Enter a number like `25.00`",
+                parse_mode=ParseMode.MARKDOWN_V2,
                 reply_markup=withdraw_cancel_kb(),
             )
             return
         balance = Decimal(wd["balance"])
         if amount < MIN_WITHDRAWAL_USDC:
             await update.message.reply_text(
-                f"Minimum withdrawal is ${MIN_WITHDRAWAL_USDC}",
-                parse_mode=ParseMode.HTML,
+                f"Minimum withdrawal is `${MIN_WITHDRAWAL_USDC}`",
+                parse_mode=ParseMode.MARKDOWN_V2,
                 reply_markup=withdraw_cancel_kb(),
             )
             return
         if amount > balance:
             await update.message.reply_text(
-                f"Insufficient balance. Available: ${balance:.2f}",
-                parse_mode=ParseMode.HTML,
+                f"Insufficient balance\\. Available: `${balance:.2f}`",
+                parse_mode=ParseMode.MARKDOWN_V2,
                 reply_markup=withdraw_cancel_kb(),
             )
             return
@@ -238,15 +238,15 @@ async def handle_withdraw_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -
         wd["step"] = "address"
         await update.message.reply_text(
             withdraw_ask_address_text(str(amount)),
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=withdraw_cancel_kb(),
         )
 
     elif wd["step"] == "address":
         if not _ETH_ADDR_RE.match(text):
             await update.message.reply_text(
-                "Invalid Polygon address. Must start with <code>0x</code> followed by 40 hex chars.",
-                parse_mode=ParseMode.HTML,
+                "Invalid Polygon address\\. Must start with `0x` followed by 40 hex chars\\.",
+                parse_mode=ParseMode.MARKDOWN_V2,
                 reply_markup=withdraw_cancel_kb(),
             )
             return
@@ -254,7 +254,7 @@ async def handle_withdraw_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -
         wd["step"] = "confirm"
         await update.message.reply_text(
             withdraw_confirm_text(wd["amount"], text),
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=withdraw_confirm_kb(wd["amount"], text),
         )
 
@@ -273,7 +273,7 @@ async def _process_withdraw_confirm(
     _, amount_str, address = parts
 
     if not _ETH_ADDR_RE.match(address):
-        await _edit_or_reply(update, "⚠️ Invalid address in confirmation.", withdraw_cancel_kb())
+        await _edit_or_reply(update, "⚠️ Invalid address in confirmation\\.", withdraw_cancel_kb())
         return
 
     result = await _get_user_and_wallet(update)
@@ -284,14 +284,14 @@ async def _process_withdraw_confirm(
     try:
         amount = Decimal(amount_str)
     except InvalidOperation:
-        await _edit_or_reply(update, "⚠️ Invalid amount.", withdraw_cancel_kb())
+        await _edit_or_reply(update, "⚠️ Invalid amount\\.", withdraw_cancel_kb())
         return
 
     balance = await get_balance(user["id"])
     if amount > balance:
         await _edit_or_reply(
             update,
-            f"⚠️ Insufficient balance.\nAvailable: ${balance:.2f}\nRequested: ${amount:.2f}",
+            f"⚠️ Insufficient balance\\.\nAvailable: `${balance:.2f}`\nRequested: `${amount:.2f}`",
             withdraw_cancel_kb(),
         )
         return
@@ -300,7 +300,7 @@ async def _process_withdraw_confirm(
         w = await create_withdrawal_request(user["id"], amount, address)
     except Exception as exc:
         logger.error("withdraw create failed: %s", exc)
-        await _edit_or_reply(update, f"❌ Withdrawal failed: {html.escape(str(exc))}", withdraw_cancel_kb())
+        await _edit_or_reply(update, f"❌ Withdrawal failed: {_md(str(exc))}", withdraw_cancel_kb())
         return
 
     # Clear draft

@@ -11,6 +11,8 @@ from __future__ import annotations
 import html
 from decimal import Decimal
 
+from .ui.tree import md_v2_escape as _md
+
 
 # ── Tactical Terminal palette ─────────────────────────────────────────────────
 # Unified emoji set — every new message MUST use these constants instead of
@@ -593,15 +595,16 @@ def close_confirm_text(market_question: str, pnl: float, pnl_pct: float) -> str:
 # ── Wallet Screen ──────────────────────────────────────────────────────────────
 
 def wallet_text(balance: Decimal | float, address: str) -> str:
+    addr = address[:6] + "..." + address[-4:] if len(address) > 10 else address
     return (
-        "<b>💰 Wallet</b>\n"
+        "💰 *Wallet*\n"
         + DIV + "\n\n"
-        "<blockquote>📋 Paper Mode — sandbox balance</blockquote>\n\n"
-        "<pre>"
+        "📋 _Paper Mode — sandbox balance_\n\n"
+        "```\n"
         f"Balance:   {_fmt(balance)}\n"
-        f"Address:   {html.escape(address[:6] + '...' + address[-4:] if len(address) > 10 else address)}"
-        "</pre>\n\n"
-        "Deposit USDC on Polygon to go live.\n"
+        f"Address:   {addr}\n"
+        "```\n"
+        "Deposit USDC on Polygon to go live\\.\n"
         "Min deposit: $50"
     )
 
@@ -609,77 +612,77 @@ def wallet_text(balance: Decimal | float, address: str) -> str:
 def wallet_deposit_text(address: str, balance: Decimal | float) -> str:
     short = address[:6] + "..." + address[-4:] if len(address) > 10 else address
     return (
-        "<b>📥 Deposit USDC</b>\n"
+        "📥 *Deposit USDC*\n"
         + DIV + "\n\n"
-        "<b>How to deposit:</b>\n"
-        "1. Send USDC on <b>Polygon (MATIC)</b> network only\n"
-        "2. Min deposit: <b>$50 USDC</b>\n"
-        "3. Allow ~2 min for 32-block confirmation\n\n"
-        "<b>Your deposit address:</b>\n"
-        f"<code>{html.escape(address)}</code>\n\n"
-        f"<i>Short: {html.escape(short)}</i>\n\n"
-        f"Current balance: <b>{_fmt(balance)}</b>\n\n"
-        "⚠️ <i>Do NOT send from exchange — use self-custody wallet.\n"
-        "Only Polygon network. Other chains = lost funds.</i>"
+        "*How to deposit:*\n"
+        "1\\. Send USDC on *Polygon \\(MATIC\\)* network only\n"
+        "2\\. Min deposit: *$50 USDC*\n"
+        "3\\. Allow ~2 min for 32\\-block confirmation\n\n"
+        "*Your deposit address:*\n"
+        f"`{address}`\n\n"
+        f"_Short: {_md(short)}_\n\n"
+        f"Current balance: `{_fmt(balance)}`\n\n"
+        "⚠️ _Do NOT send from exchange — use self\\-custody wallet\\._\n"
+        "_Only Polygon network\\. Other chains \\= lost funds\\._"
     )
 
 
 def withdraw_ask_amount_text(balance: Decimal | float) -> str:
     return (
-        "<b>📤 Withdraw USDC</b>\n"
+        "📤 *Withdraw USDC*\n"
         + DIV + "\n\n"
-        f"Available balance: <b>{_fmt(balance)}</b>\n\n"
-        "Enter the amount to withdraw (min $5):\n"
-        "<i>Example: 25.00</i>"
+        f"Available balance: `{_fmt(balance)}`\n\n"
+        "Enter the amount to withdraw \\(min $5\\):\n"
+        "_Example: 25\\.00_"
     )
 
 
 def withdraw_ask_address_text(amount: str) -> str:
     return (
-        "<b>📤 Withdraw — Step 2/3</b>\n"
+        "📤 *Withdraw — Step 2/3*\n"
         + DIV + "\n\n"
-        f"Amount: <b>${html.escape(amount)} USDC</b>\n\n"
+        f"Amount: `${amount} USDC`\n\n"
         "Enter your Polygon wallet address:\n"
-        "<i>Example: 0xAbCd...1234</i>"
+        "_Example: 0xAbCd\\.\\.\\.1234_"
     )
 
 
 def withdraw_confirm_text(amount: str, address: str) -> str:
     short = address[:6] + "..." + address[-4:] if len(address) > 10 else address
     return (
-        "<b>📤 Confirm Withdrawal</b>\n"
+        "📤 *Confirm Withdrawal*\n"
         + DIV + "\n\n"
-        f"Amount:  <b>${html.escape(amount)} USDC</b>\n"
-        f"To:      <code>{html.escape(address)}</code>\n"
-        f"         <i>({html.escape(short)})</i>\n\n"
-        "<blockquote>📋 Paper mode — no on-chain transfer yet.\n"
-        "Funds will be debited from your paper balance.\n"
-        "Admin approval required.</blockquote>"
+        f"Amount:  `${amount} USDC`\n"
+        f"To:      `{address}`\n"
+        f"         _\\({_md(short)}\\)_\n\n"
+        "📋 _Paper mode — no on\\-chain transfer yet\\._\n"
+        "_Funds will be debited from your paper balance\\._\n"
+        "_Admin approval required\\._"
     )
 
 
 def withdraw_submitted_text(amount: str, mode: str) -> str:
     if mode == "auto":
-        approval_line = "✅ Auto-approved — balance debited."
+        approval_line = "✅ Auto\\-approved — balance debited\\."
     else:
-        approval_line = "⏳ Pending admin approval."
+        approval_line = "⏳ Pending admin approval\\."
     return (
-        "<b>📤 Withdrawal Submitted</b>\n"
+        "📤 *Withdrawal Submitted*\n"
         + DIV + "\n\n"
-        f"Amount: <b>${html.escape(amount)} USDC</b>\n"
+        f"Amount: `${amount} USDC`\n"
         f"{approval_line}\n\n"
-        "You will be notified once processed."
+        "You will be notified once processed\\."
     )
 
 
 def withdraw_history_text(withdrawals: list[dict]) -> str:
     if not withdrawals:
         return (
-            "<b>📜 Withdrawal History</b>\n"
+            "📜 *Withdrawal History*\n"
             + DIV + "\n\n"
-            "<i>No withdrawals yet.</i>"
+            "_No withdrawals yet\\._"
         )
-    lines = ["<b>📜 Withdrawal History</b>", DIV, ""]
+    lines = ["📜 *Withdrawal History*", DIV, ""]
     status_icons = {
         "pending": "⏳", "approved": "✅", "rejected": "❌",
         "processing": "🔄", "completed": "✅", "failed": "❌",
@@ -689,8 +692,8 @@ def withdraw_history_text(withdrawals: list[dict]) -> str:
         ts = w["created_at"].strftime("%m-%d %H:%M") if w.get("created_at") else "—"
         short_addr = str(w["destination_address"])[:6] + "…" + str(w["destination_address"])[-4:]
         lines.append(
-            f"{icon} <b>${w['amount_usdc']:.2f}</b> → "
-            f"<code>{html.escape(short_addr)}</code> · {ts}"
+            f"{icon} `${w['amount_usdc']:.2f}` → "
+            f"`{short_addr}` · {_md(ts)}"
         )
     return "\n".join(lines)
 
@@ -713,9 +716,9 @@ def admin_withdrawal_item_text(w: dict) -> str:
 # ── Emergency Menu ─────────────────────────────────────────────────────────────
 
 EMERGENCY_TEXT = (
-    "<b>🚨 Emergency Controls</b>\n"
+    "🚨 *Emergency Controls*\n"
     + DIV + "\n\n"
-    "⚠️ These actions take effect immediately."
+    "⚠️ These actions take effect immediately\\."
 )
 
 EMERGENCY_CONFIRM_TEXTS: dict[str, tuple[str, str]] = {
@@ -749,21 +752,21 @@ EMERGENCY_CONFIRM_TEXTS: dict[str, tuple[str, str]] = {
 def emergency_confirm_text(action: str) -> str:
     name, desc = EMERGENCY_CONFIRM_TEXTS.get(action, ("Unknown Action", ""))
     return (
-        f"<b>⚠️ Confirm: {html.escape(name)}?</b>\n\n"
-        f"{html.escape(desc)}"
+        f"*⚠️ Confirm: {_md(name)}?*\n\n"
+        f"{_md(desc)}"
     )
 
 
 def emergency_feedback_text(action: str) -> str:
     labels = {
-        "pause":             "✅ Auto-trade paused. No new trades will be entered.",
-        "pause_close":       "✅ Auto-trade paused and all positions queued for close.",
-        "lock":              "🔒 Account locked. Contact support to unlock.",
-        "stop_auto_trade":   "🛑 Auto-trading stopped. No new trades will be entered.",
-        "kill_all_positions":"💀 All positions queued for close.",
-        "lock_bot":          "🔒 Bot locked. All trading disabled. Contact support to unlock.",
+        "pause":             "✅ Auto\\-trade paused\\. No new trades will be entered\\.",
+        "pause_close":       "✅ Auto\\-trade paused and all positions queued for close\\.",
+        "lock":              "🔒 Account locked\\. Contact support to unlock\\.",
+        "stop_auto_trade":   "🛑 Auto\\-trading stopped\\. No new trades will be entered\\.",
+        "kill_all_positions":"💀 All positions queued for close\\.",
+        "lock_bot":          "🔒 Bot locked\\. All trading disabled\\. Contact support to unlock\\.",
     }
-    return labels.get(action, "✅ Action completed.")
+    return labels.get(action, "✅ Action completed\\.")
 
 
 def emergency_system_status_text(
@@ -778,12 +781,12 @@ def emergency_system_status_text(
 ) -> str:
     auto_label = "ON" if (auto_on and not paused and not locked) else "OFF"
     return (
-        "<b>ℹ️ System Status</b>\n"
+        "ℹ️ *System Status*\n"
         + DIV + "\n"
-        f"{auto_icon} Auto-Trade: <b>{auto_label}</b>"
-        + (" (paused)" if paused and not locked else "")
+        f"{auto_icon} Auto\\-Trade: *{auto_label}*"
+        + (" \\(paused\\)" if paused and not locked else "")
         + "\n"
-        f"{lock_icon} Account: <b>{'LOCKED' if locked else 'ACTIVE'}</b>\n"
-        f"📊 Open Positions: <b>{open_positions}</b>\n"
-        f"🐋 Active Copy Tasks: <b>{copy_active}</b>"
+        f"{lock_icon} Account: *{'LOCKED' if locked else 'ACTIVE'}*\n"
+        f"📊 Open Positions: *{open_positions}*\n"
+        f"🐋 Active Copy Tasks: *{copy_active}*"
     )
