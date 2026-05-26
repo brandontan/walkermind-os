@@ -54,12 +54,14 @@ async def execute(
                 """
                 INSERT INTO positions (user_id, market_id, order_id, side,
                                        size_usdc, entry_price, current_price,
-                                       tp_pct, sl_pct, mode, status, strategy_type)
-                VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,'paper','open',$9)
+                                       tp_pct, sl_pct, mode, status, strategy_type,
+                                       market_question)
+                VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,'paper','open',$9,$10)
                 RETURNING id
                 """,
                 user_id, market_id, order_id, side,
                 size_usdc, price, tp_pct, sl_pct, strategy_type,
+                market_question,
             )
             position_id = pos_row["id"]
             await ledger.debit_in_conn(

@@ -53,7 +53,11 @@ const COMING_SOON_PRESETS = [
 const CRYPTO_SHORT_PRESETS: readonly string[] = ["close_sweep", "safe_close", "flip_hunter"];
 const TIMEFRAMES = ["5m", "15m"] as const;
 type Timeframe = (typeof TIMEFRAMES)[number];
-const CRYPTO_ASSETS = ["BTC", "ETH", "SOL", "BNB"] as const;
+const CRYPTO_ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "HYPE"] as const;
+// Default active selection for a fresh crypto-short preset: BTC only. The other
+// assets are opt-in — their candle books are thinner, so leaving them off by
+// default avoids "selected but never fills" on the low-liquidity tickers.
+const CRYPTO_ASSETS_DEFAULT: readonly string[] = ["BTC"];
 
 // ── Section B: Risk Profiles ──────────────────────────────────────────────────
 
@@ -100,7 +104,7 @@ export function AutoTradePage() {
   const [savingFilters, setSavingFilters]     = useState(false);
   const [filterSaved, setFilterSaved]         = useState(false);
   // Crypto-short preset config (assets shown inline inside the active card)
-  const [selectedAssets, setSelectedAssets]   = useState<string[]>([...CRYPTO_ASSETS]);
+  const [selectedAssets, setSelectedAssets]   = useState<string[]>([...CRYPTO_ASSETS_DEFAULT]);
 
   const load = useCallback(async () => {
     const [autotradeResult, dashResult] = await Promise.allSettled([
@@ -122,7 +126,7 @@ export function AutoTradePage() {
     if (s.min_volume_24h != null) setFilterVolume(String(s.min_volume_24h));
     if (s.slippage_tolerance_pct != null) setFilterSlippage(String(Math.round(s.slippage_tolerance_pct * 100)));
     if (s.selected_assets && s.selected_assets.length > 0) setSelectedAssets(s.selected_assets);
-    else setSelectedAssets([...CRYPTO_ASSETS]);
+    else setSelectedAssets([...CRYPTO_ASSETS_DEFAULT]);
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
@@ -149,7 +153,7 @@ export function AutoTradePage() {
     if (CRYPTO_SHORT_PRESETS.includes(key)) {
       // Crypto-short presets carry a timeframe + asset selection.
       const tf = (state?.selected_timeframe as Timeframe) ?? "5m";
-      const assets = selectedAssets.length > 0 ? selectedAssets : [...CRYPTO_ASSETS];
+      const assets = selectedAssets.length > 0 ? selectedAssets : [...CRYPTO_ASSETS_DEFAULT];
       await api.activatePreset(key, tf, assets);
     } else {
       await api.activatePreset(key);
@@ -159,7 +163,7 @@ export function AutoTradePage() {
 
   async function handleSelectTimeframe(tf: Timeframe) {
     if (!state?.active_preset) return;
-    const assets = selectedAssets.length > 0 ? selectedAssets : [...CRYPTO_ASSETS];
+    const assets = selectedAssets.length > 0 ? selectedAssets : [...CRYPTO_ASSETS_DEFAULT];
     await api.activatePreset(state.active_preset, tf, assets);
     await load();
   }

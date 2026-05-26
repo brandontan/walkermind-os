@@ -1,4 +1,4 @@
-Last Updated : 2026-05-26 09:02
+Last Updated : 2026-05-26 16:40
 Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). late_entry_v3 close_sweep trading BTC/ETH/SOL/BNB 5m/15m candles. All previously-open PRs are MERGED -- 0 open PRs in the repo (verified via GitHub). late_entry_v3 confirmed FILLING: 670 closed trades, +$515 USDC paper PnL, 0 trades under 10s (the 5-second exit_watcher _past_end bug is confirmed gone via PR #1344 revert; avg hold matches the design -- ~29s TP/SL, longer for resolution_win). Direction win-rate 46% (260 tp_hit / 300 sl_hit all-time); overall PnL positive only because market_expired exits add +$477 over 78 trades -- strategy edge needs monitoring before public scale. RLS confirmed ENABLED on 42/43 public tables. Guards untouched, ENABLE_LIVE_TRADING=false, paper-only.
 
 - WARP-57 (issue #1260): SENTINEL re-audited — APPROVED (Round 2 Score 86/100, 0 critical). PR #1261 / WARP/warp57-telegram-ux-mvp at SHA aa4fe24c55e8. Round-1 CRITICAL-1 (copy_targets schema mismatch) RESOLVED — `bot/handlers/mvp/copy_wallet.py` SELECT/INSERT/UPDATE now use canonical columns (`target_wallet_address`, `status='active'/'inactive'`, `scale_factor`) per mig 009. Round-1 MEDIUM-1 (`wallets.public_address` → `deposit_address` in onboarding.py:38) also RESOLVED. NEW MEDIUM-4 (post-merge follow-up): MVP writes to `copy_targets` but production scanner `services/copy_trade/monitor.py:80` reads `copy_trade_tasks` via `domain/copy_trade/repository.py:list_active_tasks` — end-to-end mirror not yet active until a follow-up lane swaps the MVP table to `copy_trade_tasks`; legacy `/copytrade` 8-step wizard remains the only path that produces mirrored trades. Round-1 MEDIUM-2 (auto:start engine bootstrap) + MEDIUM-3 (legacy `/settings` sub-route regression) P2-deferred per WARP🔹CMD direction. Activation guards untouched (Risk 3 PASS), no manual trade buttons (Risk 2 PASS), paper-mode default preserved (Risk 6 PASS). Report: projects/polymarket/crusaderbot/reports/sentinel/warp57-telegram-ux-mvp.md.
@@ -48,6 +48,7 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). late_entry_v3 
 
 [IN PROGRESS]
 - Production monitoring of late_entry_v3 on Fly (paper): each candle batch, verify TP/SL/market_expired/resolution exits close correctly and watch the direction win-rate (currently 46%, net PnL positive via market_expired). All code lanes from the 2026-05-24/25 sessions are MERGED and 0 PRs remain open in the repo -- per-lane history is in CHANGELOG.md.
+- Close Sweep asset expansion (branch claude/zealous-brahmagupta-LZaZV): added HYPE/XRP/DOGE as opt-in crypto-short assets (all 7 have live Polymarket candle markets), default active selection switched to BTC only; thinner-book coins are opt-in. STANDARD, pending WARP🔹CMD review + deploy. Report: reports/forge/close-sweep-asset-options.md.
 
 [NOT STARTED]
 - Apply migration 030 (job_runs metadata JSONB) to production before Fly.io deploy (trading-unblock MERGED PR #1065, live on main).
@@ -68,6 +69,8 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). late_entry_v3 
 - Complete the Production checklist (WORKTODO P2 final unchecked item) before public launch.
 - 1 of 43 public tables still has RLS disabled (42 enabled) -- identify the table and enable RLS if it holds user data.
 - Continue closed-beta runtime observation; watch Sentry for new errors after the 2026-05-25 deploys (PR #1340/#1342/#1343/#1344).
+- "Only BTC/ETH open" report (2026-05-26) — diagnosed NOT a bug: per-user audit shows every late_entry_v3 user trades all four majors (e.g. user 7e6fbd20 = BTC 101 / ETH 84 / SOL 68 / BNB 9); SOL ~26% of fills, BNB ~3% (thin candle books). The live open-positions view only shows the current candle window, so at any instant a user may see only BTC/ETH. No fix needed; BNB starvation is liquidity, not logic.
+- FIXED (claude/zealous-brahmagupta-LZaZV): positions.market_question now persisted at open time (paper + live executors) + COALESCE(m.question, p.market_question, …) fallback in WebTrader position read queries. Makes Port/Activity/closed-position labels durable against markets-table pruning of ephemeral candle markets. Historical rows stay NULL but still label via the live markets JOIN.
 
 [KNOWN ISSUES]
 - [ACTIVE] DB_POOL_MAX raised 4→10 (2026-05-25). Monitor if TooManyConnectionsError recurs — Fly Postgres free tier max_connections=25, pool 10 leaves 15 for other clients. If recurs: add PgBouncer or upgrade Fly Postgres plan.
