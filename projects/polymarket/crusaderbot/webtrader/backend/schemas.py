@@ -153,6 +153,11 @@ class AutoTradeState(BaseModel):
     max_per_trade_mode: str = "auto"
     max_per_trade_usdc: Optional[float] = None
     max_per_trade_pct: Optional[float] = None
+    # Daily loss + drawdown user overrides (stricter-only; system floors apply).
+    # daily_loss_override: negative $, e.g. -300 means halt when daily PnL <= -$300.
+    # max_drawdown_pct: 0–8%, e.g. 0.05 = halt at 5% drawdown (stricter than 8% system).
+    daily_loss_override: Optional[float] = None
+    max_drawdown_pct: Optional[float] = None
 
 
 class AutoTradeToggleRequest(BaseModel):
@@ -175,6 +180,8 @@ class CustomizeRequest(BaseModel):
     max_per_trade_mode: Optional[str] = None   # auto | fixed | pct
     max_per_trade_usdc: Optional[float] = None
     max_per_trade_pct: Optional[float] = None
+    daily_loss_override: Optional[float] = None   # negative $ cap, e.g. -300
+    max_drawdown_pct: Optional[float] = None      # 0 < x <= 0.08
 
 
 class RiskProfileRequest(BaseModel):

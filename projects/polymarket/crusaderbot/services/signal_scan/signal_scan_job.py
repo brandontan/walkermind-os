@@ -223,6 +223,7 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 s.tp_pct,
                 s.sl_pct,
                 s.daily_loss_override,
+                s.max_drawdown_pct,
                 us.weight                AS capital_allocation_pct,
                 COALESCE(urp.profile_name, s.risk_profile, 'balanced') AS resolved_profile,
                 s.active_preset,
@@ -725,6 +726,11 @@ def _build_trade_signal(
             else None
         ),
         user_min_liquidity=float(row.get("min_liquidity_threshold") or 0.0),
+        max_drawdown_pct=(
+            float(row["max_drawdown_pct"])
+            if row.get("max_drawdown_pct") is not None
+            else None
+        ),
     )
 
 

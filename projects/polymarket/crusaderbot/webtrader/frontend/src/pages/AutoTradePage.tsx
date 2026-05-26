@@ -478,6 +478,8 @@ export function AutoTradePage() {
           </p>
         )}
         <MaxPerTradeControl state={state} api={api} onSaved={() => void load()} />
+        <DailyLossControl state={state} api={api} onSaved={() => void load()} />
+        <MaxDrawdownControl state={state} api={api} onSaved={() => void load()} />
 
 
         {/* 3 preset cards — equal width row */}
@@ -794,6 +796,178 @@ function MaxPerTradeControl({ state, api, onSaved }: {
       >
         {saved ? "Saved ✓" : saving ? "Saving…" : "Save Max Per Trade"}
       </button>
+    </div>
+  );
+}
+
+
+// ── DailyLossControl ──────────────────────────────────────────────────────────
+// Exposes user_settings.daily_loss_override. The effective cap is the most
+// restrictive of: system -$2000, profile default, and user override.
+function DailyLossControl({ state, api, onSaved }: {
+  state: AutoTradeState;
+  api: ReturnType<typeof makeApi>;
+  onSaved: () => void;
+}) {
+  const PROFILE_DEFAULTS: Record<string, number> = {
+    conservative: -200, balanced: -500, aggressive: -1000, custom: -500,
+  };
+  const profileFloor = PROFILE_DEFAULTS[state.risk_profile] ?? -500;
+  const current = state.daily_loss_override ?? null;
+  const [val, setVal] = useState(current != null ? String(Math.abs(current)) : "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    const raw = Number(val);
+    if (!val || isNaN(raw) || raw <= 0) return;
+    const override = -Math.min(raw, 2000);  // always negative, bounded to -$2000
+    setSaving(true);
+    try {
+      await api.customizeStrategy({ daily_loss_override: override });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clear() {
+    setSaving(true);
+    try {
+      await api.customizeStrategy({ daily_loss_override: null });
+      setVal("");
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const effective = current != null
+    ? Math.max(profileFloor, current)   // most restrictive (less negative wins)
+    : profileFloor;
+
+  return (
+    <div className="mb-3 mx-0.5 p-2.5 rounded-lg border border-surface-3 bg-surface-1">
+      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-1">Daily Loss Limit</p>
+      <p className="text-[10px] text-ink-3 font-mono mb-2">
+        Halt trading when daily P&amp;L drops below this. Profile default: <span className="text-ink-1">${Math.abs(profileFloor)}</span>.
+        Effective: <span className="text-grn font-bold">${Math.abs(effective)}</span>
+        {current != null && current > profileFloor && (
+          <span className="text-ink-4"> (your override)</span>
+        )}
+      </p>
+      <div className="flex gap-2 mb-2">
+        <span className="flex items-center text-xs text-ink-3 font-mono">-$</span>
+        <input
+          type="number" inputMode="decimal" min={1} max={2000} value={val}
+          onChange={(e) => setVal(e.target.value)}
+          placeholder={`e.g. ${Math.abs(profileFloor)} (profile default)`}
+          className="flex-1 px-2 py-1.5 rounded-md bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono"
+        />
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={() => void save()}
+          disabled={saving || !val}
+          className="flex-1 py-1.5 rounded-md border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
+        >
+          {saved ? "Saved ✓" : saving ? "Saving…" : "Set Limit"}
+        </button>
+        {current != null && (
+          <button
+            onClick={() => void clear()}
+            disabled={saving}
+            className="px-3 py-1.5 rounded-md border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"
+          >
+            Reset
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+// ── MaxDrawdownControl ────────────────────────────────────────────────────────
+// Exposes user_settings.max_drawdown_pct (0, 0.08]. System 8% applies regardless;
+// this only lets users halt *earlier* (stricter drawdown fence).
+function MaxDrawdownControl({ state, api, onSaved }: {
+  state: AutoTradeState;
+  api: ReturnType<typeof makeApi>;
+  onSaved: () => void;
+}) {
+  const current = state.max_drawdown_pct ?? null;
+  const [val, setVal] = useState(current != null ? String(Math.round(current * 100)) : "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    const raw = Number(val);
+    if (!val || isNaN(raw) || raw <= 0 || raw > 8) return;
+    const pct = Math.min(raw / 100, 0.08);
+    setSaving(true);
+    try {
+      await api.customizeStrategy({ max_drawdown_pct: pct });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clear() {
+    setSaving(true);
+    try {
+      await api.customizeStrategy({ max_drawdown_pct: null });
+      setVal("");
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const effectivePct = current != null ? Math.min(current, 0.08) : 0.08;
+
+  return (
+    <div className="mb-3 mx-0.5 p-2.5 rounded-lg border border-surface-3 bg-surface-1">
+      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-1">Max Drawdown Halt</p>
+      <p className="text-[10px] text-ink-3 font-mono mb-2">
+        Auto-halt when account drawdown exceeds this. System max: <span className="text-ink-1">8%</span>.
+        Effective: <span className="text-grn font-bold">{(effectivePct * 100).toFixed(0)}%</span>
+        {current != null && current < 0.08 && (
+          <span className="text-ink-4"> (your override)</span>
+        )}
+      </p>
+      <div className="flex gap-2 mb-2">
+        <input
+          type="number" inputMode="decimal" min={1} max={8} step={1} value={val}
+          onChange={(e) => setVal(e.target.value)}
+          placeholder="% (1–8, system max 8%)"
+          className="flex-1 px-2 py-1.5 rounded-md bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono"
+        />
+        <span className="flex items-center text-xs text-ink-3 font-mono">%</span>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={() => void save()}
+          disabled={saving || !val}
+          className="flex-1 py-1.5 rounded-md border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
+        >
+          {saved ? "Saved ✓" : saving ? "Saving…" : "Set Drawdown Halt"}
+        </button>
+        {current != null && (
+          <button
+            onClick={() => void clear()}
+            disabled={saving}
+            className="px-3 py-1.5 rounded-md border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"
+          >
+            Reset
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -367,8 +367,8 @@ async def get_positions(
             side=r["side"],
             size_usdc=float(r["size_usdc"]),
             entry_price=float(r["entry_price"]),
-            current_price=float(r["current_price"]) if r["current_price"] else None,
-            pnl_usdc=float(r["pnl_usdc"]) if r["pnl_usdc"] else None,
+            current_price=float(r["current_price"]) if r["current_price"] is not None else None,
+            pnl_usdc=float(r["pnl_usdc"]) if r["pnl_usdc"] is not None else None,
             status=r["status"],
             mode=r["mode"],
             opened_at=r["opened_at"],
@@ -545,7 +545,8 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
             """SELECT risk_profile, capital_alloc_pct, tp_pct, sl_pct, active_preset,
                       category_filters, min_liquidity, max_resolution_days, min_volume_24h,
                       slippage_tolerance_pct, selected_timeframe, selected_assets,
-                      max_per_trade_mode, max_per_trade_usdc, max_per_trade_pct
+                      max_per_trade_mode, max_per_trade_usdc, max_per_trade_pct,
+                      daily_loss_override, max_drawdown_pct
                FROM user_settings WHERE user_id=$1::uuid""",
             user_id,
         )
@@ -584,6 +585,16 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         max_per_trade_mode=mpt_mode,
         max_per_trade_usdc=mpt_usdc,
         max_per_trade_pct=mpt_pct,
+        daily_loss_override=(
+            float(s_row["daily_loss_override"])
+            if s_row and s_row["daily_loss_override"] is not None
+            else None
+        ),
+        max_drawdown_pct=(
+            float(s_row["max_drawdown_pct"])
+            if s_row and s_row["max_drawdown_pct"] is not None
+            else None
+        ),
     )
 
 
@@ -757,6 +768,20 @@ async def customize_strategy(body: CustomizeRequest, user: _CurrentUser):
         _add("max_per_trade_mode", body.max_per_trade_mode)
     _add("max_per_trade_usdc", body.max_per_trade_usdc)
     _add("max_per_trade_pct", body.max_per_trade_pct)
+
+    # Daily loss override: must be negative and no looser than -$2000 system floor.
+    if body.daily_loss_override is not None:
+        if body.daily_loss_override >= 0:
+            raise HTTPException(status_code=400, detail="daily_loss_override must be negative (e.g. -300)")
+        if body.daily_loss_override < -2000:
+            raise HTTPException(status_code=400, detail="daily_loss_override cannot exceed system floor of -$2000")
+        _add("daily_loss_override", body.daily_loss_override)
+
+    # Max drawdown %: must be in (0, 8%]. Users can only make it stricter than 8%.
+    if body.max_drawdown_pct is not None:
+        if not (0 < body.max_drawdown_pct <= 0.08):
+            raise HTTPException(status_code=400, detail="max_drawdown_pct must be in (0, 0.08] (0%–8%)")
+        _add("max_drawdown_pct", body.max_drawdown_pct)
 
     if not updates:
         return {"updated": False}

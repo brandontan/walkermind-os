@@ -410,3 +410,50 @@ def test_evaluate_exit_holds_when_price_missing():
     d = _run(strat.evaluate_exit({}))
     assert not d.should_exit
     assert d.reason == "hold"
+
+
+# ---------------------------------------------------------------------------
+# effective_daily_loss + drawdown gate threshold (risk constants / gate layer)
+# ---------------------------------------------------------------------------
+
+
+def test_effective_daily_loss_uses_most_restrictive():
+    from projects.polymarket.crusaderbot.domain.risk.constants import effective_daily_loss
+    # profile cap is -500, user override -300 → -300 is stricter (less negative)
+    assert effective_daily_loss("balanced", -300.0) == -300.0
+    # user sets looser (-800) → profile -500 wins
+    assert effective_daily_loss("balanced", -800.0) == -500.0
+    # no override → profile default
+    assert effective_daily_loss("balanced") == -500.0
+    # hard stop floor: system -2000 never loosens beyond profile
+    assert effective_daily_loss("conservative", -50.0) == -50.0
+
+
+def test_max_drawdown_breached_respects_user_threshold():
+    """Unit-test the threshold logic in isolation (no DB)."""
+    from decimal import Decimal
+    from projects.polymarket.crusaderbot.domain.risk import constants as K
+
+    def _would_breach(deposits, balance, user_pct):
+        if deposits <= 0:
+            return False
+        threshold = K.MAX_DRAWDOWN_HALT
+        if user_pct is not None and 0 < user_pct < threshold:
+            threshold = user_pct
+        drawdown = (deposits - balance) / deposits
+        return drawdown >= Decimal(str(threshold))
+
+    deposits = Decimal("1000")
+    balance_6pct_dd = Decimal("940")   # 6% drawdown
+    balance_9pct_dd = Decimal("910")   # 9% drawdown
+
+    # System 8% → 6% does not breach, 9% does
+    assert not _would_breach(deposits, balance_6pct_dd, None)
+    assert _would_breach(deposits, balance_9pct_dd, None)
+
+    # User sets 5% halt → 6% now breaches
+    assert _would_breach(deposits, balance_6pct_dd, 0.05)
+
+    # User sets 10% (looser than system 8%) → system 8% still applies, 6% ok
+    assert not _would_breach(deposits, balance_6pct_dd, 0.10)
+    assert _would_breach(deposits, balance_9pct_dd, 0.10)

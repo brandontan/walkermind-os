@@ -96,6 +96,7 @@ class TradeSignal:
     sl_pct: Optional[float] = None
     daily_loss_override: Optional[float] = None
     user_min_liquidity: float = 0.0
+    max_drawdown_pct: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -289,4 +290,5 @@ class TradeEngine:
             daily_loss_override=signal.daily_loss_override,
             trading_mode=signal.trading_mode,
             user_min_liquidity=signal.user_min_liquidity,
+            max_drawdown_pct=signal.max_drawdown_pct,
         )

@@ -43,6 +43,9 @@ class GateContext:
     # When > 0, overrides the profile default in gate step 11.
     # Allows users to lower the floor for thin markets (e.g. candle markets).
     user_min_liquidity: float = 0.0
+    # User-configured drawdown halt threshold (0, 0.08]. System 8% floor applies
+    # regardless — this only lets users halt earlier (e.g. set 5% to stop at 5%).
+    max_drawdown_pct: float | None = None
 
 
 @dataclass
@@ -94,8 +97,13 @@ async def _open_exposure(user_id: UUID) -> Decimal:
         ))
 
 
-async def _max_drawdown_breached(user_id: UUID) -> bool:
-    """Drawdown vs initial deposits — halts user when MAX_DRAWDOWN_HALT crossed."""
+async def _max_drawdown_breached(user_id: UUID,
+                                  user_drawdown_pct: float | None = None) -> bool:
+    """Drawdown vs initial deposits — halts when threshold crossed.
+
+    threshold = min(MAX_DRAWDOWN_HALT=8%, user_drawdown_pct) so users can only
+    make the halt *stricter* (earlier), never weaker than the system floor.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         deposits = Decimal(await conn.fetchval(
@@ -109,8 +117,11 @@ async def _max_drawdown_breached(user_id: UUID) -> bool:
         ) or 0)
     if deposits <= 0:
         return False
+    threshold = K.MAX_DRAWDOWN_HALT
+    if user_drawdown_pct is not None and 0 < user_drawdown_pct < threshold:
+        threshold = user_drawdown_pct
     drawdown = (deposits - balance) / deposits
-    return drawdown >= Decimal(str(K.MAX_DRAWDOWN_HALT))
+    return drawdown >= Decimal(str(threshold))
 
 
 async def _idempotent_already_seen(idem_key: str) -> bool:
@@ -288,7 +299,7 @@ async def evaluate(ctx: GateContext) -> GateResult:
     await _log(ctx.user_id, ctx.market_id, 5, True, "ok")
 
     # 6. Max drawdown
-    if await _max_drawdown_breached(ctx.user_id):
+    if await _max_drawdown_breached(ctx.user_id, ctx.max_drawdown_pct):
         await _log(ctx.user_id, ctx.market_id, 6, False, "max_drawdown_halt")
         if ctx.trading_mode == "live":
             try:

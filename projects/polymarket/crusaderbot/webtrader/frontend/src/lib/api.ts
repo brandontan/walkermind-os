@@ -207,6 +207,8 @@ export interface AutoTradeState {
   max_per_trade_mode?: "auto" | "fixed" | "pct";
   max_per_trade_usdc?: number | null;
   max_per_trade_pct?: number | null;
+  daily_loss_override?: number | null;   // negative $, e.g. -300
+  max_drawdown_pct?: number | null;      // 0–0.08
 }
 
 export interface CustomizeParams {
@@ -219,6 +221,8 @@ export interface CustomizeParams {
   max_per_trade_mode?: "auto" | "fixed" | "pct";
   max_per_trade_usdc?: number | null;
   max_per_trade_pct?: number | null;
+  daily_loss_override?: number | null;   // negative $ value
+  max_drawdown_pct?: number | null;      // 0 < x <= 0.08
 }
 
 export interface RiskProfileParams {
