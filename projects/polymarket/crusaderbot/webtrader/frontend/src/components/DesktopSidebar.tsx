@@ -1,5 +1,8 @@
+import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSSEStatus } from "../lib/sse";
+import { useAuth } from "../lib/auth";
+import { makeApi } from "../lib/api";
 
 const MAIN_NAV = [
   { to: "/dashboard",  label: "Dashboard",  icon: "🏠" },
@@ -12,6 +15,21 @@ export function DesktopSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const sseConnected = useSSEStatus();
+  const { user } = useAuth();
+  const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
+  const [confirming, setConfirming] = useState(false);
+  const [stopping, setStopping] = useState(false);
+
+  async function handleEmergencyStop() {
+    setStopping(true);
+    try {
+      await api.postEmergencyStop();
+      navigate("/dashboard");
+    } finally {
+      setStopping(false);
+      setConfirming(false);
+    }
+  }
 
   const isActive = (to: string) => location.pathname === to || location.pathname.startsWith(to + "/");
 
@@ -117,14 +135,39 @@ export function DesktopSidebar() {
           <span className="text-[15px] w-5 text-center flex-shrink-0">⚙️</span>
           Config
         </button>
-        <button
-          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left font-sans text-[14px] font-semibold transition-all duration-150 border-l-2 border-transparent"
-          style={{ color: "var(--red, #FF2D55)" }}
-          onClick={() => navigate("/dashboard")}
-        >
-          <span className="text-[15px] w-5 text-center flex-shrink-0">🛑</span>
-          Emergency Stop
-        </button>
+        {!confirming ? (
+          <button
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left font-sans text-[14px] font-semibold transition-all duration-150 border-l-2 border-transparent hover:bg-[rgba(255,45,85,0.06)]"
+            style={{ color: "var(--red, #FF2D55)" }}
+            onClick={() => setConfirming(true)}
+          >
+            <span className="text-[15px] w-5 text-center flex-shrink-0">🛑</span>
+            Emergency Stop
+          </button>
+        ) : (
+          <div className="px-4 py-2.5">
+            <p className="font-mono text-[9px] text-ink-3 leading-tight mb-2">
+              Halt trading &amp; close ALL open positions at market — profit or loss.
+            </p>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setConfirming(false)}
+                disabled={stopping}
+                className="flex-1 py-1.5 rounded-[2px] border border-border-2 text-ink-3 font-mono text-[9px] font-bold tracking-[1px] uppercase hover:text-ink-2 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleEmergencyStop()}
+                disabled={stopping}
+                className="flex-1 py-1.5 rounded-[2px] font-mono text-[9px] font-bold tracking-[1px] uppercase text-white disabled:opacity-60 transition-all"
+                style={{ background: "var(--red, #FF2D55)" }}
+              >
+                {stopping ? "Stopping…" : "Stop All"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* System status card — pushed to bottom */}

@@ -1,5 +1,5 @@
-Last Updated : 2026-05-26 13:30
-Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs #1350/#1351/#1352/#1354/#1355 MERGED + deployed. Migration 054+055 applied. RLS 43/43. Bad tp_hit positions corrected (qwneer8 87 pos, Maver1ch69 32 pos). Trades flowing 722/24h. Guards untouched, ENABLE_LIVE_TRADING=false, paper-only. WebTrader bundle split + logo + sidebar brand delivered.
+Last Updated : 2026-05-26 14:10
+Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs #1350/#1351/#1352/#1354/#1355/#1356 MERGED + deployed. Migration 054+055 applied. RLS 43/43. Trades flowing 722/24h. Guards untouched, ENABLE_LIVE_TRADING=false, paper-only. WebTrader bundle split + logo + sidebar brand delivered. WebTrader Emergency Stop (kill switch + force-close all) built — MAJOR, pending SENTINEL.
 
 - WARP-57 (issue #1260): SENTINEL re-audited — APPROVED (Round 2 Score 86/100, 0 critical). PR #1261 / WARP/warp57-telegram-ux-mvp at SHA aa4fe24c55e8. Round-1 CRITICAL-1 (copy_targets schema mismatch) RESOLVED — `bot/handlers/mvp/copy_wallet.py` SELECT/INSERT/UPDATE now use canonical columns (`target_wallet_address`, `status='active'/'inactive'`, `scale_factor`) per mig 009. Round-1 MEDIUM-1 (`wallets.public_address` → `deposit_address` in onboarding.py:38) also RESOLVED. NEW MEDIUM-4 (post-merge follow-up): MVP writes to `copy_targets` but production scanner `services/copy_trade/monitor.py:80` reads `copy_trade_tasks` via `domain/copy_trade/repository.py:list_active_tasks` — end-to-end mirror not yet active until a follow-up lane swaps the MVP table to `copy_trade_tasks`; legacy `/copytrade` 8-step wizard remains the only path that produces mirrored trades. Round-1 MEDIUM-2 (auto:start engine bootstrap) + MEDIUM-3 (legacy `/settings` sub-route regression) P2-deferred per WARP🔹CMD direction. Activation guards untouched (Risk 3 PASS), no manual trade buttons (Risk 2 PASS), paper-mode default preserved (Risk 6 PASS). Report: projects/polymarket/crusaderbot/reports/sentinel/warp57-telegram-ux-mvp.md.
 - WARP-55 (issue #1256): MERGED (abd3b43dbe10) — RUNTIME_EVIDENCE.md: 7/7 P2 finish criteria proven. 🏁 CrusaderBot closed beta DONE. Guards LOCKED. STANDARD, evidence-only.
@@ -65,6 +65,7 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). PRs #1350/#135
 - Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
+- WARP•SENTINEL validation required for WebTrader Emergency Stop (kill switch + force-close all open positions). Source: projects/polymarket/crusaderbot/reports/forge/webtrader-emergency-stop.md. Tier: MAJOR.
 - WARP🔹CMD: activate Heisenberg by running `fly secrets set HEISENBERG_API_TOKEN=<token> -a crusaderbot` — code already shipped (services/heisenberg.py, market_sync job, scanner live path, leaderboard H-Score sync); token is the only gate.
 - Gate 3: verify exit price on next natural TP/SL close post-deploy (observation only).
 - Gate 5: 48h profitability check on late_entry_v3 under FAV_PRICE_MAX=0.70 (observation only).
