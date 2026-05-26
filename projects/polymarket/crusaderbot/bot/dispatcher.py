@@ -39,7 +39,7 @@ from .handlers.trades import (
     close_confirm_legacy_cb, history_cb, my_trades, show_trades,
     trade_detail_cb,
 )
-from .handlers.wallet import wallet_callback, wallet_root, wallet_root_cb
+from .handlers.wallet import handle_withdraw_text, wallet_callback, wallet_root, wallet_root_cb
 from .handlers.settings import (
     cap_set_callback, settings_text_input, sl_set_callback, tp_set_callback,
 )
@@ -159,6 +159,9 @@ async def _text_router(update, ctx) -> None:
     if await settings_text_input(update, ctx):
         return
     if await setup.text_input(update, ctx):
+        return
+    if ctx.user_data.get("_wd"):
+        await handle_withdraw_text(update, ctx)
         return
 
 
