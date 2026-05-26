@@ -478,32 +478,6 @@ function RecentActivityCarousel({ items }: { items: PositionItem[] }) {
   );
 }
 
-function RecentActivityCard({ p }: { p: PositionItem }) {
-  const pnl = p.pnl_usdc ?? 0;
-  const isPos = pnl > 0.005;
-  const isNeg = pnl < -0.005;
-  const pnlClass = isPos ? "text-grn" : isNeg ? "text-red" : "text-ink-3";
-  const stripe = isPos ? "var(--grn,#00FF9C)" : isNeg ? "var(--red,#FF2D55)" : "var(--ink-3,#455370)";
-  return (
-    <div className="relative flex-shrink-0 w-[130px] p-2 pl-3 rounded-lg border border-surface-3 bg-surface-1 overflow-hidden">
-      <span className="absolute left-0 top-0 bottom-0 w-0.5" style={{ background: stripe }} aria-hidden />
-      <p className="text-[8px] font-mono text-ink-4 truncate leading-tight mb-1">
-        {p.market_question ?? p.market_id}
-      </p>
-      <p className={`text-[12px] font-bold font-mono leading-none mb-1 ${pnlClass}`}>
-        {pnl >= 0 ? "+" : "−"}${Math.abs(pnl).toFixed(2)}
-      </p>
-      <div className="flex items-center justify-between gap-1">
-        <span className={`text-[8px] font-hud uppercase ${p.side === "yes" ? "text-grn" : "text-red"}`}>
-          {p.side.toUpperCase()}
-        </span>
-        <span className="text-[8px] font-mono text-ink-4">
-          {RECENT_EXIT_LABEL[p.exit_reason ?? ""] ?? "—"}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 function buildScannerLines(data: DashboardSummary, lastTick: number | null, lastSignals: number): TerminalLine[] {
   const tickLabel = lastTick
