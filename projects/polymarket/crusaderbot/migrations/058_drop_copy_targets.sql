@@ -30,4 +30,8 @@ WHERE COALESCE(ct.target_wallet_address, ct.wallet_address) IS NOT NULL
   )
 ON CONFLICT DO NOTHING;
 
+-- copy_trade_events has a FK to copy_targets (copy_target_id). Drop it first
+-- so the table drop does not fail with a dependency error. The column itself
+-- is retired with the legacy copy-trade path.
+ALTER TABLE copy_trade_events DROP CONSTRAINT IF EXISTS copy_trade_events_copy_target_id_fkey;
 DROP TABLE IF EXISTS copy_targets;
