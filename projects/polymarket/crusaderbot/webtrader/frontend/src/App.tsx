@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AlertCenter } from "./components/AlertCenter";
 import { BottomNav } from "./components/BottomNav";
@@ -7,13 +7,23 @@ import { AuthContext, useAuth, useAuthState } from "./lib/auth";
 import { SSEStatusContext, useSSE } from "./lib/sse";
 import { UiModeContext, useUiModeState } from "./lib/uiMode";
 import { makeApi, setUnauthorizedHandler, type AlertItem } from "./lib/api";
+// Critical path — keep eager
 import { AuthPage } from "./pages/AuthPage";
-import { AutoTradePage } from "./pages/AutoTradePage";
 import { DashboardPage } from "./pages/DashboardPage";
-import { DiscoverPage } from "./pages/DiscoverPage";
-import { PortfolioPage } from "./pages/PortfolioPage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { WalletPage } from "./pages/WalletPage";
+// Heavy pages — lazy-loaded on first navigation
+const AutoTradePage  = lazy(() => import("./pages/AutoTradePage").then(m => ({ default: m.AutoTradePage })));
+const DiscoverPage   = lazy(() => import("./pages/DiscoverPage").then(m => ({ default: m.DiscoverPage })));
+const PortfolioPage  = lazy(() => import("./pages/PortfolioPage").then(m => ({ default: m.PortfolioPage })));
+const SettingsPage   = lazy(() => import("./pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
+const WalletPage     = lazy(() => import("./pages/WalletPage").then(m => ({ default: m.WalletPage })));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[40vh]">
+      <span className="w-5 h-5 rounded-full border-2 border-ink-4 border-t-grn animate-spin" />
+    </div>
+  );
+}
 
 const LAST_SEEN_KEY = "alertCenter_lastSeen";
 
@@ -198,39 +208,41 @@ function AppShell() {
               : "max-w-mobile md:max-w-none",
           ].join(" ")}
         >
-          <Routes>
-            <Route path="/" element={<Navigate to={user ? "/dashboard" : "/auth"} replace />} />
-            <Route path="/auth" element={<AuthPage />} />
-            <Route
-              path="/dashboard"
-              element={user ? <DashboardPage /> : <Navigate to="/auth" replace />}
-            />
-            <Route
-              path="/autotrade"
-              element={user ? <AutoTradePage /> : <Navigate to="/auth" replace />}
-            />
-            <Route
-              path="/portfolio"
-              element={user ? <PortfolioPage /> : <Navigate to="/auth" replace />}
-            />
-            <Route
-              path="/wallet"
-              element={user ? <WalletPage /> : <Navigate to="/auth" replace />}
-            />
-            <Route
-              path="/copy-trade"
-              element={<Navigate to="/autotrade?tab=copy" replace />}
-            />
-            <Route
-              path="/discover"
-              element={user ? <DiscoverPage /> : <Navigate to="/auth" replace />}
-            />
-            <Route
-              path="/settings"
-              element={user ? <SettingsPage /> : <Navigate to="/auth" replace />}
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<Navigate to={user ? "/dashboard" : "/auth"} replace />} />
+              <Route path="/auth" element={<AuthPage />} />
+              <Route
+                path="/dashboard"
+                element={user ? <DashboardPage /> : <Navigate to="/auth" replace />}
+              />
+              <Route
+                path="/autotrade"
+                element={user ? <AutoTradePage /> : <Navigate to="/auth" replace />}
+              />
+              <Route
+                path="/portfolio"
+                element={user ? <PortfolioPage /> : <Navigate to="/auth" replace />}
+              />
+              <Route
+                path="/wallet"
+                element={user ? <WalletPage /> : <Navigate to="/auth" replace />}
+              />
+              <Route
+                path="/copy-trade"
+                element={<Navigate to="/autotrade?tab=copy" replace />}
+              />
+              <Route
+                path="/discover"
+                element={user ? <DiscoverPage /> : <Navigate to="/auth" replace />}
+              />
+              <Route
+                path="/settings"
+                element={user ? <SettingsPage /> : <Navigate to="/auth" replace />}
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
           {showChrome && <BottomNav />}
         </div>
       </div>

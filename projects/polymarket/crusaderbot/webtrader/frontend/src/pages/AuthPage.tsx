@@ -45,10 +45,10 @@ export function AuthPage() {
         {/* Brand */}
         <div className="mb-8">
           <img
-            src="/crusaderbot-logo.png"
+            src={`${import.meta.env.BASE_URL}crusaderbot-logo.png`}
             alt="CrusaderBot"
-            width={88}
-            height={100}
+            width={120}
+            height={80}
             style={{
               objectFit: "contain",
               filter: "drop-shadow(0 0 12px rgba(245,200,66,0.5))",

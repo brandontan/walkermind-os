@@ -56,10 +56,10 @@ export function TopBar({ tradingMode = "paper", notifCount: _notifCount, onBellC
       {/* Brand — left, never shrinks */}
       <div className="flex items-center gap-2.5 flex-shrink-0">
         <img
-          src="/crusaderbot-logo.png"
+          src={`${import.meta.env.BASE_URL}crusaderbot-logo.png`}
           alt="CrusaderBot"
-          width={44}
-          height={50}
+          width={40}
+          height={27}
           className="flex-shrink-0 object-contain"
           style={{ filter: "drop-shadow(0 0 10px rgba(245,200,66,0.45))" }}
           onError={(e) => {
