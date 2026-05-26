@@ -118,10 +118,11 @@ def test_preset_validation_rejects_position_over_cap():
 
 def test_picker_keyboard_has_two_col_grid_layout():
     kb = preset_picker()
-    # 1 visible preset → 1 preset row (single button) + 1 Back/Home nav row = 2 total
-    assert len(kb.inline_keyboard) == 2
-    assert len(kb.inline_keyboard[0]) == 1  # close_sweep alone
-    assert len(kb.inline_keyboard[1]) == 2  # nav row
+    # 3 visible presets → 2 preset rows (2+1 in 2-col grid) + 1 nav row = 3 total
+    assert len(kb.inline_keyboard) == 3
+    assert len(kb.inline_keyboard[0]) == 2  # close_sweep + safe_close
+    assert len(kb.inline_keyboard[1]) == 1  # flip_hunter alone
+    assert len(kb.inline_keyboard[2]) == 2  # nav row
 
 
 def test_picker_keyboard_recommended_marked_and_first():

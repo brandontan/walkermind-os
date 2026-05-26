@@ -206,10 +206,15 @@ class Settings(BaseSettings):
     PRESET_SAFE_CLOSE_WINDOW_SEC: float = 60.0
     PRESET_SAFE_CLOSE_MIN_ASK_DIFF: float = 0.08
     PRESET_SAFE_CLOSE_FAV_PRICE_MIN: float = 0.60
+    # Entry allowed only when seconds_left is between MIN_ENTRY_SEC and WINDOW_SEC.
+    # Safe Close 5m: elapsed 240–270s = 30–60s before close → min_entry_sec=30.
+    PRESET_SAFE_CLOSE_MIN_ENTRY_SEC: float = 30.0
 
     PRESET_FLIP_HUNTER_WINDOW_SEC: float = 140.0
     PRESET_FLIP_HUNTER_MIN_ASK_DIFF: float = 0.05
-    PRESET_FLIP_HUNTER_FAV_PRICE_MIN: float = 0.50
+    # Underdog (cheap) side price range: enter the 0.26–0.35 side expecting a flip.
+    PRESET_FLIP_HUNTER_FAV_PRICE_MIN: float = 0.26
+    PRESET_FLIP_HUNTER_FAV_PRICE_MAX: float = 0.36
     MARKET_SIGNAL_SCAN_INTERVAL: int = 60
     # --- Signal scanner thresholds (demo path edge_finder) ---
     # Market eligibility price range: excludes near-resolved markets and
