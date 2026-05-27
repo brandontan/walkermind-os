@@ -223,10 +223,12 @@ export function PortfolioPage() {
     (o) => !["filled", "cancelled", "failed"].includes(o.status),
   ).length;
 
+  const totalClosed = summary?.total_closed ?? closed.length;
+
   const tabs: FilterTab<Tab>[] = [
     { key: "open", label: "Open", count: open.length },
-    { key: "closed", label: "Closed", count: closed.length },
-    { key: "all", label: "All", count: open.length + closed.length },
+    { key: "closed", label: "Closed", count: totalClosed },
+    { key: "all", label: "All", count: open.length + totalClosed },
     { key: "analytics", label: "Analytics" },
     { key: "orders", label: "Orders", count: pendingOrdersCount || undefined, advanced: true },
   ];
@@ -336,7 +338,7 @@ export function PortfolioPage() {
         )}
 
         {tab === "closed" && (
-          <CollapsibleSection id="portfolio_closed_positions" label={`Closed Trades (${closed.length})`}>
+          <CollapsibleSection id="portfolio_closed_positions" label={`Closed Trades (${totalClosed})`}>
             {closed.length === 0 ? (
               <EmptyState
                 icon="📦"

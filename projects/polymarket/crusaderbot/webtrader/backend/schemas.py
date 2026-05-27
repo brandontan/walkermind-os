@@ -273,6 +273,7 @@ class PortfolioSummary(BaseModel):
     unrealized_pnl: float
     equity_usdc: float
     balance_usdc: float
+    total_closed: int = 0
 
 
 class ChartPoint(BaseModel):

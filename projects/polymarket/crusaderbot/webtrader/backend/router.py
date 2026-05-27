@@ -1254,6 +1254,12 @@ async def get_portfolio_summary(user: _CurrentUser) -> PortfolioSummary:
             "SELECT size_usdc, entry_price, current_price FROM positions WHERE user_id=$1::uuid AND status IN ('open','pending_settlement')",
             user_id,
         )
+        total_closed = int(
+            await conn.fetchval(
+                "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND status IN ('closed', 'expired', 'market_expired')",
+                user_id,
+            ) or 0
+        )
 
     balance = float(balance_row["balance_usdc"]) if balance_row else 0.0
     unrealized_pnl = _unrealized_pnl(open_rows)
@@ -1266,6 +1272,7 @@ async def get_portfolio_summary(user: _CurrentUser) -> PortfolioSummary:
         unrealized_pnl=unrealized_pnl,
         equity_usdc=equity,
         balance_usdc=balance,
+        total_closed=total_closed,
     )
 
 

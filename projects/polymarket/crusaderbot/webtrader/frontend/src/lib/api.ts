@@ -187,6 +187,7 @@ export interface PortfolioSummary {
   unrealized_pnl: number;
   equity_usdc: number;
   balance_usdc: number;
+  total_closed: number;
 }
 
 export interface ChartPoint {
