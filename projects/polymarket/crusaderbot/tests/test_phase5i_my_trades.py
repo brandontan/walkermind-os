@@ -212,7 +212,7 @@ def test_history_cb_page_0():
     assert replies
     text = replies[0]
     assert "Full History" in text
-    assert "page 1/" in text
+    assert "page `1/" in text
 
 
 def test_history_cb_page_1_forward():
@@ -227,7 +227,7 @@ def test_history_cb_page_1_forward():
         asyncio.run(mt.history_cb(update, ctx=None))
 
     text = replies[0]
-    assert "page 2/" in text
+    assert "page `2/" in text
 
 
 # ---------- Test 6: Full History pagination backward -----------------------
