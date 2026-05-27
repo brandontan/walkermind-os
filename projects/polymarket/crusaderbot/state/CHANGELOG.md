@@ -386,3 +386,5 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 2026-05-26 23:04 | WARP/telegram-ux-v2 | Telegram MVP UI: HTML → MarkdownV2 (ui/tree.py + messages_mvp.py + _send.py); render_positions_empty() added; dead if-False removed
 2026-05-26 23:40 | WARP/telegram-legacy-markdownv2 | Legacy wallet + emergency screens HTML → MarkdownV2 (messages.py 10 fns + wallet.py + emergency.py); admin_withdrawal_item_text kept HTML (operator path)
 2026-05-27 05:40 | WARP/ROOT/notification-strategy-labels | Fix 3 runtime bugs: Telegram strategy labels (late_entry_v3→Close Sweep); WebTrader OPEN tab includes pending_settlement; Dashboard today_trades always-0
+2026-05-27 15:40 | WARP/ROOT/bot-html-to-markdownv2 | H3 complete: all 26+ legacy bot/handlers/ ParseMode.HTML → MARKDOWN_V2; test assertions updated; PR #1386 merged
+2026-05-27 16:20 | WARP/ROOT/copy-trade-httpx-hardening | M-1: aiohttp→httpx in wallet_stats/wallet_360/leaderboard_sync; aiohttp dep removed; M-2: asyncio.timeout(30) guard on market_signal_scanner.get_markets

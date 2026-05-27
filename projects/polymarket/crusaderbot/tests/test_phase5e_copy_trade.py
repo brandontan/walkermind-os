@@ -8,7 +8,7 @@ Coverage:
   * Paste flow: text_input ignores non-awaiting, rejects invalid, accepts valid
   * Markdown escaping: task names with _, *, [ are safe
   * Wallet stats: _parse success, _unavailable, cache hit, fetch fallback on error
-  * Retry: _fetch_profile retries 3× on ClientError before returning fallback
+  * Retry: _fetch_profile retries 3× on httpx.ConnectError before returning fallback
   * Leaderboard: filter kb marks active, empty-list fallback text
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import aiohttp
+import httpx
 import pytest
 
 # ---------- Keyboard tests (pure, no async) ----------------------------------
@@ -303,45 +303,38 @@ def test_fetch_profile_retries_3_times_on_client_error():
     """_fetch_profile must retry up to 3 times before returning fallback."""
     addr = "0x" + "7" * 40
 
-    # mock_resp is the object returned by session.get(url) used as async ctx mgr
-    mock_resp = MagicMock()
-    mock_resp.__aenter__ = AsyncMock(
-        side_effect=aiohttp.ClientError("conn refused"),
-    )
-    mock_resp.__aexit__ = AsyncMock(return_value=False)
+    mock_client = MagicMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.get = AsyncMock(side_effect=httpx.ConnectError("conn refused"))
 
-    mock_session = MagicMock()
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock(return_value=False)
-    mock_session.get = MagicMock(return_value=mock_resp)
-
-    with patch("aiohttp.ClientSession", return_value=mock_session), \
-         patch("asyncio.sleep", new_callable=AsyncMock):
+    with patch(
+        "projects.polymarket.crusaderbot.services.copy_trade.wallet_stats.httpx.AsyncClient",
+        return_value=mock_client,
+    ), patch("asyncio.sleep", new_callable=AsyncMock):
         result = asyncio.run(ws_mod._fetch_profile(addr))
 
     assert result.available is False
-    assert mock_session.get.call_count == 4  # 1 initial + 3 retries
+    assert mock_client.get.call_count == 4  # 1 initial + 3 retries
 
 
 def test_fetch_profile_returns_fallback_on_non_retryable_error():
-    """Non-ClientError exceptions return fallback immediately (no retry)."""
+    """Non-HTTPError exceptions return fallback immediately (no retry)."""
     addr = "0x" + "6" * 40
 
-    async def bad_json(*a, **kw):
-        raise ValueError("bad json")
-
     mock_resp = MagicMock()
-    mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-    mock_resp.__aexit__ = AsyncMock(return_value=False)
-    mock_resp.status = 200
-    mock_resp.json = bad_json
+    mock_resp.status_code = 200
+    mock_resp.json = MagicMock(side_effect=ValueError("bad json"))
 
-    mock_session = MagicMock()
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock(return_value=False)
-    mock_session.get = MagicMock(return_value=mock_resp)
+    mock_client = MagicMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_client.get = AsyncMock(return_value=mock_resp)
 
-    with patch("aiohttp.ClientSession", return_value=mock_session):
+    with patch(
+        "projects.polymarket.crusaderbot.services.copy_trade.wallet_stats.httpx.AsyncClient",
+        return_value=mock_client,
+    ):
         result = asyncio.run(ws_mod._fetch_profile(addr))
 
     assert result.available is False
