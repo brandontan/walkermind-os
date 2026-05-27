@@ -391,3 +391,5 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 2026-05-27 16:30 | WARP/ROOT/copy-trade-httpx-hardening | PR #1387 merged — post-merge state sync
 2026-05-27 17:00 | WARP🔹CMD | Fly.io deploy confirmed ✅ — H3 (MarkdownV2) + M-1 (aiohttp→httpx) + M-2 (scanner stall guard) + migration 058 live in production
 2026-05-27 17:30 | WARP/ROOT/orders-badge-fix | WebTrader: ORDERS tab badge counts pending-only orders; visibilitychange refresh on Portfolio+Dashboard (mobile stale-data fix); PR #1390 merged
+2026-05-27 18:30 | WARP/ROOT/closed-count-fix | WebTrader CLOSED badge stuck at 20 fixed — PortfolioSummary.total_closed DB COUNT, router query, api.ts, PortfolioPage totalClosed; PR #1392 merged
+2026-05-27 18:45 | WARP/ROOT/deposit-modal-position | WebTrader: DepositModal + WithdrawModal centered vertically on mobile (items-end → items-center + max-h-[90vh]); PR #1394 merged
