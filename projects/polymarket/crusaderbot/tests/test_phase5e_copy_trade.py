@@ -167,9 +167,9 @@ def test_dashboard_with_tasks_shows_pause_button():
 
 
 def test_dashboard_renders_task_name_with_special_chars():
-    """Task names with _, *, [ render literally in HTML mode (not HTML-special)."""
+    """Task names with _, *, [ are MD2-escaped by _md() in MarkdownV2 mode."""
     replies, _ = _run_dashboard([_TASK_WITH_SPECIAL_CHARS])
-    assert "My_Trade*[test]" in replies[0]
+    assert "My\\_Trade\\*\\[test\\]" in replies[0]
 
 
 # ---------- Paste flow -------------------------------------------------------

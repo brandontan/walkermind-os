@@ -339,7 +339,7 @@ def test_show_preset_status_renders_running_card(monkeypatch):
     assert "Running" in text
     assert "$250.00" in text
     assert "$+12.50" in text
-    assert "2 open" in text
+    assert "`2` open" in text
     cbs = [b.callback_data for row in kws[0]["reply_markup"].inline_keyboard
            for b in row]
     assert "preset:pause" in cbs
