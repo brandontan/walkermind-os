@@ -209,12 +209,16 @@ export function PortfolioPage() {
     return combined;
   }, [open, closed]);
 
+  const pendingOrdersCount = orders.filter(
+    (o) => !["filled", "cancelled", "failed"].includes(o.status),
+  ).length;
+
   const tabs: FilterTab<Tab>[] = [
     { key: "open", label: "Open", count: open.length },
     { key: "closed", label: "Closed", count: closed.length },
     { key: "all", label: "All", count: open.length + closed.length },
     { key: "analytics", label: "Analytics" },
-    { key: "orders", label: "Orders", count: orders.length, advanced: true },
+    { key: "orders", label: "Orders", count: pendingOrdersCount || undefined, advanced: true },
   ];
 
   return (
