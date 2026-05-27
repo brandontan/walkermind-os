@@ -3,7 +3,6 @@ the ADMIN role. OPERATOR_CHAT_ID is infrastructure (alert routing + root
 admin), not a user-facing role."""
 from __future__ import annotations
 
-import html
 import logging
 import os
 import socket
@@ -37,6 +36,7 @@ from ...users import (
     set_auto_trade, set_onboarding_complete, set_role, update_settings,
 )
 from ..keyboards.admin import admin_menu, ops_dashboard_keyboard
+from ..ui.tree import md_v2_escape as _md
 
 logger = logging.getLogger(__name__)
 
@@ -64,16 +64,16 @@ async def _reject_silently(update: Update) -> None:
 _ROLE_MAP = {"USER": "FREE", "ADMIN": "ADMIN"}
 
 _ADMIN_HELP = (
-    "<b>🛠 Admin</b>\n\n"
-    "• Runtime Health — /admin status, /ops_dashboard, /health\n"
+    "*🛠 Admin*\n\n"
+    "• Runtime Health — /admin status, /ops\\_dashboard, /health\n"
     "• User Monitor — /admin users, /admin stats\n"
     "• Emergency Stop — /kill, /resume, /killswitch\n"
     "• Logs — /auditlog, /jobs\n"
-    "• Roles — /admin settier {user_id} {user|admin}\n"
-    "• Broadcast — /admin broadcast {message}\n"
+    "• Roles — /admin settier \\{user\\_id\\} \\{user\\|admin\\}\n"
+    "• Broadcast — /admin broadcast \\{message\\}\n"
     "• Live readiness — /admin live\n"
     "• Withdrawals — /admin withdrawals\n"
-    "• /resetonboard {telegram_user_id} — reset onboarding for testing"
+    "• /resetonboard \\{telegram\\_user\\_id\\} — reset onboarding for testing"
 )
 
 
@@ -118,7 +118,7 @@ async def admin_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             await _admin_withdrawals_text(update.message)
         else:
             await update.message.reply_text(
-                _ADMIN_HELP, parse_mode=ParseMode.HTML
+                _ADMIN_HELP, parse_mode=ParseMode.MARKDOWN_V2
             )
         return
 
@@ -126,34 +126,33 @@ async def admin_root(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         active = await is_kill_switch_active()
         ks_label = "🔴 ACTIVE" if active else "🟢 inactive"
         await update.message.reply_text(
-            f"<b>⚙️ Admin</b>\n\nKill switch: {ks_label}",
-            parse_mode=ParseMode.HTML,
+            f"*⚙️ Admin*\n\nKill switch: {ks_label}",
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=admin_menu(active),
         )
     else:
         await update.message.reply_text(
-            _ADMIN_HELP, parse_mode=ParseMode.HTML
+            _ADMIN_HELP, parse_mode=ParseMode.MARKDOWN_V2
         )
 
 
 async def _admin_users(message) -> None:
     rows = await list_all_user_tiers(limit=50)
     if not rows:
-        await message.reply_text("No users in user_tiers table yet.",
-                                 parse_mode=ParseMode.HTML)
+        await message.reply_text("No users in user\\_tiers table yet\\.", parse_mode=ParseMode.MARKDOWN_V2)
         return
-    lines = ["<b>Users + Tiers</b> (most recent first)\n"]
+    lines = ["*Users \\+ Tiers* \\(most recent first\\)\n"]
     for r in rows:
         ts = r["assigned_at"].strftime("%m-%d %H:%M") if r.get("assigned_at") else "—"
-        lines.append(f"<code>{r['user_id']}</code> — <b>{r['tier']}</b> (set {ts})")
-    await message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
+        lines.append(f"`{r['user_id']}` — *{r['tier']}* \\(set {ts}\\)")
+    await message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
 
 
 async def _admin_settier(message, args: list[str], actor_id: int) -> None:
     if len(args) < 2:
         await message.reply_text(
-            "Usage: <code>/admin settier {user_id} {user|admin}</code>",
-            parse_mode=ParseMode.HTML,
+            "Usage: `/admin settier {user_id} {user|admin}`",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
     raw_uid, raw_tier = args[0], args[1].upper()
@@ -161,15 +160,15 @@ async def _admin_settier(message, args: list[str], actor_id: int) -> None:
         target_uid = int(raw_uid)
     except ValueError:
         await message.reply_text(
-            f"Invalid user_id: <code>{html.escape(raw_uid)}</code>",
-            parse_mode=ParseMode.HTML,
+            f"Invalid user\\_id: `{raw_uid}`",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
     raw_tier = _ROLE_MAP.get(raw_tier, raw_tier)
     if raw_tier not in VALID_TIERS:
         await message.reply_text(
-            f"Invalid role <code>{html.escape(args[1])}</code>. Valid: user, admin",
-            parse_mode=ParseMode.HTML,
+            f"Invalid role `{args[1]}`\\. Valid: user, admin",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
     await set_user_tier(target_uid, raw_tier, assigned_by=actor_id)
@@ -181,8 +180,8 @@ async def _admin_settier(message, args: list[str], actor_id: int) -> None:
     )
     role_label = "admin" if raw_tier == "ADMIN" else "user"
     await message.reply_text(
-        f"✅ User <code>{target_uid}</code> set to <b>{role_label}</b>.",
-        parse_mode=ParseMode.HTML,
+        f"✅ User `{target_uid}` set to *{role_label}*\\.",
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
 
 
@@ -208,20 +207,20 @@ async def _admin_stats(message) -> None:
             "SELECT COUNT(*) FROM user_tiers WHERE tier='ADMIN'"
         ) or 0
     await message.reply_text(
-        "<b>📊 Admin Stats</b>\n\n"
+        "*📊 Admin Stats*\n\n"
         f"Total users: {total_users}\n"
         f"Roles — Users: {free_n + premium_n} · Admins: {admin_n}\n"
         f"Open positions: {open_positions}\n"
-        f"Paper PNL (all time): ${float(paper_pnl):+,.2f}",
-        parse_mode=ParseMode.HTML,
+        f"Paper PNL \\(all time\\): `${float(paper_pnl):+,.2f}`",
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
 
 
 async def _admin_broadcast(message, args: list[str], ctx) -> None:
     if not args:
         await message.reply_text(
-            "Usage: <code>/admin broadcast {message}</code>",
-            parse_mode=ParseMode.HTML,
+            "Usage: `/admin broadcast {message}`",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
     text = " ".join(args)
@@ -304,34 +303,34 @@ async def _admin_status_hud(message: Message) -> None:
 
     ks_label = "🔴 ACTIVE" if ks_active else "🟢 inactive"
     lines = [
-        "<b>🩺 Admin Status</b>",
+        "*🩺 Admin Status*",
         "",
         f"DB: {'✅' if db_ok else '❌'}  Cache: {'✅' if cache_ok else '❌'}",
         "",
-        f"Users: {total_users} total · {admin_n} admin · {auto_trade_n} auto-trade",
-        f"Pool: ${total_usdc:,.2f} USDC",
+        f"Users: {total_users} total · {admin_n} admin · {auto_trade_n} auto\\-trade",
+        f"Pool: `${total_usdc:,.2f}` USDC",
         f"Positions: {open_paper} paper · {open_live} live"
         + (f"  ⚠️ {stuck_open} stuck" if stuck_open else ""),
-        f"Paper PnL: ${paper_pnl:+,.2f}",
+        f"Paper PnL: `${paper_pnl:+,.2f}`",
         "",
         f"Kill switch: {ks_label}",
         "",
-        "<b>Guards:</b>",
-        f"  ENABLE_LIVE_TRADING={s.ENABLE_LIVE_TRADING}",
-        f"  EXECUTION_PATH_VALIDATED={s.EXECUTION_PATH_VALIDATED}",
-        f"  CAPITAL_MODE_CONFIRMED={s.CAPITAL_MODE_CONFIRMED}",
-        f"  AUTO_REDEEM_ENABLED={s.AUTO_REDEEM_ENABLED}",
+        "*Guards:*",
+        f"  `ENABLE_LIVE_TRADING={s.ENABLE_LIVE_TRADING}`",
+        f"  `EXECUTION_PATH_VALIDATED={s.EXECUTION_PATH_VALIDATED}`",
+        f"  `CAPITAL_MODE_CONFIRMED={s.CAPITAL_MODE_CONFIRMED}`",
+        f"  `AUTO_REDEEM_ENABLED={s.AUTO_REDEEM_ENABLED}`",
     ]
     if recent_jobs:
         lines.append("")
-        lines.append("<b>Recent jobs:</b>")
+        lines.append("*Recent jobs:*")
         for j in recent_jobs:
             status_icon = "✅" if j["status"] == "success" else "❌"
             duration = _format_duration_ms(j.get("started_at"), j.get("finished_at"))
             lines.append(
-                f"  {status_icon} <code>{html.escape(j['job_name'])}</code> · {duration}"
+                f"  {status_icon} `{j['job_name']}` · {duration}"
             )
-    await message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
+    await message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
 
 
 async def _live_readiness_hud(message) -> None:
@@ -369,24 +368,24 @@ async def _live_readiness_hud(message) -> None:
         ) or 0)
 
     lines = [
-        "<b>🔴 Live Trading Readiness</b>",
+        "*🔴 Live Trading Readiness*",
         "",
-        "<b>Activation Guards:</b>",
-        f"  {_g(s.ENABLE_LIVE_TRADING)} ENABLE_LIVE_TRADING",
-        f"  {_g(s.EXECUTION_PATH_VALIDATED)} EXECUTION_PATH_VALIDATED",
-        f"  {_g(s.CAPITAL_MODE_CONFIRMED)} CAPITAL_MODE_CONFIRMED",
-        f"  {_g(s.RISK_CONTROLS_VALIDATED)} RISK_CONTROLS_VALIDATED",
-        f"  {_g(s.SECURITY_HARDENING_VALIDATED)} SECURITY_HARDENING_VALIDATED",
-        f"  {_g(s.USE_REAL_CLOB)} USE_REAL_CLOB",
+        "*Activation Guards:*",
+        f"  {_g(s.ENABLE_LIVE_TRADING)} `ENABLE_LIVE_TRADING`",
+        f"  {_g(s.EXECUTION_PATH_VALIDATED)} `EXECUTION_PATH_VALIDATED`",
+        f"  {_g(s.CAPITAL_MODE_CONFIRMED)} `CAPITAL_MODE_CONFIRMED`",
+        f"  {_g(s.RISK_CONTROLS_VALIDATED)} `RISK_CONTROLS_VALIDATED`",
+        f"  {_g(s.SECURITY_HARDENING_VALIDATED)} `SECURITY_HARDENING_VALIDATED`",
+        f"  {_g(s.USE_REAL_CLOB)} `USE_REAL_CLOB`",
         "",
-        "<b>Credentials:</b>",
-        f"  {_g(has_private_key)} POLYMARKET_PRIVATE_KEY",
-        f"  {_g(has_api_key)} API credentials ({api_key_source})",
+        "*Credentials:*",
+        f"  {_g(has_private_key)} `POLYMARKET_PRIVATE_KEY`",
+        f"  {_g(has_api_key)} API credentials \\({_md(api_key_source)}\\)",
         "",
-        "<b>Wallet:</b>",
-        f"  Balance: {wallet_balance}",
+        "*Wallet:*",
+        f"  Balance: `{_md(wallet_balance)}`",
         "",
-        "<b>Users:</b>",
+        "*Users:*",
         f"  Admin role holders: {admin_count}",
     ]
 
@@ -397,32 +396,32 @@ async def _live_readiness_hud(message) -> None:
     ])
     all_creds = has_private_key and has_api_key
     if all_guards and all_creds and admin_count > 0:
-        lines += ["", "🟢 <b>READY — all gates clear.</b>"]
+        lines += ["", "🟢 *READY — all gates clear\\.*"]
     else:
         missing = []
         if not s.ENABLE_LIVE_TRADING:
-            missing.append("Set ENABLE_LIVE_TRADING=true")
+            missing.append("Set ENABLE\\_LIVE\\_TRADING=true")
         if not s.EXECUTION_PATH_VALIDATED:
-            missing.append("Set EXECUTION_PATH_VALIDATED=true")
+            missing.append("Set EXECUTION\\_PATH\\_VALIDATED=true")
         if not s.CAPITAL_MODE_CONFIRMED:
-            missing.append("Set CAPITAL_MODE_CONFIRMED=true")
+            missing.append("Set CAPITAL\\_MODE\\_CONFIRMED=true")
         if not s.RISK_CONTROLS_VALIDATED:
-            missing.append("Set RISK_CONTROLS_VALIDATED=true")
+            missing.append("Set RISK\\_CONTROLS\\_VALIDATED=true")
         if not s.SECURITY_HARDENING_VALIDATED:
-            missing.append("Set SECURITY_HARDENING_VALIDATED=true")
+            missing.append("Set SECURITY\\_HARDENING\\_VALIDATED=true")
         if not s.USE_REAL_CLOB:
-            missing.append("Set USE_REAL_CLOB=true")
+            missing.append("Set USE\\_REAL\\_CLOB=true")
         if not has_private_key:
-            missing.append("Set POLYMARKET_PRIVATE_KEY")
+            missing.append("Set POLYMARKET\\_PRIVATE\\_KEY")
         if not has_api_key:
-            missing.append("Set POLYMARKET_API_KEY or call ensure_clob_credentials()")
+            missing.append("Set POLYMARKET\\_API\\_KEY or call `ensure_clob_credentials\\(\\)`")
         if admin_count == 0:
             missing.append("Grant admin role to at least one user")
-        lines += ["", "🔴 <b>NOT READY:</b>"]
+        lines += ["", "🔴 *NOT READY:*"]
         for m in missing:
             lines.append(f"  • {m}")
 
-    await message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
+    await message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
 
 
 async def resetonboard_command(update: Update,
@@ -436,29 +435,30 @@ async def resetonboard_command(update: Update,
     args = ctx.args or []
     if not args:
         await update.message.reply_text(
-            "Usage: <code>/resetonboard {telegram_user_id}</code>",
-            parse_mode=ParseMode.HTML,
+            "Usage: `/resetonboard {telegram_user_id}`",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
     try:
         tg_uid = int(args[0])
     except ValueError:
         await update.message.reply_text(
-            "Invalid telegram_user_id — must be an integer."
+            "Invalid telegram\\_user\\_id — must be an integer\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
     user = await get_user_by_telegram_id(tg_uid)
     if user is None:
-        await update.message.reply_text("User not found.")
+        await update.message.reply_text("User not found\\.", parse_mode=ParseMode.MARKDOWN_V2)
         return
     await set_onboarding_complete(user["id"], False)
     await set_auto_trade(user["id"], False)
     await update_settings(user["id"], active_preset=None, strategy_types=[])
-    uname = html.escape(user.get("username") or str(tg_uid))
+    uname = _md(user.get("username") or str(tg_uid))
     await update.message.reply_text(
-        f"Onboarding reset for @{uname} (tg:{tg_uid}). "
-        "Next /start triggers full concierge flow.",
-        parse_mode=ParseMode.HTML,
+        f"Onboarding reset for @{uname} \\(tg:{tg_uid}\\)\\. "
+        "Next /start triggers full concierge flow\\.",
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
     await audit.write(
         actor_role="admin",
@@ -486,8 +486,8 @@ async def admin_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                           action="kill_switch_" + ("on" if not active else "off"))
         ks_now = "ON 🔴" if not active else "OFF 🟢"
         await q.message.reply_text(
-            f"Kill switch is now <b>{ks_now}</b>.",
-            parse_mode=ParseMode.HTML,
+            f"Kill switch is now *{ks_now}*\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
     elif sub == "status":
         await _send_status(q.message)
@@ -498,8 +498,8 @@ async def admin_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     elif sub == "resetonboard_prompt":
         await q.message.reply_text(
             "To reset onboarding, use:\n"
-            "<code>/resetonboard {telegram_user_id}</code>",
-            parse_mode=ParseMode.HTML,
+            "`/resetonboard {telegram_user_id}`",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
     elif sub == "withdrawals" or sub.startswith("withdrawals:"):
         await _admin_withdrawals_callback(update, q, sub)
@@ -512,11 +512,11 @@ async def _admin_withdrawals_text(message) -> None:
     pending = await get_pending_withdrawals(limit=50)
     mode = await get_approval_mode()
     text = (
-        "<b>💸 Withdrawal Management</b>\n\n"
-        f"Approval mode: <b>{'🤖 Auto' if mode == 'auto' else '👤 Manual'}</b>\n"
-        f"Pending requests: <b>{len(pending)}</b>"
+        "*💸 Withdrawal Management*\n\n"
+        f"Approval mode: *{'🤖 Auto' if mode == 'auto' else '👤 Manual'}*\n"
+        f"Pending requests: *{len(pending)}*"
     )
-    await message.reply_text(text, parse_mode=ParseMode.HTML,
+    await message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2,
                              reply_markup=admin_withdrawals_kb(len(pending)))
 
 
@@ -546,35 +546,35 @@ async def _admin_withdrawals_callback(update: Update, q, sub: str) -> None:
         pending = await get_pending_withdrawals(limit=50)
         mode = await get_approval_mode()
         text = (
-            "<b>💸 Withdrawal Management</b>\n\n"
-            f"Approval mode: <b>{'🤖 Auto' if mode == 'auto' else '👤 Manual'}</b>\n"
-            f"Pending requests: <b>{len(pending)}</b>"
+            "*💸 Withdrawal Management*\n\n"
+            f"Approval mode: *{'🤖 Auto' if mode == 'auto' else '👤 Manual'}*\n"
+            f"Pending requests: *{len(pending)}*"
         )
         try:
-            await msg.edit_text(text, parse_mode=ParseMode.HTML,
+            await msg.edit_text(text, parse_mode=ParseMode.MARKDOWN_V2,
                                 reply_markup=admin_withdrawals_kb(len(pending)))
         except BadRequest:
-            await msg.reply_text(text, parse_mode=ParseMode.HTML,
+            await msg.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2,
                                  reply_markup=admin_withdrawals_kb(len(pending)))
 
     elif action == "list":
         pending = await get_pending_withdrawals(limit=20)
         if not pending:
-            await msg.reply_text("<i>No pending withdrawal requests.</i>",
-                                 parse_mode=ParseMode.HTML)
+            await msg.reply_text("_No pending withdrawal requests\\._",
+                                 parse_mode=ParseMode.MARKDOWN_V2)
             return
         for w in pending:
             item_text = admin_withdrawal_item_text(w)
             kb = admin_approve_reject_kb(str(w["id"]))
-            await msg.reply_text(item_text, parse_mode=ParseMode.HTML, reply_markup=kb)
+            await msg.reply_text(item_text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb)
 
     elif action == "mode":
         mode = await get_approval_mode()
         await msg.reply_text(
-            "<b>⚙️ Withdrawal Approval Mode</b>\n\n"
-            "Auto: new requests approved immediately.\n"
-            "Manual: admin must approve each request.",
-            parse_mode=ParseMode.HTML,
+            "*⚙️ Withdrawal Approval Mode*\n\n"
+            "Auto: new requests approved immediately\\.\n"
+            "Manual: admin must approve each request\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=admin_approval_mode_kb(mode),
         )
 
@@ -585,11 +585,11 @@ async def _admin_withdrawals_callback(update: Update, q, sub: str) -> None:
             await audit.write(actor_role="operator", action="set_withdrawal_mode",
                               payload={"mode": new_mode})
             await msg.reply_text(
-                f"✅ Withdrawal approval mode set to <b>{html.escape(new_mode)}</b>.",
-                parse_mode=ParseMode.HTML,
+                f"✅ Withdrawal approval mode set to *{_md(new_mode)}*\\.",
+                parse_mode=ParseMode.MARKDOWN_V2,
             )
         except ValueError as exc:
-            await msg.reply_text(f"❌ {html.escape(str(exc))}", parse_mode=ParseMode.HTML)
+            await msg.reply_text(f"❌ {_md(str(exc))}", parse_mode=ParseMode.MARKDOWN_V2)
 
     elif action.startswith("approve:"):
         import uuid as _uuid
@@ -605,9 +605,9 @@ async def _admin_withdrawals_callback(update: Update, q, sub: str) -> None:
                               payload={"withdrawal_id": wid_str,
                                        "amount": str(w["amount_usdc"])})
             await msg.reply_text(
-                f"✅ Withdrawal <code>{wid_str[:8]}…</code> approved.\n"
-                f"Amount: ${w['amount_usdc']:.2f}",
-                parse_mode=ParseMode.HTML,
+                f"✅ Withdrawal `{wid_str[:8]}…` approved\\.\n"
+                f"Amount: `${w['amount_usdc']:.2f}`",
+                parse_mode=ParseMode.MARKDOWN_V2,
             )
             # Notify user
             try:
@@ -617,14 +617,15 @@ async def _admin_withdrawals_callback(update: Update, q, sub: str) -> None:
                     from ... import notifications as notif
                     await notif.notify_user_by_telegram_id(
                         user_row["telegram_id"],
-                        f"✅ Your withdrawal of <b>${w['amount_usdc']:.2f} USDC</b> has been approved.\n"
-                        "<i>(Paper mode — no on-chain transfer yet)</i>",
+                        f"✅ Your withdrawal of `${w['amount_usdc']:.2f}` USDC has been approved\\.\n"
+                        "_\\(Paper mode — no on\\-chain transfer yet\\)_",
+                        parse_mode=ParseMode.MARKDOWN_V2,
                     )
             except Exception as exc:
                 logger.warning("Failed to notify user of approval: %s", exc)
         except Exception as exc:
             logger.error("approve_withdrawal failed: %s", exc)
-            await msg.reply_text(f"❌ {html.escape(str(exc))}", parse_mode=ParseMode.HTML)
+            await msg.reply_text(f"❌ {_md(str(exc))}", parse_mode=ParseMode.MARKDOWN_V2)
 
     elif action.startswith("reject:"):
         import uuid as _uuid
@@ -640,8 +641,8 @@ async def _admin_withdrawals_callback(update: Update, q, sub: str) -> None:
                               payload={"withdrawal_id": wid_str,
                                        "amount": str(w["amount_usdc"])})
             await msg.reply_text(
-                f"✅ Withdrawal <code>{wid_str[:8]}…</code> rejected. Balance refunded.",
-                parse_mode=ParseMode.HTML,
+                f"✅ Withdrawal `{wid_str[:8]}…` rejected\\. Balance refunded\\.",
+                parse_mode=ParseMode.MARKDOWN_V2,
             )
             # Notify user
             try:
@@ -651,14 +652,15 @@ async def _admin_withdrawals_callback(update: Update, q, sub: str) -> None:
                     from ... import notifications as notif
                     await notif.notify_user_by_telegram_id(
                         user_row["telegram_id"],
-                        f"❌ Your withdrawal of <b>${w['amount_usdc']:.2f} USDC</b> was rejected.\n"
-                        "Your balance has been refunded.",
+                        f"❌ Your withdrawal of `${w['amount_usdc']:.2f}` USDC was rejected\\.\n"
+                        "Your balance has been refunded\\.",
+                        parse_mode=ParseMode.MARKDOWN_V2,
                     )
             except Exception as exc:
                 logger.warning("Failed to notify user of rejection: %s", exc)
         except Exception as exc:
             logger.error("reject_withdrawal failed: %s", exc)
-            await msg.reply_text(f"❌ {html.escape(str(exc))}", parse_mode=ParseMode.HTML)
+            await msg.reply_text(f"❌ {_md(str(exc))}", parse_mode=ParseMode.MARKDOWN_V2)
 
 
 async def _send_status(message) -> None:
@@ -676,16 +678,16 @@ async def _send_status(message) -> None:
             "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='live'")
     s = get_settings()
     await message.reply_text(
-        "<b>🩺 System status</b>\n\n"
+        "*🩺 System status*\n\n"
         f"DB: {'✅' if db_ok else '❌'}  Cache: {'✅' if cache_ok else '❌'}\n"
         f"Users: {users_n} · Admins: {admin_n}\n"
         f"Open positions: {open_paper} paper · {open_live} live\n\n"
-        f"Guards:\n"
-        f"  ENABLE_LIVE_TRADING={s.ENABLE_LIVE_TRADING}\n"
-        f"  EXECUTION_PATH_VALIDATED={s.EXECUTION_PATH_VALIDATED}\n"
-        f"  CAPITAL_MODE_CONFIRMED={s.CAPITAL_MODE_CONFIRMED}\n"
-        f"  AUTO_REDEEM_ENABLED={s.AUTO_REDEEM_ENABLED}\n",
-        parse_mode=ParseMode.HTML,
+        "*Guards:*\n"
+        f"  `ENABLE_LIVE_TRADING={s.ENABLE_LIVE_TRADING}`\n"
+        f"  `EXECUTION_PATH_VALIDATED={s.EXECUTION_PATH_VALIDATED}`\n"
+        f"  `CAPITAL_MODE_CONFIRMED={s.CAPITAL_MODE_CONFIRMED}`\n"
+        f"  `AUTO_REDEEM_ENABLED={s.AUTO_REDEEM_ENABLED}`\n",
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
 
 
@@ -698,9 +700,9 @@ async def allowlist_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
     args = ctx.args or []
     if not args:
         await update.message.reply_text(
-            "Usage: <code>/allowlist @username</code> or "
-            "<code>/allowlist &lt;telegram_user_id&gt;</code> — promotes user to admin role.",
-            parse_mode=ParseMode.HTML,
+            "`/allowlist @username` or "
+            "`/allowlist <telegram_user_id>` — promotes user to admin role\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
     target = args[0]
@@ -832,17 +834,17 @@ def _render_dashboard(snapshot: dict[str, Any]) -> str:
             return default
 
     lines = [
-        "<b>⚙️ Admin Dashboard</b>",
+        "*⚙️ Admin Dashboard*",
         "",
         f"Uptime: {_format_uptime(snapshot['uptime_seconds'])}",
-        f"Host:   <code>{html.escape(snapshot['hostname'])}</code>",
+        f"Host:   `{snapshot['hostname']}`",
         f"DB:     {db}",
         "",
         f"Active users: {_val('active_users')}",
         f"Open positions:         {_val('open_positions')}",
         f"Total USDC in pool:     "
-        f"{_val('total_usdc', lambda v: f'${v:,.2f}')}",
-        f"Auto-trade users:       {_val('auto_trade_users')}",
+        f"{_val('total_usdc', lambda v: f'`${v:,.2f}`')}",
+        f"Auto\\-trade users:       {_val('auto_trade_users')}",
         "",
         f"Kill switch: {kill_state}{lock}",
     ]
@@ -850,23 +852,23 @@ def _render_dashboard(snapshot: dict[str, Any]) -> str:
     jobs = snapshot.get("recent_jobs") or []
     if jobs:
         lines.append("")
-        lines.append("<b>Recent jobs (last 3):</b>")
+        lines.append("*Recent jobs \\(last 3\\):*")
         for j in jobs:
             status = "✅" if j["status"] == "success" else "❌"
             duration = _format_duration_ms(j.get("started_at"),
                                            j.get("finished_at"))
             lines.append(
-                f"  {status} <code>{html.escape(j['job_name'])}</code> · {duration}"
+                f"  {status} `{j['job_name']}` · {duration}"
             )
     else:
         lines.append("")
-        lines.append("<i>No recent job runs recorded.</i>")
+        lines.append("_No recent job runs recorded\\._")
 
     if snapshot.get("errors"):
         lines.append("")
         lines.append(
             "Some fields unavailable: "
-            + html.escape("; ".join(snapshot["errors"][:3]))
+            + _md("; ".join(snapshot["errors"][:3]))
         )
     return "\n".join(lines)
 
@@ -880,7 +882,7 @@ async def ops_dashboard_command(update: Update,
     snapshot = await _collect_dashboard_snapshot()
     await update.message.reply_text(
         _render_dashboard(snapshot),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=ops_dashboard_keyboard(snapshot["kill_switch_active"]),
     )
 
@@ -903,7 +905,7 @@ async def ops_dashboard_callback(update: Update,
         try:
             await q.edit_message_text(
                 _render_dashboard(snapshot),
-                parse_mode=ParseMode.HTML,
+                parse_mode=ParseMode.MARKDOWN_V2,
                 reply_markup=ops_dashboard_keyboard(snapshot["kill_switch_active"]),
             )
         except Exception:  # noqa: BLE001
@@ -921,10 +923,10 @@ async def ops_dashboard_callback(update: Update,
 
 
 _KS_USAGE = (
-    "Usage: <code>/killswitch &lt;pause|resume|lock&gt;</code>\n"
-    "  pause  — block all new trades (cached 30s before risk gate sees it)\n"
-    "  resume — re-open trade flow (clears lock mode)\n"
-    "  lock   — pause + force every user's auto_trade_on=false"
+    "Usage: `/killswitch <pause|resume|lock>`\n"
+    "  pause  — block all new trades \\(cached 30s before risk gate sees it\\)\n"
+    "  resume — re\\-open trade flow \\(clears lock mode\\)\n"
+    "  lock   — pause \\+ force every user's `auto_trade_on=false`"
 )
 
 
@@ -1035,9 +1037,9 @@ async def _apply_killswitch_action(
     if action == "pause":
         if reply is not None:
             await reply(
-                "🔴 Kill switch <b>ACTIVE</b>. Auto-trade paused (≤30s "
-                "propagation). Use <code>/killswitch resume</code> to re-open.",
-                parse_mode=ParseMode.HTML,
+                "🔴 Kill switch *ACTIVE*\\. Auto\\-trade paused \\(≤30s "
+                "propagation\\)\\. Use `/killswitch resume` to re\\-open\\.",
+                parse_mode=ParseMode.MARKDOWN_V2,
             )
         await _broadcast_pause(
             broadcast_via_ctx,
@@ -1050,11 +1052,11 @@ async def _apply_killswitch_action(
     elif action == "lock":
         if reply is not None:
             await reply(
-                f"🔒 Kill switch <b>LOCKED</b>. "
-                f"{result['users_disabled']} users had auto-trade disabled. "
-                "Run <code>/killswitch resume</code> after the incident is addressed; "
-                "users must re-opt-in individually.",
-                parse_mode=ParseMode.HTML,
+                f"🔒 Kill switch *LOCKED*\\. "
+                f"{result['users_disabled']} users had auto\\-trade disabled\\. "
+                "Run `/killswitch resume` after the incident is addressed; "
+                "users must re\\-opt\\-in individually\\.",
+                parse_mode=ParseMode.MARKDOWN_V2,
             )
         await _broadcast_pause(
             broadcast_via_ctx,
@@ -1074,11 +1076,11 @@ async def killswitch_command(update: Update,
     args: Iterable[str] = ctx.args or []
     args_list = list(args)
     if not args_list:
-        await update.message.reply_text(_KS_USAGE, parse_mode=ParseMode.HTML)
+        await update.message.reply_text(_KS_USAGE, parse_mode=ParseMode.MARKDOWN_V2)
         return
     action = args_list[0].strip().lower()
     if action not in {"pause", "resume", "lock"}:
-        await update.message.reply_text(_KS_USAGE, parse_mode=ParseMode.HTML)
+        await update.message.reply_text(_KS_USAGE, parse_mode=ParseMode.MARKDOWN_V2)
         return
     await _apply_killswitch_action(
         action,
@@ -1124,9 +1126,9 @@ async def unlock_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     args = ctx.args or []
     if not args:
         await update.message.reply_text(
-            "Usage: <code>/unlock @username</code> or "
-            "<code>/unlock &lt;telegram_user_id&gt;</code>",
-            parse_mode=ParseMode.HTML,
+            "`/unlock @username` or "
+            "`/unlock <telegram_user_id>`",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
     target = args[0]
@@ -1176,9 +1178,9 @@ def _parse_limit(args: list[str], default: int) -> tuple[int, bool]:
 
 def _render_jobs(rows: list[dict], only_failed: bool) -> str:
     if not rows:
-        return ("<i>No matching job runs.</i>" if only_failed
-                else "<i>No job runs recorded yet.</i>")
-    head = "<b>Recent failed job runs</b>" if only_failed else "<b>Recent job runs</b>"
+        return ("_No matching job runs\\._" if only_failed
+                else "_No job runs recorded yet\\._")
+    head = "*Recent failed job runs*" if only_failed else "*Recent job runs*"
     lines = [head, ""]
     for r in rows:
         status = "✅" if r["status"] == "success" else "❌"
@@ -1186,9 +1188,9 @@ def _render_jobs(rows: list[dict], only_failed: bool) -> str:
             if r.get("started_at") else "—"
         duration = _format_duration_ms(r.get("started_at"), r.get("finished_at"))
         err = _truncate(r.get("error"), 80)
-        line = f"{status} <code>{html.escape(r['job_name'])}</code> · {ts} · {duration}"
+        line = f"{status} `{r['job_name']}` · {ts} · {duration}"
         if err:
-            line += f"\n    └ {html.escape(err)}"
+            line += f"\n    └ {_md(err)}"
         lines.append(line)
     return "\n".join(lines)
 
@@ -1207,7 +1209,7 @@ async def jobs_command(update: Update,
         await update.message.reply_text(f"❌ /jobs query failed: {exc}")
         return
     await update.message.reply_text(
-        _render_jobs(rows, only_failed), parse_mode=ParseMode.HTML,
+        _render_jobs(rows, only_failed), parse_mode=ParseMode.MARKDOWN_V2,
     )
 
 
@@ -1224,8 +1226,8 @@ async def _fetch_audit_tail(limit: int) -> list[dict]:
 
 def _render_auditlog(rows: list[dict]) -> str:
     if not rows:
-        return "<i>Audit log is empty.</i>"
-    lines = ["<b>Audit log (most recent first)</b>", ""]
+        return "_Audit log is empty\\._"
+    lines = ["*Audit log \\(most recent first\\)*", ""]
     for r in rows:
         ts = (r["ts"].astimezone(timezone.utc).strftime("%m-%d %H:%M:%S")
               if r.get("ts") else "—")
@@ -1233,8 +1235,8 @@ def _render_auditlog(rows: list[dict]) -> str:
         actor = r.get("actor_role") or "?"
         action = _truncate(r.get("action"), 40)
         lines.append(
-            f"<code>{html.escape(ts)}</code> · {html.escape(actor)} · "
-            f"{html.escape(action)} · {html.escape(user) or '—'}"
+            f"`{ts}` · {_md(actor)} · "
+            f"{_md(action)} · {_md(user) or '—'}"
         )
     return "\n".join(lines)
 
@@ -1253,5 +1255,5 @@ async def auditlog_command(update: Update,
         await update.message.reply_text(f"❌ /auditlog query failed: {exc}")
         return
     await update.message.reply_text(
-        _render_auditlog(rows), parse_mode=ParseMode.HTML,
+        _render_auditlog(rows), parse_mode=ParseMode.MARKDOWN_V2,
     )

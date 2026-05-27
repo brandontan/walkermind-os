@@ -70,8 +70,8 @@ async def strategy_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     s = await _get_r5_settings(user["id"])
     current = s.get("active_strategy") or "signal_following"
     await update.message.reply_text(
-        f"<b>📡 Active Strategy</b>\nCurrent: <code>{current}</code>\n\nSelect strategy:",
-        parse_mode=ParseMode.HTML,
+        f"*📡 Active Strategy*\nCurrent: `{current}`\n\nSelect strategy:",
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_strategy_kb(current),
     )
 
@@ -83,8 +83,8 @@ async def risk_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     s = await _get_r5_settings(user["id"])
     current = s.get("risk_profile") or "balanced"
     await update.message.reply_text(
-        f"<b>⚖️ Risk Profile</b>\nCurrent: <code>{current}</code>\n\nSelect profile:",
-        parse_mode=ParseMode.HTML,
+        f"*⚖️ Risk Profile*\nCurrent: `{current}`\n\nSelect profile:",
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_risk_kb(current),
     )
 
@@ -97,8 +97,8 @@ async def paper_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     current = bool(s.get("paper_mode_override", True))
     status = "ON (paper)" if current else "OFF (live)"
     await update.message.reply_text(
-        f"<b>📄 Paper Mode Override</b>\nCurrent: <code>{status}</code>",
-        parse_mode=ParseMode.HTML,
+        f"*📄 Paper Mode Override*\nCurrent: `{status}`",
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_paper_kb(current),
     )
 
@@ -111,14 +111,14 @@ async def config_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     paper_status = "ON" if s.get("paper_mode_override", True) else "OFF"
     capital_pct = float(s.get("capital_alloc_pct") or 0.10) * 100
     await update.message.reply_text(
-        "<b>⚙️ Strategy Config</b>\n"
+        "*⚙️ Strategy Config*\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"Strategy:     <code>{s.get('active_strategy', 'signal_following')}</code>\n"
-        f"Risk profile: <code>{s.get('risk_profile', 'balanced')}</code>\n"
-        f"Paper mode:   <code>{paper_status}</code>\n"
-        f"Capital alloc:<code>{capital_pct:.0f}%</code>\n\n"
-        "<i>Use /strategy, /risk, /paper to change settings.</i>",
-        parse_mode=ParseMode.HTML,
+        f"Strategy:     `{s.get('active_strategy', 'signal_following')}`\n"
+        f"Risk profile: `{s.get('risk_profile', 'balanced')}`\n"
+        f"Paper mode:   `{paper_status}`\n"
+        f"Capital alloc:`{capital_pct:.0f}%`\n\n"
+        "_Use /strategy, /risk, /paper to change settings\\._",
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
 
 
@@ -147,8 +147,8 @@ async def strategy_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
             )
         s = await _get_r5_settings(user["id"])
         await q.message.edit_text(
-            f"<b>📡 Active Strategy</b>\nCurrent: <code>{value}</code>\n\nSelect strategy:",
-            parse_mode=ParseMode.HTML,
+            f"*📡 Active Strategy*\nCurrent: `{value}`\n\nSelect strategy:",
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=_strategy_kb(value),
         )
 
@@ -161,8 +161,8 @@ async def strategy_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
                 value, user["id"],
             )
         await q.message.edit_text(
-            f"<b>⚖️ Risk Profile</b>\nCurrent: <code>{value}</code>\n\nSelect profile:",
-            parse_mode=ParseMode.HTML,
+            f"*⚖️ Risk Profile*\nCurrent: `{value}`\n\nSelect profile:",
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=_risk_kb(value),
         )
 
@@ -176,7 +176,7 @@ async def strategy_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         new_val = bool(new_val)
         status = "ON (paper)" if new_val else "OFF (live)"
         await q.message.edit_text(
-            f"<b>📄 Paper Mode Override</b>\nCurrent: <code>{status}</code>",
-            parse_mode=ParseMode.HTML,
+            f"*📄 Paper Mode Override*\nCurrent: `{status}`",
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=_paper_kb(new_val),
         )

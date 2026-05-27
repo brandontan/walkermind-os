@@ -254,14 +254,14 @@ def test_safe_md_leaves_plain_text_unchanged():
 
 
 def test_format_insights_safe_md_applied_to_titles():
-    # format_insights uses html.escape() — underscores and asterisks are preserved verbatim
+    # format_insights uses _md() — underscores and asterisks are MD2-escaped
     data = _base_data(
         best_title="Market_with_underscores",
         worst_title="Market*with*asterisks",
     )
     out = format_insights(data)
-    assert "Market_with_underscores" in out
-    assert "Market*with*asterisks" in out
+    assert "Market\\_with\\_underscores" in out
+    assert "Market\\*with\\*asterisks" in out
 
 
 def test_my_trades_main_kb_includes_insights():

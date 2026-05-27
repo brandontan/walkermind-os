@@ -319,11 +319,12 @@ async def _process_withdraw_confirm(
         w_with_user = {**w, "telegram_id": update.effective_user.id,
                        "username": update.effective_user.username or ""}
         op_text = (
-            "🔔 <b>New Withdrawal Request</b>\n\n"
+            "🔔 *New Withdrawal Request*\n\n"
             + admin_withdrawal_item_text(w_with_user)
-            + "\n\nUse /admin withdrawals to manage."
+            + "\n\nUse /admin withdrawals to manage\\."
         )
         try:
-            await notifications.notify_operator(op_text)
+            from telegram.constants import ParseMode as _PM
+            await notifications.notify_operator(op_text, parse_mode=_PM.MARKDOWN_V2)
         except Exception as exc:
             logger.warning("Failed to notify operator of withdrawal: %s", exc)

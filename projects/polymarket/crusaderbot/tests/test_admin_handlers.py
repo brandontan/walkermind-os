@@ -155,7 +155,7 @@ def test_render_dashboard_kill_switch_locked():
     out = admin._render_dashboard(snapshot)
     assert "🔴 ACTIVE" in out
     assert "(LOCK)" in out
-    assert "<i>No recent job runs recorded.</i>" in out
+    assert "_No recent job runs recorded\\._" in out
 
 
 def test_render_dashboard_handles_missing_fields():
@@ -187,11 +187,11 @@ def test_render_dashboard_handles_missing_fields():
 
 
 def test_render_jobs_empty_default():
-    assert "<i>No job runs recorded yet.</i>" in admin._render_jobs([], False)
+    assert "_No job runs recorded yet\\._" in admin._render_jobs([], False)
 
 
 def test_render_jobs_empty_failed_filter_message():
-    assert "<i>No matching job runs.</i>" in admin._render_jobs([], True)
+    assert "_No matching job runs\\._" in admin._render_jobs([], True)
 
 
 def test_render_jobs_truncates_long_errors():
@@ -205,7 +205,7 @@ def test_render_jobs_truncates_long_errors():
 
 
 def test_render_auditlog_empty():
-    assert "<i>Audit log is empty.</i>" in admin._render_auditlog([])
+    assert "_Audit log is empty\\._" in admin._render_auditlog([])
 
 
 def test_render_auditlog_truncates_user_id():
@@ -217,20 +217,20 @@ def test_render_auditlog_truncates_user_id():
     }]
     out = admin._render_auditlog(rows)
     assert "operator" in out
-    # Action rendered as plain text in HTML mode — no underscore escaping.
-    assert "kill_switch_pause" in out
+    # Action rendered via _md() in MarkdownV2 mode — underscores are escaped.
+    assert "kill\\_switch\\_pause" in out
     # user_id truncated to 8 chars + ellipsis = 8 chars
     assert "abcdefg…" in out
 
 
 def test_render_jobs_error_text_plain():
-    # Failed job error rendered as plain text in HTML mode — no Markdown escaping.
+    # Error text passed through _md() in MarkdownV2 mode — special chars are escaped.
     err = "ValueError: bad_value `xyz` at [step 2]"
     rows = [_job_row("redeem", "failed", error=err)]
     out = admin._render_jobs(rows, only_failed=True)
-    assert "bad_value" in out
-    assert "`xyz`" in out
-    assert "[step 2]" in out
+    assert "bad\\_value" in out
+    assert "\\`xyz\\`" in out
+    assert "\\[step 2\\]" in out
     assert "└ ValueError" in out
     assert "_ValueError" not in out
 
@@ -416,5 +416,5 @@ def test_auditlog_default_limit():
         asyncio.run(admin.auditlog_command(update, ctx))
     fetch.assert_awaited_once_with(admin.DEFAULT_AUDIT_LIMIT)
     args, _ = update.message.reply_text.call_args
-    # Action rendered as plain text in HTML mode — no underscore escaping.
-    assert "kill_switch_pause" in args[0]
+    # Action rendered via _md() in MarkdownV2 mode — underscores are escaped.
+    assert "kill\\_switch\\_pause" in args[0]

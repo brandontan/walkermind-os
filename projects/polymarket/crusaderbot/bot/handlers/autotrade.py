@@ -59,19 +59,19 @@ async def _safe_edit(q, text: str, **kwargs) -> None:
 # ── Screen 03 — Preset Picker ──────────────────────────────────────────────────
 
 _AUTO_TRADE_MENU_TEXT = (
-    "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n\n"
+    "🏛️ *𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 \\| 𝗔𝗨𝗧𝗢𝗕𝗢𝗧*\n\n"
     "Choose what to configure:"
 )
 
 # Risk Profile sub-menu body. Module-level so the copy is maintained in one
 # place alongside _AUTO_TRADE_MENU_TEXT (the matching keyboard is mvp_risk_kb).
 _RISK_PROFILE_TEXT = (
-    "<b>⚖️ Risk Profile</b>\n"
+    "*⚖️ Risk Profile*\n"
     "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    "🟢 <b>Conservative</b> — 20% cap · TP +10% · SL -5%\n"
-    "🟡 <b>Balanced</b> — 40% cap · TP +20% · SL -15%\n"
-    "🔴 <b>Aggressive</b> — 60% cap · TP +30% · SL -20%\n"
-    "⚙️ <b>Custom Risk</b> — set your own capital, TP, SL"
+    "🟢 *Conservative* — 20% cap · TP \\+10% · SL \\-5%\n"
+    "🟡 *Balanced* — 40% cap · TP \\+20% · SL \\-15%\n"
+    "🔴 *Aggressive* — 60% cap · TP \\+30% · SL \\-20%\n"
+    "⚙️ *Custom Risk* — set your own capital, TP, SL"
 )
 
 
@@ -83,12 +83,12 @@ async def show_autotrade(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     if q is not None and q.message is not None:
         await _safe_edit(
             q, _AUTO_TRADE_MENU_TEXT,
-            parse_mode=ParseMode.HTML, reply_markup=auto_trade_menu_kb(),
+            parse_mode=ParseMode.MARKDOWN_V2, reply_markup=auto_trade_menu_kb(),
         )
     elif update.message is not None:
         await update.message.reply_text(
             _AUTO_TRADE_MENU_TEXT,
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=auto_trade_menu_kb(),
         )
 
@@ -116,12 +116,12 @@ async def _show_preset_picker(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
     if q is not None and q.message is not None:
         await _safe_edit(
             q, PRESET_PICKER_TEXT,
-            parse_mode=ParseMode.HTML, reply_markup=preset_picker(),
+            parse_mode=ParseMode.MARKDOWN_V2, reply_markup=preset_picker(),
         )
     elif update.message is not None:
         await update.message.reply_text(
             PRESET_PICKER_TEXT,
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=preset_picker(),
         )
 
@@ -154,10 +154,10 @@ async def _show_preset_confirm(
     ctx.user_data["p5_pending_preset"] = preset_key
     q = update.callback_query
     if q is not None and q.message is not None:
-        await _safe_edit(q, text, parse_mode=ParseMode.HTML, reply_markup=preset_confirm_kb())
+        await _safe_edit(q, text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=preset_confirm_kb())
     elif update.message is not None:
         await update.message.reply_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=preset_confirm_kb(),
+            text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=preset_confirm_kb(),
         )
 
 
@@ -209,10 +209,10 @@ async def _show_active_status(
     )
     q = update.callback_query
     if q is not None and q.message is not None:
-        await _safe_edit(q, text, parse_mode=ParseMode.HTML, reply_markup=preset_active_kb())
+        await _safe_edit(q, text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=preset_active_kb())
     elif update.message is not None:
         await update.message.reply_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=preset_active_kb(),
+            text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=preset_active_kb(),
         )
 
 
@@ -244,12 +244,12 @@ async def autotrade_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
         if q.message:
             try:
                 await q.message.edit_text(
-                    _RISK_PROFILE_TEXT, parse_mode=ParseMode.HTML,
+                    _RISK_PROFILE_TEXT, parse_mode=ParseMode.MARKDOWN_V2,
                     reply_markup=mvp_risk_kb(current_risk),
                 )
             except Exception:
                 await q.message.reply_text(
-                    _RISK_PROFILE_TEXT, parse_mode=ParseMode.HTML,
+                    _RISK_PROFILE_TEXT, parse_mode=ParseMode.MARKDOWN_V2,
                     reply_markup=mvp_risk_kb(current_risk),
                 )
         return
@@ -335,9 +335,9 @@ async def _activate_preset(
     text = preset_activated_success_text(cfg["emoji"], cfg["name"])
     q = update.callback_query
     if q is not None and q.message is not None:
-        await _safe_edit(q, text, parse_mode=ParseMode.HTML)
+        await _safe_edit(q, text, parse_mode=ParseMode.MARKDOWN_V2)
     elif update.message is not None:
-        await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2)
 
     from .dashboard import show_dashboard_for_cb
     await show_dashboard_for_cb(update, ctx)
