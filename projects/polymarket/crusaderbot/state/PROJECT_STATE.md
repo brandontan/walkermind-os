@@ -1,5 +1,5 @@
-Last Updated : 2026-05-27 17:30
-Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). H3 + M-1 + M-2 + WebTrader mobile fixes MERGED. Next: Fly.io redeploy to pick up PR #1390 (orders badge + visibilitychange refresh).
+Last Updated : 2026-05-27 18:45
+Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). H3 + M-1 + M-2 DEPLOYED. Migration 058 applied. Fly.io deploy confirmed ✅. Monitoring: 48h window (ends 2026-05-28 16:00 WIB). WebTrader fixes merged: CLOSED badge (PR #1392) + modal position (PR #1394). Fly.io redeploy required.
 
 - WARP-57 (issue #1260): SENTINEL re-audited — APPROVED (Round 2 Score 86/100, 0 critical). PR #1261 / WARP/warp57-telegram-ux-mvp at SHA aa4fe24c55e8. Round-1 CRITICAL-1 (copy_targets schema mismatch) RESOLVED — `bot/handlers/mvp/copy_wallet.py` SELECT/INSERT/UPDATE now use canonical columns (`target_wallet_address`, `status='active'/'inactive'`, `scale_factor`) per mig 009. Round-1 MEDIUM-1 (`wallets.public_address` → `deposit_address` in onboarding.py:38) also RESOLVED. NEW MEDIUM-4 (post-merge follow-up): MVP writes to `copy_targets` but production scanner `services/copy_trade/monitor.py:80` reads `copy_trade_tasks` via `domain/copy_trade/repository.py:list_active_tasks` — end-to-end mirror not yet active until a follow-up lane swaps the MVP table to `copy_trade_tasks`; legacy `/copytrade` 8-step wizard remains the only path that produces mirrored trades. Round-1 MEDIUM-2 (auto:start engine bootstrap) + MEDIUM-3 (legacy `/settings` sub-route regression) P2-deferred per WARP🔹CMD direction. Activation guards untouched (Risk 3 PASS), no manual trade buttons (Risk 2 PASS), paper-mode default preserved (Risk 6 PASS). Report: projects/polymarket/crusaderbot/reports/sentinel/warp57-telegram-ux-mvp.md.
 - WARP-55 (issue #1256): MERGED (abd3b43dbe10) — RUNTIME_EVIDENCE.md: 7/7 P2 finish criteria proven. 🏁 CrusaderBot closed beta DONE. Guards LOCKED. STANDARD, evidence-only.
@@ -48,6 +48,7 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). H3 + M-1 + M-2
   - WARP-43 RUNTIME-TRADE-SMOKE (WARP/runtime-trade-smoke, PR open): scan_runs telemetry table (migration 048) + ScanTelemetry dataclass + structured log events (strategies_loaded, scan_input, strategy_run, risk_gate, paper_execution) + startup loud-failure RuntimeError guard + GET /admin/scan/last + GET /admin/scan/list. 5 files modified/created; py_compile clean. STANDARD, NARROW INTEGRATION.
 
 [IN PROGRESS]
+- WARP/ROOT/closed-count-fix: MERGED (#1392) — WebTrader CLOSED/ALL badge fix — PortfolioSummary.total_closed (DB COUNT), router query, api.ts interface, PortfolioPage totalClosed computed from summary?.total_closed.
 - WARP/R00T-webtrader-wallet: MERGED (#1373) — WebTrader withdraw UI — POST /wallet/withdraw, WithdrawModal 3-step, api.requestWithdrawal, WalletPage wired. Report: projects/polymarket/crusaderbot/reports/forge/webtrader-wallet-withdraw.md.
 - WARP/copy-task-repo-returning-fix: MERGED (#1374) — F-HIGH-2 root cause — create_task/update_task RETURNING missing nickname/copy_direction/execution_mode/allow_topups → KeyError → copy task creation always silently failed. Fixed both RETURNING clauses. Report: projects/polymarket/crusaderbot/reports/forge/copy-task-repo-returning-fix.md.
 - WARP/withdraw-onchain-skeleton: MERGED (#1375) — on-chain withdraw skeleton — _attempt_onchain_transfer() behind EXECUTION_PATH_VALIDATED guard; paper deferred, live raises NotImplementedError until polygon_usdc wired. Report: projects/polymarket/crusaderbot/reports/forge/withdraw-onchain-skeleton.md.
@@ -66,7 +67,7 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). H3 + M-1 + M-2
 - Seed boss user ADMIN tier row in user_tiers via /admin settier post-deploy.
 
 [NEXT PRIORITY]
-- WARP🔹CMD: Fly.io redeploy to pick up PR #1390 WebTrader fixes (orders badge + visibilitychange mobile refresh).
+- Fly.io redeploy required to pick up PR #1392 (CLOSED badge fix — total_closed backend field) + PR #1394 (modal position fix).
 - Monitor Sentry: confirm no BadRequest parse entities post-H3 deploy (MarkdownV2 migration).
 - Verify: Telegram copy-task wizard → task created + copy monitor picks it up (F-HIGH-2 fix #1374).
 - Verify: WebTrader withdraw flow on Wallet + Portfolio pages end-to-end.
