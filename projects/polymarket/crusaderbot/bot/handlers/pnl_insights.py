@@ -10,7 +10,6 @@ Tier:    ALLOWLISTED (Tier 2+)
 """
 from __future__ import annotations
 
-import html
 import logging
 from decimal import Decimal
 from uuid import UUID
@@ -23,6 +22,7 @@ from ...database import get_pool
 from ...jobs.weekly_insights import _fetch_weekly_stats, format_weekly_insights
 from ...users import upsert_user
 from ..keyboards import insights_kb
+from ..ui.tree import md_v2_escape as _md
 
 
 logger = logging.getLogger(__name__)
@@ -197,15 +197,13 @@ async def _fetch_insights(user_id: UUID) -> dict:
 
 
 def format_insights(data: dict) -> str:
-    """Render insights data as HTML with blockquote for financial rows."""
+    """Render insights data as MarkdownV2."""
     if data["total_closed"] < 3:
         return (
-            "<b>📊 PNL Insights</b>\n\n"
-            "<blockquote>"
-            "Not enough data yet.\n"
-            "Need at least 3 closed trades.\n"
-            f"Current: {data['total_closed']} closed trades."
-            "</blockquote>"
+            "*📊 PNL Insights*\n\n"
+            f"> Not enough data yet\\.\n"
+            f"> Need at least 3 closed trades\\.\n"
+            f"> Current: `{data['total_closed']}` closed trades\\."
         )
 
     total = data["total_closed"]
@@ -224,10 +222,10 @@ def format_insights(data: dict) -> str:
 
     best_pnl = data["best_pnl"]
     worst_pnl = data["worst_pnl"]
-    best_str = html.escape(_fmt_signed_usdc(best_pnl))
-    worst_str = html.escape(_fmt_signed_usdc(worst_pnl))
-    best_title = html.escape(data.get("best_title") or "—")
-    worst_title = html.escape(data.get("worst_title") or "—")
+    best_str = _fmt_signed_usdc(best_pnl)
+    worst_str = _fmt_signed_usdc(worst_pnl)
+    best_title = _md(data.get("best_title") or "—")
+    worst_title = _md(data.get("worst_title") or "—")
 
     avg_win = data["avg_win"]
     avg_loss = data["avg_loss"]
@@ -243,32 +241,28 @@ def format_insights(data: dict) -> str:
 
     pnl_7d = data["pnl_7d"]
     trades_7d = data["trades_7d"]
-    pnl_7d_str = html.escape(_fmt_signed_usdc(pnl_7d))
+    pnl_7d_str = _fmt_signed_usdc(pnl_7d)
 
     return (
-        "<b>📊 PNL Insights</b>\n\n"
-        "<b>🏆 Performance</b>\n"
-        "<blockquote>"
-        f"Closed Trades  {total} ({wins}W / {losses}L)\n"
-        f"Win Rate       {win_rate}%\n"
-        f"Profit Factor  {pf_str}"
-        "</blockquote>\n\n"
-        "<b>💰 Averages</b>\n"
-        "<blockquote>"
-        f"Avg Win   +${avg_win:.2f}\n"
-        f"Avg Loss  -${avg_loss:.2f}"
-        "</blockquote>\n\n"
-        "<b>🎯 Best Trade</b>\n"
-        f"├─ P&amp;L: {best_str}\n"
-        f"└─ <i>{best_title}</i>\n\n"
-        "<b>📉 Worst Trade</b>\n"
-        f"├─ P&amp;L: {worst_str}\n"
-        f"└─ <i>{worst_title}</i>\n\n"
-        "<b>⚡ Streak</b>\n"
-        f"└─ Current: {html.escape(streak_str)}\n\n"
-        "<b>📅 Last 7 Days</b>\n"
-        f"├─ Trades: {trades_7d}\n"
-        f"└─ P&amp;L: {pnl_7d_str}"
+        "*📊 PNL Insights*\n\n"
+        "*🏆 Performance*\n"
+        f"> Closed Trades  `{total}` \\(`{wins}`W / `{losses}`L\\)\n"
+        f"> Win Rate       `{win_rate}%`\n"
+        f"> Profit Factor  `{pf_str}`\n\n"
+        "*💰 Averages*\n"
+        f"> Avg Win   `+${avg_win:.2f}`\n"
+        f"> Avg Loss  `\\-${avg_loss:.2f}`\n\n"
+        "*🎯 Best Trade*\n"
+        f"├─ P&L: `{best_str}`\n"
+        f"└─ _{best_title}_\n\n"
+        "*📉 Worst Trade*\n"
+        f"├─ P&L: `{worst_str}`\n"
+        f"└─ _{worst_title}_\n\n"
+        "*⚡ Streak*\n"
+        f"└─ Current: {_md(streak_str)}\n\n"
+        "*📅 Last 7 Days*\n"
+        f"├─ Trades: `{trades_7d}`\n"
+        f"└─ P&L: `{pnl_7d_str}`"
     )
 
 
@@ -283,7 +277,7 @@ async def pnl_insights_command(
     data = await _fetch_insights(user["id"])
     await update.message.reply_text(
         format_insights(data),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=insights_kb(),
     )
 
@@ -301,6 +295,6 @@ async def insights_cb(
     data = await _fetch_insights(user["id"])
     await q.message.reply_text(
         format_insights(data),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=insights_kb(),
     )
