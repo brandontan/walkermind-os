@@ -7,7 +7,6 @@ Returning = users.onboarding_complete is True in the DB.
 """
 from __future__ import annotations
 
-import html
 import logging
 
 from telegram import Update
@@ -73,7 +72,7 @@ async def start_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     await update.message.reply_text(
         WELCOME_TEXT,
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=welcome_kb(),
     )
     return _WELCOME
@@ -111,7 +110,7 @@ async def get_started_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     address = await _get_address(user["id"])
     await q.edit_message_text(
         wallet_ready_text(address),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=wallet_ready_kb(),
     )
     ctx.user_data["onboard_address"] = address
@@ -125,7 +124,7 @@ async def learn_more_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     await q.answer()
     await q.edit_message_text(
         LEARN_MORE_TEXT,
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=welcome_back_kb(),
     )
     return _WELCOME
@@ -138,7 +137,7 @@ async def back_to_welcome_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
     await q.answer()
     await q.edit_message_text(
         WELCOME_TEXT,
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=welcome_kb(),
     )
     return _WELCOME
@@ -170,7 +169,7 @@ async def wallet_next_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     from ..keyboards.autotrade import preset_picker_p5_kb as preset_picker
     await q.edit_message_text(
         PRESET_PICKER_TEXT,
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=preset_picker(),
     )
     ctx.user_data["onboard_in_preset_step"] = True
@@ -195,7 +194,7 @@ async def preset_selected_in_onboard_cb(
     ctx.user_data["_onboard_at_deposit"] = True  # now on deposit prompt; copy_address stays in _DEPOSIT
     await q.edit_message_text(
         deposit_prompt_text(address),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=deposit_prompt_kb(),
     )
     return _DEPOSIT
@@ -298,26 +297,26 @@ async def help_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     is_op = bool(settings.OPERATOR_CHAT_ID and tg_id == settings.OPERATOR_CHAT_ID)
 
     user_commands = (
-        "<b>📋 Commands</b>\n\n"
-        "/start — Welcome &amp; onboarding\n"
+        "*📋 Commands*\n\n"
+        "/start — Welcome & onboarding\n"
         "/dashboard — Main dashboard\n"
         "/trades — View your trades\n"
         "/positions — Open positions\n"
         "/settings — Configure preferences\n"
         "/preset — Strategy presets\n"
-        "/wallet — Wallet &amp; deposits\n"
+        "/wallet — Wallet & deposits\n"
         "/emergency — Emergency controls\n"
-        "/insights — P&amp;L insights\n"
+        "/insights — P&L insights\n"
         "/chart — Portfolio chart\n"
-        "/summary_on — Enable daily summary\n"
-        "/summary_off — Disable daily summary\n"
+        "/summary\\_on — Enable daily summary\n"
+        "/summary\\_off — Disable daily summary\n"
         "/help — This help\n"
     )
 
     admin_commands = (
-        "\n<b>🔧 Admin</b>\n"
+        "\n*🔧 Admin*\n"
         "/admin — Admin panel\n"
-        "/ops_dashboard — Ops overview\n"
+        "/ops\\_dashboard — Ops overview\n"
         "/health — System health\n"
         "/jobs — Scheduler jobs\n"
         "/killswitch — Emergency kill\n"
@@ -326,5 +325,5 @@ async def help_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
     await update.message.reply_text(
         user_commands + admin_commands,
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
     )

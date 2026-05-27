@@ -14,7 +14,6 @@ Returning users (onboarding_complete=True) skip directly to Dashboard.
 """
 from __future__ import annotations
 
-import html
 import logging
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -201,7 +200,7 @@ async def _entry(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # Step 1 — Welcome
     await update.message.reply_text(
         onboard_welcome_text(),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_welcome_kb(),
     )
     return ONBOARD_WELCOME
@@ -217,7 +216,7 @@ async def _start_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     await q.edit_message_text(
         onboard_how_it_works_text(),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_how_it_works_kb(),
     )
     return ONBOARD_HOW_IT_WORKS
@@ -242,7 +241,7 @@ async def _how_next_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     await q.edit_message_text(
         onboard_wallet_text(address),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_wallet_kb(),
     )
     return ONBOARD_WALLET
@@ -272,7 +271,7 @@ async def _wallet_next_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int
 
     await q.edit_message_text(
         onboard_paper_credit_text(),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_paper_credit_kb(),
     )
     return ONBOARD_PAPER_CREDIT
@@ -288,7 +287,7 @@ async def _paper_credit_next_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) 
 
     await q.edit_message_text(
         onboard_risk_text(),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_risk_kb(),
     )
     return ONBOARD_RISK_PROFILE
@@ -307,7 +306,7 @@ async def _risk_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     await q.edit_message_text(
         onboard_preset_pick_text(),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_preset_pick_kb(),
     )
     return ONBOARD_PRESET_PICK
@@ -332,7 +331,7 @@ async def _preset_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     await q.edit_message_text(
         onboard_review_text(risk_label, preset_emoji, preset_name),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_review_kb(),
     )
     return ONBOARD_REVIEW
@@ -348,7 +347,7 @@ async def _back_risk_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     await q.edit_message_text(
         onboard_risk_text(),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_risk_kb(),
     )
     return ONBOARD_RISK_PROFILE
@@ -459,16 +458,16 @@ async def help_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message is None:
         return
     await update.message.reply_text(
-        "<b>📖 CrusaderBot Help</b>\n\n"
+        "*📖 CrusaderBot Help*\n\n"
         "Use the menu below to navigate:\n"
         "📊 Dashboard   — account overview and status\n"
-        "🤖 Auto-Trade  — configure your trading strategy\n"
+        "🤖 Auto\\-Trade  — configure your trading strategy\n"
         "💼 Portfolio   — view balance and open positions\n"
         "📈 My Trades   — open positions and trade history\n"
         "⚙️ Settings    — risk, mode, wallet, notifications\n"
         "🚨 Emergency   — pause or lock trading immediately\n\n"
-        "Type /start to re-run setup at any time.",
-        parse_mode=ParseMode.HTML,
+        "Type /start to re\\-run setup at any time\\.",
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=InlineKeyboardMarkup([[
             InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
         ]]),

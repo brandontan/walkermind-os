@@ -23,6 +23,7 @@ from ..keyboards.portfolio import (
     trades_p5_kb as trades_kb,
 )
 from ..messages import close_confirm_text, trades_empty_text, trades_text
+from ..ui.tree import md_v2_escape as _md
 
 logger = logging.getLogger(__name__)
 
@@ -77,9 +78,9 @@ async def show_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         kb = trades_empty_kb()
         q = update.callback_query
         if q is not None and q.message is not None:
-            await _safe_edit(q, text, parse_mode=ParseMode.HTML, reply_markup=kb)
+            await _safe_edit(q, text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb)
         elif update.message is not None:
-            await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+            await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb)
         return
 
     # Build the main trades text
@@ -94,9 +95,9 @@ async def show_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
     q = update.callback_query
     if q is not None and q.message is not None:
-        await _safe_edit(q, text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        await _safe_edit(q, text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb)
     elif update.message is not None:
-        await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb)
 
 
 async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -202,7 +203,7 @@ async def close_ask_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     text = close_confirm_text(row["market_question"] or "Unknown market", pnl, pnl_pct)
     await _safe_edit(
         q, text,
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=close_confirm_kb(pos_id),
     )
 
@@ -234,8 +235,8 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         )
     if row is None:
         await _safe_edit(
-            q, "ℹ️ Position already closed or not found.",
-            parse_mode=ParseMode.HTML, reply_markup=trades_kb(),
+            q, "ℹ️ Position already closed or not found\.",
+            parse_mode=ParseMode.MARKDOWN_V2, reply_markup=trades_kb(),
         )
         return
 
@@ -256,7 +257,7 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             )
             realized = float(result.get("pnl_usdc", 0))
             sign = "+" if realized > 0 else ""
-            msg = f"✅ Position closed. Realized P&L: {sign}${realized:.2f}"
+            msg = f"✅ Position closed\\. Realized P&L: `{sign}${realized:.2f}`"
             # Push position.closed so WebTrader + Telegram notification fire.
             try:
                 from ...core.event_bus import emit as _emit
@@ -276,7 +277,7 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
                 pass
         except Exception as exc:
             logger.error("close_confirm_cb paper close failed pos=%s err=%s", pos_id, exc)
-            msg = "⚠️ Could not close position. Please try again."
+            msg = "⚠️ Could not close position\\. Please try again\\."
     else:
         # Live positions: queue force-close via exit watcher marker.
         try:
@@ -284,13 +285,13 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
             updated = await mark_force_close_intent_for_position(
                 UUID(pos_id), user["id"],
             )
-            msg = ("✅ Position queued for close." if updated
-                   else "ℹ️ Position already closing or not found.")
+            msg = ("✅ Position queued for close\\." if updated
+                   else "ℹ️ Position already closing or not found\\.")
         except Exception as exc:
             logger.error("close_confirm_cb live close failed pos=%s err=%s", pos_id, exc)
-            msg = "⚠️ Could not queue close. Please try again."
+            msg = "⚠️ Could not queue close\\. Please try again\\."
 
-    await _safe_edit(q, msg, parse_mode=ParseMode.HTML, reply_markup=trades_kb())
+    await _safe_edit(q, msg, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=trades_kb())
 
 
 async def cancel_close_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -321,23 +322,23 @@ async def history_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
     if not rows:
         await _safe_edit(
-            q, "<b>📋 Full History</b>\n\nNo closed trades yet.",
-            parse_mode=ParseMode.HTML, reply_markup=trades_kb(),
+            q, "*📋 Full History*\n\nNo closed trades yet\.",
+            parse_mode=ParseMode.MARKDOWN_V2, reply_markup=trades_kb(),
         )
         return
 
-    lines = ["<b>📋 Full History</b>", "━━━━━━━━━━━━━━━━━━━━━━━━━━", ""]
+    lines = ["*📋 Full History*", "━━━━━━━━━━━━━━━━━━━━━━━━━━", ""]
     for r in rows:
         pnl = float(r["pnl_usdc"] or 0)
         emoji = "✅" if pnl >= 0 else "❌"
         sign = "+" if pnl >= 0 else ""
-        q_text = (r["market_question"] or "Unknown")[:50]
+        q_text = _md((r["market_question"] or "Unknown")[:50])
         lines.append(f"{emoji} {q_text}")
-        lines.append(f"   {r['side'].upper()} | {sign}${pnl:.2f}")
+        lines.append(f"   {r['side'].upper()} \\| `{sign}${pnl:.2f}`")
 
     await _safe_edit(
         q, "\n".join(lines),
-        parse_mode=ParseMode.HTML, reply_markup=trades_kb(),
+        parse_mode=ParseMode.MARKDOWN_V2, reply_markup=trades_kb(),
     )
 
 
