@@ -184,6 +184,16 @@ export function PortfolioPage() {
     return () => clearInterval(id);
   }, [refresh]);
 
+  // On mobile, setInterval and SSE pause when the tab is backgrounded.
+  // Force an immediate refresh when the user returns to the page.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [refresh]);
+
   const handleCashOutConfirm = useCallback(async () => {
     if (!cashOutTarget) return;
     setCashOutLoading(true);
@@ -209,12 +219,16 @@ export function PortfolioPage() {
     return combined;
   }, [open, closed]);
 
+  const pendingOrdersCount = orders.filter(
+    (o) => !["filled", "cancelled", "failed"].includes(o.status),
+  ).length;
+
   const tabs: FilterTab<Tab>[] = [
     { key: "open", label: "Open", count: open.length },
     { key: "closed", label: "Closed", count: closed.length },
     { key: "all", label: "All", count: open.length + closed.length },
     { key: "analytics", label: "Analytics" },
-    { key: "orders", label: "Orders", count: orders.length, advanced: true },
+    { key: "orders", label: "Orders", count: pendingOrdersCount || undefined, advanced: true },
   ];
 
   return (
