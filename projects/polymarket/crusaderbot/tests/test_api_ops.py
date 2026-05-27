@@ -24,6 +24,24 @@ def _build_app() -> FastAPI:
     return app
 
 
+def _client(app: FastAPI | None = None) -> TestClient:
+    # https base_url so the Secure ``ops_session`` cookie set at login is
+    # echoed back on subsequent requests (Secure cookies are http-suppressed).
+    return TestClient(app or _build_app(), base_url="https://testserver")
+
+
+def _authed_client(app: FastAPI | None = None) -> TestClient:
+    """A client that has signed in via POST /ops/login (cookie established).
+
+    Requires ``get_settings`` to be patched first (so ``OPS_SECRET`` resolves
+    to ``OPS_TOKEN``) — call ``_patch_route_io`` before this.
+    """
+    client = _client(app)
+    r = client.post("/ops/login", data={"secret": OPS_TOKEN}, follow_redirects=False)
+    assert r.status_code == 303
+    return client
+
+
 def _ok_health():
     return {
         "status": "ok",
@@ -152,7 +170,7 @@ def test_render_audit_rows_escapes_action_and_actor():
 
 def test_ops_route_returns_200_html(monkeypatch):
     _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
+    client = _authed_client()
     r = client.get("/ops")
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/html")
@@ -176,7 +194,7 @@ def test_ops_route_returns_200_html(monkeypatch):
 
 def test_ops_route_renders_kill_state_active(monkeypatch):
     _patch_route_io(monkeypatch, kill_active=True)
-    client = TestClient(_build_app())
+    client = _authed_client()
     body = client.get("/ops").text
     assert ">ACTIVE<" in body  # kill switch label rendered
     assert 'class="badge fail"' in body  # red badge while killed
@@ -184,7 +202,7 @@ def test_ops_route_renders_kill_state_active(monkeypatch):
 
 def test_ops_route_renders_kill_state_paused(monkeypatch):
     _patch_route_io(monkeypatch, kill_active=False)
-    client = TestClient(_build_app())
+    client = _authed_client()
     body = client.get("/ops").text
     assert ">PAUSED<" in body
     assert 'class="badge ok"' in body  # green badge while running
@@ -192,14 +210,14 @@ def test_ops_route_renders_kill_state_paused(monkeypatch):
 
 def test_ops_route_user_count_na_when_db_down(monkeypatch):
     _patch_route_io(monkeypatch, user_count=None)
-    client = TestClient(_build_app())
+    client = _authed_client()
     body = client.get("/ops").text
     assert "N/A" in body
 
 
 def test_ops_route_audit_section_na_on_db_failure(monkeypatch):
     _patch_route_io(monkeypatch, audit_rows=None)
-    client = TestClient(_build_app())
+    client = _authed_client()
     body = client.get("/ops").text
     assert "N/A — data not available" in body
 
@@ -218,7 +236,7 @@ def test_ops_route_renders_audit_rows(monkeypatch):
             "actor_role": "operator",
         },
     ])
-    client = TestClient(_build_app())
+    client = _authed_client()
     body = client.get("/ops").text
     assert "kill_switch_pause" in body
     assert "kill_switch_resume" in body
@@ -227,14 +245,14 @@ def test_ops_route_renders_audit_rows(monkeypatch):
 
 def test_ops_route_flash_message_round_trip(monkeypatch):
     _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
+    client = _authed_client()
     r = client.get("/ops?flash=Hello%20operator")
     assert "Hello operator" in r.text
 
 
 def test_ops_route_flash_message_is_escaped(monkeypatch):
     _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
+    client = _authed_client()
     r = client.get("/ops?flash=<script>alert(1)</script>")
     assert "<script>alert(1)</script>" not in r.text
     assert "&lt;script&gt;" in r.text
@@ -249,7 +267,7 @@ def test_ops_route_degrades_when_health_raises(monkeypatch):
 
     _patch_route_io(monkeypatch)
     monkeypatch.setattr(api_ops, "run_health_checks", _boom)
-    client = TestClient(_build_app())
+    client = _authed_client()
     r = client.get("/ops")
     assert r.status_code == 200
     # Health table renders the four expected rows with N/A badges.
@@ -269,7 +287,7 @@ def test_ops_kill_calls_set_active_pause_and_redirects(monkeypatch):
     monkeypatch.setattr(api_ops.kill_switch, "set_active", set_active)
     monkeypatch.setattr(api_ops.audit, "write", audit_write)
 
-    client = TestClient(_build_app())
+    client = _client()
     r = client.post(
         "/ops/kill",
         headers={"X-Ops-Token": OPS_TOKEN},
@@ -296,7 +314,7 @@ def test_ops_kill_redirects_with_failure_flash_when_set_active_raises(monkeypatc
     monkeypatch.setattr(api_ops.kill_switch, "set_active", _boom)
     monkeypatch.setattr(api_ops.audit, "write", AsyncMock())
 
-    client = TestClient(_build_app())
+    client = _client()
     r = client.post(
         "/ops/kill",
         headers={"X-Ops-Token": OPS_TOKEN},
@@ -318,7 +336,7 @@ def test_ops_resume_calls_set_active_resume_and_redirects(monkeypatch):
     monkeypatch.setattr(api_ops.kill_switch, "set_active", set_active)
     monkeypatch.setattr(api_ops.audit, "write", audit_write)
 
-    client = TestClient(_build_app())
+    client = _client()
     r = client.post(
         "/ops/resume",
         headers={"X-Ops-Token": OPS_TOKEN},
@@ -341,7 +359,7 @@ def test_ops_resume_redirects_with_failure_flash_when_set_active_raises(monkeypa
     monkeypatch.setattr(api_ops.kill_switch, "set_active", _boom)
     monkeypatch.setattr(api_ops.audit, "write", AsyncMock())
 
-    client = TestClient(_build_app())
+    client = _client()
     r = client.post(
         "/ops/resume",
         headers={"X-Ops-Token": OPS_TOKEN},
@@ -381,7 +399,7 @@ def test_ops_post_returns_503_when_ops_secret_unset(
     monkeypatch.setattr(
         api_ops, "get_settings", lambda: _settings(ops_secret=None),
     )
-    client = TestClient(_build_app())
+    client = _client()
     r = client.post(path, follow_redirects=False)
     assert r.status_code == 503
     api_ops.kill_switch.set_active.assert_not_awaited()
@@ -395,7 +413,7 @@ def test_ops_post_returns_403_when_token_missing(
     The kill switch must NOT be flipped.
     """
     _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
+    client = _client()
     r = client.post(path, follow_redirects=False)
     assert r.status_code == 403
     api_ops.kill_switch.set_active.assert_not_awaited()
@@ -406,7 +424,7 @@ def test_ops_post_returns_403_when_token_wrong(
     monkeypatch, _stub_ops_mutators, path,
 ):
     _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
+    client = _client()
     r = client.post(
         path,
         headers={"X-Ops-Token": "wrong-token"},
@@ -425,62 +443,167 @@ def test_ops_post_accepts_token_via_query_param(
     handler must accept that path too.
     """
     _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
+    client = _client()
     r = client.post(f"{path}?token={OPS_TOKEN}", follow_redirects=False)
     assert r.status_code == 303
     api_ops.kill_switch.set_active.assert_awaited_once()
 
 
 @pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
-def test_ops_post_redirect_preserves_token_query_param(
+def test_ops_post_redirect_carries_no_token_and_sets_cookie(
     monkeypatch, _stub_ops_mutators, path,
 ):
-    """Post-action redirect must include the token query param so the
-    next dashboard render still has a working pair of buttons.
+    """Post-action redirect must NOT echo the secret in the URL; instead
+    the response establishes the session cookie so the next GET renders the
+    dashboard. (H1: token out of the URL.)
     """
     _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
+    client = _client()
     r = client.post(f"{path}?token={OPS_TOKEN}", follow_redirects=False)
     assert r.status_code == 303
     location = r.headers["location"]
-    assert "token=" + OPS_TOKEN in location, (
-        f"redirect lost the token: {location!r}"
-    )
+    assert "token=" not in location, f"redirect leaked the token: {location!r}"
+    assert OPS_TOKEN not in location
+    assert "ops_session" in r.headers.get("set-cookie", "")
 
 
-def test_ops_get_does_not_require_token(monkeypatch):
-    """GET /ops is intentionally open so the dashboard renders for
-    anyone who lands on the URL — only the mutators are gated.
+# ---------------------------------------------------------------------------
+# H1: cookie session — login / logout / gating
+# ---------------------------------------------------------------------------
+
+
+def test_ops_get_unauthenticated_shows_login_not_dashboard(monkeypatch):
+    """With a secret configured, an anonymous GET must render only the login
+    form — no system data (users, audit log, kill state) leaks.
     """
     _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
+    client = _client()
     r = client.get("/ops")
     assert r.status_code == 200
-
-
-def test_ops_get_with_token_embeds_into_form_actions(monkeypatch):
-    """When the operator opens ``/ops?token=...``, the rendered form
-    actions must point at ``/ops/kill?token=...`` so the POST carries
-    the token without an extra hidden input the operator has to set.
-    """
-    _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
-    r = client.get(f"/ops?token={OPS_TOKEN}")
-    assert r.status_code == 200
     body = r.text
-    assert f'action="/ops/kill?token={OPS_TOKEN}"' in body
-    assert f'action="/ops/resume?token={OPS_TOKEN}"' in body
+    assert 'action="/ops/login"' in body
+    assert 'name="secret"' in body
+    # No dashboard data / controls exposed to an anonymous visitor.
+    assert "Active users" not in body
+    assert 'action="/ops/kill"' not in body
+    assert "Audit log" not in body
 
 
-def test_ops_get_without_token_renders_unsigned_form_actions(monkeypatch):
-    """A bare ``/ops`` GET (no token) must still render — the buttons
-    appear but POST will 403. This keeps the dashboard discoverable.
+def test_ops_login_sets_cookie_and_redirects(monkeypatch):
+    _patch_route_io(monkeypatch)
+    client = _client()
+    r = client.post("/ops/login", data={"secret": OPS_TOKEN}, follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"].startswith("/ops?flash=")
+    set_cookie = r.headers.get("set-cookie", "")
+    assert "ops_session" in set_cookie
+    assert "HttpOnly" in set_cookie
+    assert "Secure" in set_cookie
+    # The raw secret must never be the cookie value (HMAC-derived).
+    assert OPS_TOKEN not in set_cookie
+
+
+def test_ops_login_wrong_secret_no_cookie(monkeypatch):
+    _patch_route_io(monkeypatch)
+    client = _client()
+    r = client.post("/ops/login", data={"secret": "nope"}, follow_redirects=False)
+    assert r.status_code == 303
+    assert "ops_session" not in r.headers.get("set-cookie", "")
+    assert "Invalid" in r.headers["location"]
+
+
+def test_ops_login_503_when_secret_unset(monkeypatch):
+    _patch_route_io(monkeypatch, settings=_settings(ops_secret=None))
+    client = _client()
+    r = client.post("/ops/login", data={"secret": "anything"}, follow_redirects=False)
+    assert r.status_code == 503
+
+
+def test_ops_get_with_cookie_renders_dashboard(monkeypatch):
+    """After login, the cookie grants the full dashboard."""
+    _patch_route_io(monkeypatch)
+    client = _authed_client()
+    body = client.get("/ops").text
+    assert "Active users" in body
+    assert 'action="/ops/kill"' in body
+
+
+def test_ops_get_legacy_token_migrates_to_cookie(monkeypatch):
+    """A legacy ``?token=`` GET must set the cookie and 303-redirect to a
+    clean ``/ops`` (secret stripped from the URL).
     """
     _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
-    body = client.get("/ops").text
-    assert 'action="/ops/kill"' in body
-    assert 'action="/ops/resume"' in body
+    client = _client()
+    r = client.get(f"/ops?token={OPS_TOKEN}", follow_redirects=False)
+    assert r.status_code == 303
+    location = r.headers["location"]
+    assert "token=" not in location
+    assert "ops_session" in r.headers.get("set-cookie", "")
+
+
+@pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
+def test_ops_post_accepts_cookie_session(monkeypatch, _stub_ops_mutators, path):
+    """A logged-in browser (cookie, no header, no URL token) can flip the
+    kill switch — with a same-origin request as browsers send on POST.
+    """
+    _patch_route_io(monkeypatch)
+    client = _authed_client()
+    r = client.post(
+        path, headers={"Origin": "https://testserver"}, follow_redirects=False,
+    )
+    assert r.status_code == 303
+    api_ops.kill_switch.set_active.assert_awaited_once()
+
+
+@pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
+def test_ops_post_cookie_rejected_cross_origin(monkeypatch, _stub_ops_mutators, path):
+    """CSRF defence: a cookie-authenticated POST whose Origin is a different
+    host (e.g. an attacker page, or a co-tenant *.fly.dev app) is rejected,
+    and the kill switch is NOT flipped.
+    """
+    _patch_route_io(monkeypatch)
+    client = _authed_client()
+    r = client.post(
+        path, headers={"Origin": "https://evil.example"}, follow_redirects=False,
+    )
+    assert r.status_code == 403
+    api_ops.kill_switch.set_active.assert_not_awaited()
+
+
+@pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
+def test_ops_post_cookie_rejected_without_origin(monkeypatch, _stub_ops_mutators, path):
+    """A cookie POST with no Origin/Referer (forged cross-site request that
+    stripped them) is rejected. Browsers always send Origin on POST.
+    """
+    _patch_route_io(monkeypatch)
+    client = _authed_client()
+    r = client.post(path, follow_redirects=False)
+    assert r.status_code == 403
+    api_ops.kill_switch.set_active.assert_not_awaited()
+
+
+@pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
+def test_ops_post_header_token_bypasses_origin_check(monkeypatch, _stub_ops_mutators, path):
+    """Scripts/CI using the X-Ops-Token header (no Origin) are not subject to
+    the origin check — the secret is itself unforgeable cross-site.
+    """
+    _patch_route_io(monkeypatch)
+    client = _client()
+    r = client.post(
+        path, headers={"X-Ops-Token": OPS_TOKEN}, follow_redirects=False,
+    )
+    assert r.status_code == 303
+    api_ops.kill_switch.set_active.assert_awaited_once()
+
+
+def test_ops_logout_clears_cookie(monkeypatch):
+    _patch_route_io(monkeypatch)
+    client = _authed_client()
+    r = client.post("/ops/logout", follow_redirects=False)
+    assert r.status_code == 303
+    set_cookie = r.headers.get("set-cookie", "")
+    # Deletion is signalled by an expiry in the past / empty value.
+    assert "ops_session" in set_cookie
 
 
 # ---------------------------------------------------------------------------
@@ -568,7 +691,7 @@ def test_ops_kill_audit_payload_includes_client_host(monkeypatch):
     audit_write = AsyncMock()
     monkeypatch.setattr(api_ops.audit, "write", audit_write)
 
-    client = TestClient(_build_app())
+    client = _client()
     r = client.post(
         "/ops/kill", headers={"X-Ops-Token": OPS_TOKEN},
         follow_redirects=False,
@@ -588,7 +711,7 @@ def test_ops_resume_audit_payload_includes_client_host(monkeypatch):
     audit_write = AsyncMock()
     monkeypatch.setattr(api_ops.audit, "write", audit_write)
 
-    client = TestClient(_build_app())
+    client = _client()
     r = client.post(
         "/ops/resume", headers={"X-Ops-Token": OPS_TOKEN},
         follow_redirects=False,
@@ -600,14 +723,14 @@ def test_ops_resume_audit_payload_includes_client_host(monkeypatch):
 
 def test_ops_kill_503_when_secret_unset(monkeypatch):
     _patch_route_io(monkeypatch, settings=_settings(ops_secret=None))
-    client = TestClient(_build_app())
+    client = _client()
     r = client.post("/ops/kill", follow_redirects=False)
     assert r.status_code == 503
 
 
 def test_ops_kill_403_on_bad_token(monkeypatch):
     _patch_route_io(monkeypatch)
-    client = TestClient(_build_app())
+    client = _client()
     r = client.post(
         "/ops/kill", headers={"X-Ops-Token": "wrong"},
         follow_redirects=False,

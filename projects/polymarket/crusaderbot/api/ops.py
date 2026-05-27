@@ -18,35 +18,46 @@ surface (``/kill`` / ``/resume`` / ``/killswitch``) and the bearer-protected
 ``kill_switch_pause`` / ``_resume``) so the full operator timeline is
 queryable.
 
-Auth
-----
-``GET /ops`` is open by design — the read-only dashboard is reachable
-from any phone browser during the demo. The POST mutators
-(``/ops/kill`` and ``/ops/resume``) are gated by a shared secret read
-from ``OPS_SECRET`` via either the ``X-Ops-Token`` header OR the
-``?token=<value>`` query / form param so the operator can bookmark
-``https://crusaderbot.fly.dev/ops?token=<OPS_SECRET>`` and trigger
-kill / resume with one tap on a phone. ``OPS_SECRET`` unset disables
-the mutators (503); missing / wrong token returns 403.
+Auth (H1 — cookie session, token out of the URL)
+-------------------------------------------------
+The dashboard is gated by ``OPS_SECRET``. The secret no longer lives in
+the URL: an operator authenticates once via ``POST /ops/login`` (secret in
+the request body, over HTTPS), which sets an HttpOnly + Secure +
+SameSite=Lax cookie (``ops_session``) holding an HMAC of the secret — not
+the secret itself. Subsequent dashboard renders and kill / resume POSTs
+authenticate from that cookie, so the secret never appears in the address
+bar, browser history, referrer headers, or Fly's access logs.
 
-DEFERRED (tracked in PROJECT_STATE KNOWN ISSUES, not a blocker for the
-paper-mode public beta): full auth hardening — per-operator login, token
-rotation, removing the token from the URL. Rationale: paper mode moves no
-real capital, the mutators are timing-safe secret-gated, every flip is
-audited (now with a ``client_host`` breadcrumb), and the bearer-protected
-``/admin/kill`` REST endpoint is the hardened path for scripts and CI.
-This deferral is intentional and documented — not an incomplete stub.
+Resolution for the POST mutators (``/ops/kill`` / ``/ops/resume``), any of:
+  * ``X-Ops-Token`` header == ``OPS_SECRET``      (scripts / CI)
+  * ``ops_session`` cookie == HMAC(``OPS_SECRET``) (browser, post-login)
+  * ``?token=<OPS_SECRET>`` query param           (legacy bookmark — still
+    accepted for backward-compatibility so an existing bookmark never
+    locks the operator out of the kill switch)
+
+``GET /ops`` renders the login form when unauthenticated (no system data is
+exposed to an anonymous visitor) and the full dashboard once the cookie is
+present. A legacy ``?token=`` GET is auto-migrated: the cookie is set and
+the request is redirected to a clean ``/ops`` so the secret leaves the URL.
+``OPS_SECRET`` unset → mutators 503 and the dashboard stays open (it cannot
+be gated without a secret). Token rotation = change ``OPS_SECRET`` in the
+environment, which invalidates every outstanding cookie (HMAC mismatch).
+All comparisons use ``secrets.compare_digest`` to avoid timing oracles.
+The bearer-protected ``/admin/kill`` REST endpoint remains the path for CI.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import html
 import logging
 import secrets
 import time
 from datetime import datetime, timezone
+from urllib.parse import parse_qs, quote, urlparse
 
 from fastapi import APIRouter, Header, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from .. import audit
 from ..config import get_settings, resolve_trading_mode
@@ -64,6 +75,11 @@ _PROCESS_START_MONOTONIC: float = time.monotonic()
 
 REFRESH_SECONDS: int = 30
 AUDIT_TAIL_LIMIT: int = 10
+
+# Cookie that carries the post-login operator session. Holds an HMAC of
+# OPS_SECRET (not the secret itself), HttpOnly + Secure + SameSite=Lax.
+_OPS_COOKIE: str = "ops_session"
+_OPS_COOKIE_MAX_AGE: int = 7 * 24 * 3600  # 7 days
 
 
 def _uptime_seconds() -> int:
@@ -226,7 +242,6 @@ def _render_page(
     circuit: dict[str, object],
     audit_rows: list[dict] | None,
     flash: str | None = None,
-    token: str | None = None,
 ) -> str:
     """Compose the HTML page. All variables are escape-controlled at source."""
     user_count_str = "N/A" if user_count is None else str(user_count)
@@ -259,17 +274,8 @@ def _render_page(
     flash_html = (
         f'<div class="flash">{html.escape(flash)}</div>' if flash else ""
     )
-    # The operator opens ``/ops?token=<OPS_SECRET>`` from a bookmark;
-    # we forward that token into each form's action URL so the POST
-    # carries it without a separate input the user has to remember.
-    # Without a token in the GET, the buttons render but POST returns
-    # 403 — the dashboard is open, the mutators are not.
-    if token:
-        from urllib.parse import quote
-        token_qs = "?token=" + quote(token, safe="")
-    else:
-        token_qs = ""
-
+    # Auth rides on the HttpOnly ``ops_session`` cookie set at login, so the
+    # form actions carry no secret in the URL.
     # The two action forms POST to /ops/kill and /ops/resume; both redirect
     # back to /ops with a flash query param so the operator sees a confirm
     # message after the round trip.
@@ -383,16 +389,19 @@ def _render_page(
   <div class="card">
     <h2>Controls</h2>
     <div class="actions">
-      <form method="post" action="/ops/kill{token_qs}">
+      <form method="post" action="/ops/kill">
         <button class="kill" type="submit">Kill bot</button>
       </form>
-      <form method="post" action="/ops/resume{token_qs}">
+      <form method="post" action="/ops/resume">
         <button class="resume" type="submit">Resume bot</button>
       </form>
     </div>
     <div class="muted" style="margin-top:.75rem;">
       Kill pauses NEW trades only. Existing positions stay open.
     </div>
+    <form method="post" action="/ops/logout" style="margin-top:.75rem;">
+      <button type="submit" style="flex:none;font-size:.8rem;padding:.4rem .75rem;">Sign out</button>
+    </form>
   </div>
 </div>
 
@@ -412,41 +421,181 @@ def _render_page(
 """
 
 
-def _check_ops_token(provided: str | None) -> None:
-    """Gate the POST mutators behind ``OPS_SECRET``.
+def _render_login_page(flash: str | None = None) -> str:
+    """Minimal sign-in page shown when no valid session cookie is present.
 
-    Resolution: the env-derived ``OPS_SECRET`` setting is the only
-    accepted token. Unset → 503 (mutators disabled). Provided value
-    missing or wrong → 403. Compared with ``secrets.compare_digest``
-    to avoid timing oracles. Demo-grade — full per-operator auth is
-    deferred (see module docstring TODO).
+    Exposes no system data — just a password field that POSTs the secret to
+    ``/ops/login`` over HTTPS. The secret travels in the request body, never
+    the URL.
     """
-    expected = (get_settings().OPS_SECRET or "").strip()
-    if not expected:
+    flash_html = (
+        f'<div class="flash">{html.escape(flash)}</div>' if flash else ""
+    )
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CrusaderBot ops — sign in</title>
+<style>
+  body {{ margin:0; min-height:100vh; display:flex; align-items:center;
+          justify-content:center; background:#0d1117; color:#e6edf3;
+          font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }}
+  .box {{ background:#161b22; border:1px solid #30363d; border-radius:8px;
+          padding:1.5rem; width:min(92vw,340px); }}
+  h1 {{ font-size:1.2rem; margin:0 0 1rem 0; }}
+  input {{ width:100%; padding:.75rem; margin-bottom:.75rem; border-radius:6px;
+           border:1px solid #30363d; background:#0d1117; color:#e6edf3; font-size:1rem; }}
+  button {{ width:100%; padding:.75rem; border:1px solid #1f6feb; border-radius:6px;
+            background:#1f6feb; color:#fff; font-size:1rem; font-weight:600; cursor:pointer; }}
+  .flash {{ margin:0 0 1rem 0; padding:.6rem .75rem; background:#3d1d1d;
+            border:1px solid #da3633; border-radius:6px; font-size:.9rem; }}
+  .muted {{ color:#7d8590; font-size:.8rem; margin-top:.75rem; }}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>CrusaderBot — ops</h1>
+  {flash_html}
+  <form method="post" action="/ops/login">
+    <input type="password" name="secret" placeholder="Operator secret" autofocus autocomplete="current-password">
+    <button type="submit">Sign in</button>
+  </form>
+  <div class="muted">Authenticated sessions use a secure cookie. The secret is never placed in the URL.</div>
+</div>
+</body>
+</html>
+"""
+
+
+def _ops_secret() -> str:
+    """Return the configured ``OPS_SECRET`` (stripped), or ``""`` if unset."""
+    return (get_settings().OPS_SECRET or "").strip()
+
+
+def _session_token(secret: str) -> str:
+    """Derive the cookie value from the secret.
+
+    HMAC-SHA256 so the cookie never carries the raw ``OPS_SECRET`` (which is
+    also the ``X-Ops-Token`` header value). Rotating ``OPS_SECRET`` changes
+    this digest, invalidating every outstanding cookie.
+    """
+    return hmac.new(
+        secret.encode("utf-8"), b"ops-session-v1", hashlib.sha256
+    ).hexdigest()
+
+
+def _matches_secret(provided: str | None, secret: str) -> bool:
+    return bool(provided) and secrets.compare_digest(provided, secret)
+
+
+def _valid_session(cookie: str | None, secret: str) -> bool:
+    return bool(cookie) and secrets.compare_digest(cookie, _session_token(secret))
+
+
+def _is_authenticated(request: Request, *, token: str | None = None) -> bool:
+    """True if the request carries valid dashboard credentials.
+
+    Accepts the session cookie OR a legacy ``?token=`` matching the secret.
+    Returns False when no secret is configured (cannot authenticate).
+    """
+    secret = _ops_secret()
+    if not secret:
+        return False
+    cookie = request.cookies.get(_OPS_COOKIE)
+    return _valid_session(cookie, secret) or _matches_secret(token, secret)
+
+
+def _is_same_origin(request: Request) -> bool:
+    """True if the request's ``Origin`` (or ``Referer``) host matches ``Host``.
+
+    Browsers always send ``Origin`` on POST; we fall back to ``Referer``.
+    Absent both, treat as not-same-origin (a same-site form POST from our own
+    page always carries them). This is the CSRF defence for the cookie auth
+    path — it also covers the shared ``*.fly.dev`` registrable domain, where
+    ``SameSite`` alone would treat a co-tenant app as same-site.
+    """
+    host = request.headers.get("host", "")
+    origin = request.headers.get("origin")
+    if origin:
+        return urlparse(origin).netloc == host
+    referer = request.headers.get("referer")
+    if referer:
+        return urlparse(referer).netloc == host
+    return False
+
+
+def _authorize_mutation(
+    *,
+    request: Request,
+    header: str | None,
+    token: str | None,
+    cookie: str | None,
+) -> None:
+    """Gate the POST mutators. 503 if no secret configured; 403 if no
+    accepted credential (header, cookie session, or legacy token) matches.
+
+    Secret-bearing credentials (``X-Ops-Token`` header / legacy ``?token=``)
+    are not forgeable cross-site and are used by scripts that omit ``Origin``,
+    so they bypass the origin check. The cookie path is browser-driven and
+    CSRF-sensitive, so it additionally requires a same-origin request.
+    """
+    secret = _ops_secret()
+    if not secret:
         raise HTTPException(
             status_code=503,
             detail="ops controls disabled (OPS_SECRET unset)",
         )
-    if not provided or not secrets.compare_digest(provided, expected):
-        raise HTTPException(status_code=403, detail="forbidden")
+    if _matches_secret(header, secret) or _matches_secret(token, secret):
+        return
+    if _valid_session(cookie, secret):
+        if not _is_same_origin(request):
+            raise HTTPException(status_code=403, detail="forbidden (cross-origin)")
+        return
+    raise HTTPException(status_code=403, detail="forbidden")
+
+
+def _set_session_cookie(response: Response, secret: str) -> None:
+    """Attach the HttpOnly + Secure + SameSite=Lax session cookie."""
+    response.set_cookie(
+        key=_OPS_COOKIE,
+        value=_session_token(secret),
+        max_age=_OPS_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        path="/",
+    )
 
 
 @router.get("/ops", response_class=HTMLResponse)
 async def ops_dashboard(
-    flash: str | None = None, token: str | None = None,
-) -> HTMLResponse:
-    """Render the operator HTML dashboard.
+    request: Request, flash: str | None = None, token: str | None = None,
+) -> Response:
+    """Render the operator dashboard, or the sign-in page when unauthenticated.
 
-    Each I/O probe is independent: a DB outage degrades that card to N/A
-    but the page still renders so the operator can see the kill switch
-    state (cached) and the health badge that explains the failure.
+    Auth is cookie-based (see module docstring). When a secret is configured
+    but the caller has no valid session, only the login form is rendered —
+    no system data leaks to an anonymous visitor. A legacy ``?token=`` is
+    auto-migrated into a cookie and the request is redirected to a clean
+    ``/ops`` so the secret leaves the URL.
 
-    A ``?token=<value>`` query param is accepted but NOT validated here
-    (GET is intentionally open). The value is forwarded into the
-    kill / resume form action URLs so an operator who bookmarked the
-    URL with the token can submit either button without re-entering
-    it. The bookmark IS the auth.
+    Each I/O probe is independent: a DB outage degrades that card to N/A but
+    the page still renders so the operator can see the (cached) kill switch
+    state and the health badge that explains the failure.
     """
+    secret = _ops_secret()
+
+    # Legacy bookmark: ?token=<secret> -> set cookie, strip token from URL.
+    if secret and _matches_secret(token, secret):
+        resp = RedirectResponse(url=_redirect_url("Signed in."), status_code=303)
+        _set_session_cookie(resp, secret)
+        return resp
+
+    # Secret configured but no valid session -> login form only (no data).
+    if secret and not _is_authenticated(request):
+        return HTMLResponse(content=_render_login_page(flash=flash))
+
     try:
         health = await run_health_checks()
     except Exception as exc:  # noqa: BLE001 — UI degrades
@@ -467,9 +616,43 @@ async def ops_dashboard(
         circuit=circuit,
         audit_rows=audit_rows,
         flash=flash,
-        token=token,
     )
     return HTMLResponse(content=body)
+
+
+@router.post("/ops/login")
+async def ops_login(request: Request) -> RedirectResponse:
+    """Authenticate with ``OPS_SECRET`` and set the session cookie.
+
+    The secret arrives in the urlencoded POST body (over HTTPS), never the
+    URL. On success an HttpOnly + Secure + SameSite=Lax cookie is set and the
+    operator is redirected to the dashboard. Wrong secret → back to the login
+    page with an error flash (no cookie). Unset secret → 503.
+
+    The body is parsed manually (``parse_qs``) rather than via FastAPI's
+    ``Form`` so the app does not take a hard dependency on ``python-multipart``
+    — a missing optional dep there would otherwise fail at import/boot.
+    """
+    expected = _ops_secret()
+    if not expected:
+        raise HTTPException(
+            status_code=503, detail="ops controls disabled (OPS_SECRET unset)",
+        )
+    raw = (await request.body()).decode("utf-8", "ignore")
+    provided = parse_qs(raw).get("secret", [""])[0]
+    if not _matches_secret(provided, expected):
+        return RedirectResponse(url=_redirect_url("Invalid secret."), status_code=303)
+    resp = RedirectResponse(url=_redirect_url("Signed in."), status_code=303)
+    _set_session_cookie(resp, expected)
+    return resp
+
+
+@router.post("/ops/logout")
+async def ops_logout() -> RedirectResponse:
+    """Clear the session cookie and return to the sign-in page."""
+    resp = RedirectResponse(url=_redirect_url("Signed out."), status_code=303)
+    resp.delete_cookie(_OPS_COOKIE, path="/")
+    return resp
 
 
 @router.post("/ops/kill")
@@ -480,19 +663,20 @@ async def ops_kill(
 ) -> RedirectResponse:
     """Engage the kill switch and redirect back to the dashboard.
 
-    Auth: requires ``OPS_SECRET`` via the ``X-Ops-Token`` header
-    (preferred, kept out of access logs) or the ``?token=<value>``
-    query param (used by the dashboard's HTML form action URL so the
-    operator can flip from a phone with a single tap on a bookmarked
-    URL). ``OPS_SECRET`` unset → 503; missing / wrong token → 403.
+    Auth (any of): ``X-Ops-Token`` header, the ``ops_session`` cookie set at
+    login, or a legacy ``?token=`` query param — all compared to
+    ``OPS_SECRET``. Unset secret → 503; no valid credential → 403.
 
     Delegates to the shared ``domain.ops.kill_switch.set_active`` so this
     flip writes ``kill_switch_history`` AND emits a ``kill_switch_pause``
-    audit row. ``actor_id=None`` because the demo token is shared, not
-    per-operator; the action label still distinguishes the ops surface
-    from a Telegram flip via the ``source`` payload field.
+    audit row. ``actor_id=None`` because the secret is shared, not
+    per-operator; the action label still distinguishes the ops surface from
+    a Telegram flip via the ``source`` payload field.
     """
-    _check_ops_token(x_ops_token or token)
+    _authorize_mutation(
+        request=request, header=x_ops_token, token=token,
+        cookie=request.cookies.get(_OPS_COOKIE),
+    )
     flash = "Kill switch engaged — new trades blocked."
     try:
         await kill_switch.set_active(
@@ -511,9 +695,12 @@ async def ops_kill(
     except Exception as exc:  # noqa: BLE001 — boundary
         logger.error("ops dashboard: kill failed: %s", exc)
         flash = f"Kill failed: {type(exc).__name__}"
-    return RedirectResponse(
-        url=_redirect_url(flash, token), status_code=303,
-    )
+    resp = RedirectResponse(url=_redirect_url(flash), status_code=303)
+    # Establish/refresh the cookie so a legacy ?token= caller transitions to
+    # the cookie session and the next GET renders the dashboard.
+    if _ops_secret():
+        _set_session_cookie(resp, _ops_secret())
+    return resp
 
 
 @router.post("/ops/resume")
@@ -527,7 +714,10 @@ async def ops_resume(
     Auth contract identical to ``POST /ops/kill`` — see that handler's
     docstring.
     """
-    _check_ops_token(x_ops_token or token)
+    _authorize_mutation(
+        request=request, header=x_ops_token, token=token,
+        cookie=request.cookies.get(_OPS_COOKIE),
+    )
     flash = "Kill switch released — bot resumed."
     try:
         await kill_switch.set_active(
@@ -546,18 +736,15 @@ async def ops_resume(
     except Exception as exc:  # noqa: BLE001 — boundary
         logger.error("ops dashboard: resume failed: %s", exc)
         flash = f"Resume failed: {type(exc).__name__}"
-    return RedirectResponse(
-        url=_redirect_url(flash, token), status_code=303,
-    )
+    resp = RedirectResponse(url=_redirect_url(flash), status_code=303)
+    if _ops_secret():
+        _set_session_cookie(resp, _ops_secret())
+    return resp
 
 
-def _redirect_url(flash: str, token: str | None) -> str:
-    """Build the post-action redirect URL, preserving the operator's
-    token query param so the next dashboard render still has it
-    available for the form actions.
+def _redirect_url(flash: str) -> str:
+    """Build the post-action redirect URL back to the dashboard.
+
+    No token is carried in the URL — auth rides on the session cookie.
     """
-    from urllib.parse import quote
-    parts = [f"flash={quote(flash, safe='')}"]
-    if token:
-        parts.append(f"token={quote(token, safe='')}")
-    return "/ops?" + "&".join(parts)
+    return "/ops?flash=" + quote(flash, safe="")
