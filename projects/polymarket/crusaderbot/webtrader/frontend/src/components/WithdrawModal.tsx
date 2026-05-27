@@ -68,7 +68,7 @@ export function WithdrawModal({ paperMode, balance, onClose, onWithdraw, onSucce
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center px-2"
       style={{ background: "rgba(0,0,0,0.78)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog"
@@ -76,7 +76,7 @@ export function WithdrawModal({ paperMode, balance, onClose, onWithdraw, onSucce
       aria-label="Withdraw USDC"
     >
       <div
-        className="w-full max-w-sm bg-surface border border-border-1 clip-card p-5 pb-8 md:pb-5"
+        className="w-full max-w-sm bg-surface border border-border-1 clip-card p-5 pb-8 md:pb-5 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
