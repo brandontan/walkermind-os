@@ -16,6 +16,7 @@ when REDIS_URL is unset; not part of the operator-critical dependency set).
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from typing import Awaitable, Callable
@@ -130,11 +131,14 @@ async def check_alchemy_rpc() -> bool:
 
 
 async def check_alchemy_ws() -> bool:
-    """TCP-level reachability check for the Alchemy WebSocket endpoint.
+    """Full WebSocket handshake + JSON-RPC probe of the Alchemy WS endpoint.
 
-    A full WS handshake would require an extra dependency; the TCP probe
-    is sufficient to surface DNS/SSL/firewall outages, which is what the
-    operator alert needs to catch.
+    Opens a real WebSocket connection (TLS + HTTP Upgrade handshake) and
+    issues a single ``eth_blockNumber`` call. This confirms the endpoint is
+    not merely TCP-reachable but actually serving the JSON-RPC protocol over
+    WS, so a broken upstream (failed handshake, auth rejection, protocol
+    error) now fails the check instead of passing on raw socket reachability.
+    Wrapped by the caller's 3s timeout.
     """
     settings = get_settings()
     url = getattr(settings, "ALCHEMY_POLYGON_WS_URL", None)
@@ -143,17 +147,23 @@ async def check_alchemy_ws() -> bool:
     parsed = urlparse(url)
     if parsed.scheme not in ("ws", "wss"):
         raise RuntimeError(f"invalid ws scheme: {parsed.scheme!r}")
-    host = parsed.hostname
-    if not host:
-        raise RuntimeError("ws host missing")
-    port = parsed.port or (443 if parsed.scheme == "wss" else 80)
-    reader, writer = await asyncio.open_connection(host, port, ssl=parsed.scheme == "wss")
-    writer.close()
+    # Soft import keeps test environments without ``websockets`` functional;
+    # production lists it as a hard dependency in pyproject.toml.
     try:
-        await writer.wait_closed()
-    except Exception:  # noqa: BLE001 — close races are benign here
-        pass
-    return True
+        import websockets
+    except ImportError as exc:  # pragma: no cover — only on missing dep
+        raise RuntimeError("websockets package not installed") from exc
+
+    payload = json.dumps(
+        {"jsonrpc": "2.0", "method": "eth_blockNumber", "id": 1, "params": []}
+    )
+    async with websockets.connect(url, close_timeout=1, ping_interval=None) as ws:
+        await ws.send(payload)
+        raw = await ws.recv()
+    body = json.loads(raw)
+    if "error" in body:
+        raise RuntimeError(f"ws rpc error: {body['error']}")
+    return "result" in body
 
 
 async def run_health_checks() -> dict:
