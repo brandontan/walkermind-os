@@ -107,7 +107,7 @@ CRUSADERBOT is considered **DONE** only when:
 ## Active — In Progress
 
 - [x] WARP•R00T public-ready audit [MAJOR/FOUNDATION] — WARP/ROOT/public-ready-hardening. Paper-safe core verified; privacy-policy.md fixed. Report: reports/forge/public-ready-hardening.md.
-- [ ] H2 — inbound rate limiting / abuse control for public API + bot surfaces [STANDARD]. Done when untrusted public users are throttled at the FastAPI/bot boundary without breaking SSE/legit polling.
+- [x] H2 — inbound rate limiting / abuse control for public API + bot surfaces [STANDARD] — DELIVERED WARP/ROOT/api-rate-limit. RateLimitMiddleware (per-IP sliding window, 120rpm/60s, 429+Retry-After, health/webhook exempt); 6 tests; suite 1798 pass. Report: reports/forge/api-rate-limit.md.
 - [ ] H1 — ops auth hardening: token-out-of-URL + per-operator login + rotation (api/ops.py) [MAJOR — SENTINEL]. Done when no secret is passed via query string and operators authenticate individually.
 - [ ] M1 — enable RLS on the last remaining public table [MAJOR-adjacent]. Done when 43/43 tables RLS-enabled.
 - [ ] M3 — check_alchemy_ws full WS handshake (monitoring/health.py:132) [STANDARD]. Done when health fails on a broken WS, not just closed TCP.

@@ -19,6 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import notifications
 from .api import admin as api_admin, health as api_health, ops as api_ops
+from .api.rate_limit import RateLimitMiddleware
 from .webtrader.backend import sse as webtrader_sse
 from .webtrader.backend.router import router as web_router
 from .bot.dispatcher import register as register_handlers
@@ -311,6 +312,9 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="CrusaderBot", version="0.1.0", lifespan=lifespan)
 app.add_middleware(RequestLogMiddleware)
+# Outermost middleware (added last) — reject abusive clients before any
+# downstream work. Health/readiness + Telegram webhook are exempt.
+app.add_middleware(RateLimitMiddleware)
 app.include_router(api_health.router)
 app.include_router(api_admin.router)
 app.include_router(api_ops.router)

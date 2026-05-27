@@ -304,6 +304,15 @@ class Settings(BaseSettings):
     # locally before the broker's 429 path triggers.
     CLOB_RATE_LIMIT_RPS: int = 10
 
+    # --- Inbound HTTP rate limiting (public abuse control) ---
+    # Per-client (source-IP) request ceiling over RATE_LIMIT_WINDOW_SECONDS,
+    # enforced by RateLimitMiddleware on the public API/webhook surface.
+    # Health/readiness probes and the Telegram webhook are exempt. Set
+    # RATE_LIMIT_ENABLED=False to disable throttling entirely.
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_RPM: int = 120
+    RATE_LIMIT_WINDOW_SECONDS: int = 60
+
     @model_validator(mode="before")
     @classmethod
     def _alias_polygon_rpc_url(cls, data):
