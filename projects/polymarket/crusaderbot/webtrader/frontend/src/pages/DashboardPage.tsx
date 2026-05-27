@@ -122,6 +122,16 @@ export function DashboardPage() {
     return () => clearInterval(id);
   }, [refreshAll]);
 
+  // On mobile, setInterval and SSE pause when the tab is backgrounded.
+  // Force an immediate refresh when the user returns to the page.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshAll();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [refreshAll]);
+
   if (error) return (
     <>
       <TopBar />
