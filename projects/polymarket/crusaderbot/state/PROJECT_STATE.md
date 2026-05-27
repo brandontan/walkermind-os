@@ -66,8 +66,7 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). H3 complete an
 - Seed boss user ADMIN tier row in user_tiers via /admin settier post-deploy.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review + merge WARP/ROOT/bot-html-to-markdownv2 (PR #1386 open). STANDARD — all 26 bot handlers migrated HTML→MarkdownV2. Post-merge: redeploy Fly.io, verify no BadRequest parse entities errors in Sentry.
-- WARP🔹CMD review + merge WARP/ROOT/notification-strategy-labels (PR open). STANDARD — Telegram labels, WebTrader open tab, dashboard today_trades.
+- WARP🔹CMD: Fly.io redeploy to pick up H3 (MarkdownV2) + strategy labels + migration 058 changes. Verify no BadRequest parse entities in Sentry post-deploy.
 - WARP🔹CMD: apply migration 058 (DROP copy_targets, backfill into copy_trade_tasks) to Supabase before fly deploy.
 - Verify post-deploy: Telegram copy-task wizard → confirm task created successfully + copy monitor picks it up (F-HIGH-2 secondary fix #1374).
 - Verify post-deploy: WebTrader withdraw flow on both Wallet + Portfolio pages (amount → address → confirm → submit → pending status shown).
