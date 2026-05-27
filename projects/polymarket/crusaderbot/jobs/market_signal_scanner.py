@@ -13,6 +13,7 @@ Both write to signal_publications for the signal_following pipeline to consume.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import time
@@ -400,12 +401,16 @@ async def run_job() -> tuple[int, int]:
             # demo feed surfaces liquid, near-dated markets instead of a narrow
             # set of far-dated futures (championship winners months out) that
             # never resolve and permanently lock concurrency slots.
-            markets = await polymarket.get_markets(
-                limit=fetch_limit,
-                order="volume24hr",
-                ascending=False,
-                end_date_max=horizon_cutoff.isoformat(),
-            )
+            async with asyncio.timeout(30):
+                markets = await polymarket.get_markets(
+                    limit=fetch_limit,
+                    order="volume24hr",
+                    ascending=False,
+                    end_date_max=horizon_cutoff.isoformat(),
+                )
+        except TimeoutError:
+            log.warning("polymarket_fetch_timeout")
+            markets = []
         except Exception as exc:
             log.warning("polymarket_fetch_failed", error=str(exc))
             markets = []
