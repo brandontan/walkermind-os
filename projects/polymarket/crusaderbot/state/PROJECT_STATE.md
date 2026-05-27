@@ -1,5 +1,5 @@
-Last Updated : 2026-05-27 16:30
-Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). H3 MERGED (PR #1386). M-1 aiohttp→httpx + M-2 scanner stall guard MERGED (PR #1387). Next: Fly.io redeploy + migration 058.
+Last Updated : 2026-05-27 17:00
+Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). H3 + M-1 + M-2 DEPLOYED. Migration 058 applied. Fly.io deploy confirmed ✅. Monitoring: 48h window (ends 2026-05-28 16:00 WIB) — TooManyConnectionsError + paper PnL.
 
 - WARP-57 (issue #1260): SENTINEL re-audited — APPROVED (Round 2 Score 86/100, 0 critical). PR #1261 / WARP/warp57-telegram-ux-mvp at SHA aa4fe24c55e8. Round-1 CRITICAL-1 (copy_targets schema mismatch) RESOLVED — `bot/handlers/mvp/copy_wallet.py` SELECT/INSERT/UPDATE now use canonical columns (`target_wallet_address`, `status='active'/'inactive'`, `scale_factor`) per mig 009. Round-1 MEDIUM-1 (`wallets.public_address` → `deposit_address` in onboarding.py:38) also RESOLVED. NEW MEDIUM-4 (post-merge follow-up): MVP writes to `copy_targets` but production scanner `services/copy_trade/monitor.py:80` reads `copy_trade_tasks` via `domain/copy_trade/repository.py:list_active_tasks` — end-to-end mirror not yet active until a follow-up lane swaps the MVP table to `copy_trade_tasks`; legacy `/copytrade` 8-step wizard remains the only path that produces mirrored trades. Round-1 MEDIUM-2 (auto:start engine bootstrap) + MEDIUM-3 (legacy `/settings` sub-route regression) P2-deferred per WARP🔹CMD direction. Activation guards untouched (Risk 3 PASS), no manual trade buttons (Risk 2 PASS), paper-mode default preserved (Risk 6 PASS). Report: projects/polymarket/crusaderbot/reports/sentinel/warp57-telegram-ux-mvp.md.
 - WARP-55 (issue #1256): MERGED (abd3b43dbe10) — RUNTIME_EVIDENCE.md: 7/7 P2 finish criteria proven. 🏁 CrusaderBot closed beta DONE. Guards LOCKED. STANDARD, evidence-only.
@@ -66,11 +66,11 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). H3 MERGED (PR 
 - Seed boss user ADMIN tier row in user_tiers via /admin settier post-deploy.
 
 [NEXT PRIORITY]
-- WARP🔹CMD: apply migration 058 (DROP copy_targets, backfill into copy_trade_tasks) to Supabase before fly deploy.
-- WARP🔹CMD: Fly.io redeploy to pick up H3 (MarkdownV2, PR #1386) + M-1 aiohttp→httpx + M-2 scanner stall guard (PR #1387). Verify no BadRequest parse entities in Sentry post-deploy.
-- Verify post-deploy: Telegram copy-task wizard → confirm task created successfully + copy monitor picks it up (F-HIGH-2 secondary fix #1374).
-- Verify post-deploy: WebTrader withdraw flow on both Wallet + Portfolio pages (amount → address → confirm → submit → pending status shown).
+- Monitor Sentry: confirm no BadRequest parse entities post-H3 deploy (MarkdownV2 migration).
+- Verify: Telegram copy-task wizard → task created + copy monitor picks it up (F-HIGH-2 fix #1374).
+- Verify: WebTrader withdraw flow on Wallet + Portfolio pages end-to-end.
 - 48h observation window: ends 2026-05-28 16:00 WIB — confirm TooManyConnectionsError silent + paper PnL positive trend.
+- WARP•R00T M-3 (deferred): structlog migration for top-8 stdlib logging files — separate lane when ready.
 
 [KNOWN ISSUES]
 - [MONITORING] DB_POOL_MAX lowered 10→3 (PR #1366, 2026-05-26). Supabase Session Pooler active. 48h window to confirm TooManyConnectionsError silent in Sentry.
