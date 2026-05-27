@@ -54,7 +54,7 @@ import logging
 import secrets
 import time
 from datetime import datetime, timezone
-from urllib.parse import parse_qs, quote
+from urllib.parse import parse_qs, quote, urlparse
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -506,11 +506,39 @@ def _is_authenticated(request: Request, *, token: str | None = None) -> bool:
     return _valid_session(cookie, secret) or _matches_secret(token, secret)
 
 
+def _is_same_origin(request: Request) -> bool:
+    """True if the request's ``Origin`` (or ``Referer``) host matches ``Host``.
+
+    Browsers always send ``Origin`` on POST; we fall back to ``Referer``.
+    Absent both, treat as not-same-origin (a same-site form POST from our own
+    page always carries them). This is the CSRF defence for the cookie auth
+    path — it also covers the shared ``*.fly.dev`` registrable domain, where
+    ``SameSite`` alone would treat a co-tenant app as same-site.
+    """
+    host = request.headers.get("host", "")
+    origin = request.headers.get("origin")
+    if origin:
+        return urlparse(origin).netloc == host
+    referer = request.headers.get("referer")
+    if referer:
+        return urlparse(referer).netloc == host
+    return False
+
+
 def _authorize_mutation(
-    *, header: str | None, token: str | None, cookie: str | None
+    *,
+    request: Request,
+    header: str | None,
+    token: str | None,
+    cookie: str | None,
 ) -> None:
     """Gate the POST mutators. 503 if no secret configured; 403 if no
     accepted credential (header, cookie session, or legacy token) matches.
+
+    Secret-bearing credentials (``X-Ops-Token`` header / legacy ``?token=``)
+    are not forgeable cross-site and are used by scripts that omit ``Origin``,
+    so they bypass the origin check. The cookie path is browser-driven and
+    CSRF-sensitive, so it additionally requires a same-origin request.
     """
     secret = _ops_secret()
     if not secret:
@@ -518,11 +546,11 @@ def _authorize_mutation(
             status_code=503,
             detail="ops controls disabled (OPS_SECRET unset)",
         )
-    if (
-        _matches_secret(header, secret)
-        or _matches_secret(token, secret)
-        or _valid_session(cookie, secret)
-    ):
+    if _matches_secret(header, secret) or _matches_secret(token, secret):
+        return
+    if _valid_session(cookie, secret):
+        if not _is_same_origin(request):
+            raise HTTPException(status_code=403, detail="forbidden (cross-origin)")
         return
     raise HTTPException(status_code=403, detail="forbidden")
 
@@ -646,7 +674,7 @@ async def ops_kill(
     a Telegram flip via the ``source`` payload field.
     """
     _authorize_mutation(
-        header=x_ops_token, token=token,
+        request=request, header=x_ops_token, token=token,
         cookie=request.cookies.get(_OPS_COOKIE),
     )
     flash = "Kill switch engaged — new trades blocked."
@@ -687,7 +715,7 @@ async def ops_resume(
     docstring.
     """
     _authorize_mutation(
-        header=x_ops_token, token=token,
+        request=request, header=x_ops_token, token=token,
         cookie=request.cookies.get(_OPS_COOKIE),
     )
     flash = "Kill switch released — bot resumed."

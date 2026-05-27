@@ -544,11 +544,54 @@ def test_ops_get_legacy_token_migrates_to_cookie(monkeypatch):
 @pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
 def test_ops_post_accepts_cookie_session(monkeypatch, _stub_ops_mutators, path):
     """A logged-in browser (cookie, no header, no URL token) can flip the
-    kill switch.
+    kill switch — with a same-origin request as browsers send on POST.
+    """
+    _patch_route_io(monkeypatch)
+    client = _authed_client()
+    r = client.post(
+        path, headers={"Origin": "https://testserver"}, follow_redirects=False,
+    )
+    assert r.status_code == 303
+    api_ops.kill_switch.set_active.assert_awaited_once()
+
+
+@pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
+def test_ops_post_cookie_rejected_cross_origin(monkeypatch, _stub_ops_mutators, path):
+    """CSRF defence: a cookie-authenticated POST whose Origin is a different
+    host (e.g. an attacker page, or a co-tenant *.fly.dev app) is rejected,
+    and the kill switch is NOT flipped.
+    """
+    _patch_route_io(monkeypatch)
+    client = _authed_client()
+    r = client.post(
+        path, headers={"Origin": "https://evil.example"}, follow_redirects=False,
+    )
+    assert r.status_code == 403
+    api_ops.kill_switch.set_active.assert_not_awaited()
+
+
+@pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
+def test_ops_post_cookie_rejected_without_origin(monkeypatch, _stub_ops_mutators, path):
+    """A cookie POST with no Origin/Referer (forged cross-site request that
+    stripped them) is rejected. Browsers always send Origin on POST.
     """
     _patch_route_io(monkeypatch)
     client = _authed_client()
     r = client.post(path, follow_redirects=False)
+    assert r.status_code == 403
+    api_ops.kill_switch.set_active.assert_not_awaited()
+
+
+@pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
+def test_ops_post_header_token_bypasses_origin_check(monkeypatch, _stub_ops_mutators, path):
+    """Scripts/CI using the X-Ops-Token header (no Origin) are not subject to
+    the origin check — the secret is itself unforgeable cross-site.
+    """
+    _patch_route_io(monkeypatch)
+    client = _client()
+    r = client.post(
+        path, headers={"X-Ops-Token": OPS_TOKEN}, follow_redirects=False,
+    )
     assert r.status_code == 303
     api_ops.kill_switch.set_active.assert_awaited_once()
 

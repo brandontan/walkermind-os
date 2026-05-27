@@ -42,11 +42,21 @@ mutators delegate to the shared `domain.ops.kill_switch.set_active` and write
 the same `kill_switch_history` + `audit.log` rows as before. `OPS_SECRET` unset
 → mutators 503 and the dashboard stays open (cannot gate without a secret).
 
-CSRF posture: mutators authenticate via a SameSite=Lax cookie, which browsers
-do not send on cross-site POST → CSRF-safe; the header path is not CSRF-able;
-the legacy token path requires the secret. The login body is parsed via
-`parse_qs` (not FastAPI `Form`) so the app takes **no** hard dependency on
+CSRF posture: the cookie-authenticated mutator path additionally enforces a
+**same-origin check** (`_is_same_origin`: `Origin`/`Referer` host must equal
+`Host`). This is the primary CSRF defence — `SameSite=Lax` is belt, the origin
+check is braces, and it specifically closes the shared `*.fly.dev` registrable
+domain case where a co-tenant app could otherwise be treated as same-site, plus
+Chrome's Lax+POST grace window. The header (`X-Ops-Token`) and legacy `?token=`
+paths bypass the origin check because the secret is itself unforgeable
+cross-site and scripts/CI legitimately omit `Origin`. The login body is parsed
+via `parse_qs` (not FastAPI `Form`) so the app takes **no** hard dependency on
 `python-multipart` (which would otherwise fail at import/boot).
+
+Security review: a focused security-review pass flagged CSRF on the
+cookie-auth mutators (the only finding); the same-origin check above was added
+in response and is covered by regression tests (cross-origin → 403, missing
+Origin → 403, header-token bypass → 303).
 
 ## 3. Files created / modified (full repo-root paths)
 
