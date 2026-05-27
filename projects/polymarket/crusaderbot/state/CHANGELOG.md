@@ -389,3 +389,4 @@ Hard product rules enforced: no manual trade buttons, markets intelligence-only,
 2026-05-27 15:40 | WARP/ROOT/bot-html-to-markdownv2 | H3 complete: all 26+ legacy bot/handlers/ ParseMode.HTML → MARKDOWN_V2; test assertions updated; PR #1386 merged
 2026-05-27 16:20 | WARP/ROOT/copy-trade-httpx-hardening | M-1: aiohttp→httpx in wallet_stats/wallet_360/leaderboard_sync; aiohttp dep removed; M-2: asyncio.timeout(30) guard on market_signal_scanner.get_markets
 2026-05-27 16:30 | WARP/ROOT/copy-trade-httpx-hardening | PR #1387 merged — post-merge state sync
+2026-05-27 17:00 | WARP🔹CMD | Fly.io deploy confirmed ✅ — H3 (MarkdownV2) + M-1 (aiohttp→httpx) + M-2 (scanner stall guard) + migration 058 live in production
