@@ -1,7 +1,6 @@
 """Share card handler — sends a formatted trade share card on [Share] button press."""
 from __future__ import annotations
 
-import html
 import logging
 from uuid import UUID
 
@@ -12,6 +11,7 @@ from telegram.ext import ContextTypes
 from ...database import get_pool
 from ...services.referral.referral_service import get_or_create_referral_code, build_deep_link
 from ...users import get_user_by_telegram_id
+from ..ui.tree import md_v2_escape as _md
 
 logger = logging.getLogger(__name__)
 
@@ -91,12 +91,12 @@ async def referral_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
     deep_link = build_deep_link(code)
 
     card = (
-        f"\U0001f3c6 Just made <b>+{pct:.1f}%</b> on <i>{html.escape(market_title)}</i>\n"
-        f"using CrusaderBot!\n\n"
-        f"Join me: <code>{html.escape(deep_link)}</code>"
+        f"\U0001f3c6 Just made `+{pct:.1f}%` on _{_md(market_title)}_\n"
+        f"using CrusaderBot\\!\n\n"
+        f"Join me: `{deep_link}`"
     )
 
     await q.message.reply_text(
         card,
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
