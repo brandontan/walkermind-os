@@ -405,8 +405,8 @@ def test_format_positions_with_tp_sl():
     }]
     marks = [0.48]
     text = _format_positions_section(pos, marks, tp_pct=0.25, sl_pct=0.08)
-    assert "TP: +25%" in text
-    assert "SL: -8%" in text
+    assert "TP: `+25%`" in text
+    assert "SL: `-8%`" in text
 
 
 def test_format_positions_no_tp_sl_shows_dash():
