@@ -62,7 +62,7 @@ Close production gaps before beta:
 - [x] Apply migration 044 (DROP access_tier) — CONFIRMED APPLIED (access_tier column gone from schema)
 - [x] Fly.io deploy validation
 - [x] Scheduler health / retry check
-- [x] RLS lockout — Row Level Security ENABLED on 42/43 public tables (migration 046 applied, MERGED 82f08af2a27b, verified live 2026-05-26). 1 table remains RLS-disabled — see PROJECT_STATE NEXT PRIORITY.
+- [x] RLS lockout — Row Level Security ENABLED on ALL 43/43 public tables (migration 046 + later migs incl. 055 scan_runs; verified live 2026-05-27 via Supabase advisors + list_tables — 0 rls_disabled errors).
 - [x] WARP-52 — portfolio_snapshots Python writer / cb_portfolio NOTIFY wiring (Issue #1245) [STANDARD] — DELIVERED WARP/portfolio-snapshots-writer 2026-05-21
 - [x] Telegram notification reliability — WARP-53 DELIVERED 2026-05-21 (WARP/warp53-reliability-hardening)
 - [x] Logging and operational sanity
@@ -109,7 +109,7 @@ CRUSADERBOT is considered **DONE** only when:
 - [x] WARP•R00T public-ready audit [MAJOR/FOUNDATION] — WARP/ROOT/public-ready-hardening. Paper-safe core verified; privacy-policy.md fixed. Report: reports/forge/public-ready-hardening.md.
 - [x] H2 — inbound rate limiting / abuse control for public API + bot surfaces [STANDARD] — DELIVERED WARP/ROOT/api-rate-limit. RateLimitMiddleware (per-IP sliding window, 120rpm/60s, 429+Retry-After, health/webhook exempt); 6 tests; suite 1798 pass. Report: reports/forge/api-rate-limit.md.
 - [ ] H1 — ops auth hardening: token-out-of-URL + per-operator login + rotation (api/ops.py) [MAJOR — SENTINEL]. Done when no secret is passed via query string and operators authenticate individually.
-- [ ] M1 — enable RLS on the last remaining public table [MAJOR-adjacent]. Done when 43/43 tables RLS-enabled.
+- [x] M1 — enable RLS on the last remaining public table [MAJOR-adjacent]. DONE — verified 2026-05-27: 43/43 public tables rls_enabled=true (Supabase list_tables); 0 rls_disabled_in_public advisor errors. Closed by migration 046 + later migs (incl. 055 scan_runs); no new migration needed.
 - [ ] M3 — check_alchemy_ws full WS handshake (monitoring/health.py:132) [STANDARD]. Done when health fails on a broken WS, not just closed TCP.
 - [ ] C1 — wire on-chain capital movement (withdraw/redeem/sweep) [MAJOR — owner decision + SENTINEL + staged]. LIVE blocker: wallet/withdrawals.py:158 raises NotImplementedError. Done when live fund flows execute safely behind the guard sequence. DO NOT start without explicit WARP🔹CMD go.
 
