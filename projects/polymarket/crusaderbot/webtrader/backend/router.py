@@ -210,7 +210,7 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
             "SELECT balance_usdc FROM wallets WHERE user_id = $1::uuid", user_id
         )
         open_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND status='open'",
+            "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND status IN ('open','pending_settlement')",
             user_id,
         )
         pnl_today = await conn.fetchval(
@@ -352,7 +352,10 @@ async def get_positions(
     user_id = user["user_id"]
     where = "WHERE p.user_id = $1::uuid"
     params: list = [user_id]
-    if status:
+    if status == "open":
+        # Include pending_settlement so won-positions awaiting payout are visible
+        where += " AND p.status IN ('open', 'pending_settlement')"
+    elif status:
         where += f" AND p.status = ${len(params)+1}"
         params.append(status)
 
@@ -394,7 +397,7 @@ async def get_positions(
             tp_price=_tp_sl_price(float(r["entry_price"]), r["side"], r["tp_pct"], is_tp=True),
             sl_price=_tp_sl_price(float(r["entry_price"]), r["side"], r["sl_pct"], is_tp=False),
             awaiting_redeem=(
-                r["status"] == "open"
+                r["status"] in ("open", "pending_settlement")
                 and bool(r["market_resolved"])
                 and r["winning_side"] is not None
                 and str(r["winning_side"]) == str(r["side"])
@@ -1213,7 +1216,7 @@ async def get_runtime_status(user: _CurrentUser) -> RuntimeStatus:
             user_id,
         )
         open_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND status='open'",
+            "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND status IN ('open','pending_settlement')",
             user_id,
         )
     scanner = get_scanner_state()
@@ -1248,7 +1251,7 @@ async def get_portfolio_summary(user: _CurrentUser) -> PortfolioSummary:
             ) or 0
         )
         open_rows = await conn.fetch(
-            "SELECT size_usdc, entry_price, current_price FROM positions WHERE user_id=$1::uuid AND status='open'",
+            "SELECT size_usdc, entry_price, current_price FROM positions WHERE user_id=$1::uuid AND status IN ('open','pending_settlement')",
             user_id,
         )
 
@@ -1322,7 +1325,7 @@ async def get_portfolio_chart(
             *params_period,
         )
         open_rows = await conn.fetch(
-            "SELECT size_usdc, entry_price, current_price FROM positions WHERE user_id=$1::uuid AND status='open'",
+            "SELECT size_usdc, entry_price, current_price FROM positions WHERE user_id=$1::uuid AND status IN ('open','pending_settlement')",
             user_id,
         )
 

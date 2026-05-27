@@ -1,5 +1,5 @@
-Last Updated : 2026-05-26 23:40
-Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). MVP UI migrated to MarkdownV2 (MERGED #1382). New: legacy wallet + emergency screens also migrated HTML → MarkdownV2 (messages.py 10 fns + wallet.py + emergency.py); admin_withdrawal_item_text kept HTML (operator path). PR open: WARP/telegram-legacy-markdownv2.
+Last Updated : 2026-05-27 05:40
+Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). WARP/ROOT/notification-strategy-labels PR open: 3 runtime bugs fixed — (1) Telegram strategy labels now show preset display names (late_entry_v3→Close Sweep); (2) WebTrader OPEN tab now includes pending_settlement positions; (3) Dashboard today_trades no longer hardcoded 0.
 
 - WARP-57 (issue #1260): SENTINEL re-audited — APPROVED (Round 2 Score 86/100, 0 critical). PR #1261 / WARP/warp57-telegram-ux-mvp at SHA aa4fe24c55e8. Round-1 CRITICAL-1 (copy_targets schema mismatch) RESOLVED — `bot/handlers/mvp/copy_wallet.py` SELECT/INSERT/UPDATE now use canonical columns (`target_wallet_address`, `status='active'/'inactive'`, `scale_factor`) per mig 009. Round-1 MEDIUM-1 (`wallets.public_address` → `deposit_address` in onboarding.py:38) also RESOLVED. NEW MEDIUM-4 (post-merge follow-up): MVP writes to `copy_targets` but production scanner `services/copy_trade/monitor.py:80` reads `copy_trade_tasks` via `domain/copy_trade/repository.py:list_active_tasks` — end-to-end mirror not yet active until a follow-up lane swaps the MVP table to `copy_trade_tasks`; legacy `/copytrade` 8-step wizard remains the only path that produces mirrored trades. Round-1 MEDIUM-2 (auto:start engine bootstrap) + MEDIUM-3 (legacy `/settings` sub-route regression) P2-deferred per WARP🔹CMD direction. Activation guards untouched (Risk 3 PASS), no manual trade buttons (Risk 2 PASS), paper-mode default preserved (Risk 6 PASS). Report: projects/polymarket/crusaderbot/reports/sentinel/warp57-telegram-ux-mvp.md.
 - WARP-55 (issue #1256): MERGED (abd3b43dbe10) — RUNTIME_EVIDENCE.md: 7/7 P2 finish criteria proven. 🏁 CrusaderBot closed beta DONE. Guards LOCKED. STANDARD, evidence-only.
@@ -58,21 +58,14 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). MVP UI migrate
 - Production monitoring of late_entry_v3 on Fly (paper): FAV_PRICE_MAX=0.70 ceiling live. Watch 24-48h net PnL.
 
 [NOT STARTED]
-- Apply migration 030 (job_runs metadata JSONB) to production before Fly.io deploy (trading-unblock MERGED PR #1065, live on main).
-- Apply migration 029 (portfolio_snapshots, system_alerts, NOTIFY triggers) to production before deploying WARP/CRUSADERBOT-WEBTRADER.
-- Set fly secret WEBTRADER_JWT_SECRET=<openssl rand -hex 32> before deploying WebTrader.
-- Register crusaderbot.fly.dev domain in BotFather: /setdomain @CrusaderBot crusaderbot.fly.dev (required for Telegram Login Widget).
-- migration 027 (notifications_on) must be applied before deploying crusaderbot-mvp-runtime-ux to production.
 - Wire share_trade_kb into trade close call sites when PNL > 0; surface ready, wiring deferred.
 - Referral payout activation: separate lane, requires WARP🔹CMD decision.
 - Fee collection activation: separate lane, requires WARP🔹CMD decision.
 - Wire @require_access_tier('PREMIUM') onto trading command handlers as separate lane.
 - Seed boss user ADMIN tier row in user_tiers via /admin settier post-deploy.
-- Fast Track Week 4 -- Closed beta observation; no new feature PRs planned in that week.
 
 [NEXT PRIORITY]
-- WARP🔹CMD review + merge WARP/telegram-legacy-markdownv2 (PR open) then fly deploy. STANDARD — display-only. Post-deploy verify /wallet withdraw flow + /emergency menu render cleanly.
-- WARP/telegram-ux-v2 MERGED #1382 + auto-deployed (MVP UI MarkdownV2).
+- WARP🔹CMD review + merge WARP/ROOT/notification-strategy-labels (PR open). STANDARD — Telegram labels, WebTrader open tab, dashboard today_trades. Post-deploy verify: Telegram shows "Close Sweep" not "late_entry_v3"; WebTrader OPEN tab shows pending_settlement positions; Dashboard Trades count matches reality.
 - WARP🔹CMD: apply migration 058 (DROP copy_targets, backfill into copy_trade_tasks) to Supabase before fly deploy.
 - Verify post-deploy: Telegram copy-task wizard → confirm task created successfully + copy monitor picks it up (F-HIGH-2 secondary fix #1374).
 - Verify post-deploy: WebTrader withdraw flow on both Wallet + Portfolio pages (amount → address → confirm → submit → pending status shown).

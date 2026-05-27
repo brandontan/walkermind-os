@@ -71,12 +71,29 @@ async def fetch_open_position_count(user_uuid) -> int:
         pool = get_pool()
         async with pool.acquire() as conn:
             n = await conn.fetchval(
-                "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status='open'",
+                "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status IN ('open','pending_settlement')",
                 user_uuid,
             )
             return int(n or 0)
     except Exception as exc:  # noqa: BLE001
         log.debug("open position count failed: %s", exc)
+        return 0
+
+
+async def fetch_today_trade_count(user_uuid) -> int:
+    try:
+        from ....database import get_pool  # type: ignore
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            n = await conn.fetchval(
+                """SELECT COUNT(*) FROM positions
+                   WHERE user_id=$1
+                     AND opened_at >= NOW() - INTERVAL '24 hours'""",
+                user_uuid,
+            )
+            return int(n or 0)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("today_trade_count failed: %s", exc)
         return 0
 
 
