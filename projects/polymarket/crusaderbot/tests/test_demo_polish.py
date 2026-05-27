@@ -61,7 +61,7 @@ def test_about_command_replies_with_paper_mode_disclaimer():
     update.message.reply_text.assert_called_once()
     text, kwargs = update.message.reply_text.call_args.args, update.message.reply_text.call_args.kwargs
     body = text[0]
-    assert "Paper-trading mode is the default" in body
+    assert "Paper\\-trading mode is the default" in body
     assert "📄" in body
     assert "/demo" in body
     assert "/status" in body
@@ -131,13 +131,13 @@ def test_status_paper_mode_banner_when_guards_off():
     ):
         _run(demo_polish.status_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
-    assert "📄 <b>PAPER MODE</b>" in body
+    assert "📄 *PAPER MODE*" in body
     assert "no real capital at risk" in body
     assert "abc1234" in body
     assert "2m" in body  # 125s == 2m
     assert "🟢" in body
     assert "OK" in body
-    assert "Closed-beta build • paper trading active" in body
+    assert "Closed\\-beta build • paper trading active" in body
 
 
 def test_status_live_mode_banner_when_all_guards_on():
@@ -157,7 +157,7 @@ def test_status_live_mode_banner_when_all_guards_on():
     ):
         _run(demo_polish.status_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
-    assert "⚡ <b>LIVE MODE</b>" in body
+    assert "⚡ *LIVE MODE*" in body
     assert "2d 4h 30m" in body
 
 
@@ -184,10 +184,9 @@ def test_status_degraded_status_renders_yellow():
 
 
 def test_status_escapes_html_special_chars_in_check_state():
-    """``state`` may be a free-form ``error: ...`` string from
-    ``monitoring.health._with_timeout`` containing HTML special characters.
-    html.escape() is applied so ``<``, ``>``, ``&`` are safely encoded.
-    Underscores and asterisks are safe in HTML mode and pass through literally.
+    """``state`` may be a free-form ``error: ...`` string placed inside a
+    backtick code span in MarkdownV2 — content inside code spans passes
+    through literally, so underscores and asterisks are safe.
     """
     update = _make_update(message_text="/status")
     payload = {
@@ -214,10 +213,10 @@ def test_status_escapes_html_special_chars_in_check_state():
     ):
         _run(demo_polish.status_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
-    # Underscores and asterisks are safe in HTML mode — pass through literally.
+    # Inside backtick code span underscores and asterisks pass through literally.
     assert "ws_handshake_failed_*hot*" in body
-    # Check name is wrapped in a <code> tag.
-    assert "<code>alchemy_ws</code>" in body
+    # Check name is wrapped in a backtick code span.
+    assert "`alchemy_ws`" in body
 
 
 def test_status_health_check_failure_is_handled_gracefully():
@@ -310,7 +309,7 @@ def test_demo_renders_top_three_signals_with_confidence():
     body = update.message.reply_text.call_args.args[0]
     # Top 3 visible + confidences
     assert "Will it rain in Jakarta tomorrow?" in body
-    assert "BTC &gt; $100k by year end?" in body
+    assert "BTC \\> $100k by year end?" in body
     assert "78%" in body
     assert "55%" in body
     # Empty payload renders as em-dash, not invented data.
@@ -488,7 +487,7 @@ def test_demo_renders_real_jsonb_string_payload_with_confidence():
         _run(demo_polish.demo_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
     assert "81%" in body, "confidence must be parsed from JSON-string payload"
-    assert "—" not in body.split("Confidence: <b>")[1].split("</b>")[0]
+    assert "Confidence: `81%`" in body
 
 
 def test_demo_sql_excludes_signals_with_separate_exit_rows():
@@ -515,9 +514,9 @@ def test_demo_sql_excludes_signals_with_separate_exit_rows():
 
 
 def test_demo_escapes_html_special_chars_in_db_strings():
-    """Operator-supplied feed names + market questions must be HTML-escaped
-    before flowing into a ``ParseMode.HTML`` reply, otherwise Telegram
-    can reject the message or render it incorrectly.
+    """Operator-supplied feed names + market questions are passed through
+    ``_md()`` before flowing into a ``ParseMode.MARKDOWN_V2`` reply.
+    MD2-special chars (``>``) are escaped; ``&`` and ``<`` pass through.
     """
     update = _make_update(user_id=88, message_text="/demo")
     rows = [
@@ -538,10 +537,10 @@ def test_demo_escapes_html_special_chars_in_db_strings():
     ):
         _run(demo_polish.demo_command(update, _ctx()))
     body = update.message.reply_text.call_args.args[0]
-    # HTML special characters in DB-supplied text must be entity-escaped.
-    assert "&amp;" in body, "& must be escaped to &amp;"
-    assert "&gt;" in body, "> must be escaped to &gt;"
-    assert "&lt;" in body, "< must be escaped to &lt;"
+    # > is MD2-special and must be escaped; & and < are not special in MD2.
+    assert "\\>" in body, "> must be MD2-escaped to \\>"
+    assert "&" in body, "& passes through literally in MD2 mode"
+    assert "<" in body, "< passes through literally in MD2 mode"
 
 
 def test_truncate_short_string_passthrough():
