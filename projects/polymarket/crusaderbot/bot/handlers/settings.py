@@ -40,6 +40,7 @@ from ...config import get_settings as get_app_settings
 from ...database import get_pool
 from ..keyboards import risk_picker_kb as mvp_risk_kb
 from ..roles import is_admin as _is_admin
+from ..ui.tree import md_v2_escape as _md
 from ..keyboards import (
     capital_picker_kb as capital_preset_kb,
     redeem_picker_kb as autoredeem_settings_picker,
@@ -62,12 +63,12 @@ def _hub_text(mode: str, risk_profile: str = "balanced", notifications_on: bool 
     }.get(risk_profile, risk_profile.title())
     notif_label = "🟢 ON" if notifications_on else "🔴 OFF"
     return (
-        "<b>⚙️ Settings</b>\n"
+        "*⚙️ Settings*\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "<b>Trading</b>\n"
+        "*Trading*\n"
         f"├─ Mode: {mode_label}\n"
         f"└─ Risk: {risk_display}\n\n"
-        "<b>Account</b>\n"
+        "*Account*\n"
         f"└─ Notifications: {notif_label}"
     )
 
@@ -75,33 +76,33 @@ def _hub_text(mode: str, risk_profile: str = "balanced", notifications_on: bool 
 def _tp_step_text(current_tp: float | None) -> str:
     current_str = f"+{current_tp * 100:.0f}%" if current_tp is not None else "not set"
     return (
-        "<b>📊 Take Profit</b>\n"
+        "*📊 Take Profit*\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"Current: <code>{current_str}</code>\n\n"
-        "Select your take-profit target:"
+        f"Current: `{current_str}`\n\n"
+        "Select your take\\-profit target:"
     )
 
 
 def _sl_step_text(current_sl: float | None) -> str:
     current_str = f"-{current_sl * 100:.0f}%" if current_sl is not None else "not set"
     return (
-        "<b>📊 Stop Loss</b>\n"
+        "*📊 Stop Loss*\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"Current: <code>{current_str}</code>\n\n"
-        "Select your stop-loss threshold:"
+        f"Current: `{current_str}`\n\n"
+        "Select your stop\\-loss threshold:"
     )
 
 
 def _capital_text(balance: float, mode: str) -> str:
     mode_label = "💸 Live" if mode == "live" else "📙 Paper"
     return (
-        "<b>💰 Capital Allocation</b>\n"
+        "*💰 Capital Allocation*\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "<pre>"
+        "```\n"
         f"Balance  ${balance:.2f} ({mode_label})\n"
-        "Max      95% per trade"
-        "</pre>\n\n"
-        "⚠️ Full allocation (100%) is forbidden."
+        "Max      95% per trade\n"
+        "```\n\n"
+        "⚠️ Full allocation \\(100%\\) is forbidden\\."
     )
 
 
@@ -123,13 +124,13 @@ async def _render_hub(update: Update, user: dict) -> None:
     if update.callback_query is not None:
         q = update.callback_query
         try:
-            await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+            await q.edit_message_text(text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb)
         except BadRequest as exc:
             if "Message is not modified" not in str(exc):
-                await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+                await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb)
     elif update.message is not None:
         await update.message.reply_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=kb,
+            text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb,
         )
 
 
@@ -183,10 +184,10 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         except Exception:  # noqa: BLE001
             ref_link = "(unavailable)"
         await q.message.reply_text(
-            "<b>🎁 Referrals</b>\n"
+            "*🎁 Referrals*\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"Your referral link:\n<code>{ref_link}</code>",
-            parse_mode=ParseMode.HTML,
+            f"Your referral link:\n`{ref_link}`",
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=settings_hub_kb(),
         )
         return
@@ -203,28 +204,28 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
                 )
             if job_rows:
                 job_summary = "\n".join(
-                    f"├ {r['job_name']}: {r['status']}" for r in job_rows
+                    f"├ {_md(r['job_name'])}: {_md(r['status'])}" for r in job_rows
                 )
             else:
                 job_summary = "└ No recent jobs"
         except Exception:  # noqa: BLE001
             job_summary = "└ Jobs: nominal"
         await q.message.reply_text(
-            f"<b>🏥 Health</b>\n"
+            "*🏥 Health*\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"🟢 Bot: Online\n"
             f"🕐 Time: {now}\n\n"
-            "<b>Recent jobs</b>\n"
+            "*Recent jobs*\n"
             f"{job_summary}",
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=settings_hub_kb(),
         )
         return
 
     if data == "settings:live_gate":
         await q.message.reply_text(
-            "<b>🔐 Live Gate</b>\n\nLive trading is not yet available.\n\nStay tuned for activation.",
-            parse_mode=ParseMode.HTML,
+            "*🔐 Live Gate*\n\nLive trading is not yet available\\.\n\nStay tuned for activation\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=settings_hub_kb(),
         )
         return
@@ -238,15 +239,14 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     if data == "settings:wallet":
-        import html as _html
         from ...wallet.vault import get_wallet
         w = await get_wallet(user["id"])
         addr = w["deposit_address"] if w else "(not set)"
         from ..keyboards import wallet_home_kb as wallet_menu
         await q.message.reply_text(
-            f"<b>💰 Wallet</b>\n\nDeposit address (Polygon USDC):\n<code>{_html.escape(addr)}</code>\n\n"
-            "Tap an option below.",
-            parse_mode=ParseMode.HTML,
+            f"*💰 Wallet*\n\nDeposit address \\(Polygon USDC\\):\n`{addr}`\n\n"
+            "Tap an option below\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=wallet_menu(),
         )
         return
@@ -256,7 +256,7 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         current_tp = float(s["tp_pct"]) if s.get("tp_pct") is not None else None
         await q.message.reply_text(
             _tp_step_text(current_tp),
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=tp_preset_kb(current_tp * 100 if current_tp else None),
         )
         return
@@ -267,7 +267,7 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         mode = s.get("trading_mode", "paper")
         await q.message.reply_text(
             _capital_text(bal, mode),
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=capital_preset_kb(bal, mode),
         )
         return
@@ -276,16 +276,16 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         s = await get_settings_for(user["id"])
         current_risk = s.get("risk_profile", "balanced")
         await q.message.reply_text(
-            "<b>⚖️ Risk Profile</b>\n"
+            "*⚖️ Risk Profile*\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             "Choose your risk level:\n\n"
-            "📡 <b>Conservative</b>\n"
+            "📡 *Conservative*\n"
             "Safer, smaller exposure\n\n"
-            "⚡ <b>Balanced</b>\n"
+            "⚡ *Balanced*\n"
             "Recommended for most users\n\n"
-            "🚀 <b>Aggressive</b>\n"
+            "🚀 *Aggressive*\n"
             "Higher exposure",
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=mvp_risk_kb(current_risk),
         )
         return
@@ -306,11 +306,11 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
             ],
         ])
         await q.message.reply_text(
-            f"<b>🔔 Notifications</b>\n"
+            "*🔔 Notifications*\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             f"Status: {status}\n\n"
-            "You receive alerts for opened/closed trades\nand daily P&L summaries.",
-            parse_mode=ParseMode.HTML,
+            "You receive alerts for opened/closed trades\nand daily P&L summaries\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=kb,
         )
         return
@@ -330,8 +330,8 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         from ..keyboards import mode_picker_kb as settings_mode_picker
         s = await get_settings_for(user["id"])
         await q.message.reply_text(
-            "<b>📔 Mode</b>\n\nPaper: safe virtual trading. Live: real capital (unlock required).",
-            parse_mode=ParseMode.HTML,
+            "*📔 Mode*\n\nPaper: safe virtual trading\\. Live: real capital \\(unlock required\\)\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=settings_mode_picker(s["trading_mode"]),
         )
         return
@@ -339,10 +339,10 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
     if data == "settings:redeem":
         s = await get_settings_for(user["id"])
         await q.message.reply_text(
-            "Pick auto-redeem mode.\n\n"
-            "<b>Instant</b> — settle the moment a market resolves.\n"
-            "<b>Hourly</b> — wait for the hourly batch (default, lower gas).",
-            parse_mode=ParseMode.HTML,
+            "Pick auto\\-redeem mode\\.\n\n"
+            "*Instant* — settle the moment a market resolves\\.\n"
+            "*Hourly* — wait for the hourly batch \\(default, lower gas\\)\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=autoredeem_settings_picker(s["auto_redeem_mode"]),
         )
         return
@@ -360,8 +360,8 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
             if "not modified" not in str(e).lower():
                 raise
         await q.message.reply_text(
-            f"✅ Auto-redeem mode set to <b>{choice}</b>.",
-            parse_mode=ParseMode.HTML,
+            f"✅ Auto\\-redeem mode set to *{choice}*\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
 
@@ -379,8 +379,8 @@ async def tp_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         if ctx.user_data is not None:
             ctx.user_data["awaiting"] = "tpsl_tp"
         await q.message.reply_text(
-            "Enter TP percentage (e.g. 20):\n<i>integer, 1–100</i>",
-            parse_mode=ParseMode.HTML,
+            "Enter TP percentage \\(e\\.g\\. 20\\):\n_integer, 1–100_",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
 
@@ -399,7 +399,7 @@ async def tp_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     current_sl = float(s["sl_pct"]) if s.get("sl_pct") is not None else None
     await q.message.reply_text(
         _sl_step_text(current_sl),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=sl_preset_kb(current_sl * 100 if current_sl else None),
     )
 
@@ -417,8 +417,8 @@ async def sl_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         if ctx.user_data is not None:
             ctx.user_data["awaiting"] = "tpsl_sl"
         await q.message.reply_text(
-            "Enter SL percentage (e.g. 12):\n<i>integer, 1–50</i>",
-            parse_mode=ParseMode.HTML,
+            "Enter SL percentage \\(e\\.g\\. 12\\):\n_integer, 1–50_",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
 
@@ -462,8 +462,8 @@ async def cap_set_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         if ctx.user_data is not None:
             ctx.user_data["awaiting"] = "capital_pct"
         await q.message.reply_text(
-            "Enter percentage (1–95):\n<i>integer only</i>",
-            parse_mode=ParseMode.HTML,
+            "Enter percentage \\(1–95\\):\n_integer only_",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return
 
@@ -508,10 +508,10 @@ async def settings_text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
             ctx.user_data["risk_custom_capital"] = val
             ctx.user_data["awaiting"] = "risk_custom_tp"
         await update.message.reply_text(
-            "<b>⚙️ Custom Risk — Step 2/3</b>\n\n"
-            "Enter take profit % (1–99):\n"
-            "<i>e.g. 20 for +20% gain triggers close</i>",
-            parse_mode="HTML",
+            "*⚙️ Custom Risk — Step 2/3*\n\n"
+            "Enter take profit % \\(1–99\\):\n"
+            "_e\\.g\\. 20 for \\+20% gain triggers close_",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return True
 
@@ -528,10 +528,10 @@ async def settings_text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
             ctx.user_data["risk_custom_tp"] = val
             ctx.user_data["awaiting"] = "risk_custom_sl"
         await update.message.reply_text(
-            "<b>⚙️ Custom Risk — Step 3/3</b>\n\n"
-            "Enter stop loss % (1–99):\n"
-            "<i>e.g. 10 for -10% loss triggers close</i>",
-            parse_mode="HTML",
+            "*⚙️ Custom Risk — Step 3/3*\n\n"
+            "Enter stop loss % \\(1–99\\):\n"
+            "_e\\.g\\. 10 for \\-10% loss triggers close_",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return True
 
@@ -564,9 +564,9 @@ async def settings_text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
             ctx.user_data.pop("risk_custom_tp", None)
             ctx.user_data.pop("awaiting", None)
         await update.message.reply_text(
-            f"✅ Custom Risk saved.\n\n"
-            f"Capital: <b>{cap}%</b>  ·  TP: <b>+{tp}%</b>  ·  SL: <b>-{sl}%</b>",
-            parse_mode="HTML",
+            f"✅ Custom Risk saved\\.\n\n"
+            f"Capital: *{cap}%*  ·  TP: *\\+{tp}%*  ·  SL: *\\-{sl}%*",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return True
 
@@ -588,7 +588,7 @@ async def settings_text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
         current_sl = float(s["sl_pct"]) if s.get("sl_pct") is not None else None
         await update.message.reply_text(
             _sl_step_text(current_sl),
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=sl_preset_kb(current_sl * 100 if current_sl else None),
         )
         return True
