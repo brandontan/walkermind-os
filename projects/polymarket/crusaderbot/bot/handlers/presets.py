@@ -12,7 +12,6 @@ trading mode is *paper*. Live activation continues to require the existing
 """
 from __future__ import annotations
 
-import html
 import logging
 from typing import Tuple
 
@@ -44,6 +43,7 @@ from ..keyboards.customize import (
     wizard_review_kb, wizard_sl_kb, wizard_tp_kb,
 )
 from ..presets import PRESET_CONFIG
+from ..ui.tree import md_v2_escape as _md
 
 
 logger = logging.getLogger(__name__)
@@ -153,9 +153,9 @@ def _preset_picker_text(active_preset_key: str | None = None) -> str:
             if p:
                 active_label = f"{p.emoji} {p.name}"
     return (
-        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧 — Auto Mode</b>\n"
+        "🏛️ *𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 \\| 𝗔𝗨𝗧𝗢𝗕𝗢𝗧 — Auto Mode*\n"
         f"{_DIV}\n\n"
-        f"Active: <b>{html.escape(active_label)}</b>\n\n"
+        f"Active: *{_md(active_label)}*\n\n"
         "Choose your trading strategy:"
     )
 
@@ -171,21 +171,25 @@ def _preset_confirm_text(p: Preset) -> str:
     tp_gain = int(deployed * p.tp_pct)
     sl_loss = int(deployed * p.sl_pct)
     return (
-        f"🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b>\n"
+        f"🏛️ *𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 \\| 𝗔𝗨𝗧𝗢𝗕𝗢𝗧*\n"
         f"{_DIV}\n"
-        f"<b>{html.escape(emoji)} {html.escape(label)}</b>\n"
-        f"{html.escape(desc)}\n\n"
+        f"*{_md(emoji)} {_md(label)}*\n"
+        f"{_md(desc)}\n\n"
         f"{_DIV}\n"
-        "<b>📊 Config</b>\n"
-        f"<pre>Capital:  {cap_pct}%\n"
+        "*📊 Config*\n"
+        "```\n"
+        f"Capital:  {cap_pct}%\n"
         f"TP:       +{tp_pct}%\n"
         f"SL:       -{sl_pct}%\n"
-        f"Mode:     📝 Paper</pre>\n\n"
+        "Mode:     📝 Paper\n"
+        "```\n\n"
         f"{_DIV}\n"
-        "<b>💡 Example on $1,000</b>\n"
-        f"<pre>Deployed: ${deployed}\n"
+        "*💡 Example on $1,000*\n"
+        "```\n"
+        f"Deployed: ${deployed}\n"
         f"TP hit:   +${tp_gain}\n"
-        f"SL hit:   -${sl_loss}</pre>"
+        f"SL hit:   -${sl_loss}\n"
+        "```"
     )
 
 
@@ -213,17 +217,17 @@ async def _preset_status_text(user: dict, p: Preset) -> str:
     tp_pct = float(s.get("tp_pct") or p.tp_pct) * 100
     sl_pct = float(s.get("sl_pct") or p.sl_pct) * 100
     return (
-        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧 — Auto Mode</b>\n\n"
-        "<b>Strategy</b>\n"
-        f"├─ {p.emoji} {p.name}\n"
+        "🏛️ *𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 \\| 𝗔𝗨𝗧𝗢𝗕𝗢𝗧 — Auto Mode*\n\n"
+        "*Strategy*\n"
+        f"├─ {p.emoji} {_md(p.name)}\n"
         f"└─ State: {state}\n\n"
-        "<b>Performance</b>\n"
-        f"├─ Balance: ${float(bal):.2f} USDC\n"
-        f"├─ Today P&amp;L: {pnl_icon} ${float(pnl):+.2f}\n"
-        f"└─ Positions: {int(open_count)} open\n\n"
-        "<b>Config</b>\n"
-        f"├─ Capital: {capital_pct:.0f}%\n"
-        f"├─ TP / SL: +{tp_pct:.0f}% / -{sl_pct:.0f}%\n"
+        "*Performance*\n"
+        f"├─ Balance: `${float(bal):.2f}` USDC\n"
+        f"├─ Today P&L: {pnl_icon} `${float(pnl):+.2f}`\n"
+        f"└─ Positions: `{int(open_count)}` open\n\n"
+        "*Config*\n"
+        f"├─ Capital: `{capital_pct:.0f}%`\n"
+        f"├─ TP / SL: `+{tp_pct:.0f}%` / `-{sl_pct:.0f}%`\n"
         "└─ Mode: 📝 Paper"
     )
 
@@ -244,7 +248,7 @@ async def show_preset_picker(update: Update,
     active_preset = s.get("active_preset")
     await _reply(
         update, _preset_picker_text(active_preset),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=preset_picker(),
     )
 
@@ -267,7 +271,7 @@ async def show_preset_status(update: Update,
     text = await _preset_status_text(user, p)
     await _reply(
         update, text,
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=preset_status(paused=bool(user.get("paused"))),
     )
 
@@ -353,8 +357,8 @@ async def _on_tier(update: Update, tier_key: str) -> None:
     """Step 2 of preset selection: show presets within the chosen risk tier."""
     await _reply(
         update,
-        "📋 <b>Available strategies</b>\nTap a preset to see details.",
-        parse_mode=ParseMode.HTML,
+        "📋 *Available strategies*\nTap a preset to see details\\.",
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=preset_list_kb(tier_key, PRESET_CONFIG),
     )
 
@@ -369,12 +373,12 @@ async def _on_pick(update: Update, preset_key: str) -> None:
     q = update.callback_query
     if q is not None and q.message is not None:
         try:
-            await q.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+            await q.message.edit_text(text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb)
         except BadRequest as exc:
             if "Message is not modified" not in str(exc):
-                await q.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+                await q.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb)
     else:
-        await _reply(update, text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        await _reply(update, text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb)
 
 
 async def _on_activate(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
@@ -421,13 +425,13 @@ async def _on_activate(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
         update.effective_user.id, update.effective_user.username,
     )
     text = (
-        f"<b>✅ {p.emoji} {p.name} activated.</b>\n"
-        f"Auto-trade is now ON (paper mode).\n\n"
+        f"*✅ {p.emoji} {_md(p.name)} activated\\.*\n"
+        f"Auto\\-trade is now ON \\(paper mode\\)\\.\n\n"
         + await _preset_status_text(refreshed, p)
     )
     await _reply(
         update, text,
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=preset_status(paused=False),
     )
 
@@ -442,8 +446,8 @@ async def _on_customize(update: Update) -> None:
 async def _on_edit(update: Update) -> None:
     await _reply(
         update,
-        "To change settings, use the <b>🛠 Edit</b> button on the status card.",
-        parse_mode=ParseMode.HTML,
+        "To change settings, use the *🛠 Edit* button on the status card\\.",
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
 
 
@@ -475,11 +479,11 @@ async def _on_pause(update: Update, user: dict, *, paused: bool) -> None:
         update.effective_user.id, update.effective_user.username,
     )
     state_word = "paused" if paused else "resumed"
-    text = (f"{'⏸' if paused else '▶️'} Auto-trade {state_word}.\n\n"
+    text = (f"{'⏸' if paused else '▶️'} Auto\\-trade {state_word}\\.\n\n"
             + await _preset_status_text(refreshed, p))
     await _reply(
         update, text,
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=preset_status(paused=paused),
     )
 
@@ -529,10 +533,10 @@ def _cwz(ctx: ContextTypes.DEFAULT_TYPE) -> dict:
 
 def _step1_text(p: Preset) -> str:
     return (
-        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Capital\n"
+        "🏛️ *𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 \\| 𝗔𝗨𝗧𝗢𝗕𝗢𝗧* / Configure / Capital\n"
         "\n"
         "Preset\n"
-        f"└ {p.emoji} {p.name}\n"
+        f"└ {p.emoji} {_md(p.name)}\n"
         "\n"
         "Choose capital allocation:"
     )
@@ -540,17 +544,17 @@ def _step1_text(p: Preset) -> str:
 
 def _step2_text() -> str:
     return (
-        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Take Profit\n"
+        "🏛️ *𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 \\| 𝗔𝗨𝗧𝗢𝗕𝗢𝗧* / Configure / Take Profit\n"
         "\n"
-        "Auto-close winning positions at:"
+        "Auto\\-close winning positions at:"
     )
 
 
 def _step3_text() -> str:
     return (
-        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Stop Loss\n"
+        "🏛️ *𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 \\| 𝗔𝗨𝗧𝗢𝗕𝗢𝗧* / Configure / Stop Loss\n"
         "\n"
-        "Auto-close losing positions at:"
+        "Auto\\-close losing positions at:"
     )
 
 
@@ -559,15 +563,15 @@ def _step5_text(wz: dict, p: Preset) -> str:
     tp = round(wz["tp_pct"] * 100)
     sl = round(wz["sl_pct"] * 100)
     return (
-        "🏛️ <b>𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧</b> / Configure / Review\n"
+        "🏛️ *𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 \\| 𝗔𝗨𝗧𝗢𝗕𝗢𝗧* / Configure / Review\n"
         "\n"
         "Preset\n"
-        f"└ {p.emoji} {p.name}\n"
+        f"└ {p.emoji} {_md(p.name)}\n"
         "\n"
         "Configuration\n"
-        f"├ Capital: {cap}%\n"
-        f"├ Take Profit: +{tp}%\n"
-        f"├ Stop Loss: -{sl}%\n"
+        f"├ Capital: `{cap}%`\n"
+        f"├ Take Profit: `+{tp}%`\n"
+        f"├ Stop Loss: `-{sl}%`\n"
         "└ Mode: 📝 Paper\n"
         "\n"
         "Looks good?"
@@ -608,7 +612,7 @@ async def wizard_enter_customize(
     if q.message:
         await q.message.edit_text(
             _step1_text(p),
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=wizard_capital_kb(),
         )
     return CUSTOM_CAPITAL
@@ -645,7 +649,7 @@ async def wizard_enter_edit(
     if q.message:
         await q.message.edit_text(
             _step1_text(p),
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=wizard_capital_kb(),
         )
     return CUSTOM_CAPITAL
@@ -671,7 +675,7 @@ async def step1_capital_select(
     if q.message:
         await q.message.edit_text(
             _step2_text(),
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=wizard_tp_kb(),
         )
     return CUSTOM_TP
@@ -697,7 +701,7 @@ async def step2_tp_select(
     if q.message:
         await q.message.edit_text(
             _step3_text(),
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=wizard_sl_kb(),
         )
     return CUSTOM_SL
@@ -713,9 +717,9 @@ async def step2_tp_custom(
     _cwz(ctx)["custom_field"] = "tp"
     if q.message:
         await q.message.edit_text(
-            "<b>Take Profit — Custom Value</b>\n\n"
-            "Enter a number between 1 and 200 (e.g. 25 for +25%):",
-            parse_mode=ParseMode.HTML,
+            "*Take Profit — Custom Value*\n\n"
+            "Enter a number between 1 and 200 \\(e\\.g\\. 25 for \\+25%\\):",
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=wizard_custom_input_kb("tp"),
         )
     return CUSTOM_INPUT
@@ -743,7 +747,7 @@ async def step3_sl_select(
     if q.message:
         await q.message.edit_text(
             _step5_text(wz, p) if p else "Step 5/5 — Review",
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=wizard_review_kb(),
         )
     return CUSTOM_REVIEW
@@ -759,9 +763,9 @@ async def step3_sl_custom(
     _cwz(ctx)["custom_field"] = "sl"
     if q.message:
         await q.message.edit_text(
-            "<b>Stop Loss — Custom Value</b>\n\n"
-            "Enter a number between 1 and 50 (e.g. 12 for -12%):",
-            parse_mode=ParseMode.HTML,
+            "*Stop Loss — Custom Value*\n\n"
+            "Enter a number between 1 and 50 \\(e\\.g\\. 12 for \\-12%\\):",
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=wizard_custom_input_kb("sl"),
         )
     return CUSTOM_INPUT
@@ -804,7 +808,7 @@ async def custom_input_handler(
         wz["custom_field"] = None
         await update.message.reply_text(
             _step3_text(),
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=wizard_sl_kb(),
         )
         return CUSTOM_SL
@@ -820,7 +824,7 @@ async def custom_input_handler(
         p = get_preset(wz.get("preset_key", ""))
         await update.message.reply_text(
             _step5_text(wz, p) if p else "Step 5/5 — Review",
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=wizard_review_kb(),
         )
         return CUSTOM_REVIEW
@@ -919,7 +923,7 @@ async def step_back_to_capital(
     if q.message:
         await q.message.edit_text(
             _step1_text(p) if p else "Step 1/5 — Capital Allocation",
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=wizard_capital_kb(),
         )
     return CUSTOM_CAPITAL
@@ -935,7 +939,7 @@ async def step_back_to_tp(
     if q.message:
         await q.message.edit_text(
             _step2_text(),
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=wizard_tp_kb(),
         )
     return CUSTOM_TP
@@ -951,7 +955,7 @@ async def step_back_to_sl(
     if q.message:
         await q.message.edit_text(
             _step3_text(),
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=wizard_sl_kb(),
         )
     return CUSTOM_SL
