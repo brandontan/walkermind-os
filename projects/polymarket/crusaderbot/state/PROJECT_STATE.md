@@ -70,7 +70,7 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). Deploy ab699cc
 
 [NEXT PRIORITY]
 - Fly redeploy to activate H2 rate limiting (WARP/ROOT/api-rate-limit) after WARP🔹CMD review.
-- Public-ready lanes remaining (recommended order): H1 ops-auth hardening (MAJOR/SENTINEL), M1 RLS last table + M3 WS handshake, C1 live-capital wiring (MAJOR — owner decision + SENTINEL + staged rollout; biggest LIVE blocker). H2 DONE.
+- Public-ready lanes remaining (recommended order): H1 ops-auth hardening (MAJOR/SENTINEL), M3 WS handshake, C1 live-capital wiring (MAJOR — owner decision + SENTINEL + staged rollout; biggest LIVE blocker). H2 DONE. M1 DONE (43/43 RLS verified 2026-05-27).
 - Monitor Sentry: confirm no BadRequest parse entities post-H3 deploy (MarkdownV2 migration).
 - Verify: Telegram copy-task wizard → task created + copy monitor picks it up (F-HIGH-2 fix #1374).
 - Verify: WebTrader withdraw flow on Wallet + Portfolio pages end-to-end.
@@ -80,7 +80,7 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). Deploy ab699cc
 [KNOWN ISSUES]
 - [MONITORING] DB_POOL_MAX lowered 10→3 (PR #1366, 2026-05-26). Supabase Session Pooler active. 48h window to confirm TooManyConnectionsError silent in Sentry.
 - [ACTIVE] FLIP_STOP_PRICE lowered 0.48→0.10 (near-disabled) for close_sweep. Monitor if this causes positions to hold past resolution without closing — market_expired exit should catch it.
-- [RESOLVED — RLS, verified 2026-05-26] Row Level Security ENABLED on 42/43 public tables (migration 046 applied). 1 table remains RLS-disabled — tracked in NEXT PRIORITY.
+- [RESOLVED — RLS, verified 2026-05-27 via Supabase advisors + list_tables] Row Level Security ENABLED on ALL 43/43 public tables (migration 046 + later migs incl. 055 scan_runs). Security advisor returns 0 rls_disabled_in_public errors; remaining rls_enabled_no_policy INFO lints are the intended deny-by-default design (no anon policy). M1 closed.
 - [RESOLVED — LANE-3 2026-05-24, branch claude/fervent-hawking-yNP0Z] Edge-model bug #1 FIXED: abs(yes_p-0.5) removed from jobs/market_signal_scanner.py; replaced with max(|oneDayPriceChange|, |oneHourPriceChange|×1.5) momentum scoring + price range tightened to 0.15–0.85 to reject extreme longshots. Side follows momentum direction. Report: projects/polymarket/crusaderbot/reports/forge/edge-model-momentum.md. The 20 aggressive-user positions already in flight are unaffected (they resolve naturally ~Jun–Jul 2026); new signals after deploy will not enter extreme-longshot futures.
 - [RESOLVED — RLS, verified 2026-05-26] migration 046 (ENABLE RLS, no FORCE, no policies → deny-by-default for anon; postgres owner + service_role bypass; frontend via backend API/SSE only) applied and confirmed live: 42/43 public tables now RLS-enabled. Source: projects/polymarket/crusaderbot/reports/forge/rls-enable-anon-lockout.md.
 - [RESOLVED — F-CRIT-1, in PR #1294] bot/ui/__init__.py re-export of BAR/BRANCH/LAST (box chars removed from bot/ui/tree.py by WARP-67/73) was breaking main.py→bot.dispatcher→MVP handler import chain. Fixed by removing the dead re-export (status/mode constants untouched). Re-verified: import clean, 1613 pytest pass, 0 collection errors, ruff clean. Forge report: projects/polymarket/crusaderbot/reports/forge/fix-bot-ui-tree-constants.md. Pending Fly redeploy.
