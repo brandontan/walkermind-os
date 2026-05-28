@@ -7,6 +7,42 @@ SENTINEL: Required before merge
 
 ---
 
+## 2026-05-28 UPDATE — Capital paths COMPLETE; engineering LIVE-ready
+
+The two on-chain capital paths that were the last code-side LIVE blockers are
+now wired, SENTINEL-approved, and merged — all behind activation guards that
+remain OFF (paper is unaffected):
+
+- **Withdrawal exit** (PR #1402, SENTINEL 94/100): `integrations/polygon_usdc.py:transfer_usdc()`
+  signs USDC out of the master hot-pool; `wallet/withdrawals.py` drives the
+  processing→completed/failed lifecycle with refund-on-preflight. Gated by
+  `EXECUTION_PATH_VALIDATED`.
+- **Deposit sweep / pool funding** (PR #1403, SENTINEL 94/100):
+  `integrations/polygon_usdc.py:sweep_usdc_to_master()` + `scheduler._sweep_deposits_onchain()`
+  consolidate per-user EOA deposit wallets into the master pool using a
+  master-funded MATIC gas top-up. Double-gated by `EXECUTION_PATH_VALIDATED`
+  AND `SWEEP_ONCHAIN_ENABLED` (both default OFF).
+
+There are NO remaining `NotImplementedError`/stub gaps in the trading, risk,
+execution, redeem, withdraw, or sweep paths. (The only TODO outside this scope
+is `lib/strategies/weather_arb.py` — an experimental, non-core strategy.)
+
+### Final go-live sequence (owner / WARP🔹CMD only — guards stay OFF until then)
+
+1. Fund the master wallet: USDC (withdrawals + trading) and MATIC (gas + sweep top-ups).
+2. Apply any pending migrations to production (incl. 060_withdrawals_onchain).
+3. Set `RISK_CONTROLS_VALIDATED=true` after `audit_risk_constants()` passes clean in prod.
+4. Set `EXECUTION_PATH_VALIDATED=true`, then `CAPITAL_MODE_CONFIRMED=true`, then `ENABLE_LIVE_TRADING=true` (in that order).
+5. Enable `SWEEP_ONCHAIN_ENABLED=true` for a SMALL cohort first; watch the
+   `deposit_sweep_onchain` audit trail + on-chain confirmations before broadening.
+6. Keep `withdrawal_approval_mode='manual'` for the first live cohort.
+7. Staged rollout + observation at each step; kill switch (`/emergency`) is the immediate halt.
+
+Native gasless sweeps (Polymarket Builder relayer + Gnosis-Safe proxy custody)
+are the documented FUTURE optimization — not required for go-live.
+
+---
+
 ## Execution Path: VALIDATED
 
 All code paths between signal → risk gate → order → position have been audited

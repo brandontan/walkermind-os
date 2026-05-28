@@ -26,6 +26,9 @@ Last Updated: 2026-05-17 14:30 Asia/Jakarta
 - [x] ENABLE_LIVE_TRADING paper-safe default (crusaderbot-finalize)
 - [x] pytest.ini fixed — repo-root suite 1432 pass (crusaderbot-finalize)
 - [x] .env.example + DEPLOY.md runbook complete (crusaderbot-finalize)
+- [x] On-chain withdrawal capital path (transfer_usdc, guarded) — PR #1402, SENTINEL 94/100
+- [x] On-chain deposit sweep / hot-pool funding (double-gated) — PR #1403, SENTINEL 94/100
+- [x] Public-ready hardening: H1 ops-auth cookie session (#1400) + H2 rate limiting + H3 MarkdownV2 + M1 RLS 43/43 + M3 alchemy WS handshake
 
 ## B. Operational blockers — WARP🔹CMD ACTION REQUIRED
 
@@ -76,8 +79,13 @@ Each item lists how to verify it is done.
 
 ## E. Documented deferrals (intentional — not stubs)
 
-- Ops per-operator login / token rotation / token-out-of-URL — paper
-  mode, secret-gated + audited, hardened /admin/kill exists.
-- On-chain hot-pool nightly transfer — gated behind
-  EXECUTION_PATH_VALIDATED; logical sweep only in paper mode.
+- Ops auth token-out-of-URL — RESOLVED by H1 (#1400): HttpOnly+Secure cookie
+  session (HMAC of OPS_SECRET) + same-origin CSRF. Per-operator login / token
+  rotation remain a future enhancement (single shared ops secret today).
+- On-chain hot-pool transfer — RESOLVED: withdrawal exit (#1402) + deposit
+  sweep (#1403) both wired, SENTINEL-approved, guarded OFF. Paper still runs the
+  logical-only sweep.
 - migration 031 / deposits.swept_at — descoped; count-fix sufficient.
+- Native gasless sweep (Polymarket Builder relayer + Gnosis-Safe proxy custody)
+  — future optimization; not required for go-live (current EOA custody uses a
+  master-funded gas top-up sweep instead).
