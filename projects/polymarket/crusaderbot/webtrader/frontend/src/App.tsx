@@ -41,6 +41,12 @@ function loadDismissed(): Set<string> {
 interface AlertCenterCtx {
   alerts: AlertItem[];
   unreadCount: number;
+  // Snapshot of lastSeen captured at the moment the panel opened — alerts
+  // whose created_at exceeds this value are styled "unread" while the panel
+  // is open (yellow dot, slight highlight). Stays stable until the panel
+  // closes + re-opens, so a card the user is currently looking at doesn't
+  // visually "settle" mid-view.
+  panelOpenedAt: number;
   isOpen: boolean;
   openAlertCenter: () => void;
   closeAlertCenter: () => void;
@@ -53,6 +59,7 @@ interface AlertCenterCtx {
 export const AlertCenterContext = createContext<AlertCenterCtx>({
   alerts: [],
   unreadCount: 0,
+  panelOpenedAt: 0,
   isOpen: false,
   openAlertCenter: () => undefined,
   closeAlertCenter: () => undefined,
@@ -95,6 +102,11 @@ function AppShell() {
     const stored = localStorage.getItem(LAST_SEEN_KEY);
     return stored ? Number(stored) : 0;
   });
+  // `panelOpenedAt` freezes the lastSeen value at the moment the panel was
+  // opened. While the panel is visible, alerts created after this snapshot
+  // render with the "unread" treatment. Re-opens recapture from the
+  // post-bump lastSeen, so once the user has seen an alert it stays read.
+  const [panelOpenedAt, setPanelOpenedAt] = useState<number>(0);
 
   const fetchAlerts = useCallback(async (offset = 0, append = false) => {
     if (!user) return;
@@ -192,11 +204,15 @@ function AppShell() {
   );
 
   const openAlertCenter = useCallback(() => {
+    // Snapshot BEFORE bumping lastSeen so the AlertCenter can still tell
+    // which currently-visible alerts arrived after the previous open. If
+    // we bumped first, every alert would appear "read" immediately.
+    setPanelOpenedAt(lastSeen);
     setIsAlertOpen(true);
     const now = Date.now();
     setLastSeen(now);
     localStorage.setItem(LAST_SEEN_KEY, String(now));
-  }, []);
+  }, [lastSeen]);
 
   const closeAlertCenter = useCallback(() => setIsAlertOpen(false), []);
 
@@ -204,6 +220,7 @@ function AppShell() {
     () => ({
       alerts: visibleAlerts,
       unreadCount,
+      panelOpenedAt,
       isOpen: isAlertOpen,
       openAlertCenter,
       closeAlertCenter,
@@ -212,7 +229,7 @@ function AppShell() {
       loadMoreAlerts,
       hasMoreAlerts,
     }),
-    [visibleAlerts, unreadCount, isAlertOpen, openAlertCenter, closeAlertCenter, dismissAlert, markAllRead, loadMoreAlerts, hasMoreAlerts],
+    [visibleAlerts, unreadCount, panelOpenedAt, isAlertOpen, openAlertCenter, closeAlertCenter, dismissAlert, markAllRead, loadMoreAlerts, hasMoreAlerts],
   );
 
   return (

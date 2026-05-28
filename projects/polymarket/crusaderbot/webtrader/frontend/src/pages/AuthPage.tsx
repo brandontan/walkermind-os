@@ -4,12 +4,17 @@ import { TelegramAuth } from "../components/TelegramAuth";
 import { useAuth } from "../lib/auth";
 import { apiLoginEmail, apiRegisterEmail } from "../lib/api";
 
-type AuthTab = "telegram" | "login" | "register";
+type AuthTab = "telegram" | "email";
+type EmailMode = "login" | "register";
 
 export function AuthPage() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState<AuthTab>("telegram");
+  // Within the email tab: login vs register sub-mode. The two are mutually
+  // exclusive — only the active mode's form is visible. Switch via the bottom
+  // link inside the form ("No account? Register" / "Already registered? Sign in").
+  const [emailMode, setEmailMode] = useState<EmailMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -25,7 +30,7 @@ export function AuthPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = tab === "register"
+      const res = emailMode === "register"
         ? await apiRegisterEmail(email.trim(), password, firstName.trim())
         : await apiLoginEmail(email.trim(), password);
       login(res.access_token, res.user_id, res.first_name);
@@ -78,9 +83,11 @@ export function AuthPage() {
             <span>◢ </span>Authentication Required
           </div>
 
-          {/* Tab switcher */}
+          {/* Tab switcher — only 2 top-level tabs (Telegram | Email).
+              Within Email, the bottom link inside the form switches between
+              login and register modes so the user never sees both at once. */}
           <div className="flex gap-1 mb-5 bg-surface-2 rounded p-0.5">
-            {(["telegram", "login", "register"] as AuthTab[]).map((t) => (
+            {(["telegram", "email"] as AuthTab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => { setTab(t); setError(null); }}
@@ -91,7 +98,7 @@ export function AuthPage() {
                     : "text-ink-3 hover:text-ink-1",
                 ].join(" ")}
               >
-                {t === "telegram" ? "Telegram" : t === "login" ? "Email Login" : "Register"}
+                {t === "telegram" ? "Telegram" : "Email"}
               </button>
             ))}
           </div>
@@ -109,7 +116,7 @@ export function AuthPage() {
                 No Telegram?{" "}
                 <button
                   className="text-gold underline-offset-2 hover:underline"
-                  onClick={() => setTab("register")}
+                  onClick={() => { setTab("email"); setEmailMode("register"); setError(null); }}
                 >
                   Register with email
                 </button>
@@ -117,10 +124,16 @@ export function AuthPage() {
             </>
           )}
 
-          {/* Email login / register tab */}
-          {(tab === "login" || tab === "register") && (
+          {/* Email tab — single form, login OR register based on emailMode.
+              Never both visible at once. */}
+          {tab === "email" && (
             <form onSubmit={(e) => void handleEmailSubmit(e)} className="text-left space-y-3">
-              {tab === "register" && (
+              <div className="text-center mb-1">
+                <span className="font-hud text-[12px] font-bold tracking-[2px] uppercase text-ink-1">
+                  {emailMode === "register" ? "Create Account" : "Sign In"}
+                </span>
+              </div>
+              {emailMode === "register" && (
                 <div>
                   <label className="block text-[10px] font-hud tracking-widest uppercase text-ink-3 mb-1">
                     Name
@@ -156,7 +169,7 @@ export function AuthPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={tab === "register" ? "Min 8 characters" : "Password"}
+                  placeholder={emailMode === "register" ? "Min 8 characters" : "Password"}
                   required
                   minLength={8}
                   className="w-full bg-surface-2 border border-border-2 rounded px-3 py-2 text-[13px] text-ink-1 placeholder:text-ink-4 focus:outline-none focus:border-gold"
@@ -172,19 +185,19 @@ export function AuthPage() {
                 disabled={loading}
                 className="w-full py-2.5 mt-1 bg-gold text-black font-hud text-[11px] tracking-widest uppercase rounded hover:bg-gold/90 disabled:opacity-50 transition-all"
               >
-                {loading ? "…" : tab === "register" ? "Create Account" : "Sign In"}
+                {loading ? "…" : emailMode === "register" ? "Create Account" : "Sign In"}
               </button>
 
               <p className="text-ink-3 text-[11px] text-center font-sans pt-1">
-                {tab === "login" ? (
+                {emailMode === "login" ? (
                   <>No account?{" "}
-                    <button type="button" className="text-gold hover:underline" onClick={() => setTab("register")}>
+                    <button type="button" className="text-gold hover:underline" onClick={() => { setEmailMode("register"); setError(null); }}>
                       Register
                     </button>
                   </>
                 ) : (
                   <>Already registered?{" "}
-                    <button type="button" className="text-gold hover:underline" onClick={() => setTab("login")}>
+                    <button type="button" className="text-gold hover:underline" onClick={() => { setEmailMode("login"); setError(null); }}>
                       Sign in
                     </button>
                   </>
@@ -194,8 +207,8 @@ export function AuthPage() {
           )}
         </div>
 
-        <p className="text-ink-4 text-[11px] mt-2 font-mono tracking-[0.5px]">
-          PAPER TRADING MODE — no real capital deployed
+        <p className="text-ink-4 text-[10px] mt-2 font-mono tracking-[1.5px] uppercase">
+          <span className="text-gold">◢</span> Secure channel · Tactical sim active
         </p>
       </div>
     </div>
