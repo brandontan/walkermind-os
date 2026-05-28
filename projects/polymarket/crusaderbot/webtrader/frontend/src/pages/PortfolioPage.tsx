@@ -742,7 +742,7 @@ const STRATEGY_LABEL: Record<string, string> = {
   trend_breakout: "Trend Breakout",
   momentum: "Contrarian",
   value_investor: "Value Hunter",
-  copy_trade: "Whale Mirror",
+  copy_trade: "Copy Trade",
   signal: "Signal Sniper",
   signal_following: "Signal Following",
   pair_arb: "Pair Arb",
