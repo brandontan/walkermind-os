@@ -72,7 +72,7 @@ Status       : Phase 9.1 runtime -- bot LIVE on Fly (PAPER only). Monitoring: 48
 - Seed boss user ADMIN tier row in user_tiers via /admin settier post-deploy.
 
 [NEXT PRIORITY]
-- WARP•SENTINEL validation required for C1 on-chain withdrawal path before merge. Source: projects/polymarket/crusaderbot/reports/forge/withdrawal-onchain-path.md. Tier: MAJOR. Validate: transfer_usdc guard/pre-flight/idempotency, status lifecycle, no paper-mode capital movement, EXECUTION_PATH_VALIDATED stays OFF.
+- C1 on-chain withdrawal path: WARP•SENTINEL APPROVED (Score 94/100, 0 critical). Report: projects/polymarket/crusaderbot/reports/sentinel/withdrawal-onchain-path.md. Hardened during validation: auto-mode now settles inline (was: debited-but-never-sent gap); pre-broadcast failures refund the ledger (PreflightError). Cleared to MERGE guarded-OFF code (does NOT flip any guard). Owner go-live flip remains a separate decision; prerequisites: fund hot-pool USDC+MATIC, keep approval_mode='manual' for first cohort.
 - Fly redeploy to activate H2 rate limiting (WARP/ROOT/api-rate-limit) after WARP🔹CMD review.
 - Public-ready hardening COMPLETE: H1 (#1400) + H2 + H3 + M1 + M3 all merged. System is public-ready in PAPER mode. C1 withdrawal capital path wired + guarded OFF (pending SENTINEL). Remaining LIVE-readiness: SENTINEL sign-off on C1, then owner go-live flip (EXECUTION_PATH_VALIDATED/ENABLE_LIVE_TRADING) + staged rollout; on-chain sweep wiring is a separate guarded follow-up.
 - Monitor Sentry: confirm no BadRequest parse entities post-H3 deploy (MarkdownV2 migration).

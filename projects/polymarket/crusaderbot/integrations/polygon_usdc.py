@@ -26,6 +26,17 @@ from .polygon import _get_w3, gas_price_gwei, get_native_balance, get_usdc_balan
 
 logger = logging.getLogger(__name__)
 
+
+class PreflightError(RuntimeError):
+    """Transfer refused *before* anything was broadcast on-chain.
+
+    Signals to the caller that NO capital moved (activation guard, gas
+    ceiling, or insufficient hot-pool balance), so the ledger debit is safe
+    to refund. Distinct from a post-broadcast failure, which is ambiguous
+    and must be reconciled out-of-band rather than auto-refunded.
+    """
+
+
 # ERC-20 transfer(address,uint256). Kept local to the write path so the
 # read-only module (polygon.py) stays free of state-changing ABI.
 ERC20_TRANSFER_ABI: list[dict[str, Any]] = [
@@ -53,17 +64,18 @@ async def transfer_usdc(to: str, amount_usdc: Decimal) -> dict[str, Any]:
     """Send ``amount_usdc`` USDC from the master wallet to ``to`` on Polygon.
 
     Returns ``{tx_hash, gas_used, status}`` on a confirmed (status==1) transfer.
-    Raises RuntimeError on the activation guard, pre-flight failures, or an
-    on-chain revert. Raising (rather than returning a sentinel) keeps the
-    caller's status bookkeeping unambiguous.
+    Raises PreflightError when refused before broadcast (guard / gas ceiling /
+    insufficient balance — no capital moved, safe to refund). Raises plain
+    RuntimeError on a post-broadcast revert (ambiguous — reconcile, do not
+    auto-refund). Raising keeps the caller's status bookkeeping unambiguous.
     """
     settings = get_settings()
     if not settings.EXECUTION_PATH_VALIDATED:
-        raise RuntimeError(
+        raise PreflightError(
             "transfer_usdc blocked: EXECUTION_PATH_VALIDATED=false"
         )
     if amount_usdc <= 0:
-        raise RuntimeError(f"transfer_usdc: non-positive amount {amount_usdc}")
+        raise PreflightError(f"transfer_usdc: non-positive amount {amount_usdc}")
 
     from ..wallet.vault import master_wallet
 
@@ -76,7 +88,7 @@ async def transfer_usdc(to: str, amount_usdc: Decimal) -> dict[str, Any]:
     # Pre-flight 1: gas-price ceiling (reuse the redeem worker's guard value).
     gwei = await gas_price_gwei()
     if gwei > settings.INSTANT_REDEEM_GAS_GWEI_MAX:
-        raise RuntimeError(
+        raise PreflightError(
             f"transfer_usdc blocked: gas {gwei:.1f} gwei exceeds ceiling "
             f"{settings.INSTANT_REDEEM_GAS_GWEI_MAX:.1f}"
         )
@@ -84,13 +96,13 @@ async def transfer_usdc(to: str, amount_usdc: Decimal) -> dict[str, Any]:
     # Pre-flight 2: hot pool holds enough USDC and enough MATIC for gas.
     usdc_bal = await get_usdc_balance(src_cs)
     if Decimal(str(usdc_bal)) < amount_usdc:
-        raise RuntimeError(
+        raise PreflightError(
             f"transfer_usdc blocked: hot-pool USDC {usdc_bal} < requested "
             f"{amount_usdc}"
         )
     matic_bal = await get_native_balance(src_cs)
     if matic_bal < _MIN_GAS_MATIC:
-        raise RuntimeError(
+        raise PreflightError(
             f"transfer_usdc blocked: hot-pool MATIC {matic_bal} < minimum "
             f"{_MIN_GAS_MATIC} for gas"
         )

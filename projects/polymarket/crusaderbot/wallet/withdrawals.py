@@ -8,9 +8,13 @@ Approval modes (system_settings key 'withdrawal_approval_mode'):
   'auto'   — auto-approved on submission (ledger already debited at request time)
 
 On-chain transfer lifecycle:
-  create_withdrawal_request() → DB row + ledger debit (always)
-  approve_withdrawal()        → DB row 'approved' + _attempt_onchain_transfer()
-  _attempt_onchain_transfer() → no-op when EXECUTION_PATH_VALIDATED=False
+  create_withdrawal_request() → DB row + ledger debit (always); in 'auto'
+                                approval mode it also fires settlement inline
+  approve_withdrawal()        → DB row 'approved' → _settle_withdrawal()
+  _settle_withdrawal()        → runs the transfer; on PreflightError refunds
+                                the ledger (no capital moved); on a
+                                post-broadcast error marks 'failed' (reconcile)
+  _attempt_onchain_transfer() → no-op when EXECUTION_PATH_VALIDATED=False;
                                 live USDC transfer + status settlement when True
 """
 from __future__ import annotations
@@ -78,6 +82,15 @@ async def create_withdrawal_request(
                 conn, user_id, amount_usdc, T_WITHDRAW,
                 ref_id=row["id"],
                 note=f"withdrawal request to {destination_address[:10]}…",
+            )
+    # Auto-approval mode skips the admin approve step, so the on-chain
+    # settlement (deferred no-op in paper) must fire here instead — otherwise
+    # an auto-approved live withdrawal would be debited but never sent.
+    if initial_status == "approved":
+        await _settle_withdrawal(row["id"], destination_address, amount_usdc)
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM withdrawals WHERE id = $1", row["id"]
             )
     return dict(row)
 
@@ -207,16 +220,58 @@ async def approve_withdrawal(
     if row is None:
         raise ValueError(f"Withdrawal {withdrawal_id} not found or not pending")
     w = dict(row)
-    # Fire on-chain transfer (paper: deferred no-op; live: transfer + settle).
+    await _settle_withdrawal(
+        w["id"], w["destination_address"], w["amount_usdc"]
+    )
+    return w
+
+
+async def _settle_withdrawal(
+    withdrawal_id: UUID,
+    destination_address: str,
+    amount_usdc: Decimal,
+) -> None:
+    """Fire the on-chain transfer for an approved row and handle failure.
+
+    Paper (guard OFF): no-op, row stays 'approved'.
+    Live success: row already marked 'completed' by _attempt_onchain_transfer.
+    Live failure:
+      * PreflightError (no capital moved) → 'failed' + refund the ledger debit.
+      * any other error (post-broadcast, ambiguous) → 'failed', NO refund;
+        an operator reconciles out-of-band.
+    """
+    from ..integrations.polygon_usdc import PreflightError
+    pool = get_pool()
     try:
         await _attempt_onchain_transfer(
-            withdrawal_id=w["id"],
-            destination_address=w["destination_address"],
-            amount_usdc=w["amount_usdc"],
+            withdrawal_id=withdrawal_id,
+            destination_address=destination_address,
+            amount_usdc=amount_usdc,
         )
+    except PreflightError as exc:
+        logger.error(
+            "withdrawal_onchain_preflight_failed withdrawal_id=%s error=%s "
+            "(refunding ledger — no capital moved)", withdrawal_id, exc,
+        )
+        from ..wallet.ledger import credit_in_conn, T_ADJUSTMENT
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                updated = await conn.fetchrow(
+                    "UPDATE withdrawals SET status = 'failed', onchain_error = $2 "
+                    "WHERE id = $1 AND status IN ('approved', 'processing') "
+                    "AND tx_hash IS NULL RETURNING user_id",
+                    withdrawal_id, str(exc)[:500],
+                )
+                if updated is not None:
+                    await credit_in_conn(
+                        conn, updated["user_id"], amount_usdc, T_ADJUSTMENT,
+                        ref_id=withdrawal_id,
+                        note=f"refund: withdrawal {str(withdrawal_id)[:8]} preflight-failed",
+                    )
     except Exception as exc:
         logger.error(
-            "withdrawal_onchain_transfer_failed withdrawal_id=%s error=%s",
+            "withdrawal_onchain_transfer_failed withdrawal_id=%s error=%s "
+            "(NOT refunded — operator reconciliation required)",
             withdrawal_id, exc,
         )
         async with pool.acquire() as conn:
@@ -225,7 +280,6 @@ async def approve_withdrawal(
                 "WHERE id = $1 AND status IN ('approved', 'processing')",
                 withdrawal_id, str(exc)[:500],
             )
-    return w
 
 
 async def reject_withdrawal(

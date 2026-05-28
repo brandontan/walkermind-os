@@ -19,9 +19,13 @@ PR #1375) is now wired to a real on-chain USDC transfer — but stays a no-op in
 paper mode because every code path is hard-gated behind
 `EXECUTION_PATH_VALIDATED` (which remains `False`).
 
-- New module `integrations/polygon_usdc.py` exposing `transfer_usdc(to, amount_usdc)`.
+- New module `integrations/polygon_usdc.py` exposing `transfer_usdc(to, amount_usdc)`
+  and a `PreflightError` type for pre-broadcast (no-capital-moved) refusals.
 - `wallet/withdrawals.py:_attempt_onchain_transfer()` rewritten from a
-  `NotImplementedError` stub into the full live settlement lifecycle.
+  `NotImplementedError` stub into the full live settlement lifecycle, plus a
+  `_settle_withdrawal()` helper that refunds the ledger on `PreflightError`.
+- Auto-approval mode now settles inline in `create_withdrawal_request()` (an
+  auto-approved live withdrawal would otherwise be debited but never sent).
 - Migration `060_withdrawals_onchain.sql` adds the settlement columns.
 
 ## 2. Current system architecture
@@ -75,12 +79,15 @@ post-approval settlement and never bypasses the guard.
 ## 5. Known issues
 
 - Post-broadcast ambiguity: if the node accepts the tx but the receipt wait
-  times out, `transfer_usdc` raises and the row is marked 'failed' even though
-  the transfer may land. Mitigation: the unique partial index on `tx_hash` and
-  the `WHERE status='pending'` guard on `approve_withdrawal` make a double-send
-  unreachable via the normal flow; operator reconciles a 'failed' row
-  out-of-band (matches the existing redeem-path risk posture). Acceptable for a
-  guarded, SENTINEL-gated go-live; flagged for SENTINEL review.
+  times out, `transfer_usdc` raises a plain RuntimeError and the row is marked
+  'failed' WITHOUT a refund (the transfer may have landed) — an operator
+  reconciles out-of-band. Pre-broadcast failures instead raise `PreflightError`
+  and auto-refund the ledger debit (no capital moved). The unique partial index
+  on `tx_hash` plus the `WHERE status='pending'` approval guard make a
+  double-send unreachable via the normal flow.
+- Receipt-timeout is the only genuinely ambiguous failure; revert (status != 1)
+  is treated conservatively as non-refundable too (operator reconciles), erring
+  toward never creating money.
 - On-chain sweep (`scheduler.py:sweep_deposits`) is still logical-only — the
   hot pool is only funded in a real LIVE flip via a separate guarded lane.
 - `INSTANT_REDEEM_GAS_GWEI_MAX` (200) is reused as the withdrawal gas ceiling;
