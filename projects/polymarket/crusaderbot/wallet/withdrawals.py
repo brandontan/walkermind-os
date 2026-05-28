@@ -11,7 +11,7 @@ On-chain transfer lifecycle:
   create_withdrawal_request() → DB row + ledger debit (always)
   approve_withdrawal()        → DB row 'approved' + _attempt_onchain_transfer()
   _attempt_onchain_transfer() → no-op when EXECUTION_PATH_VALIDATED=False
-                                NotImplementedError when True (until wired)
+                                live USDC transfer + status settlement when True
 """
 from __future__ import annotations
 
@@ -118,18 +118,24 @@ async def _attempt_onchain_transfer(
     withdrawal_id: UUID,
     destination_address: str,
     amount_usdc: Decimal,
-) -> None:
-    """Attempt to send USDC on-chain for an approved withdrawal.
+) -> Optional[dict]:
+    """Send USDC on-chain for an approved withdrawal and settle its status.
 
-    Paper-safe: exits immediately when EXECUTION_PATH_VALIDATED=False.
+    Paper-safe: exits immediately when EXECUTION_PATH_VALIDATED=False (the
+    row stays 'approved'; no capital moves).
 
-    Live path: not yet wired — raises NotImplementedError until
-    integrations/polygon_usdc.py:transfer_usdc() is implemented and
-    master hot-pool signing credentials are available.
+    Live path: marks the row 'processing', broadcasts the transfer via
+    integrations.polygon_usdc.transfer_usdc(), then on confirmation marks it
+    'completed' and records tx_hash. Raises on any failure so the caller can
+    mark the row 'failed' with the error.
 
-    Safety: called AFTER the DB approval row is committed. A failed
-    transfer does NOT undo the approval — debit is permanent; admin
-    handles out-of-band reconciliation. All outcomes are logged.
+    Idempotency: a row that already has a tx_hash is never re-sent — only
+    pending rows reach approval (approve_withdrawal gates on status='pending'),
+    and the tx_hash column carries a partial-unique index as a backstop.
+
+    Safety: called AFTER the DB approval row is committed. The ledger debit is
+    permanent regardless of transfer outcome; a 'failed' row is reconciled
+    out-of-band by an operator. All outcomes are logged.
     """
     from ..config import get_settings
     s = get_settings()
@@ -139,27 +145,46 @@ async def _attempt_onchain_transfer(
             "withdrawal_id=%s destination=%s amount=%s",
             withdrawal_id, destination_address, amount_usdc,
         )
-        return
-    # Live signing path — wire here when hot-pool infrastructure is ready:
-    #
-    #   from ..integrations.polygon_usdc import transfer_usdc
-    #   tx_hash = await transfer_usdc(
-    #       to=destination_address,
-    #       amount_usdc=amount_usdc,
-    #   )
-    #   from .. import audit
-    #   await audit.write(
-    #       actor_role="bot", action="withdrawal_onchain_sent",
-    #       payload={"withdrawal_id": str(withdrawal_id),
-    #                "destination": destination_address,
-    #                "amount_usdc": str(amount_usdc),
-    #                "tx_hash": tx_hash},
-    #   )
-    raise NotImplementedError(
-        "On-chain USDC transfer requires live signing infrastructure. "
-        "Implement integrations/polygon_usdc.py:transfer_usdc() and "
-        "uncomment the live path above when EXECUTION_PATH_VALIDATED."
+        return None
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        existing_tx = await conn.fetchval(
+            "SELECT tx_hash FROM withdrawals WHERE id = $1", withdrawal_id
+        )
+    if existing_tx:
+        logger.warning(
+            "withdrawal_onchain_already_sent withdrawal_id=%s tx_hash=%s",
+            withdrawal_id, existing_tx,
+        )
+        return {"tx_hash": existing_tx, "status": 1, "skipped": True}
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE withdrawals SET status = 'processing' "
+            "WHERE id = $1 AND status = 'approved'",
+            withdrawal_id,
+        )
+
+    from ..integrations.polygon_usdc import transfer_usdc
+    result = await transfer_usdc(to=destination_address, amount_usdc=amount_usdc)
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE withdrawals SET status = 'completed', tx_hash = $2, "
+            "processed_at = NOW() WHERE id = $1",
+            withdrawal_id, result["tx_hash"],
+        )
+    from .. import audit
+    await audit.write(
+        actor_role="bot", action="withdrawal_onchain_sent",
+        payload={"withdrawal_id": str(withdrawal_id),
+                 "destination": destination_address,
+                 "amount_usdc": str(amount_usdc),
+                 "tx_hash": result["tx_hash"],
+                 "gas_used": result.get("gas_used")},
     )
+    return result
 
 
 async def approve_withdrawal(
@@ -182,22 +207,24 @@ async def approve_withdrawal(
     if row is None:
         raise ValueError(f"Withdrawal {withdrawal_id} not found or not pending")
     w = dict(row)
-    # Fire on-chain transfer (paper: deferred; live: NotImplementedError until wired)
+    # Fire on-chain transfer (paper: deferred no-op; live: transfer + settle).
     try:
         await _attempt_onchain_transfer(
             withdrawal_id=w["id"],
             destination_address=w["destination_address"],
             amount_usdc=w["amount_usdc"],
         )
-    except NotImplementedError as exc:
-        logger.error(
-            "withdrawal_onchain_not_wired withdrawal_id=%s: %s", withdrawal_id, exc
-        )
     except Exception as exc:
         logger.error(
             "withdrawal_onchain_transfer_failed withdrawal_id=%s error=%s",
             withdrawal_id, exc,
         )
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE withdrawals SET status = 'failed', onchain_error = $2 "
+                "WHERE id = $1 AND status IN ('approved', 'processing')",
+                withdrawal_id, str(exc)[:500],
+            )
     return w
 
 
