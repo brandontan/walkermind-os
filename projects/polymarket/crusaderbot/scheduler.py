@@ -119,6 +119,28 @@ async def sync_markets() -> None:
 
 # ---------------- Deposit watcher ----------------
 
+def _build_watched_addresses(wallet_rows) -> tuple[list[str], dict[str, object]]:
+    """Return the address scan list + a lowercase→user_id lookup map.
+
+    Each wallet contributes its EOA ``deposit_address`` and, when set, its
+    pre-computed ``safe_address`` (migration 061). Both addresses route to
+    the same user, so transfers into either credit that user without any
+    custody-mode flip. NULL ``safe_address`` rows (pre-backfill or pre-Chunk 2
+    wallets) silently fall back to EOA-only — no behavior change for them.
+    """
+    addresses: list[str] = []
+    addr_by_lower: dict = {}
+    for r in wallet_rows:
+        eoa = r["deposit_address"]
+        addresses.append(eoa)
+        addr_by_lower[eoa.lower()] = r["user_id"]
+        safe = r.get("safe_address") if isinstance(r, dict) else r["safe_address"]
+        if safe:
+            addresses.append(safe)
+            addr_by_lower[safe.lower()] = r["user_id"]
+    return addresses, addr_by_lower
+
+
 async def watch_deposits() -> None:
     """Confirmation-depth deposit watcher with reorg guard (H6).
 
@@ -138,12 +160,15 @@ async def watch_deposits() -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT user_id, deposit_address FROM wallets",
+            # safe_address comes from migration 061; partial-unique index ensures
+            # one user per address. Safe addresses route to the same user_id as
+            # the EOA so Polymarket Magic-link / Safe-flow deposits credit the
+            # correct user without any custody-mode flip.
+            "SELECT user_id, deposit_address, safe_address FROM wallets",
         )
     if not rows:
         return
-    addr_by_lower = {r["deposit_address"].lower(): r["user_id"] for r in rows}
-    addresses = [r["deposit_address"] for r in rows]
+    addresses, addr_by_lower = _build_watched_addresses(rows)
 
     try:
         head = await polygon.latest_block()

@@ -209,3 +209,60 @@ async def test_create_wallet_pre_computes_safe_address() -> None:
     # call signature is (conn, user_id, pk) — assert the pk is forwarded
     assert args[1] == uid
     assert args[2] == "0xpk"
+
+
+# ── watcher Safe-awareness (chunk 2b) ────────────────────────────────────────
+
+def test_watched_addresses_includes_safe_when_set() -> None:
+    """A wallet with a non-null safe_address contributes both addresses."""
+    from projects.polymarket.crusaderbot.scheduler import _build_watched_addresses
+
+    uid = _uuid.uuid4()
+    rows = [{
+        "user_id": uid,
+        "deposit_address": "0xAbCd1234567890EF1234567890abcdef12345678",
+        "safe_address": "0x1111111111111111111111111111111111111111",
+    }]
+    addresses, lookup = _build_watched_addresses(rows)
+    assert set(a.lower() for a in addresses) == {
+        "0xabcd1234567890ef1234567890abcdef12345678",
+        "0x1111111111111111111111111111111111111111",
+    }
+    assert lookup["0xabcd1234567890ef1234567890abcdef12345678"] == uid
+    assert lookup["0x1111111111111111111111111111111111111111"] == uid
+
+
+def test_watched_addresses_falls_back_to_eoa_only_when_safe_null() -> None:
+    """Pre-backfill rows (safe_address NULL) keep working — EOA only."""
+    from projects.polymarket.crusaderbot.scheduler import _build_watched_addresses
+
+    uid = _uuid.uuid4()
+    rows = [{
+        "user_id": uid,
+        "deposit_address": "0xAbCd1234567890EF1234567890abcdef12345678",
+        "safe_address": None,
+    }]
+    addresses, lookup = _build_watched_addresses(rows)
+    assert len(addresses) == 1
+    assert addresses[0].lower() == "0xabcd1234567890ef1234567890abcdef12345678"
+    assert lookup == {"0xabcd1234567890ef1234567890abcdef12345678": uid}
+
+
+def test_watched_addresses_two_users_both_map_correctly() -> None:
+    """Multiple wallets — every EOA + Safe routes to its own user."""
+    from projects.polymarket.crusaderbot.scheduler import _build_watched_addresses
+
+    u1, u2 = _uuid.uuid4(), _uuid.uuid4()
+    rows = [
+        {"user_id": u1, "deposit_address": "0xa" * 40 + "1",
+         "safe_address": "0xb" * 40 + "1"},
+        {"user_id": u2, "deposit_address": "0xc" * 40 + "1",
+         "safe_address": None},
+    ]
+    # The hex above isn't valid checksums but the function only lowercases —
+    # it never validates address shape, mirroring the watcher's tolerance.
+    addresses, lookup = _build_watched_addresses(rows)
+    assert len(addresses) == 3
+    assert lookup[("0xa" * 40 + "1").lower()] == u1
+    assert lookup[("0xb" * 40 + "1").lower()] == u1
+    assert lookup[("0xc" * 40 + "1").lower()] == u2
