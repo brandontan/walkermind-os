@@ -957,6 +957,45 @@ async def _process_candidate(
     except Exception as exc:
         log.warning("live_price_fetch_failed", market_id=cand.market_id, error=str(exc))
 
+    # 3c. Fill-time price-band re-check. Candle markets (late_entry_v3) can drift
+    #     0.10+ between scan and fill — without this gate, trades fired at prices
+    #     unrelated to the preset's intended band (e.g. safe_close 5.5% of trades
+    #     in [0.60, 0.70), 47% in coin-flip [0.45, 0.55] over 24h on prod).
+    #     The candidate's metadata declares the band that was satisfied at scan
+    #     time (fav_price_min/max); a live fill outside that band means the
+    #     market moved past the strategy's intended setup and we must NOT fill.
+    #     Safe for any strategy that omits the band metadata — gate no-ops.
+    if (
+        _live_fill_price is not None
+        and cand.metadata.get("fav_price_min") is not None
+        and cand.metadata.get("fav_price_max") is not None
+    ):
+        try:
+            _f_min = float(cand.metadata["fav_price_min"])
+            _f_max = float(cand.metadata["fav_price_max"])
+        except (TypeError, ValueError):
+            _f_min = _f_max = None  # type: ignore[assignment]
+        if _f_min is not None and _f_max is not None and (
+            _live_fill_price < _f_min or _live_fill_price >= _f_max
+        ):
+            log.info(
+                "scan_outcome",
+                outcome="skipped_fill_drifted",
+                side=side,
+                candidate_entry_price=cand.metadata.get("entry_price"),
+                live_fill_price=_live_fill_price,
+                fav_price_min=_f_min,
+                fav_price_max=_f_max,
+                strategy=cand.strategy_name,
+                message=(
+                    f"Fill price {_live_fill_price:.4f} drifted outside band "
+                    f"[{_f_min:.2f}, {_f_max:.2f}) — candle moved between scan and fill"
+                ),
+            )
+            if telemetry is not None:
+                telemetry.record_skip("skipped_fill_drifted")
+            return
+
     try:
         signal = _build_trade_signal(
             row=row, cand=cand, market=market, idempotency_key=idem_key,

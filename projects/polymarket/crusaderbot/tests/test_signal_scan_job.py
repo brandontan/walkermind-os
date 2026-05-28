@@ -521,6 +521,158 @@ def test_process_candidate_risk_rejects_inactive_market():
 
 
 # ---------------------------------------------------------------------------
+# _process_candidate — fill-time price-band re-check (gate 3c)
+# ---------------------------------------------------------------------------
+
+
+def _band_candidate(
+    *,
+    side: str = "YES",
+    entry_price: float = 0.65,
+    fav_price_min: float = 0.60,
+    fav_price_max: float = 0.70,
+) -> SignalCandidate:
+    """Candidate carrying the late_entry_v3 price-band metadata (no publication_id)."""
+    return SignalCandidate(
+        market_id=_MARKET_ID,
+        condition_id=_MARKET_ID,
+        side=side,
+        confidence=0.7,
+        suggested_size_usdc=10.0,
+        strategy_name="late_entry_v3",
+        signal_ts=datetime.now(timezone.utc),
+        metadata={
+            "market_id": _MARKET_ID,
+            "entry_price": entry_price,
+            "fav_price_min": fav_price_min,
+            "fav_price_max": fav_price_max,
+            "underdog_mode": False,
+        },
+    )
+
+
+def test_process_candidate_skips_when_fill_price_below_band():
+    """Candle drift between scan and fill: live price dropped below fav_price_min."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    cand = _band_candidate(fav_price_min=0.60, fav_price_max=0.70)
+
+    engine_called = {"called": False}
+
+    async def _track_execute(signal):
+        engine_called["called"] = True
+        return TradeResult(approved=True, mode="paper", order_id=None, position_id=None,
+                           rejection_reason=None, failed_gate_step=None,
+                           chosen_mode="paper", final_size_usdc=Decimal("10"))
+
+    with patch.object(job, "_load_stale_queued_row", return_value=None), \
+            patch.object(job, "_publication_already_queued", return_value=False), \
+            patch.object(job, "_has_open_position_for_market", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price",
+                         new=AsyncMock(return_value=0.495)), \
+            patch.object(job._engine, "execute", side_effect=_track_execute):
+        asyncio.run(job._process_candidate(row, cand))
+
+    assert not engine_called["called"], "fill below band must short-circuit before engine"
+
+
+def test_process_candidate_skips_when_fill_price_at_or_above_max_band():
+    """Fill price crossed the fav_price_max ceiling (band is half-open: max is exclusive)."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    cand = _band_candidate(fav_price_min=0.60, fav_price_max=0.70)
+
+    engine_called = {"called": False}
+
+    async def _track_execute(signal):
+        engine_called["called"] = True
+        return TradeResult(approved=True, mode="paper", order_id=None, position_id=None,
+                           rejection_reason=None, failed_gate_step=None,
+                           chosen_mode="paper", final_size_usdc=Decimal("10"))
+
+    with patch.object(job, "_load_stale_queued_row", return_value=None), \
+            patch.object(job, "_publication_already_queued", return_value=False), \
+            patch.object(job, "_has_open_position_for_market", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price",
+                         new=AsyncMock(return_value=0.70)), \
+            patch.object(job._engine, "execute", side_effect=_track_execute):
+        asyncio.run(job._process_candidate(row, cand))
+
+    assert not engine_called["called"], "fill at/above max must short-circuit before engine"
+
+
+def test_process_candidate_proceeds_when_fill_price_inside_band():
+    """Fill price still in band → trade proceeds to engine + execution queue."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    cand = _band_candidate(fav_price_min=0.60, fav_price_max=0.70)
+
+    from uuid import uuid4 as _uuid4
+    approved = TradeResult(
+        approved=True, mode="paper",
+        order_id=_uuid4(), position_id=_uuid4(),
+        rejection_reason=None, failed_gate_step=None,
+        chosen_mode="paper", final_size_usdc=Decimal("10"),
+    )
+    engine_called = {"called": False}
+
+    async def _track_execute(signal):
+        engine_called["called"] = True
+        return approved
+
+    with patch.object(job, "_load_stale_queued_row", return_value=None), \
+            patch.object(job, "_publication_already_queued", return_value=False), \
+            patch.object(job, "_has_open_position_for_market", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price",
+                         new=AsyncMock(return_value=0.66)), \
+            patch.object(job._engine, "execute", side_effect=_track_execute), \
+            patch.object(job, "_insert_execution_queue", return_value=True), \
+            patch.object(job, "_mark_executed", new=AsyncMock()):
+        asyncio.run(job._process_candidate(row, cand))
+
+    assert engine_called["called"], "fill inside band must reach engine"
+
+
+def test_process_candidate_band_gate_is_noop_without_metadata():
+    """Backward compat: candidates without fav_price_min/max metadata bypass the gate."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    # _candidate() emits no band metadata — represents signal_following / lib strategies.
+    cand = _candidate()
+
+    from uuid import uuid4 as _uuid4
+    approved = TradeResult(
+        approved=True, mode="paper",
+        order_id=_uuid4(), position_id=_uuid4(),
+        rejection_reason=None, failed_gate_step=None,
+        chosen_mode="paper", final_size_usdc=Decimal("10"),
+    )
+    engine_called = {"called": False}
+
+    async def _track_execute(signal):
+        engine_called["called"] = True
+        return approved
+
+    with patch.object(job, "_load_stale_queued_row", return_value=None), \
+            patch.object(job, "_publication_already_queued", return_value=False), \
+            patch.object(job, "_has_open_position_for_market", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price",
+                         new=AsyncMock(return_value=0.001)), \
+            patch.object(job._engine, "execute", side_effect=_track_execute), \
+            patch.object(job, "_insert_execution_queue", return_value=True), \
+            patch.object(job, "_mark_executed", new=AsyncMock()):
+        asyncio.run(job._process_candidate(row, cand))
+
+    assert engine_called["called"], (
+        "candidates without band metadata must pass through — band gate is opt-in via metadata"
+    )
+
+
+# ---------------------------------------------------------------------------
 # run_once — single user, happy path integration (all internals patched)
 # ---------------------------------------------------------------------------
 
