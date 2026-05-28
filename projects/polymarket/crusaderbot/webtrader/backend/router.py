@@ -76,15 +76,37 @@ async def web_health():
 @router.get("/markets")
 async def get_markets_list(
     category: str | None = None,
+    q: str | None = None,
     limit: int = 50,
 ):
-    """Proxy Gamma API market list — avoids browser CORS restriction."""
+    """Proxy Polymarket Gamma — Discover Markets search + category filter.
+
+    Uses the events-with-markets endpoint so each row carries a usable
+    ``category`` string (built from event tag labels). Filtering happens
+    server-side here:
+      * ``category`` — case-insensitive substring match against the tag
+        labels string Gamma returns per event.
+      * ``q`` — case-insensitive substring match against the market
+        question. Both filters compose (AND).
+    """
+    cap = min(limit, 200)
     try:
-        markets = await _polymarket.get_markets(
-            category=category,
-            limit=min(limit, 200),
-        )
-        return markets
+        # Fetch a wider page than the cap so client filters still find ~cap rows.
+        raw = await _polymarket.get_events_with_markets(limit=max(cap * 4, 200))
+        cat_needle = category.strip().lower() if category else ""
+        q_needle = q.strip().lower() if q else ""
+        out: list[dict] = []
+        for m in raw:
+            row_cat = str(m.get("category") or "").lower()
+            row_q = str(m.get("question") or "").lower()
+            if cat_needle and cat_needle not in row_cat:
+                continue
+            if q_needle and q_needle not in row_q:
+                continue
+            out.append(m)
+            if len(out) >= cap:
+                break
+        return out
     except Exception as exc:
         log.warning("get_markets_list failed: %s", exc)
         return []

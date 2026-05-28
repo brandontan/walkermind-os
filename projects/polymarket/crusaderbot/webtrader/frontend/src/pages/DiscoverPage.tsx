@@ -153,15 +153,26 @@ export function DiscoverPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState<Category>("All");
+  const [search, setSearch] = useState("");
+  // Debounced query that actually hits the API — typing fires the request
+  // 250ms after the last keystroke instead of on every character.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${API_BASE}/markets?limit=50${category !== "All" ? `&category=${encodeURIComponent(category)}` : ""}`,
-        { headers: { Accept: "application/json" } }
-      );
+      const qs = new URLSearchParams({ limit: "50" });
+      if (category !== "All") qs.set("category", category);
+      if (debouncedSearch) qs.set("q", debouncedSearch);
+      const res = await fetch(`${API_BASE}/markets?${qs.toString()}`, {
+        headers: { Accept: "application/json" },
+      });
       if (!res.ok) throw new Error(`markets ${res.status}`);
       const data: GammaMarket[] = await res.json();
       const parsed = data.map(parseGammaMarket);
@@ -172,25 +183,25 @@ export function DiscoverPage() {
     } finally {
       setLoading(false);
     }
-  }, [category]);
+  }, [category, debouncedSearch]);
 
   useEffect(() => { void load(); }, [load]);
 
+  // Only re-fetch on scanner_tick when no search is active — typing keeps the
+  // list stable instead of clobbering the user's query results.
   useSSE(user?.token ?? null, {
-    scanner_tick: () => void load(),
+    scanner_tick: () => { if (!debouncedSearch) void load(); },
   });
 
   const handleDeploy = useCallback((m: MarketCard) => {
     navigate(`/autotrade?market_id=${encodeURIComponent(m.id)}&market_name=${encodeURIComponent(m.title)}`);
   }, [navigate]);
 
-  const filtered = category === "All"
-    ? markets
-    : markets.filter((m) => m.category.toLowerCase() === category.toLowerCase());
-
-  const trending = [...filtered].sort((a, b) => b.volume - a.volume).slice(0, 5);
-  const highestVolume = [...filtered].sort((a, b) => b.volume - a.volume).slice(0, 5);
-  const topMovers = [...filtered].sort((a, b) =>
+  // Backend already filters by category + search query, so trust that response
+  // and only do view-shape transforms here (sort orders for the 3 sections).
+  const trending = [...markets].sort((a, b) => b.volume - a.volume).slice(0, 5);
+  const highestVolume = [...markets].sort((a, b) => b.volume - a.volume).slice(0, 5);
+  const topMovers = [...markets].sort((a, b) =>
     Math.abs(b.yesPrice - 0.5) - Math.abs(a.yesPrice - 0.5)
   ).slice(0, 5);
 
@@ -214,6 +225,33 @@ export function DiscoverPage() {
             {error}
           </div>
         )}
+
+        {/* Search bar — text-search across question titles. Debounced so each
+            keystroke doesn't hit the API. Empty input falls back to the live
+            trending/volume/movers view. */}
+        <div className="relative mb-3">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-4 text-[13px] pointer-events-none" aria-hidden>
+            🔍
+          </span>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search markets…"
+            aria-label="Search markets"
+            className="w-full pl-9 pr-9 py-2 rounded-lg border border-border-2 bg-surface-2 text-[12px] text-ink-1 placeholder:text-ink-4 font-mono focus:outline-none focus:border-gold transition-colors"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-ink-4 hover:text-ink-1"
+            >
+              ×
+            </button>
+          )}
+        </div>
 
         {/* Category filter tabs */}
         <div className="flex gap-1 mb-4 overflow-x-auto pb-1 scrollbar-none">
@@ -241,16 +279,38 @@ export function DiscoverPage() {
           </div>
         ) : markets.length === 0 ? (
           <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
-            <div className="text-2xl mb-2">📊</div>
-            <p className="font-hud text-sm font-bold text-ink-2 mb-1">No markets available.</p>
-            <p className="text-ink-3 text-xs font-mono mb-3">Market data unavailable. Check your connection.</p>
-            <button
-              onClick={() => void load()}
-              className="font-hud text-[9px] font-bold tracking-widest text-gold uppercase px-3 py-1.5 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
-            >
-              Retry
-            </button>
+            <div className="text-2xl mb-2">{debouncedSearch ? "🔍" : "📊"}</div>
+            <p className="font-hud text-sm font-bold text-ink-2 mb-1">
+              {debouncedSearch ? "No matches" : "No markets available."}
+            </p>
+            <p className="text-ink-3 text-xs font-mono mb-3">
+              {debouncedSearch
+                ? `Nothing matches "${debouncedSearch}". Try different keywords or clear the search.`
+                : "Market data unavailable. Check your connection."}
+            </p>
+            {debouncedSearch ? (
+              <button
+                onClick={() => setSearch("")}
+                className="font-hud text-[9px] font-bold tracking-widest text-gold uppercase px-3 py-1.5 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
+              >
+                Clear search
+              </button>
+            ) : (
+              <button
+                onClick={() => void load()}
+                className="font-hud text-[9px] font-bold tracking-widest text-gold uppercase px-3 py-1.5 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
+              >
+                Retry
+              </button>
+            )}
           </div>
+        ) : debouncedSearch ? (
+          // Active search → single flat result list ordered by volume.
+          <Section
+            title={`Search Results (${markets.length})`}
+            markets={[...markets].sort((a, b) => b.volume - a.volume)}
+            onDeploy={handleDeploy}
+          />
         ) : (
           <>
             <Section title="Trending Markets" markets={trending} onDeploy={handleDeploy} />
