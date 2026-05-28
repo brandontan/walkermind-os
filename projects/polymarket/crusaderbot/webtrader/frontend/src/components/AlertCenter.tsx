@@ -59,7 +59,7 @@ type Props = {
 };
 
 export function AlertCenter({ isOpen, alerts, onClose }: Props) {
-  const { dismissAlert, markAllRead, loadMoreAlerts, hasMoreAlerts, unreadCount } = useAlertCenter();
+  const { dismissAlert, markAllRead, loadMoreAlerts, hasMoreAlerts, unreadCount, panelOpenedAt } = useAlertCenter();
   const navigate = useNavigate();
 
   // "Preferences" link target — opens the Settings page where alert filtering
@@ -154,8 +154,24 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
                   const cat = deriveCategory(alert);
                   const style = CATEGORY_STYLE[cat];
                   const icon = CATEGORY_ICON[cat];
+                  // Unread when the alert was created after the user last
+                  // saw the panel. Gives the row a visual highlight + a
+                  // small dot before the title (matches the mock design).
+                  const isUnread = new Date(alert.created_at).getTime() > panelOpenedAt;
                   return (
-                    <div key={alert.id} className="px-4 py-3 flex gap-3 hover:bg-surface-3 transition-colors">
+                    <div
+                      key={alert.id}
+                      className="relative px-4 py-3 flex gap-3 hover:bg-surface-3 transition-colors"
+                      style={isUnread ? { background: "rgba(245,200,66,0.04)" } : undefined}
+                    >
+                      {/* Unread accent bar — runs the full left edge of the card */}
+                      {isUnread && (
+                        <span
+                          className="absolute left-0 top-0 bottom-0 w-[3px]"
+                          style={{ background: "var(--gold, #F5C842)" }}
+                          aria-hidden
+                        />
+                      )}
                       {/* Icon badge */}
                       <div
                         className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-[16px] mt-0.5"
@@ -167,7 +183,18 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start gap-1.5 mb-0.5">
-                          <span className="font-sans text-[12px] text-ink-1 font-semibold leading-snug flex-1">
+                          {isUnread && (
+                            <span
+                              className="inline-block w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
+                              style={{ background: "var(--gold, #F5C842)", boxShadow: "0 0 6px rgba(245,200,66,0.6)" }}
+                              aria-label="Unread"
+                            />
+                          )}
+                          <span
+                            className={`font-sans text-[12px] leading-snug flex-1 ${
+                              isUnread ? "text-ink-1 font-bold" : "text-ink-2 font-semibold"
+                            }`}
+                          >
                             {alert.title}
                           </span>
                           {/* Dismiss — always visible (was hover-only). Matches the screenshot
