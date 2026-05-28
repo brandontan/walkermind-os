@@ -165,6 +165,7 @@ export interface PositionItem {
   closed_at: string | null;
   exit_reason: string | null;
   strategy_type?: string | null;
+  active_preset?: string | null;
   tp_pct?: number | null;
   sl_pct?: number | null;
   tp_price?: number | null;

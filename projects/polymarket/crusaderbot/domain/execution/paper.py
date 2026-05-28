@@ -31,6 +31,7 @@ async def execute(
     strategy_type: str,
     tp_pct: float | None,
     sl_pct: float | None,
+    active_preset: str | None = None,
 ) -> dict:
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -55,13 +56,13 @@ async def execute(
                 INSERT INTO positions (user_id, market_id, order_id, side,
                                        size_usdc, entry_price, current_price,
                                        tp_pct, sl_pct, mode, status, strategy_type,
-                                       market_question)
-                VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,'paper','open',$9,$10)
+                                       market_question, active_preset)
+                VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,'paper','open',$9,$10,$11)
                 RETURNING id
                 """,
                 user_id, market_id, order_id, side,
                 size_usdc, price, tp_pct, sl_pct, strategy_type,
-                market_question,
+                market_question, active_preset,
             )
             position_id = pos_row["id"]
             await ledger.debit_in_conn(

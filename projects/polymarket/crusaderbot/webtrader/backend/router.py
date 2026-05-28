@@ -364,8 +364,8 @@ async def get_positions(
             f"""SELECT p.id, p.market_id, COALESCE(m.question, p.market_question) AS market_question,
                        p.side, p.size_usdc, p.entry_price, p.current_price,
                        p.pnl_usdc, p.status, p.mode, p.opened_at, p.closed_at,
-                       p.exit_reason, p.strategy_type, m.resolved AS market_resolved,
-                       m.winning_side,
+                       p.exit_reason, p.strategy_type, p.active_preset,
+                       m.resolved AS market_resolved, m.winning_side,
                        COALESCE(p.applied_tp_pct, p.tp_pct) AS tp_pct,
                        COALESCE(p.applied_sl_pct, p.sl_pct) AS sl_pct
                 FROM positions p
@@ -392,6 +392,7 @@ async def get_positions(
             closed_at=r["closed_at"],
             exit_reason=r["exit_reason"],
             strategy_type=r["strategy_type"],
+            active_preset=r["active_preset"],
             tp_pct=float(r["tp_pct"]) if r["tp_pct"] is not None else None,
             sl_pct=float(r["sl_pct"]) if r["sl_pct"] is not None else None,
             tp_price=_tp_sl_price(float(r["entry_price"]), r["side"], r["tp_pct"], is_tp=True),
@@ -624,6 +625,15 @@ async def toggle_autotrade(body: AutoTradeToggleRequest, user: _CurrentUser):
     pool = get_pool()
     user_id = user["user_id"]
     async with pool.acquire() as conn:
+        if body.enabled:
+            preset_row = await conn.fetchrow(
+                "SELECT active_preset FROM user_settings WHERE user_id=$1::uuid", user_id,
+            )
+            if not preset_row or not preset_row["active_preset"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="select a strategy preset before enabling auto-trade",
+                )
         await conn.execute(
             "UPDATE users SET auto_trade_on=$1 WHERE id=$2::uuid",
             body.enabled, user_id,
