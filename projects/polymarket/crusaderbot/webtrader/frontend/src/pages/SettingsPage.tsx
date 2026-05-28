@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AdvancedOnly } from "../components/AdvancedGate";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
+import { NotificationPrefsCard } from "../components/NotificationPrefsCard";
 import { SettingsGroup, SettingsRow } from "../components/SettingsGroup";
 import { Toggle } from "../components/Toggle";
 import { TopBar } from "../components/TopBar";
@@ -72,19 +73,6 @@ export function SettingsPage() {
     return () => clearInterval(id);
   }, [load]);
 
-  // All three notification toggles bind to the single `notifications_on` flag.
-  async function handleNotifToggle(next: boolean) {
-    if (!settings) return;
-    const optimistic = { ...settings, notifications_on: next };
-    setSettings(optimistic);
-    try {
-      await api.updateSettings({ notifications_on: next });
-    } catch (e) {
-      setSettings({ ...optimistic, notifications_on: !next });
-      console.error("notif toggle failed", e);
-    }
-  }
-
   async function handleRedeemToggle(next: boolean) {
     setAutoRedeem(next);
     setSavingRedeem(true);
@@ -123,8 +111,6 @@ export function SettingsPage() {
       <div className="p-4 text-ink-3 text-sm font-mono">Loading…</div>
     </>
   );
-
-  const notifOn = settings.notifications_on;
 
   return (
     <>
@@ -186,23 +172,7 @@ export function SettingsPage() {
             </SettingsGroup>
 
             {/* Notifications */}
-            <SettingsGroup title="Notifications">
-              <SettingsRow
-                name="Trade Opened"
-                desc="Alert when a position opens"
-                control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle trade-opened alerts" />}
-              />
-              <SettingsRow
-                name="Trade Closed"
-                desc="Alert on TP / SL / expiry"
-                control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle trade-closed alerts" />}
-              />
-              <SettingsRow
-                name="Daily Report"
-                desc="End-of-day P&L summary"
-                control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle daily report" />}
-              />
-            </SettingsGroup>
+            <NotificationPrefsCard />
 
             {/* Display — advanced diagnostics last */}
             <SettingsGroup title="Display">
