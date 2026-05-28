@@ -140,7 +140,52 @@ export function makeApi(token: string | null) {
     // ── Account unification — reverse Telegram-link ────────────────────────
     getLinkTelegramStatus: () => get<{ linked: boolean }>("/account/link-telegram/status"),
     startLinkTelegram: () => post<LinkTelegramStart>("/account/link-telegram/start"),
+    // ── Admin console (role=admin only) ────────────────────────────────────
+    getAdminOverview: () => get<AdminOverview>("/admin/overview"),
+    getAdminUsers: (limit = 50, offset = 0) =>
+      get<AdminUsersPage>(`/admin/users?limit=${limit}&offset=${offset}`),
+    getAdminStrategies: () => get<{ strategies: AdminStrategy[] }>("/admin/strategies"),
+    toggleStrategy: (name: string, enabled: boolean) =>
+      post<{ name: string; enabled: boolean }>("/admin/strategies/toggle", { name, enabled }),
   };
+}
+
+// ── Admin console types ───────────────────────────────────────────────────
+export interface AdminOverview {
+  pool: { address: string | null; usdc: number | null; matic: number | null };
+  guards: Record<string, boolean>;
+  kill_switch_active: boolean;
+  counts: {
+    users: number; admins: number; auto_trade_on: number; live_users: number;
+    open_positions_paper: number; open_positions_live: number; total_wallet_usdc: number;
+  };
+  last_scan: Record<string, unknown> | null;
+}
+
+export interface AdminUser {
+  user_id: string;
+  username: string | null;
+  email: string | null;
+  role: string;
+  trading_mode: string;
+  active_preset: string | null;
+  balance_usdc: number;
+  auto_trade_on: boolean;
+  paused: boolean;
+  open_positions: number;
+  created_at: string | null;
+}
+
+export interface AdminUsersPage {
+  total: number;
+  limit: number;
+  offset: number;
+  users: AdminUser[];
+}
+
+export interface AdminStrategy {
+  name: string;
+  enabled: boolean;
 }
 
 export interface LinkTelegramStart {
@@ -166,6 +211,8 @@ export interface MeResponse {
   username: string | null;
   email: string | null;        // null when no real email linked (tombstones excluded)
   telegram_linked: boolean;
+  role: string;                // "user" | "admin"
+  is_admin: boolean;
 }
 
 export interface DashboardSummary {

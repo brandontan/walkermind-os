@@ -53,6 +53,7 @@ from .schemas import (
     RiskProfileRequest,
     RuntimeStatus,
     StrategyPnl,
+    StrategyToggleRequest,
     EmailLoginRequest,
     EmailRegisterRequest,
     LinkEmailRequest,
@@ -151,7 +152,7 @@ async def get_me(user: _CurrentUser):
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT email, username, telegram_user_id FROM users WHERE id = $1::uuid",
+            "SELECT email, username, telegram_user_id, role FROM users WHERE id = $1::uuid",
             user_id,
         )
     email = row["email"] if row else None
@@ -165,6 +166,8 @@ async def get_me(user: _CurrentUser):
         "username": (row["username"] if row else None),
         "email": email,
         "telegram_linked": bool(row and row["telegram_user_id"] is not None),
+        "role": (row["role"] if row else "user") or "user",
+        "is_admin": bool(row and row["role"] == "admin"),
     }
 
 
@@ -2077,3 +2080,202 @@ async def link_telegram_start(user: _CurrentUser) -> dict:
         "expires_minutes": CODE_TTL_MINUTES,
         "bot_username": bot_username,
     }
+
+
+# ── Admin console (role='admin' only) ──────────────────────────────────────
+# Operator dashboard for the logged-in admin: system overview (incl. master
+# hot-pool address + balances for funding), user roster, and global strategy
+# on/off switches. All endpoints gate on users.role = 'admin'.
+
+# Canonical strategy roster the operator can toggle (lib + domain).
+_ADMIN_STRATEGIES: tuple[str, ...] = (
+    "signal_following", "late_entry_v3", "confluence_scalper",
+    "momentum_reversal", "copy_trade", "trend_breakout", "momentum",
+    "value_investor", "expiration_timing", "pair_arb", "ensemble",
+    "whale_tracking",
+)
+
+
+async def _require_admin(user: _CurrentUser) -> dict:
+    """Dependency: 403 unless the authenticated user has role='admin'."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        role = await conn.fetchval(
+            "SELECT role FROM users WHERE id = $1::uuid", user["user_id"],
+        )
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="admin only")
+    return user
+
+
+_AdminUser = Annotated[dict, Depends(_require_admin)]
+
+
+@router.get("/admin/overview")
+async def admin_overview(user: _AdminUser) -> dict:
+    """System snapshot for the admin console."""
+    from ...config import get_settings
+    from ...wallet.vault import master_wallet
+    from ...integrations import polygon
+    s = get_settings()
+
+    pool_address: Optional[str] = None
+    pool_usdc: Optional[float] = None
+    pool_matic: Optional[float] = None
+    try:
+        pool_address, _ = master_wallet()
+    except Exception:
+        pool_address = None
+    if pool_address:
+        try:
+            pool_usdc = await polygon.get_usdc_balance(pool_address)
+        except Exception:
+            pool_usdc = None
+        try:
+            pool_matic = await polygon.get_native_balance(pool_address)
+        except Exception:
+            pool_matic = None
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        total_users = await conn.fetchval("SELECT COUNT(*) FROM users") or 0
+        admins = await conn.fetchval("SELECT COUNT(*) FROM users WHERE role = 'admin'") or 0
+        auto_on = await conn.fetchval(
+            "SELECT COUNT(*) FROM users WHERE auto_trade_on = TRUE AND paused = FALSE"
+        ) or 0
+        live_users = await conn.fetchval(
+            "SELECT COUNT(*) FROM user_settings WHERE trading_mode = 'live'"
+        ) or 0
+        open_paper = await conn.fetchval(
+            "SELECT COUNT(*) FROM positions WHERE status = 'open' AND mode = 'paper'"
+        ) or 0
+        open_live = await conn.fetchval(
+            "SELECT COUNT(*) FROM positions WHERE status = 'open' AND mode = 'live'"
+        ) or 0
+        total_balance = await conn.fetchval(
+            "SELECT COALESCE(SUM(balance_usdc), 0) FROM wallets"
+        ) or 0
+        last_scan = await conn.fetchrow(
+            "SELECT started_at, markets_seen, candidates_emitted, "
+            "       risk_approved, paper_orders_created, mode "
+            "FROM scan_runs ORDER BY started_at DESC LIMIT 1"
+        )
+
+    kill_active = False
+    try:
+        from ...database import is_kill_switch_active
+        kill_active = bool(await is_kill_switch_active())
+    except Exception:
+        kill_active = False
+
+    return {
+        "pool": {
+            "address": pool_address,
+            "usdc": pool_usdc,
+            "matic": pool_matic,
+        },
+        "guards": {
+            "ENABLE_LIVE_TRADING": bool(s.ENABLE_LIVE_TRADING),
+            "EXECUTION_PATH_VALIDATED": bool(s.EXECUTION_PATH_VALIDATED),
+            "CAPITAL_MODE_CONFIRMED": bool(s.CAPITAL_MODE_CONFIRMED),
+            "RISK_CONTROLS_VALIDATED": bool(s.RISK_CONTROLS_VALIDATED),
+            "SECURITY_HARDENING_VALIDATED": bool(s.SECURITY_HARDENING_VALIDATED),
+            "USE_REAL_CLOB": bool(s.USE_REAL_CLOB),
+        },
+        "kill_switch_active": kill_active,
+        "counts": {
+            "users": int(total_users),
+            "admins": int(admins),
+            "auto_trade_on": int(auto_on),
+            "live_users": int(live_users),
+            "open_positions_paper": int(open_paper),
+            "open_positions_live": int(open_live),
+            "total_wallet_usdc": float(total_balance),
+        },
+        "last_scan": dict(last_scan) if last_scan else None,
+    }
+
+
+@router.get("/admin/users")
+async def admin_users(user: _AdminUser, limit: int = 50, offset: int = 0) -> dict:
+    """Paginated user roster."""
+    limit = max(1, min(int(limit), 200))
+    offset = max(0, int(offset))
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        total = await conn.fetchval("SELECT COUNT(*) FROM users") or 0
+        rows = await conn.fetch(
+            """
+            SELECT u.id, u.username, u.email, u.role, u.auto_trade_on, u.paused,
+                   u.created_at,
+                   COALESCE(st.trading_mode, 'paper')        AS trading_mode,
+                   COALESCE(st.active_preset, '')            AS active_preset,
+                   COALESCE(w.balance_usdc, 0)               AS balance_usdc,
+                   (SELECT COUNT(*) FROM positions p
+                     WHERE p.user_id = u.id AND p.status = 'open') AS open_positions
+              FROM users u
+              LEFT JOIN user_settings st ON st.user_id = u.id
+              LEFT JOIN wallets       w  ON w.user_id  = u.id
+             ORDER BY u.created_at DESC NULLS LAST
+             LIMIT $1 OFFSET $2
+            """,
+            limit, offset,
+        )
+    users = []
+    for r in rows:
+        email = r["email"]
+        if email and email.endswith("@telegram.local"):
+            email = None
+        users.append({
+            "user_id": str(r["id"]),
+            "username": r["username"],
+            "email": email,
+            "role": r["role"],
+            "trading_mode": r["trading_mode"],
+            "active_preset": r["active_preset"] or None,
+            "balance_usdc": float(r["balance_usdc"]),
+            "auto_trade_on": bool(r["auto_trade_on"]),
+            "paused": bool(r["paused"]),
+            "open_positions": int(r["open_positions"]),
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+        })
+    return {"total": int(total), "limit": limit, "offset": offset, "users": users}
+
+
+@router.get("/admin/strategies")
+async def admin_strategies(user: _AdminUser) -> dict:
+    """List every toggleable strategy + its global enabled state (default ON)."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT name, enabled FROM strategies")
+    state = {str(r["name"]): bool(r["enabled"]) for r in rows}
+    strategies = [
+        {"name": name, "enabled": state.get(name, True)}
+        for name in _ADMIN_STRATEGIES
+    ]
+    return {"strategies": strategies}
+
+
+@router.post(
+    "/admin/strategies/toggle",
+    dependencies=[Depends(per_user_rate_limit("admin_strategy", limit=30))],
+)
+async def admin_toggle_strategy(body: StrategyToggleRequest, user: _AdminUser) -> dict:
+    """Flip a strategy on/off globally (fail-safe: scanner treats missing/ON)."""
+    if body.name not in _ADMIN_STRATEGIES:
+        raise HTTPException(status_code=400, detail="unknown strategy")
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO strategies (name, enabled, updated_at) "
+            "VALUES ($1, $2, NOW()) "
+            "ON CONFLICT (name) DO UPDATE SET enabled = $2, updated_at = NOW()",
+            body.name, bool(body.enabled),
+        )
+    await audit.write(
+        actor_role="admin",
+        action="admin_strategy_toggle",
+        user_id=UUID(str(user["user_id"])),
+        payload={"strategy": body.name, "enabled": bool(body.enabled)},
+    )
+    return {"name": body.name, "enabled": bool(body.enabled)}

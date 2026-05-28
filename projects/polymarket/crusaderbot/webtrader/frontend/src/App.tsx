@@ -16,6 +16,7 @@ const DiscoverPage   = lazy(() => import("./pages/DiscoverPage").then(m => ({ de
 const PortfolioPage  = lazy(() => import("./pages/PortfolioPage").then(m => ({ default: m.PortfolioPage })));
 const SettingsPage   = lazy(() => import("./pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
 const WalletPage     = lazy(() => import("./pages/WalletPage").then(m => ({ default: m.WalletPage })));
+const AdminPage      = lazy(() => import("./pages/AdminPage").then(m => ({ default: m.AdminPage })));
 
 function PageLoader() {
   return (
@@ -324,6 +325,10 @@ function AppShell() {
               <Route
                 path="/settings"
                 element={user ? <SettingsPage /> : <Navigate to="/auth" replace />}
+              />
+              <Route
+                path="/admin"
+                element={user ? <AdminPage /> : <Navigate to="/auth" replace />}
               />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

@@ -457,6 +457,18 @@ export function SettingsPage() {
           </div>
         </div>
 
+        {/* Ops Console — admins only */}
+        {account?.is_admin && (
+          <button
+            type="button"
+            onClick={() => navigate("/admin")}
+            className="clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-3 px-2.5 transition-colors w-full text-gold border cursor-pointer mt-2"
+            style={{ background: "rgba(245,200,66,0.08)", borderColor: "rgba(245,200,66,0.3)" }}
+          >
+            🛡 Open Ops Console
+          </button>
+        )}
+
         {/* Disconnect */}
         <button
           type="button"
