@@ -98,9 +98,10 @@ export function makeApi(token: string | null) {
       post<{ ok: boolean }>("/auth/link-email", { email, password }),
     getAlerts: () => get<AlertItem[]>("/alerts"),
     getKillSwitch: () => get<{ active: boolean }>("/killswitch"),
-    postKill: () => post<{ ok: boolean }>("/kill"),
+    postKill: () => post<{ ok: boolean; user_paused: boolean }>("/kill"),
+    postResume: () => post<{ ok: boolean; user_paused: boolean }>("/resume"),
     postEmergencyStop: () =>
-      post<{ positions_marked: number; kill_switch_active: boolean }>("/emergency-stop"),
+      post<{ positions_marked: number; user_paused: boolean }>("/emergency-stop"),
     listCopyTasks: () => get<CopyTask[]>("/copy-trade/tasks"),
     createCopyTask: (body: CopyTaskCreate) =>
       post<{ id: string; status: string }>("/copy-trade/tasks", body),
@@ -390,7 +391,13 @@ export interface RuntimeStatus {
   paper_mode: boolean;
   active_preset: string | null;
   risk_profile: string;
+  /** Global operator kill switch — informational only. Toggled by the
+   * operator via /api/ops/kill or Telegram /kill, never by a normal
+   * WebTrader user. */
   kill_switch_active: boolean;
+  /** Per-user paused flag. Toggled by /api/web/kill, /api/web/resume,
+   * and /api/web/emergency-stop. Independent of the global switch. */
+  user_paused: boolean;
   open_positions: number;
   scanner_scanned: number;
   scanner_published: number;
