@@ -958,6 +958,48 @@ async def _process_candidate(
     except Exception as exc:
         log.warning("live_price_fetch_failed", market_id=cand.market_id, error=str(exc))
 
+    # 3b-i. Candle-market tick-alignment gate (flip-hunter-stale-price-fix).
+    #       Polymarket 5m crypto candle markets (slug ``{coin}-updown-5m-...``)
+    #       use a 0.01 (1¢) CLOB tick. A live price that is not on the tick
+    #       (e.g. 0.505) for one of these markets comes from the Gamma
+    #       ``outcomePrices`` seed/midpoint (the initial MM quote written
+    #       before any real CLOB activity), not a real fill price.
+    #
+    #       Returning that as a tradable mark caused 80/86 flip_hunter
+    #       positions over one session to enter at exactly 0.505 across
+    #       BTC/ETH/SOL/XRP/DOGE/BNB simultaneously; combined with the
+    #       synthetic TP fill (exit_watcher._tp_exit_price = entry*(1+tp%))
+    #       every TP-hit landed at the identical 0.58075 across coins for
+    #       indistinguishable +$0.50 paper P&L.
+    #
+    #       Scoped to candle markets only — thin longshot markets on other
+    #       slugs DO legitimately surface sub-cent Gamma last-trade prices
+    #       (e.g. 0.055 for a 5.5c longshot) and signal_following etc.
+    #       must continue to trade them.
+    if _live_fill_price is not None:
+        _slug = str(market.get("slug") or "")
+        _is_candle = "updown" in _slug
+        if _is_candle:
+            _cents = _live_fill_price * 100.0
+            if abs(_cents - round(_cents)) > 1e-6:
+                log.info(
+                    "scan_outcome",
+                    outcome="skipped_sub_cent_price",
+                    side=side,
+                    live_fill_price=_live_fill_price,
+                    market_id=cand.market_id,
+                    slug=_slug,
+                    strategy=cand.strategy_name,
+                    message=(
+                        f"Candle market live price {_live_fill_price} not on "
+                        f"0.01 tick — Gamma seed/midpoint fallback, not real "
+                        f"CLOB activity"
+                    ),
+                )
+                if telemetry is not None:
+                    telemetry.record_skip("skipped_sub_cent_price")
+                return
+
     # 3c. Fill-time price-band re-check. Candle markets (late_entry_v3) can drift
     #     0.10+ between scan and fill — without this gate, trades fired at prices
     #     unrelated to the preset's intended band (e.g. safe_close 5.5% of trades
