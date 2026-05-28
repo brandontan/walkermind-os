@@ -1,0 +1,139 @@
+"""On-chain USDC transfer from the master (hot-pool) wallet.
+
+Live capital-exit path for withdrawals. Signs and broadcasts an ERC-20
+``transfer`` from the master wallet that holds consolidated user funds.
+
+Safety posture (mirrors integrations/polymarket.py:submit_live_redemption):
+  * Hard-gated behind EXECUTION_PATH_VALIDATED — raises before any signing
+    when the guard is false, so paper mode can never move real capital.
+  * Pre-flight balance check: refuses if the hot pool lacks the USDC or the
+    native MATIC needed to pay gas.
+  * Gas-price ceiling: refuses above INSTANT_REDEEM_GAS_GWEI_MAX so a fee
+    spike cannot drain the pool on gas.
+  * Every failure raises (never silently swallowed); the caller records the
+    outcome against the withdrawal row.
+"""
+from __future__ import annotations
+
+import logging
+from decimal import Decimal
+from typing import Any
+
+from web3 import AsyncWeb3
+
+from ..config import get_settings
+from .polygon import _get_w3, gas_price_gwei, get_native_balance, get_usdc_balance
+
+logger = logging.getLogger(__name__)
+
+
+class PreflightError(RuntimeError):
+    """Transfer refused *before* anything was broadcast on-chain.
+
+    Signals to the caller that NO capital moved (activation guard, gas
+    ceiling, or insufficient hot-pool balance), so the ledger debit is safe
+    to refund. Distinct from a post-broadcast failure, which is ambiguous
+    and must be reconciled out-of-band rather than auto-refunded.
+    """
+
+
+# ERC-20 transfer(address,uint256). Kept local to the write path so the
+# read-only module (polygon.py) stays free of state-changing ABI.
+ERC20_TRANSFER_ABI: list[dict[str, Any]] = [
+    {
+        "constant": False,
+        "inputs": [
+            {"name": "to", "type": "address"},
+            {"name": "value", "type": "uint256"},
+        ],
+        "name": "transfer",
+        "outputs": [{"name": "", "type": "bool"}],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+]
+
+# A bridged-USDC transfer on Polygon costs well under this; the buffer covers
+# gas-accounting variance without risking an out-of-gas revert.
+_TRANSFER_GAS_LIMIT = 120_000
+# Minimum native MATIC the hot pool must hold to cover one transfer's gas.
+_MIN_GAS_MATIC = 0.05
+
+
+async def transfer_usdc(to: str, amount_usdc: Decimal) -> dict[str, Any]:
+    """Send ``amount_usdc`` USDC from the master wallet to ``to`` on Polygon.
+
+    Returns ``{tx_hash, gas_used, status}`` on a confirmed (status==1) transfer.
+    Raises PreflightError when refused before broadcast (guard / gas ceiling /
+    insufficient balance — no capital moved, safe to refund). Raises plain
+    RuntimeError on a post-broadcast revert (ambiguous — reconcile, do not
+    auto-refund). Raising keeps the caller's status bookkeeping unambiguous.
+    """
+    settings = get_settings()
+    if not settings.EXECUTION_PATH_VALIDATED:
+        raise PreflightError(
+            "transfer_usdc blocked: EXECUTION_PATH_VALIDATED=false"
+        )
+    if amount_usdc <= 0:
+        raise PreflightError(f"transfer_usdc: non-positive amount {amount_usdc}")
+
+    from ..wallet.vault import master_wallet
+
+    w3 = _get_w3()
+    src, pk = master_wallet()
+    src_cs = AsyncWeb3.to_checksum_address(src)
+    to_cs = AsyncWeb3.to_checksum_address(to)
+    usdc_cs = AsyncWeb3.to_checksum_address(settings.USDC_POLYGON)
+
+    # Pre-flight 1: gas-price ceiling (reuse the redeem worker's guard value).
+    gwei = await gas_price_gwei()
+    if gwei > settings.INSTANT_REDEEM_GAS_GWEI_MAX:
+        raise PreflightError(
+            f"transfer_usdc blocked: gas {gwei:.1f} gwei exceeds ceiling "
+            f"{settings.INSTANT_REDEEM_GAS_GWEI_MAX:.1f}"
+        )
+
+    # Pre-flight 2: hot pool holds enough USDC and enough MATIC for gas.
+    usdc_bal = await get_usdc_balance(src_cs)
+    if Decimal(str(usdc_bal)) < amount_usdc:
+        raise PreflightError(
+            f"transfer_usdc blocked: hot-pool USDC {usdc_bal} < requested "
+            f"{amount_usdc}"
+        )
+    matic_bal = await get_native_balance(src_cs)
+    if matic_bal < _MIN_GAS_MATIC:
+        raise PreflightError(
+            f"transfer_usdc blocked: hot-pool MATIC {matic_bal} < minimum "
+            f"{_MIN_GAS_MATIC} for gas"
+        )
+
+    raw_amount = int(amount_usdc * (10 ** settings.USDC_DECIMALS))
+    usdc = w3.eth.contract(address=usdc_cs, abi=ERC20_TRANSFER_ABI)
+    nonce = await w3.eth.get_transaction_count(src_cs)
+    gas_price = await w3.eth.gas_price
+    tx = await usdc.functions.transfer(to_cs, raw_amount).build_transaction({
+        "from": src_cs,
+        "nonce": nonce,
+        "gas": _TRANSFER_GAS_LIMIT,
+        "gasPrice": gas_price,
+        "chainId": 137,
+    })
+    signed = w3.eth.account.sign_transaction(tx, private_key=pk)
+    raw = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
+    tx_hash = await w3.eth.send_raw_transaction(raw)
+    receipt = await w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
+    status = int(receipt["status"])
+    if status != 1:
+        raise RuntimeError(
+            f"USDC transfer reverted (tx={tx_hash.hex()}, to={to_cs}, "
+            f"amount={amount_usdc})"
+        )
+    logger.info(
+        "transfer_usdc_confirmed tx=%s to=%s amount=%s gas_used=%s",
+        tx_hash.hex(), to_cs, amount_usdc, int(receipt["gasUsed"]),
+    )
+    return {
+        "tx_hash": tx_hash.hex(),
+        "gas_used": int(receipt["gasUsed"]),
+        "status": status,
+    }
