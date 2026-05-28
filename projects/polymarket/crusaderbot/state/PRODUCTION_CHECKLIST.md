@@ -2,7 +2,7 @@
 
 Owner: WARP🔹CMD
 Maintained by: WARP•FORGE
-Last Updated: 2026-05-17 14:30 Asia/Jakarta
+Last Updated: 2026-05-28 11:35 Asia/Jakarta
 
 > **This is a WARP•FORGE engineering checklist, NOT a WARP•SENTINEL
 > go-live verdict.** A MAJOR-tier SENTINEL validation is still required
@@ -29,6 +29,8 @@ Last Updated: 2026-05-17 14:30 Asia/Jakarta
 - [x] On-chain withdrawal capital path (transfer_usdc, guarded) — PR #1402, SENTINEL 94/100
 - [x] On-chain deposit sweep / hot-pool funding (double-gated) — PR #1403, SENTINEL 94/100
 - [x] Public-ready hardening: H1 ops-auth cookie session (#1400) + H2 rate limiting + H3 MarkdownV2 + M1 RLS 43/43 + M3 alchemy WS handshake
+- [x] WARP•R00T LIVE+PAPER readiness audit (#1409) — verdict 0 current risks; assert_live_guards, router fallback + audit-log, 8-gate LIVE checklist + typed CONFIRM, and PAPER-default for new users all verified
+- [x] PAPER-default invariant hardened (#1410) — explicit `trading_mode='paper'` in every `user_settings` INSERT + source-regex regression guards + silent-pass removed from webtrader signup bootstrap
 
 ## B. Operational blockers — WARP🔹CMD ACTION REQUIRED
 

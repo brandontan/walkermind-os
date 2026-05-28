@@ -7,6 +7,49 @@ SENTINEL: Required before merge
 
 ---
 
+## 2026-05-28 UPDATE — WARP•R00T LIVE+PAPER readiness pass (3 lanes)
+
+WARP•R00T verified the system is engineering-ready for concurrent LIVE +
+PAPER operation, with PAPER as the only mode any user receives at
+creation regardless of `ENABLE_LIVE_TRADING`. Three lanes shipped:
+
+- **Lane 1 — `WARP/ROOT/system-ready-audit`** (MERGED #1409, MINOR/FOUNDATION).
+  Read-only audit. Verdict: 0 current risks. Confirmed all 5 LIVE activation
+  guards default `false`, `assert_live_guards` (`domain/execution/live.py:50-80`)
+  checks 8 conditions including `USE_REAL_CLOB`, `role=='admin'`,
+  `trading_mode=='live'`; router (`domain/execution/router.py`) audit-logs
+  `GUARD_BYPASS_ATTEMPT` at CRITICAL and paper-falls-back on any guard
+  failure; LIVE-flip is hard-gated by `live_checklist.evaluate()`
+  (8 gates) + typed CONFIRM + defense-in-depth re-check; PAPER-default
+  for new users is schema-enforced (`migrations/001_init.sql:73`) and
+  protected across all three creation paths (Telegram `upsert_user`,
+  WebTrader `auth.signup_email`, lazy `get_settings_for`); on-chain
+  capital paths #1402/#1403/#1408 all triple-gated OFF. Surfaced 3
+  brittleness items for Lane 2.
+
+- **Lane 2 — `WARP/ROOT/paper-default-hardening`** (MERGED #1410, STANDARD/NARROW).
+  Belt-and-suspenders enforcement: every `INSERT INTO user_settings` in
+  production now writes `trading_mode='paper'` explicitly (no longer
+  schema-default reliant). Three write sites hardened (`users.py`
+  Telegram new-user, `users.py` lazy `get_settings_for`, new explicit
+  INSERT in `webtrader/backend/auth.py:signup_email`). Silent
+  `except Exception: pass` in webtrader signup replaced with
+  `logger.exception(...)` per the no-silent-failures HARD RULE. New
+  hermetic `tests/test_paper_default_invariant.py` (5 tests) pins the
+  invariant at INSERT-call-shape + source-regex layers — fail-closed if
+  any future edit drops the literal `'paper'`. Full suite 1859 passed.
+  The LIVE-flip path is unchanged.
+
+- **Lane 3 — `WARP/ROOT/live-readiness-final`** (this update, MINOR — state
+  sync only, no code). Documentation sync: `state/LIVE_READINESS.md` (this
+  file), `state/PRODUCTION_CHECKLIST.md`, `state/WORKTODO.md`,
+  `state/PROJECT_STATE.md`, `state/CHANGELOG.md`.
+
+**No code-side LIVE blockers remain.** The Final go-live sequence below
+is preserved verbatim — every remaining step is owner-operational.
+
+---
+
 ## 2026-05-28 UPDATE — Capital paths COMPLETE; engineering LIVE-ready
 
 The two on-chain capital paths that were the last code-side LIVE blockers are
