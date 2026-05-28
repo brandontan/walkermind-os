@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import notifications
-from .api import admin as api_admin, health as api_health, ops as api_ops
+from .api import admin as api_admin, health as api_health, legal as api_legal, ops as api_ops
 from .api.rate_limit import RateLimitMiddleware
 from .webtrader.backend import sse as webtrader_sse
 from .webtrader.backend.router import router as web_router
@@ -318,6 +318,7 @@ app.add_middleware(RateLimitMiddleware)
 app.include_router(api_health.router)
 app.include_router(api_admin.router)
 app.include_router(api_ops.router)
+app.include_router(api_legal.router)
 app.include_router(web_router, prefix="/api/web")
 
 class SPAStaticFiles(StaticFiles):

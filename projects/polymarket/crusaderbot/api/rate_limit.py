@@ -122,7 +122,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             del self._hits[k]
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        if not self._enabled or request.url.path in _EXEMPT_PATHS:
+        path = request.url.path
+        if (
+            not self._enabled
+            or path in _EXEMPT_PATHS
+            or path.startswith("/legal/")
+        ):
             return await call_next(request)
 
         key = self._client_key(request)

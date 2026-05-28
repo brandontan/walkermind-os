@@ -210,6 +210,28 @@ export function AuthPage() {
         <p className="text-ink-4 text-[10px] mt-2 font-mono tracking-[1.5px] uppercase">
           <span className="text-gold">◢</span> Secure channel · Tactical sim active
         </p>
+
+        <p className="text-ink-3 text-[11px] mt-4 font-sans">
+          By continuing you agree to our{" "}
+          <a
+            href="/legal/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gold hover:underline"
+          >
+            Terms of Service
+          </a>
+          {" "}and{" "}
+          <a
+            href="/legal/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gold hover:underline"
+          >
+            Privacy Policy
+          </a>
+          . CrusaderBot is a trading aid, not financial advice — no profit is guaranteed.
+        </p>
       </div>
     </div>
   );

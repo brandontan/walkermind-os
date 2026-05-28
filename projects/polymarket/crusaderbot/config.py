@@ -351,10 +351,18 @@ class Settings(BaseSettings):
     # --- Inbound HTTP rate limiting (public abuse control) ---
     # Per-client (source-IP) request ceiling over RATE_LIMIT_WINDOW_SECONDS,
     # enforced by RateLimitMiddleware on the public API/webhook surface.
-    # Health/readiness probes and the Telegram webhook are exempt. Set
-    # RATE_LIMIT_ENABLED=False to disable throttling entirely.
+    # Health/readiness probes, /legal/*, and the Telegram webhook are exempt.
+    # Set RATE_LIMIT_ENABLED=False to disable throttling entirely.
+    #
+    # 600/min ≈ 10 req/s per source IP. A normal WebTrader dashboard load
+    # fires ~10-15 /api/web/* calls (markets, positions, portfolio summary,
+    # alerts, signals, scan history) plus periodic refreshes, so the prior
+    # 120/min (2 req/s) ceiling was tripping live users on first page-in
+    # ("Too many requests. Please slow down"). 10 req/s still leaves 5x
+    # headroom over normal usage so the limiter catches abusive scrapers
+    # but not legitimate operators.
     RATE_LIMIT_ENABLED: bool = True
-    RATE_LIMIT_RPM: int = 120
+    RATE_LIMIT_RPM: int = 600
     RATE_LIMIT_WINDOW_SECONDS: int = 60
 
     @model_validator(mode="before")
