@@ -7,6 +7,7 @@ from uuid import UUID
 from ..config import get_settings
 from ..database import get_pool
 from .generator import decrypt_pk, derive_address, encrypt_pk
+from .safe import set_safe_address_in_conn
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,10 @@ async def create_wallet_for_user(user_id: UUID) -> tuple[str, int]:
             "VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO NOTHING",
             user_id, address, idx, encrypted,
         )
+        # Pre-compute the deterministic Safe-proxy address while we still have
+        # the unencrypted signer key in scope. Harmless in EOA custody mode,
+        # ready in Safe mode. Silently no-ops if the relayer SDK is absent.
+        await set_safe_address_in_conn(conn, user_id, pk)
         row = await conn.fetchrow(
             "SELECT deposit_address, hd_index FROM wallets WHERE user_id = $1",
             user_id,
