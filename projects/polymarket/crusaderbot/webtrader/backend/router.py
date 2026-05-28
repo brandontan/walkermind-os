@@ -2006,3 +2006,53 @@ async def disable_live(user: _CurrentUser) -> dict:
         payload={"source": "/api/web/live/disable"},
     )
     return {"ok": True, "trading_mode": "paper"}
+
+
+# ── Account unification — reverse Telegram-link ────────────────────────────
+# An email-first WebTrader user links their Telegram so both surfaces resolve
+# to ONE account (one user_id → LIVE/PAPER state always in sync). WebTrader
+# mints a one-time code; the user redeems it in the bot via `/link <code>`.
+
+
+@router.get("/account/link-telegram/status")
+async def link_telegram_status(user: _CurrentUser) -> dict:
+    """Whether this account already has a Telegram identity linked."""
+    user_id = user["user_id"]
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        tg = await conn.fetchval(
+            "SELECT telegram_user_id FROM users WHERE id = $1::uuid", user_id,
+        )
+    return {"linked": tg is not None}
+
+
+@router.post(
+    "/account/link-telegram/start",
+    dependencies=[Depends(per_user_rate_limit("account_link", limit=5))],
+)
+async def link_telegram_start(user: _CurrentUser) -> dict:
+    """Mint a one-time link code for the authenticated (email) account.
+
+    The user sends `/link <code>` to the bot to attach their Telegram. 409 if
+    the account already has a Telegram linked.
+    """
+    from ...domain.activation.account_link import (
+        AccountLinkError,
+        CODE_TTL_MINUTES,
+        format_code_for_display,
+        generate_link_code,
+    )
+    from ...config import get_settings
+    user_id = user["user_id"]
+    try:
+        code = await generate_link_code(UUID(str(user_id)))
+    except AccountLinkError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    display = format_code_for_display(code)
+    bot_username = (get_settings().TELEGRAM_BOT_USERNAME or "").lstrip("@")
+    return {
+        "code": display,
+        "link_command": f"/link {display}",
+        "expires_minutes": CODE_TTL_MINUTES,
+        "bot_username": bot_username,
+    }

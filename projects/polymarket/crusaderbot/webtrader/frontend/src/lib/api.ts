@@ -136,7 +136,17 @@ export function makeApi(token: string | null) {
     enableLive: (live_capital_cap_usdc: number, confirm_phrase: string) =>
       post<LiveEnableResponse>("/live/enable", { live_capital_cap_usdc, confirm_phrase }),
     disableLive: () => post<{ trading_mode: string }>("/live/disable"),
+    // ── Account unification — reverse Telegram-link ────────────────────────
+    getLinkTelegramStatus: () => get<{ linked: boolean }>("/account/link-telegram/status"),
+    startLinkTelegram: () => post<LinkTelegramStart>("/account/link-telegram/start"),
   };
+}
+
+export interface LinkTelegramStart {
+  code: string;            // display form, e.g. "ABCD-EFGH"
+  link_command: string;    // "/link ABCD-EFGH"
+  expires_minutes: number;
+  bot_username: string;    // "" when not configured
 }
 
 // Exact phrase the user must type to flip into live mode. MUST match the
