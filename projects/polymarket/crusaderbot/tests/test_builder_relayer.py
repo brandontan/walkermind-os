@@ -89,7 +89,13 @@ def test_make_relayer_client_returns_sdk_object_when_configured() -> None:
     assert type(client).__name__ == "RelayClient"
 
 
-def test_relayer_sdk_importable_reflects_install() -> None:
-    # In this environment both SDKs are installed; the probe should be True
-    # and must never raise regardless of credential state.
-    assert br.relayer_sdk_importable() is True
+def test_relayer_sdk_importable_returns_bool() -> None:
+    # The probe must never raise regardless of credential state and must
+    # return a bool that matches actual SDK availability — not hard-pinned
+    # True, so the test stays honest if the dep is ever removed.
+    import importlib.util
+    expected = (
+        importlib.util.find_spec("py_builder_relayer_client") is not None
+        and importlib.util.find_spec("py_builder_signing_sdk") is not None
+    )
+    assert br.relayer_sdk_importable() is expected

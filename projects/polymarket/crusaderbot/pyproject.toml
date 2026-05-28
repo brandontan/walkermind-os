@@ -32,6 +32,11 @@ dependencies = [
     # WebTrader dashboard
     "sse-starlette>=1.6",
     "PyJWT>=2.8",
+    # Polymarket Builder Program — gasless relayer for the Safe-proxy custody
+    # migration (foundation only; dormant until POLY_BUILDER_* secrets and
+    # USE_BUILDER_RELAYER are set).
+    "py-builder-relayer-client>=0.0.1",
+    "py-builder-signing-sdk>=0.0.2",
 ]
 
 [build-system]
