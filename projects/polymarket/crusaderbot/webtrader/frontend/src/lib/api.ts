@@ -61,6 +61,7 @@ export function makeApi(token: string | null) {
     request<T>(path, token, { method: "PATCH", body: body ? JSON.stringify(body) : undefined });
 
   return {
+    getMe: () => get<MeResponse>("/me"),
     getRuntimeStatus: () => get<RuntimeStatus>("/status"),
     getDashboard: () => get<DashboardSummary>("/dashboard"),
     getPositions: (status?: string, limit?: number, offset?: number) => {
@@ -158,6 +159,14 @@ export const LIVE_CAP_MIN_USDC = 0;
 export const LIVE_CAP_MAX_USDC = 10000;
 
 // ── Types mirroring backend schemas ──────────────────────────────────────────
+
+export interface MeResponse {
+  user_id: string;
+  first_name: string;
+  username: string | null;
+  email: string | null;        // null when no real email linked (tombstones excluded)
+  telegram_linked: boolean;
+}
 
 export interface DashboardSummary {
   balance_usdc: number;

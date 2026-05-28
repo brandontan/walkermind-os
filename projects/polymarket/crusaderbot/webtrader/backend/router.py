@@ -144,7 +144,28 @@ async def auth_link_email(
 
 @router.get("/me")
 async def get_me(user: _CurrentUser):
-    return {"user_id": user["user_id"], "first_name": user["first_name"]}
+    """Current account identity for the Settings page. Includes persisted
+    email/telegram link state so the UI renders "connected" rows instead of
+    re-showing the link forms after a refresh."""
+    user_id = user["user_id"]
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT email, username, telegram_user_id FROM users WHERE id = $1::uuid",
+            user_id,
+        )
+    email = row["email"] if row else None
+    # Synthetic tombstone emails (merged-<uuid>@telegram.local) are not real
+    # user logins — never surface them as a "linked email".
+    if email and email.endswith("@telegram.local"):
+        email = None
+    return {
+        "user_id": user_id,
+        "first_name": user["first_name"],
+        "username": (row["username"] if row else None),
+        "email": email,
+        "telegram_linked": bool(row and row["telegram_user_id"] is not None),
+    }
 
 
 @router.get("/signals/recent")
