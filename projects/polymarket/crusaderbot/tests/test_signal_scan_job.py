@@ -552,10 +552,21 @@ def _band_candidate(
 
 
 def test_process_candidate_skips_when_fill_price_below_band():
-    """Candle drift between scan and fill: live price dropped below fav_price_min."""
+    """Candidate with metadata.entry_price BELOW its declared fav_price_min
+    must be rejected by the fill-band gate.
+
+    Realtime-fill-price lane: _process_candidate now sources the fill
+    price from cand.metadata["entry_price"] (real CLOB /book best-ask
+    from scan time) instead of re-fetching via get_live_market_price.
+    So drift between scan and process can no longer occur — but a
+    malformed candidate whose own entry_price falls outside its declared
+    band must still be rejected at the gate. Same protection, different
+    threat model.
+    """
     bootstrap_default_strategies()
     row = _user_row()
-    cand = _band_candidate(fav_price_min=0.60, fav_price_max=0.70)
+    # Out-of-band entry_price (0.495 < fav_price_min 0.60)
+    cand = _band_candidate(entry_price=0.495, fav_price_min=0.60, fav_price_max=0.70)
 
     engine_called = {"called": False}
 
@@ -569,8 +580,6 @@ def test_process_candidate_skips_when_fill_price_below_band():
             patch.object(job, "_publication_already_queued", return_value=False), \
             patch.object(job, "_has_open_position_for_market", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
-            patch.object(job, "get_live_market_price",
-                         new=AsyncMock(return_value=0.495)), \
             patch.object(job._engine, "execute", side_effect=_track_execute):
         asyncio.run(job._process_candidate(row, cand))
 
@@ -578,10 +587,12 @@ def test_process_candidate_skips_when_fill_price_below_band():
 
 
 def test_process_candidate_skips_when_fill_price_at_or_above_max_band():
-    """Fill price crossed the fav_price_max ceiling (band is half-open: max is exclusive)."""
+    """Candidate with metadata.entry_price at/above fav_price_max must be
+    rejected (band is half-open: max is exclusive)."""
     bootstrap_default_strategies()
     row = _user_row()
-    cand = _band_candidate(fav_price_min=0.60, fav_price_max=0.70)
+    # Out-of-band entry_price (0.70 >= fav_price_max 0.70 — half-open band)
+    cand = _band_candidate(entry_price=0.70, fav_price_min=0.60, fav_price_max=0.70)
 
     engine_called = {"called": False}
 
@@ -595,8 +606,6 @@ def test_process_candidate_skips_when_fill_price_at_or_above_max_band():
             patch.object(job, "_publication_already_queued", return_value=False), \
             patch.object(job, "_has_open_position_for_market", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
-            patch.object(job, "get_live_market_price",
-                         new=AsyncMock(return_value=0.70)), \
             patch.object(job._engine, "execute", side_effect=_track_execute):
         asyncio.run(job._process_candidate(row, cand))
 
