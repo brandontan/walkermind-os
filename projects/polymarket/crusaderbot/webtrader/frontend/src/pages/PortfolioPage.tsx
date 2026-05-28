@@ -27,7 +27,7 @@ import {
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 
-type Tab = "all" | "open" | "closed" | "orders" | "analytics";
+type Tab = "analytics" | "closed" | "all" | "orders";
 // 7D=1W, 30D=1M in backend; "All" maps to "ALL"
 type Period = "1D" | "7D" | "30D" | "All";
 
@@ -59,7 +59,10 @@ export function PortfolioPage() {
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [chartData, setChartData] = useState<ChartPoint[]>([]);
   const [chartPeriod, setChartPeriod] = useState<Period>("7D");
-  const [tab, setTab] = useState<Tab>("open");
+  // Default landing on the Portfolio tab is Analytics — open positions are
+  // already surfaced on the Home dashboard, so the deep view here leads with
+  // settled-trade insights instead.
+  const [tab, setTab] = useState<Tab>("analytics");
   const [error, setError] = useState<string | null>(null);
 
   // Cash Out modal state
@@ -226,10 +229,9 @@ export function PortfolioPage() {
   const totalClosed = summary?.total_closed ?? closed.length;
 
   const tabs: FilterTab<Tab>[] = [
-    { key: "open", label: "Open", count: open.length },
+    { key: "analytics", label: "Analytics" },
     { key: "closed", label: "Closed", count: totalClosed },
     { key: "all", label: "All", count: open.length + totalClosed },
-    { key: "analytics", label: "Analytics" },
     { key: "orders", label: "Orders", count: pendingOrdersCount || undefined, advanced: true },
   ];
 
@@ -310,32 +312,6 @@ export function PortfolioPage() {
         {error && <div className="text-red text-sm mb-3">{error}</div>}
 
         <FilterTabs tabs={tabs} active={tab} onChange={setTab} />
-
-        {tab === "open" && (
-          <CollapsibleSection id="portfolio_open_positions" label={`Open Positions (${open.length})`}>
-            {open.length === 0 ? (
-              <EmptyState
-                icon="📭"
-                title="No Open Positions"
-                text="When auto-trade opens a position, it will appear here in real-time."
-              />
-            ) : (
-              <div className="md:grid md:grid-cols-2 md:gap-3">
-                {open.map((p) => (
-                  <PositionRow
-                    key={p.id}
-                    p={p}
-                    onCashOut={() => { setCashOutTarget(p); setCashOutError(null); }}
-                    onForceRedeem={async () => {
-                      try { await api.forceRedeem(p.id); } catch { /* surfaced via refresh */ }
-                      refresh();
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </CollapsibleSection>
-        )}
 
         {tab === "closed" && (
           <CollapsibleSection id="portfolio_closed_positions" label={`Closed Trades (${totalClosed})`}>
@@ -1112,6 +1088,22 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
     ? `${data.win_loss_ratio.toFixed(2)}`
     : settledTrades === 0 ? "Not enough data" : "—";
 
+  // Avg-hold formatting: crypto candle markets resolve in < 5 minutes, so
+  // showing "0.0h" hides the actual value. Render < 1h in minutes (or
+  // seconds when sub-minute), >= 1h in fractional hours.
+  const avgHoldValue = (() => {
+    if (data.avg_hold_hours == null) return "—";
+    const hrs = data.avg_hold_hours;
+    if (hrs >= 1) return `${hrs.toFixed(1)}h`;
+    const mins = hrs * 60;
+    if (mins >= 1) return `${mins.toFixed(1)}m`;
+    const secs = mins * 60;
+    return `${secs.toFixed(0)}s`;
+  })();
+
+  // Win rate as % — clearer than the bare ratio for a quick read.
+  const winRatePct = settledTrades > 0 ? (data.wins / settledTrades) * 100 : null;
+
   return (
     <div className="space-y-3 mt-2">
       <div className="text-[9px] font-mono text-ink-4 tracking-[1.5px] uppercase mb-1">
@@ -1125,20 +1117,21 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
           color={drawdownColor}
         />
         <AnalyticCard
-          label="Win / Loss Ratio"
-          value={ratioValue}
-          sub={settledTrades > 0 ? `${data.wins}W · ${data.losses}L` : undefined}
-          color="var(--ink-1)"
+          label="Win Rate"
+          value={winRatePct != null ? `${winRatePct.toFixed(1)}%` : ratioValue}
+          sub={settledTrades > 0 ? `${data.wins}W · ${data.losses}L · ratio ${data.win_loss_ratio?.toFixed(2) ?? "—"}` : undefined}
+          color={winRatePct != null && winRatePct >= 50 ? "var(--grn,#00FF9C)" : "var(--ink-1)"}
         />
         <AnalyticCard
-          label="Avg Hold Duration"
-          value={data.avg_hold_hours != null ? `${data.avg_hold_hours.toFixed(1)}h` : "—"}
+          label="Avg Hold"
+          value={avgHoldValue}
+          sub={settledTrades > 0 ? `over ${settledTrades} trades` : undefined}
           color="var(--ink-1)"
         />
         <AnalyticCard
           label="Best Trade"
           value={data.best_trade != null ? `${data.best_trade.pnl_usdc >= 0 ? "+" : ""}$${data.best_trade.pnl_usdc.toFixed(2)}` : "—"}
-          sub={data.best_trade?.market_question?.slice(0, 30) ?? undefined}
+          sub={data.best_trade?.market_question ?? undefined}
           color="var(--grn,#00FF9C)"
         />
       </div>
@@ -1147,8 +1140,8 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
       {data.worst_trade && (
         <div className="p-3 rounded-lg border border-surface-3 bg-surface-1">
           <div className="text-[9px] font-mono text-ink-4 uppercase tracking-widest mb-1">Worst Trade</div>
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono text-ink-2 truncate max-w-[200px]">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[10px] font-mono text-ink-2 truncate flex-1 min-w-0">
               {data.worst_trade.market_question ?? "—"}
             </span>
             <span className="font-bold font-mono text-[11px] text-red flex-shrink-0">
@@ -1158,19 +1151,24 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
         </div>
       )}
 
-      {/* Profit per strategy */}
+      {/* Profit per strategy — share the same STRATEGY_LABEL map used for
+          PositionRow so the labels match across the app instead of showing
+          raw "late_entry_v3" snake_case identifiers. */}
       {data.profit_per_strategy.length > 0 && (
         <div className="p-3 rounded-lg border border-surface-3 bg-surface-1">
           <div className="text-[9px] font-mono text-ink-4 uppercase tracking-widest mb-2">Profit by Strategy</div>
           <div className="space-y-1.5">
-            {data.profit_per_strategy.map((s) => (
-              <div key={s.strategy} className="flex items-center justify-between">
-                <span className="text-[10px] font-mono text-ink-2 capitalize">{s.strategy}</span>
-                <span className={`font-bold font-mono text-[10px] ${s.pnl_usdc >= 0 ? "text-grn" : "text-red"}`}>
-                  {s.pnl_usdc >= 0 ? "+" : ""}${s.pnl_usdc.toFixed(2)}
-                </span>
-              </div>
-            ))}
+            {data.profit_per_strategy.map((s) => {
+              const label = fmtStrategy(s.strategy) ?? s.strategy;
+              return (
+                <div key={s.strategy} className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-ink-2">{label}</span>
+                  <span className={`font-bold font-mono text-[10px] ${s.pnl_usdc >= 0 ? "text-grn" : "text-red"}`}>
+                    {s.pnl_usdc >= 0 ? "+" : ""}${s.pnl_usdc.toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
