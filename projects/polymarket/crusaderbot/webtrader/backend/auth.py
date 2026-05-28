@@ -8,10 +8,10 @@ import re
 import time
 from typing import Optional
 
+import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from passlib.context import CryptContext
 
 from ...config import get_settings
 from ...database import get_pool
@@ -26,7 +26,27 @@ from .schemas import (
     TokenResponse,
 )
 
-_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Direct bcrypt instead of passlib: passlib's bcrypt backend self-test
+# (detect_wrap_bug) feeds a 73-byte password to the backend and crashes on
+# bcrypt>=4.0 which now strictly enforces the 72-byte limit. The hash format
+# is identical ($2b$...), so existing passlib-produced hashes remain valid.
+_BCRYPT_MAX_BYTES = 72
+
+
+def _hash_password(plain: str) -> str:
+    """Hash with bcrypt. Caller must enforce byte-length limit."""
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def _verify_password(plain: str, hashed: str) -> bool:
+    """Constant-time compare against a stored bcrypt hash."""
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except ValueError:
+        # bcrypt raises on malformed hash or oversize password — treat as mismatch.
+        return False
+
+
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 _MAX_AUTH_AGE = 86400  # 24 hours
@@ -126,8 +146,8 @@ async def register_email(data: EmailRegisterRequest) -> TokenResponse:
         raise HTTPException(status_code=422, detail="invalid email address")
     if len(data.password) < 8:
         raise HTTPException(status_code=422, detail="password must be at least 8 characters")
-    if len(data.password.encode("utf-8")) > 72:
-        raise HTTPException(status_code=422, detail="password must be 72 characters or fewer")
+    if len(data.password.encode("utf-8")) > _BCRYPT_MAX_BYTES:
+        raise HTTPException(status_code=422, detail="password must be 72 bytes or fewer")
     if not data.first_name.strip():
         raise HTTPException(status_code=422, detail="first_name is required")
 
@@ -139,7 +159,7 @@ async def register_email(data: EmailRegisterRequest) -> TokenResponse:
         if existing:
             raise HTTPException(status_code=409, detail="email already registered")
 
-        pw_hash = _pwd_ctx.hash(data.password)
+        pw_hash = _hash_password(data.password)
         row = await conn.fetchrow(
             """INSERT INTO users (email, password_hash, username, role)
                VALUES ($1, $2, $3, 'user')
@@ -176,7 +196,7 @@ async def register_email(data: EmailRegisterRequest) -> TokenResponse:
 
 async def login_email(data: EmailLoginRequest) -> TokenResponse:
     """Authenticate with email + password."""
-    if len(data.password.encode("utf-8")) > 72:
+    if len(data.password.encode("utf-8")) > _BCRYPT_MAX_BYTES:
         raise HTTPException(status_code=401, detail="invalid email or password")
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -186,7 +206,7 @@ async def login_email(data: EmailLoginRequest) -> TokenResponse:
         )
     if not row or not row["password_hash"]:
         raise HTTPException(status_code=401, detail="invalid email or password")
-    if not _pwd_ctx.verify(data.password, row["password_hash"]):
+    if not _verify_password(data.password, row["password_hash"]):
         raise HTTPException(status_code=401, detail="invalid email or password")
 
     first_name = str(row["username"] or data.email.split("@")[0])
@@ -202,8 +222,8 @@ async def link_email(user_id: str, data: LinkEmailRequest) -> dict:
         raise HTTPException(status_code=422, detail="invalid email address")
     if len(data.password) < 8:
         raise HTTPException(status_code=422, detail="password must be at least 8 characters")
-    if len(data.password.encode("utf-8")) > 72:
-        raise HTTPException(status_code=422, detail="password must be 72 characters or fewer")
+    if len(data.password.encode("utf-8")) > _BCRYPT_MAX_BYTES:
+        raise HTTPException(status_code=422, detail="password must be 72 bytes or fewer")
 
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -220,7 +240,7 @@ async def link_email(user_id: str, data: LinkEmailRequest) -> dict:
         if existing and existing["email"]:
             raise HTTPException(status_code=409, detail="account already has an email linked")
 
-        pw_hash = _pwd_ctx.hash(data.password)
+        pw_hash = _hash_password(data.password)
         await conn.execute(
             "UPDATE users SET email = $1, password_hash = $2 WHERE id = $3::uuid",
             data.email.lower(), pw_hash, user_id,
