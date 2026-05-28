@@ -131,7 +131,7 @@ class ClosePositionResponse(BaseModel):
 
 class EmergencyStopResponse(BaseModel):
     positions_marked: int
-    kill_switch_active: bool
+    user_paused: bool
 
 
 # ── Auto-Trade ────────────────────────────────────────────────────────────────
@@ -340,7 +340,13 @@ class RuntimeStatus(BaseModel):
     paper_mode: bool
     active_preset: Optional[str]
     risk_profile: str
+    # Global operator kill switch — informational. Set ONLY by operator
+    # /api/ops/kill or Telegram /kill. Webtrader users cannot toggle this.
     kill_switch_active: bool
+    # Per-user paused flag (this user only). Toggled by /api/web/kill +
+    # /api/web/resume and /api/web/emergency-stop. Independent of the
+    # global kill switch above.
+    user_paused: bool
     open_positions: int
     scanner_scanned: int
     scanner_published: int

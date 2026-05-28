@@ -14,6 +14,7 @@ from uuid import UUID
 
 from ...database import get_pool
 from ... import audit
+from ...api.per_user_rate_limit import per_user_rate_limit
 from ...domain.execution import router as exec_router
 from ...domain.ops import kill_switch
 from ...domain.positions import mark_force_close_intent_for_user
@@ -431,7 +432,10 @@ async def get_positions(
     ]
 
 
-@router.post("/positions/{position_id}/redeem")
+@router.post(
+    "/positions/{position_id}/redeem",
+    dependencies=[Depends(per_user_rate_limit("position_action", limit=30))],
+)
 async def force_redeem_position(position_id: str, user: _CurrentUser) -> JSONResponse:
     """Manually trigger redemption of a resolved winning position.
 
@@ -509,7 +513,11 @@ async def get_orders(
     ]
 
 
-@router.post("/positions/{position_id}/close", response_model=ClosePositionResponse)
+@router.post(
+    "/positions/{position_id}/close",
+    response_model=ClosePositionResponse,
+    dependencies=[Depends(per_user_rate_limit("position_action", limit=30))],
+)
 async def close_position_endpoint(
     position_id: str,
     user: _CurrentUser,
@@ -1036,7 +1044,11 @@ async def get_wallet_ledger(
     )
 
 
-@router.post("/wallet/withdraw", response_model=WithdrawResponse)
+@router.post(
+    "/wallet/withdraw",
+    response_model=WithdrawResponse,
+    dependencies=[Depends(per_user_rate_limit("withdraw", limit=10))],
+)
 async def request_withdrawal(body: WithdrawRequest, user: _CurrentUser) -> WithdrawResponse:
     """Submit a withdrawal request (paper: queued for admin; live: same flow)."""
     from decimal import Decimal
@@ -1224,37 +1236,86 @@ async def get_killswitch(user: _CurrentUser) -> KillSwitchStatus:
     return KillSwitchStatus(active=await kill_switch.is_active())
 
 
-@router.post("/kill")
+@router.post(
+    "/kill",
+    dependencies=[Depends(per_user_rate_limit("user_pause", limit=10))],
+)
 async def web_kill(user: _CurrentUser):
-    try:
-        await kill_switch.set_active(
-            action="pause",
-            actor_id=None,
-            reason=f"webtrader kill — user {user['user_id']}",
-        )
-    except Exception as exc:
-        log.error("web kill switch failed: %s", exc)
-        raise HTTPException(status_code=500, detail="kill switch failed")
-    return {"ok": True, "kill_switch_active": True}
+    """Pause THIS user's bot — does NOT activate the global kill switch.
 
-
-@router.post("/emergency-stop", response_model=EmergencyStopResponse)
-async def web_emergency_stop(user: _CurrentUser) -> EmergencyStopResponse:
-    """Halt trading and force-close every open position for the user.
-
-    Two effects, mirroring the Telegram pause+close-all flow:
-      1. Activate the global kill switch (blocks all new trades).
-      2. Mark every open position with force_close_intent=TRUE — the exit
-         watcher closes them on its next tick at current market price,
-         regardless of profit or loss.
+    Multi-tenant safety (Axis #1): the per-user "kill" / pause button on
+    the dashboard sets ``users.paused=TRUE`` for the calling user only.
+    The risk gate honours ``ctx.paused`` and rejects new trades for that
+    user. The bot-wide kill switch is operator-only — Telegram ``/kill``
+    or ``/api/ops/kill`` activates it, never a regular WebTrader user.
     """
+    from ...users import set_paused
     user_id = user["user_id"]
     try:
-        await kill_switch.set_active(
-            action="pause",
-            actor_id=None,
-            reason=f"webtrader emergency stop — user {user_id}",
-        )
+        await set_paused(UUID(str(user_id)), True)
+    except Exception as exc:
+        log.error("web kill failed: %s", exc)
+        raise HTTPException(status_code=500, detail="kill switch failed")
+    await audit.write(
+        actor_role="user",
+        action="webtrader_user_pause",
+        user_id=UUID(str(user_id)),
+        payload={"source": "/api/web/kill"},
+    )
+    return {"ok": True, "user_paused": True}
+
+
+@router.post(
+    "/resume",
+    dependencies=[Depends(per_user_rate_limit("user_pause", limit=10))],
+)
+async def web_resume(user: _CurrentUser):
+    """Resume THIS user's bot — clears the per-user paused flag.
+
+    Mirrors ``/kill``: sets ``users.paused=FALSE`` so the risk gate
+    accepts new trades for this user again. Does not touch the global
+    kill switch (operator-only). Shares the "user_pause" rate-limit
+    scope with ``/kill`` so a single user cannot flap the flag.
+    """
+    from ...users import set_paused
+    user_id = user["user_id"]
+    try:
+        await set_paused(UUID(str(user_id)), False)
+    except Exception as exc:
+        log.error("web resume failed: %s", exc)
+        raise HTTPException(status_code=500, detail="resume failed")
+    await audit.write(
+        actor_role="user",
+        action="webtrader_user_resume",
+        user_id=UUID(str(user_id)),
+        payload={"source": "/api/web/resume"},
+    )
+    return {"ok": True, "user_paused": False}
+
+
+@router.post(
+    "/emergency-stop",
+    response_model=EmergencyStopResponse,
+    dependencies=[Depends(per_user_rate_limit("emergency_stop", limit=5))],
+)
+async def web_emergency_stop(user: _CurrentUser) -> EmergencyStopResponse:
+    """Halt THIS user's bot and force-close every open position they own.
+
+    Multi-tenant safety (Axis #1): scoped to the calling user only. Two
+    effects mirror the Telegram pause+close-all flow but stay per-user:
+      1. ``users.paused=TRUE`` — the risk gate blocks new trades for
+         this user. Other users are unaffected.
+      2. ``positions.force_close_intent=TRUE`` for every open position
+         owned by this user — the exit watcher closes them on its next
+         tick at current market price, regardless of profit or loss.
+    The global ``system_settings.kill_switch_active`` is NOT touched —
+    that is an operator-only control reachable via ``/api/ops/kill`` or
+    Telegram ``/kill``.
+    """
+    from ...users import set_paused
+    user_id = user["user_id"]
+    try:
+        await set_paused(UUID(str(user_id)), True)
         marked = await mark_force_close_intent_for_user(UUID(str(user_id)))
     except Exception as exc:
         log.error("web emergency stop failed user=%s: %s", user_id, exc)
@@ -1264,9 +1325,9 @@ async def web_emergency_stop(user: _CurrentUser) -> EmergencyStopResponse:
         actor_role="user",
         action="webtrader_emergency_stop_close_all",
         user_id=UUID(str(user_id)),
-        payload={"positions_marked": marked},
+        payload={"positions_marked": marked, "user_paused": True},
     )
-    return EmergencyStopResponse(positions_marked=marked, kill_switch_active=True)
+    return EmergencyStopResponse(positions_marked=marked, user_paused=True)
 
 
 @router.get("/status", response_model=RuntimeStatus)
@@ -1284,6 +1345,9 @@ async def get_runtime_status(user: _CurrentUser) -> RuntimeStatus:
             "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND status IN ('open','pending_settlement')",
             user_id,
         )
+        user_paused = bool(await conn.fetchval(
+            "SELECT paused FROM users WHERE id=$1::uuid", user_id,
+        ) or False)
     scanner = get_scanner_state()
     ks_active = await kill_switch.is_active()
     trading_mode = settings_row["trading_mode"] if settings_row else "paper"
@@ -1293,6 +1357,7 @@ async def get_runtime_status(user: _CurrentUser) -> RuntimeStatus:
         active_preset=settings_row["active_preset"] if settings_row else None,
         risk_profile=settings_row["risk_profile"] if settings_row else "balanced",
         kill_switch_active=ks_active,
+        user_paused=user_paused,
         open_positions=int(open_count or 0),
         scanner_scanned=scanner.get("scanned", 0),
         scanner_published=scanner.get("published", 0),
@@ -1650,7 +1715,11 @@ async def list_copy_trade_tasks(user: _CurrentUser):
     return [dict(r) for r in rows]
 
 
-@router.post("/copy-trade/tasks", status_code=201)
+@router.post(
+    "/copy-trade/tasks",
+    status_code=201,
+    dependencies=[Depends(per_user_rate_limit("copy_task", limit=20))],
+)
 async def create_copy_trade_task(body: CopyTradeTaskCreate, user: _CurrentUser):
     copy_mode = {"fixed": "fixed", "percentage": "proportional", "rm": "rm_mirror"}.get(
         body.copy_type, "fixed"
