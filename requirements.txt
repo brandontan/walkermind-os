@@ -29,3 +29,8 @@ qrcode[pil]>=7.4.2
 
 # Portfolio chart generation (server-side, Agg backend — no display needed)
 matplotlib>=3.8.0
+
+# Polymarket Builder Program — gasless relayer for Safe-proxy custody
+# (foundation only; dormant until POLY_BUILDER_* secrets + USE_BUILDER_RELAYER set)
+py-builder-relayer-client>=0.0.1
+py-builder-signing-sdk>=0.0.2
