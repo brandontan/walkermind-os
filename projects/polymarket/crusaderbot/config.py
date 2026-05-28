@@ -139,6 +139,20 @@ class Settings(BaseSettings):
     MASTER_WALLET_ADDRESS: Optional[str] = None
     MASTER_WALLET_PRIVATE_KEY: Optional[str] = None
 
+    # --- Builder Program / gasless relayer (custody migration foundation) ---
+    # Credentials issued by polymarket.com/settings?tab=builder. Required for
+    # any relayer call; absent → relayer paths raise BuilderRelayerUnavailable.
+    # All three default None — the relayer code is dormant until enrolled.
+    POLY_BUILDER_API_KEY: Optional[str] = None
+    POLY_BUILDER_SECRET: Optional[str] = None
+    POLY_BUILDER_PASSPHRASE: Optional[str] = None
+    POLY_RELAYER_URL: str = "https://relayer-v2.polymarket.com"
+    # Master toggle for routing capital ops via the gasless relayer. Stays
+    # False until the Safe-proxy custody migration cuts over. CUSTODY_MODE is
+    # the future enum that selects the active custody implementation.
+    USE_BUILDER_RELAYER: bool = False
+    CUSTODY_MODE: str = "eoa"  # eoa | safe — 'safe' enabled after Phase 4 cutover
+
     # --- On-chain deposit sweep (LIVE only) ---
     # Consolidates per-user EOA deposit wallets into the master hot-pool.
     # Gated behind EXECUTION_PATH_VALIDATED AND this flag: even after a
