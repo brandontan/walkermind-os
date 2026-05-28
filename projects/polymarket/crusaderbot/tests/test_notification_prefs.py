@@ -142,6 +142,25 @@ async def test_set_prefs_drops_unknown_keys_and_channels():
     assert written["kill_switch"] == {"web": False, "tg": False}
 
 
+def test_strip_html_removes_tags_and_decodes_entities():
+    """Telegram-formatted body (HTML tags + &amp; entities) must render as
+    plain text in the WebTrader AlertCenter. Idempotent on already-plain text."""
+    raw = "<pre>Market  | BTC up\nSide    | NO\nP&amp;L   | -$1.18</pre>"
+    out = np._strip_html_for_web(raw)
+    assert out is not None
+    assert "<pre>" not in out
+    assert "</pre>" not in out
+    assert "&amp;" not in out
+    assert "P&L" in out
+
+    # Idempotent
+    assert np._strip_html_for_web(out) == out
+
+    # None / empty pass through
+    assert np._strip_html_for_web(None) is None
+    assert np._strip_html_for_web("") == ""
+
+
 def test_alert_keys_match_frontend_schema():
     """Regression guard: ALERT_KEYS must mirror NotificationPrefsCard.tsx exactly.
 

@@ -27,7 +27,9 @@ function PageLoader() {
 
 const LAST_SEEN_KEY = "alertCenter_lastSeen";
 const DISMISSED_KEY = "alertCenter_dismissed";
+const SEEN_IDS_KEY = "alertCenter_seenIds";
 const DISMISSED_CAP = 500;
+const SEEN_IDS_CAP = 500;
 
 function loadDismissed(): Set<string> {
   try {
@@ -38,19 +40,28 @@ function loadDismissed(): Set<string> {
   }
 }
 
+function loadSeenIds(): Set<string> {
+  try {
+    const stored = localStorage.getItem(SEEN_IDS_KEY);
+    return stored ? new Set<string>(JSON.parse(stored) as string[]) : new Set<string>();
+  } catch {
+    return new Set<string>();
+  }
+}
+
 interface AlertCenterCtx {
   alerts: AlertItem[];
   unreadCount: number;
-  // Snapshot of lastSeen captured at the moment the panel opened — alerts
-  // whose created_at exceeds this value are styled "unread" while the panel
-  // is open (yellow dot, slight highlight). Stays stable until the panel
-  // closes + re-opens, so a card the user is currently looking at doesn't
-  // visually "settle" mid-view.
-  panelOpenedAt: number;
+  // Persistent per-alert-ID seen set. An alert is "unread" iff its ID is NOT
+  // in this set. Survives panel re-opens so the gold-bar treatment sticks
+  // until the user explicitly acknowledges (dismiss or Mark all read). Bumped
+  // ONLY by user action — opening the panel does NOT auto-mark anything.
+  seenIds: Set<string>;
   isOpen: boolean;
   openAlertCenter: () => void;
   closeAlertCenter: () => void;
   dismissAlert: (id: string) => void;
+  markSeen: (id: string) => void;
   markAllRead: () => void;
   loadMoreAlerts: () => Promise<void>;
   hasMoreAlerts: boolean;
@@ -59,11 +70,12 @@ interface AlertCenterCtx {
 export const AlertCenterContext = createContext<AlertCenterCtx>({
   alerts: [],
   unreadCount: 0,
-  panelOpenedAt: 0,
+  seenIds: new Set<string>(),
   isOpen: false,
   openAlertCenter: () => undefined,
   closeAlertCenter: () => undefined,
   dismissAlert: () => undefined,
+  markSeen: () => undefined,
   markAllRead: () => undefined,
   loadMoreAlerts: async () => undefined,
   hasMoreAlerts: false,
@@ -98,15 +110,13 @@ function AppShell() {
   const [hasMoreAlerts, setHasMoreAlerts] = useState(false);
   const ALERT_PAGE = 10;
   const [isAlertOpen, setIsAlertOpen] = useState(false);
-  const [lastSeen, setLastSeen] = useState<number>(() => {
-    const stored = localStorage.getItem(LAST_SEEN_KEY);
-    return stored ? Number(stored) : 0;
-  });
-  // `panelOpenedAt` freezes the lastSeen value at the moment the panel was
-  // opened. While the panel is visible, alerts created after this snapshot
-  // render with the "unread" treatment. Re-opens recapture from the
-  // post-bump lastSeen, so once the user has seen an alert it stays read.
-  const [panelOpenedAt, setPanelOpenedAt] = useState<number>(0);
+  // Persistent seen-ID set. Unread alerts are those whose ID is NOT in this
+  // set — the gold-bar treatment persists across panel re-opens until the
+  // user explicitly dismisses or hits "Mark all read". (Legacy lastSeen
+  // timestamp is still written to localStorage for backward compatibility
+  // with any older client cache.)
+  const [seenIds, setSeenIds] = useState<Set<string>>(loadSeenIds);
+  const setLastSeen = (v: number) => { try { localStorage.setItem(LAST_SEEN_KEY, String(v)); } catch { /* quota */ } };
 
   const fetchAlerts = useCallback(async (offset = 0, append = false) => {
     if (!user) return;
@@ -161,9 +171,9 @@ function AppShell() {
     });
   }, []);
 
-  // Mark ALL currently-visible alerts as read in one shot. Unlike opening the
-  // panel (which just bumps lastSeen), this dismisses every visible alert so
-  // the panel clears immediately. Idempotent and resilient to quota errors.
+  // Mark ALL currently-visible alerts as read in one shot. Dismisses every
+  // visible alert AND adds their IDs to seenIds so any that come back via
+  // re-fetch don't reappear as unread. Idempotent and resilient to quota errors.
   const markAllRead = useCallback(() => {
     setDismissed(prev => {
       const next = [...prev, ...alerts.map(a => a.id)];
@@ -171,10 +181,30 @@ function AppShell() {
       try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(capped)); } catch { /* quota — ignore */ }
       return new Set(capped);
     });
+    setSeenIds(prev => {
+      const next = [...prev, ...alerts.map(a => a.id)];
+      const capped = next.length > SEEN_IDS_CAP ? next.slice(next.length - SEEN_IDS_CAP) : next;
+      try { localStorage.setItem(SEEN_IDS_KEY, JSON.stringify(capped)); } catch { /* quota — ignore */ }
+      return new Set(capped);
+    });
     const now = Date.now();
     setLastSeen(now);
     try { localStorage.setItem(LAST_SEEN_KEY, String(now)); } catch { /* quota — ignore */ }
   }, [alerts]);
+
+  // Per-alert "mark as read" without dismissing. Used when an unread alert
+  // is auto-acknowledged after the user has had time to read it (panel open
+  // for >2s with the card visible). Keeps the alert in the list but drops the
+  // gold-bar treatment.
+  const markSeen = useCallback((id: string) => {
+    setSeenIds(prev => {
+      if (prev.has(id)) return prev;
+      const next = [...prev, id];
+      const capped = next.length > SEEN_IDS_CAP ? next.slice(next.length - SEEN_IDS_CAP) : next;
+      try { localStorage.setItem(SEEN_IDS_KEY, JSON.stringify(capped)); } catch { /* quota — ignore */ }
+      return new Set(capped);
+    });
+  }, []);
 
   const [lastScanMs, setLastScanMs] = useState<number | null>(null);
 
@@ -198,21 +228,23 @@ function AppShell() {
     [alerts, dismissed],
   );
 
+  // Unread = alert whose ID hasn't been added to seenIds yet. Persistent
+  // across panel re-opens; only flips when the user acknowledges (dismiss,
+  // Mark all read, or per-alert markSeen).
   const unreadCount = useMemo(
-    () => visibleAlerts.filter((a) => new Date(a.created_at).getTime() > lastSeen).length,
-    [visibleAlerts, lastSeen],
+    () => visibleAlerts.filter((a) => !seenIds.has(a.id)).length,
+    [visibleAlerts, seenIds],
   );
 
   const openAlertCenter = useCallback(() => {
-    // Snapshot BEFORE bumping lastSeen so the AlertCenter can still tell
-    // which currently-visible alerts arrived after the previous open. If
-    // we bumped first, every alert would appear "read" immediately.
-    setPanelOpenedAt(lastSeen);
     setIsAlertOpen(true);
+    // Bump lastSeen so the unread-count badge clears immediately for the
+    // legacy timestamp-based consumers, but do NOT touch seenIds — the
+    // per-card gold-bar treatment persists until explicit user action.
     const now = Date.now();
     setLastSeen(now);
     localStorage.setItem(LAST_SEEN_KEY, String(now));
-  }, [lastSeen]);
+  }, []);
 
   const closeAlertCenter = useCallback(() => setIsAlertOpen(false), []);
 
@@ -220,16 +252,17 @@ function AppShell() {
     () => ({
       alerts: visibleAlerts,
       unreadCount,
-      panelOpenedAt,
+      seenIds,
       isOpen: isAlertOpen,
       openAlertCenter,
       closeAlertCenter,
+      markSeen,
       dismissAlert,
       markAllRead,
       loadMoreAlerts,
       hasMoreAlerts,
     }),
-    [visibleAlerts, unreadCount, panelOpenedAt, isAlertOpen, openAlertCenter, closeAlertCenter, dismissAlert, markAllRead, loadMoreAlerts, hasMoreAlerts],
+    [visibleAlerts, unreadCount, seenIds, isAlertOpen, openAlertCenter, closeAlertCenter, markSeen, dismissAlert, markAllRead, loadMoreAlerts, hasMoreAlerts],
   );
 
   return (

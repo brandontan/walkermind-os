@@ -18,7 +18,9 @@ when web channel is enabled, returns True iff the TG channel should also fire.
 from __future__ import annotations
 
 import asyncio
+import html as _html
 import logging
+import re
 import time
 from typing import Literal, Optional
 from uuid import UUID
@@ -146,6 +148,31 @@ async def should_notify(
     return val
 
 
+# Tag-strip regex. Inner-send helpers build Telegram messages with HTML
+# formatting (<b>, <pre>, <code>, &amp; entities, etc.) — the WebTrader
+# AlertCenter renders body as plain text, so unstripped tags show up literally
+# as "<pre>Market | …</pre>" to the user. We render once to plain text on the
+# way in to system_alerts so the DB row is consumer-agnostic.
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_WHITESPACE_RUN = re.compile(r"[ \t]+\n")
+
+
+def _strip_html_for_web(text: Optional[str]) -> Optional[str]:
+    """Convert a Telegram-formatted body to plain text suitable for the web
+    AlertCenter. Idempotent and tolerant of None / non-string input."""
+    if not text:
+        return text
+    if not isinstance(text, str):
+        return str(text)
+    # Strip tags first, then decode entities (&amp; → &, &lt; → <, etc.).
+    stripped = _HTML_TAG_RE.sub("", text)
+    decoded = _html.unescape(stripped)
+    # Collapse "Foo   \n" trailing whitespace from the pre-block layout so
+    # the AlertCenter card is dense.
+    cleaned = _WHITESPACE_RUN.sub("\n", decoded)
+    return cleaned.strip()
+
+
 async def persist_user_alert(
     *,
     user_id: UUID | str,
@@ -170,6 +197,9 @@ async def persist_user_alert(
     if severity not in ("info", "warning", "critical"):
         severity = DEFAULT_SEVERITY
 
+    clean_title = _strip_html_for_web(title) or title
+    clean_body = _strip_html_for_web(body)
+
     pool = get_pool()
     try:
         async with pool.acquire() as conn:
@@ -179,7 +209,7 @@ async def persist_user_alert(
                 VALUES ($1::uuid, $2, $3, $4)
                 RETURNING id
                 """,
-                str(user_id), severity, title, body,
+                str(user_id), severity, clean_title, clean_body,
             )
         if row is None:
             return None
