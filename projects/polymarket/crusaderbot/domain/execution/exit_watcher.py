@@ -33,11 +33,12 @@ Failure handling:
 from __future__ import annotations
 
 import asyncio
-import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Awaitable, Callable, Optional, Protocol
+
+import structlog
 
 from ... import audit
 from ...database import get_pool
@@ -54,7 +55,7 @@ from ..strategy.registry import StrategyRegistry
 from . import order as order_module
 from . import router
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 DEFAULT_POLL_INTERVAL_SECONDS: float = 30.0
 
@@ -183,9 +184,9 @@ async def registry_strategy_evaluator(
     try:
         decision = await strat.evaluate_exit(payload)
     except Exception as exc:
-        logger.warning(
-            "exit_watcher strategy hook failed strat=%s pos=%s err=%s",
-            name, position.id, exc,
+        log.warning(
+            "exit_watcher strategy hook failed",
+            strategy=name, position_id=str(position.id), err=str(exc),
         )
         return False
     return bool(getattr(decision, "should_exit", False))
@@ -250,18 +251,17 @@ async def _fetch_live_price(
                 if 0.0 < price < 1.0:
                     return price
         except Exception as exc:
-            logger.debug(
-                "exit_watcher._fetch_live_price midpoint failed "
-                "token=%s market=%s side=%s error=%s — falling back",
-                token_id, market_id, side, exc,
+            log.debug(
+                "exit_watcher._fetch_live_price midpoint failed — falling back",
+                token=token_id, market_id=market_id, side=side, err=str(exc),
             )
     # Fallback: Gamma → CLOB /price chain.
     try:
         return await get_live_market_price(market_id, side)
     except Exception as exc:
-        logger.warning(
-            "exit_watcher._fetch_live_price market=%s side=%s error=%s",
-            market_id, side, exc,
+        log.warning(
+            "exit_watcher._fetch_live_price",
+            market_id=market_id, side=side, err=str(exc),
         )
         return None
 
@@ -459,7 +459,7 @@ async def _act_on_decision(
         except ImportError:
             pass
         except Exception as exc:
-            logger.warning("exit_watcher: SSE position_updated push failed: %s", exc)
+            log.warning("exit_watcher: SSE position_updated push failed", err=str(exc))
         return
 
     reason = decision.reason or ExitReason.STRATEGY_EXIT.value
@@ -481,14 +481,12 @@ async def _act_on_decision(
                      "failure_count": new_count,
                      "error": (result.error or "")[:500]},
         )
-        logger.info(
+        log.info(
             "close_failed (user notif suppressed, operator alert active)",
-            extra={
-                "position_id": str(position.id),
-                "market_id": position.market_id,
-                "side": position.side,
-                "error": (result.error or "unknown")[:200],
-            },
+            position_id=str(position.id),
+            market_id=position.market_id,
+            side=position.side,
+            error=(result.error or "unknown")[:200],
         )
         await monitoring_alerts.alert_operator_close_failed_persistent(
             position_id=position.id,
@@ -550,7 +548,7 @@ async def _act_on_decision(
             mode=position.mode,
         )
     except Exception as _exc:
-        logger.debug("exit_watcher: position.closed emit failed: %s", _exc)
+        log.debug("exit_watcher: position.closed emit failed", err=str(_exc))
 
 
 async def _market_actually_expired(market_id: str) -> bool:
@@ -588,18 +586,18 @@ async def _close_expired_position(position: OpenPositionForExit) -> bool:
     Returns True iff the position was closed. Returns False if the position
     was already closed by another path (idempotent).
     """
-    logger.warning(
-        "Position %s: market %s not found on Gamma after retries — closing as MARKET_EXPIRED",
-        position.id, position.market_id,
+    log.warning(
+        "Position: market not found on Gamma after retries — closing as MARKET_EXPIRED",
+        position_id=str(position.id), market_id=position.market_id,
     )
     try:
         closed = await registry.close_as_expired(
             position.id, position.user_id, position.size_usdc
         )
         if not closed:
-            logger.info(
-                "close_as_expired: position %s already closed (idempotent skip)",
-                position.id,
+            log.info(
+                "close_as_expired: position already closed (idempotent skip)",
+                position_id=str(position.id),
             )
             return False
         await audit.write(
@@ -612,21 +610,19 @@ async def _close_expired_position(position: OpenPositionForExit) -> bool:
                 "mode": position.mode,
             },
         )
-        logger.info(
+        log.info(
             "market_expired position closed (user notif suppressed)",
-            extra={
-                "position_id": str(position.id),
-                "market_id": position.market_id,
-                "side": position.side,
-                "size_usdc": position.size_usdc,
-                "mode": position.mode,
-            },
+            position_id=str(position.id),
+            market_id=position.market_id,
+            side=position.side,
+            size_usdc=position.size_usdc,
+            mode=position.mode,
         )
         return True
     except Exception as exc:
-        logger.error(
-            "exit_watcher._close_expired_position position=%s error=%s",
-            position.id, exc, exc_info=True,
+        log.exception(
+            "exit_watcher._close_expired_position",
+            position_id=str(position.id), err=str(exc),
         )
         return False
 
@@ -699,10 +695,10 @@ async def run_once(
                             # Log once per fail-threshold crossing for ops visibility; keep
                             # the counter pinned at the threshold so we recheck each tick
                             # without unbounded growth.
-                            logger.warning(
-                                "exit_watcher: position %s market %s has None price for %d ticks "
-                                "but DB shows not-resolved — treating as stale, not expired",
-                                p.id, p.market_id, fail_count,
+                            log.warning(
+                                "exit_watcher: position has None price but DB shows not-resolved — treating as stale, not expired",
+                                position_id=str(p.id), market_id=p.market_id,
+                                ticks=fail_count,
                             )
                             _price_fail_counts[p.id] = _EXPIRED_TICK_THRESHOLD
                     continue
@@ -719,9 +715,9 @@ async def run_once(
                 p, decision, close_submitter=close_submitter,
             )
         except Exception as exc:
-            logger.error(
-                "exit_watcher: position %s evaluation failed: %s",
-                p.id, exc, exc_info=True,
+            log.exception(
+                "exit_watcher: position evaluation failed",
+                position_id=str(p.id), err=str(exc),
             )
             errors += 1
 
@@ -732,16 +728,16 @@ async def run_once(
             if await _close_expired_position(p):
                 expired += 1
         except Exception as exc:
-            logger.error(
-                "exit_watcher: resolved-market position %s close failed: %s",
-                p.id, exc, exc_info=True,
+            log.exception(
+                "exit_watcher: resolved-market position close failed",
+                position_id=str(p.id), err=str(exc),
             )
             errors += 1
 
     if expired > 0:
-        logger.info(
-            "exit_watcher.run_once: submitted=%d expired=%d held=%d errors=%d",
-            submitted, expired, held, errors,
+        log.info(
+            "exit_watcher.run_once",
+            submitted=submitted, expired=expired, held=held, errors=errors,
         )
     return RunResult(submitted=submitted, expired=expired, held=held, errors=errors)
 
@@ -761,10 +757,10 @@ async def run_forever(
     ``stop`` is an optional poll predicate (returns True to break) used by
     tests; in production the loop runs until the parent task is cancelled.
     """
-    logger.info("exit_watcher.run_forever interval=%.1fs", interval_seconds)
+    log.info("exit_watcher.run_forever", interval_seconds=interval_seconds)
     while True:
         if stop is not None and stop():
-            logger.info("exit_watcher.run_forever stop predicate -> exiting")
+            log.info("exit_watcher.run_forever stop predicate -> exiting")
             return
         try:
             await run_once(
@@ -776,5 +772,5 @@ async def run_forever(
             # last-resort net for an infrastructure-level error (DB pool
             # gone, etc.). The loop must NOT die — APScheduler equivalents
             # would simply restart the tick on the next interval.
-            logger.error("exit_watcher.run_once raised: %s", exc, exc_info=True)
+            log.exception("exit_watcher.run_once raised", err=str(exc))
         await sleep(interval_seconds)

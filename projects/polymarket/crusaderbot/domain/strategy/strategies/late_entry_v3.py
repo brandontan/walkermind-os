@@ -25,9 +25,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 from datetime import datetime, timezone
 from typing import Any
+
+import structlog
 
 from ....config import get_settings
 from ....integrations import polymarket as pm
@@ -35,7 +36,7 @@ from ..base import BaseStrategy
 from ..eligibility import is_short_crypto_market
 from ..types import ExitDecision, MarketFilters, SignalCandidate, UserContext
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 # Entry gates (mirror of the reference strategy).
 # Final ~35s before close (ref Kreo Close Sweep: 5m Time 265-299s / 15m 865-899s).
@@ -196,7 +197,7 @@ class LateEntryV3Strategy(BaseStrategy):
         try:
             markets = await pm.get_crypto_window_markets(timeframe or "5m", assets)
         except Exception as exc:
-            logger.warning("late_entry_v3 scan: get_crypto_window_markets failed err=%s", exc)
+            log.warning("late_entry_v3 scan: get_crypto_window_markets failed", err=str(exc))
             return []
 
         if not markets:
@@ -229,39 +230,37 @@ class LateEntryV3Strategy(BaseStrategy):
                     force_exit_at_rem_sec=force_exit_at_rem_sec,
                 )
             except Exception as exc:
-                logger.debug("late_entry_v3 scan: skip market err=%s", exc)
+                log.debug("late_entry_v3 scan: skip market", err=str(exc))
                 reject_counts["exception"] = reject_counts.get("exception", 0) + 1
                 continue
             if candidate is not None:
                 candidates.append(candidate)
-                logger.info(
-                    "late_entry_v3 candidate slug=%s side=%s entry_price=%.3f diff=%.3f secs=%.0f size=%.2f underdog=%s",
-                    m.get("slug", ""),
-                    candidate.side,
-                    candidate.metadata.get("entry_price", candidate.metadata.get("fav_price", 0)),
-                    candidate.metadata.get("ask_diff", 0),
-                    candidate.metadata.get("seconds_to_close", 0),
-                    candidate.suggested_size_usdc,
-                    candidate.metadata.get("underdog_mode", False),
+                log.info(
+                    "late_entry_v3 candidate",
+                    slug=m.get("slug", ""),
+                    side=candidate.side,
+                    entry_price=candidate.metadata.get("entry_price", candidate.metadata.get("fav_price", 0)),
+                    diff=candidate.metadata.get("ask_diff", 0),
+                    secs=candidate.metadata.get("seconds_to_close", 0),
+                    size=candidate.suggested_size_usdc,
+                    underdog=candidate.metadata.get("underdog_mode", False),
                 )
             elif reject_reason:
                 reject_counts[reject_reason] = reject_counts.get(reject_reason, 0) + 1
 
         candidates.sort(key=lambda c: c.confidence, reverse=True)
-        logger.info(
-            "late_entry_v3 scan_summary markets=%d eligible=%d candidates=%d "
-            "gate_rejects=%s min_ask_diff=%.3f window_sec=%.0f fav_price_min=%.2f fav_price_max=%.2f "
-            "min_entry_sec=%s underdog=%s",
-            len(markets),
-            eligible,
-            len(candidates),
-            reject_counts,
-            min_ask_diff,
-            entry_window_sec,
-            fav_price_min,
-            fav_price_max,
-            min_entry_sec,
-            underdog_mode,
+        log.info(
+            "late_entry_v3 scan_summary",
+            markets=len(markets),
+            eligible=eligible,
+            candidates=len(candidates),
+            gate_rejects=reject_counts,
+            min_ask_diff=min_ask_diff,
+            window_sec=entry_window_sec,
+            fav_price_min=fav_price_min,
+            fav_price_max=fav_price_max,
+            min_entry_sec=min_entry_sec,
+            underdog=underdog_mode,
         )
         return candidates
 
@@ -458,7 +457,7 @@ async def _evaluate_market(
         m.get("conditionId") or m.get("condition_id") or m.get("conditionID") or ""
     )
     if not condition_id:
-        logger.debug("late_entry_v3 skip: no conditionId slug=%s", m.get("slug", ""))
+        log.debug("late_entry_v3 skip: no conditionId", slug=m.get("slug", ""))
         return None, "no_condition_id"
     market_id = condition_id  # canonical DB key
 
@@ -473,34 +472,34 @@ async def _evaluate_market(
     # while the CLOB book still has liquidity and orders. Relying on closed +
     # acceptingOrders is sufficient; the active flag kills every in-window candidate.
     if m.get("closed"):
-        logger.debug("late_entry_v3 skip closed slug=%s", slug)
+        log.debug("late_entry_v3 skip closed", slug=slug)
         return None, "closed"
     if not is_candle and not m.get("active"):
-        logger.debug("late_entry_v3 skip inactive (non-candle) slug=%s", slug)
+        log.debug("late_entry_v3 skip inactive (non-candle)", slug=slug)
         return None, "inactive"
     if not m.get("acceptingOrders", m.get("accepting_orders", True)):
-        logger.debug("late_entry_v3 skip not_accepting_orders slug=%s", slug)
+        log.debug("late_entry_v3 skip not_accepting_orders", slug=slug)
         return None, "not_accepting_orders"
 
     # Timing gate — only act inside the configured window before candle close.
     seconds_left = _seconds_to_close(m, now_ts)
     if seconds_left is None or seconds_left <= 0 or seconds_left > entry_window_sec:
-        logger.debug(
-            "late_entry_v3 skip timing slug=%s secs=%s window=%.0f",
-            slug, seconds_left, entry_window_sec,
+        log.debug(
+            "late_entry_v3 skip timing",
+            slug=slug, secs=seconds_left, window=entry_window_sec,
         )
         return None, "outside_window"
     # Lower bound: safe_close skips the final <30s to avoid last-second fills.
     if min_entry_sec is not None and seconds_left < min_entry_sec:
-        logger.debug(
-            "late_entry_v3 skip inside_min slug=%s secs=%.1f min=%.0f",
-            slug, seconds_left, min_entry_sec,
+        log.debug(
+            "late_entry_v3 skip inside_min",
+            slug=slug, secs=seconds_left, min=min_entry_sec,
         )
         return None, "inside_min_entry_sec"
 
     tokens = _coerce_str_list(m.get("clobTokenIds")) or _coerce_str_list(m.get("tokenIds"))
     if len(tokens) < 2 or not tokens[0] or not tokens[1]:
-        logger.debug("late_entry_v3 skip no_tokens slug=%s", slug)
+        log.debug("late_entry_v3 skip no_tokens", slug=slug)
         return None, "no_tokens"
     yes_token, no_token = tokens[0], tokens[1]
 
@@ -510,9 +509,9 @@ async def _evaluate_market(
     yes_ask = _best_ask(yes_book)
     no_ask = _best_ask(no_book)
     if yes_ask is None or no_ask is None:
-        logger.debug(
-            "late_entry_v3 skip empty_book slug=%s yes_ask=%s no_ask=%s",
-            slug, yes_ask, no_ask,
+        log.debug(
+            "late_entry_v3 skip empty_book",
+            slug=slug, yes_ask=yes_ask, no_ask=no_ask,
         )
         return None, "empty_book"
 
@@ -530,15 +529,15 @@ async def _evaluate_market(
     fav_price = max(yes_ask, no_ask)
 
     if ask_diff < min_ask_diff:
-        logger.debug(
-            "late_entry_v3 skip low_ask_diff slug=%s diff=%.4f min=%.4f",
-            slug, ask_diff, min_ask_diff,
+        log.debug(
+            "late_entry_v3 skip low_ask_diff",
+            slug=slug, diff=ask_diff, min=min_ask_diff,
         )
         return None, "low_ask_diff"
     if spread <= 0 or spread > MAX_SPREAD:
-        logger.debug(
-            "late_entry_v3 skip spread slug=%s spread=%.4f max=%.4f",
-            slug, spread, MAX_SPREAD,
+        log.debug(
+            "late_entry_v3 skip spread",
+            slug=slug, spread=spread, max=MAX_SPREAD,
         )
         return None, "spread_out_of_range"
 
@@ -553,16 +552,16 @@ async def _evaluate_market(
         entry_price = fav_price
 
     if entry_price < fav_price_min:
-        logger.debug(
-            "late_entry_v3 skip entry_price_too_low slug=%s price=%.4f min=%.4f underdog=%s",
-            slug, entry_price, fav_price_min, underdog_mode,
+        log.debug(
+            "late_entry_v3 skip entry_price_too_low",
+            slug=slug, price=entry_price, min=fav_price_min, underdog=underdog_mode,
         )
         return None, "fav_price_too_low"
 
     if entry_price >= fav_price_max:
-        logger.debug(
-            "late_entry_v3 skip entry_price_too_high slug=%s price=%.4f max=%.4f underdog=%s",
-            slug, entry_price, fav_price_max, underdog_mode,
+        log.debug(
+            "late_entry_v3 skip entry_price_too_high",
+            slug=slug, price=entry_price, max=fav_price_max, underdog=underdog_mode,
         )
         return None, "fav_price_too_high"
 

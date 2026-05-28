@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import html
-import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TypedDict
 
+import structlog
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 import asyncio
@@ -42,7 +42,7 @@ from .services.redeem import redeem_router
 from .services import portfolio_snapshots
 from .wallet import ledger
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 
 # ---------------- Market sync ----------------
@@ -51,7 +51,7 @@ async def sync_markets() -> None:
     try:
         markets = await polymarket.get_markets(limit=100)
     except Exception as exc:
-        logger.warning("sync_markets fetch failed: %s", exc)
+        log.warning("sync_markets fetch failed", err=str(exc))
         return
     if not markets:
         return
@@ -113,9 +113,8 @@ async def sync_markets() -> None:
                 )
                 upserts += 1
             except Exception as exc:
-                logger.warning("market upsert failed for %s: %s",
-                               m.get("id"), exc)
-    logger.info("sync_markets: upserted %d", upserts)
+                log.warning("market upsert failed", market_id=m.get("id"), err=str(exc))
+    log.info("sync_markets: upserted", count=upserts)
 
 
 # ---------------- Deposit watcher ----------------
@@ -174,7 +173,7 @@ async def watch_deposits() -> None:
     try:
         head = await polygon.latest_block()
     except Exception as exc:
-        logger.warning("watch_deposits head read failed (no cursor advance): %s", exc)
+        log.warning("watch_deposits head read failed (no cursor advance)", err=str(exc))
         return
 
     cursor_start = await _read_cursor("usdc_deposits")
@@ -183,7 +182,7 @@ async def watch_deposits() -> None:
             addresses, cursor_start,
         )
     except Exception as exc:
-        logger.warning("watch_deposits scan failed (no cursor advance): %s", exc)
+        log.warning("watch_deposits scan failed (no cursor advance)", err=str(exc))
         return
 
     all_ok = True
@@ -197,8 +196,8 @@ async def watch_deposits() -> None:
             else:
                 await _record_pending_deposit(user_id, t)
         except Exception as exc:
-            logger.error("deposit record failed for %s: %s — cursor will not advance",
-                         t.get("tx_hash"), exc)
+            log.error("deposit record failed — cursor will not advance",
+                      tx_hash=t.get("tx_hash"), err=str(exc))
             all_ok = False
 
     if all_ok:
@@ -210,7 +209,7 @@ async def watch_deposits() -> None:
             head, settings.DEPOSIT_CONFIRMATION_DEPTH,
         )
     except Exception as exc:
-        logger.error("deposit confirm pass failed: %s", exc)
+        log.error("deposit confirm pass failed", err=str(exc))
         notify_after = []
 
     deposit_kb = InlineKeyboardMarkup([[
@@ -447,8 +446,8 @@ async def run_signal_scan() -> SignalScanMetrics:
             try:
                 candidates = await strat.scan(user, user)
             except Exception as exc:
-                logger.warning("strategy %s scan failed for user %s: %s",
-                               strat_name, user["id"], exc)
+                log.warning("strategy scan failed",
+                            strategy=strat_name, user_id=str(user["id"]), err=str(exc))
                 continue
             for cand in candidates:
                 candidates_emitted += 1
@@ -457,7 +456,7 @@ async def run_signal_scan() -> SignalScanMetrics:
                 try:
                     outcome = await _process_candidate(user, cand)
                 except Exception as exc:
-                    logger.error("candidate processing failed: %s", exc)
+                    log.error("candidate processing failed", err=str(exc))
                     errors += 1
                     continue
                 if outcome == "executed":
@@ -526,8 +525,9 @@ async def _process_candidate(user: dict, cand) -> str:
     )
     result = await evaluate(ctx_g)
     if not result.approved:
-        logger.info("trade rejected user=%s market=%s reason=%s step=%s",
-                    user["id"], cand.market_id, result.reason, result.failed_step)
+        log.info("trade rejected",
+                 user_id=str(user["id"]), market_id=cand.market_id,
+                 reason=result.reason, step=result.failed_step)
         return "rejected"
     try:
         await router_execute(
@@ -549,8 +549,9 @@ async def _process_candidate(user: dict, cand) -> str:
             sl_pct=float(user["sl_pct"]) if user["sl_pct"] is not None else None,
         )
     except Exception as exc:
-        logger.error("router execute failed user=%s market=%s mode=%s: %s",
-                     user["id"], cand.market_id, result.chosen_mode, exc)
+        log.error("router execute failed",
+                  user_id=str(user["id"]), market_id=cand.market_id,
+                  mode=result.chosen_mode, err=str(exc))
         return "error"
     return "executed"
 
@@ -595,15 +596,15 @@ async def log_resumed_open_positions() -> dict:
                 "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='live'"
             ) or 0)
     except Exception as exc:
-        logger.error(
-            "startup_recovery: open-position count query failed: %s",
-            exc, exc_info=True,
+        log.exception(
+            "startup_recovery: open-position count query failed",
+            err=str(exc),
         )
         return {"resumed_paper": None, "resumed_live": None, "error": str(exc)[:300]}
 
-    logger.info(
-        "startup_recovery: Resumed monitoring %d open positions (%d paper, %d live)",
-        paper_open + live_open, paper_open, live_open,
+    log.info(
+        "startup_recovery: Resumed monitoring open positions",
+        total=paper_open + live_open, paper=paper_open, live=live_open,
     )
     return {"resumed_paper": paper_open, "resumed_live": live_open}
 
@@ -682,12 +683,12 @@ async def ws_watchdog() -> None:
         return
     global _ws_client
     if _ws_client is None or not _ws_client.is_alive():
-        logger.warning("ws_watchdog: client not alive, reconnecting")
+        log.warning("ws_watchdog: client not alive, reconnecting")
         if _ws_client is not None:
             try:
                 await _ws_client.stop()
             except Exception as exc:  # noqa: BLE001
-                logger.warning("ws_watchdog: stale client stop failed: %s", exc)
+                log.warning("ws_watchdog: stale client stop failed", err=str(exc))
             _ws_client = None
         await ws_connect()
 
@@ -753,7 +754,7 @@ async def sweep_deposits() -> None:
                 " UPDATE deposits SET swept=TRUE WHERE swept=FALSE RETURNING 1"
                 ") SELECT COUNT(*) FROM u"
             )
-    logger.info("sweep_deposits: %s deposits marked swept", count)
+    log.info("sweep_deposits: deposits marked swept", count=int(count))
     await audit.write(
         actor_role="bot",
         action="deposit_sweep",
@@ -789,14 +790,14 @@ async def _sweep_deposits_onchain() -> None:
         try:
             pk = await get_decrypted_pk(u["user_id"])
             if pk is None:
-                logger.error("sweep_skip user=%s: no wallet key", u["user_id"])
+                log.error("sweep_skip: no wallet key", user_id=str(u["user_id"]))
                 continue
             result = await sweep_usdc_to_master(u["deposit_address"], pk)
         except PreflightError as exc:
-            logger.warning("sweep_skip user=%s: %s", u["user_id"], exc)
+            log.warning("sweep_skip", user_id=str(u["user_id"]), err=str(exc))
             continue
         except Exception as exc:
-            logger.error("sweep_failed user=%s error=%s", u["user_id"], exc)
+            log.error("sweep_failed", user_id=str(u["user_id"]), err=str(exc))
             continue
         if result.get("skipped"):
             continue
@@ -815,7 +816,7 @@ async def _sweep_deposits_onchain() -> None:
                      "amount_usdc": result.get("amount_usdc"),
                      "gas_topup_matic": result.get("gas_topup_matic")},
         )
-    logger.info("sweep_deposits_onchain: %s user wallets swept", swept_users)
+    log.info("sweep_deposits_onchain: user wallets swept", count=swept_users)
 
 
 async def check_balance_alerts() -> None:
@@ -852,9 +853,9 @@ async def check_balance_alerts() -> None:
                 threshold=threshold,
             )
         except Exception as exc:
-            logger.warning(
-                "check_balance_alerts: alert failed tg=%s balance=%.2f: %s",
-                tg_id, balance, exc,
+            log.warning(
+                "check_balance_alerts: alert failed",
+                tg_id=tg_id, balance=balance, err=str(exc),
             )
 
 
@@ -903,7 +904,7 @@ def _job_tracker_listener(event) -> None:
         try:
             asyncio.run(coro)
         except Exception as exc:  # noqa: BLE001
-            logger.error("job_runs sync write failed: %s", exc)
+            log.error("job_runs sync write failed", err=str(exc))
         return
     loop.create_task(coro)
 
