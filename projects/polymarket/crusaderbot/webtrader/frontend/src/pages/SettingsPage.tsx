@@ -7,7 +7,7 @@ import { NotificationPrefsCard } from "../components/NotificationPrefsCard";
 import { SettingsGroup, SettingsRow } from "../components/SettingsGroup";
 import { Toggle } from "../components/Toggle";
 import { TopBar } from "../components/TopBar";
-import { makeApi, type LiveStatus, type UserSettings } from "../lib/api";
+import { makeApi, type LinkTelegramStart, type LiveStatus, type UserSettings } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 import { useUiMode } from "../lib/uiMode";
@@ -24,6 +24,12 @@ export function SettingsPage() {
   const [liveStatus, setLiveStatus] = useState<LiveStatus | null>(null);
   const [showLiveModal, setShowLiveModal] = useState(false);
   const [disablingLive, setDisablingLive] = useState(false);
+
+  // Reverse Telegram-link (account unification)
+  const [telegramLinked, setTelegramLinked] = useState<boolean | null>(null);
+  const [linkTg, setLinkTg] = useState<LinkTelegramStart | null>(null);
+  const [linkTgError, setLinkTgError] = useState<string | null>(null);
+  const [linkTgLoading, setLinkTgLoading] = useState(false);
 
   // Link email state
   const [showLinkEmail, setShowLinkEmail] = useState(false);
@@ -58,16 +64,18 @@ export function SettingsPage() {
   const [savingRedeem, setSavingRedeem] = useState(false);
 
   const load = useCallback(async () => {
-    const [s, dash, live] = await Promise.all([
+    const [s, dash, live, tgLink] = await Promise.all([
       api.getSettings(),
       api.getDashboard(),
-      // Live status is non-critical to the page — never let it block the
-      // rest of Settings from rendering.
+      // Live status + link status are non-critical to the page — never let
+      // them block the rest of Settings from rendering.
       api.getLiveStatus().catch(() => null),
+      api.getLinkTelegramStatus().catch(() => null),
     ]);
     setSettings(s);
     setTradingMode(dash.trading_mode);
     setLiveStatus(live);
+    setTelegramLinked(tgLink ? tgLink.linked : null);
     if (s.auto_redeem != null) setAutoRedeem(s.auto_redeem);
     if (s.redeem_mode) setRedeemMode(s.redeem_mode);
   }, [api]);
@@ -107,6 +115,20 @@ export function SettingsPage() {
       } finally {
         setSavingRedeem(false);
       }
+    }
+  }
+
+  async function handleStartLinkTelegram() {
+    setLinkTgError(null);
+    setLinkTgLoading(true);
+    try {
+      const data = await api.startLinkTelegram();
+      setLinkTg(data);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to start linking";
+      setLinkTgError(msg.replace(/^\d+:\s*/, ""));
+    } finally {
+      setLinkTgLoading(false);
     }
   }
 
@@ -367,6 +389,51 @@ export function SettingsPage() {
                   </form>
                 )}
               </div>
+
+              {/* Link Telegram — only when this account has no Telegram yet */}
+              {telegramLinked === false && (
+                <div className="pt-2 border-t border-surface-3 mt-2">
+                  {!linkTg ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void handleStartLinkTelegram()}
+                        disabled={linkTgLoading}
+                        className="text-[11px] text-gold font-hud tracking-widest uppercase hover:underline disabled:opacity-50"
+                      >
+                        {linkTgLoading ? "…" : "+ Link Telegram"}
+                      </button>
+                      <p className="text-ink-4 text-[10px] font-mono mt-1 leading-relaxed">
+                        Connect the Telegram bot to this account so both apps share one
+                        wallet, mode (LIVE/PAPER) and trade history.
+                      </p>
+                      {linkTgError && <p className="text-red-400 text-[11px] font-mono mt-1">{linkTgError}</p>}
+                    </>
+                  ) : (
+                    <div className="space-y-2 pt-1">
+                      <p className="text-ink-3 text-[11px] font-mono">
+                        Open the Telegram bot and send this command (valid {linkTg.expires_minutes} min):
+                      </p>
+                      <p className="text-gold font-mono text-[13px] text-center select-all bg-surface-2 border border-border-2 rounded py-2">
+                        {linkTg.link_command}
+                      </p>
+                      {linkTg.bot_username && (
+                        <a
+                          href={`https://t.me/${linkTg.bot_username}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block text-center text-[11px] text-gold font-hud tracking-widest uppercase hover:underline"
+                        >
+                          Open @{linkTg.bot_username} →
+                        </a>
+                      )}
+                      <p className="text-ink-4 text-[10px] font-mono">
+                        After sending it in Telegram, this page updates automatically.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </SettingsGroup>
           </div>
         </div>

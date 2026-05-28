@@ -43,6 +43,10 @@ class Settings(BaseSettings):
 
     # --- Required at startup ---
     TELEGRAM_BOT_TOKEN: str
+    # Public @username of the bot (no leading @). Optional — used only to render
+    # a tap-to-open t.me deep link in the WebTrader "Link Telegram" flow. When
+    # unset, the UI still shows the plain `/link <code>` instruction.
+    TELEGRAM_BOT_USERNAME: str = ""
     OPERATOR_CHAT_ID: int
     DATABASE_URL: str
     POLYGON_RPC_URL: str

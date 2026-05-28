@@ -18,7 +18,7 @@ from telegram.ext import (
 _DYNAMIC_TRADES_RE = re.compile(r"^💼 Trades \(\d+\)$")
 
 from .handlers import (
-    activation, admin, copy_trade, demo_polish, emergency,
+    account_link, activation, admin, copy_trade, demo_polish, emergency,
     health as health_h, live_gate, market_card,
     pnl_insights as pnl_insights_h, portfolio_chart as portfolio_chart_h,
     positions, referral, settings as settings_handler, setup,
@@ -237,6 +237,7 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("live_checklist",  activation.live_checklist_command))
     app.add_handler(CommandHandler("enable_live",     live_gate.enable_live_command))
     app.add_handler(CommandHandler("disable_live",    live_gate.disable_live_command))
+    app.add_handler(CommandHandler("link",            account_link.link_command))
     app.add_handler(CommandHandler("summary_on",      activation.summary_on_command))
     app.add_handler(CommandHandler("summary_off",     activation.summary_off_command))
     app.add_handler(CommandHandler("insights",        pnl_insights_h.pnl_insights_command))
