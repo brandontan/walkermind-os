@@ -7,7 +7,7 @@ import { NotificationPrefsCard } from "../components/NotificationPrefsCard";
 import { SettingsGroup, SettingsRow } from "../components/SettingsGroup";
 import { Toggle } from "../components/Toggle";
 import { TopBar } from "../components/TopBar";
-import { makeApi, type LinkTelegramStart, type LiveStatus, type UserSettings } from "../lib/api";
+import { makeApi, type LinkTelegramStart, type LiveStatus, type MeResponse, type UserSettings } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 import { useUiMode } from "../lib/uiMode";
@@ -19,6 +19,7 @@ export function SettingsPage() {
   const { advanced, toggle: toggleAdvanced } = useUiMode();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [tradingMode, setTradingMode] = useState<string>("paper");
+  const [account, setAccount] = useState<MeResponse | null>(null);
 
   // Live-trading activation
   const [liveStatus, setLiveStatus] = useState<LiveStatus | null>(null);
@@ -50,6 +51,9 @@ export function SettingsPage() {
       setShowLinkEmail(false);
       setLinkEmail("");
       setLinkPassword("");
+      // Refresh persisted identity so the "Email — connected" row shows and
+      // the link form stays hidden across refreshes.
+      void load();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to link email";
       setLinkError(msg.replace(/^\d+:\s*/, ""));
@@ -64,18 +68,20 @@ export function SettingsPage() {
   const [savingRedeem, setSavingRedeem] = useState(false);
 
   const load = useCallback(async () => {
-    const [s, dash, live, tgLink] = await Promise.all([
+    const [s, dash, live, tgLink, me] = await Promise.all([
       api.getSettings(),
       api.getDashboard(),
-      // Live status + link status are non-critical to the page — never let
-      // them block the rest of Settings from rendering.
+      // Live status + link status + identity are non-critical to the page —
+      // never let them block the rest of Settings from rendering.
       api.getLiveStatus().catch(() => null),
       api.getLinkTelegramStatus().catch(() => null),
+      api.getMe().catch(() => null),
     ]);
     setSettings(s);
     setTradingMode(dash.trading_mode);
     setLiveStatus(live);
     setTelegramLinked(tgLink ? tgLink.linked : null);
+    setAccount(me);
     if (s.auto_redeem != null) setAutoRedeem(s.auto_redeem);
     if (s.redeem_mode) setRedeemMode(s.redeem_mode);
   }, [api]);
@@ -315,7 +321,16 @@ export function SettingsPage() {
               <SettingsRow
                 name="Username"
                 desc="Telegram"
-                control={`@${user?.firstName ?? "—"}`}
+                control={`@${account?.username ?? user?.firstName ?? "—"}`}
+              />
+              <SettingsRow
+                name="Email"
+                desc={account?.email ? "Login email — connected" : "Login email"}
+                control={
+                  account?.email
+                    ? <span className="text-grn">{account.email}</span>
+                    : <span className="text-ink-3">Not linked</span>
+                }
               />
               <AdvancedOnly>
                 <SettingsRow
@@ -335,7 +350,10 @@ export function SettingsPage() {
                 />
               </AdvancedOnly>
 
-              {/* Link Email */}
+              {/* Link Email — only when this account has no real email yet.
+                  Once linked, the persistent "Email — connected" row above
+                  reflects it (survives refresh) and this block stays hidden. */}
+              {!account?.email && (
               <div className="pt-2 border-t border-surface-3 mt-2">
                 {linkSuccess ? (
                   <p className="text-grn text-[11px] font-mono py-1">✅ Email linked — you can now log in with email + password.</p>
@@ -389,6 +407,7 @@ export function SettingsPage() {
                   </form>
                 )}
               </div>
+              )}
 
               {/* Link Telegram — only when this account has no Telegram yet */}
               {telegramLinked === false && (

@@ -232,6 +232,39 @@ def test_link_command_uses_redeem():
     assert "parse_mode" not in src
 
 
+def _me_conn(row):
+    conn = MagicMock()
+
+    async def fetchrow(query, *args):
+        return row
+
+    conn.fetchrow = fetchrow
+    return conn
+
+
+def test_get_me_reports_linked_email_and_telegram():
+    """/me must surface persisted email + telegram link state so Settings
+    renders 'connected' rows instead of re-showing the link forms on refresh."""
+    from projects.polymarket.crusaderbot.webtrader.backend import router as r
+    conn = _me_conn({"email": "walker@x.com", "username": "walk", "telegram_user_id": 123})
+    with patch.object(r, "get_pool", return_value=_make_pool(conn)):
+        res = asyncio.run(r.get_me({"user_id": "uid", "first_name": "W"}))
+    assert res["email"] == "walker@x.com"
+    assert res["telegram_linked"] is True
+    assert res["username"] == "walk"
+
+
+def test_get_me_excludes_tombstone_email():
+    """Synthetic tombstone emails (merged-*@telegram.local) are not real
+    logins and must surface as email=None."""
+    from projects.polymarket.crusaderbot.webtrader.backend import router as r
+    conn = _me_conn({"email": "merged-abc@telegram.local", "username": "walk", "telegram_user_id": 123})
+    with patch.object(r, "get_pool", return_value=_make_pool(conn)):
+        res = asyncio.run(r.get_me({"user_id": "uid", "first_name": "W"}))
+    assert res["email"] is None
+    assert res["telegram_linked"] is True
+
+
 def test_webtrader_link_endpoints_present():
     import inspect
 
