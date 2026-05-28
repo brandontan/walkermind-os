@@ -46,6 +46,13 @@ class GateContext:
     # User-configured drawdown halt threshold (0, 0.08]. System 8% floor applies
     # regardless — this only lets users halt earlier (e.g. set 5% to stop at 5%).
     max_drawdown_pct: float | None = None
+    # Per-user live-trading capital cap (USDC). Aggregate live exposure +
+    # this proposed size must stay below this cap. 0 = live trading
+    # disabled for this user (any live trade rejected at step 15). Set
+    # via /api/web/live/enable (typed confirm) or Telegram /enable_live.
+    # Paper trades are unaffected — the cap only fires when the gate is
+    # about to approve a chosen_mode='live' trade.
+    live_capital_cap_usdc: float = 0.0
 
 
 @dataclass
@@ -409,8 +416,63 @@ async def evaluate(ctx: GateContext) -> GateResult:
     await _log(ctx.user_id, ctx.market_id, 14, True,
                f"impact_ok_{impact_result.impact_pct:.4f}")
 
+    # 15. Per-user LIVE capital cap (Axis #3, WARP/ROOT-live-activation-flow).
+    #     Fires only when the gate is about to approve a chosen_mode='live'
+    #     trade. The user MUST have opted into live mode via
+    #     /api/web/live/enable (typed-confirm flow) or Telegram /enable_live
+    #     — both writers set users_settings.live_capital_cap_usdc > 0.
+    #     A cap of zero means the user has NOT opted in; any live trade
+    #     for them is rejected.
+    #     Aggregate exposure check: open-live size + this proposed size
+    #     must stay below the cap, so a user with cap=$50 cannot have one
+    #     $30 position plus a new $40 trade. Paper trades skip this gate.
+    if chosen_mode == "live":
+        cap = max(0.0, float(ctx.live_capital_cap_usdc or 0.0))
+        if cap <= 0.0:
+            await _log(ctx.user_id, ctx.market_id, 15, False, "live_not_opted_in")
+            return GateResult(False, "live_not_opted_in", 15)
+        open_live = await _open_live_exposure(ctx.user_id)
+        if (float(open_live) + float(final_size)) > cap:
+            await _log(
+                ctx.user_id, ctx.market_id, 15, False,
+                f"live_capital_cap_exceeded open={open_live:.2f} "
+                f"proposed={float(final_size):.2f} cap={cap:.2f}",
+            )
+            return GateResult(False, "live_capital_cap_exceeded", 15)
+        await _log(
+            ctx.user_id, ctx.market_id, 15, True,
+            f"live_cap_ok open={open_live:.2f} cap={cap:.2f}",
+        )
+
     await _record_idempotency(ctx.user_id, ctx.idempotency_key)
     return GateResult(True, "approved", None, final_size, chosen_mode)
+
+
+async def _open_live_exposure(user_id: UUID) -> Decimal:
+    """Aggregate USDC currently deployed across the user's open LIVE
+    positions. Used by gate step 15 to enforce ``live_capital_cap_usdc``.
+
+    Returns ``Decimal("0")`` on any DB error so a transient outage does
+    NOT silently approve a live trade past the cap — the caller still
+    needs the cap > proposed size, so an open exposure read of zero
+    cannot grant approval that wouldn't have already been granted.
+    """
+    try:
+        from ...database import get_pool
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            val = await conn.fetchval(
+                "SELECT COALESCE(SUM(size_usdc), 0) "
+                "FROM positions "
+                "WHERE user_id = $1::uuid "
+                "  AND mode = 'live' "
+                "  AND status IN ('open', 'pending_settlement')",
+                user_id,
+            )
+        return Decimal(str(val or 0))
+    except Exception as exc:  # noqa: BLE001 — fail-closed: zero exposure read
+        logger.warning("live_capital_cap exposure read failed: %s", exc)
+        return Decimal("0")
 
 
 
