@@ -94,6 +94,7 @@ class PositionItem(BaseModel):
     closed_at: Optional[datetime] = None
     exit_reason: Optional[str] = None
     strategy_type: Optional[str] = None
+    active_preset: Optional[str] = None
     # TP/SL as configured fractions + the derived trigger price levels (in the
     # same YES-price units as entry_price/current_price). Powers the expandable
     # trade detail view. None when the position carries no TP/SL.

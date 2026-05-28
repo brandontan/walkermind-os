@@ -771,6 +771,12 @@ const STRATEGY_LABEL: Record<string, string> = {
   ensemble: "Smart Mix",
 };
 
+const PRESET_LABEL: Record<string, string> = {
+  close_sweep: "Close Sweep",
+  safe_close: "Safe Close",
+  flip_hunter: "Flip Hunter",
+};
+
 function fmtStrategy(s?: string | null): string | null {
   if (!s) return null;
   return STRATEGY_LABEL[s] ?? s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -827,7 +833,9 @@ export function PositionRow({ p, onCashOut, onForceRedeem, defaultExpanded }: {
   const pnlToneClass =
     tone === "zero" ? "text-ink-2" : tone === "up" ? "text-grn" : "text-red";
 
-  const strategyLabel = fmtStrategy(p.strategy_type);
+  const strategyLabel =
+    (p.active_preset ? PRESET_LABEL[p.active_preset] : null) ??
+    fmtStrategy(p.strategy_type);
 
   const metaItems = [
     ...(strategyLabel

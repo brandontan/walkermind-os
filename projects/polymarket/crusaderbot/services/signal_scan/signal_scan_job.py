@@ -731,6 +731,7 @@ def _build_trade_signal(
             if row.get("max_drawdown_pct") is not None
             else None
         ),
+        active_preset=str(row["active_preset"]) if row.get("active_preset") else None,
     )
 
 
@@ -1207,6 +1208,16 @@ async def run_once() -> None:
 
     for row in users:
         active_preset = row.get("active_preset")
+        # Safety guard: skip users who have not yet configured a strategy preset.
+        # Without this, _preset_allows(None, lib_name) falls back to _LIB_STRATEGY_NAMES
+        # and fires signal_following for every unconfigured user.
+        if active_preset is None:
+            logger.warning(
+                "scan_skipped_no_preset",
+                user_id=str(row["user_id"]),
+                reason="active_preset is NULL — user must configure a strategy before trading",
+            )
+            continue
         category_filters: list[str] = list(row.get("category_filters") or [])
         strategy_params: dict = _coerce_jsonb(row.get("strategy_params"), {})
         _tf = row.get("selected_timeframe")

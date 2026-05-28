@@ -97,6 +97,7 @@ class TradeSignal:
     daily_loss_override: Optional[float] = None
     user_min_liquidity: float = 0.0
     max_drawdown_pct: Optional[float] = None
+    active_preset: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -182,6 +183,7 @@ class TradeEngine:
             strategy_type=signal.strategy_type,
             tp_pct=signal.tp_pct,
             sl_pct=signal.sl_pct,
+            active_preset=signal.active_preset,
         )
 
         # Idempotent skip: paper engine returns status="duplicate" when the
