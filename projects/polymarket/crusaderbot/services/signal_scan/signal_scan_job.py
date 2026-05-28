@@ -732,6 +732,10 @@ def _build_trade_signal(
             else None
         ),
         active_preset=str(row["active_preset"]) if row.get("active_preset") else None,
+        # Per-user live capital cap (Axis #3, migration 064). Missing column
+        # on a stale schema → defaults to 0 → gate step 15 rejects live mode
+        # (safe-by-default).
+        live_capital_cap_usdc=float(row.get("live_capital_cap_usdc") or 0.0),
     )
 
 

@@ -40,6 +40,9 @@ from .schemas import (
     LeaderboardEntry,
     LedgerEntry,
     LedgerPage,
+    LiveEnableRequest,
+    LiveEnableResponse,
+    LiveStatus,
     MarketFeedItem,
     MarketFilterUpdate,
     OrderItem,
@@ -1816,3 +1819,184 @@ async def get_copy_trade_task_stats(task_id: str, user: _CurrentUser):
     except Exception as exc:
         log.warning("copy_trade_stats_fetch_failed wallet=%s error=%s", task["wallet_address"], exc)
         return {"error": "stats unavailable"}
+
+
+# ── Live-trading activation (Axis #3 — WARP/ROOT-live-activation-flow) ──────
+# Per-user opt-in into live execution. Reads operator env guards + the
+# 8-gate live_checklist + the user's `live_capital_cap_usdc` setting.
+# A user toggles into live mode via /live/enable with an EXPLICIT capital
+# cap and an EXACT typed confirm phrase. /live/disable reverts. Risk gate
+# step 15 (domain/risk/gate.py) enforces the cap on every approved live
+# trade — a user with cap=0 cannot execute live, and the gate rejects
+# any trade that would push aggregate live exposure past the cap.
+
+_LIVE_ENABLE_CONFIRM_PHRASE = "ENABLE LIVE TRADING FOR MY ACCOUNT"
+
+
+def _operator_guards_open(s) -> bool:
+    """All five operator-level env guards must be open before any user
+    can flip to live mode (mirrors `assert_live_guards` defensively)."""
+    return bool(
+        s.ENABLE_LIVE_TRADING
+        and s.EXECUTION_PATH_VALIDATED
+        and s.CAPITAL_MODE_CONFIRMED
+        and s.RISK_CONTROLS_VALIDATED
+        and s.SECURITY_HARDENING_VALIDATED
+    )
+
+
+@router.get("/live/status", response_model=LiveStatus)
+async def get_live_status(user: _CurrentUser) -> LiveStatus:
+    """Return the user's live-mode readiness + current state.
+
+    Surfaces every piece of information the UI needs to render the live
+    opt-in screen: current trading_mode, capital cap, open live exposure,
+    operator env-guard state, and the 8-gate live_checklist outcome.
+    """
+    from ...domain.activation import live_checklist
+    from ...config import get_settings
+    s = get_settings()
+    user_id = user["user_id"]
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT trading_mode, live_capital_cap_usdc "
+            "FROM user_settings WHERE user_id = $1::uuid",
+            user_id,
+        )
+        open_live = float(await conn.fetchval(
+            "SELECT COALESCE(SUM(size_usdc), 0) "
+            "FROM positions "
+            "WHERE user_id = $1::uuid "
+            "  AND mode = 'live' "
+            "  AND status IN ('open', 'pending_settlement')",
+            user_id,
+        ) or 0)
+    trading_mode = (row["trading_mode"] if row else "paper") or "paper"
+    cap = float((row["live_capital_cap_usdc"] if row else 0) or 0)
+    checklist = await live_checklist.evaluate(UUID(str(user_id)))
+    return LiveStatus(
+        trading_mode=trading_mode,
+        live_capital_cap_usdc=cap,
+        open_live_exposure_usdc=open_live,
+        operator_guards_open=_operator_guards_open(s),
+        checklist_passed=checklist.passed,
+        failed_gates=list(checklist.failed_gates),
+    )
+
+
+@router.post(
+    "/live/enable",
+    response_model=LiveEnableResponse,
+    dependencies=[Depends(per_user_rate_limit("live_activation", limit=5))],
+)
+async def enable_live(
+    body: LiveEnableRequest,
+    user: _CurrentUser,
+) -> LiveEnableResponse:
+    """Flip the user's trading_mode to 'live' after typed confirmation.
+
+    Defensive gates (all must pass):
+      1. Operator env guards are open.
+      2. 8-gate live_checklist passes for this user.
+      3. `confirm_phrase` matches the exact required string. Defends
+         against accidental clicks; no normalisation, case-sensitive.
+      4. `live_capital_cap_usdc > 0` and bounded by SYSTEM ceiling (the
+         user is not allowed to set an unbounded cap).
+      5. The gate-level enforcement in `domain/risk/gate.py` step 15
+         still has the final say on every individual trade — this
+         endpoint only flips the user-level enable switch.
+    """
+    from ...domain.activation import live_checklist
+    from ...config import get_settings
+    s = get_settings()
+    user_id = user["user_id"]
+
+    if not _operator_guards_open(s):
+        raise HTTPException(
+            status_code=409,
+            detail="operator activation guards are not open",
+        )
+    if body.confirm_phrase != _LIVE_ENABLE_CONFIRM_PHRASE:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"confirm_phrase must equal the exact string "
+                f"'{_LIVE_ENABLE_CONFIRM_PHRASE}' to enable live trading"
+            ),
+        )
+    if not (0 < float(body.live_capital_cap_usdc) <= 10_000.0):
+        raise HTTPException(
+            status_code=400,
+            detail="live_capital_cap_usdc must be > 0 and ≤ 10000",
+        )
+
+    checklist = await live_checklist.evaluate(UUID(str(user_id)))
+    if not checklist.passed:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "live_checklist gates not all passing",
+                "failed_gates": list(checklist.failed_gates),
+            },
+        )
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE user_settings "
+                "   SET trading_mode = 'live', "
+                "       live_capital_cap_usdc = $2, "
+                "       updated_at = NOW() "
+                " WHERE user_id = $1::uuid",
+                user_id, float(body.live_capital_cap_usdc),
+            )
+
+    await audit.write(
+        actor_role="user",
+        action="webtrader_live_enable",
+        user_id=UUID(str(user_id)),
+        payload={
+            "live_capital_cap_usdc": float(body.live_capital_cap_usdc),
+            "operator_guards_open": True,
+            "checklist_passed": True,
+        },
+    )
+    return LiveEnableResponse(
+        trading_mode="live",
+        live_capital_cap_usdc=float(body.live_capital_cap_usdc),
+    )
+
+
+@router.post(
+    "/live/disable",
+    dependencies=[Depends(per_user_rate_limit("live_activation", limit=5))],
+)
+async def disable_live(user: _CurrentUser) -> dict:
+    """Flip the user's trading_mode back to 'paper'.
+
+    Single-step, no confirm phrase — easy to back out of live mode.
+    Preserves `live_capital_cap_usdc` so a subsequent enable doesn't
+    require re-entering the cap (the user already verified that value
+    on opt-in). Open live positions are NOT closed by this endpoint —
+    they will resolve under the original live mode. New trades will be
+    paper-mode-only.
+    """
+    user_id = user["user_id"]
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE user_settings "
+            "   SET trading_mode = 'paper', "
+            "       updated_at = NOW() "
+            " WHERE user_id = $1::uuid",
+            user_id,
+        )
+    await audit.write(
+        actor_role="user",
+        action="webtrader_live_disable",
+        user_id=UUID(str(user_id)),
+        payload={"source": "/api/web/live/disable"},
+    )
+    return {"ok": True, "trading_mode": "paper"}

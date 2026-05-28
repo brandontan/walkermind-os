@@ -98,6 +98,10 @@ class TradeSignal:
     user_min_liquidity: float = 0.0
     max_drawdown_pct: Optional[float] = None
     active_preset: Optional[str] = None
+    # Per-user live-trading capital cap (USDC). 0 means the user has not
+    # opted in to live mode; gate step 15 rejects any live trade. Set via
+    # /api/web/live/enable typed-confirm flow.
+    live_capital_cap_usdc: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -293,4 +297,5 @@ class TradeEngine:
             trading_mode=signal.trading_mode,
             user_min_liquidity=signal.user_min_liquidity,
             max_drawdown_pct=signal.max_drawdown_pct,
+            live_capital_cap_usdc=signal.live_capital_cap_usdc,
         )

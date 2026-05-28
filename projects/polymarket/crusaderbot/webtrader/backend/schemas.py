@@ -351,3 +351,42 @@ class RuntimeStatus(BaseModel):
     scanner_scanned: int
     scanner_published: int
     scanner_last_tick: Optional[float]
+
+
+# ── Live-trading activation (Axis #3 — WARP/ROOT-live-activation-flow) ──────
+
+
+class LiveStatus(BaseModel):
+    """Per-user live-mode readiness + current state for the WebTrader UI."""
+    # Current trading mode set on user_settings ("paper" | "live").
+    trading_mode: str
+    # Per-user live capital cap (USDC). 0 = user has not opted in.
+    live_capital_cap_usdc: float
+    # Aggregate USDC currently deployed across open live positions.
+    open_live_exposure_usdc: float
+    # Operator-level env guards — visible so the user knows whether live
+    # is unlocked at the system level. ALL must be true before any user
+    # can flip trading_mode='live'.
+    operator_guards_open: bool
+    # 8-gate live_checklist outcome (passed/failed-gates).
+    checklist_passed: bool
+    failed_gates: list[str]
+
+
+class LiveEnableRequest(BaseModel):
+    """POST /api/web/live/enable — typed-confirm flip from paper to live.
+
+    A user must:
+      1. Submit an explicit capital cap > 0 (max USDC the bot may deploy
+         in live mode at any one time).
+      2. Type the EXACT confirm phrase. Defends against accidental clicks
+         and one-tap bots.
+    """
+    live_capital_cap_usdc: float
+    confirm_phrase: str
+
+
+class LiveEnableResponse(BaseModel):
+    trading_mode: str
+    live_capital_cap_usdc: float
+
