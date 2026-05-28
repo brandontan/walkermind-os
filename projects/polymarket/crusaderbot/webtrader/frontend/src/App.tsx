@@ -45,6 +45,7 @@ interface AlertCenterCtx {
   openAlertCenter: () => void;
   closeAlertCenter: () => void;
   dismissAlert: (id: string) => void;
+  markAllRead: () => void;
   loadMoreAlerts: () => Promise<void>;
   hasMoreAlerts: boolean;
 }
@@ -56,6 +57,7 @@ export const AlertCenterContext = createContext<AlertCenterCtx>({
   openAlertCenter: () => undefined,
   closeAlertCenter: () => undefined,
   dismissAlert: () => undefined,
+  markAllRead: () => undefined,
   loadMoreAlerts: async () => undefined,
   hasMoreAlerts: false,
 });
@@ -147,6 +149,21 @@ function AppShell() {
     });
   }, []);
 
+  // Mark ALL currently-visible alerts as read in one shot. Unlike opening the
+  // panel (which just bumps lastSeen), this dismisses every visible alert so
+  // the panel clears immediately. Idempotent and resilient to quota errors.
+  const markAllRead = useCallback(() => {
+    setDismissed(prev => {
+      const next = [...prev, ...alerts.map(a => a.id)];
+      const capped = next.length > DISMISSED_CAP ? next.slice(next.length - DISMISSED_CAP) : next;
+      try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(capped)); } catch { /* quota — ignore */ }
+      return new Set(capped);
+    });
+    const now = Date.now();
+    setLastSeen(now);
+    try { localStorage.setItem(LAST_SEEN_KEY, String(now)); } catch { /* quota — ignore */ }
+  }, [alerts]);
+
   const [lastScanMs, setLastScanMs] = useState<number | null>(null);
 
   // SSE connection — fetchAlerts defined above so it's safe to reference here.
@@ -191,10 +208,11 @@ function AppShell() {
       openAlertCenter,
       closeAlertCenter,
       dismissAlert,
+      markAllRead,
       loadMoreAlerts,
       hasMoreAlerts,
     }),
-    [visibleAlerts, unreadCount, isAlertOpen, openAlertCenter, closeAlertCenter, dismissAlert, loadMoreAlerts, hasMoreAlerts],
+    [visibleAlerts, unreadCount, isAlertOpen, openAlertCenter, closeAlertCenter, dismissAlert, markAllRead, loadMoreAlerts, hasMoreAlerts],
   );
 
   return (
