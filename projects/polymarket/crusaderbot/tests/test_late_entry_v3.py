@@ -34,6 +34,7 @@ from projects.polymarket.crusaderbot.domain.strategy.strategies.late_entry_v3 im
     DEFAULT_TP_PCT,
     FLIP_STOP_PRICE,
     LateEntryV3Strategy,
+    force_exit_at_rem_sec_for,
     resolve_per_trade_ceiling,
     suggested_trade_size,
 )
@@ -608,3 +609,152 @@ def test_candidate_metadata_carries_fav_price_band_underdog_mode():
     assert md["fav_price_min"] == pytest.approx(0.26, abs=1e-9)
     assert md["fav_price_max"] == pytest.approx(0.36, abs=1e-9)
     assert md["underdog_mode"] is True
+
+
+# ---------------------------------------------------------------------------
+# Kreo-style fixed-time exit (force_exit_at_rem_sec)
+# ---------------------------------------------------------------------------
+
+
+def test_candidate_metadata_carries_force_exit_at_rem_sec():
+    """When the scan caller passes force_exit_at_rem_sec, the candidate carries it."""
+    strat = LateEntryV3Strategy()
+    m = _make_market(seconds_to_close=45.0)
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[m])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.65, 0.25))):
+        cands = _run(strat.scan(
+            _make_filters(), _make_context(),
+            min_ask_diff=0.05,
+            entry_window_sec=60.0,
+            fav_price_min=0.60,
+            fav_price_max=0.70,
+            min_entry_sec=30.0,
+            force_exit_at_rem_sec=30.0,
+        ))
+    assert len(cands) == 1
+    assert cands[0].metadata["force_exit_at_rem_sec"] == pytest.approx(30.0, abs=1e-9)
+
+
+def test_candidate_metadata_force_exit_none_when_not_passed():
+    """Backward compat: omitting force_exit_at_rem_sec leaves metadata key None."""
+    strat = LateEntryV3Strategy()
+    m = _make_market(seconds_to_close=20.0)
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[m])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.65, 0.25))):
+        cands = _run(strat.scan(
+            _make_filters(), _make_context(),
+            min_ask_diff=0.05,
+            entry_window_sec=35.0,
+            fav_price_min=0.55,
+            fav_price_max=0.70,
+        ))
+    assert len(cands) == 1
+    assert cands[0].metadata["force_exit_at_rem_sec"] is None
+
+
+def test_evaluate_exit_fires_force_exit_when_rem_le_threshold():
+    """evaluate_exit must fire strategy_exit when seconds_to_close ≤ force_exit_at_rem_sec."""
+    strat = LateEntryV3Strategy()
+    decision = _run(strat.evaluate_exit({
+        "current_price": 0.65,  # well above flip-stop
+        "force_exit_at_rem_sec": 30.0,
+        "seconds_to_close": 28.0,   # below threshold
+    }))
+    assert decision.should_exit is True
+    assert decision.reason == "strategy_exit"
+    assert decision.metadata.get("trigger") == "fixed_time_exit"
+
+
+def test_evaluate_exit_fires_force_exit_at_exact_threshold():
+    """Threshold is inclusive (≤): exit fires when seconds_to_close == force_exit_at_rem_sec."""
+    strat = LateEntryV3Strategy()
+    decision = _run(strat.evaluate_exit({
+        "current_price": 0.65,
+        "force_exit_at_rem_sec": 30.0,
+        "seconds_to_close": 30.0,
+    }))
+    assert decision.should_exit is True
+
+
+def test_evaluate_exit_no_force_exit_when_rem_above_threshold():
+    """evaluate_exit must not fire when seconds_to_close > force_exit_at_rem_sec."""
+    strat = LateEntryV3Strategy()
+    decision = _run(strat.evaluate_exit({
+        "current_price": 0.65,   # above flip-stop, no exit reason here
+        "force_exit_at_rem_sec": 30.0,
+        "seconds_to_close": 45.0,
+    }))
+    assert decision.should_exit is False
+
+
+def test_evaluate_exit_no_force_exit_when_metadata_missing():
+    """Backward compat: positions without force_exit_at_rem_sec keep flip-stop only."""
+    strat = LateEntryV3Strategy()
+    # No force_exit_at_rem_sec / seconds_to_close keys — must NOT raise + must NOT exit.
+    decision = _run(strat.evaluate_exit({"current_price": 0.65}))
+    assert decision.should_exit is False
+    assert decision.reason == "hold"
+
+
+def test_evaluate_exit_flip_stop_still_fires_after_force_exit_gate():
+    """Flip-stop preserved: with force-exit gate not triggered, flip-stop still works."""
+    strat = LateEntryV3Strategy()
+    # rem above force threshold (no time-based exit) but price below flip-stop
+    decision = _run(strat.evaluate_exit({
+        "current_price": 0.05,   # below default FLIP_STOP_PRICE module fallback (0.48)
+        "force_exit_at_rem_sec": 30.0,
+        "seconds_to_close": 60.0,
+    }))
+    assert decision.should_exit is True
+    assert decision.reason == "strategy_exit"
+    assert decision.metadata.get("trigger") == "flip_stop"
+
+
+def test_evaluate_exit_force_exit_takes_precedence_over_flip_stop():
+    """When both conditions fire, force-exit wins (it runs first)."""
+    strat = LateEntryV3Strategy()
+    decision = _run(strat.evaluate_exit({
+        "current_price": 0.05,   # would trigger flip-stop
+        "force_exit_at_rem_sec": 30.0,
+        "seconds_to_close": 20.0,  # would also trigger force-exit
+    }))
+    assert decision.should_exit is True
+    assert decision.metadata.get("trigger") == "fixed_time_exit"
+
+
+# ---------------------------------------------------------------------------
+# force_exit_at_rem_sec_for(preset, timeframe) — central preset → exit lookup
+# ---------------------------------------------------------------------------
+
+
+def test_force_exit_lookup_safe_close_30s_either_tf():
+    """Kreo Safe Close exits at rem=30s for both 5m and 15m (elapsed 270 / 870)."""
+    assert force_exit_at_rem_sec_for("safe_close", "5m") == pytest.approx(30.0)
+    assert force_exit_at_rem_sec_for("safe_close", "15m") == pytest.approx(30.0)
+
+
+def test_force_exit_lookup_flip_hunter_5m_returns_160():
+    """Kreo Early Flip Hunter 5m exits at rem=160s (elapsed 140s)."""
+    assert force_exit_at_rem_sec_for("flip_hunter", "5m") == pytest.approx(160.0)
+
+
+def test_force_exit_lookup_flip_hunter_15m_returns_480():
+    """Kreo Early Flip Hunter 15m exits at rem=480s (elapsed 420s)."""
+    assert force_exit_at_rem_sec_for("flip_hunter", "15m") == pytest.approx(480.0)
+
+
+def test_force_exit_lookup_close_sweep_returns_none():
+    """close_sweep has no fixed-time exit — holds to candle resolution."""
+    assert force_exit_at_rem_sec_for("close_sweep", "5m") is None
+    assert force_exit_at_rem_sec_for("close_sweep", "15m") is None
+
+
+def test_force_exit_lookup_unknown_preset_returns_none():
+    """Unknown preset / None preset must not raise — returns None (no exit rule)."""
+    assert force_exit_at_rem_sec_for(None, "5m") is None
+    assert force_exit_at_rem_sec_for("nonexistent_preset", "5m") is None
+
+
+def test_force_exit_lookup_flip_hunter_defaults_to_5m_for_missing_tf():
+    """Missing timeframe defaults to 5m mapping (safe default for crypto candle scanner)."""
+    assert force_exit_at_rem_sec_for("flip_hunter", None) == pytest.approx(160.0)

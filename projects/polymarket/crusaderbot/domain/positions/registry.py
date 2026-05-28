@@ -102,6 +102,13 @@ class OpenPositionForExit:
     # in the exit watcher. None when the market row predates this column.
     yes_token_id: Optional[str] = None
     no_token_id: Optional[str] = None
+    # Owning user's active preset + selected timeframe at the time the watcher
+    # took the snapshot. Used by the late_entry_v3 exit hook to look up the
+    # Kreo-style fixed-time exit threshold (preset, timeframe) → rem_sec.
+    # Defaults keep older callers that hand-construct OpenPositionForExit (and
+    # any code path that joined the snapshot before this column existed) working.
+    active_preset: Optional[str] = None
+    selected_timeframe: Optional[str] = None
 
     def to_router_dict(self) -> dict[str, Any]:
         """Build the payload shape ``router.close`` expects.
@@ -153,6 +160,7 @@ async def list_open_for_exit() -> list[OpenPositionForExit]:
                    m.yes_price, m.no_price, m.resolved AS market_resolved,
                    m.resolution_at, m.yes_token_id, m.no_token_id,
                    COALESCE(s.risk_profile, 'balanced') AS risk_profile,
+                   s.active_preset, s.selected_timeframe,
                    u.telegram_user_id
               FROM positions p
               JOIN markets m ON m.id = p.market_id
@@ -160,7 +168,7 @@ async def list_open_for_exit() -> list[OpenPositionForExit]:
               LEFT JOIN user_settings s ON s.user_id = p.user_id
              WHERE p.status = 'open'
                AND m.resolved = FALSE
-            """
+"""
         )
     return [
         OpenPositionForExit(
@@ -190,6 +198,8 @@ async def list_open_for_exit() -> list[OpenPositionForExit]:
             strategy_type=(str(r["strategy_type"]) if r["strategy_type"] else None),
             yes_token_id=(str(r["yes_token_id"]) if r["yes_token_id"] else None),
             no_token_id=(str(r["no_token_id"]) if r["no_token_id"] else None),
+            active_preset=(str(r["active_preset"]) if r["active_preset"] else None),
+            selected_timeframe=(str(r["selected_timeframe"]) if r["selected_timeframe"] else None),
         )
         for r in rows
     ]

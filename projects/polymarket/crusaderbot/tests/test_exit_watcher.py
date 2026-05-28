@@ -210,6 +210,182 @@ def test_registry_evaluator_holds_unattributed_position():
     assert decision.reason is None
 
 
+# ---------------------------------------------------------------------------
+# Kreo-style fixed-time exit wiring: registry_strategy_evaluator must enrich
+# the payload with active_preset/timeframe/seconds_to_close/force_exit so the
+# late_entry_v3 strategy hook can fire its fixed-time exit at rem ≤ threshold.
+# ---------------------------------------------------------------------------
+
+
+def test_registry_evaluator_fires_safe_close_force_exit_when_rem_below_30s():
+    """safe_close position with candle rem 25s must close via fixed-time exit."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        res_at = datetime.now(timezone.utc) + timedelta(seconds=25)  # rem ≈ 25s, below 30s threshold
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.65,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50,
+                           resolution_at=res_at),
+            strategy_type="late_entry_v3",
+            active_preset="safe_close",
+            selected_timeframe="5m",
+        )
+        # live_price 0.65 keeps the existing flip-stop (0.10) from firing —
+        # the only path to exit is the new fixed-time gate.
+        decision = _run(exit_watcher.evaluate(p, live_price=0.65))
+        assert decision.should_exit
+        assert decision.reason == ExitReason.STRATEGY_EXIT.value
+    finally:
+        StrategyRegistry._reset_for_tests()
+
+
+def test_registry_evaluator_holds_safe_close_when_rem_above_30s():
+    """safe_close position with candle rem 50s (above 30s threshold) must hold."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        res_at = datetime.now(timezone.utc) + timedelta(seconds=50)  # rem ≈ 50s, above 30s
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.65,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50,
+                           resolution_at=res_at),
+            strategy_type="late_entry_v3",
+            active_preset="safe_close",
+            selected_timeframe="5m",
+        )
+        decision = _run(exit_watcher.evaluate(p, live_price=0.65))
+        assert not decision.should_exit
+    finally:
+        StrategyRegistry._reset_for_tests()
+
+
+def test_registry_evaluator_close_sweep_has_no_force_exit():
+    """close_sweep positions intentionally lack a fixed-time exit — must hold."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        # Rem 5s — would force-close on safe_close, must NOT close on close_sweep.
+        res_at = datetime.now(timezone.utc) + timedelta(seconds=5)
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.65,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50,
+                           resolution_at=res_at),
+            strategy_type="late_entry_v3",
+            active_preset="close_sweep",
+            selected_timeframe="5m",
+        )
+        decision = _run(exit_watcher.evaluate(p, live_price=0.65))
+        assert not decision.should_exit, (
+            "close_sweep has no force-exit; only flip-stop / TP / SL can close it"
+        )
+    finally:
+        StrategyRegistry._reset_for_tests()
+
+
+def test_registry_evaluator_fires_flip_hunter_5m_force_exit_at_160s():
+    """flip_hunter 5m closes when candle rem ≤ 160s (= end of early entry window)."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        res_at = datetime.now(timezone.utc) + timedelta(seconds=155)  # rem ≈ 155s, below 160s threshold
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.62,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50,
+                           resolution_at=res_at),
+            strategy_type="late_entry_v3",
+            active_preset="flip_hunter",
+            selected_timeframe="5m",
+        )
+        decision = _run(exit_watcher.evaluate(p, live_price=0.62))
+        assert decision.should_exit
+        assert decision.reason == ExitReason.STRATEGY_EXIT.value
+    finally:
+        StrategyRegistry._reset_for_tests()
+
+
+def test_registry_evaluator_holds_flip_hunter_15m_above_threshold():
+    """flip_hunter 15m must hold when rem > 480s (= early-window boundary)."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        res_at = datetime.now(timezone.utc) + timedelta(seconds=600)  # rem 600s, above 480s
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.62,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50,
+                           resolution_at=res_at),
+            strategy_type="late_entry_v3",
+            active_preset="flip_hunter",
+            selected_timeframe="15m",
+        )
+        decision = _run(exit_watcher.evaluate(p, live_price=0.62))
+        assert not decision.should_exit
+    finally:
+        StrategyRegistry._reset_for_tests()
+
+
+def test_registry_evaluator_no_resolution_at_no_force_exit():
+    """Without resolution_at the watcher cannot compute rem — force-exit silent."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        # resolution_at=None means seconds_to_close unknown — strategy holds.
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.65,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50,
+                           resolution_at=None),
+            strategy_type="late_entry_v3",
+            active_preset="safe_close",
+            selected_timeframe="5m",
+        )
+        decision = _run(exit_watcher.evaluate(p, live_price=0.65))
+        assert not decision.should_exit
+    finally:
+        StrategyRegistry._reset_for_tests()
+
+
 def test_evaluate_ignores_tp_pct_when_applied_is_none():
     """User edits to user_settings.tp_pct must NOT bleed into open positions.
 

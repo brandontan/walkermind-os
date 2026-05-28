@@ -1344,7 +1344,13 @@ async def run_once() -> None:
                 market_filters = _build_market_filters(user_ctx.risk_profile, row)
                 # Pass preset-specific params when the user is on a candle preset;
                 # full_auto/default passes None so scan() falls back to global config.
-                _le_pp = _CANDLE_PRESET_PARAMS.get(active_preset)
+                # Uses live config (env-tunable) + timeframe-aware flip_hunter via
+                # _resolve_preset_params — same resolver as run_close_sweep_fast.
+                _le_pp = (
+                    _resolve_preset_params(active_preset, row.get("selected_timeframe"))
+                    if active_preset in _CANDLE_PRESETS else None
+                )
+                _le_force = _le_pp.get("force_exit_at_rem_sec") if _le_pp else None
                 late_entry_cands = await late_entry_strat.scan(
                     market_filters, user_ctx,
                     min_ask_diff=float(_le_pp["min_ask_diff"]) if _le_pp else None,
@@ -1353,6 +1359,7 @@ async def run_once() -> None:
                     fav_price_max=float(_le_pp["fav_price_max"]) if _le_pp else None,
                     min_entry_sec=float(_le_pp["min_entry_sec"]) if _le_pp and "min_entry_sec" in _le_pp else None,
                     underdog_mode=bool(_le_pp.get("underdog_mode", False)) if _le_pp else False,
+                    force_exit_at_rem_sec=float(_le_force) if _le_force is not None else None,
                 )
             except Exception as exc:
                 user_log.warning("late_entry_v3_run_failed", error=str(exc))
@@ -1450,11 +1457,14 @@ async def run_once() -> None:
 
 _CANDLE_PRESETS: frozenset[str] = frozenset({"close_sweep", "safe_close", "flip_hunter"})
 
-# Per-preset scan params for late_entry_v3.
-# close_sweep : final 35s, moderate lean, fav ≥0.55 — recommended, proven
-# safe_close  : entry 30–60s before close (elapsed 240–270s for 5m), tighter lean
-# flip_hunter : early 140s, enter cheap side 0.26–0.35 expecting a late flip
-_CANDLE_PRESET_PARAMS: dict[str, dict[str, object]] = {
+# Per-preset scan params for late_entry_v3. Kreo-aligned (post WARP/ROOT/safe-close-flip-hunter-kreo-parity).
+# close_sweep : final 35s, moderate lean, fav ≥0.55 — holds to candle resolution
+# safe_close  : enter rem 30–60s (elapsed 240–270s 5m / 840–870s 15m), Min Edge 1%, force-exit rem 30s
+# flip_hunter : Kreo "Early Flip Hunter" — enter FIRST 140s 5m / 420s 15m, With Trend (favored side),
+#               Min Edge 3%, force-exit at upper bound of entry window
+# Static fallback when get_settings() fails (import / test edge cases).
+# Runtime path always goes through _resolve_preset_params for live env override.
+_CANDLE_PRESET_STATIC: dict[str, dict[str, object]] = {
     "close_sweep": {
         "min_ask_diff":    0.05,
         "entry_window_sec": 35.0,
@@ -1462,20 +1472,93 @@ _CANDLE_PRESET_PARAMS: dict[str, dict[str, object]] = {
         "fav_price_max":   0.70,
     },
     "safe_close": {
-        "min_ask_diff":    0.08,
+        "min_ask_diff":    0.01,                # Kreo Min Edge 1%
         "entry_window_sec": 60.0,
         "fav_price_min":   0.60,
         "fav_price_max":   0.70,
-        "min_entry_sec":   30.0,   # skip final 30s — only enter between 30–60s before close
+        "min_entry_sec":   30.0,
+        "force_exit_at_rem_sec": 30.0,          # exit BEFORE noisy final 30s
     },
     "flip_hunter": {
-        "min_ask_diff":    0.05,
-        "entry_window_sec": 140.0,
-        "fav_price_min":   0.26,   # underdog price floor (cheap side)
-        "fav_price_max":   0.36,   # underdog price ceiling
-        "underdog_mode":   True,   # enter the cheap side, not the favored side
+        "min_ask_diff":    0.03,                # Kreo Min Edge 3%
+        "entry_window_sec": 300.0,              # 5m default — _resolve overrides per tf
+        "fav_price_min":   0.50,                # favored side (was 0.26 underdog floor)
+        "fav_price_max":   0.95,                # skip near-resolved (was 0.36 underdog ceiling)
+        "min_entry_sec":   160.0,               # 5m default — _resolve overrides per tf
+        "underdog_mode":   False,               # Kreo "With Trend" → favored side
+        "force_exit_at_rem_sec": 160.0,         # 5m default — _resolve overrides per tf
     },
 }
+# Back-compat alias kept so any external test imports still resolve.
+_CANDLE_PRESET_PARAMS: dict[str, dict[str, object]] = _CANDLE_PRESET_STATIC
+
+
+def _resolve_preset_params(
+    active_preset: str | None,
+    timeframe: str | None,
+) -> dict[str, object]:
+    """Return the late_entry_v3 scan params for (preset, timeframe).
+
+    Reads live config so Fly secrets can override per-preset values without a
+    code change. Falls back to ``_CANDLE_PRESET_STATIC`` on any config error.
+
+    flip_hunter is the only timeframe-aware preset (Kreo splits elapsed-time
+    windows per candle length: 0–140s for 5m, 0–420s for 15m). safe_close +
+    close_sweep use rem-time semantics that are identical across timeframes.
+    """
+    if active_preset not in _CANDLE_PRESETS:
+        return _CANDLE_PRESET_STATIC.get(
+            active_preset or "close_sweep", _CANDLE_PRESET_STATIC["close_sweep"]
+        )
+    tf = (timeframe or "5m").lower()
+    try:
+        from ...config import get_settings as _gs
+        cfg = _gs()
+    except Exception:
+        # Static fallback — flip_hunter needs a 15m variant since its rem window
+        # scales with candle length. safe_close + close_sweep are tf-invariant.
+        if active_preset == "flip_hunter" and tf == "15m":
+            base = dict(_CANDLE_PRESET_STATIC["flip_hunter"])
+            base["entry_window_sec"] = 900.0
+            base["min_entry_sec"] = 480.0
+            base["force_exit_at_rem_sec"] = 480.0
+            return base
+        return _CANDLE_PRESET_STATIC[active_preset]
+    if active_preset == "close_sweep":
+        return {
+            "min_ask_diff":    cfg.PRESET_CLOSE_SWEEP_MIN_ASK_DIFF,
+            "entry_window_sec": cfg.PRESET_CLOSE_SWEEP_WINDOW_SEC,
+            "fav_price_min":   cfg.PRESET_CLOSE_SWEEP_FAV_PRICE_MIN,
+            "fav_price_max":   0.70,
+            # close_sweep intentionally has no force-exit — holds to resolution.
+        }
+    if active_preset == "safe_close":
+        return {
+            "min_ask_diff":    cfg.PRESET_SAFE_CLOSE_MIN_ASK_DIFF,
+            "entry_window_sec": cfg.PRESET_SAFE_CLOSE_WINDOW_SEC,
+            "fav_price_min":   cfg.PRESET_SAFE_CLOSE_FAV_PRICE_MIN,
+            "fav_price_max":   0.70,
+            "min_entry_sec":   cfg.PRESET_SAFE_CLOSE_MIN_ENTRY_SEC,
+            "force_exit_at_rem_sec": cfg.PRESET_SAFE_CLOSE_FORCE_EXIT_REM_SEC,
+        }
+    # flip_hunter — Kreo Early Flip Hunter, timeframe-aware
+    if tf == "15m":
+        min_rem = cfg.PRESET_FLIP_HUNTER_15M_MIN_REM_SEC
+        max_rem = cfg.PRESET_FLIP_HUNTER_15M_MAX_REM_SEC
+        force_exit = cfg.PRESET_FLIP_HUNTER_15M_FORCE_EXIT_REM_SEC
+    else:
+        min_rem = cfg.PRESET_FLIP_HUNTER_5M_MIN_REM_SEC
+        max_rem = cfg.PRESET_FLIP_HUNTER_5M_MAX_REM_SEC
+        force_exit = cfg.PRESET_FLIP_HUNTER_5M_FORCE_EXIT_REM_SEC
+    return {
+        "min_ask_diff":    cfg.PRESET_FLIP_HUNTER_MIN_ASK_DIFF,
+        "entry_window_sec": max_rem,
+        "fav_price_min":   cfg.PRESET_FLIP_HUNTER_FAV_PRICE_MIN,
+        "fav_price_max":   cfg.PRESET_FLIP_HUNTER_FAV_PRICE_MAX,
+        "min_entry_sec":   min_rem,
+        "underdog_mode":   False,           # Kreo With Trend
+        "force_exit_at_rem_sec": force_exit,
+    }
 
 
 async def run_close_sweep_fast() -> None:
@@ -1491,7 +1574,6 @@ async def run_close_sweep_fast() -> None:
 
     Each user is isolated — one user's failure never blocks the rest.
     """
-    from ...config import get_settings as _get_settings
     from ...domain.strategy.registry import StrategyRegistry as _Registry
 
     try:
@@ -1506,34 +1588,6 @@ async def run_close_sweep_fast() -> None:
         logger.error("close_sweep_fast_load_users_failed", error=str(exc))
         return
 
-    # Load config overrides once per tick (env-tunable per preset)
-    try:
-        _cfg = _get_settings()
-        _preset_params: dict[str, dict[str, object]] = {
-            "close_sweep": {
-                "min_ask_diff":    _cfg.PRESET_CLOSE_SWEEP_MIN_ASK_DIFF,
-                "entry_window_sec": _cfg.PRESET_CLOSE_SWEEP_WINDOW_SEC,
-                "fav_price_min":   _cfg.PRESET_CLOSE_SWEEP_FAV_PRICE_MIN,
-                "fav_price_max":   0.70,
-            },
-            "safe_close": {
-                "min_ask_diff":    _cfg.PRESET_SAFE_CLOSE_MIN_ASK_DIFF,
-                "entry_window_sec": _cfg.PRESET_SAFE_CLOSE_WINDOW_SEC,
-                "fav_price_min":   _cfg.PRESET_SAFE_CLOSE_FAV_PRICE_MIN,
-                "fav_price_max":   0.70,
-                "min_entry_sec":   _cfg.PRESET_SAFE_CLOSE_MIN_ENTRY_SEC,
-            },
-            "flip_hunter": {
-                "min_ask_diff":    _cfg.PRESET_FLIP_HUNTER_MIN_ASK_DIFF,
-                "entry_window_sec": _cfg.PRESET_FLIP_HUNTER_WINDOW_SEC,
-                "fav_price_min":   _cfg.PRESET_FLIP_HUNTER_FAV_PRICE_MIN,
-                "fav_price_max":   _cfg.PRESET_FLIP_HUNTER_FAV_PRICE_MAX,
-                "underdog_mode":   True,
-            },
-        }
-    except Exception:
-        _preset_params = _CANDLE_PRESET_PARAMS  # type: ignore[assignment]
-
     tel = ScanTelemetry()
     fast_run_id: str = str(_uuid_mod.uuid4())
     candle_users_evaluated = 0
@@ -1543,12 +1597,14 @@ async def run_close_sweep_fast() -> None:
             continue
         candle_users_evaluated += 1
 
-        pp = _preset_params.get(active_preset, _CANDLE_PRESET_PARAMS["close_sweep"])
-
         _tf = row.get("selected_timeframe")
         selected_timeframe: str | None = str(_tf) if _tf else None
         selected_assets: list[str] = [str(a) for a in (row.get("selected_assets") or [])]
         user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
+
+        # Per-user param resolution — flip_hunter is timeframe-aware so we cannot
+        # share a single dict across users (mixed 5m/15m settings would clobber).
+        pp = _resolve_preset_params(active_preset, selected_timeframe)
 
         # Upsert the live candle window so _process_candidate's _load_market
         # gate resolves the markets (market_sync never pulls these micro candles).
@@ -1563,6 +1619,7 @@ async def run_close_sweep_fast() -> None:
         try:
             user_ctx = _build_user_context(row)
             market_filters = _build_market_filters(user_ctx.risk_profile, row)
+            _force_exit = pp.get("force_exit_at_rem_sec")
             cands = await late_entry_strat.scan(
                 market_filters,
                 user_ctx,
@@ -1572,6 +1629,7 @@ async def run_close_sweep_fast() -> None:
                 fav_price_max=float(pp["fav_price_max"]),
                 min_entry_sec=float(pp["min_entry_sec"]) if "min_entry_sec" in pp else None,
                 underdog_mode=bool(pp.get("underdog_mode", False)),
+                force_exit_at_rem_sec=float(_force_exit) if _force_exit is not None else None,
             )
         except Exception as exc:
             user_log.warning("close_sweep_fast_run_failed", error=str(exc))

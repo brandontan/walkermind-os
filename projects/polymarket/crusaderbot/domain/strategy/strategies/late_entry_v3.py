@@ -145,6 +145,7 @@ class LateEntryV3Strategy(BaseStrategy):
         fav_price_max: float | None = None,
         min_entry_sec: float | None = None,
         underdog_mode: bool = False,
+        force_exit_at_rem_sec: float | None = None,
     ) -> list[SignalCandidate]:
         """Emit one candidate per in-window crypto candle market.
 
@@ -157,6 +158,12 @@ class LateEntryV3Strategy(BaseStrategy):
         ``underdog_mode``: when True, enter the cheap (low-probability) side
         priced within [fav_price_min, fav_price_max] instead of the majority
         side. Used by flip_hunter to catch asymmetric upside on late flips.
+
+        ``force_exit_at_rem_sec``: if set, recorded in candidate metadata so the
+        exit watcher closes the position when the candle's remaining time drops
+        to this value (Kreo-style fixed-time exit; e.g. safe_close 30s exits
+        BEFORE the noisy final 30s). When None, no time-based exit is applied
+        and the position runs to TP/SL/flip-stop/market_expired as before.
 
         Returns an empty list on any failure or when no market qualifies.
         Never raises — scan errors must not crash the scheduler scan loop.
@@ -219,6 +226,7 @@ class LateEntryV3Strategy(BaseStrategy):
                     fav_price_max=fav_price_max,
                     min_entry_sec=min_entry_sec,
                     underdog_mode=underdog_mode,
+                    force_exit_at_rem_sec=force_exit_at_rem_sec,
                 )
             except Exception as exc:
                 logger.debug("late_entry_v3 scan: skip market err=%s", exc)
@@ -258,12 +266,49 @@ class LateEntryV3Strategy(BaseStrategy):
         return candidates
 
     async def evaluate_exit(self, position: dict) -> ExitDecision:
-        """Flip-stop: exit when the favored side's live price has flipped down.
+        """Per-tick exit hook: Kreo-style fixed-time exit, then flip-stop.
+
+        Two-stage check:
+
+        1. **Fixed-time exit** (Kreo parity): if the exit_watcher passes
+           ``force_exit_at_rem_sec`` (preset+timeframe lookup) and
+           ``seconds_to_close`` (derived from ``resolution_at``), close as soon
+           as the candle's remaining seconds drop to the threshold. safe_close
+           5m exits at rem=30s (= elapsed 270s) so the position is OUT before
+           the noisy final 30s where SL gets hit at random.
+
+        2. **Flip-stop** (existing): exit when the favored side's live price has
+           collapsed below ``LATE_ENTRY_FLIP_STOP`` (default 0.10, near-disabled
+           for close_sweep so it holds to resolution).
 
         ``position['current_price']`` is the live mark for the position's side,
-        injected by the exit watcher. When it is missing we hold (the watcher's
-        TP/SL and market-expiry paths still protect the position).
+        injected by the exit watcher. When missing, neither gate fires and the
+        watcher's TP/SL + market-expiry paths still protect the position.
         """
+        # 1. Fixed-time exit. exit_watcher passes ``force_exit_at_rem_sec`` +
+        #    ``seconds_to_close`` from the (preset, timeframe, resolution_at)
+        #    triple; both must be present to fire. Threshold uses ≤ so an
+        #    exact match (rem == threshold) closes immediately.
+        force_at = position.get("force_exit_at_rem_sec")
+        secs_left = position.get("seconds_to_close")
+        if force_at is not None and secs_left is not None:
+            try:
+                _force_at = float(force_at)
+                _secs_left = float(secs_left)
+            except (TypeError, ValueError):
+                _force_at = _secs_left = None  # type: ignore[assignment]
+            if _force_at is not None and _secs_left is not None and _secs_left <= _force_at:
+                return ExitDecision(
+                    should_exit=True,
+                    reason="strategy_exit",
+                    metadata={
+                        "force_exit_at_rem_sec": _force_at,
+                        "seconds_to_close": _secs_left,
+                        "trigger": "fixed_time_exit",
+                    },
+                )
+
+        # 2. Flip-stop (existing behaviour, unchanged).
         try:
             flip_stop = get_settings().LATE_ENTRY_FLIP_STOP
         except Exception:
@@ -277,7 +322,11 @@ class LateEntryV3Strategy(BaseStrategy):
             return ExitDecision(
                 should_exit=True,
                 reason="strategy_exit",
-                metadata={"flip_stop_price": flip_stop, "current_price": price},
+                metadata={
+                    "flip_stop_price": flip_stop,
+                    "current_price": price,
+                    "trigger": "flip_stop",
+                },
             )
         return ExitDecision(should_exit=False, reason="hold")
 
@@ -389,6 +438,7 @@ async def _evaluate_market(
     fav_price_max: float = FAV_PRICE_MAX,
     min_entry_sec: float | None = None,
     underdog_mode: bool = False,
+    force_exit_at_rem_sec: float | None = None,
 ) -> tuple[SignalCandidate | None, str | None]:
     """Return (candidate, None) on success or (None, reject_reason) on any gate failure.
 
@@ -557,6 +607,12 @@ async def _evaluate_market(
             # between scan and fill cannot place the trade outside the band.
             "fav_price_min": fav_price_min,
             "fav_price_max": fav_price_max,
+            # Kreo-style fixed-time exit: close when candle's remaining seconds
+            # drop to this value (e.g. safe_close 30s exits BEFORE the noisy
+            # final 30s; flip_hunter 5m 160s exits at the end of the early
+            # entry window). None = no time-based exit (close_sweep holds to
+            # candle resolution). Read by evaluate_exit at exit_watcher tick.
+            "force_exit_at_rem_sec": force_exit_at_rem_sec,
             "reason": (
                 f"late_entry: {entry_side} {'underdog' if underdog_mode else 'fav'} "
                 f"{entry_price:.2f}, diff {ask_diff:.2f}, "
@@ -571,4 +627,63 @@ async def _evaluate_market(
     ), None
 
 
-__all__ = ["LateEntryV3Strategy", "suggested_trade_size", "resolve_per_trade_ceiling"]
+# Static fallback for force_exit_at_rem_sec_for() when get_settings() fails
+# (e.g. test environments without a .env). Kept in sync with the config.py
+# defaults so the helper produces sensible values even without live config.
+_FORCE_EXIT_STATIC: dict[str, dict[str, float]] = {
+    "safe_close": {"5m": 30.0, "15m": 30.0},
+    "flip_hunter": {"5m": 160.0, "15m": 480.0},
+    # close_sweep intentionally absent — no force-exit.
+}
+
+
+def force_exit_at_rem_sec_for(
+    active_preset: str | None,
+    timeframe: str | None,
+) -> float | None:
+    """Look up the Kreo-style fixed-time exit threshold for (preset, timeframe).
+
+    Returns the remaining-seconds threshold at or below which the position
+    should be force-closed by ``evaluate_exit``. Returns ``None`` when the
+    preset/timeframe combination has no fixed-time exit configured (e.g.
+    close_sweep holds to candle resolution; unknown presets are pass-through).
+
+    Used by:
+      * signal_scan_job during the entry scan to seed candidate metadata
+        (so a candidate created mid-tick carries its own exit threshold).
+      * exit_watcher when enriching the position dict for evaluate_exit
+        (so a position whose preset was set after entry still gets the rule).
+
+    Centralising the lookup here keeps the (preset, timeframe) → rem_sec map
+    in one place — no duplicated literals between the entry and exit paths.
+    Falls back to ``_FORCE_EXIT_STATIC`` if ``get_settings()`` raises so the
+    helper produces sensible values in test environments without a .env.
+    """
+    if not active_preset:
+        return None
+    tf = (timeframe or "5m").lower()
+    try:
+        cfg = get_settings()
+        if active_preset == "safe_close":
+            # Same rem threshold for both 5m and 15m — Kreo exits at elapsed
+            # 270s (5m) / 870s (15m), both yielding rem=30s.
+            return float(cfg.PRESET_SAFE_CLOSE_FORCE_EXIT_REM_SEC)
+        if active_preset == "flip_hunter":
+            if tf == "15m":
+                return float(cfg.PRESET_FLIP_HUNTER_15M_FORCE_EXIT_REM_SEC)
+            return float(cfg.PRESET_FLIP_HUNTER_5M_FORCE_EXIT_REM_SEC)
+    except Exception:
+        static = _FORCE_EXIT_STATIC.get(active_preset)
+        if static is None:
+            return None
+        return static.get(tf, static["5m"])
+    # close_sweep + any other preset: hold to candle resolution.
+    return None
+
+
+__all__ = [
+    "LateEntryV3Strategy",
+    "suggested_trade_size",
+    "resolve_per_trade_ceiling",
+    "force_exit_at_rem_sec_for",
+]

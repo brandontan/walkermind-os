@@ -1250,3 +1250,74 @@ def test_run_close_sweep_fast_unregistered_strategy_returns():
             patch.object(job, "_load_enrolled_users", new=load):
         asyncio.run(job.run_close_sweep_fast())
     load.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _resolve_preset_params — Kreo-aligned per-preset / per-timeframe resolution
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_preset_params_close_sweep_has_no_force_exit():
+    """close_sweep holds to candle resolution — no force_exit_at_rem_sec key."""
+    pp = job._resolve_preset_params("close_sweep", "5m")
+    assert "force_exit_at_rem_sec" not in pp
+
+
+def test_resolve_preset_params_safe_close_emits_force_exit_30s():
+    """safe_close has force_exit_at_rem_sec=30s for both 5m and 15m (same rem semantics)."""
+    pp_5m = job._resolve_preset_params("safe_close", "5m")
+    pp_15m = job._resolve_preset_params("safe_close", "15m")
+    assert pp_5m["force_exit_at_rem_sec"] == pytest.approx(30.0)
+    assert pp_15m["force_exit_at_rem_sec"] == pytest.approx(30.0)
+    # safe_close stays in standard mode (favored side)
+    assert pp_5m.get("underdog_mode", False) is False
+    # min_entry_sec preserved so the scan still gates final 30s out
+    assert pp_5m["min_entry_sec"] == pytest.approx(30.0)
+
+
+def test_resolve_preset_params_flip_hunter_5m_kreo_alignment():
+    """flip_hunter 5m: with-trend (NOT underdog), early window (rem 160-300), force-exit 160s, Min Edge 3%."""
+    pp = job._resolve_preset_params("flip_hunter", "5m")
+    assert pp.get("underdog_mode", False) is False, "Kreo With Trend → favored side"
+    assert pp["entry_window_sec"] == pytest.approx(300.0), "rem upper = full 5m candle"
+    assert pp["min_entry_sec"] == pytest.approx(160.0), "rem lower = end of first 140s elapsed"
+    assert pp["force_exit_at_rem_sec"] == pytest.approx(160.0)
+    assert pp["min_ask_diff"] == pytest.approx(0.03), "Kreo Min Edge 3%"
+
+
+def test_resolve_preset_params_flip_hunter_15m_kreo_alignment():
+    """flip_hunter 15m: same with-trend semantics, scaled to 15m candle (rem 480-900, force-exit 480)."""
+    pp = job._resolve_preset_params("flip_hunter", "15m")
+    assert pp.get("underdog_mode", False) is False
+    assert pp["entry_window_sec"] == pytest.approx(900.0)
+    assert pp["min_entry_sec"] == pytest.approx(480.0)
+    assert pp["force_exit_at_rem_sec"] == pytest.approx(480.0)
+
+
+def test_resolve_preset_params_flip_hunter_unknown_tf_defaults_to_5m():
+    """Missing / unknown timeframe defaults to 5m mapping (safe default)."""
+    pp_default = job._resolve_preset_params("flip_hunter", None)
+    pp_5m = job._resolve_preset_params("flip_hunter", "5m")
+    assert pp_default["entry_window_sec"] == pp_5m["entry_window_sec"]
+    assert pp_default["force_exit_at_rem_sec"] == pp_5m["force_exit_at_rem_sec"]
+
+
+def test_resolve_preset_params_non_candle_preset_falls_back_to_static():
+    """Unknown / non-candle preset returns the static fallback (no live config read)."""
+    pp = job._resolve_preset_params("full_auto", "5m")
+    # full_auto isn't in _CANDLE_PRESET_STATIC so falls through to close_sweep default.
+    assert "min_ask_diff" in pp
+    assert pp["min_ask_diff"] == pytest.approx(0.05)  # close_sweep static default
+
+
+def test_resolve_preset_params_safe_close_loosened_to_kreo_min_edge():
+    """Kreo Min Edge 1% → min_ask_diff 0.01 (previously 0.08, much tighter)."""
+    pp = job._resolve_preset_params("safe_close", "5m")
+    assert pp["min_ask_diff"] == pytest.approx(0.01)
+
+
+def test_resolve_preset_params_flip_hunter_fav_band_no_longer_underdog():
+    """flip_hunter band changed from underdog [0.26, 0.36] to favored [0.50, 0.95]."""
+    pp = job._resolve_preset_params("flip_hunter", "5m")
+    assert pp["fav_price_min"] == pytest.approx(0.50)
+    assert pp["fav_price_max"] == pytest.approx(0.95)
