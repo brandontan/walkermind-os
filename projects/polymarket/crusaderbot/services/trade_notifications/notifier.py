@@ -33,6 +33,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 
 from ... import notifications
+from ...webtrader.backend import notification_prefs as _notif_prefs
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -83,6 +84,31 @@ class NotificationEvent(str, enum.Enum):
     MANUAL = "manual"
     EMERGENCY = "emergency"
     COPY_TRADE = "copy_trade"
+
+
+# Map each canonical NotificationEvent → the user-pref alert_key surfaced in
+# the WebTrader Notification Preferences card. Keep ENTRY + COPY_TRADE under
+# ``trade_opened`` (single TRADING toggle in the UI) and all close variants
+# under ``trade_closed``.
+_EVENT_PREF_KEY: dict[NotificationEvent, str] = {
+    NotificationEvent.ENTRY:      "trade_opened",
+    NotificationEvent.COPY_TRADE: "trade_opened",
+    NotificationEvent.TP_HIT:     "trade_closed",
+    NotificationEvent.SL_HIT:     "trade_closed",
+    NotificationEvent.MANUAL:     "trade_closed",
+    NotificationEvent.EMERGENCY:  "trade_closed",
+}
+
+# Short titles shown in the WebTrader AlertCenter card header. The full
+# message body (already-rendered Telegram text) goes into the body field.
+_EVENT_WEB_TITLE: dict[NotificationEvent, str] = {
+    NotificationEvent.ENTRY:      "Trade opened",
+    NotificationEvent.COPY_TRADE: "Copy trade opened",
+    NotificationEvent.TP_HIT:     "Take-profit hit",
+    NotificationEvent.SL_HIT:     "Stop-loss hit",
+    NotificationEvent.MANUAL:     "Manual close",
+    NotificationEvent.EMERGENCY:  "Emergency close",
+}
 
 
 def _market_label(market_question: Optional[str], market_id: str) -> str:
@@ -507,8 +533,29 @@ class TradeNotifier:
         market_id: str,
         reply_markup: Optional[InlineKeyboardMarkup] = None,
     ) -> None:
-        """Send text to user. Catches all failures — runtime must not be interrupted."""
+        """Send text to user. Catches all failures — runtime must not be interrupted.
+
+        Honors notification_prefs (web/tg channels): mirrors to the user's
+        WebTrader AlertCenter when web is enabled, only fires TG send when tg
+        is enabled. The legacy ``notifications_enabled_by_telegram_id`` flag
+        still gates the TG channel as a global kill switch.
+        """
         from ...users import notifications_enabled_by_telegram_id
+
+        alert_key = _EVENT_PREF_KEY.get(event, "trade_opened")
+        web_title = _EVENT_WEB_TITLE.get(event, "Trade update")
+        try:
+            send_tg = await _notif_prefs.route_outgoing_alert(
+                telegram_user_id=telegram_user_id,
+                alert_key=alert_key,
+                web_title=web_title,
+                web_body=text,
+                severity="info",
+            )
+        except Exception:
+            send_tg = True
+        if not send_tg:
+            return
 
         if not await notifications_enabled_by_telegram_id(telegram_user_id):
             logging.getLogger(__name__).info(

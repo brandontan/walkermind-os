@@ -31,6 +31,7 @@ from uuid import UUID
 
 from .. import notifications
 from ..config import get_settings
+from ..webtrader.backend import notification_prefs as _notif_prefs
 
 logger = logging.getLogger(__name__)
 
@@ -274,16 +275,69 @@ def _format_exit_label(market_question: Optional[str], market_id: str) -> str:
     return html.escape(market_question or market_id)
 
 
+_EXIT_KIND_PREF_KEY: dict[str, str] = {
+    "tp_hit":         "trade_closed",
+    "sl_hit":         "trade_closed",
+    "force_close":    "trade_closed",
+    "strategy_exit":  "trade_closed",
+    "manual_close":   "trade_closed",
+    "market_expired": "position_resolved",
+    "close_failed":   "bot_errors",
+}
+
+_EXIT_KIND_WEB_TITLE: dict[str, str] = {
+    "tp_hit":         "Take-profit hit",
+    "sl_hit":         "Stop-loss hit",
+    "force_close":    "Position force-closed",
+    "strategy_exit":  "Strategy exit",
+    "manual_close":   "Manual close",
+    "market_expired": "Market resolved",
+    "close_failed":   "Close failed",
+}
+
+_EXIT_KIND_SEVERITY: dict[str, str] = {
+    "tp_hit":         "info",
+    "sl_hit":         "info",
+    "force_close":    "warning",
+    "strategy_exit":  "info",
+    "manual_close":   "info",
+    "market_expired": "info",
+    "close_failed":   "warning",
+}
+
+
 async def _send_user_exit_alert(
     telegram_user_id: int, text: str, *, alert_kind: str, market_id: str,
 ) -> bool:
     """Send a user-side exit alert and log a WARNING if delivery was dropped.
+
+    Honors the user's notification_prefs (web/tg channels) — writes a
+    per-user system_alerts row when the web channel is on, and only fires
+    the Telegram send when the tg channel is on. Fail-open semantics from
+    notification_prefs guarantee unknown users / unknown keys still notify.
 
     ``notifications.send`` already retries transient errors and logs at ERROR
     on permanent failure. This wrapper adds an alert-kind-tagged WARNING so a
     dropped TP/SL/force/manual receipt surfaces in logs with its lifecycle
     context — required by WARP-53 "no silent swallow" gate.
     """
+    alert_key = _EXIT_KIND_PREF_KEY.get(alert_kind, "trade_closed")
+    web_title = _EXIT_KIND_WEB_TITLE.get(alert_kind, "Trade update")
+    severity = _EXIT_KIND_SEVERITY.get(alert_kind, "info")
+
+    send_tg = await _notif_prefs.route_outgoing_alert(
+        telegram_user_id=telegram_user_id,
+        alert_key=alert_key,
+        web_title=web_title,
+        web_body=text,
+        severity=severity,
+    )
+    if not send_tg:
+        # User opted out of TG for this alert key — web mirror (if any)
+        # already written by route_outgoing_alert. Treat as delivered so
+        # callers do not retry / log as a drop.
+        return True
+
     delivered = await notifications.send(telegram_user_id, text)
     if not delivered:
         logger.warning(
