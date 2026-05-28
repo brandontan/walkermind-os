@@ -1,7 +1,7 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-05-28 21:00
+**Last Updated : 2026-05-28 22:30
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
@@ -106,6 +106,7 @@ CRUSADERBOT is considered **DONE** only when:
 
 ## Active — In Progress
 
+- [x] WARP•R00T late-entry fill-drift guard [STANDARD/NARROW] — WARP/ROOT/late-entry-fill-drift-guard. Closes a fill-time correctness gap in close_sweep / safe_close / flip_hunter: late_entry_v3 candidates passed scan-time gates with one set of orderbook prices, then `_process_candidate` fetched the live fill price via `get_live_market_price` and built the TradeSignal with no re-validation. Candle markets drift 0.10+ in seconds, so actual fills landed wherever — prod 24h showed only 5.5% of safe_close trades + 17% of close_sweep trades inside the strategy's intended band (avg entry 0.45, with fills as low as 0.04 and as high as 0.94). Fix: `late_entry_v3._evaluate_market` now emits `fav_price_min/max` in candidate metadata; new gate 3c in `_process_candidate` (between live-price fetch and signal build) requires `live_fill_price ∈ [fav_price_min, fav_price_max)` — skipped_fill_drifted otherwise. Metadata-driven and opt-in: signal_following / lib / confluence_scalper candidates carry no band keys → gate no-ops. Risk gate's 13 steps + activation guards untouched. 6 new hermetic tests (4 gate-3c + 2 strategy-metadata); full suite 1866 pass; ruff + py_compile clean. Report: reports/forge/late-entry-fill-drift-guard.md.
 - [x] WARP•R00T LIVE+PAPER readiness pass — Lane 1 system-ready-audit [MINOR/FOUNDATION] MERGED #1409. Read-only audit. Verdict: 0 current risks. All 5 LIVE activation guards default false, assert_live_guards 8-condition chain, router GUARD_BYPASS_ATTEMPT logging + paper-fallback, LIVE-flip 8-gate checklist + typed CONFIRM, PAPER-default at schema layer across all three new-user paths verified. Surfaced 3 brittleness items for Lane 2. Report: reports/forge/system-ready-audit.md.
 - [x] WARP•R00T LIVE+PAPER readiness pass — Lane 2 paper-default-hardening [STANDARD/NARROW] MERGED #1410. Belt-and-suspenders: explicit `trading_mode='paper'` in every user_settings INSERT (users.py upsert_user + lazy get_settings_for + new explicit INSERT in webtrader/backend/auth.py signup); silent `except Exception: pass` in webtrader signup replaced with logger.exception; new hermetic tests/test_paper_default_invariant.py (5 tests, INSERT-call-shape + source-regex layers). Full suite 1859 pass; ruff + py_compile clean. PAPER remains the only mode any user receives at creation regardless of ENABLE_LIVE_TRADING. Report: reports/forge/paper-default-hardening.md.
 - [x] WARP•R00T LIVE+PAPER readiness pass — Lane 3 live-readiness-final [MINOR] MERGED #1411. State-doc sync only. Updates LIVE_READINESS.md, PRODUCTION_CHECKLIST.md, WORKTODO.md, PROJECT_STATE.md, CHANGELOG.md to reflect Lanes 1+2 closure; owner-only "Final go-live sequence" preserved verbatim. Report: reports/forge/live-readiness-final.md.

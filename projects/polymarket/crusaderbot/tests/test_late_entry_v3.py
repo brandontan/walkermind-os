@@ -561,3 +561,50 @@ def test_flip_hunter_does_not_affect_standard_mode():
         ))
     assert len(cands) == 1
     assert cands[0].side == "YES"          # favored side, unchanged behaviour
+
+
+# ---------------------------------------------------------------------------
+# Candidate metadata carries the price band so _process_candidate can
+# re-validate the live fill price (fill-time band re-check guard).
+# ---------------------------------------------------------------------------
+
+
+def test_candidate_metadata_carries_fav_price_band_standard_mode():
+    """Standard mode must emit fav_price_min/max in metadata for fill-time re-check."""
+    strat = LateEntryV3Strategy()
+    m = _make_market(seconds_to_close=20.0)
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[m])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.65, 0.25))):
+        cands = _run(strat.scan(
+            _make_filters(), _make_context(),
+            min_ask_diff=0.05,
+            entry_window_sec=35.0,
+            fav_price_min=0.55,
+            fav_price_max=0.70,
+            underdog_mode=False,
+        ))
+    assert len(cands) == 1
+    md = cands[0].metadata
+    assert md["fav_price_min"] == pytest.approx(0.55, abs=1e-9)
+    assert md["fav_price_max"] == pytest.approx(0.70, abs=1e-9)
+
+
+def test_candidate_metadata_carries_fav_price_band_underdog_mode():
+    """flip_hunter underdog mode must also emit the band for fill-time re-check."""
+    strat = LateEntryV3Strategy()
+    m = _make_market(seconds_to_close=90.0)
+    with patch(_MARKETS_PATCH, new=AsyncMock(return_value=[m])), \
+         patch(_BOOK_PATCH, new=AsyncMock(side_effect=_book_side_effect(0.70, 0.30))):
+        cands = _run(strat.scan(
+            _make_filters(), _make_context(),
+            min_ask_diff=0.05,
+            entry_window_sec=140.0,
+            fav_price_min=0.26,
+            fav_price_max=0.36,
+            underdog_mode=True,
+        ))
+    assert len(cands) == 1
+    md = cands[0].metadata
+    assert md["fav_price_min"] == pytest.approx(0.26, abs=1e-9)
+    assert md["fav_price_max"] == pytest.approx(0.36, abs=1e-9)
+    assert md["underdog_mode"] is True

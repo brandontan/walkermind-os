@@ -552,6 +552,11 @@ async def _evaluate_market(
             "seconds_to_close": seconds_left,
             "flip_stop_price": flip_stop,
             "clob_liquidity": clob_liquidity,
+            # Entry-price band the candidate satisfied at scan time. Re-checked
+            # in _process_candidate against the live fill price so candle drift
+            # between scan and fill cannot place the trade outside the band.
+            "fav_price_min": fav_price_min,
+            "fav_price_max": fav_price_max,
             "reason": (
                 f"late_entry: {entry_side} {'underdog' if underdog_mode else 'fav'} "
                 f"{entry_price:.2f}, diff {ask_diff:.2f}, "
