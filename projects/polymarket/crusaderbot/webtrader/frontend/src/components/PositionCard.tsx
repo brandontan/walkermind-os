@@ -109,16 +109,16 @@ export function PositionCard({ market, positionValue, side, meta, metaAdvanced, 
         >
           {SIDE_LABEL[side]}
         </span>
-        <div className="flex gap-2.5 ml-auto">
+        <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 ml-auto min-w-0 justify-end">
           {meta.map((m, i) => (
-            <span key={i} className="pos-meta-cell">
+            <span key={i} className="pos-meta-cell whitespace-nowrap">
               {m}
             </span>
           ))}
           {metaAdvanced && metaAdvanced.length > 0 && (
             <AdvancedOnly>
               {metaAdvanced.map((m, i) => (
-                <span key={`adv-${i}`} className="pos-meta-cell">
+                <span key={`adv-${i}`} className="pos-meta-cell whitespace-nowrap">
                   {m}
                 </span>
               ))}

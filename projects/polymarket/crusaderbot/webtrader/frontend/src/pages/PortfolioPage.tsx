@@ -720,14 +720,16 @@ function PnlChart({
 // ── Position Row ──────────────────────────────────────────────────────────────
 
 const EXIT_LABEL: Record<string, string> = {
-  tp_hit: "TP",
-  sl_hit: "SL",
-  manual: "MNL",
-  strategy_exit: "STRAT",
-  resolution: "RES",
-  force_close: "FORCE",
-  close_failed: "ERR",
-  market_expired: "EXP",
+  tp_hit: "TP HIT",
+  sl_hit: "SL HIT",
+  manual: "CLOSED",
+  strategy_exit: "AUTO EXIT",
+  resolution: "RESOLVED",
+  resolution_win: "WIN",
+  resolution_loss: "LOSS",
+  force_close: "FORCED",
+  close_failed: "ERROR",
+  market_expired: "EXPIRED",
 };
 
 const EXIT_TONE: Record<string, string> = {
@@ -1052,9 +1054,9 @@ function fmtCents(price: number | null | undefined): string {
 // One label/value row inside the expandable trade detail panel.
 function DetailRow({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="flex justify-between gap-3 py-0.5 font-mono text-[10px]">
-      <span className="text-ink-3 uppercase tracking-[1px]">{label}</span>
-      <span className={tone ?? "text-ink-1"}>{value}</span>
+    <div className="flex items-baseline gap-2 py-[3px] font-mono text-[10px]">
+      <span className="w-[82px] shrink-0 text-ink-3 uppercase tracking-[0.5px]">{label}</span>
+      <span className={`flex-1 min-w-0 truncate text-right ${tone ?? "text-ink-1"}`}>{value}</span>
     </div>
   );
 }
