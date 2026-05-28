@@ -958,6 +958,33 @@ async def _process_candidate(
     except Exception as exc:
         log.warning("live_price_fetch_failed", market_id=cand.market_id, error=str(exc))
 
+    # 3b-i. Tick-alignment belt-and-suspenders (flip-hunter-stale-price-fix):
+    #       Polymarket CLOB tick is 0.01. A live price that is not on the
+    #       1¢ tick (e.g. 0.505) comes from the Gamma `outcomePrices`
+    #       seed/midpoint — not a real CLOB mark. `get_live_market_price`
+    #       already rejects these, but any caller path that bypasses the
+    #       helper would re-introduce the bug, so re-check here. Skip the
+    #       trade and record a telemetry skip so the operator can see the
+    #       reject rate.
+    if _live_fill_price is not None:
+        _cents = _live_fill_price * 100.0
+        if abs(_cents - round(_cents)) > 1e-6:
+            log.info(
+                "scan_outcome",
+                outcome="skipped_sub_cent_price",
+                side=side,
+                live_fill_price=_live_fill_price,
+                market_id=cand.market_id,
+                strategy=cand.strategy_name,
+                message=(
+                    f"Live price {_live_fill_price} not on 0.01 tick — "
+                    f"Gamma seed/midpoint fallback, not real CLOB activity"
+                ),
+            )
+            if telemetry is not None:
+                telemetry.record_skip("skipped_sub_cent_price")
+            return
+
     # 3c. Fill-time price-band re-check. Candle markets (late_entry_v3) can drift
     #     0.10+ between scan and fill — without this gate, trades fired at prices
     #     unrelated to the preset's intended band (e.g. safe_close 5.5% of trades
