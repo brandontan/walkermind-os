@@ -10,6 +10,7 @@
 
 ![Status](https://img.shields.io/badge/Status-Paper%20Beta-blue?style=for-the-badge)
 ![Execution](https://img.shields.io/badge/Execution-Paper%20Only-orange?style=for-the-badge)
+![Engineering](https://img.shields.io/badge/Engineering-Live%20Ready-success?style=for-the-badge)
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Private](https://img.shields.io/badge/Repo-Private-red?style=for-the-badge&logo=github)
 ![Engine](https://img.shields.io/badge/Engine-W.A.R.P-7c3aed?style=for-the-badge)
@@ -30,6 +31,24 @@ The system operates under a strict authority chain. WARP🔹CMD orchestrates. WA
 
 ---
 
+## Operating Posture
+
+**Production:** PAPER ONLY. All five LIVE activation guards — `ENABLE_LIVE_TRADING`,
+`EXECUTION_PATH_VALIDATED`, `CAPITAL_MODE_CONFIRMED`, `RISK_CONTROLS_VALIDATED`,
+`SECURITY_HARDENING_VALIDATED` — default `false` and are forced `false` in
+`fly.toml`. New users land on `trading_mode='paper'` by **both** schema column
+default **and** explicit `INSERT`; a LIVE flip requires an 8-gate checklist
+plus typed `CONFIRM`.
+
+**Engineering:** LIVE-ready. On-chain capital paths (withdraw, deposit sweep,
+gasless-Safe custody) are merged, SENTINEL-approved, and triple-gated OFF. No
+remaining `NotImplementedError` in the trading/risk/execution/redeem/withdraw/sweep
+paths. Remaining work to go live is owner-operational (fund master wallet,
+flip guards in the documented order). See
+[`projects/polymarket/crusaderbot/state/LIVE_READINESS.md`](projects/polymarket/crusaderbot/state/LIVE_READINESS.md).
+
+---
+
 ## System Architecture
 
 ```
@@ -39,7 +58,9 @@ WalkerMind OS
 └── WARP🔸CORE          Execution Team
     ├── WARP•FORGE       Build — implements, patches, refactors, opens PRs
     ├── WARP•SENTINEL    Review — audits MAJOR changes before merge
-    └── WARP•ECHO        Report — produces HTML reports and communication artifacts
+    ├── WARP•ECHO        Report — produces HTML reports and communication artifacts
+    └── WARP•R00T        Architect — root-cause investigation + system hardening
+                          (assigned explicitly; otherwise FORGE is the default)
 ```
 
 ---
@@ -57,6 +78,7 @@ Mr. Walker  →  WARP🔹CMD  →  WARP🔸CORE (WARP•FORGE / WARP•SENTINEL 
 | **WARP•FORGE** | Builder. Implements, patches, refactors, opens PRs. |
 | **WARP•SENTINEL** | Validator. Audits MAJOR changes before merge. |
 | **WARP•ECHO** | Reporter. Produces HTML reports and communication artifacts from validated data. |
+| **WARP•R00T** | System architect / hardening authority. Assigned explicitly for root-cause work, audits, and system-wide reliability passes. |
 
 ---
 
@@ -128,16 +150,19 @@ When sources conflict: `AGENTS.md` wins. Code truth wins over report wording.
 ## Branch Naming
 
 ```
-WARP/{feature}
+WARP/{feature}            ← FORGE / SENTINEL / ECHO lanes
+WARP/ROOT/{feature}       ← WARP•R00T lanes
 ```
 
-Short hyphen-separated slug. No dots, underscores, or date suffixes.
+Short hyphen-separated slug. No dots, underscores, or date suffixes. Auto-generated
+`claude/*` branches are **forbidden** — every branch must be pre-declared.
 
 ```
-WARP/wallet-state-read-boundary   ✓
-WARP/risk-drawdown-circuit        ✓
-WARP/implement_wallet_state       ✗  (underscores)
-WARP/phase6.5.3-fix-2026-04-16   ✗  (dots, date)
+WARP/wallet-state-read-boundary       ✓
+WARP/ROOT/paper-default-hardening     ✓
+WARP/implement_wallet_state           ✗  (underscores)
+WARP/phase6.5.3-fix-2026-04-16        ✗  (dots, date)
+claude/happy-tesla-30Qei              ✗  (auto-generated)
 ```
 
 ---
