@@ -138,6 +138,12 @@ async def registry_strategy_evaluator(
     price as ``current_price``. Falls back to no-op (False) when the position
     is unattributed, the strategy is not registered, or the hook errors —
     a strategy exit hook must never poison the watcher loop.
+
+    Enriches the position dict with ``active_preset`` + ``selected_timeframe``
+    + ``seconds_to_close`` + ``force_exit_at_rem_sec`` (Kreo-style fixed-time
+    exit) when the strategy is ``late_entry_v3`` and the snapshot carries the
+    needed data. The strategy hook decides what to do with them — older
+    strategies that ignore unknown dict keys are unaffected.
     """
     name = position.strategy_type
     if not name:
@@ -146,19 +152,36 @@ async def registry_strategy_evaluator(
         strat = StrategyRegistry.instance().get(name)
     except KeyError:
         return False
+
+    payload: dict[str, object] = {
+        "id": position.id,
+        "user_id": position.user_id,
+        "market_id": position.market_id,
+        "side": position.side,
+        "entry_price": position.entry_price,
+        "size_usdc": position.size_usdc,
+        "current_price": current_price,
+        "strategy_type": name,
+    }
+
+    # late_entry_v3 force-exit plumbing — Kreo-style fixed-time exit.
+    # Compute current rem from resolution_at and look up the (preset, tf)
+    # threshold. Both must be available; otherwise the strategy hook falls
+    # back to flip-stop-only (existing behaviour, unchanged).
+    if name == "late_entry_v3":
+        force_at = _late_entry_force_exit_for(position)
+        secs_left = _seconds_to_close_from(position)
+        if force_at is not None:
+            payload["force_exit_at_rem_sec"] = force_at
+        if secs_left is not None:
+            payload["seconds_to_close"] = secs_left
+        if position.active_preset:
+            payload["active_preset"] = position.active_preset
+        if position.selected_timeframe:
+            payload["selected_timeframe"] = position.selected_timeframe
+
     try:
-        decision = await strat.evaluate_exit(
-            {
-                "id": position.id,
-                "user_id": position.user_id,
-                "market_id": position.market_id,
-                "side": position.side,
-                "entry_price": position.entry_price,
-                "size_usdc": position.size_usdc,
-                "current_price": current_price,
-                "strategy_type": name,
-            }
-        )
+        decision = await strat.evaluate_exit(payload)
     except Exception as exc:
         logger.warning(
             "exit_watcher strategy hook failed strat=%s pos=%s err=%s",
@@ -166,6 +189,36 @@ async def registry_strategy_evaluator(
         )
         return False
     return bool(getattr(decision, "should_exit", False))
+
+
+def _late_entry_force_exit_for(position: OpenPositionForExit) -> Optional[float]:
+    """Look up the (preset, timeframe) → force_exit_at_rem_sec threshold.
+
+    Returns None when the position has no preset attached or the preset has
+    no fixed-time exit rule (e.g. close_sweep). Soft-imports the helper so a
+    refactor that drops late_entry_v3 cannot break the watcher.
+    """
+    try:
+        from ..strategy.strategies.late_entry_v3 import force_exit_at_rem_sec_for
+    except Exception:
+        return None
+    return force_exit_at_rem_sec_for(position.active_preset, position.selected_timeframe)
+
+
+def _seconds_to_close_from(position: OpenPositionForExit) -> Optional[float]:
+    """Return remaining seconds in the candle for this position, or None.
+
+    Uses ``resolution_at`` (already on the snapshot) — no extra DB / API call.
+    Negative values clamp to 0 so a stale snapshot whose candle already closed
+    will exit on the next tick rather than oscillate.
+    """
+    res_at = position.resolution_at
+    if res_at is None:
+        return None
+    if res_at.tzinfo is None:
+        res_at = res_at.replace(tzinfo=timezone.utc)
+    rem = (res_at - datetime.now(timezone.utc)).total_seconds()
+    return max(0.0, rem)
 
 
 async def _fetch_live_price(
