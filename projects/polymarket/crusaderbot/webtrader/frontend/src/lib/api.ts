@@ -91,6 +91,9 @@ export function makeApi(token: string | null) {
       post<WithdrawResponse>("/wallet/withdraw", { amount_usdc, destination_address }),
     getSettings: () => get<UserSettings>("/settings"),
     updateSettings: (data: Partial<UserSettings>) => patch<{ updated: boolean }>("/settings", data),
+    getNotificationPrefs: () => get<{ prefs: NotificationPrefs }>("/settings/notification-prefs"),
+    updateNotificationPrefs: (prefs: NotificationPrefs) =>
+      patch<{ updated: boolean }>("/settings/notification-prefs", { prefs }),
     linkEmail: (email: string, password: string) =>
       post<{ ok: boolean }>("/auth/link-email", { email, password }),
     getAlerts: () => get<AlertItem[]>("/alerts"),
@@ -311,6 +314,11 @@ export interface AlertItem {
   body: string | null;
   created_at: string;
 }
+
+// Per-alert × per-channel notification preferences. Missing keys / channels
+// on the client default to true (fail-open) — matches the backend gate.
+export type NotificationChannelPrefs = { web?: boolean; tg?: boolean };
+export type NotificationPrefs = Record<string, NotificationChannelPrefs>;
 
 export interface CopyTask {
   id: string;

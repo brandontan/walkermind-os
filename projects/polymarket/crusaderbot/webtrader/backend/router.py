@@ -1184,7 +1184,7 @@ async def get_notification_prefs(user: _CurrentUser) -> dict:
     return {"prefs": prefs}
 
 
-@router.put("/settings/notification-prefs")
+@router.patch("/settings/notification-prefs")
 async def update_notification_prefs(
     body: dict,
     user: _CurrentUser,

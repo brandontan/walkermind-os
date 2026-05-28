@@ -1,6 +1,9 @@
-import { useCallback, useState } from "react";
-import { Toggle } from "./Toggle";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { NotificationPrefs, NotificationChannelPrefs } from "../lib/api";
+import { makeApi } from "../lib/api";
+import { useAuth } from "../lib/auth";
 
+// Alert keys must match the backend ALERT_KEYS frozenset exactly.
 type PrefKey =
   | "trade_opened"
   | "trade_closed"
@@ -11,22 +14,6 @@ type PrefKey =
   | "kill_switch"
   | "low_balance"
   | "daily_report";
-
-export type NotifPrefs = Record<PrefKey, boolean>;
-
-const DEFAULT_PREFS: NotifPrefs = {
-  trade_opened: true,
-  trade_closed: true,
-  position_resolved: true,
-  signal_detected: true,
-  system_status: true,
-  bot_errors: true,
-  kill_switch: true,
-  low_balance: true,
-  daily_report: true,
-};
-
-export const NOTIF_PREFS_KEY = "notif_prefs";
 
 type CategoryDef = {
   id: string;
@@ -47,9 +34,9 @@ const CATEGORIES: CategoryDef[] = [
     bg: "rgba(245,200,66,0.08)",
     border: "rgba(245,200,66,0.2)",
     items: [
-      { key: "trade_opened",      name: "Trade Opened",      desc: "Alert when a new position is entered"              },
-      { key: "trade_closed",      name: "Trade Closed",      desc: "Alert on take-profit, stop-loss, or expiry"        },
-      { key: "position_resolved", name: "Position Resolved", desc: "Win/loss notification when market settles"         },
+      { key: "trade_opened",      name: "Trade Opened",      desc: "Alert when a new position is entered"      },
+      { key: "trade_closed",      name: "Trade Closed",      desc: "Alert on take-profit, stop-loss, or expiry" },
+      { key: "position_resolved", name: "Position Resolved", desc: "Win/loss notification when market settles" },
     ],
   },
   {
@@ -71,10 +58,10 @@ const CATEGORIES: CategoryDef[] = [
     bg: "rgba(255,255,255,0.04)",
     border: "rgba(255,255,255,0.1)",
     items: [
-      { key: "system_status", name: "System Status",       desc: "Bot online/offline & connectivity changes"         },
-      { key: "bot_errors",    name: "Bot Errors",          desc: "Critical errors that require attention"            },
-      { key: "kill_switch",   name: "Kill Switch Triggered", desc: "Alert when emergency stop activates"            },
-      { key: "low_balance",   name: "Low Balance",         desc: "Notify when wallet balance drops below threshold"  },
+      { key: "system_status", name: "System Status",         desc: "Bot online/offline & connectivity changes"        },
+      { key: "bot_errors",    name: "Bot Errors",            desc: "Critical errors that require attention"           },
+      { key: "kill_switch",   name: "Kill Switch Triggered", desc: "Alert when emergency stop activates"              },
+      { key: "low_balance",   name: "Low Balance",           desc: "Notify when wallet balance drops below threshold" },
     ],
   },
   {
@@ -92,39 +79,89 @@ const CATEGORIES: CategoryDef[] = [
 
 const ALL_KEYS: PrefKey[] = CATEGORIES.flatMap((c) => c.items.map((i) => i.key));
 
-export function loadNotifPrefs(): NotifPrefs {
-  try {
-    const raw = localStorage.getItem(NOTIF_PREFS_KEY);
-    if (raw) return { ...DEFAULT_PREFS, ...(JSON.parse(raw) as Partial<NotifPrefs>) };
-  } catch { /* ignore */ }
-  return { ...DEFAULT_PREFS };
+// "Channel ON" means: pref is undefined (server default) OR explicitly true.
+function isChannelOn(row: NotificationChannelPrefs | undefined, channel: "web" | "tg"): boolean {
+  if (!row) return true;
+  const v = row[channel];
+  return v === undefined ? true : !!v;
 }
 
-function saveNotifPrefs(p: NotifPrefs) {
-  try { localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(p)); } catch { /* quota */ }
+// "Alert ON" means: at least one channel is enabled. Mirrors the gate logic
+// — a notification fires when either channel is active.
+function isAlertOn(prefs: NotificationPrefs, key: PrefKey): boolean {
+  const row = prefs[key];
+  return isChannelOn(row, "web") || isChannelOn(row, "tg");
+}
+
+function makeBothOff(): NotificationChannelPrefs {
+  return { web: false, tg: false };
+}
+
+function makeBothOn(): NotificationChannelPrefs {
+  return { web: true, tg: true };
 }
 
 export function NotificationPrefsCard() {
-  const [prefs, setPrefs] = useState<NotifPrefs>(loadNotifPrefs);
+  const { user } = useAuth();
+  const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
+  const [prefs, setPrefs] = useState<NotificationPrefs>({});
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const enabledCount = ALL_KEYS.filter((k) => prefs[k]).length;
-  const totalCount = ALL_KEYS.length;
+  // Initial load from server.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.getNotificationPrefs();
+        if (cancelled) return;
+        setPrefs(res.prefs ?? {});
+      } catch (e) {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : "Failed to load preferences");
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [api]);
 
-  const setOne = useCallback((key: PrefKey, value: boolean) => {
+  // Persist on every change — debounced to one in-flight request at a time.
+  const persist = useCallback(async (next: NotificationPrefs) => {
+    setSaving(true);
+    try {
+      await api.updateNotificationPrefs(next);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save preferences");
+    } finally {
+      setSaving(false);
+    }
+  }, [api]);
+
+  const setChannel = useCallback((key: PrefKey, channel: "web" | "tg", value: boolean) => {
     setPrefs((p) => {
-      const next = { ...p, [key]: value };
-      saveNotifPrefs(next);
+      const row = { ...(p[key] ?? makeBothOn()) };
+      row[channel] = value;
+      const next = { ...p, [key]: row };
+      void persist(next);
       return next;
     });
-  }, []);
+  }, [persist]);
 
   const setAll = useCallback((value: boolean) => {
     setPrefs(() => {
-      const next = Object.fromEntries(ALL_KEYS.map((k) => [k, value])) as NotifPrefs;
-      saveNotifPrefs(next);
+      const next: NotificationPrefs = Object.fromEntries(
+        ALL_KEYS.map((k) => [k, value ? makeBothOn() : makeBothOff()]),
+      );
+      void persist(next);
       return next;
     });
-  }, []);
+  }, [persist]);
+
+  const enabledCount = ALL_KEYS.filter((k) => isAlertOn(prefs, k)).length;
+  const totalCount = ALL_KEYS.length;
 
   return (
     <div className="mb-4">
@@ -138,14 +175,18 @@ export function NotificationPrefsCard() {
             </span>
           </div>
           <p className="font-mono text-[10px] text-ink-3 mt-1 pl-3">
-            {enabledCount}/{totalCount} ALERTS ENABLED
+            {loaded
+              ? `${enabledCount}/${totalCount} ALERTS ENABLED${saving ? " · SAVING…" : ""}`
+              : "LOADING…"}
+            {error && <span className="text-red ml-2">· {error}</span>}
           </p>
         </div>
         <div className="flex gap-1.5 flex-shrink-0">
           <button
             type="button"
             onClick={() => setAll(true)}
-            className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase px-3 py-1.5 rounded border transition-colors"
+            disabled={!loaded}
+            className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase px-3 py-1.5 rounded border transition-colors disabled:opacity-50"
             style={{
               background: "rgba(245,200,66,0.08)",
               borderColor: "rgba(245,200,66,0.3)",
@@ -157,7 +198,8 @@ export function NotificationPrefsCard() {
           <button
             type="button"
             onClick={() => setAll(false)}
-            className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase px-3 py-1.5 rounded border transition-colors"
+            disabled={!loaded}
+            className="font-mono text-[9px] font-bold tracking-[1.5px] uppercase px-3 py-1.5 rounded border transition-colors disabled:opacity-50"
             style={{
               background: "var(--surface-3)",
               borderColor: "var(--border-2)",
@@ -169,6 +211,18 @@ export function NotificationPrefsCard() {
         </div>
       </div>
 
+      {/* Channel legend — explains the two chip styles per row */}
+      <div className="flex items-center gap-3 mb-2 px-1 font-mono text-[9px] text-ink-4 tracking-[1px] uppercase">
+        <span>Channels:</span>
+        <span className="inline-flex items-center gap-1">
+          <span>📡</span> Web
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <span>💬</span> TG
+        </span>
+        <span className="opacity-50">· tap to toggle each</span>
+      </div>
+
       {/* Gold rule */}
       <div className="h-px mb-3 mx-1" style={{ background: "var(--gold)", opacity: 0.25 }} />
 
@@ -176,7 +230,7 @@ export function NotificationPrefsCard() {
       <div className="space-y-3">
         {CATEGORIES.map((cat) => {
           const catKeys = cat.items.map((i) => i.key);
-          const catEnabled = catKeys.filter((k) => prefs[k]).length;
+          const catEnabled = catKeys.filter((k) => isAlertOn(prefs, k)).length;
           return (
             <div
               key={cat.id}
@@ -207,50 +261,83 @@ export function NotificationPrefsCard() {
 
               {/* Items */}
               <div style={{ background: "var(--surface-2)" }}>
-                {cat.items.map((item, idx) => (
-                  <div
-                    key={item.key}
-                    className="flex items-center gap-3 px-3 py-3"
-                    style={idx > 0 ? { borderTop: "1px solid var(--border-1)" } : undefined}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="font-sans text-[12px] font-semibold text-ink-1">
+                {cat.items.map((item, idx) => {
+                  const row = prefs[item.key];
+                  const webOn = isChannelOn(row, "web");
+                  const tgOn  = isChannelOn(row, "tg");
+                  return (
+                    <div
+                      key={item.key}
+                      className="flex items-center gap-3 px-3 py-3"
+                      style={idx > 0 ? { borderTop: "1px solid var(--border-1)" } : undefined}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="font-sans text-[12px] font-semibold text-ink-1 mb-0.5">
                           {item.name}
-                        </span>
-                        <span
-                          className="font-mono text-[8px] font-bold px-1.5 py-0.5 rounded"
-                          style={
-                            prefs[item.key]
-                              ? {
-                                  background: "rgba(0,255,156,0.15)",
-                                  color: "var(--grn,#00FF9C)",
-                                  border: "1px solid rgba(0,255,156,0.3)",
-                                }
-                              : {
-                                  background: "rgba(255,255,255,0.05)",
-                                  color: "var(--ink-4)",
-                                  border: "1px solid var(--border-2)",
-                                }
-                          }
-                        >
-                          {prefs[item.key] ? "ON" : "OFF"}
-                        </span>
+                        </div>
+                        <p className="font-mono text-[10px] text-ink-3 leading-snug">{item.desc}</p>
                       </div>
-                      <p className="font-mono text-[10px] text-ink-3 leading-snug">{item.desc}</p>
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        <ChannelChip
+                          icon="📡"
+                          label="WEB"
+                          on={webOn}
+                          onClick={() => setChannel(item.key, "web", !webOn)}
+                          disabled={!loaded}
+                        />
+                        <ChannelChip
+                          icon="💬"
+                          label="TG"
+                          on={tgOn}
+                          onClick={() => setChannel(item.key, "tg", !tgOn)}
+                          disabled={!loaded}
+                        />
+                      </div>
                     </div>
-                    <Toggle
-                      checked={prefs[item.key]}
-                      onChange={(v) => setOne(item.key, v)}
-                      ariaLabel={`Toggle ${item.name}`}
-                    />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           );
         })}
       </div>
     </div>
+  );
+}
+
+function ChannelChip({
+  icon, label, on, onClick, disabled,
+}: {
+  icon: string;
+  label: string;
+  on: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={on}
+      aria-label={`Toggle ${label} channel`}
+      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded border font-mono text-[9px] font-bold tracking-[1.5px] uppercase transition-colors disabled:opacity-50"
+      style={
+        on
+          ? {
+              background: "rgba(0,255,156,0.12)",
+              borderColor: "rgba(0,255,156,0.4)",
+              color: "var(--grn,#00FF9C)",
+            }
+          : {
+              background: "rgba(255,255,255,0.03)",
+              borderColor: "var(--border-2)",
+              color: "var(--ink-4)",
+            }
+      }
+    >
+      <span aria-hidden>{icon}</span>
+      {label}
+    </button>
   );
 }
