@@ -704,13 +704,21 @@ async def redeem_hourly() -> None:
 
 
 async def sweep_deposits() -> None:
-    """Nightly logical deposit sweep — marks confirmed deposits swept.
+    """Nightly deposit sweep.
 
-    Accounting-only: flips ``deposits.swept`` so per-user balances are
-    reconciled. The on-chain hot-pool transfer is intentionally deferred
-    behind ``EXECUTION_PATH_VALIDATED`` (no real capital moves in paper
-    mode). Idempotent: a re-run only touches rows still ``swept=FALSE``.
+    Logical mode (paper / default): flips ``deposits.swept`` so per-user
+    balances are reconciled — no capital moves. Idempotent: a re-run only
+    touches rows still ``swept=FALSE``.
+
+    On-chain mode (EXECUTION_PATH_VALIDATED AND SWEEP_ONCHAIN_ENABLED):
+    consolidates each user's EOA deposit wallet into the master hot-pool, then
+    marks that user's confirmed deposits swept only after a confirmed transfer.
     """
+    settings = get_settings()
+    if settings.EXECUTION_PATH_VALIDATED and settings.SWEEP_ONCHAIN_ENABLED:
+        await _sweep_deposits_onchain()
+        return
+
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -725,6 +733,59 @@ async def sweep_deposits() -> None:
         action="deposit_sweep",
         payload={"count": int(count)},
     )
+
+
+async def _sweep_deposits_onchain() -> None:
+    """Per-user on-chain consolidation into the master hot-pool.
+
+    Runs sequentially (the cron job is max_instances=1) so the master wallet's
+    gas-top-up nonces never race. A per-user failure is logged and skipped —
+    one bad wallet never aborts the rest, and deposits are marked swept ONLY
+    after that user's transfer confirms on-chain.
+    """
+    from .integrations.polygon_usdc import PreflightError, sweep_usdc_to_master
+    from .wallet.vault import get_decrypted_pk
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        users = await conn.fetch(
+            "SELECT DISTINCT d.user_id, w.deposit_address "
+            "FROM deposits d JOIN wallets w ON w.user_id = d.user_id "
+            "WHERE d.swept = FALSE AND d.status = 'confirmed'"
+        )
+
+    swept_users = 0
+    for u in users:
+        try:
+            pk = await get_decrypted_pk(u["user_id"])
+            if pk is None:
+                logger.error("sweep_skip user=%s: no wallet key", u["user_id"])
+                continue
+            result = await sweep_usdc_to_master(u["deposit_address"], pk)
+        except PreflightError as exc:
+            logger.warning("sweep_skip user=%s: %s", u["user_id"], exc)
+            continue
+        except Exception as exc:
+            logger.error("sweep_failed user=%s error=%s", u["user_id"], exc)
+            continue
+        if result.get("skipped"):
+            continue
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE deposits SET swept=TRUE "
+                "WHERE user_id=$1 AND swept=FALSE AND status='confirmed'",
+                u["user_id"],
+            )
+        swept_users += 1
+        await audit.write(
+            actor_role="bot",
+            action="deposit_sweep_onchain",
+            payload={"user_id": str(u["user_id"]),
+                     "tx_hash": result.get("tx_hash"),
+                     "amount_usdc": result.get("amount_usdc"),
+                     "gas_topup_matic": result.get("gas_topup_matic")},
+        )
+    logger.info("sweep_deposits_onchain: %s user wallets swept", swept_users)
 
 
 def _job_tracker_listener(event) -> None:

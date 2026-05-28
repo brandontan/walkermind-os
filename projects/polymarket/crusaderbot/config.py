@@ -139,6 +139,18 @@ class Settings(BaseSettings):
     MASTER_WALLET_ADDRESS: Optional[str] = None
     MASTER_WALLET_PRIVATE_KEY: Optional[str] = None
 
+    # --- On-chain deposit sweep (LIVE only) ---
+    # Consolidates per-user EOA deposit wallets into the master hot-pool.
+    # Gated behind EXECUTION_PATH_VALIDATED AND this flag: even after a
+    # go-live flip the on-chain sweep stays OFF until an operator explicitly
+    # enables it (the logical accounting sweep always runs). Default OFF.
+    SWEEP_ONCHAIN_ENABLED: bool = False
+    # Skip wallets holding less than this much USDC (dust not worth the gas).
+    SWEEP_MIN_USDC: float = 1.0
+    # MATIC the master tops a user wallet up to when it lacks gas for one
+    # ERC-20 transfer. Bridged-USDC wallets receive no native token on deposit.
+    SWEEP_GAS_TOPUP_MATIC: float = 0.05
+
     # --- Activation guards ---
     # Paper-safe default: False. A live order is only ever reachable when an
     # operator EXPLICITLY overrides this via env (fly.toml / .env) AND every
