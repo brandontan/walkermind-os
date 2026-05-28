@@ -1830,7 +1830,13 @@ async def get_copy_trade_task_stats(task_id: str, user: _CurrentUser):
 # trade — a user with cap=0 cannot execute live, and the gate rejects
 # any trade that would push aggregate live exposure past the cap.
 
-_LIVE_ENABLE_CONFIRM_PHRASE = "ENABLE LIVE TRADING FOR MY ACCOUNT"
+# Single source of truth shared with the Telegram /enable_live flow
+# (domain/activation/live_opt_in_gate.py) so both surfaces stay in sync.
+from ...domain.activation.live_opt_in_gate import (  # noqa: E402
+    LIVE_CAP_MAX_USDC,
+    LIVE_CAP_MIN_USDC,
+    LIVE_ENABLE_CONFIRM_PHRASE as _LIVE_ENABLE_CONFIRM_PHRASE,
+)
 
 
 def _operator_guards_open(s) -> bool:
@@ -1925,10 +1931,10 @@ async def enable_live(
                 f"'{_LIVE_ENABLE_CONFIRM_PHRASE}' to enable live trading"
             ),
         )
-    if not (0 < float(body.live_capital_cap_usdc) <= 10_000.0):
+    if not (LIVE_CAP_MIN_USDC < float(body.live_capital_cap_usdc) <= LIVE_CAP_MAX_USDC):
         raise HTTPException(
             status_code=400,
-            detail="live_capital_cap_usdc must be > 0 and ≤ 10000",
+            detail=f"live_capital_cap_usdc must be > 0 and ≤ {int(LIVE_CAP_MAX_USDC)}",
         )
 
     checklist = await live_checklist.evaluate(UUID(str(user_id)))
