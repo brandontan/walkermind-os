@@ -232,24 +232,24 @@
   <!-- HUD -->
   <div class="hud">
     <div class="hud-cell">
-      <div class="hud-label">// LANES_DONE</div>
-      <div class="hud-val c-green" id="metricDone">18</div>
-      <div class="hud-sub">R1–R11 + FT-A/B/C merged</div>
+      <div class="hud-label">// POSTURE</div>
+      <div class="hud-val c-green" id="metricDone" style="font-size:22px;padding-top:5px">PAPER ONLY</div>
+      <div class="hud-sub">Production · all 5 LIVE guards OFF</div>
     </div>
     <div class="hud-cell">
-      <div class="hud-label">// ACTIVE_LANE</div>
-      <div class="hud-val c-blue" id="metricActive" style="font-size:18px;padding-top:8px">FT-D</div>
-      <div class="hud-sub" id="metricActiveSub">Risk Caps + Kill Switch</div>
+      <div class="hud-label">// ENGINEERING</div>
+      <div class="hud-val c-blue" id="metricActive" style="font-size:22px;padding-top:5px">LIVE READY</div>
+      <div class="hud-sub" id="metricActiveSub">0 code-side blockers · owner-only go-live</div>
     </div>
     <div class="hud-cell">
-      <div class="hud-label">// TOTAL_LANES</div>
-      <div class="hud-val c-yellow">19</div>
-      <div class="hud-sub">R1–R13f roadmap</div>
+      <div class="hud-label">// READINESS_PASS</div>
+      <div class="hud-val c-yellow">4 / 4</div>
+      <div class="hud-sub">#1409 · #1410 · #1411 · #1412 merged</div>
     </div>
     <div class="hud-cell">
-      <div class="hud-label">// SENTINEL_PASS</div>
+      <div class="hud-label">// CAPITAL_PATHS</div>
       <div class="hud-val c-green">✓</div>
-      <div class="hud-sub">R1–R11 + FT-A/B/C validated</div>
+      <div class="hud-sub">#1402 · #1403 · #1408 · SENTINEL-approved · guarded OFF</div>
     </div>
   </div>
 
@@ -258,14 +258,14 @@
     <div class="banner-icon">📋</div>
     <div>
       <div class="banner-label">Current Status</div>
-      <div class="banner-text" id="currentStatusText">Fast Track Week 1 — 3 of 5 tracks complete. FT-A (PR #942), FT-B (PR #948), FT-C (PR #951) merged. Paper mode active. R1–R11 + FT-A/B/C = 18 lanes done.</div>
+      <div class="banner-text" id="currentStatusText">Phase 9.1 runtime — bot LIVE on Fly (PAPER only). WARP•R00T LIVE+PAPER readiness pass COMPLETE + DEPLOYED: all four lanes merged (Lane 1 system-ready-audit #1409, Lane 2 paper-default-hardening #1410, Lane 3 state-doc sync #1411, README refresh #1412). Engineering LIVE-ready — 0 current LIVE/PAPER risks. Three on-chain capital paths complete (#1402 withdraw, #1403 sweep, #1408 Safe custody) — all SENTINEL-approved + guarded OFF.</div>
     </div>
   </div>
   <div class="wm-banner banner-next">
     <div class="banner-icon">🎯</div>
     <div>
-      <div class="banner-label">Next Priority</div>
-      <div class="banner-text" id="nextPriorityText">FT-D — Risk Caps + Kill Switch hardening. MAJOR tier. SENTINEL required before merge.</div>
+      <div class="banner-label">Next Priority — Owner-Operational</div>
+      <div class="banner-text" id="nextPriorityText">Final go-live sequence is owner-only (see state/LIVE_READINESS.md): fund master USDC + MATIC → apply prod migrations (incl. 060) → flip activation guards in order (RISK_CONTROLS_VALIDATED → EXECUTION_PATH_VALIDATED → CAPITAL_MODE_CONFIRMED → ENABLE_LIVE_TRADING) → enable SWEEP_ONCHAIN_ENABLED for a small cohort. Kill switch via /emergency.</div>
     </div>
   </div>
 
@@ -356,25 +356,30 @@ const SOURCES = {
 
 // ── STATIC FALLBACK ROADMAP (always accurate, loaded when fetch fails) ──
 const STATIC_ROADMAP = [
-  {id:'R1', name:'FastAPI skeleton + DB schema',      status:'done',   tier:'STANDARD'},
-  {id:'R2', name:'Onboarding flow',                   status:'done',   tier:'STANDARD'},
-  {id:'R3', name:'Operator commands',                 status:'done',   tier:'STANDARD'},
-  {id:'R4', name:'Deposit watcher (Alchemy WS)',      status:'done',   tier:'MAJOR'},
-  {id:'R5', name:'Strategy config',                   status:'done',   tier:'STANDARD'},
-  {id:'R6', name:'Signal engine',                     status:'done',   tier:'MAJOR'},
-  {id:'R7', name:'Order execution',                   status:'done',   tier:'MAJOR'},
-  {id:'R8', name:'Position tracker',                  status:'done',   tier:'STANDARD'},
-  {id:'R9', name:'Risk engine',                       status:'done',   tier:'MAJOR'},
-  {id:'R10',name:'Telegram integration',              status:'done',   tier:'STANDARD'},
-  {id:'R11',name:'Fee + referral accounting',         status:'done',   tier:'STANDARD'},
-  {id:'R12a',name:'CI/CD Pipeline (GitHub Actions)', status:'done',   tier:'STANDARD'},
-  {id:'R12b',name:'Fly.io Health Alerts',            status:'done',   tier:'STANDARD'},
-  {id:'R12c',name:'Auto-Close / Take-Profit',        status:'done',   tier:'MAJOR'},
-  {id:'R12d',name:'Telegram Position UX',            status:'done',   tier:'MAJOR'},
-  {id:'R12e',name:'Auto-Redeem System',              status:'done',   tier:'STANDARD'},
-  {id:'R12f',name:'Operator Dashboard + Kill Switch',status:'done',   tier:'STANDARD'},
-  {id:'R12', name:'Fly.io Deployment (final)',        status:'done',   tier:'MAJOR'},
-  {id:'R13+',name:'Growth backlog (a–f)',             status:'pending',tier:'STANDARD'},
+  {id:'R1',  name:'Foundation — FastAPI skeleton + DB + Redis',          status:'done', tier:'STANDARD'},
+  {id:'R2',  name:'Onboarding flow + Telegram bot',                       status:'done', tier:'STANDARD'},
+  {id:'R3',  name:'Operator commands + admin surface',                    status:'done', tier:'STANDARD'},
+  {id:'R4',  name:'Deposit watcher (Alchemy WS, reorg-aware mig 047)',    status:'done', tier:'MAJOR'},
+  {id:'R5',  name:'Strategy config + Kelly 0.25',                         status:'done', tier:'STANDARD'},
+  {id:'R6',  name:'Signal engine (3 strategies: SIG / MOM / COPY)',       status:'done', tier:'MAJOR'},
+  {id:'R7',  name:'Order execution (CLOB, idempotency, retry)',           status:'done', tier:'MAJOR'},
+  {id:'R8',  name:'Position tracker + exit watcher',                      status:'done', tier:'STANDARD'},
+  {id:'R9',  name:'Risk engine (13-step gate + kill switch)',             status:'done', tier:'MAJOR'},
+  {id:'R10', name:'Telegram UX (V5 rebuild + MarkdownV2 migration)',      status:'done', tier:'STANDARD'},
+  {id:'R11', name:'Fee + referral accounting (default OFF)',              status:'done', tier:'STANDARD'},
+  {id:'R12', name:'Fly.io deployment (production paper)',                 status:'done', tier:'MAJOR'},
+  {id:'P0',  name:'P0 — Runtime spine validated end-to-end',              status:'done', tier:'MAJOR'},
+  {id:'P0',  name:'P0 — WebTrader realtime trust',                        status:'done', tier:'STANDARD'},
+  {id:'P0',  name:'P0 — Production integrity (RLS 43/43, WARP-52..54)',   status:'done', tier:'MAJOR'},
+  {id:'P1',  name:'P1 — Closed beta hardening (no duplicate trades)',     status:'done', tier:'STANDARD'},
+  {id:'C1',  name:'On-chain capital — withdrawal exit (#1402)',           status:'done', tier:'MAJOR'},
+  {id:'C2',  name:'On-chain capital — deposit sweep (#1403)',             status:'done', tier:'MAJOR'},
+  {id:'C3',  name:'On-chain capital — Safe-proxy custody (#1408)',        status:'done', tier:'MAJOR'},
+  {id:'R0a', name:'WARP•R00T — system-ready audit (Lane 1, #1409)',       status:'done', tier:'MINOR'},
+  {id:'R0b', name:'WARP•R00T — paper-default hardening (Lane 2, #1410)',  status:'done', tier:'STANDARD'},
+  {id:'R0c', name:'WARP•R00T — live-readiness state sync (Lane 3, #1411)',status:'done', tier:'MINOR'},
+  {id:'R0d', name:'WARP•R00T — README/role refresh (#1412)',              status:'done', tier:'MINOR'},
+  {id:'GO',  name:'Owner go-live flip (fund master + activation guards)', status:'next', tier:'MAJOR'},
 ];
 
 const CACHE_PREFIX = 'wm-monitor-crusaderbot-v1-';
@@ -464,11 +469,16 @@ function renderRoadmap(lanes){
 function renderActivityFeed(){
   const ps=state.projectState;
   const items=[
-    {dot:'fd-g',tag:'ft-merged',label:'MERGED',title:'FT-A merged — PR #942. TradeEngine FULL RUNTIME INTEGRATION; 47 tests green.'},
-    {dot:'fd-g',tag:'ft-merged',label:'MERGED',title:'FT-B merged — PR #948. CopyTradeMonitor wired through TradeEngine; 23 tests green.'},
-    {dot:'fd-g',tag:'ft-merged',label:'MERGED',title:'FT-C merged — PR #951. TradeNotifier service layer; 16 tests green.'},
-    {dot:'fd-b',tag:'ft-open',label:'ACTIVE',title:'FT-D — Risk Caps + Kill Switch hardening — NEXT PRIORITY. MAJOR tier. SENTINEL required.'},
-    {dot:'fd-b',tag:'ft-info',label:'STATE',title:ps.updated?'Last updated: '+ps.updated:'State files synced'},
+    {dot:'fd-g',tag:'ft-merged',label:'MERGED #1412',title:'WARP/ROOT/readme-warp-readiness-update — README refresh: Engineering: Live Ready badge + Operating Posture section + WARP•R00T role + ROOT branch format.'},
+    {dot:'fd-g',tag:'ft-merged',label:'MERGED #1411',title:'WARP/ROOT/live-readiness-final — Lane 3/3 state-doc sync; LIVE_READINESS / PRODUCTION_CHECKLIST / WORKTODO refreshed.'},
+    {dot:'fd-g',tag:'ft-merged',label:'MERGED #1410',title:'WARP/ROOT/paper-default-hardening — Lane 2/3 explicit trading_mode=paper in every user_settings INSERT + 5 hermetic invariant tests; suite 1859 pass.'},
+    {dot:'fd-g',tag:'ft-merged',label:'MERGED #1409',title:'WARP/ROOT/system-ready-audit — Lane 1/3 read-only LIVE+PAPER audit; 0 current risks; 3 brittleness items surfaced for Lane 2.'},
+    {dot:'fd-g',tag:'ft-merged',label:'MERGED #1408',title:'WARP/ROOT/safe-custody-cutover — gasless Safe-proxy custody via Polymarket Builder relayer; SENTINEL 94/100; triple-gated OFF.'},
+    {dot:'fd-g',tag:'ft-merged',label:'MERGED #1403',title:'WARP/ROOT/deposit-sweep-onchain — on-chain hot-pool consolidation with master-funded MATIC top-up; SENTINEL 94/100; double-gated OFF.'},
+    {dot:'fd-g',tag:'ft-merged',label:'MERGED #1402',title:'WARP/ROOT/withdrawal-onchain-path — transfer_usdc() wires master hot-pool exits; SENTINEL 94/100; guarded behind EXECUTION_PATH_VALIDATED.'},
+    {dot:'fd-b',tag:'ft-info',label:'POSTURE',title:'Production PAPER ONLY · Engineering LIVE-ready · all 5 activation guards default false · 0 NotImplementedError in trading/risk/execution/redeem/withdraw/sweep paths.'},
+    {dot:'fd-y',tag:'ft-warn',label:'NEXT — OWNER',title:'Final go-live sequence is owner-operational: fund master USDC+MATIC → apply migrations → flip guards in documented order.'},
+    {dot:'fd-b',tag:'ft-info',label:'STATE',title:ps.updated?'Last updated: '+ps.updated:'State files synced 2026-05-28 21:00'},
   ];
   document.getElementById('activityFeedCount').textContent=String(items.length);
   document.getElementById('activityFeed').innerHTML=items.map((item,i)=>`
@@ -510,9 +520,12 @@ function renderChecklist(){
 
 function renderKnownIssues(){
   const issues=[
-    'Deposit gate has no validation tier — non-blocking, flagged for R12+ cleanup',
-    'services/* dead code (inactive modules) — non-blocking',
-    'CHANGELOG format contract needs update: allow multi-section for compound lane closures',
+    '[MONITORING] DB_POOL_MAX lowered 10→3 (PR #1366). Supabase Session Pooler active. 48h window to confirm TooManyConnectionsError silent in Sentry.',
+    '[ACTIVE] FLIP_STOP_PRICE lowered 0.48→0.10 (near-disabled) for close_sweep — monitor positions past resolution; market_expired exit should catch.',
+    '[DEFERRED] Ops auth full hardening (per-operator login, token rotation) intentionally deferred for paper-mode beta. H1 cookie session shipped (#1400); single shared OPS_SECRET retained.',
+    '[DEFERRED] Native gasless sweep via Polymarket Builder relayer — Safe-proxy custody merged (#1408) but cutover stays on EOA until owner provisions Builder credentials.',
+    '[OWNER ACTION] crusaderbot-logo.png not yet in repo — WebTrader logo img references render broken until PNG committed to webtrader/frontend/public/.',
+    '[OWNER ACTION] Migrations 027/028/029/030/044/060 listed in PRODUCTION_CHECKLIST.md require psql apply against prod before next deploy.',
   ];
   document.getElementById('knownIssuesCount').textContent=String(issues.length);
   document.getElementById('knownIssuesBody').innerHTML=issues.map(i=>`<div class="feed-item"><div class="feed-dot fd-y"></div><div class="feed-content"><div class="feed-title">${esc(i)}</div></div></div>`).join('');

@@ -1,7 +1,7 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-05-28 11:35
+**Last Updated : 2026-05-28 21:00
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
@@ -108,7 +108,8 @@ CRUSADERBOT is considered **DONE** only when:
 
 - [x] WARP•R00T LIVE+PAPER readiness pass — Lane 1 system-ready-audit [MINOR/FOUNDATION] MERGED #1409. Read-only audit. Verdict: 0 current risks. All 5 LIVE activation guards default false, assert_live_guards 8-condition chain, router GUARD_BYPASS_ATTEMPT logging + paper-fallback, LIVE-flip 8-gate checklist + typed CONFIRM, PAPER-default at schema layer across all three new-user paths verified. Surfaced 3 brittleness items for Lane 2. Report: reports/forge/system-ready-audit.md.
 - [x] WARP•R00T LIVE+PAPER readiness pass — Lane 2 paper-default-hardening [STANDARD/NARROW] MERGED #1410. Belt-and-suspenders: explicit `trading_mode='paper'` in every user_settings INSERT (users.py upsert_user + lazy get_settings_for + new explicit INSERT in webtrader/backend/auth.py signup); silent `except Exception: pass` in webtrader signup replaced with logger.exception; new hermetic tests/test_paper_default_invariant.py (5 tests, INSERT-call-shape + source-regex layers). Full suite 1859 pass; ruff + py_compile clean. PAPER remains the only mode any user receives at creation regardless of ENABLE_LIVE_TRADING. Report: reports/forge/paper-default-hardening.md.
-- [x] WARP•R00T LIVE+PAPER readiness pass — Lane 3 live-readiness-final [MINOR] state-doc sync only. Updates LIVE_READINESS.md, PRODUCTION_CHECKLIST.md, WORKTODO.md, PROJECT_STATE.md, CHANGELOG.md to reflect Lanes 1+2 closure; owner-only "Final go-live sequence" preserved verbatim. Report: reports/forge/live-readiness-final.md. PR open.
+- [x] WARP•R00T LIVE+PAPER readiness pass — Lane 3 live-readiness-final [MINOR] MERGED #1411. State-doc sync only. Updates LIVE_READINESS.md, PRODUCTION_CHECKLIST.md, WORKTODO.md, PROJECT_STATE.md, CHANGELOG.md to reflect Lanes 1+2 closure; owner-only "Final go-live sequence" preserved verbatim. Report: reports/forge/live-readiness-final.md.
+- [x] WARP•R00T README/WARP•R00T surface refresh [MINOR] MERGED #1412. Added `Engineering: Live Ready` badge + "Operating Posture" section (PAPER-only production / LIVE-ready engineering + 5 activation-guard names + link to LIVE_READINESS.md); WARP•R00T added to System Architecture diagram + Authority Chain table; Branch Naming section documents `WARP/{feature}` + `WARP/ROOT/{feature}` with explicit ban on auto-generated `claude/*` branches. Doc-only — README.md changes; no code touched.
 - [x] WARP•R00T public-ready audit [MAJOR/FOUNDATION] — WARP/ROOT/public-ready-hardening. Paper-safe core verified; privacy-policy.md fixed. Report: reports/forge/public-ready-hardening.md.
 - [x] H2 — inbound rate limiting / abuse control for public API + bot surfaces [STANDARD] — DELIVERED WARP/ROOT/api-rate-limit. RateLimitMiddleware (per-IP sliding window, 120rpm/60s, 429+Retry-After, health/webhook exempt); 6 tests; suite 1798 pass. Report: reports/forge/api-rate-limit.md.
 - [x] H1 — ops auth hardening: token-out-of-URL via cookie session (api/ops.py) [MAJOR — SENTINEL] — DELIVERED WARP/ROOT/ops-auth-cookie. POST /ops/login → HttpOnly+Secure+SameSite=Lax cookie (HMAC of OPS_SECRET); GET gated to login form when unauthed; mutators accept cookie/header/legacy-token (no lockout); rotation via OPS_SECRET change. 48 ops tests pass; suite 1808. SENTINEL gate recommended before merge. (Per-operator named accounts not in scope — single shared secret retained.)
