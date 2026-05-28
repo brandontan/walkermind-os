@@ -131,6 +131,11 @@ class Settings(BaseSettings):
     # other activation guard. See docs/runbooks/clob-adapter.md (TBD).
     USE_REAL_CLOB: bool = False
 
+    # --- Balance alerting ---
+    # Fire low_balance alert when user wallet balance drops below this value.
+    # Set to 0 to disable the alert globally.
+    LOW_BALANCE_THRESHOLD_USDC: float = 50.0
+
     # --- Polygon ---
     USDC_POLYGON: str = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
     USDC_DECIMALS: int = 6

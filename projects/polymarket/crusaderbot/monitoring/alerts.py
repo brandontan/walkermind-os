@@ -331,6 +331,7 @@ async def _send_user_exit_alert(
         web_title=web_title,
         web_body=text,
         severity=severity,
+        dedup_key=market_id,
     )
     if not send_tg:
         # User opted out of TG for this alert key — web mirror (if any)
@@ -508,6 +509,69 @@ async def alert_user_close_failed(
     if delivered:
         logger.warning("close_failed user-alert delivered tg=%s market=%s err=%s",
                        telegram_user_id, market_id, error[:200])
+
+
+_LOW_BALANCE_COOLDOWN_SEC: float = 3600.0  # re-alert at most once per hour per user
+
+
+async def alert_user_low_balance(
+    *,
+    telegram_user_id: int,
+    current_balance: float,
+    threshold: float,
+) -> None:
+    """Notify user that their wallet balance is below the configured threshold.
+
+    Gated by a 1-hour per-user cooldown (stored in _last_alert_at under
+    the "low_balance" key) so a sustained low balance does not spam.
+    Skipped when threshold <= 0 (feature disabled).
+    """
+    if threshold <= 0:
+        return
+    if current_balance >= threshold:
+        return
+
+    cooldown_key = ("low_balance", str(telegram_user_id))
+    last = _last_alert_at.get(cooldown_key)
+    now = time.monotonic()
+    if last is not None and (now - last) < _LOW_BALANCE_COOLDOWN_SEC:
+        return
+
+    text = (
+        f"⚠️ <b>Low Balance</b>\n"
+        f"Your wallet balance is <b>${current_balance:,.2f} USDC</b>, "
+        f"below the alert threshold of ${threshold:,.2f} USDC.\n"
+        "Please top up to avoid missed trades."
+    )
+    try:
+        send_tg = await _notif_prefs.route_outgoing_alert(
+            telegram_user_id=telegram_user_id,
+            alert_key="low_balance",
+            web_title="Low Balance",
+            web_body=text,
+            severity="warning",
+            dedup_key=None,
+        )
+    except Exception:
+        logger.warning(
+            "alert_user_low_balance.route_failed tg=%s balance=%.2f",
+            telegram_user_id, current_balance, exc_info=True,
+        )
+        return
+
+    if not send_tg:
+        _last_alert_at[cooldown_key] = now
+        return
+
+    try:
+        await notifications.send(telegram_user_id, text)
+    except Exception:
+        logger.warning(
+            "alert_user_low_balance.send_failed tg=%s", telegram_user_id, exc_info=True,
+        )
+        return
+
+    _last_alert_at[cooldown_key] = now
 
 
 async def alert_operator_close_failed_persistent(

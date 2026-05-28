@@ -551,6 +551,7 @@ class TradeNotifier:
                 web_title=web_title,
                 web_body=text,
                 severity="info",
+                dedup_key=market_id,
             )
         except Exception:
             send_tg = True

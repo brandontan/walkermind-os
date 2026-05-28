@@ -16,6 +16,7 @@ from apscheduler.events import (
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from . import audit, notifications
+from .monitoring import alerts as monitoring_alerts
 from .config import get_settings, resolve_trading_mode
 from .database import get_pool
 from .domain.execution import exit_watcher
@@ -817,6 +818,46 @@ async def _sweep_deposits_onchain() -> None:
     logger.info("sweep_deposits_onchain: %s user wallets swept", swept_users)
 
 
+async def check_balance_alerts() -> None:
+    """Emit low_balance alerts for users whose wallet balance is below threshold.
+
+    Skips when LOW_BALANCE_THRESHOLD_USDC=0 (feature disabled). The per-user
+    1-hour cooldown inside alert_user_low_balance prevents spam on sustained
+    low balance. Runs hourly via the scheduler.
+    """
+    s = get_settings()
+    threshold = s.LOW_BALANCE_THRESHOLD_USDC
+    if threshold <= 0:
+        return
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT u.telegram_user_id, COALESCE(w.balance_usdc, 0) AS balance_usdc
+              FROM users u
+              JOIN wallets w ON w.user_id = u.id
+             WHERE u.telegram_user_id IS NOT NULL
+               AND u.paused = FALSE
+            """
+        )
+
+    for row in rows:
+        tg_id = row["telegram_user_id"]
+        balance = float(row["balance_usdc"])
+        try:
+            await monitoring_alerts.alert_user_low_balance(
+                telegram_user_id=tg_id,
+                current_balance=balance,
+                threshold=threshold,
+            )
+        except Exception as exc:
+            logger.warning(
+                "check_balance_alerts: alert failed tg=%s balance=%.2f: %s",
+                tg_id, balance, exc,
+            )
+
+
 def _job_tracker_listener(event) -> None:
     """APScheduler listener that mirrors job outcomes into ``job_runs``.
 
@@ -972,6 +1013,10 @@ def setup_scheduler() -> AsyncIOScheduler:
         log_resumed_open_positions, "date",
         id="startup_recovery_log", max_instances=1, coalesce=True,
         replace_existing=True,
+    )
+    sched.add_job(
+        check_balance_alerts, "interval", hours=1,
+        id="check_balance_alerts", max_instances=1, coalesce=True,
     )
     sched.add_listener(
         _job_tracker_listener,
