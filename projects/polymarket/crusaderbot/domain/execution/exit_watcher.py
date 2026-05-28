@@ -384,20 +384,40 @@ async def evaluate(
     # 2. TP — read from the immutable applied_tp_pct snapshot, NOT from
     #    user_settings.tp_pct. A user toggling TP via /settings must NOT
     #    affect open positions.
+    #
+    #    Exit fill price = the live mark (`cur`), NOT the synthetic
+    #    `entry × (1+tp%)` threshold. Rationale:
+    #      * `cur` is the freshly-fetched CLOB /midpoint (or fallback to
+    #        get_live_market_price) — already filtered for sentinels and
+    #        tick-aligned. It IS the realistic fill price.
+    #      * The synthetic was added to bound polling-gap inflation when
+    #        the upstream price sources still leaked 1.0/0.0 sentinels,
+    #        but that protection now lives at the source (sentinel filter
+    #        in get_live_market_price + /midpoint primary).
+    #      * Same synthetic produced identical exits across distinct coins
+    #        (entry × 1.15 = 0.58075 for every position entered at 0.505),
+    #        which was the visible "fake exits" symptom WARP🔹CMD called out.
+    #    Falls back to the synthetic when `cur` is None (no live mark + no
+    #    cached current_price), keeping the old protection intact.
     if position.applied_tp_pct is not None and ret >= position.applied_tp_pct:
+        exit_fill = cur if cur is not None else _tp_exit_price(
+            position.side, position.entry_price, position.applied_tp_pct,
+        )
         return ExitDecision(should_exit=True,
                             reason=ExitReason.TP_HIT.value,
-                            current_price=_tp_exit_price(
-                                position.side, position.entry_price, position.applied_tp_pct))
+                            current_price=exit_fill)
 
     # 3. SL — same snapshot rule. Note SL is stored as a positive magnitude;
     #    the trigger condition compares against -applied_sl_pct so a 0.10
     #    SL means "close once we are 10% in the red".
+    #    Same live-mark-over-synthetic choice as the TP branch above.
     if position.applied_sl_pct is not None and ret <= -position.applied_sl_pct:
+        exit_fill = cur if cur is not None else _sl_exit_price(
+            position.side, position.entry_price, position.applied_sl_pct,
+        )
         return ExitDecision(should_exit=True,
                             reason=ExitReason.SL_HIT.value,
-                            current_price=_sl_exit_price(
-                                position.side, position.entry_price, position.applied_sl_pct))
+                            current_price=exit_fill)
 
     # 4. Strategy hook — priority above horizon/hold. Pass the live favored-side
     #    price so price-level exits (e.g. late_entry_v3 flip-stop) use real data.

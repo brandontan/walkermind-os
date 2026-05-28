@@ -105,12 +105,19 @@ def test_evaluate_hold_when_inside_thresholds():
 
 
 def test_evaluate_tp_hit_yes_side():
-    """YES side: ret = (cur - entry) / entry. cur=0.50 entry=0.40 -> +25% > 20%."""
+    """YES side: ret = (cur - entry) / entry. cur=0.50 entry=0.40 -> +25% > 20%.
+
+    Realtime-fill-price lane: TP exit fill price is now the LIVE mark
+    (`cur`), not the synthetic threshold (`entry × (1+tp%) = 0.48`). The
+    live mark IS the realistic fill price; the synthetic produced
+    identical exit prices across different markets which masked real
+    paper-trade behaviour.
+    """
     p = _make_position(yes_price=0.50, applied_tp_pct=0.20)
     decision = _run(exit_watcher.evaluate(p))
     assert decision.should_exit
     assert decision.reason == ExitReason.TP_HIT.value
-    assert decision.current_price == pytest.approx(0.48)  # _tp_exit_price: 0.40 * 1.20
+    assert decision.current_price == pytest.approx(0.50)  # live mark, not synthetic 0.48
 
 
 def test_evaluate_sl_hit_yes_side():
@@ -740,7 +747,10 @@ def test_run_once_sl_hit_alerts_user():
         for p_ in patches:
             p_.stop()
     assert len(captured.sl_hit) == 1
-    assert captured.sl_hit[0]["exit_price"] == pytest.approx(0.36)  # _sl_exit_price: 0.40 * 0.90
+    # Realtime-fill-price lane: SL exit fill is the LIVE mark (0.32),
+    # not the synthetic threshold (`entry × (1-sl%) = 0.36`). See
+    # `domain/execution/exit_watcher.py:evaluate`.
+    assert captured.sl_hit[0]["exit_price"] == pytest.approx(0.32)
 
 
 def test_run_once_force_close_intent_executes_immediately():

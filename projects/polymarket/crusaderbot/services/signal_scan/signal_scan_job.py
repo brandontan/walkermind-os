@@ -949,14 +949,35 @@ async def _process_candidate(
     # 3. Build TradeSignal — typed contract for TradeEngine (gate + paper fill).
     idem_key = _build_idempotency_key(user_id, cand.market_id, side, pub_uuid)
 
-    # 3b. Fetch live price so paper fill uses same source as exit_watcher.
-    #     Falls back to DB cached price silently on any API error so a
-    #     Gamma outage does not block all trading.
+    # 3b. Resolve the live fill price. Two sources, in priority order:
+    #
+    #     (a) Candidate metadata `entry_price` — for late_entry_v3 candidates,
+    #         this is the favored-side best ASK from CLOB /book at scan time
+    #         (computed by `_evaluate_market._best_ask`). Already tick-aligned
+    #         + interior because /book returns the real orderbook ladder.
+    #         The scan→fill latency is sub-second, so the orderbook hasn't
+    #         materially moved; using it eliminates the get_live_market_price
+    #         round trip AND the Gamma `outcomePrices` seed/midpoint fallback
+    #         that contaminated 200 flip_hunter positions on 2026-05-28.
+    #
+    #     (b) get_live_market_price fallback for candidates that DON'T carry
+    #         metadata["entry_price"] (signal_following, momentum, etc., which
+    #         enter on Gamma-aware longshot markets where sub-cent last-trade
+    #         prices are legitimate — see WARP-38).
     _live_fill_price: float | None = None
-    try:
-        _live_fill_price = await get_live_market_price(cand.market_id, side)
-    except Exception as exc:
-        log.warning("live_price_fetch_failed", market_id=cand.market_id, error=str(exc))
+    _meta_entry = cand.metadata.get("entry_price")
+    if _meta_entry is not None:
+        try:
+            _candidate_entry = float(_meta_entry)
+            if 0.0 < _candidate_entry < 1.0:
+                _live_fill_price = _candidate_entry
+        except (TypeError, ValueError):
+            _live_fill_price = None
+    if _live_fill_price is None:
+        try:
+            _live_fill_price = await get_live_market_price(cand.market_id, side)
+        except Exception as exc:
+            log.warning("live_price_fetch_failed", market_id=cand.market_id, error=str(exc))
 
     # 3b-i. Candle-market tick-alignment gate (flip-hunter-stale-price-fix).
     #       Polymarket 5m crypto candle markets (slug ``{coin}-updown-5m-...``)
