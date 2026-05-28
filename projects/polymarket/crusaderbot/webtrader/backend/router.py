@@ -1440,6 +1440,7 @@ async def get_portfolio_analytics(user: _CurrentUser) -> PortfolioAnalytics:
         rows = await conn.fetch(
             """SELECT p.pnl_usdc, p.opened_at, p.closed_at,
                       COALESCE(p.strategy_type, 'unknown') AS strategy_type,
+                      p.active_preset,
                       COALESCE(m.question, p.market_question, p.market_id) AS market_question
                FROM positions p
                LEFT JOIN markets m ON m.id = p.market_id
@@ -1485,11 +1486,14 @@ async def get_portfolio_analytics(user: _CurrentUser) -> PortfolioAnalytics:
         if dd > max_dd:
             max_dd = dd
 
-    # Profit per strategy
+    # Profit per strategy — aggregate by active_preset when present so the
+    # three late_entry_v3 presets (close_sweep / safe_close / flip_hunter)
+    # surface separately. Falls back to strategy_type for rows opened before
+    # migration 062 added the active_preset column.
     strat_pnl: dict[str, float] = {}
     for r in rows:
-        s = r["strategy_type"]
-        strat_pnl[s] = strat_pnl.get(s, 0.0) + float(r["pnl_usdc"])
+        key = r["active_preset"] or r["strategy_type"]
+        strat_pnl[key] = strat_pnl.get(key, 0.0) + float(r["pnl_usdc"])
     profit_per_strategy = [
         StrategyPnl(strategy=k, pnl_usdc=round(v, 2))
         for k, v in sorted(strat_pnl.items(), key=lambda x: -x[1])

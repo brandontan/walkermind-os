@@ -58,8 +58,24 @@ type Props = {
   onClose: () => void;
 };
 
+// Belt-and-suspenders HTML strip on render. The backend now strips when
+// persisting (notification_prefs._strip_html_for_web), but operator-pushed
+// broadcast rows or any pre-fix data in the DB might still contain tags.
+function stripHtml(text: string | null | undefined): string {
+  if (!text) return "";
+  return text
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+}
+
 export function AlertCenter({ isOpen, alerts, onClose }: Props) {
-  const { dismissAlert, markAllRead, loadMoreAlerts, hasMoreAlerts, unreadCount, panelOpenedAt } = useAlertCenter();
+  const { dismissAlert, markAllRead, loadMoreAlerts, hasMoreAlerts, unreadCount, seenIds } = useAlertCenter();
   const navigate = useNavigate();
 
   // "Preferences" link target — opens the Settings page where alert filtering
@@ -154,10 +170,10 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
                   const cat = deriveCategory(alert);
                   const style = CATEGORY_STYLE[cat];
                   const icon = CATEGORY_ICON[cat];
-                  // Unread when the alert was created after the user last
-                  // saw the panel. Gives the row a visual highlight + a
-                  // small dot before the title (matches the mock design).
-                  const isUnread = new Date(alert.created_at).getTime() > panelOpenedAt;
+                  // Unread = alert ID not yet in the persistent seenIds set.
+                  // The treatment persists across panel re-opens until the
+                  // user explicitly acknowledges (dismiss or Mark all read).
+                  const isUnread = !seenIds.has(alert.id);
                   return (
                     <div
                       key={alert.id}
@@ -195,7 +211,7 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
                               isUnread ? "text-ink-1 font-bold" : "text-ink-2 font-semibold"
                             }`}
                           >
-                            {alert.title}
+                            {stripHtml(alert.title)}
                           </span>
                           {/* Dismiss — always visible (was hover-only). Matches the screenshot
                               where every card shows a discoverable × on tap targets. */}
@@ -214,8 +230,9 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
                         {alert.body && (
                           // Body wraps (no truncate) so long titles like the screenshot's
                           // "BUY signal on 'Will Bitcoin exceed $120k?'" stay readable.
+                          // stripHtml is defensive — backend already cleans on insert.
                           <div className="font-mono text-[10px] text-ink-3 leading-snug mb-1 whitespace-pre-line break-words">
-                            {alert.body}
+                            {stripHtml(alert.body)}
                           </div>
                         )}
                         <span className="font-mono text-[9px] text-ink-4">

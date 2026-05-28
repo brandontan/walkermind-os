@@ -1159,7 +1159,14 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
           <div className="text-[9px] font-mono text-ink-4 uppercase tracking-widest mb-2">Profit by Strategy</div>
           <div className="space-y-1.5">
             {data.profit_per_strategy.map((s) => {
-              const label = fmtStrategy(s.strategy) ?? s.strategy;
+              // Backend now keys by active_preset when present (so close_sweep
+              // / safe_close / flip_hunter break out separately) and falls
+              // back to strategy_type. Check the preset map first, then the
+              // strategy map, then a generic title-case formatter.
+              const label =
+                PRESET_LABEL[s.strategy] ??
+                fmtStrategy(s.strategy) ??
+                s.strategy;
               return (
                 <div key={s.strategy} className="flex items-center justify-between">
                   <span className="text-[10px] font-mono text-ink-2">{label}</span>
