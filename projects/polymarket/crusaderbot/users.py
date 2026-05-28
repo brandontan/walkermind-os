@@ -72,9 +72,12 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
                     "VALUES ($1, $2, 'user') RETURNING *",
                     telegram_user_id, username,
                 )
+                # PAPER-default invariant (F-MEDIUM-1): write trading_mode
+                # explicitly so the value is not silently inherited from a
+                # future schema-default change.
                 await conn.execute(
-                    "INSERT INTO user_settings (user_id) VALUES ($1) "
-                    "ON CONFLICT (user_id) DO NOTHING",
+                    "INSERT INTO user_settings (user_id, trading_mode) "
+                    "VALUES ($1, 'paper') ON CONFLICT (user_id) DO NOTHING",
                     row["id"],
                 )
                 _is_new_user = True
@@ -265,8 +268,12 @@ async def get_settings_for(user_id: UUID) -> dict:
             "SELECT * FROM user_settings WHERE user_id=$1", user_id,
         )
         if row is None:
+            # PAPER-default invariant (F-MEDIUM-1): write trading_mode
+            # explicitly on lazy creation as well.
             await conn.execute(
-                "INSERT INTO user_settings (user_id) VALUES ($1)", user_id,
+                "INSERT INTO user_settings (user_id, trading_mode) "
+                "VALUES ($1, 'paper') ON CONFLICT (user_id) DO NOTHING",
+                user_id,
             )
             row = await conn.fetchrow(
                 "SELECT * FROM user_settings WHERE user_id=$1", user_id,

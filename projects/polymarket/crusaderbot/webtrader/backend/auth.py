@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import re
 import time
 from typing import Optional
@@ -15,6 +16,8 @@ from passlib.context import CryptContext
 from ...config import get_settings
 from ...database import get_pool
 from ...users import _bootstrap_new_user, upsert_user
+
+logger = logging.getLogger(__name__)
 from .schemas import (
     EmailLoginRequest,
     EmailRegisterRequest,
@@ -145,11 +148,28 @@ async def register_email(data: EmailRegisterRequest) -> TokenResponse:
         )
         user_id = str(row["id"])
 
-        # Bootstrap wallet + settings the same way upsert_user does for Telegram.
-        try:
-            await _bootstrap_new_user(row["id"])
-        except Exception:
-            pass  # bootstrap is best-effort; user row already created
+        # PAPER-default invariant (F-MEDIUM-1): create user_settings in the
+        # same transaction as users INSERT, with trading_mode='paper'
+        # written explicitly. Mirrors users.upsert_user for the Telegram
+        # path so WebTrader-signup users get the same row at creation time
+        # (no lazy create in get_settings_for).
+        await conn.execute(
+            "INSERT INTO user_settings (user_id, trading_mode) "
+            "VALUES ($1, 'paper') ON CONFLICT (user_id) DO NOTHING",
+            row["id"],
+        )
+
+    # Bootstrap wallet + settings the same way upsert_user does for Telegram.
+    # F-LOW-1: log the exception instead of silently swallowing; bootstrap
+    # remains best-effort (user row already created), but a failure leaves
+    # the new user without a wallet seed and must be observable.
+    try:
+        await _bootstrap_new_user(row["id"])
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "webtrader signup: _bootstrap_new_user failed user_id=%s",
+            row["id"],
+        )
 
     return _issue_token(user_id, data.first_name.strip())
 
