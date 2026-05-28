@@ -10,10 +10,16 @@ sender calls before delivery. Unknown alert keys / channels return True
 
 `persist_user_alert(...)` writes to system_alerts.user_id so the row shows in
 the user's WebTrader AlertCenter; gated by should_notify(user_id, key, "web").
+
+`route_outgoing_alert(...)` is the convenience wrapper every inner TG send
+helper calls: resolves user_id from telegram_user_id, writes the web mirror
+when web channel is enabled, returns True iff the TG channel should also fire.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from typing import Literal, Optional
 from uuid import UUID
 
@@ -185,3 +191,104 @@ async def persist_user_alert(
             exc_info=True,
         )
         return None
+
+
+# ---------------------------------------------------------------------------
+# Telegram-ID → user_id resolver with a small TTL cache.
+# The cache avoids a DB roundtrip on every notification; entries are tiny
+# (int → str pair) and expire fast so a re-link of an account is picked up
+# within the TTL window without manual eviction.
+# ---------------------------------------------------------------------------
+
+_TG_ID_CACHE: dict[int, tuple[str | None, float]] = {}
+_TG_ID_CACHE_TTL_SEC = 60.0
+_TG_ID_CACHE_LOCK = asyncio.Lock()
+
+
+async def resolve_user_id_for_telegram(telegram_user_id: int | None) -> Optional[str]:
+    """Return the users.id UUID (as string) for a given telegram_user_id, or None.
+
+    Hot path: ~ microseconds via in-process cache. Cold path: one indexed DB
+    SELECT. None means "no matching row" — the gate falls back to fail-open.
+    DB error → None (logged WARNING) so notifications continue to flow.
+    """
+    if telegram_user_id is None:
+        return None
+
+    now = time.monotonic()
+    hit = _TG_ID_CACHE.get(telegram_user_id)
+    if hit is not None:
+        uid, expires_at = hit
+        if expires_at > now:
+            return uid
+
+    async with _TG_ID_CACHE_LOCK:
+        hit = _TG_ID_CACHE.get(telegram_user_id)
+        if hit is not None:
+            uid, expires_at = hit
+            if expires_at > now:
+                return uid
+
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT id FROM users WHERE telegram_user_id = $1",
+                    int(telegram_user_id),
+                )
+        except Exception:
+            logger.warning(
+                "resolve_user_id_for_telegram_failed telegram_user_id=%s",
+                telegram_user_id, exc_info=True,
+            )
+            return None
+
+        uid = str(row["id"]) if row else None
+        _TG_ID_CACHE[telegram_user_id] = (uid, now + _TG_ID_CACHE_TTL_SEC)
+        return uid
+
+
+async def route_outgoing_alert(
+    *,
+    telegram_user_id: int | None,
+    alert_key: str,
+    web_title: str,
+    web_body: Optional[str] = None,
+    severity: str = DEFAULT_SEVERITY,
+) -> bool:
+    """End-to-end routing for a user-facing notification.
+
+    Steps:
+      1. Resolve user_id from telegram_user_id (cached).
+      2. If user_id resolved AND user wants web → INSERT into system_alerts
+         (per-user row, surfaces in WebTrader AlertCenter).
+      3. Return True iff the Telegram channel should also fire.
+
+    Fail-open: any DB error / unknown user / unknown alert_key returns True
+    for TG so a missing pref row never silently drops the notification.
+    """
+    user_id = await resolve_user_id_for_telegram(telegram_user_id)
+
+    # Web mirror is best-effort and self-gated by should_notify(.., "web").
+    if user_id is not None:
+        try:
+            await persist_user_alert(
+                user_id=user_id,
+                alert_key=alert_key,
+                title=web_title,
+                body=web_body,
+                severity=severity,
+            )
+        except Exception:
+            logger.warning(
+                "route_outgoing_alert_web_mirror_failed user_id=%s alert=%s",
+                user_id, alert_key,
+                exc_info=True,
+            )
+
+    return await should_notify(user_id, alert_key, "tg")
+
+
+def _evict_cache_entry(telegram_user_id: int) -> None:
+    """Test-only helper — drops a single cached telegram_user_id → user_id row."""
+    _TG_ID_CACHE.pop(telegram_user_id, None)
