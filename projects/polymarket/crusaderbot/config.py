@@ -222,25 +222,38 @@ class Settings(BaseSettings):
 
     # Per-preset overrides for late_entry_v3 — each preset passes its own
     # values to _evaluate_market instead of reading the global env vars above.
-    # close_sweep  : final 35s, moderate lean (≥0.05 diff), fav ≥0.55
-    # safe_close   : final 60s, tighter lean (≥0.08 diff), fav ≥0.60 — fewer but cleaner entries
-    # flip_hunter  : early 140s, any lean (≥0.05 diff), fav ≥0.50 — asymmetric upside on early flips
+    # close_sweep  : final 35s, moderate lean (≥0.05 diff), fav ≥0.55 (hold to candle close)
+    # safe_close   : enter rem 30–60s, Kreo Min Edge 1% (ask_diff ≥0.01), favored side, force-exit at rem 30s
+    # flip_hunter  : Kreo "Early Flip Hunter" — enter early (first 140s elapsed for 5m / 420s for 15m),
+    #                follow trend (favored side), Min Edge 3% (ask_diff ≥0.03), force-exit at upper window bound
     PRESET_CLOSE_SWEEP_WINDOW_SEC: float = 35.0
     PRESET_CLOSE_SWEEP_MIN_ASK_DIFF: float = 0.05
     PRESET_CLOSE_SWEEP_FAV_PRICE_MIN: float = 0.55
 
     PRESET_SAFE_CLOSE_WINDOW_SEC: float = 60.0
-    PRESET_SAFE_CLOSE_MIN_ASK_DIFF: float = 0.08
+    PRESET_SAFE_CLOSE_MIN_ASK_DIFF: float = 0.01  # Kreo Min Edge 1% (was 0.08)
     PRESET_SAFE_CLOSE_FAV_PRICE_MIN: float = 0.60
     # Entry allowed only when seconds_left is between MIN_ENTRY_SEC and WINDOW_SEC.
     # Safe Close 5m: elapsed 240–270s = 30–60s before close → min_entry_sec=30.
     PRESET_SAFE_CLOSE_MIN_ENTRY_SEC: float = 30.0
+    # Force-exit when rem ≤ this. Kreo Safe Close exits at elapsed 270s (5m) / 870s (15m)
+    # — both correspond to rem 30s — so a single value covers both timeframes.
+    # Closes the position BEFORE the noisy final 30s where SL gets hit at random.
+    PRESET_SAFE_CLOSE_FORCE_EXIT_REM_SEC: float = 30.0
 
-    PRESET_FLIP_HUNTER_WINDOW_SEC: float = 140.0
-    PRESET_FLIP_HUNTER_MIN_ASK_DIFF: float = 0.05
-    # Underdog (cheap) side price range: enter the 0.26–0.35 side expecting a flip.
-    PRESET_FLIP_HUNTER_FAV_PRICE_MIN: float = 0.26
-    PRESET_FLIP_HUNTER_FAV_PRICE_MAX: float = 0.36
+    # flip_hunter — Kreo "Early Flip Hunter": enter early, follow trend (favored side).
+    # Timeframe-aware: 5m vs 15m have different absolute windows.
+    PRESET_FLIP_HUNTER_MIN_ASK_DIFF: float = 0.03   # Kreo Min Edge 3% (was 0.05)
+    PRESET_FLIP_HUNTER_FAV_PRICE_MIN: float = 0.50  # favored side ≥ 0.50 (was 0.26 underdog)
+    PRESET_FLIP_HUNTER_FAV_PRICE_MAX: float = 0.95  # skip near-resolved (was 0.36 underdog ceiling)
+    # 5m candle: enter elapsed 0–140s → rem 160–300s. Force-exit at elapsed 140s → rem 160s.
+    PRESET_FLIP_HUNTER_5M_MIN_REM_SEC: float = 160.0
+    PRESET_FLIP_HUNTER_5M_MAX_REM_SEC: float = 300.0
+    PRESET_FLIP_HUNTER_5M_FORCE_EXIT_REM_SEC: float = 160.0
+    # 15m candle: enter elapsed 0–420s → rem 480–900s. Force-exit at elapsed 420s → rem 480s.
+    PRESET_FLIP_HUNTER_15M_MIN_REM_SEC: float = 480.0
+    PRESET_FLIP_HUNTER_15M_MAX_REM_SEC: float = 900.0
+    PRESET_FLIP_HUNTER_15M_FORCE_EXIT_REM_SEC: float = 480.0
     MARKET_SIGNAL_SCAN_INTERVAL: int = 60
     # --- Signal scanner thresholds (demo path edge_finder) ---
     # Market eligibility price range: excludes near-resolved markets and
