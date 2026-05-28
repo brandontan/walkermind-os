@@ -131,8 +131,21 @@ export function makeApi(token: string | null) {
       get<Wallet360>(`/copy-trade/wallet-360/${address}`),
     getRecentSignals: (limit = 10, offset = 0) =>
       get<FeedSignal[]>(`/signals/recent?limit=${limit}&offset=${offset}`),
+    // ── Live-trading activation (per-user opt-in) ──────────────────────────
+    getLiveStatus: () => get<LiveStatus>("/live/status"),
+    enableLive: (live_capital_cap_usdc: number, confirm_phrase: string) =>
+      post<LiveEnableResponse>("/live/enable", { live_capital_cap_usdc, confirm_phrase }),
+    disableLive: () => post<{ trading_mode: string }>("/live/disable"),
   };
 }
+
+// Exact phrase the user must type to flip into live mode. MUST match the
+// backend constant (domain/activation/live_opt_in_gate.LIVE_ENABLE_CONFIRM_PHRASE)
+// and the Telegram flow — single source of truth across all three surfaces.
+export const LIVE_ENABLE_CONFIRM_PHRASE = "ENABLE LIVE TRADING FOR MY ACCOUNT";
+// Per-user live capital cap bounds (mirrors LIVE_CAP_MIN/MAX_USDC on the backend).
+export const LIVE_CAP_MIN_USDC = 0;
+export const LIVE_CAP_MAX_USDC = 10000;
 
 // ── Types mirroring backend schemas ──────────────────────────────────────────
 
@@ -402,6 +415,21 @@ export interface RuntimeStatus {
   scanner_scanned: number;
   scanner_published: number;
   scanner_last_tick: number | null;
+}
+
+// ── Live-trading activation (mirrors backend schemas.LiveStatus/LiveEnable*) ──
+export interface LiveStatus {
+  trading_mode: string;            // "paper" | "live"
+  live_capital_cap_usdc: number;   // 0 = not opted in
+  open_live_exposure_usdc: number; // aggregate open live size
+  operator_guards_open: boolean;   // system-level live unlock (all 5 env guards)
+  checklist_passed: boolean;       // 8-gate per-user readiness
+  failed_gates: string[];          // human-readable gate names that aren't passing
+}
+
+export interface LiveEnableResponse {
+  trading_mode: string;
+  live_capital_cap_usdc: number;
 }
 
 export interface FeedSignal {

@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AdvancedOnly } from "../components/AdvancedGate";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
+import { LiveActivationModal } from "../components/LiveActivationModal";
 import { NotificationPrefsCard } from "../components/NotificationPrefsCard";
 import { SettingsGroup, SettingsRow } from "../components/SettingsGroup";
 import { Toggle } from "../components/Toggle";
 import { TopBar } from "../components/TopBar";
-import { makeApi, type UserSettings } from "../lib/api";
+import { makeApi, type LiveStatus, type UserSettings } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 import { useUiMode } from "../lib/uiMode";
@@ -18,6 +19,11 @@ export function SettingsPage() {
   const { advanced, toggle: toggleAdvanced } = useUiMode();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [tradingMode, setTradingMode] = useState<string>("paper");
+
+  // Live-trading activation
+  const [liveStatus, setLiveStatus] = useState<LiveStatus | null>(null);
+  const [showLiveModal, setShowLiveModal] = useState(false);
+  const [disablingLive, setDisablingLive] = useState(false);
 
   // Link email state
   const [showLinkEmail, setShowLinkEmail] = useState(false);
@@ -52,12 +58,16 @@ export function SettingsPage() {
   const [savingRedeem, setSavingRedeem] = useState(false);
 
   const load = useCallback(async () => {
-    const [s, dash] = await Promise.all([
+    const [s, dash, live] = await Promise.all([
       api.getSettings(),
       api.getDashboard(),
+      // Live status is non-critical to the page — never let it block the
+      // rest of Settings from rendering.
+      api.getLiveStatus().catch(() => null),
     ]);
     setSettings(s);
     setTradingMode(dash.trading_mode);
+    setLiveStatus(live);
     if (s.auto_redeem != null) setAutoRedeem(s.auto_redeem);
     if (s.redeem_mode) setRedeemMode(s.redeem_mode);
   }, [api]);
@@ -97,6 +107,18 @@ export function SettingsPage() {
       } finally {
         setSavingRedeem(false);
       }
+    }
+  }
+
+  async function handleDisableLive() {
+    setDisablingLive(true);
+    try {
+      await api.disableLive();
+      await load();
+    } catch (e) {
+      console.error("disable live failed", e);
+    } finally {
+      setDisablingLive(false);
     }
   }
 
@@ -193,6 +215,74 @@ export function SettingsPage() {
 
           {/* Right column */}
           <div>
+            {/* Live Trading — per-user opt-in into real-money execution */}
+            <SettingsGroup title="Live Trading">
+              <div className="px-3 py-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-ink-1">Trading mode</p>
+                    <p className="text-[10px] text-ink-3 mt-0.5">
+                      {tradingMode === "live"
+                        ? "Real USDC is at risk on new trades."
+                        : "Practice money — no real funds at risk."}
+                    </p>
+                  </div>
+                  <ModePill mode={tradingMode} />
+                </div>
+
+                {tradingMode === "live" ? (
+                  <>
+                    {liveStatus && (
+                      <div
+                        className="p-2.5 rounded-sm space-y-1.5"
+                        style={{ background: "rgba(0,255,156,0.05)", border: "1px solid rgba(0,255,156,0.18)" }}
+                      >
+                        <InfoRow
+                          label="Capital cap"
+                          value={`$${liveStatus.live_capital_cap_usdc.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDC`}
+                        />
+                        <InfoRow
+                          label="Open live exposure"
+                          value={`$${liveStatus.open_live_exposure_usdc.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDC`}
+                        />
+                      </div>
+                    )}
+                    <p className="text-[10px] text-ink-3 leading-relaxed">
+                      The cap is the most open live exposure the bot will hold for you. Switching
+                      back to paper stops new real-money trades; open live positions resolve as-is.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleDisableLive()}
+                      disabled={disablingLive}
+                      className="w-full clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors disabled:opacity-50"
+                      style={{ background: "rgba(245,200,66,0.08)", border: "1px solid rgba(245,200,66,0.3)", color: "#F5C842" }}
+                    >
+                      {disablingLive ? "…" : "Switch back to Paper"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[10px] text-ink-3 leading-relaxed">
+                      Switch from practice to real-money trading. You'll set a capital cap (your
+                      max live exposure) and type a confirmation phrase. All risk controls stay on.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowLiveModal(true)}
+                      disabled={!liveStatus}
+                      className="w-full clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ background: "rgba(0,255,156,0.1)", border: "1px solid rgba(0,255,156,0.35)", color: "#00FF9C" }}
+                    >
+                      {liveStatus && !liveStatus.operator_guards_open
+                        ? "🔒 Live locked by operator"
+                        : "Enable Live Trading →"}
+                    </button>
+                  </>
+                )}
+              </div>
+            </SettingsGroup>
+
             {/* Account */}
             <SettingsGroup title="Account">
               <SettingsRow
@@ -295,10 +385,30 @@ export function SettingsPage() {
         </button>
 
         <p className="text-ink-4 text-xs text-center mt-6 font-mono tracking-[0.5px]">
-          System in paper trading mode. No real capital deployed.
+          {tradingMode === "live"
+            ? "Live mode — real capital deployed. Trade responsibly."
+            : "System in paper trading mode. No real capital deployed."}
         </p>
       </div>
+
+      {showLiveModal && liveStatus && (
+        <LiveActivationModal
+          status={liveStatus}
+          onClose={() => setShowLiveModal(false)}
+          onEnable={(capValue, confirmPhrase) => api.enableLive(capValue, confirmPhrase)}
+          onSuccess={() => { void load(); }}
+        />
+      )}
     </>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between items-center">
+      <span className="font-hud text-[9px] font-bold tracking-[1.5px] uppercase text-ink-3">{label}</span>
+      <span className="font-mono text-[11px] text-ink-2">{value}</span>
+    </div>
   );
 }
 

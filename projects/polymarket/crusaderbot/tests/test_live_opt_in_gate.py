@@ -175,21 +175,50 @@ def test_text_input_wrong_awaiting_returns_false():
 # ── text_input — CONFIRM accepted (case-sensitive) ────────────────────────────
 
 
-def test_text_input_confirm_exact_advances_to_step3():
+def test_text_input_confirm_exact_advances_to_cap_step():
     update, reply = _make_msg_update("CONFIRM")
     ctx = _make_ctx({"awaiting": live_gate.AWAITING_STEP1})
 
     result = asyncio.run(live_gate.text_input(update, ctx))
 
     assert result is True
-    # Step 3 keyboard was shown
+    # Cap prompt shown (no keyboard yet — that comes after the cap is entered)
+    reply.assert_awaited_once()
+    _, kwargs = reply.call_args
+    assert kwargs.get("reply_markup") is None
+    # awaiting advanced to the cap-capture step
+    assert ctx.user_data.get("awaiting") == live_gate.AWAITING_CAP
+
+
+def test_text_input_cap_amount_advances_to_step3():
+    """After CONFIRM, a valid cap amount stores the cap and shows the final
+    YES/CANCEL button (Step 3) with the 10-second timestamp armed."""
+    update, reply = _make_msg_update("500")
+    ctx = _make_ctx({"awaiting": live_gate.AWAITING_CAP})
+
+    result = asyncio.run(live_gate.text_input(update, ctx))
+
+    assert result is True
     reply.assert_awaited_once()
     _, kwargs = reply.call_args
     assert kwargs.get("reply_markup") is not None
-    # awaiting advanced to step2
     assert ctx.user_data.get("awaiting") == live_gate.AWAITING_STEP2
-    # timestamp stored
+    assert ctx.user_data.get(live_gate.CAP_KEY) == 500.0
     assert live_gate.GATE_TS_KEY in ctx.user_data
+
+
+def test_text_input_invalid_cap_stays_in_cap_step():
+    """An out-of-range / unparseable cap is rejected and the flow stays in the
+    cap step so the user can retry (no mode change armed)."""
+    update, reply = _make_msg_update("0")
+    ctx = _make_ctx({"awaiting": live_gate.AWAITING_CAP})
+
+    result = asyncio.run(live_gate.text_input(update, ctx))
+
+    assert result is True
+    reply.assert_awaited_once()
+    assert ctx.user_data.get("awaiting") == live_gate.AWAITING_CAP
+    assert live_gate.CAP_KEY not in ctx.user_data
 
 
 def test_text_input_lowercase_confirm_rejected():
@@ -236,6 +265,7 @@ def test_callback_yes_within_timeout_enables_live():
     ctx = _make_ctx({
         "awaiting": live_gate.AWAITING_STEP2,
         live_gate.GATE_TS_KEY: time.monotonic(),  # just now
+        live_gate.CAP_KEY: 500.0,                 # cap captured in the cap step
     })
 
     with patch.object(live_gate, "upsert_user", AsyncMock(return_value=USER_ROW)), \
@@ -243,10 +273,12 @@ def test_callback_yes_within_timeout_enables_live():
                       AsyncMock(return_value=CHECKLIST_PASS)), \
          patch.object(live_gate, "get_settings_for", AsyncMock(return_value=SETTINGS_ROW)), \
          patch.object(live_gate, "update_settings", AsyncMock()) as mock_update, \
-         patch.object(live_gate, "write_mode_change_event", AsyncMock()) as mock_audit:
+         patch.object(live_gate, "write_mode_change_event", AsyncMock(return_value=True)) as mock_audit:
         asyncio.run(live_gate.live_gate_callback(update, ctx))
 
-    mock_update.assert_awaited_once_with(USER_ROW["id"], trading_mode="live")
+    mock_update.assert_awaited_once_with(
+        USER_ROW["id"], trading_mode="live", live_capital_cap_usdc=500.0,
+    )
     mock_audit.assert_awaited_once_with(
         user_id=USER_ROW["id"],
         from_mode="paper",
@@ -261,6 +293,7 @@ def test_callback_yes_checklist_fail_blocks_mode_change():
     ctx = _make_ctx({
         "awaiting": live_gate.AWAITING_STEP2,
         live_gate.GATE_TS_KEY: time.monotonic(),
+        live_gate.CAP_KEY: 500.0,
     })
 
     with patch.object(live_gate, "upsert_user", AsyncMock(return_value=USER_ROW)), \

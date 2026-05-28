@@ -157,9 +157,20 @@ def test_enable_live_requires_exact_confirm_phrase():
 
 
 def test_enable_live_enforces_capital_cap_bounds():
-    """POST /live/enable must reject cap <= 0 and cap > 10_000."""
+    """POST /live/enable must reject cap <= 0 and cap > the system ceiling.
+
+    Bounds now come from the shared constants in
+    domain/activation/live_opt_in_gate.py (single source of truth for both the
+    WebTrader endpoint and the Telegram /enable_live flow), so the pin asserts
+    the shared-constant comparison form plus the actual ceiling value.
+    """
+    from projects.polymarket.crusaderbot.domain.activation import (
+        live_opt_in_gate as opt_in,
+    )
     src = inspect.getsource(router_mod.enable_live)
-    assert "0 < float(body.live_capital_cap_usdc) <= 10_000" in src
+    assert "LIVE_CAP_MIN_USDC < float(body.live_capital_cap_usdc) <= LIVE_CAP_MAX_USDC" in src
+    assert opt_in.LIVE_CAP_MIN_USDC == 0.0
+    assert opt_in.LIVE_CAP_MAX_USDC == 10_000.0
 
 
 def test_enable_live_requires_operator_guards_and_checklist():

@@ -236,6 +236,7 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("signals",         signal_following.signals_command))
     app.add_handler(CommandHandler("live_checklist",  activation.live_checklist_command))
     app.add_handler(CommandHandler("enable_live",     live_gate.enable_live_command))
+    app.add_handler(CommandHandler("disable_live",    live_gate.disable_live_command))
     app.add_handler(CommandHandler("summary_on",      activation.summary_on_command))
     app.add_handler(CommandHandler("summary_off",     activation.summary_off_command))
     app.add_handler(CommandHandler("insights",        pnl_insights_h.pnl_insights_command))

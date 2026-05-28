@@ -122,6 +122,10 @@ async def _fetch_last_trade_action(user_id) -> str:
             return f"📈 Last: Bought — {q}"
         return f"📉 Last: Closed — {q}"
     except Exception:
+        # Fail-open for UX (the dashboard must always render), but never
+        # silent — log so the operator sees the real fault (CLAUDE.md HARD
+        # RULE: no silent failures). The user still gets a friendly status.
+        logger.exception("dashboard last-trade lookup failed user=%s", user_id)
         return "📡 Scanning Polymarket liquidity..."
 
 

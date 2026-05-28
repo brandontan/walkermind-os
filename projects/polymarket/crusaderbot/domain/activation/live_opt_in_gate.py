@@ -43,6 +43,55 @@ class ModeChangeReason(str, Enum):
     OPERATOR_OVERRIDE = "OPERATOR_OVERRIDE"
 
 
+# ── Live opt-in shared constants (single source of truth for BOTH surfaces) ──
+# WebTrader (full control) and the Telegram bot (simple control) MUST agree on
+# these values so the per-user live opt-in behaves identically everywhere.
+
+# Exact phrase the WebTrader "full" flow requires the user to type. The Telegram
+# "simple" flow uses a shorter CONFIRM word but writes the SAME settings + cap.
+LIVE_ENABLE_CONFIRM_PHRASE = "ENABLE LIVE TRADING FOR MY ACCOUNT"
+
+# Per-user live capital cap bounds. The cap is the maximum USDC of *aggregate*
+# open live exposure the risk gate (gate.py step 15) will allow for this user.
+# cap = 0 means "not opted in" — every live trade is rejected (live_not_opted_in).
+LIVE_CAP_MIN_USDC: float = 0.0       # exclusive — cap must be > 0 to trade live
+LIVE_CAP_MAX_USDC: float = 10_000.0  # inclusive system ceiling — no user exceeds
+
+
+class LiveCapError(ValueError):
+    """Raised when a proposed live capital cap is invalid (out of bounds /
+    unparseable). Message is human-readable and safe to show the user."""
+
+
+def validate_live_capital_cap(raw: object) -> float:
+    """Parse + bounds-check a user-supplied live capital cap.
+
+    Accepts raw user input (str or number), strips common currency decoration
+    ($ , _) and enforces ``LIVE_CAP_MIN_USDC < cap <= LIVE_CAP_MAX_USDC``.
+    Raises ``LiveCapError`` with a human-readable message on any failure so the
+    caller can surface it directly. Single source of truth shared by the
+    WebTrader endpoint and the Telegram /enable_live flow.
+    """
+    if isinstance(raw, str):
+        cleaned: object = raw.strip().lstrip("$").replace(",", "").replace("_", "")
+    else:
+        cleaned = raw
+    try:
+        cap = float(cleaned)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise LiveCapError(
+            "Enter a number between 1 and 10000 (USDC), e.g. 500"
+        )
+    if cap != cap or cap in (float("inf"), float("-inf")):  # NaN / inf guard
+        raise LiveCapError("Enter a real number between 1 and 10000 (USDC)")
+    if not (LIVE_CAP_MIN_USDC < cap <= LIVE_CAP_MAX_USDC):
+        raise LiveCapError(
+            f"Capital cap must be greater than 0 and at most "
+            f"{LIVE_CAP_MAX_USDC:,.0f} USDC"
+        )
+    return round(cap, 6)
+
+
 @dataclass
 class GuardCheckResult:
     all_set: bool
@@ -79,8 +128,14 @@ async def write_mode_change_event(
     from_mode: str,
     to_mode: str,
     reason: ModeChangeReason,
-) -> None:
-    """INSERT one row into mode_change_events. Never raises."""
+) -> bool:
+    """INSERT one row into mode_change_events.
+
+    Returns True on success, False if the audit write failed. Never raises: a
+    failed audit write must not block the user's mode change, but the caller
+    SHOULD surface a soft warning so the gap is visible rather than silent
+    (CLAUDE.md HARD RULE: no silent failures).
+    """
     try:
         pool = get_pool()
         async with pool.acquire() as conn:
@@ -90,8 +145,10 @@ async def write_mode_change_event(
                 "VALUES ($1, $2, $3, $4)",
                 user_id, from_mode, to_mode, reason.value,
             )
+        return True
     except Exception as exc:
         logger.error(
             "mode_change_event write failed user=%s from=%s to=%s reason=%s err=%s",
             user_id, from_mode, to_mode, reason.value, exc,
         )
+        return False
