@@ -720,14 +720,16 @@ function PnlChart({
 // ── Position Row ──────────────────────────────────────────────────────────────
 
 const EXIT_LABEL: Record<string, string> = {
-  tp_hit: "TP",
-  sl_hit: "SL",
-  manual: "MNL",
-  strategy_exit: "STRAT",
-  resolution: "RES",
-  force_close: "FORCE",
-  close_failed: "ERR",
-  market_expired: "EXP",
+  tp_hit: "TP HIT",
+  sl_hit: "SL HIT",
+  manual: "CLOSED",
+  strategy_exit: "AUTO EXIT",
+  resolution: "RESOLVED",
+  resolution_win: "WIN",
+  resolution_loss: "LOSS",
+  force_close: "FORCED",
+  close_failed: "ERROR",
+  market_expired: "EXPIRED",
 };
 
 const EXIT_TONE: Record<string, string> = {

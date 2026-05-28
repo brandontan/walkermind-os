@@ -56,8 +56,12 @@ export function DashboardPage() {
     try {
       const summary = await api.getDashboard();
       setData(summary);
+      setError(null);
     } catch (e) {
-      setError(String(e));
+      const msg = String(e);
+      // 429 is transient — keep showing existing data, the 15s poller will retry.
+      if (msg.includes("429")) return;
+      setError(msg);
     }
   }, [api]);
 
@@ -253,13 +257,13 @@ export function DashboardPage() {
               advanced={
                 <>
                   <StatCard
-                    large
                     color="grn"
                     icon="▰"
                     label="Balance"
                     value={data.balance_usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                     unit="USDC"
                     sub={`${data.trading_mode === "live" ? "Live" : "Paper"} · Polygon`}
+                    sparkline={[data.pnl_today, data.pnl_7d, data.pnl_alltime]}
                   />
                   <StatCard
                     color="gold"
@@ -267,7 +271,15 @@ export function DashboardPage() {
                     label="Win Rate"
                     value={winRate}
                     sub={`${data.wins}/${data.total_trades} closed`}
-                    sparkline={[data.pnl_today, data.pnl_7d, data.pnl_alltime]}
+                  />
+                  <StatCard
+                    color={data.pnl_today >= 0 ? "grn" : "red"}
+                    icon={data.pnl_today >= 0 ? "▲" : "▼"}
+                    label="PnL Today"
+                    value={`${data.pnl_today >= 0 ? "+" : ""}${data.pnl_today.toFixed(2)}`}
+                    unit="USDC"
+                    sub={`${data.signals_today} signals today`}
+                    subTone={data.pnl_today >= 0 ? "up" : "dn"}
                   />
                   <StatCard
                     color="cyan"
