@@ -210,6 +210,7 @@ class _Pool:
 def _settings(execution_validated: bool):
     class _S:
         EXECUTION_PATH_VALIDATED = execution_validated
+        CUSTODY_MODE = "eoa"  # default; custody dispatcher routes to polygon_usdc
     return _S()
 
 

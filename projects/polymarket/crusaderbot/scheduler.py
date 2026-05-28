@@ -768,7 +768,11 @@ async def _sweep_deposits_onchain() -> None:
     one bad wallet never aborts the rest, and deposits are marked swept ONLY
     after that user's transfer confirms on-chain.
     """
-    from .integrations.polygon_usdc import PreflightError, sweep_usdc_to_master
+    # Custody-mode dispatcher routes per-user sweep to either polygon_usdc
+    # (EOA: master-funded gas top-up) or SafeCustody (gasless via relayer).
+    # PreflightError is re-exported from custody so the typed error stays
+    # uniform regardless of which custody backend handled the call.
+    from .wallet.custody import PreflightError, sweep_usdc_to_master
     from .wallet.vault import get_decrypted_pk
 
     pool = get_pool()

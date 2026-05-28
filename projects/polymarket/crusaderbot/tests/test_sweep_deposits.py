@@ -53,6 +53,7 @@ class _LogicalSettings:
     """Guards OFF → sweep_deposits takes the logical (accounting-only) branch."""
     EXECUTION_PATH_VALIDATED = False
     SWEEP_ONCHAIN_ENABLED = False
+    CUSTODY_MODE = "eoa"
 
 
 def _run_sweep(count: int) -> AsyncMock:
@@ -92,6 +93,7 @@ from decimal import Decimal
 class _OnchainSettings:
     EXECUTION_PATH_VALIDATED = True
     SWEEP_ONCHAIN_ENABLED = True
+    CUSTODY_MODE = "eoa"  # tests target the EOA branch; SafeCustody has its own tests
 
 
 class _OnchainConn:
@@ -141,6 +143,7 @@ def test_onchain_sweep_marks_swept_after_confirm():
     audit_mock = AsyncMock()
 
     with patch.object(sched, "get_settings", return_value=_OnchainSettings()), \
+         patch("projects.polymarket.crusaderbot.config.get_settings", return_value=_OnchainSettings()), \
          patch.object(sched, "get_pool", return_value=_Pool(conn)), \
          patch.object(vault, "get_decrypted_pk", AsyncMock(return_value="0xpk")), \
          patch.object(polygon_usdc, "sweep_usdc_to_master",
@@ -162,6 +165,7 @@ def test_onchain_sweep_skips_dust_without_marking():
     conn = _OnchainConn(rows)
 
     with patch.object(sched, "get_settings", return_value=_OnchainSettings()), \
+         patch("projects.polymarket.crusaderbot.config.get_settings", return_value=_OnchainSettings()), \
          patch.object(sched, "get_pool", return_value=_Pool(conn)), \
          patch.object(vault, "get_decrypted_pk", AsyncMock(return_value="0xpk")), \
          patch.object(polygon_usdc, "sweep_usdc_to_master",
@@ -192,6 +196,7 @@ def test_onchain_sweep_continues_on_user_failure():
         return {"tx_hash": "0xok", "amount_usdc": "5"}
 
     with patch.object(sched, "get_settings", return_value=_OnchainSettings()), \
+         patch("projects.polymarket.crusaderbot.config.get_settings", return_value=_OnchainSettings()), \
          patch.object(sched, "get_pool", return_value=_Pool(conn)), \
          patch.object(vault, "get_decrypted_pk", AsyncMock(return_value="0xpk")), \
          patch.object(polygon_usdc, "sweep_usdc_to_master", _sweep), \

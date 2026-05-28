@@ -179,7 +179,10 @@ async def _attempt_onchain_transfer(
             withdrawal_id,
         )
 
-    from ..integrations.polygon_usdc import transfer_usdc
+    # Custody-mode dispatcher: EOA → polygon_usdc.transfer_usdc (master-funded);
+    # Safe → SafeCustody.transfer_usdc (gasless via Polymarket relayer). Default
+    # CUSTODY_MODE='eoa' keeps the merged C1 path unchanged.
+    from ..wallet.custody import transfer_usdc
     result = await transfer_usdc(to=destination_address, amount_usdc=amount_usdc)
 
     async with pool.acquire() as conn:
