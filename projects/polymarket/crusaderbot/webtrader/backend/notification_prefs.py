@@ -234,6 +234,18 @@ _TG_ID_CACHE: dict[int, tuple[str | None, float]] = {}
 _TG_ID_CACHE_TTL_SEC = 60.0
 _TG_ID_CACHE_LOCK = asyncio.Lock()
 
+# ---------------------------------------------------------------------------
+# Dedup cache — suppresses duplicate route_outgoing_alert calls when
+# multiple surfaces (notification_service / trade_notifications / monitoring)
+# fire for the same event within a 30 s window.
+# Key: (user_id_str, alert_key, dedup_key).  Value: monotonic expiry time.
+# Caller provides dedup_key (typically market_id); None = no dedup (fail-open).
+# ---------------------------------------------------------------------------
+
+_DEDUP_CACHE: dict[tuple[str, str, str], float] = {}
+_DEDUP_TTL_SEC: float = 30.0
+_DEDUP_LOCK = asyncio.Lock()
+
 
 async def resolve_user_id_for_telegram(telegram_user_id: int | None) -> Optional[str]:
     """Return the users.id UUID (as string) for a given telegram_user_id, or None.
@@ -285,19 +297,41 @@ async def route_outgoing_alert(
     web_title: str,
     web_body: Optional[str] = None,
     severity: str = DEFAULT_SEVERITY,
+    dedup_key: Optional[str] = None,
 ) -> bool:
     """End-to-end routing for a user-facing notification.
 
     Steps:
       1. Resolve user_id from telegram_user_id (cached).
-      2. If user_id resolved AND user wants web → INSERT into system_alerts
-         (per-user row, surfaces in WebTrader AlertCenter).
-      3. Return True iff the Telegram channel should also fire.
+      2. Dedup check: if the same (user, alert_key, dedup_key) already fired
+         within _DEDUP_TTL_SEC, suppress both web insert and TG send.
+      3. If user_id resolved AND user wants web → INSERT into system_alerts.
+      4. Return True iff the Telegram channel should also fire.
 
     Fail-open: any DB error / unknown user / unknown alert_key returns True
     for TG so a missing pref row never silently drops the notification.
+    dedup_key=None disables dedup (caller has no event context to key on).
     """
     user_id = await resolve_user_id_for_telegram(telegram_user_id)
+
+    # Dedup: suppress duplicate calls from multiple surfaces firing for the
+    # same event within the TTL window. Only active when dedup_key provided.
+    if dedup_key is not None and user_id is not None:
+        cache_key = (user_id, alert_key, dedup_key)
+        now = time.monotonic()
+        async with _DEDUP_LOCK:
+            expires_at = _DEDUP_CACHE.get(cache_key)
+            if expires_at is not None and expires_at > now:
+                log.debug(
+                    "route_outgoing_alert.dedup_hit",
+                    user_id=user_id,
+                    alert_key=alert_key,
+                    dedup_key=dedup_key,
+                )
+                return False
+            _DEDUP_CACHE[cache_key] = now + _DEDUP_TTL_SEC
+            if len(_DEDUP_CACHE) > 4096:
+                _evict_stale_dedup(now)
 
     # Web mirror is best-effort and self-gated by should_notify(.., "web").
     if user_id is not None:
@@ -322,3 +356,15 @@ async def route_outgoing_alert(
 def _evict_cache_entry(telegram_user_id: int) -> None:
     """Test-only helper — drops a single cached telegram_user_id → user_id row."""
     _TG_ID_CACHE.pop(telegram_user_id, None)
+
+
+def _evict_stale_dedup(now: float) -> None:
+    """Remove expired entries from _DEDUP_CACHE. Must be called under _DEDUP_LOCK."""
+    stale = [k for k, exp in _DEDUP_CACHE.items() if exp <= now]
+    for k in stale:
+        del _DEDUP_CACHE[k]
+
+
+def _clear_dedup_cache() -> None:
+    """Test-only helper — clears the entire dedup cache."""
+    _DEDUP_CACHE.clear()

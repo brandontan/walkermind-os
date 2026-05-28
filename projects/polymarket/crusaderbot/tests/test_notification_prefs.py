@@ -161,6 +161,92 @@ def test_strip_html_removes_tags_and_decodes_entities():
     assert np._strip_html_for_web("") == ""
 
 
+@pytest.mark.asyncio
+async def test_route_outgoing_alert_dedup_suppresses_second_call():
+    """Second call with same (user, alert_key, dedup_key) within TTL returns False."""
+    np._clear_dedup_cache()
+
+    tg_id = 9876543
+    user_uuid = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    pool = _fake_pool(prefs_blob={}, insert_id="x")
+
+    with patch.object(np, "get_pool", return_value=pool), \
+         patch.object(np, "_TG_ID_CACHE", {tg_id: (user_uuid, float("inf"))}):
+        result1 = await np.route_outgoing_alert(
+            telegram_user_id=tg_id,
+            alert_key="trade_opened",
+            web_title="Trade Opened",
+            dedup_key="market-abc",
+        )
+        result2 = await np.route_outgoing_alert(
+            telegram_user_id=tg_id,
+            alert_key="trade_opened",
+            web_title="Trade Opened",
+            dedup_key="market-abc",
+        )
+
+    # First call should proceed (TG=True since prefs={}, fail-open).
+    assert result1 is True
+    # Second call is a duplicate within TTL — must be suppressed.
+    assert result2 is False
+
+
+@pytest.mark.asyncio
+async def test_route_outgoing_alert_different_dedup_keys_not_suppressed():
+    """Two calls with different dedup_keys must both proceed independently."""
+    np._clear_dedup_cache()
+
+    tg_id = 9876544
+    user_uuid = "cccccccc-cccc-cccc-cccc-cccccccccccc"
+    pool = _fake_pool(prefs_blob={}, insert_id="y")
+
+    with patch.object(np, "get_pool", return_value=pool), \
+         patch.object(np, "_TG_ID_CACHE", {tg_id: (user_uuid, float("inf"))}):
+        r1 = await np.route_outgoing_alert(
+            telegram_user_id=tg_id,
+            alert_key="trade_opened",
+            web_title="Trade Opened",
+            dedup_key="market-111",
+        )
+        r2 = await np.route_outgoing_alert(
+            telegram_user_id=tg_id,
+            alert_key="trade_opened",
+            web_title="Trade Opened",
+            dedup_key="market-222",
+        )
+
+    assert r1 is True
+    assert r2 is True
+
+
+@pytest.mark.asyncio
+async def test_route_outgoing_alert_no_dedup_key_not_suppressed():
+    """dedup_key=None disables dedup — every call goes through regardless."""
+    np._clear_dedup_cache()
+
+    tg_id = 9876545
+    user_uuid = "dddddddd-dddd-dddd-dddd-dddddddddddd"
+    pool = _fake_pool(prefs_blob={}, insert_id="z")
+
+    with patch.object(np, "get_pool", return_value=pool), \
+         patch.object(np, "_TG_ID_CACHE", {tg_id: (user_uuid, float("inf"))}):
+        r1 = await np.route_outgoing_alert(
+            telegram_user_id=tg_id,
+            alert_key="trade_opened",
+            web_title="Trade Opened",
+            dedup_key=None,
+        )
+        r2 = await np.route_outgoing_alert(
+            telegram_user_id=tg_id,
+            alert_key="trade_opened",
+            web_title="Trade Opened",
+            dedup_key=None,
+        )
+
+    assert r1 is True
+    assert r2 is True
+
+
 def test_alert_keys_match_frontend_schema():
     """Regression guard: ALERT_KEYS must mirror NotificationPrefsCard.tsx exactly.
 

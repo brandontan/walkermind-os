@@ -181,6 +181,8 @@ async def _send_safe(
     text: str,
     event_name: str,
     kb: Optional[InlineKeyboardMarkup] = None,
+    *,
+    market_id: str | None = None,
 ) -> None:
     """Send Telegram message; catch all failures — MUST NOT propagate.
 
@@ -199,6 +201,7 @@ async def _send_safe(
             web_title=web_title,
             web_body=text,
             severity="info",
+            dedup_key=market_id,
         )
     except Exception:
         send_tg = True  # fail-open
@@ -256,7 +259,7 @@ async def _on_position_opened(
         f"Market: {html.escape(label)}\n"
         f"Price: {price:.4f} | Strategy: {html.escape(strat)}"
     )
-    await _send_safe(telegram_user_id, text, "position.opened", _auto_trade_kb(position_id))
+    await _send_safe(telegram_user_id, text, "position.opened", _auto_trade_kb(position_id), market_id=market_id)
 
 
 async def _on_position_closed(
@@ -290,7 +293,7 @@ async def _on_position_closed(
         f"Reason  │ {html.escape(reason_display)}</pre>\n"
         f"{_SEP}"
     )
-    await _send_safe(telegram_user_id, text, "position.closed", _portfolio_trades_kb())
+    await _send_safe(telegram_user_id, text, "position.closed", _portfolio_trades_kb(), market_id=market_id)
 
 
 async def _on_copy_trade_executed(
@@ -323,6 +326,7 @@ async def _on_copy_trade_executed(
     await _send_safe(
         telegram_user_id, text, "copy_trade.executed",
         _copy_trade_kb(position_id, copy_task_id),
+        market_id=market_id,
     )
 
 
