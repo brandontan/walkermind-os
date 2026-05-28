@@ -25,6 +25,7 @@ from ... import notifications as notif_module
 from ...integrations import polymarket as _polymarket
 from . import sse as webtrader_sse
 from .auth import authenticate_telegram, get_current_user, login_email, register_email, link_email
+from . import notification_prefs as _notif_prefs
 from .schemas import (
     AlertItem,
     AutoTradeState,
@@ -1141,7 +1142,13 @@ async def update_trading_settings(body: TradingSettingsUpdate, user: _CurrentUse
 
 
 @router.get("/alerts")
-async def get_alerts() -> list[AlertItem]:
+async def get_alerts(user: _CurrentUser) -> list[AlertItem]:
+    """Active alerts for the current user.
+
+    Includes both broadcast operator banners (user_id IS NULL) AND per-user
+    trade-lifecycle events (user_id = current user). Limit 50 covers a
+    busy auto-trade session without forcing the UI to paginate.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -1149,8 +1156,10 @@ async def get_alerts() -> list[AlertItem]:
                FROM system_alerts
                WHERE dismissed=FALSE
                  AND (expires_at IS NULL OR expires_at > NOW())
+                 AND (user_id IS NULL OR user_id = $1::uuid)
                ORDER BY created_at DESC
-               LIMIT 20""",
+               LIMIT 50""",
+            user["user_id"],
         )
     return [
         AlertItem(
@@ -1162,6 +1171,30 @@ async def get_alerts() -> list[AlertItem]:
         )
         for r in rows
     ]
+
+
+@router.get("/settings/notification-prefs")
+async def get_notification_prefs(user: _CurrentUser) -> dict:
+    """Return the user's per-alert × per-channel notification prefs.
+
+    Shape: {"trade_opened": {"web": true, "tg": true}, ...}. Missing keys
+    default to both channels ON; UI fills the rest from the static defaults.
+    """
+    prefs = await _notif_prefs.get_prefs(user["user_id"])
+    return {"prefs": prefs}
+
+
+@router.put("/settings/notification-prefs")
+async def update_notification_prefs(
+    body: dict,
+    user: _CurrentUser,
+) -> dict:
+    """Overwrite the user's notification prefs blob (UI sends the full dict)."""
+    raw = body.get("prefs") if isinstance(body, dict) else None
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=422, detail="prefs must be an object")
+    await _notif_prefs.set_prefs(user["user_id"], raw)
+    return {"updated": True}
 
 
 @router.get("/killswitch", response_model=KillSwitchStatus)
