@@ -1,13 +1,14 @@
 """User CRUD helpers used across handlers + scheduler."""
 from __future__ import annotations
 
-import logging
 from typing import Optional
 from uuid import UUID
 
+import structlog
+
 from .database import get_pool
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 _DEMO_FEED_ID = "00000000-0000-0000-0001-000000000001"
 
@@ -97,9 +98,7 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
     try:
         await _enroll_signal_following(row["id"])
     except Exception:
-        logger.exception(
-            "signal enrollment failed for user user_id=%s", row["id"]
-        )
+        log.exception("signal enrollment failed for user", user_id=str(row["id"]))
     return dict(row)
 
 
@@ -121,11 +120,11 @@ async def _bootstrap_new_user(user_id: UUID) -> None:
     try:
         await create_wallet_for_user(user_id)
     except Exception:
-        logger.exception("wallet creation failed for new user user_id=%s", user_id)
+        log.exception("wallet creation failed for new user", user_id=str(user_id))
     try:
         await seed_paper_capital(user_id)
     except Exception:
-        logger.exception("paper seed failed for new user user_id=%s", user_id)
+        log.exception("paper seed failed for new user", user_id=str(user_id))
     try:
         pool = get_pool()
         async with pool.acquire() as conn:
@@ -142,11 +141,11 @@ async def _bootstrap_new_user(user_id: UUID) -> None:
                 user_id,
             )
     except Exception:
-        logger.exception("default settings failed for new user user_id=%s", user_id)
+        log.exception("default settings failed for new user", user_id=str(user_id))
     try:
         await _enroll_signal_following(user_id)
     except Exception:
-        logger.exception("signal enrollment failed for user user_id=%s", user_id)
+        log.exception("signal enrollment failed for user", user_id=str(user_id))
 
 
 async def seed_paper_capital(user_id: UUID) -> bool:
@@ -296,7 +295,7 @@ async def user_notifications_enabled(user_id: UUID) -> bool:
                 user_id,
             )
     except Exception as exc:  # noqa: BLE001 — fail-open, never block the send
-        logger.warning("notifications_on read failed user=%s err=%s", user_id, exc)
+        log.warning("notifications_on read failed", user_id=str(user_id), err=str(exc))
         return True
     if row is None or row["notifications_on"] is None:
         return True
@@ -315,9 +314,7 @@ async def notifications_enabled_by_telegram_id(telegram_user_id: int) -> bool:
                 telegram_user_id,
             )
     except Exception as exc:  # noqa: BLE001 — fail-open
-        logger.warning(
-            "notifications_on read failed tg_id=%s err=%s", telegram_user_id, exc
-        )
+        log.warning("notifications_on read failed", tg_id=telegram_user_id, err=str(exc))
         return True
     if row is None or row["notifications_on"] is None:
         return True
@@ -367,9 +364,9 @@ async def backfill_missing_wallets(pool) -> int:
                 await seed_paper_capital(uid)
                 count += 1
             except Exception as exc:  # noqa: BLE001
-                logger.warning("wallet backfill: failed for user %s: %s", uid, exc)
-        logger.info("wallet backfill: %d wallets created", count)
+                log.warning("wallet backfill: failed for user", user_id=str(uid), err=str(exc))
+        log.info("wallet backfill: wallets created", count=count)
         return count
     except Exception as exc:  # noqa: BLE001
-        logger.warning("wallet backfill: startup check failed: %s", exc)
+        log.warning("wallet backfill: startup check failed", err=str(exc))
         return 0

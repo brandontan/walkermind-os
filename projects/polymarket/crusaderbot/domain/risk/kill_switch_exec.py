@@ -11,12 +11,12 @@ Admin notification is best-effort (try/except) and must not block the kill.
 """
 from __future__ import annotations
 
-import logging
+import structlog
 
 from ...database import get_pool
 from ...domain.ops import kill_switch as ops_kill_switch
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 
 async def _set_system_flag(key: str, value: str) -> None:
@@ -63,28 +63,26 @@ async def execute_kill_switch(reason: str, triggered_by: str) -> None:
     Convergence guarantee: every path calls this function.
     Audit log entry is written unconditionally.
     """
-    logger.critical(
-        "KILL SWITCH ACTIVATED: reason=%s triggered_by=%s", reason, triggered_by
-    )
+    log.critical("KILL SWITCH ACTIVATED", reason=reason, triggered_by=triggered_by)
 
     # 1. Activate via existing ops module (system_settings + kill_switch_history)
     try:
         await ops_kill_switch.set_active(action="pause", reason=reason)
     except Exception as exc:
-        logger.error("kill_switch_exec: set_active failed: %s", exc)
+        log.error("kill_switch_exec: set_active failed", err=str(exc))
 
     # 2. Cancel all pending orders
     try:
         n = await _cancel_pending_orders()
-        logger.info("kill_switch_exec: cancelled %d pending orders", n)
+        log.info("kill_switch_exec: cancelled pending orders", count=n)
     except Exception as exc:
-        logger.error("kill_switch_exec: pending order cancel failed: %s", exc)
+        log.error("kill_switch_exec: pending order cancel failed", err=str(exc))
 
     # 3. Set system_settings record (kill_switch_active key)
     try:
         await _set_system_flag("kill_switch_active", "true")
     except Exception as exc:
-        logger.error("kill_switch_exec: system_settings write failed: %s", exc)
+        log.error("kill_switch_exec: system_settings write failed", err=str(exc))
 
     # 4. Audit log (mandatory — no silent activations)
     try:
@@ -94,7 +92,7 @@ async def execute_kill_switch(reason: str, triggered_by: str) -> None:
             reason=reason,
         )
     except Exception as exc:
-        logger.error("kill_switch_exec: audit_log write failed: %s", exc)
+        log.error("kill_switch_exec: audit_log write failed", err=str(exc))
 
     # 5. Notify admin via Telegram (best-effort — failure must not block the kill)
     try:
@@ -103,22 +101,22 @@ async def execute_kill_switch(reason: str, triggered_by: str) -> None:
             f"🚨 KILL SWITCH ACTIVATED\nReason: {reason}\nBy: {triggered_by}"
         )
     except Exception as exc:
-        logger.error("kill_switch_exec: admin notify failed (non-blocking): %s", exc)
+        log.error("kill_switch_exec: admin notify failed (non-blocking)", err=str(exc))
 
 
 async def reset_kill_switch(triggered_by: str) -> None:
     """Reset the kill switch via Telegram admin command."""
-    logger.info("KILL SWITCH RESET: triggered_by=%s", triggered_by)
+    log.info("KILL SWITCH RESET", triggered_by=triggered_by)
 
     try:
         await ops_kill_switch.set_active(action="resume")
     except Exception as exc:
-        logger.error("kill_switch_exec: reset set_active failed: %s", exc)
+        log.error("kill_switch_exec: reset set_active failed", err=str(exc))
 
     try:
         await _set_system_flag("kill_switch_active", "false")
     except Exception as exc:
-        logger.error("kill_switch_exec: reset system_settings write failed: %s", exc)
+        log.error("kill_switch_exec: reset system_settings write failed", err=str(exc))
 
     try:
         await _write_audit_log(
@@ -126,4 +124,4 @@ async def reset_kill_switch(triggered_by: str) -> None:
             triggered_by=triggered_by,
         )
     except Exception as exc:
-        logger.error("kill_switch_exec: reset audit_log write failed: %s", exc)
+        log.error("kill_switch_exec: reset audit_log write failed", err=str(exc))

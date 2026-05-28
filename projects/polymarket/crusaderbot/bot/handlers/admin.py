@@ -3,9 +3,10 @@ the ADMIN role. OPERATOR_CHAT_ID is infrastructure (alert routing + root
 admin), not a user-facing role."""
 from __future__ import annotations
 
-import logging
 import os
 import socket
+
+import structlog
 import time
 from datetime import datetime, timezone
 from typing import Any, Iterable
@@ -38,7 +39,7 @@ from ...users import (
 from ..keyboards.admin import admin_menu, ops_dashboard_keyboard
 from ..ui.tree import md_v2_escape as _md
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 _BOOT_MONOTONIC = time.monotonic()
 
@@ -237,8 +238,7 @@ async def _admin_broadcast(message, args: list[str], ctx) -> None:
             else:
                 failed += 1
         except Exception as exc:  # noqa: BLE001
-            logger.warning("broadcast send failed user=%s err=%s",
-                           r["telegram_user_id"], exc)
+            log.warning("broadcast send failed", user=r["telegram_user_id"], err=str(exc))
             failed += 1
     await message.reply_text(
         f"✅ Broadcast sent: {sent} delivered, {failed} failed."
@@ -298,7 +298,7 @@ async def _admin_status_hud(message: Message) -> None:
     try:
         recent_jobs = await job_tracker.fetch_recent(limit=3)
     except Exception as exc:  # noqa: BLE001
-        logger.error("admin status: recent jobs fetch failed: %s", exc)
+        log.error("admin status: recent jobs fetch failed", err=str(exc))
         recent_jobs = []
 
     ks_label = "🔴 ACTIVE" if ks_active else "🟢 inactive"
@@ -622,9 +622,9 @@ async def _admin_withdrawals_callback(update: Update, q, sub: str) -> None:
                         parse_mode=ParseMode.MARKDOWN_V2,
                     )
             except Exception as exc:
-                logger.warning("Failed to notify user of approval: %s", exc)
+                log.warning("Failed to notify user of approval", err=str(exc))
         except Exception as exc:
-            logger.error("approve_withdrawal failed: %s", exc)
+            log.error("approve_withdrawal failed", err=str(exc))
             await msg.reply_text(f"❌ {_md(str(exc))}", parse_mode=ParseMode.MARKDOWN_V2)
 
     elif action.startswith("reject:"):
@@ -657,9 +657,9 @@ async def _admin_withdrawals_callback(update: Update, q, sub: str) -> None:
                         parse_mode=ParseMode.MARKDOWN_V2,
                     )
             except Exception as exc:
-                logger.warning("Failed to notify user of rejection: %s", exc)
+                log.warning("Failed to notify user of rejection", err=str(exc))
         except Exception as exc:
-            logger.error("reject_withdrawal failed: %s", exc)
+            log.error("reject_withdrawal failed", err=str(exc))
             await msg.reply_text(f"❌ {_md(str(exc))}", parse_mode=ParseMode.MARKDOWN_V2)
 
 
@@ -801,13 +801,13 @@ async def _collect_dashboard_snapshot() -> dict[str, Any]:
             snapshot["kill_switch_active"] = await ops_kill_switch.is_active(conn)
             snapshot["lock_mode"] = await ops_kill_switch.get_lock_mode(conn)
     except Exception as exc:  # noqa: BLE001
-        logger.error("ops_dashboard snapshot DB read failed: %s", exc)
+        log.error("ops_dashboard snapshot DB read failed", err=str(exc))
         snapshot["errors"].append(f"db: {exc}")
 
     try:
         snapshot["recent_jobs"] = await job_tracker.fetch_recent(limit=3)
     except Exception as exc:  # noqa: BLE001
-        logger.error("ops_dashboard recent jobs read failed: %s", exc)
+        log.error("ops_dashboard recent jobs read failed", err=str(exc))
         snapshot["errors"].append(f"jobs: {exc}")
 
     return snapshot
@@ -949,7 +949,7 @@ async def _broadcast_pause(ctx: ContextTypes.DEFAULT_TYPE | None,
             tg_ids = [int(r["telegram_user_id"]) for r in rows
                       if r["telegram_user_id"] is not None]
         except Exception as exc:  # noqa: BLE001
-            logger.error("killswitch broadcast user lookup failed: %s", exc)
+            log.error("killswitch broadcast user lookup failed", err=str(exc))
             return 0
 
     sent = 0
@@ -958,10 +958,7 @@ async def _broadcast_pause(ctx: ContextTypes.DEFAULT_TYPE | None,
             await notifications.send(tg_id, message)
             sent += 1
         except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "killswitch broadcast send failed user=%s err=%s",
-                tg_id, exc,
-            )
+            log.warning("killswitch broadcast send failed", user=tg_id, err=str(exc))
     return sent
 
 
@@ -985,7 +982,7 @@ async def _apply_killswitch_action(
             lock_recipients = [int(r["telegram_user_id"]) for r in _rows
                                if r["telegram_user_id"] is not None]
         except Exception as exc:  # noqa: BLE001
-            logger.warning("lock broadcast pre-fetch failed: %s", exc)
+            log.warning("lock broadcast pre-fetch failed", err=str(exc))
 
     # Path 1 — Telegram command (Track D). The "pause" action routes through the
     # unified executor (execute_kill_switch) which converges all 3 activation
@@ -1000,7 +997,7 @@ async def _apply_killswitch_action(
             )
             result = {"active": True, "lock_mode": False, "users_disabled": 0}
         except Exception as exc:  # noqa: BLE001
-            logger.error("killswitch execute_kill_switch failed: %s", exc)
+            log.error("killswitch execute_kill_switch failed", err=str(exc))
             if reply is not None:
                 await reply(f"❌ kill switch failed: {exc}")
             return
@@ -1009,7 +1006,7 @@ async def _apply_killswitch_action(
             await ks_reset(triggered_by=f"admin:{actor_id}")
             result = {"active": False, "lock_mode": False, "users_disabled": 0}
         except Exception as exc:  # noqa: BLE001
-            logger.error("killswitch reset failed: %s", exc)
+            log.error("killswitch reset failed", err=str(exc))
             if reply is not None:
                 await reply(f"❌ kill switch reset failed: {exc}")
             return
@@ -1023,7 +1020,7 @@ async def _apply_killswitch_action(
                 await reply(f"❌ {exc}")
             return
         except Exception as exc:  # noqa: BLE001
-            logger.error("killswitch %s failed: %s", action, exc)
+            log.error("killswitch action failed", action=action, err=str(exc))
             if reply is not None:
                 await reply(f"❌ killswitch {action} failed: {exc}")
             return
@@ -1205,7 +1202,7 @@ async def jobs_command(update: Update,
     try:
         rows = await job_tracker.fetch_recent(limit=limit, only_failed=only_failed)
     except Exception as exc:  # noqa: BLE001
-        logger.error("/jobs query failed: %s", exc)
+        log.error("/jobs query failed", err=str(exc))
         await update.message.reply_text(f"❌ /jobs query failed: {exc}")
         return
     await update.message.reply_text(
@@ -1251,7 +1248,7 @@ async def auditlog_command(update: Update,
     try:
         rows = await _fetch_audit_tail(limit)
     except Exception as exc:  # noqa: BLE001
-        logger.error("/auditlog query failed: %s", exc)
+        log.error("/auditlog query failed", err=str(exc))
         await update.message.reply_text(f"❌ /auditlog query failed: {exc}")
         return
     await update.message.reply_text(

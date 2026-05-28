@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import json
-import logging
 import time
 from typing import Any, Optional
 
 import httpx
+import structlog
 from tenacity import (
     AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential,
 )
@@ -15,7 +15,7 @@ from ..cache import get_cache, set_cache
 from ..config import get_settings
 from .clob.rate_limiter import RateLimiter
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 GAMMA = "https://gamma-api.polymarket.com"
 CLOB = "https://clob.polymarket.com"
@@ -108,7 +108,7 @@ async def get_markets(category: Optional[str] = None,
         await set_cache(key, data, ttl=300)
         return data or []
     except Exception as exc:
-        logger.warning("get_markets failed: %s", exc)
+        log.warning("get_markets failed", err=str(exc))
         return []
 
 
@@ -150,7 +150,7 @@ async def get_events_with_markets(limit: int = 200) -> list[dict]:
         await set_cache(key, result, ttl=300)
         return result
     except Exception as exc:
-        logger.warning("get_events_with_markets failed: %s", exc)
+        log.warning("get_events_with_markets failed", err=str(exc))
         return []
 
 
@@ -179,7 +179,7 @@ async def get_crypto_short_markets(limit: int = 500) -> list[dict]:
         await set_cache(key, data, ttl=60)
         return data
     except Exception as exc:
-        logger.warning("get_crypto_short_markets failed: %s", exc)
+        log.warning("get_crypto_short_markets failed", err=str(exc))
         return []
 
 
@@ -227,7 +227,7 @@ async def get_crypto_window_markets(
             try:
                 events = await _get_json(f"{GAMMA}/events", params={"slug": slug})
             except Exception as exc:
-                logger.debug("get_crypto_window_markets %s failed: %s", slug, exc)
+                log.debug("get_crypto_window_markets failed", slug=slug, err=str(exc))
                 continue
             if isinstance(events, dict):
                 events = events.get("data", [])
@@ -263,7 +263,7 @@ async def get_market(market_id: str) -> Optional[dict]:
     try:
         data = await _get_json(f"{GAMMA}/markets", params={"condition_ids": market_id})
     except Exception as exc:
-        logger.warning("get_market %s failed: %s", market_id, exc)
+        log.warning("get_market failed", market_id=market_id, err=str(exc))
         return None
     markets: list = data if isinstance(data, list) else data.get("data", [])
     result = next(
@@ -295,7 +295,7 @@ async def get_event_market_by_slug(slug: str) -> Optional[dict]:
     try:
         events = await _get_json(f"{GAMMA}/events", params={"slug": slug})
     except Exception as exc:
-        logger.warning("get_event_market_by_slug %s failed: %s", slug, exc)
+        log.warning("get_event_market_by_slug failed", slug=slug, err=str(exc))
         return None
     if isinstance(events, dict):
         events = events.get("data", [])
@@ -323,7 +323,7 @@ async def get_market_by_slug(slug: str) -> Optional[dict]:
             await set_cache(key, result, ttl=120)
         return result
     except Exception as exc:
-        logger.warning("get_market_by_slug %s failed: %s", slug, exc)
+        log.warning("get_market_by_slug failed", slug=slug, err=str(exc))
         return None
 
 
@@ -356,15 +356,11 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
                 timeout=5.0,
             )
         except Exception as exc:
-            logger.warning(
-                "get_live_market_price fetch failed market=%s: %s", market_id, exc
-            )
+            log.warning("get_live_market_price fetch failed", market_id=market_id, err=str(exc))
             return None
         markets: list = data if isinstance(data, list) else data.get("data", [])
         if not markets or not isinstance(markets[0], dict):
-            logger.warning(
-                "get_live_market_price no market found condition_id=%s", market_id
-            )
+            log.warning("get_live_market_price no market found", condition_id=market_id)
             return None
         market_data = markets[0]
         # Validate conditionId when present — reject if it doesn't match the
@@ -375,10 +371,7 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
             market_data.get("conditionId") or market_data.get("condition_id") or ""
         )
         if returned_cid and returned_cid != str(market_id):
-            logger.warning(
-                "get_live_market_price conditionId mismatch requested=%s returned=%s",
-                market_id, returned_cid,
-            )
+            log.warning("get_live_market_price conditionId mismatch", requested=market_id, returned=returned_cid)
             return None
         await set_cache(cache_key, market_data, ttl=30)
 
@@ -411,16 +404,12 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
                     # to the Gamma outcomePrices last-trade fallback.
                     if 0.0 < clob_price < 1.0:
                         return clob_price
-                    logger.warning(
-                        "get_live_market_price CLOB empty-book sentinel "
-                        "price=%.4f market=%s side=%s — falling back to Gamma",
-                        clob_price, market_id, side,
+                    log.warning(
+                        "get_live_market_price CLOB empty-book sentinel — falling back to Gamma",
+                        price=clob_price, market_id=market_id, side=side,
                     )
         except Exception as exc:
-            logger.warning(
-                "get_live_market_price CLOB price failed market=%s side=%s: %s",
-                market_id, side, exc,
-            )
+            log.warning("get_live_market_price CLOB price failed", market_id=market_id, side=side, err=str(exc))
 
     # Fallback: Gamma outcomePrices[0]=YES [1]=NO.
     # Gamma returns outcomePrices as a JSON-encoded string e.g. '["0.565","0.435"]'.
@@ -442,17 +431,11 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
         # Returning None here makes callers fall back to entry_price
         # (unrealised P&L == 0 / "N/A") instead of a 1.0-inflated figure.
         if not (0.0 < price < 1.0):
-            logger.warning(
-                "get_live_market_price out-of-range price=%.4f market=%s side=%s",
-                price, market_id, side,
-            )
+            log.warning("get_live_market_price out-of-range price", price=price, market_id=market_id, side=side)
             return None
         return price
     except (IndexError, TypeError, ValueError) as exc:
-        logger.warning(
-            "get_live_market_price parse error market=%s side=%s: %s",
-            market_id, side, exc,
-        )
+        log.warning("get_live_market_price parse error", market_id=market_id, side=side, err=str(exc))
         return None
 
 
@@ -467,7 +450,7 @@ async def get_book(token_id: str) -> dict:
         await set_cache(key, data, ttl=30)
         return data
     except Exception as exc:
-        logger.warning("get_book %s failed: %s", token_id, exc)
+        log.warning("get_book failed", token_id=token_id, err=str(exc))
         return {"bids": [], "asks": []}
 
 
@@ -487,7 +470,7 @@ async def get_user_activity(wallet_address: str, limit: int = 20) -> list[dict]:
         await set_cache(key, data or [], ttl=60)
         return data or []
     except Exception as exc:
-        logger.warning("get_user_activity %s failed: %s", wallet_address, exc)
+        log.warning("get_user_activity failed", wallet=wallet_address, err=str(exc))
         return []
 
 
