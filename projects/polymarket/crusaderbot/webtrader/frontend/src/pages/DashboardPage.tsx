@@ -211,7 +211,11 @@ export function DashboardPage() {
               label="Equity"
               value={equityWhole}
               cents={equityCents}
-              statusLabel={data.active_preset ? "STRATEGY ACTIVE" : "STRATEGY IDLE"}
+              statusLabel={
+                data.auto_trade_on
+                  ? (data.active_preset ? "STRATEGY ACTIVE" : "STRATEGY IDLE")
+                  : "BOT OFF"
+              }
               statusCode={presetCode ? <AdvancedOnly>{presetCode}</AdvancedOnly> : undefined}
               risk={risk}
               metaItems={
@@ -297,7 +301,10 @@ export function DashboardPage() {
           {/* RIGHT COLUMN: Scanner terminal + Recent Activity */}
           <div className="md:min-w-0 md:overflow-hidden">
             <AdvancedOnly>
-              <Terminal lines={buildScannerLines(data, lastTick, lastSignals)} />
+              <Terminal
+                status={data.auto_trade_on ? "running" : "idle"}
+                lines={buildScannerLines(data, lastTick, lastSignals)}
+              />
             </AdvancedOnly>
 
             {/* Scanner status strip — visible to all users */}
@@ -520,6 +527,37 @@ function RecentActivityCarousel({ items }: { items: PositionItem[] }) {
 
 
 function buildScannerLines(data: DashboardSummary, lastTick: number | null, lastSignals: number): TerminalLine[] {
+  // When the user's bot is OFF, the dashboard scanner widget must reflect
+  // that — the process-level scanner is still scanning markets globally,
+  // but no candidate is being routed to this user. Show an explicit OFF
+  // banner instead of the misleading "✓ ok / awaiting signal" sequence
+  // so the user isn't confused about whether their bot is trading.
+  if (!data.auto_trade_on) {
+    return [
+      {
+        parts: [
+          { type: "cmd",  text: "market_signal_scanner" },
+          { type: "dim",  text: " ◦ idle" },
+        ],
+      },
+      {
+        parts: [
+          { type: "out",  text: "bot " },
+          { type: "warn", text: "OFF" },
+          { type: "dim",  text: "  mode " },
+          { type: "dim",  text: data.trading_mode?.toUpperCase() ?? "PAPER" },
+        ],
+      },
+      {
+        parts: [
+          { type: "out", text: "status " },
+          { type: "dim", text: "auto-trade disabled — enable from Auto tab" },
+        ],
+        cursor: true,
+      },
+    ];
+  }
+
   const tickLabel = lastTick
     ? new Date(lastTick).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
     : "—";

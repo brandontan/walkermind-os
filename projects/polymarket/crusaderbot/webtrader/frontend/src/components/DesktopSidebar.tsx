@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSSEStatus } from "../lib/sse";
 import { useAuth } from "../lib/auth";
@@ -18,6 +18,26 @@ export function DesktopSidebar() {
   const { user } = useAuth();
   const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
   const [confirming, setConfirming] = useState(false);
+  // Pull the user's auto_trade_on state so the System Status block can
+  // reflect whether the user's bot is actually running, not just the
+  // global scheduler. Polled every 30s so a toggle from Auto tab
+  // propagates here without a full reload.
+  const [autoOn, setAutoOn] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!user?.token) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const s = await api.getDashboard();
+        if (!cancelled) setAutoOn(s.auto_trade_on);
+      } catch {
+        if (!cancelled) setAutoOn(null);
+      }
+    };
+    void tick();
+    const id = setInterval(() => void tick(), 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [api, user?.token]);
   const [stopping, setStopping] = useState(false);
 
   async function handleEmergencyStop() {
@@ -191,7 +211,15 @@ export function DesktopSidebar() {
             System Status
           </div>
           {[
-            { label: "SCANNER", value: "RUNNING", tone: "grn" },
+            // SCANNER reflects the user's auto_trade_on, not the global
+            // scheduler. When the user's bot is off, the scanner is
+            // semantically IDLE for them. autoOn === null while we're
+            // still fetching the first tick — fall back to RUNNING then.
+            {
+              label: "SCANNER",
+              value: autoOn === false ? "IDLE" : "RUNNING",
+              tone: autoOn === false ? "dim" : "grn",
+            },
             { label: "MODE",    value: "PAPER",   tone: "blue" },
             { label: "GUARDS",  value: "LOCKED",  tone: "warn" },
           ].map(({ label, value, tone }) => (
@@ -206,6 +234,7 @@ export function DesktopSidebar() {
                   color:
                     tone === "grn"  ? "var(--grn,#00FF9C)"  :
                     tone === "blue" ? "var(--blue,#4D9FFF)"  :
+                    tone === "dim"  ? "var(--ink-3,#455370)" :
                                      "var(--gold,#F5C842)",
                 }}
               >
