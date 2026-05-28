@@ -433,26 +433,6 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
         if not (0.0 < price < 1.0):
             log.warning("get_live_market_price out-of-range price", price=price, market_id=market_id, side=side)
             return None
-        # Tick-alignment guard (flip-hunter-stale-price-fix):
-        # Polymarket CLOB uses a 0.01 (1¢) tick for the markets the bot
-        # trades. Gamma's outcomePrices is a midpoint / seed value that
-        # routinely carries sub-cent precision (0.505, 0.515, 0.525...)
-        # before any real CLOB activity. Returning such a value as a
-        # tradable mark caused fresh 5m crypto candle markets to be
-        # entered at the SAME default 0.505 across BTC/ETH/SOL/XRP/DOGE/
-        # BNB simultaneously — 80/86 flip_hunter positions over one
-        # session landed on the Gamma seed and then closed at the
-        # synthetic TP fill 0.58075 (0.505 × 1.15), producing
-        # indistinguishable +$0.50 results across distinct coins.
-        # Reject sub-cent prices so callers fall back to entry_price
-        # (no live mark available → unrealised P&L = 0, no trade).
-        cents = price * 100.0
-        if abs(cents - round(cents)) > 1e-6:
-            log.warning(
-                "get_live_market_price rejecting sub-cent Gamma fallback",
-                price=price, market_id=market_id, side=side,
-            )
-            return None
         return price
     except (IndexError, TypeError, ValueError) as exc:
         log.warning("get_live_market_price parse error", market_id=market_id, side=side, err=str(exc))

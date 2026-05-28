@@ -19,18 +19,18 @@ Root cause (proven, file:line):
 
 ### Patches
 
-1. **Layer 1 — reject in the helper** (`integrations/polymarket.py`).
-   After the Gamma `outcomePrices` value passes the strict-interior gate, a new check rejects values that aren't on the 0.01 tick. `abs(price*100 - round(price*100)) > 1e-6` catches every sub-cent fallback. Real CLOB prices (0.50, 0.51, 0.52…) flow through unchanged. Logs `get_live_market_price rejecting sub-cent Gamma fallback` for operator visibility.
+**Important scope decision (after CI feedback):** the guard is **scoped to candle markets only** (`slug` contains `updown`), not applied globally. Sub-cent Gamma values on longshot markets are legitimate last-trade prices (e.g. `0.055` for a 5.5¢ longshot — preserved per WARP-38 / issue #1182) that other strategies (signal_following, momentum, etc.) must continue to trade. A global guard would break those paths — `test_live_market_price` and `test_signal_scan_job` regressions caught this during CI.
 
-2. **Layer 2 — belt-and-suspenders in the consumer** (`services/signal_scan/signal_scan_job.py`).
-   New step `3b-i` in `_process_candidate` re-checks the live fill price for tick alignment immediately before building the TradeSignal. Records `outcome="skipped_sub_cent_price"` in the scan telemetry so the operator panel surfaces reject rate. This catches any future caller path that bypasses the helper.
+1. **Helper-level guard reverted.** `integrations/polymarket.py:get_live_market_price` returns Gamma `outcomePrices` unchanged when CLOB returns the empty-book sentinel — preserves WARP-38 behaviour for longshot markets.
 
-3. **Layer 3 — regression pins** (`tests/test_flip_hunter_stale_price_fix.py`, 15 tests):
-   - Gamma fallback rejects `["0.505","0.495"]` YES and `["0.485","0.515"]` NO.
-   - Gamma fallback ACCEPTS `["0.510","0.490"]` (tick-aligned).
-   - Real CLOB price short-circuits before Gamma is even consulted (so sub-cent rejection cannot block legitimate CLOB activity).
+2. **Consumer-side scoped guard** (`services/signal_scan/signal_scan_job.py`).
+   New step `3b-i` in `_process_candidate` checks the live fill price for tick alignment ONLY when the market slug contains `updown` (the 5m crypto candle slug pattern). Records `outcome="skipped_sub_cent_price"` with the slug in the scan telemetry so the operator panel surfaces reject rate. Sub-cent prices on non-candle markets flow through normally.
+
+3. **Regression pins** (`tests/test_flip_hunter_stale_price_fix.py`, 14 tests):
    - Source-level pin: `_process_candidate` must contain `skipped_sub_cent_price` and the tick comparison.
+   - Source-level pin: the guard must contain `updown` (scoped to candle markets) — fails closed if a future edit drops the scope and re-introduces the WARP-38 longshot regression.
    - Parameterised correctness of the tick detector: 5 sub-cent values caught, 5 whole-cent values pass.
+   - Parameterised slug-detection: 4 candle slugs and 3 non-candle slugs.
 
 4. **Layer 4 — DB cleanup runbook** (`scripts/cleanup_flip_hunter_sub_cent_2026_05_28.sql`).
    One-shot SQL transaction (preview query first; `BEGIN ... ROLLBACK` until explicitly committed) that:
