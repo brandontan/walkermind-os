@@ -680,11 +680,11 @@ def test_process_candidate_band_gate_is_noop_without_metadata():
 def test_run_once_happy_path_calls_process_candidate():
     """Two-phase loop: Phase A runs each lib strategy once, Phase B
     distributes candidates to users filtered by active_preset. With
-    active_preset=None (full_auto) all lib strategies are allowed; only
+    active_preset='full_auto' all lib strategies are allowed; only
     one strategy yields a candidate so _process_candidate is called once."""
     bootstrap_default_strategies()
     row = _user_row()
-    row["active_preset"] = None  # None → full_auto: all lib strategies allowed
+    row["active_preset"] = "full_auto"  # full_auto: all lib strategies allowed
     cand = _candidate()
     processed = {"calls": 0}
 
@@ -722,8 +722,8 @@ def test_run_once_scan_failure_does_not_stop_other_users():
     bootstrap_default_strategies()
     row1 = _user_row(user_id=UUID("11111111-1111-1111-1111-111111111111"))
     row2 = _user_row(user_id=UUID("22222222-2222-2222-2222-222222222222"))
-    row1["active_preset"] = None
-    row2["active_preset"] = None
+    row1["active_preset"] = "full_auto"
+    row2["active_preset"] = "full_auto"
     processed = {"row1": 0, "row2": 0}
 
     def _fake_run_lib(lib_name, markets, config):

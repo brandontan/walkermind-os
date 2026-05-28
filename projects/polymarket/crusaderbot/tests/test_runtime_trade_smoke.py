@@ -81,7 +81,7 @@ _USER_ROW = {
     "capital_allocation_pct": 0.10,
     "sub_account_id": uuid4(),
     "resolved_profile": "balanced",
-    "active_preset": None,
+    "active_preset": "full_auto",
     "min_liquidity_threshold": 0.0,
     "strategy_params": {},
     "category_filters": [],
