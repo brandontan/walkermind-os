@@ -1250,7 +1250,12 @@ async def run_once() -> None:
     from ...domain.strategy.registry import StrategyRegistry as _Registry
 
     try:
-        _live_trading: bool = bool(_get_settings().ENABLE_LIVE_TRADING)
+        _s = _get_settings()
+        _live_trading: bool = bool(
+            _s.ENABLE_LIVE_TRADING
+            and _s.EXECUTION_PATH_VALIDATED
+            and _s.CAPITAL_MODE_CONFIRMED
+        )
     except Exception:
         _live_trading = False
     _mode: str = "LIVE" if _live_trading else "PAPER"
@@ -1740,6 +1745,7 @@ async def run_close_sweep_fast() -> None:
     tel = ScanTelemetry()
     fast_run_id: str = str(_uuid_mod.uuid4())
     candle_users_evaluated = 0
+    _candle_markets_seen: int = 0  # max candle markets available across users in this tick
     for row in users:
         active_preset = row.get("active_preset")
         if active_preset not in _CANDLE_PRESETS:
@@ -1762,6 +1768,7 @@ async def run_close_sweep_fast() -> None:
                 selected_timeframe or "5m", selected_assets or None
             )
             await _upsert_crypto_window_markets(crypto_window_markets)
+            _candle_markets_seen = max(_candle_markets_seen, len(crypto_window_markets))
         except Exception as exc:
             user_log.warning("close_sweep_fast_window_fetch_failed", error=str(exc))
 
@@ -1806,6 +1813,7 @@ async def run_close_sweep_fast() -> None:
     # Skipping zero-order ticks keeps the table clean at 15s cadence.
     if tel.paper_orders_created > 0:
         tel.users_evaluated = candle_users_evaluated
+        tel.markets_seen = _candle_markets_seen
         from ...config import get_settings as _get_settings
         _cfg_live = _get_settings()
         _is_live = _cfg_live.ENABLE_LIVE_TRADING and _cfg_live.EXECUTION_PATH_VALIDATED and _cfg_live.CAPITAL_MODE_CONFIRMED

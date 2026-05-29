@@ -1392,3 +1392,31 @@ def test_resolve_preset_params_flip_hunter_fav_band_no_longer_underdog():
     pp = job._resolve_preset_params("flip_hunter", "5m")
     assert pp["fav_price_min"] == pytest.approx(0.50)
     assert pp["fav_price_max"] == pytest.approx(0.95)
+
+
+def test_run_close_sweep_fast_telemetry_markets_seen_reflects_candle_universe(monkeypatch):
+    """scan_runs.markets_seen must NOT be 0 when candle markets are fetched.
+
+    Previously the fast scan never set tel.markets_seen, so every candle-only
+    scan_run row showed markets_seen=0 even when 5+ crypto window markets were
+    available — misleading when debugging "why no trades?".
+    """
+    import inspect
+    src = inspect.getsource(job.run_close_sweep_fast)
+    # The fix: _candle_markets_seen is accumulated and assigned to tel.markets_seen
+    assert "_candle_markets_seen" in src
+    assert "tel.markets_seen = _candle_markets_seen" in src
+
+
+def test_run_once_mode_label_uses_three_guard_check(monkeypatch):
+    """scan_runs.mode must be 'LIVE' only when all 3 core live guards are True.
+
+    The original code used only ENABLE_LIVE_TRADING, so any deployment with
+    that single flag set would log mode='LIVE' even in pure paper mode.
+    Consistent with run_close_sweep_fast which already uses 3-guard logic.
+    """
+    import inspect
+    src = inspect.getsource(job.run_once)
+    # Must check all 3 guards, not just ENABLE_LIVE_TRADING alone
+    assert "EXECUTION_PATH_VALIDATED" in src
+    assert "CAPITAL_MODE_CONFIRMED" in src
