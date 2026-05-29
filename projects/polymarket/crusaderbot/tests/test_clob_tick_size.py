@@ -233,6 +233,19 @@ class TestExecuteTickSize:
         with pytest.raises(LivePreSubmitError, match="CLOB market metadata unavailable"):
             self._run(clob, broken_mdc)
 
+    def test_empty_tick_size_raises_live_pre_submit_error(self) -> None:
+        """HTTP 200 with empty tick_size must be treated as unavailable, not silently 0.01."""
+        from projects.polymarket.crusaderbot.domain.execution.live import (
+            LivePreSubmitError,
+        )
+
+        clob = MagicMock()
+        clob.post_order = AsyncMock(return_value={"orderID": "ord-4"})
+        mdc = _fake_mdc(tick_size="", neg_risk=False)
+
+        with pytest.raises(LivePreSubmitError, match="CLOB market metadata unavailable"):
+            self._run(clob, mdc)
+
     def test_non_default_tick_size_affects_price_widen(self) -> None:
         """Real tick_size is used in compute_aggressive_limit_price, not hardcoded 0.01."""
         clob = MagicMock()
@@ -415,6 +428,18 @@ class TestSlippageRetryTickSize:
         broken_mdc.__aexit__ = AsyncMock(return_value=False)
 
         self._run_retry(clob, broken_mdc, self._order())
+
+        clob.cancel_order.assert_not_called()
+        clob.post_order.assert_not_called()
+
+    def test_empty_tick_size_aborts_resubmit(self) -> None:
+        """HTTP 200 with empty tick_size must abort before cancel, same as network failure."""
+        clob = MagicMock()
+        clob.cancel_order = AsyncMock(return_value={})
+        clob.post_order = AsyncMock(return_value={"orderID": "new-ord"})
+        mdc = _fake_mdc(tick_size="", neg_risk=False)
+
+        self._run_retry(clob, mdc, self._order())
 
         clob.cancel_order.assert_not_called()
         clob.post_order.assert_not_called()

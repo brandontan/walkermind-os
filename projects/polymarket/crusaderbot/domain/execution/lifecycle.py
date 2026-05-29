@@ -665,7 +665,10 @@ class OrderLifecycleManager:
         _neg_risk: bool = False
         try:
             async with MarketDataClient() as _mdc:
-                _tick_size = await _mdc.get_tick_size(token_id) or "0.01"
+                _raw_tick = await _mdc.get_tick_size(token_id)
+                if not _raw_tick:
+                    raise ValueError(f"empty tick_size from CLOB API (token={token_id})")
+                _tick_size = _raw_tick
                 _tick_size_f = float(_tick_size)
                 _neg_risk = await _mdc.get_neg_risk(token_id)
         except Exception as _exc:
