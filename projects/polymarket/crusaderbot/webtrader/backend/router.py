@@ -771,7 +771,14 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
         raise HTTPException(status_code=400, detail=f"invalid preset key: {body.preset_key}")
     pool = get_pool()
     user_id = user["user_id"]
-    params = _PRESET_PARAMS[body.preset_key]
+    # TP/SL follow the RISK PROFILE, not the preset (Kreo parity). The preset
+    # still routes strategy + capital + window, but take-profit / stop-loss are
+    # owned by the user's risk profile so they stay consistent across presets.
+    from ...domain.risk.constants import tp_sl_for_profile
+    params = dict(_PRESET_PARAMS[body.preset_key])
+    _profile_ts = tp_sl_for_profile(str(params.get("risk_profile") or "balanced"))
+    params["tp_pct"] = _profile_ts["tp_pct"]
+    params["sl_pct"] = _profile_ts["sl_pct"]
 
     is_crypto_short = body.preset_key in _CRYPTO_SHORT_PRESETS
 
@@ -944,24 +951,33 @@ async def set_risk_profile(body: RiskProfileRequest, user: _CurrentUser):
         )
 
     if body.profile == "custom":
-        if body.capital_alloc_pct is None or body.tp_pct is None or body.sl_pct is None:
+        # Custom allows TP-only OR SL-only: require capital + at least one of
+        # tp/sl. The exit watcher already no-ops the unset side (it guards each
+        # branch with `is not None`), so a null tp or null sl is safe.
+        if body.capital_alloc_pct is None:
             raise HTTPException(
                 status_code=422,
-                detail="custom profile requires capital_alloc_pct, tp_pct, and sl_pct",
+                detail="custom profile requires capital_alloc_pct",
+            )
+        if body.tp_pct is None and body.sl_pct is None:
+            raise HTTPException(
+                status_code=422,
+                detail="custom profile requires at least one of tp_pct or sl_pct",
             )
         if body.capital_alloc_pct > 0.80:
             raise HTTPException(
                 status_code=422,
                 detail="capital_alloc_pct must not exceed 0.80 (80% hard ceiling)",
             )
-        if body.tp_pct <= body.sl_pct:
+        # Only enforce the ordering when BOTH are set.
+        if body.tp_pct is not None and body.sl_pct is not None and body.tp_pct <= body.sl_pct:
             raise HTTPException(
                 status_code=422,
                 detail="tp_pct must be greater than sl_pct",
             )
         cap = body.capital_alloc_pct
-        tp = body.tp_pct
-        sl = body.sl_pct
+        tp = body.tp_pct   # may be None → TP disabled
+        sl = body.sl_pct   # may be None → SL disabled
     else:
         defaults = _RISK_PROFILE_DEFAULTS[body.profile]
         cap = float(body.capital_alloc_pct) if body.capital_alloc_pct is not None else defaults["capital_alloc_pct"]

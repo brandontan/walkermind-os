@@ -233,23 +233,39 @@ export function AutoTradePage() {
   async function handleSaveCustomRisk() {
     setCustomErr(null);
     const cap = parseFloat(customCapital) / 100;
-    const tp  = parseFloat(customTp) / 100;
-    const sl  = parseFloat(customSl) / 100;
-    if (isNaN(cap) || isNaN(tp) || isNaN(sl)) {
-      setCustomErr("Enter valid numbers for all fields.");
+    // TP and SL are each OPTIONAL — leave one blank to disable that side
+    // (TP-only or SL-only). At least one is required.
+    const tpRaw = customTp.trim();
+    const slRaw = customSl.trim();
+    const tp = tpRaw === "" ? null : parseFloat(tpRaw) / 100;
+    const sl = slRaw === "" ? null : parseFloat(slRaw) / 100;
+    if (isNaN(cap)) {
+      setCustomErr("Enter a valid Capital %.");
       return;
     }
     if (cap > 0.80) {
       setCustomErr("Capital may not exceed 80%.");
       return;
     }
-    if (tp <= sl) {
+    if (tp === null && sl === null) {
+      setCustomErr("Set at least one of Take Profit or Stop Loss.");
+      return;
+    }
+    if (tp !== null && isNaN(tp)) { setCustomErr("Take Profit must be a number or blank."); return; }
+    if (sl !== null && isNaN(sl)) { setCustomErr("Stop Loss must be a number or blank."); return; }
+    // Only enforce ordering when BOTH are set.
+    if (tp !== null && sl !== null && tp <= sl) {
       setCustomErr("Take Profit must be greater than Stop Loss.");
       return;
     }
     setSavingRisk(true);
     try {
-      await api.setRiskProfile({ profile: "custom", capital_alloc_pct: cap, tp_pct: tp, sl_pct: sl });
+      await api.setRiskProfile({
+        profile: "custom",
+        capital_alloc_pct: cap,
+        tp_pct: tp ?? undefined,
+        sl_pct: sl ?? undefined,
+      });
       await load();
     } catch (e: unknown) {
       setCustomErr(e instanceof Error ? e.message : "Save failed.");
@@ -557,12 +573,12 @@ export function AutoTradePage() {
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-3 gap-2 mb-2" onClick={e => e.stopPropagation()}>
+              <div className="grid grid-cols-3 gap-2 mb-1" onClick={e => e.stopPropagation()}>
                 {[
-                  { label: "Capital %", val: customCapital, set: setCustomCapital },
-                  { label: "TP %",      val: customTp,      set: setCustomTp      },
-                  { label: "SL %",      val: customSl,      set: setCustomSl      },
-                ].map(({ label, val, set }) => (
+                  { label: "Capital %", val: customCapital, set: setCustomCapital, ph: "20" },
+                  { label: "TP % (opt)", val: customTp,      set: setCustomTp,      ph: "—"  },
+                  { label: "SL % (opt)", val: customSl,      set: setCustomSl,      ph: "—"  },
+                ].map(({ label, val, set, ph }) => (
                   <div key={label}>
                     <label className="text-[9px] text-ink-4 uppercase block mb-0.5 font-mono">{label}</label>
                     <input
@@ -570,12 +586,14 @@ export function AutoTradePage() {
                       min={1}
                       max={99}
                       value={val}
+                      placeholder={ph}
                       onChange={e => set(e.target.value)}
-                      className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                      className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs font-mono text-ink-1 placeholder:text-ink-4 focus:border-gold focus:outline-none"
                     />
                   </div>
                 ))}
               </div>
+              <p className="text-[8px] text-ink-4 font-mono mb-2">Leave TP or SL blank to use only one. At least one required.</p>
               {customErr && <p className="text-xs text-red mb-2">{customErr}</p>}
               <button
                 onClick={() => void handleSaveCustomRisk()}

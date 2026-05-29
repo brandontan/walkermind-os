@@ -84,3 +84,25 @@ def effective_daily_loss(profile: str, user_override: float | None = None) -> fl
 
 def profile_or_default(name: str | None) -> dict:
     return PROFILES.get((name or "balanced").lower(), PROFILES["balanced"])
+
+
+# Canonical TP/SL + capital per risk profile — the SINGLE source of truth for
+# a position's take-profit / stop-loss. Preset activation must NOT override
+# these with preset-specific values; the user's risk profile owns TP/SL so the
+# behaviour matches the Kreo reference ("auto TP/SL = user risk profile").
+# Fractions (0.20 = +20%). 'custom' has no fixed values — the user sets them.
+PROFILE_TP_SL: dict[str, dict[str, float]] = {
+    "conservative": {"capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
+    "balanced":     {"capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
+    "aggressive":   {"capital_alloc_pct": 0.60, "tp_pct": 0.30, "sl_pct": 0.20},
+}
+
+
+def tp_sl_for_profile(name: str | None) -> dict[str, float]:
+    """Canonical capital/TP/SL for a named profile; defaults to balanced.
+
+    Used by preset activation + new-user bootstrap so TP/SL always follows the
+    risk profile rather than the activated preset. 'custom' is NOT here — custom
+    TP/SL is user-supplied and may be TP-only or SL-only.
+    """
+    return PROFILE_TP_SL.get((name or "balanced").lower(), PROFILE_TP_SL["balanced"])
