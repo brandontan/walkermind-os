@@ -141,6 +141,18 @@ def test_admin_toggle_writes_and_audits():
 # ── /me role ──────────────────────────────────────────────────────────────────
 
 
+def test_admin_overview_exposes_polymarket_config():
+    """Overview must surface funder/sig-type/creds so the operator can verify
+    the Polymarket trading config actually loaded (it lives in env, not the DB)."""
+    import inspect
+    src = inspect.getsource(r.admin_overview)
+    assert '"polymarket"' in src
+    assert "funder_address" in src
+    assert "signature_type" in src
+    assert "creds_source" in src
+    assert "effective_credentials" in src
+
+
 def test_get_me_includes_role_and_is_admin():
     conn = MagicMock()
     async def fetchrow(q, *a):

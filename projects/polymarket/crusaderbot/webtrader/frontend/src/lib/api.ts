@@ -153,6 +153,13 @@ export function makeApi(token: string | null) {
 // ── Admin console types ───────────────────────────────────────────────────
 export interface AdminOverview {
   pool: { address: string | null; usdc: number | null; matic: number | null };
+  polymarket: {
+    funder_address: string | null;
+    signature_type: number;
+    use_real_clob: boolean;
+    creds_source: string;   // "env" | "derived" | "none"
+    creds_ready: boolean;
+  };
   guards: Record<string, boolean>;
   kill_switch_active: boolean;
   counts: {

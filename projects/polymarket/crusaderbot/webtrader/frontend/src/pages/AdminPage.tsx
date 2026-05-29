@@ -122,6 +122,36 @@ export function AdminPage() {
           </Section>
         )}
 
+        {/* ── Polymarket trading account (funder / sig / creds) ── */}
+        {overview?.polymarket && (
+          <Section title="Polymarket Trading Account">
+            <div className="space-y-2">
+              <Field label="Funder Address">
+                {overview.polymarket.funder_address ? (
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard?.writeText(overview.polymarket.funder_address ?? "")}
+                    className="font-mono text-[11px] text-gold break-all text-left hover:underline"
+                    title="Tap to copy"
+                  >
+                    {overview.polymarket.funder_address} ⧉
+                  </button>
+                ) : <span className="text-red font-mono text-[11px]">NOT SET</span>}
+              </Field>
+              <div className="grid grid-cols-3 gap-2">
+                <Stat label="Sig Type" value={String(overview.polymarket.signature_type)} />
+                <Stat label="Real CLOB" value={overview.polymarket.use_real_clob ? "ON" : "OFF"} />
+                <Stat label="Creds" value={overview.polymarket.creds_ready ? overview.polymarket.creds_source : "NONE"} />
+              </div>
+              <p className="text-[9px] font-mono mt-1" style={{ color: overview.polymarket.creds_ready ? "#00FF9C" : "#FF6B6B" }}>
+                {overview.polymarket.creds_ready
+                  ? `CLOB auth ready (${overview.polymarket.creds_source})`
+                  : "CLOB creds NOT ready — live orders will fail"}
+              </p>
+            </div>
+          </Section>
+        )}
+
         {/* ── Live readiness / guards ── */}
         {overview && (
           <Section title="Live Activation Guards">
