@@ -186,7 +186,7 @@ async def execute(
                 raise ValueError(f"empty tick_size from CLOB API (token={token_id})")
             _tick_size = _raw_tick
             _tick_size_f = float(_tick_size)
-            _neg_risk = await _mdc.get_neg_risk(token_id)
+            _neg_risk = await _mdc.get_neg_risk(token_id) or False
     except Exception as _exc:
         raise LivePreSubmitError(
             f"CLOB market metadata unavailable — refusing entry without tick_size/neg_risk "
@@ -408,7 +408,7 @@ async def close_position(
     try:
         async with MarketDataClient() as _mdc:
             _tick_size = await _mdc.get_tick_size(token_id) or "0.01"
-            _neg_risk = await _mdc.get_neg_risk(token_id)
+            _neg_risk = await _mdc.get_neg_risk(token_id) or False
     except Exception as _exc:
         _tick_size = "0.01"
         logger.warning(

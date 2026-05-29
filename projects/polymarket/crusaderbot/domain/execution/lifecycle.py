@@ -670,7 +670,7 @@ class OrderLifecycleManager:
                     raise ValueError(f"empty tick_size from CLOB API (token={token_id})")
                 _tick_size = _raw_tick
                 _tick_size_f = float(_tick_size)
-                _neg_risk = await _mdc.get_neg_risk(token_id)
+                _neg_risk = await _mdc.get_neg_risk(token_id) or False
         except Exception as _exc:
             log.error(
                 "lifecycle slippage_retry: CLOB metadata unavailable — skipping re-submit",
