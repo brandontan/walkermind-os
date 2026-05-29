@@ -208,7 +208,7 @@ export function AdminPage() {
             ))}
           </div>
           <p className="text-[9px] font-mono text-ink-4 mt-2">
-            OFF stops new signals from that strategy for everyone (takes effect next scan tick). Open positions are unaffected.
+            OFF stops new signals/trades from that strategy for everyone (takes effect next scan tick). It does NOT change a user's selected preset — their dashboard may still show the preset as active, but no new trades fire while OFF. Open positions are unaffected.
           </p>
         </Section>
 

@@ -1231,6 +1231,28 @@ def test_run_close_sweep_fast_scans_only_close_sweep_users():
     proc.assert_awaited_once()
 
 
+def test_run_close_sweep_fast_skips_when_late_entry_globally_disabled():
+    """Operator global OFF of late_entry_v3 must stop the fast candle loop too."""
+    cs_user = _close_sweep_user("close_sweep")
+    fake_strat = MagicMock()
+    fake_strat.scan = AsyncMock(return_value=[_candidate(market_id="m")])
+    reg = StrategyRegistry.instance()
+    load = AsyncMock(return_value=[cs_user])
+
+    original = job._GLOBALLY_DISABLED_STRATEGIES
+    try:
+        job._GLOBALLY_DISABLED_STRATEGIES = frozenset({"late_entry_v3"})
+        with patch.object(reg, "get", return_value=fake_strat), \
+                patch.object(job, "_refresh_disabled_strategies", new=AsyncMock()), \
+                patch.object(job, "_load_enrolled_users", new=load):
+            asyncio.run(job.run_close_sweep_fast())
+        # Globally disabled → loop returns before loading users / scanning.
+        load.assert_not_called()
+        fake_strat.scan.assert_not_awaited()
+    finally:
+        job._GLOBALLY_DISABLED_STRATEGIES = original
+
+
 def test_run_close_sweep_fast_no_close_sweep_users_is_noop():
     other_user = _close_sweep_user("full_auto")
     fake_strat = MagicMock()
