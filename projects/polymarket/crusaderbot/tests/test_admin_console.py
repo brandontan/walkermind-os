@@ -212,3 +212,37 @@ def test_preset_to_strategy_maps_candle_presets_to_late_entry():
     assert r._PRESET_TO_STRATEGY["close_sweep"] == "late_entry_v3"
     assert r._PRESET_TO_STRATEGY["safe_close"] == "late_entry_v3"
     assert r._PRESET_TO_STRATEGY["flip_hunter"] == "late_entry_v3"
+
+
+def test_get_autotrade_sl_only_custom_returns_null_tp():
+    """Custom SL-only (tp_pct NULL in DB) must serialize tp_pct=None, not crash."""
+    row = _autotrade_settings_row("close_sweep")
+    row["risk_profile"] = "custom"
+    row["tp_pct"] = None
+    row["sl_pct"] = 0.20
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(side_effect=[
+        {"auto_trade_on": True}, row, {"equity_usdc": 100.0},
+    ])
+    conn.fetchval = AsyncMock(return_value=True)
+    with patch.object(r, "get_pool", return_value=_pool(conn)):
+        out = asyncio.run(r.get_autotrade({"user_id": str(uuid4())}))
+    assert out.tp_pct is None
+    assert out.sl_pct == 0.20
+
+
+def test_get_autotrade_sl_only_custom_returns_null_tp():
+    """Custom SL-only (tp_pct NULL in DB) must serialize tp_pct=None, not crash."""
+    row = _autotrade_settings_row("close_sweep")
+    row["risk_profile"] = "custom"
+    row["tp_pct"] = None
+    row["sl_pct"] = 0.20
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(side_effect=[
+        {"auto_trade_on": True}, row, {"equity_usdc": 100.0},
+    ])
+    conn.fetchval = AsyncMock(return_value=True)
+    with patch.object(r, "get_pool", return_value=_pool(conn)):
+        out = asyncio.run(r.get_autotrade({"user_id": str(uuid4())}))
+    assert out.tp_pct is None
+    assert out.sl_pct == 0.20

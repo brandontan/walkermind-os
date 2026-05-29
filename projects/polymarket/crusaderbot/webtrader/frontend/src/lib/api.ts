@@ -291,8 +291,8 @@ export interface AutoTradeState {
   active_preset: string | null;
   risk_profile: string;
   capital_alloc_pct: number;
-  tp_pct: number;
-  sl_pct: number;
+  tp_pct: number | null;   // null when custom SL-only
+  sl_pct: number | null;   // null when custom TP-only
   market_categories: string[];
   min_liquidity: number;
   max_resolution_days: number | null;

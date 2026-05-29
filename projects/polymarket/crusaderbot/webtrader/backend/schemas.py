@@ -141,8 +141,8 @@ class AutoTradeState(BaseModel):
     active_preset: Optional[str] = None
     risk_profile: str
     capital_alloc_pct: float
-    tp_pct: float
-    sl_pct: float
+    tp_pct: Optional[float] = None   # null when custom SL-only
+    sl_pct: Optional[float] = None   # null when custom TP-only
     market_categories: list[str] = []
     min_liquidity: float = 1000.0
     max_resolution_days: Optional[int] = None
