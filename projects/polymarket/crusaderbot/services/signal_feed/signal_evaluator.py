@@ -153,6 +153,22 @@ def _resolve_size_usdc(
     if cap <= 0:
         return 0.0
     sized = min(target, cap)
+    # Honor the user's EXPLICIT per-trade ceiling (Max trade setting) for
+    # signal_following too — previously only late_entry_v3 applied it, so a
+    # user's "max $X / Y% per trade" was silently ignored on the default
+    # strategy. 'auto'/None keeps the capital-allocation cap above (we do NOT
+    # impose the candle-strategy $25 default here).
+    mode = (getattr(user_context, "max_per_trade_mode", None) or "auto")
+    if mode in ("fixed", "pct"):
+        from ...domain.strategy.strategies.late_entry_v3 import resolve_per_trade_ceiling
+        ceiling = resolve_per_trade_ceiling(
+            equity_usdc=getattr(user_context, "available_balance_usdc", 0.0),
+            mode=mode,
+            max_usdc=getattr(user_context, "max_per_trade_usdc", None),
+            max_pct=getattr(user_context, "max_per_trade_pct", None),
+        )
+        if ceiling > 0:
+            sized = min(sized, ceiling)
     if sized < MIN_TRADE_SIZE_USDC:
         return 0.0
     return sized
