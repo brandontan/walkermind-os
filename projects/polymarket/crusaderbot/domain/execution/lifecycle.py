@@ -36,6 +36,7 @@ from ...integrations.clob import (
     ClobAuthError,
     ClobClientProtocol,
     ClobConfigError,
+    MarketDataClient,
     get_clob_client,
 )
 from ...wallet import ledger
@@ -643,14 +644,9 @@ class OrderLifecycleManager:
                 )
 
         # Widen by one extra tick in the aggressive direction.
+        # token_id must be resolved first so we can fetch the real tick_size.
         original_price = float(order.get("price") or 0)
         side = str(order.get("side") or "yes").lower()
-        tick_size = 0.01
-        if side in {"yes", "buy"}:
-            new_limit = round(min(0.99, original_price + tick_size), 4)
-        else:
-            new_limit = round(max(0.01, original_price - tick_size), 4)
-        shares = float(order["size_usdc"]) / max(new_limit, 0.0001)
         async with pool.acquire() as conn:
             mkt = await conn.fetchrow(
                 "SELECT yes_token_id, no_token_id FROM markets WHERE id=$1",
@@ -673,6 +669,25 @@ class OrderLifecycleManager:
             )
             return
 
+        _tick_size: str = "0.01"
+        _neg_risk: bool = False
+        try:
+            async with MarketDataClient() as _mdc:
+                _tick_size = await _mdc.get_tick_size(token_id) or "0.01"
+                _neg_risk = await _mdc.get_neg_risk(token_id)
+        except Exception as _exc:
+            log.warning(
+                "lifecycle slippage_retry: CLOB tick_size/neg_risk fetch failed — using defaults",
+                order_id=str(order["id"]), token_id=token_id, err=str(_exc),
+            )
+
+        tick_size_f = float(_tick_size)
+        if side in {"yes", "buy"}:
+            new_limit = round(min(0.99, original_price + tick_size_f), 4)
+        else:
+            new_limit = round(max(0.01, original_price - tick_size_f), 4)
+        shares = float(order["size_usdc"]) / max(new_limit, 0.0001)
+
         new_broker_id = ""
         try:
             result = await client.post_order(
@@ -681,6 +696,8 @@ class OrderLifecycleManager:
                 price=new_limit,
                 size=shares,
                 order_type="GTC",
+                tick_size=_tick_size,
+                neg_risk=_neg_risk,
             )
             new_broker_id = (
                 result.get("orderID") or result.get("order_id") or result.get("id") or ""
