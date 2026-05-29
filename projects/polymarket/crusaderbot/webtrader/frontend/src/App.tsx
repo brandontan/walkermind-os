@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-route
 import { AlertCenter } from "./components/AlertCenter";
 import { BottomNav } from "./components/BottomNav";
 import { DesktopSidebar } from "./components/DesktopSidebar";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AuthContext, useAuth, useAuthState } from "./lib/auth";
 import { SSEStatusContext, useSSE } from "./lib/sse";
 import { UiModeContext, useUiModeState } from "./lib/uiMode";
@@ -299,6 +300,7 @@ function AppShell() {
               : "max-w-mobile md:max-w-none",
           ].join(" ")}
         >
+          <ErrorBoundary>
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Navigate to={user ? "/dashboard" : "/auth"} replace />} />
@@ -338,6 +340,7 @@ function AppShell() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
+          </ErrorBoundary>
           {showChrome && <BottomNav />}
         </div>
       </div>

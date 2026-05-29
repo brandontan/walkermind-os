@@ -126,9 +126,10 @@ export function AutoTradePage() {
     setState(s);
     if (dashResult.status === "fulfilled") setTradingMode(dashResult.value.trading_mode);
     if (s.risk_profile === "custom") {
-      setCustomCapital(String(Math.round(s.capital_alloc_pct * 100)));
-      setCustomTp(String(Math.round(s.tp_pct * 100)));
-      setCustomSl(String(Math.round(s.sl_pct * 100)));
+      setCustomCapital(String(Math.round((s.capital_alloc_pct ?? 0) * 100)));
+      // TP/SL may be null (custom TP-only or SL-only) — show blank, not "0".
+      setCustomTp(s.tp_pct != null ? String(Math.round(s.tp_pct * 100)) : "");
+      setCustomSl(s.sl_pct != null ? String(Math.round(s.sl_pct * 100)) : "");
     }
     if (s.market_categories) setFilterCats(s.market_categories);
     if (s.min_liquidity != null) setFilterLiquidity(String(s.min_liquidity));
