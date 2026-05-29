@@ -119,6 +119,10 @@ export function AutoTradePage() {
   // Default empty → all presets are treated as enabled (FAIL-SAFE) until the
   // first fetch completes so the picker is never silently hidden on a slow API.
   const [presetEnabled, setPresetEnabled] = useState<Record<string, boolean>>({});
+  // Same FAIL-SAFE for raw strategy keys. Used to gate the Copy Trade tab —
+  // copy_trade has its own pipeline (not a preset) so it would not otherwise
+  // appear in presetEnabled.
+  const [strategyEnabled, setStrategyEnabled] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     const [autotradeResult, dashResult, availResult] = await Promise.allSettled([
@@ -134,6 +138,7 @@ export function AutoTradePage() {
       const map: Record<string, boolean> = {};
       for (const p of availResult.value.presets) map[p.key] = p.enabled;
       setPresetEnabled(map);
+      setStrategyEnabled(availResult.value.strategies ?? {});
     }
     if (s.risk_profile === "custom") {
       setCustomCapital(String(Math.round((s.capital_alloc_pct ?? 0) * 100)));
@@ -286,6 +291,17 @@ export function AutoTradePage() {
   }
 
   // All hooks declared above — safe to early-return here
+  const copyTradeEnabled = strategyEnabled.copy_trade !== false;
+  // When the operator has turned copy_trade OFF we hide the tab AND short-
+  // circuit anyone landing on /autotrade?tab=copy directly (bookmark, deep
+  // link, stale router state) back to the Auto tab. FAIL-SAFE: until the
+  // availability fetch completes (strategyEnabled.copy_trade === undefined)
+  // we leave the tab visible so a slow API doesn't briefly hide it.
+  if (tab === "copy" && !copyTradeEnabled) {
+    // Same-route swap keeps the back button history clean.
+    navigate("/autotrade", { replace: true });
+    return null;
+  }
   if (tab === "copy") return <CopyTradePage />;
 
   if (!state) return (
@@ -304,7 +320,11 @@ export function AutoTradePage() {
   return (
     <>
       <TopBar tradingMode={tradingMode} />
-      <PageTabs active="auto" onSwitch={(t) => navigate(t === "copy" ? "/autotrade?tab=copy" : "/autotrade")} />
+      <PageTabs
+        active="auto"
+        showCopy={copyTradeEnabled}
+        onSwitch={(t) => navigate(t === "copy" ? "/autotrade?tab=copy" : "/autotrade")}
+      />
       <div className="px-3.5 pt-2 pb-6 animate-page-in">
 
         {/* Market context banner — shown when navigated from Discover page */}
@@ -339,17 +359,38 @@ export function AutoTradePage() {
           subtitle="SELECT STRATEGY · RISK PROFILE · MARKET FILTER"
         />
 
-        {/* Hero */}
+        {/* Hero — admin pause takes precedence over user auto-trade toggle.
+            If the active preset's backing strategy is globally disabled the
+            scanner will not emit any candidates, so showing RUNNING would
+            mislead the user even though state.auto_trade_on is true. */}
         <HeroCard
           label="Auto Trade"
           value={heroValue}
           valueFontSize={38}
           prefix=""
-          statusLabel={state.auto_trade_on ? "STRATEGY ACTIVE" : "STRATEGY PAUSED"}
+          statusLabel={
+            state.active_preset_globally_enabled === false
+              ? "PAUSED (ADMIN)"
+              : state.auto_trade_on
+                ? "STRATEGY ACTIVE"
+                : "STRATEGY PAUSED"
+          }
           metaItems={
             <>
-              <span className={state.auto_trade_on ? "text-grn font-bold" : "text-ink-2 font-bold"}>
-                {state.auto_trade_on ? "● RUNNING" : "● PAUSED"}
+              <span
+                className={
+                  state.active_preset_globally_enabled === false
+                    ? "text-ink-3 font-bold"
+                    : state.auto_trade_on
+                      ? "text-grn font-bold"
+                      : "text-ink-2 font-bold"
+                }
+              >
+                {state.active_preset_globally_enabled === false
+                  ? "● PAUSED (ADMIN)"
+                  : state.auto_trade_on
+                    ? "● RUNNING"
+                    : "● PAUSED"}
               </span>
               <span className="text-ink-4">│</span>
               <span className="text-ink-3">

@@ -30,6 +30,7 @@ function PageLoader() {
 const LAST_SEEN_KEY = "alertCenter_lastSeen";
 const DISMISSED_KEY = "alertCenter_dismissed";
 const SEEN_IDS_KEY = "alertCenter_seenIds";
+const MARK_ALL_READ_AT_KEY = "alertCenter_markAllReadAt";
 const DISMISSED_CAP = 500;
 const SEEN_IDS_CAP = 500;
 
@@ -48,6 +49,16 @@ function loadSeenIds(): Set<string> {
     return stored ? new Set<string>(JSON.parse(stored) as string[]) : new Set<string>();
   } catch {
     return new Set<string>();
+  }
+}
+
+function loadMarkAllReadAt(): number {
+  try {
+    const stored = localStorage.getItem(MARK_ALL_READ_AT_KEY);
+    const parsed = stored ? Number(stored) : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch {
+    return 0;
   }
 }
 
@@ -127,6 +138,14 @@ function AppShell() {
   // timestamp is still written to localStorage for backward compatibility
   // with any older client cache.)
   const [seenIds, setSeenIds] = useState<Set<string>>(loadSeenIds);
+  // Hard "everything before this is read" watermark. Updated by markAllRead.
+  // Survives page refresh — visibleAlerts filters out anything with
+  // created_at <= markAllReadAt so the user does NOT see the same closed
+  // positions pop back up after the next /positions fetch. This is the
+  // user-visible fix for "I marked all read but refresh brings them all
+  // back" — the old design only tracked the in-memory alert IDs at the time
+  // of the click, which were dropped once the backend served new rows.
+  const [markAllReadAt, setMarkAllReadAt] = useState<number>(loadMarkAllReadAt);
   const setLastSeen = (v: number) => { try { localStorage.setItem(LAST_SEEN_KEY, String(v)); } catch { /* quota */ } };
 
   const fetchAlerts = useCallback(async (offset = 0, append = false) => {
@@ -187,9 +206,12 @@ function AppShell() {
     });
   }, []);
 
-  // Mark ALL currently-visible alerts as read in one shot. Dismisses every
-  // visible alert AND adds their IDs to seenIds so any that come back via
-  // re-fetch don't reappear as unread. Idempotent and resilient to quota errors.
+  // Mark ALL currently-visible alerts as read in one shot. Sets the persistent
+  // markAllReadAt watermark so that on the next /positions or /alerts fetch
+  // (or full page refresh) we do NOT re-surface anything that pre-dates the
+  // click. Still adds IDs to dismissed + seenIds for back-compat with the
+  // legacy ID-based path, but the watermark is what actually keeps stale
+  // alerts gone across reloads.
   const markAllRead = useCallback(() => {
     setDismissed(prev => {
       const next = [...prev, ...alerts.map(a => a.id)];
@@ -204,6 +226,8 @@ function AppShell() {
       return new Set(capped);
     });
     const now = Date.now();
+    setMarkAllReadAt(now);
+    try { localStorage.setItem(MARK_ALL_READ_AT_KEY, String(now)); } catch { /* quota — ignore */ }
     setLastSeen(now);
     try { localStorage.setItem(LAST_SEEN_KEY, String(now)); } catch { /* quota — ignore */ }
   }, [alerts]);
@@ -253,8 +277,19 @@ function AppShell() {
   }, [fetchAlerts]);
 
   const visibleAlerts = useMemo(
-    () => alerts.filter((a) => !dismissed.has(a.id)),
-    [alerts, dismissed],
+    () => alerts.filter((a) => {
+      if (dismissed.has(a.id)) return false;
+      // Persistent "mark all read" watermark — anything timestamped before
+      // the click is hidden permanently. Alerts without a parseable
+      // created_at fall through (e.g. system alerts with timing missing) so
+      // a malformed row never silently disappears.
+      if (markAllReadAt > 0 && a.created_at) {
+        const ts = Date.parse(a.created_at);
+        if (Number.isFinite(ts) && ts <= markAllReadAt) return false;
+      }
+      return true;
+    }),
+    [alerts, dismissed, markAllReadAt],
   );
 
   // Unread = alert whose ID hasn't been added to seenIds yet. Persistent

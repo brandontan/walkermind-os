@@ -23,13 +23,25 @@ interface CopyTask {
   created_at: string;
 }
 
-export function PageTabs({ active, onSwitch }: { active: "auto" | "copy"; onSwitch: (tab: "auto" | "copy") => void }) {
+export function PageTabs({
+  active,
+  onSwitch,
+  showCopy = true,
+}: {
+  active: "auto" | "copy";
+  onSwitch: (tab: "auto" | "copy") => void;
+  // When the operator has globally disabled copy_trade we still want the
+  // Auto Trade tab strip to render (so the page layout stays consistent),
+  // but the Copy Trade tab itself is hidden. Default true = legacy behaviour.
+  showCopy?: boolean;
+}) {
+  const tabs = (showCopy ? ["auto", "copy"] : ["auto"]) as ("auto" | "copy")[];
   return (
     <div
       className="flex border-b border-border-1 px-3.5"
       style={{ background: "rgba(6,11,22,0.85)" }}
     >
-      {(["auto", "copy"] as const).map((t) => {
+      {tabs.map((t) => {
         const isActive = active === t;
         return (
           <button

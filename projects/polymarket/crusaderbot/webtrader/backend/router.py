@@ -744,17 +744,25 @@ _PRESET_TO_STRATEGY: dict[str, str] = {
 
 @router.get("/autotrade/preset-availability")
 async def get_preset_availability(user: _CurrentUser) -> dict:
-    """Per-preset availability for the authenticated user's strategy picker.
+    """Per-preset + per-strategy availability for the authenticated user.
 
-    Returns ``{"presets": [{"key": "...", "strategy": "...", "enabled": bool}]}``.
+    Returns:
+      ``{
+         "presets": [{"key": "...", "strategy": "...", "enabled": bool}, ...],
+         "strategies": {"<strategy_name>": bool, ...}
+      }``
+
     The picker (WebTrader AutoTradePage + Telegram preset_tier_kb) MUST hide
-    or lock presets whose backing strategy is globally disabled — this is the
-    user-dashboard half of the operator Admin toggle contract.
+    presets whose backing strategy is disabled. The ``strategies`` map covers
+    every entry in ``_ADMIN_STRATEGIES`` so the frontend can also gate features
+    that are not preset-backed (e.g. the Copy Trade tab — copy_trade has its
+    own pipeline, not a preset, so it would not otherwise appear in
+    ``presets``).
 
     FAIL-SAFE: a missing row in ``strategies`` defaults to enabled=True. A DB
-    error is logged at WARNING and the endpoint returns every preset as enabled
-    (consistent with the scanner-side fail-safe: a transient blip must never
-    silently wipe the user's picker).
+    error is logged at WARNING and the endpoint returns every preset / strategy
+    as enabled (consistent with the scanner-side fail-safe: a transient blip
+    must never silently wipe the user's picker).
     """
     state: dict[str, bool] = {}
     try:
@@ -768,7 +776,8 @@ async def get_preset_availability(user: _CurrentUser) -> dict:
         {"key": preset, "strategy": strat, "enabled": state.get(strat, True)}
         for preset, strat in _PRESET_TO_STRATEGY.items()
     ]
-    return {"presets": presets}
+    strategies = {name: state.get(name, True) for name in _ADMIN_STRATEGIES}
+    return {"presets": presets, "strategies": strategies}
 
 # Preset key → default risk parameters applied when preset is activated.
 # Risk profile (capital/TP/SL) can be overridden separately via /autotrade/risk-profile.
