@@ -238,6 +238,16 @@ def test_preset_availability_default_enabled_when_no_row():
     assert all(p["enabled"] is True for p in out["presets"])
 
 
+def test_preset_params_roster_matches_admin_presets_after_cleanup():
+    """activate_preset must reject any archived legacy key. After WARP/R00T
+    cleanup, only the 3 candle presets are valid — a stale client persisting
+    `signal_sniper` / `full_auto` / `ensemble` would create a silent no-op
+    (scanner emits nothing, dashboard can't mark it PAUSED). Pinned here so a
+    future map widening is intentional."""
+    assert set(r._PRESET_PARAMS.keys()) == {"close_sweep", "safe_close", "flip_hunter"}
+    assert set(r._PRESET_TO_STRATEGY.keys()) == set(r._PRESET_PARAMS.keys())
+
+
 def test_preset_availability_fail_safe_on_db_error():
     """A DB blip must NOT 500 — every preset reports enabled=True instead."""
     pool = MagicMock()
@@ -252,23 +262,6 @@ def test_preset_to_strategy_maps_candle_presets_to_late_entry():
     assert r._PRESET_TO_STRATEGY["close_sweep"] == "late_entry_v3"
     assert r._PRESET_TO_STRATEGY["safe_close"] == "late_entry_v3"
     assert r._PRESET_TO_STRATEGY["flip_hunter"] == "late_entry_v3"
-
-
-def test_get_autotrade_sl_only_custom_returns_null_tp():
-    """Custom SL-only (tp_pct NULL in DB) must serialize tp_pct=None, not crash."""
-    row = _autotrade_settings_row("close_sweep")
-    row["risk_profile"] = "custom"
-    row["tp_pct"] = None
-    row["sl_pct"] = 0.20
-    conn = MagicMock()
-    conn.fetchrow = AsyncMock(side_effect=[
-        {"auto_trade_on": True}, row, {"equity_usdc": 100.0},
-    ])
-    conn.fetchval = AsyncMock(return_value=True)
-    with patch.object(r, "get_pool", return_value=_pool(conn)):
-        out = asyncio.run(r.get_autotrade({"user_id": str(uuid4())}))
-    assert out.tp_pct is None
-    assert out.sl_pct == 0.20
 
 
 def test_get_autotrade_sl_only_custom_returns_null_tp():

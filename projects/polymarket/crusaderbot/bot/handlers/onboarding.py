@@ -338,6 +338,22 @@ async def _risk_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     ctx.user_data["onboard_risk"] = risk_profile
 
     disabled = await _load_disabled_strategies_for_onboarding()
+    # Edge case: every onboarding preset shares the same backing strategy
+    # (late_entry_v3). If the operator has disabled it, the picker would
+    # render an empty keyboard and the new user would be stuck in
+    # ONBOARD_PRESET_PICK with no way to proceed. Show an informational
+    # message + a Cancel button so they can exit cleanly and retry later.
+    every_strategy_disabled = all(
+        strat in disabled for _, _, strat in _ONBOARD_PRESETS
+    )
+    if every_strategy_disabled:
+        await q.edit_message_text(
+            "⚠️ Auto trading is temporarily disabled by the admin.\n\n"
+            "Please try again later — when a strategy is re-enabled, send "
+            "/start to resume onboarding.",
+            reply_markup=None,
+        )
+        return ConversationHandler.END
     await q.edit_message_text(
         onboard_preset_pick_text(),
         parse_mode=ParseMode.MARKDOWN_V2,
