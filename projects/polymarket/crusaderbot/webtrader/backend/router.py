@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
@@ -25,7 +25,10 @@ from ...domain.strategy.strategies.late_entry_v3 import (
 from ... import notifications as notif_module
 from ...integrations import polymarket as _polymarket
 from . import sse as webtrader_sse
-from .auth import authenticate_telegram, get_current_user, login_email, register_email, link_email
+from .auth import (
+    authenticate_telegram, decode_stream_token, get_current_user, link_email,
+    login_email, mint_stream_token, register_email,
+)
 from . import notification_prefs as _notif_prefs
 from .schemas import (
     AlertItem,
@@ -1591,11 +1594,21 @@ async def get_portfolio_chart(
     return points
 
 
+@router.post("/stream-token")
+async def issue_stream_token(user: _CurrentUser) -> dict:
+    """Mint a short-lived, SSE-scoped handshake token so the main JWT never
+    appears in the EventSource URL (which lands in proxy/access logs)."""
+    return {"token": mint_stream_token(user["user_id"], user.get("telegram_id"))}
+
+
 @router.get("/stream")
-async def sse_stream(user: _CurrentUser):
-    telegram_id: int | None = user.get("telegram_id")
+async def sse_stream(token: str | None = Query(default=None)):
+    # Authenticated via the short-lived SSE handshake token only (NOT the main
+    # JWT) — see issue_stream_token. decode_stream_token enforces scope='sse'.
+    payload = decode_stream_token(token)
+    telegram_id: int | None = payload.get("telegram_id")
     return EventSourceResponse(
-        webtrader_sse.stream_for_user(user["user_id"], telegram_id)
+        webtrader_sse.stream_for_user(payload["user_id"], telegram_id)
     )
 
 

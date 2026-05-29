@@ -23,13 +23,40 @@ export function useSSE(token: string | null, handlers: SSEHandlers): { connected
       return;
     }
 
-    let es: EventSource;
+    let es: EventSource | undefined;
     let reconnectTimeout: ReturnType<typeof setTimeout>;
     let backoff = 1000;
     let destroyed = false;
 
-    function connect() {
-      const url = `/api/web/stream?token=${encodeURIComponent(token!)}`;
+    function scheduleReconnect() {
+      if (destroyed) return;
+      reconnectTimeout = setTimeout(() => {
+        backoff = Math.min(backoff * 2, 30_000);
+        void connect();
+      }, backoff);
+    }
+
+    async function connect() {
+      if (destroyed) return;
+      // The main JWT must never ride in the EventSource URL (it lands in
+      // proxy/access logs). Exchange it for a short-lived, SSE-scoped handshake
+      // token first; a fresh one is minted on every (re)connect.
+      let streamToken: string;
+      try {
+        const res = await fetch("/api/web/stream-token", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token!}` },
+        });
+        if (!res.ok) throw new Error(`stream-token ${res.status}`);
+        streamToken = (await res.json()).token as string;
+      } catch {
+        setConnected(false);
+        scheduleReconnect();
+        return;
+      }
+      if (destroyed) return;
+
+      const url = `/api/web/stream?token=${encodeURIComponent(streamToken)}`;
       es = new EventSource(url);
 
       es.addEventListener("connected", () => {
@@ -60,17 +87,12 @@ export function useSSE(token: string | null, handlers: SSEHandlers): { connected
 
       es.onerror = () => {
         setConnected(false);
-        es.close();
-        if (!destroyed) {
-          reconnectTimeout = setTimeout(() => {
-            backoff = Math.min(backoff * 2, 30_000);
-            connect();
-          }, backoff);
-        }
+        es?.close();
+        scheduleReconnect();
       };
     }
 
-    connect();
+    void connect();
 
     return () => {
       destroyed = true;
