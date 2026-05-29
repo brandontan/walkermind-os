@@ -529,16 +529,20 @@ def _authorize_mutation(
     *,
     request: Request,
     header: str | None,
-    token: str | None,
     cookie: str | None,
 ) -> None:
     """Gate the POST mutators. 503 if no secret configured; 403 if no
-    accepted credential (header, cookie session, or legacy token) matches.
+    accepted credential (``X-Ops-Token`` header or cookie session) matches.
 
-    Secret-bearing credentials (``X-Ops-Token`` header / legacy ``?token=``)
-    are not forgeable cross-site and are used by scripts that omit ``Origin``,
-    so they bypass the origin check. The cookie path is browser-driven and
-    CSRF-sensitive, so it additionally requires a same-origin request.
+    The legacy ``?token=`` query param is NO LONGER accepted on mutators — a
+    secret in the URL leaks into Fly/proxy/access logs, which on a kill-switch
+    endpoint is a real exposure. Scripts/CI use the ``X-Ops-Token`` header
+    (not URL-logged); browsers use the cookie set at login.
+
+    The header credential is not forgeable cross-site and is used by scripts
+    that omit ``Origin``, so it bypasses the origin check. The cookie path is
+    browser-driven and CSRF-sensitive, so it additionally requires a
+    same-origin request.
     """
     secret = _ops_secret()
     if not secret:
@@ -546,7 +550,7 @@ def _authorize_mutation(
             status_code=503,
             detail="ops controls disabled (OPS_SECRET unset)",
         )
-    if _matches_secret(header, secret) or _matches_secret(token, secret):
+    if _matches_secret(header, secret):
         return
     if _valid_session(cookie, secret):
         if not _is_same_origin(request):
@@ -592,8 +596,20 @@ async def ops_dashboard(
         _set_session_cookie(resp, secret)
         return resp
 
+    # No secret configured: the console cannot be gated, so it must NOT leak
+    # any operational data (user counts, kill state, audit tail, health). Show
+    # a disabled notice instead of the dashboard. (Previously the dashboard
+    # rendered openly to any anonymous visitor when OPS_SECRET was unset.)
+    if not secret:
+        return HTMLResponse(
+            content=_render_login_page(
+                flash="Ops console disabled — OPS_SECRET is not configured.",
+            ),
+            status_code=503,
+        )
+
     # Secret configured but no valid session -> login form only (no data).
-    if secret and not _is_authenticated(request):
+    if not _is_authenticated(request):
         return HTMLResponse(content=_render_login_page(flash=flash))
 
     try:
@@ -658,14 +674,14 @@ async def ops_logout() -> RedirectResponse:
 @router.post("/ops/kill")
 async def ops_kill(
     request: Request,
-    token: str | None = None,
     x_ops_token: str | None = Header(default=None),
 ) -> RedirectResponse:
     """Engage the kill switch and redirect back to the dashboard.
 
-    Auth (any of): ``X-Ops-Token`` header, the ``ops_session`` cookie set at
-    login, or a legacy ``?token=`` query param — all compared to
-    ``OPS_SECRET``. Unset secret → 503; no valid credential → 403.
+    Auth (any of): ``X-Ops-Token`` header or the ``ops_session`` cookie set at
+    login — compared to ``OPS_SECRET``. The legacy ``?token=`` query param is
+    no longer accepted (secret-in-URL log leak). Unset secret → 503; no valid
+    credential → 403.
 
     Delegates to the shared ``domain.ops.kill_switch.set_active`` so this
     flip writes ``kill_switch_history`` AND emits a ``kill_switch_pause``
@@ -674,7 +690,7 @@ async def ops_kill(
     a Telegram flip via the ``source`` payload field.
     """
     _authorize_mutation(
-        request=request, header=x_ops_token, token=token,
+        request=request, header=x_ops_token,
         cookie=request.cookies.get(_OPS_COOKIE),
     )
     flash = "Kill switch engaged — new trades blocked."
@@ -706,7 +722,6 @@ async def ops_kill(
 @router.post("/ops/resume")
 async def ops_resume(
     request: Request,
-    token: str | None = None,
     x_ops_token: str | None = Header(default=None),
 ) -> RedirectResponse:
     """Release the kill switch and redirect back to the dashboard.
@@ -715,7 +730,7 @@ async def ops_resume(
     docstring.
     """
     _authorize_mutation(
-        request=request, header=x_ops_token, token=token,
+        request=request, header=x_ops_token,
         cookie=request.cookies.get(_OPS_COOKIE),
     )
     flash = "Kill switch released — bot resumed."

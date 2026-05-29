@@ -435,32 +435,33 @@ def test_ops_post_returns_403_when_token_wrong(
 
 
 @pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
-def test_ops_post_accepts_token_via_query_param(
+def test_ops_post_rejects_legacy_query_param_token(
     monkeypatch, _stub_ops_mutators, path,
 ):
-    """The dashboard's HTML form action embeds the token as ``?token=``
-    so a phone bookmark works without needing to inject a header. The
-    handler must accept that path too.
+    """B3 hardening: the legacy ``?token=`` query param is NO LONGER accepted
+    on the kill/resume mutators — a secret in the URL leaks to access logs.
+    Such a request must be rejected (403) and must not flip the switch.
     """
     _patch_route_io(monkeypatch)
     client = _client()
     r = client.post(f"{path}?token={OPS_TOKEN}", follow_redirects=False)
-    assert r.status_code == 303
-    api_ops.kill_switch.set_active.assert_awaited_once()
+    assert r.status_code == 403
+    api_ops.kill_switch.set_active.assert_not_awaited()
 
 
 @pytest.mark.parametrize("path", ["/ops/kill", "/ops/resume"])
 def test_ops_post_redirect_carries_no_token_and_sets_cookie(
     monkeypatch, _stub_ops_mutators, path,
 ):
-    """Post-action redirect must NOT echo the secret in the URL; instead
-    the response establishes the session cookie so the next GET renders the
-    dashboard. (H1: token out of the URL.)
+    """Header-authenticated mutator: post-action redirect must NOT echo the
+    secret in the URL; instead the response establishes the session cookie so
+    the next GET renders the dashboard. (H1: token out of the URL.)
     """
     _patch_route_io(monkeypatch)
     client = _client()
-    r = client.post(f"{path}?token={OPS_TOKEN}", follow_redirects=False)
+    r = client.post(path, headers={"X-Ops-Token": OPS_TOKEN}, follow_redirects=False)
     assert r.status_code == 303
+    api_ops.kill_switch.set_active.assert_awaited_once()
     location = r.headers["location"]
     assert "token=" not in location, f"redirect leaked the token: {location!r}"
     assert OPS_TOKEN not in location

@@ -14,7 +14,7 @@ from uuid import UUID
 
 from ...database import get_pool
 from ... import audit
-from ...api.per_user_rate_limit import per_user_rate_limit
+from ...api.per_user_rate_limit import per_ip_rate_limit, per_user_rate_limit
 from ...domain.execution import router as exec_router
 from ...domain.ops import kill_switch
 from ...domain.positions import mark_force_close_intent_for_user
@@ -122,13 +122,21 @@ async def auth_telegram(data: TelegramAuthPayload) -> TokenResponse:
     return await authenticate_telegram(data)
 
 
-@router.post("/auth/register", response_model=TokenResponse)
+@router.post(
+    "/auth/register",
+    response_model=TokenResponse,
+    dependencies=[Depends(per_ip_rate_limit("auth_register", limit=5))],
+)
 async def auth_register(data: EmailRegisterRequest) -> TokenResponse:
     """Register a new account with email + password (no Telegram required)."""
     return await register_email(data)
 
 
-@router.post("/auth/login", response_model=TokenResponse)
+@router.post(
+    "/auth/login",
+    response_model=TokenResponse,
+    dependencies=[Depends(per_ip_rate_limit("auth_login", limit=10))],
+)
 async def auth_login(data: EmailLoginRequest) -> TokenResponse:
     """Authenticate with email + password."""
     return await login_email(data)
@@ -900,6 +908,18 @@ async def customize_strategy(body: CustomizeRequest, user: _CurrentUser):
             params.append(val)
             updates.append(f"{col}=${len(params)}")
 
+    # Bounds: these feed trade sizing / exit thresholds. Without guards a user
+    # could submit capital_alloc_pct=99999, negative tp/sl, etc. (stored raw,
+    # used at execution time). Reject out-of-range values up front.
+    if body.tp_pct is not None and not (0 < body.tp_pct <= 10):
+        raise HTTPException(status_code=400, detail="tp_pct must be in (0, 10] (0%–1000%)")
+    if body.sl_pct is not None and not (0 < body.sl_pct <= 1):
+        raise HTTPException(status_code=400, detail="sl_pct must be in (0, 1] (0%–100%)")
+    if body.capital_alloc_pct is not None and not (0 < body.capital_alloc_pct <= 0.80):
+        raise HTTPException(status_code=400, detail="capital_alloc_pct must be in (0, 0.80]")
+    if body.max_position_pct is not None and not (0 < body.max_position_pct <= 0.10):
+        raise HTTPException(status_code=400, detail="max_position_pct must be in (0, 0.10] (system max 10%)")
+
     _add("tp_pct", body.tp_pct)
     _add("sl_pct", body.sl_pct)
     _add("capital_alloc_pct", body.capital_alloc_pct)
@@ -907,11 +927,15 @@ async def customize_strategy(body: CustomizeRequest, user: _CurrentUser):
     _add("auto_redeem_mode", body.auto_redeem_mode)
     _add("category_filters", body.category_filters)
 
-    # Per-trade cap mode + values (owner-directed; bounded in code at sizing time).
+    # Per-trade cap mode + values (owner-directed; also bounded at sizing time).
     if body.max_per_trade_mode is not None:
         if body.max_per_trade_mode not in ("auto", "fixed", "pct"):
             raise HTTPException(status_code=400, detail="max_per_trade_mode must be auto|fixed|pct")
         _add("max_per_trade_mode", body.max_per_trade_mode)
+    if body.max_per_trade_usdc is not None and body.max_per_trade_usdc <= 0:
+        raise HTTPException(status_code=400, detail="max_per_trade_usdc must be > 0")
+    if body.max_per_trade_pct is not None and not (0 < body.max_per_trade_pct <= 1):
+        raise HTTPException(status_code=400, detail="max_per_trade_pct must be in (0, 1] (0%–100%)")
     _add("max_per_trade_usdc", body.max_per_trade_usdc)
     _add("max_per_trade_pct", body.max_per_trade_pct)
 

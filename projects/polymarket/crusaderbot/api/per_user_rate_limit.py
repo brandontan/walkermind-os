@@ -30,7 +30,7 @@ import time
 from collections import deque
 from typing import Annotated, Callable
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 
 from ..webtrader.backend.auth import get_current_user
 
@@ -67,31 +67,66 @@ def per_user_rate_limit(
         if not user_id:
             # No authenticated user → defer to get_current_user's 401.
             return
-        key = (user_id, scope)
-        now = time.monotonic()
-        cutoff = now - window_seconds
-        async with _lock:
-            bucket = _buckets.get(key)
-            if bucket is None:
-                if len(_buckets) >= _MAX_TRACKED_KEYS:
-                    _evict_idle(cutoff)
-                bucket = deque()
-                _buckets[key] = bucket
-            while bucket and bucket[0] <= cutoff:
-                bucket.popleft()
-            if len(bucket) >= limit:
-                retry_after = window_seconds - (now - bucket[0])
-                raise HTTPException(
-                    status_code=429,
-                    detail=(
-                        f"per-user rate limit ({limit}/{int(window_seconds)}s) "
-                        f"exceeded for '{scope}'"
-                    ),
-                    headers={"Retry-After": str(max(int(retry_after) + 1, 1))},
-                )
-            bucket.append(now)
+        await _consume((user_id, scope), limit, window_seconds, scope, "per-user")
 
     return _enforce
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP, matching the global RateLimitMiddleware order:
+    Fly-Client-IP, then first X-Forwarded-For hop, then the socket peer."""
+    return (
+        request.headers.get("fly-client-ip")
+        or (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+        or (request.client.host if request.client else "")
+        or "unknown"
+    )
+
+
+def per_ip_rate_limit(
+    scope: str,
+    *,
+    limit: int,
+    window_seconds: float = 60.0,
+) -> Callable[[Request], object]:
+    """Like ``per_user_rate_limit`` but keyed on the client IP — for
+    pre-authentication endpoints (``/auth/register``, ``/auth/login``) where
+    no ``user_id`` exists yet. Stops password brute-force / email enumeration
+    / signup spam from a single source faster than the 600/min global limiter.
+    """
+    async def _enforce(request: Request) -> None:
+        await _consume((f"ip:{_client_ip(request)}", scope), limit, window_seconds, scope, "per-ip")
+
+    return _enforce
+
+
+async def _consume(
+    key: tuple[str, str], limit: int, window_seconds: float, scope: str, kind: str,
+) -> None:
+    """Shared sliding-window bucket consume. Raises 429 + Retry-After on
+    overflow. Buckets are capped + idle-evicted to bound memory."""
+    now = time.monotonic()
+    cutoff = now - window_seconds
+    async with _lock:
+        bucket = _buckets.get(key)
+        if bucket is None:
+            if len(_buckets) >= _MAX_TRACKED_KEYS:
+                _evict_idle(cutoff)
+            bucket = deque()
+            _buckets[key] = bucket
+        while bucket and bucket[0] <= cutoff:
+            bucket.popleft()
+        if len(bucket) >= limit:
+            retry_after = window_seconds - (now - bucket[0])
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"{kind} rate limit ({limit}/{int(window_seconds)}s) "
+                    f"exceeded for '{scope}'"
+                ),
+                headers={"Retry-After": str(max(int(retry_after) + 1, 1))},
+            )
+        bucket.append(now)
 
 
 def _evict_idle(cutoff: float) -> None:
