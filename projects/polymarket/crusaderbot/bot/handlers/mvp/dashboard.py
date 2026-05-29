@@ -87,7 +87,17 @@ async def show_dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
 
 async def _dashboard_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    await show_dashboard(update, ctx)
+    # MVP owns the home view (dashboard:main / refresh). Other legacy sub-routes
+    # (insights, portfolio, trades, wallet, settings, auto, stop, monitor) were
+    # silently bounced to the MVP home; delegate them to the legacy dashboard
+    # router so they reach their intended screens.
+    q = update.callback_query
+    sub = (q.data or "").split(":", 1)[-1] if q else "main"
+    if sub in ("main", "refresh", "home", ""):
+        await show_dashboard(update, ctx)
+        return
+    from ..dashboard import dashboard_nav_cb
+    await dashboard_nav_cb(update, ctx)
 
 
 def attach(app: Application) -> None:

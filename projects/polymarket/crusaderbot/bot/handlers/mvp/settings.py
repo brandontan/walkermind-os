@@ -131,7 +131,12 @@ async def _settings_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         # Delegate to copy_wallet home.
         from . import copy_wallet as cw
         await cw.show_home(update, ctx); return
-    await show_home(update, ctx)
+    # Sub-routes the MVP settings surface doesn't own (tpsl / wallet / health /
+    # admin / redeem_set / profile / referrals / capital / live_gate / back …)
+    # were silently bounced to the MVP home; delegate them to the legacy
+    # settings handler so TP/SL, wallet, health, admin etc. work from /settings.
+    from .. import settings as legacy_settings
+    await legacy_settings.settings_callback(update, ctx)
 
 
 def attach(app: Application) -> None:
