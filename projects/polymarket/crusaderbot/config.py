@@ -248,6 +248,11 @@ class Settings(BaseSettings):
     # Dedicated fast exit loop for candle-preset positions near resolution.
     CLOSE_SWEEP_EXIT_INTERVAL: int = 5     # poll cadence (s) — only candle positions
     CLOSE_SWEEP_EXIT_NEAR_SEC: int = 90    # only evaluate positions within this many s of resolution
+    # Kreo "Min Edge" ~2%: per-scan min_ask_diff is randomized in this range so
+    # the entry threshold varies between ticks (2–4%, looser than the old fixed
+    # 0.05). Set MIN == MAX to pin a deterministic value.
+    PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MIN: float = 0.02
+    PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MAX: float = 0.04
 
     PRESET_SAFE_CLOSE_WINDOW_SEC: float = 60.0
     PRESET_SAFE_CLOSE_MIN_ASK_DIFF: float = 0.01  # Kreo Min Edge 1% (was 0.08)
