@@ -346,7 +346,11 @@ export function SettingsPage() {
                 <SettingsRow
                   name="Activation Guards"
                   desc="Live trading enabled when all guards pass"
-                  control={<span className="text-gold">🔒 LOCKED</span>}
+                  control={
+                    liveStatus?.operator_guards_open
+                      ? <span className="text-emerald-400">🔓 OPEN</span>
+                      : <span className="text-gold">🔒 LOCKED</span>
+                  }
                 />
               </AdvancedOnly>
 

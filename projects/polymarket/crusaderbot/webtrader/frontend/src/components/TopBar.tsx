@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSSEStatus } from "../lib/sse";
-import { useAlertCenter, useScannerStatus } from "../App";
+import { useAlertCenter, useScannerStatus, useTradingMode } from "../App";
 
 const TOPNAV = [
   { to: "/dashboard",  label: "Home" },
@@ -12,7 +12,9 @@ const TOPNAV = [
 ] as const;
 
 type Props = {
-  /** Actual trading mode from backend. Defaults to "paper" when not yet loaded. */
+  /** Actual trading mode from backend. When omitted, falls back to the
+   *  app-wide TradingMode context (fed from /me) instead of a hardcoded
+   *  "paper" — so pages that don't fetch the mode still show LIVE correctly. */
   tradingMode?: string;
   /** Kept for backward-compat; superseded by AlertCenterContext.unreadCount */
   notifCount?: number;
@@ -20,13 +22,17 @@ type Props = {
   onBellClick?: () => void;
 };
 
-export function TopBar({ tradingMode = "paper", notifCount: _notifCount, onBellClick: _onBellClick }: Props) {
+export function TopBar({ tradingMode, notifCount: _notifCount, onBellClick: _onBellClick }: Props) {
   const sseConnected = useSSEStatus();
   const { lastScanMs } = useScannerStatus();
   const location = useLocation();
   const navigate = useNavigate();
   const { unreadCount, openAlertCenter } = useAlertCenter();
-  const isLive = tradingMode === "live";
+  const ctxMode = useTradingMode();
+  // Explicit prop (freshest, from a page that fetched it) wins; otherwise fall
+  // back to the app-wide mode so the LIVE/PAPER pill is never falsely "PAPER".
+  const mode = tradingMode ?? ctxMode;
+  const isLive = mode === "live";
   const lastScanLabel = lastScanMs
     ? new Date(lastScanMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : null;

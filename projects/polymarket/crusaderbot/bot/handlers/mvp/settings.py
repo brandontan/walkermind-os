@@ -31,8 +31,11 @@ async def _read_settings(telegram_user) -> dict:
     u = await _users.fetch_user(telegram_user.id, telegram_user.username)
     if u is None:
         return s
-    mode_flag = bool(u.get("live_mode_enabled") or u.get("live_trading_enabled"))
-    s["trading_mode"] = LIVE if mode_flag else PAPER
+    # trading_mode is canonical in user_settings (written by the live-gate flow),
+    # NOT a phantom users column — read it from the settings row.
+    settings = await _users.fetch_settings(u["id"])
+    is_live = str(settings.get("trading_mode") or "paper").lower() == "live"
+    s["trading_mode"] = LIVE if is_live else PAPER
     return s
 
 

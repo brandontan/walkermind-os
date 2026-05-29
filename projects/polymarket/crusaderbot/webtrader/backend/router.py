@@ -155,6 +155,13 @@ async def get_me(user: _CurrentUser):
             "SELECT email, username, telegram_user_id, role FROM users WHERE id = $1::uuid",
             user_id,
         )
+        # trading_mode is the canonical per-user mode in user_settings; surface
+        # it here so the app-wide TopBar pill shows LIVE/PAPER on every page
+        # without each page making its own mode call.
+        settings_row = await conn.fetchrow(
+            "SELECT trading_mode FROM user_settings WHERE user_id = $1::uuid",
+            user_id,
+        )
     email = row["email"] if row else None
     # Synthetic tombstone emails (merged-<uuid>@telegram.local) are not real
     # user logins — never surface them as a "linked email".
@@ -168,6 +175,7 @@ async def get_me(user: _CurrentUser):
         "telegram_linked": bool(row and row["telegram_user_id"] is not None),
         "role": (row["role"] if row else "user") or "user",
         "is_admin": bool(row and row["role"] == "admin"),
+        "trading_mode": (settings_row["trading_mode"] if settings_row else "paper") or "paper",
     }
 
 

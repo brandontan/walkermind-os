@@ -220,6 +220,7 @@ export interface MeResponse {
   telegram_linked: boolean;
   role: string;                // "user" | "admin"
   is_admin: boolean;
+  trading_mode: string;        // "paper" | "live" — canonical per-user mode
 }
 
 export interface DashboardSummary {

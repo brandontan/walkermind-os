@@ -57,7 +57,7 @@ async def _read_state(telegram_user) -> dict:
         return state
     state["uuid"] = u["id"]
     state["paused"] = bool(u.get("paused"))
-    state["running"] = bool(u.get("auto_trade_enabled")) and not state["paused"]
+    state["running"] = bool(u.get("auto_trade_on")) and not state["paused"]
     settings = await _users.fetch_settings(u["id"])
 
     balance = await _users.fetch_balance(u["id"])
