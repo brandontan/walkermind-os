@@ -120,7 +120,46 @@ async def get_current_user(
     raw = (creds.credentials if creds else None) or token
     if not raw:
         raise HTTPException(status_code=401, detail="not authenticated")
-    return decode_jwt(raw)
+    payload = decode_jwt(raw)
+    # SSE handshake tokens (scope='sse') are stream-only short-lived creds — they
+    # must NEVER authenticate an API request, so a leaked stream token cannot be
+    # replayed against the API.
+    if payload.get("scope") == "sse":
+        raise HTTPException(status_code=401, detail="invalid token")
+    return payload
+
+
+# Short-lived token minted for the SSE EventSource handshake. EventSource cannot
+# send an Authorization header, so the token rides in the URL — which lands in
+# proxy/access logs. Keeping it 'sse'-scoped + 60s makes a logged value useless
+# within moments and unusable against the API (rejected by get_current_user).
+_STREAM_TOKEN_TTL = 60  # seconds
+
+
+def mint_stream_token(user_id: str, telegram_id: Optional[int] = None) -> str:
+    settings = get_settings()
+    if not settings.WEBTRADER_JWT_SECRET:
+        raise HTTPException(status_code=503, detail="web dashboard not configured")
+    now = int(time.time())
+    payload: dict = {
+        "user_id": user_id,
+        "scope": "sse",
+        "iat": now,
+        "exp": now + _STREAM_TOKEN_TTL,
+    }
+    if telegram_id is not None:
+        payload["telegram_id"] = telegram_id
+    return jwt.encode(payload, settings.WEBTRADER_JWT_SECRET, algorithm="HS256")
+
+
+def decode_stream_token(raw: Optional[str]) -> dict:
+    """Decode + require scope='sse'. Used by the SSE endpoint only."""
+    if not raw:
+        raise HTTPException(status_code=401, detail="not authenticated")
+    payload = decode_jwt(raw)
+    if payload.get("scope") != "sse":
+        raise HTTPException(status_code=401, detail="invalid stream token")
+    return payload
 
 
 def _issue_token(user_id: str, first_name: str, telegram_id: Optional[int] = None) -> TokenResponse:
