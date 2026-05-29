@@ -34,7 +34,7 @@ Safety contract:
 from __future__ import annotations
 
 import hashlib
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -312,7 +312,10 @@ async def _process_one(
         trading_mode=user_ctx.get("trading_mode", "paper"),
         tp_pct=float(task.tp_pct) if task.tp_pct else None,
         sl_pct=float(task.sl_pct) if task.sl_pct else None,
-        signal_ts=datetime.utcnow(),
+        # MUST be tz-aware: risk gate step 9 does datetime.now(timezone.utc) -
+        # signal_ts; a naive utcnow() raised TypeError that the caller caught
+        # and returned on — silently killing every copy-trade at the gate.
+        signal_ts=datetime.now(timezone.utc),
     )
 
     # --- route through TradeEngine (risk gate mandatory) ---

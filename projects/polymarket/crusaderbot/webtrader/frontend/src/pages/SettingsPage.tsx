@@ -21,6 +21,8 @@ export function SettingsPage() {
   const [tradingMode, setTradingMode] = useState<string>("paper");
   const [account, setAccount] = useState<MeResponse | null>(null);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   // Live-trading activation
   const [liveStatus, setLiveStatus] = useState<LiveStatus | null>(null);
   const [showLiveModal, setShowLiveModal] = useState(false);
@@ -68,22 +70,30 @@ export function SettingsPage() {
   const [savingRedeem, setSavingRedeem] = useState(false);
 
   const load = useCallback(async () => {
-    const [s, dash, live, tgLink, me] = await Promise.all([
-      api.getSettings(),
-      api.getDashboard(),
-      // Live status + link status + identity are non-critical to the page —
-      // never let them block the rest of Settings from rendering.
-      api.getLiveStatus().catch(() => null),
-      api.getLinkTelegramStatus().catch(() => null),
-      api.getMe().catch(() => null),
-    ]);
-    setSettings(s);
-    setTradingMode(dash.trading_mode);
-    setLiveStatus(live);
-    setTelegramLinked(tgLink ? tgLink.linked : null);
-    setAccount(me);
-    if (s.auto_redeem != null) setAutoRedeem(s.auto_redeem);
-    if (s.redeem_mode) setRedeemMode(s.redeem_mode);
+    try {
+      const [s, dash, live, tgLink, me] = await Promise.all([
+        api.getSettings(),
+        api.getDashboard(),
+        // Live status + link status + identity are non-critical to the page —
+        // never let them block the rest of Settings from rendering.
+        api.getLiveStatus().catch(() => null),
+        api.getLinkTelegramStatus().catch(() => null),
+        api.getMe().catch(() => null),
+      ]);
+      setSettings(s);
+      setTradingMode(dash.trading_mode);
+      setLiveStatus(live);
+      setTelegramLinked(tgLink ? tgLink.linked : null);
+      setAccount(me);
+      if (s.auto_redeem != null) setAutoRedeem(s.auto_redeem);
+      if (s.redeem_mode) setRedeemMode(s.redeem_mode);
+      setLoadError(null);
+    } catch (err) {
+      // getSettings / getDashboard are critical — on failure surface an error
+      // with a retry instead of spinning on the loading state forever.
+      const msg = err instanceof Error ? err.message : "Failed to load settings";
+      setLoadError(msg.replace(/^\d+:\s*/, ""));
+    }
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
@@ -158,7 +168,19 @@ export function SettingsPage() {
   if (!settings) return (
     <>
       <TopBar />
-      <div className="p-4 text-ink-3 text-sm font-mono">Loading…</div>
+      {loadError ? (
+        <div className="p-4 text-sm space-y-3">
+          <div className="text-red font-mono">Couldn’t load settings: {loadError}</div>
+          <button
+            onClick={() => { setLoadError(null); void load(); }}
+            className="px-3 py-1.5 rounded-md border border-border-1 text-ink-1 text-xs hover:bg-white/5"
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <div className="p-4 text-ink-3 text-sm font-mono">Loading…</div>
+      )}
     </>
   );
 

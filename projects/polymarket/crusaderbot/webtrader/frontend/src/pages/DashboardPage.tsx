@@ -68,19 +68,26 @@ export function DashboardPage() {
   const loadOpenPositions = useCallback(async () => {
     try {
       setOpenPositions(await api.getPositions("open"));
-    } catch { /* silent */ }
+    } catch (e) {
+      // Secondary section — keep last-known positions, but never fully silent.
+      console.warn("dashboard: open positions load failed", e);
+    }
   }, [api]);
 
   const loadMarketFeed = useCallback(async () => {
     try {
       setMarketFeed(await api.getMarketFeed());
-    } catch { /* silent — feed is non-critical */ }
+    } catch (e) {
+      console.warn("dashboard: market feed load failed (non-critical)", e);
+    }
   }, [api]);
 
   const loadRecentClosed = useCallback(async () => {
     try {
       setRecentClosed(await api.getPositions("closed", 5));
-    } catch { /* silent */ }
+    } catch (e) {
+      console.warn("dashboard: recent closed load failed", e);
+    }
   }, [api]);
 
   const refreshAll = useCallback(() => {
