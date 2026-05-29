@@ -165,8 +165,38 @@ class ScanTelemetry:
         self.positions_created += 1
 
 
+# Global operator on/off switch (migration 067 `strategies` table). FAIL-SAFE:
+# a strategy is ON unless its name appears here (set to disabled). Refreshed
+# once per scan tick; an empty set = nothing disabled = no behaviour change.
+_GLOBALLY_DISABLED_STRATEGIES: frozenset[str] = frozenset()
+
+
+async def _refresh_disabled_strategies() -> None:
+    """Reload the globally-disabled strategy set from the `strategies` table.
+
+    Never raises — on any error the previous set is kept (fail-safe: a DB blip
+    must not silently disable or enable strategies). Called once per tick.
+    """
+    global _GLOBALLY_DISABLED_STRATEGIES
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT name FROM strategies WHERE enabled = FALSE"
+            )
+        _GLOBALLY_DISABLED_STRATEGIES = frozenset(str(r["name"]) for r in rows)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("strategy_toggle_refresh_failed", error=str(exc))
+
+
 def _preset_allows(active_preset: str | None, strategy_name: str) -> bool:
-    """Return True if user's active_preset permits signals from strategy_name."""
+    """Return True if user's active_preset permits signals from strategy_name.
+
+    A globally-disabled strategy (operator Admin toggle) is never allowed,
+    regardless of preset.
+    """
+    if strategy_name in _GLOBALLY_DISABLED_STRATEGIES:
+        return False
     return strategy_name in _PRESET_ALLOWED.get(active_preset, _LIB_STRATEGY_NAMES)
 
 
@@ -244,6 +274,12 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
               AND us.enabled        = TRUE
               AND u.auto_trade_on   = TRUE
               AND u.paused          = FALSE
+              -- Global operator on/off (migration 067). FAIL-SAFE: ON unless a
+              -- row explicitly marks this strategy disabled.
+              AND NOT EXISTS (
+                    SELECT 1 FROM strategies st
+                     WHERE st.name = us.strategy_name AND st.enabled = FALSE
+              )
             """,
             _STRATEGY_NAME,
         )
@@ -1216,6 +1252,9 @@ async def run_once() -> None:
     except Exception:
         _live_trading = False
     _mode: str = "LIVE" if _live_trading else "PAPER"
+
+    # Refresh the operator on/off switch once per tick (fail-safe).
+    await _refresh_disabled_strategies()
 
     # Count all strategies known to the process (lib + domain registry).
     _lib_count = len(ENABLED_STRATEGIES) + len(DEFERRED_STRATEGIES)

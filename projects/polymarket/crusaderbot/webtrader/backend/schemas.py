@@ -390,3 +390,9 @@ class LiveEnableResponse(BaseModel):
     trading_mode: str
     live_capital_cap_usdc: float
 
+
+class StrategyToggleRequest(BaseModel):
+    """POST /api/web/admin/strategies/toggle — flip a strategy on/off globally."""
+    name: str
+    enabled: bool
+
