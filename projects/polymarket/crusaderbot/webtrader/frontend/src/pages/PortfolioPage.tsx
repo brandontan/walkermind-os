@@ -695,17 +695,21 @@ function PnlChart({
 
 // ── Position Row ──────────────────────────────────────────────────────────────
 
+// Every close still carries its trigger bucket — TP / SL / TIME — even when the
+// market resolved. resolution_win is TP-side (profit threshold crossed),
+// resolution_loss is SL-side (loss threshold); time/expiry exits are TIME.
 const EXIT_LABEL: Record<string, string> = {
   tp_hit: "TP HIT",
   sl_hit: "SL HIT",
   manual: "CLOSED",
-  strategy_exit: "AUTO EXIT",
-  resolution: "RESOLVED",
-  resolution_win: "WIN",
-  resolution_loss: "LOSS",
+  strategy_exit: "TIME",
+  horizon_exceeded: "TIME",
+  resolution: "TIME",
+  resolution_win: "TP · WON",
+  resolution_loss: "SL · LOST",
   force_close: "FORCED",
   close_failed: "ERROR",
-  market_expired: "EXPIRED",
+  market_expired: "TIME",
 };
 
 const EXIT_TONE: Record<string, string> = {
@@ -713,22 +717,27 @@ const EXIT_TONE: Record<string, string> = {
   sl_hit: "text-red",
   manual: "text-ink-2",
   strategy_exit: "text-cyan",
-  resolution: "text-ink-2",
+  horizon_exceeded: "text-cyan",
+  resolution: "text-cyan",
+  resolution_win: "text-grn",
+  resolution_loss: "text-red",
   force_close: "text-gold",
   close_failed: "text-red",
-  market_expired: "text-ink-3",
+  market_expired: "text-cyan",
 };
 
-// Human-readable "Closed by" reason for the expandable trade detail.
+// Human-readable "Closed by" reason for the expandable trade detail. Always
+// names the trigger (TP/SL/TIME) and, for resolutions, the Won/Lost outcome.
 const EXIT_FULL_LABEL: Record<string, string> = {
   tp_hit: "Take Profit (TP)",
   sl_hit: "Stop Loss (SL)",
-  resolution: "Market Resolution",
-  resolution_win: "Market Resolution (Won)",
-  resolution_loss: "Market Resolution (Lost)",
-  market_expired: "Expired Time",
+  resolution: "Time Exit (TIME)",
+  resolution_win: "Take Profit (TP) — Resolved Won",
+  resolution_loss: "Stop Loss (SL) — Resolved Lost",
+  market_expired: "Time Exit (TIME)",
+  horizon_exceeded: "Time Exit (TIME)",
   manual: "Manual Close",
-  strategy_exit: "Strategy Exit",
+  strategy_exit: "Time Exit (TIME)",
   force_close: "Force Close",
   close_failed: "Close Failed",
 };
