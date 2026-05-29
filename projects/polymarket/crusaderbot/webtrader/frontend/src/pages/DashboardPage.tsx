@@ -430,9 +430,12 @@ export function DashboardPage() {
 const RECENT_PILL_LABEL: Record<string, string> = {
   tp_hit:          "TP HIT",
   sl_hit:          "SL HIT",
-  market_expired:  "EXPIRED",
-  resolution_win:  "WON",
-  resolution_loss: "LOST",
+  market_expired:  "TIME",
+  strategy_exit:   "TIME",
+  horizon_exceeded:"TIME",
+  resolution:      "TIME",
+  resolution_win:  "TP · WON",
+  resolution_loss: "SL · LOST",
   force_close:     "FORCED",
   manual:          "MANUAL",
 };
