@@ -817,6 +817,8 @@ def test_setup_scheduler_registers_ws_jobs(monkeypatch):
         SIGNAL_SCAN_INTERVAL = 180
         CLOSE_SWEEP_SCAN_INTERVAL = 15
         EXIT_WATCH_INTERVAL = 60
+        CLOSE_SWEEP_EXIT_INTERVAL = 5
+        CLOSE_SWEEP_EXIT_NEAR_SEC = 90
         PORTFOLIO_SNAPSHOT_INTERVAL = 60
         REDEEM_INTERVAL = 3600
         RESOLUTION_CHECK_INTERVAL = 300

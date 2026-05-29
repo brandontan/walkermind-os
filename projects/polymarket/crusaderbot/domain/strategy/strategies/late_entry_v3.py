@@ -632,7 +632,9 @@ async def _evaluate_market(
 _FORCE_EXIT_STATIC: dict[str, dict[str, float]] = {
     "safe_close": {"5m": 30.0, "15m": 30.0},
     "flip_hunter": {"5m": 160.0, "15m": 480.0},
-    # close_sweep intentionally absent — no force-exit.
+    # close_sweep now force-exits ~8s before resolution (Kreo "exit at 299s"),
+    # evaluated by the dedicated fast exit loop. TP/SL still exit earlier.
+    "close_sweep": {"5m": 8.0, "15m": 8.0},
 }
 
 
@@ -671,12 +673,15 @@ def force_exit_at_rem_sec_for(
             if tf == "15m":
                 return float(cfg.PRESET_FLIP_HUNTER_15M_FORCE_EXIT_REM_SEC)
             return float(cfg.PRESET_FLIP_HUNTER_5M_FORCE_EXIT_REM_SEC)
+        if active_preset == "close_sweep":
+            # Exit ~8s before resolution (Kreo "exit at 299s"); same for 5m/15m.
+            return float(cfg.PRESET_CLOSE_SWEEP_FORCE_EXIT_REM_SEC)
     except Exception:
         static = _FORCE_EXIT_STATIC.get(active_preset)
         if static is None:
             return None
         return static.get(tf, static["5m"])
-    # close_sweep + any other preset: hold to candle resolution.
+    # any other preset: hold to candle resolution.
     return None
 
 

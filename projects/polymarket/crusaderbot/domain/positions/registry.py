@@ -147,17 +147,9 @@ class OpenPositionForExit:
         return float(self.entry_price)
 
 
-async def list_open_for_exit() -> list[OpenPositionForExit]:
-    """Fetch every open position joined with its market + telegram user.
-
-    Resolved markets are EXCLUDED — they settle through the redemption
-    pipeline (terminal value 1 / 0 USDC per share), not through a CLOB
-    re-quote. The watcher never tries to close them.
-    """
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
+# Shared SELECT column list for the open-position-for-exit query. Kept in one
+# place so the global watcher and the scoped candle loop map identical rows.
+_OPEN_FOR_EXIT_COLS = """
             SELECT p.id, p.user_id, p.market_id, p.side,
                    p.entry_price, p.size_usdc, p.mode, p.status,
                    p.applied_tp_pct, p.applied_sl_pct,
@@ -173,43 +165,85 @@ async def list_open_for_exit() -> list[OpenPositionForExit]:
               JOIN markets m ON m.id = p.market_id
               JOIN users u ON u.id = p.user_id
               LEFT JOIN user_settings s ON s.user_id = p.user_id
-             WHERE p.status = 'open'
-               AND m.resolved = FALSE
 """
+
+# Candle presets whose positions the fast exit loop is scoped to.
+_CANDLE_PRESETS = ("close_sweep", "safe_close", "flip_hunter")
+
+
+def _row_to_open_position(r) -> OpenPositionForExit:
+    """Map a DB row (from the _OPEN_FOR_EXIT_COLS query) to the dataclass."""
+    return OpenPositionForExit(
+        id=r["id"],
+        user_id=r["user_id"],
+        telegram_user_id=int(r["telegram_user_id"]),
+        market_id=r["market_id"],
+        market_question=r["market_question"],
+        side=r["side"],
+        entry_price=float(r["entry_price"]),
+        size_usdc=float(r["size_usdc"]),
+        mode=r["mode"],
+        status=r["status"],
+        applied_tp_pct=(float(r["applied_tp_pct"])
+                        if r["applied_tp_pct"] is not None else None),
+        applied_sl_pct=(float(r["applied_sl_pct"])
+                        if r["applied_sl_pct"] is not None else None),
+        force_close_intent=bool(r["force_close_intent"]),
+        close_failure_count=int(r["close_failure_count"] or 0),
+        yes_price=(float(r["yes_price"])
+                   if r["yes_price"] is not None else None),
+        no_price=(float(r["no_price"])
+                  if r["no_price"] is not None else None),
+        market_resolved=bool(r["market_resolved"]),
+        resolution_at=r["resolution_at"],
+        risk_profile=str(r["risk_profile"] or "balanced"),
+        strategy_type=(str(r["strategy_type"]) if r["strategy_type"] else None),
+        yes_token_id=(str(r["yes_token_id"]) if r["yes_token_id"] else None),
+        no_token_id=(str(r["no_token_id"]) if r["no_token_id"] else None),
+        active_preset=(str(r["active_preset"]) if r["active_preset"] else None),
+        selected_timeframe=(str(r["selected_timeframe"]) if r["selected_timeframe"] else None),
+    )
+
+
+async def list_open_for_exit() -> list[OpenPositionForExit]:
+    """Fetch every open position joined with its market + telegram user.
+
+    Resolved markets are EXCLUDED — they settle through the redemption
+    pipeline (terminal value 1 / 0 USDC per share), not through a CLOB
+    re-quote. The watcher never tries to close them.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            _OPEN_FOR_EXIT_COLS
+            + "             WHERE p.status = 'open'\n               AND m.resolved = FALSE\n"
         )
-    return [
-        OpenPositionForExit(
-            id=r["id"],
-            user_id=r["user_id"],
-            telegram_user_id=int(r["telegram_user_id"]),
-            market_id=r["market_id"],
-            market_question=r["market_question"],
-            side=r["side"],
-            entry_price=float(r["entry_price"]),
-            size_usdc=float(r["size_usdc"]),
-            mode=r["mode"],
-            status=r["status"],
-            applied_tp_pct=(float(r["applied_tp_pct"])
-                            if r["applied_tp_pct"] is not None else None),
-            applied_sl_pct=(float(r["applied_sl_pct"])
-                            if r["applied_sl_pct"] is not None else None),
-            force_close_intent=bool(r["force_close_intent"]),
-            close_failure_count=int(r["close_failure_count"] or 0),
-            yes_price=(float(r["yes_price"])
-                       if r["yes_price"] is not None else None),
-            no_price=(float(r["no_price"])
-                      if r["no_price"] is not None else None),
-            market_resolved=bool(r["market_resolved"]),
-            resolution_at=r["resolution_at"],
-            risk_profile=str(r["risk_profile"] or "balanced"),
-            strategy_type=(str(r["strategy_type"]) if r["strategy_type"] else None),
-            yes_token_id=(str(r["yes_token_id"]) if r["yes_token_id"] else None),
-            no_token_id=(str(r["no_token_id"]) if r["no_token_id"] else None),
-            active_preset=(str(r["active_preset"]) if r["active_preset"] else None),
-            selected_timeframe=(str(r["selected_timeframe"]) if r["selected_timeframe"] else None),
+    return [_row_to_open_position(r) for r in rows]
+
+
+async def list_open_candle_positions_for_exit(
+    near_seconds: int = 90,
+) -> list[OpenPositionForExit]:
+    """Open candle-preset positions within ``near_seconds`` of resolution.
+
+    Scoped for the dedicated fast exit loop so it only re-prices the handful of
+    positions actually near their candle close — keeping per-tick CLOB calls
+    tiny. Same row mapping as ``list_open_for_exit``; resolved markets excluded.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            _OPEN_FOR_EXIT_COLS
+            + """             WHERE p.status = 'open'
+               AND m.resolved = FALSE
+               AND s.active_preset = ANY($1::text[])
+               AND m.resolution_at IS NOT NULL
+               AND m.resolution_at <= NOW() + make_interval(secs => $2)
+""",
+            list(_CANDLE_PRESETS),
+            int(near_seconds),
         )
-        for r in rows
-    ]
+    return [_row_to_open_position(r) for r in rows]
 
 
 async def list_open_on_resolved_markets() -> list[OpenPositionForExit]:

@@ -326,8 +326,8 @@ def test_registry_evaluator_holds_safe_close_when_rem_above_30s():
         StrategyRegistry._reset_for_tests()
 
 
-def test_registry_evaluator_close_sweep_has_no_force_exit():
-    """close_sweep positions intentionally lack a fixed-time exit — must hold."""
+def test_registry_evaluator_close_sweep_force_exit_below_8s():
+    """close_sweep now force-exits ~8s before resolution (Kreo "exit at 299s")."""
     import dataclasses
 
     from projects.polymarket.crusaderbot.domain.strategy import (
@@ -338,7 +338,8 @@ def test_registry_evaluator_close_sweep_has_no_force_exit():
     StrategyRegistry._reset_for_tests()
     try:
         bootstrap_default_strategies()
-        # Rem 5s — would force-close on safe_close, must NOT close on close_sweep.
+        # Rem 5s ≤ 8s threshold → force-exit. TP/SL kept clear (0.50) so the
+        # fixed-time branch is the one that fires.
         res_at = datetime.now(timezone.utc) + timedelta(seconds=5)
         p = dataclasses.replace(
             _make_position(side="yes", entry_price=0.65,
@@ -349,11 +350,67 @@ def test_registry_evaluator_close_sweep_has_no_force_exit():
             selected_timeframe="5m",
         )
         decision = _run(exit_watcher.evaluate(p, live_price=0.65))
-        assert not decision.should_exit, (
-            "close_sweep has no force-exit; only flip-stop / TP / SL can close it"
-        )
+        assert decision.should_exit, "close_sweep must force-exit at rem ≤ 8s"
     finally:
         StrategyRegistry._reset_for_tests()
+
+
+def test_registry_evaluator_close_sweep_holds_above_8s():
+    """close_sweep must HOLD when rem is well above the 8s force-exit threshold."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        res_at = datetime.now(timezone.utc) + timedelta(seconds=40)
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.65,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50,
+                           resolution_at=res_at),
+            strategy_type="late_entry_v3",
+            active_preset="close_sweep",
+            selected_timeframe="5m",
+        )
+        decision = _run(exit_watcher.evaluate(p, live_price=0.65))
+        assert not decision.should_exit, "close_sweep must hold at rem 40s (>8s)"
+    finally:
+        StrategyRegistry._reset_for_tests()
+
+
+def test_run_once_uses_custom_position_loader_and_skips_resolved_phase():
+    """The fast exit loop drives run_once over a scoped loader + skips Phase B."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.positions import registry as _reg
+
+    p = dataclasses.replace(
+        _make_position(side="yes", entry_price=0.65),
+        strategy_type="late_entry_v3", active_preset="close_sweep",
+        selected_timeframe="5m",
+    )
+
+    async def _loader():
+        return [p]
+
+    called = {"resolved": False}
+
+    async def _resolved_spy():
+        called["resolved"] = True
+        return []
+
+    with patch.object(exit_watcher.registry, "list_open_on_resolved_markets", _resolved_spy), \
+         patch.object(exit_watcher, "_fetch_live_price", AsyncMock(return_value=0.65)), \
+         patch.object(exit_watcher, "_act_on_decision", AsyncMock()):
+        result = _run(exit_watcher.run_once(
+            position_loader=_loader, run_resolved_phase=False,
+        ))
+    assert called["resolved"] is False  # Phase B skipped
+    assert (result.submitted + result.held) == 1  # the one scoped position evaluated
 
 
 def test_registry_evaluator_fires_flip_hunter_5m_force_exit_at_160s():
