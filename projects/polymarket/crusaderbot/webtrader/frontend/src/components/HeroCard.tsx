@@ -234,14 +234,18 @@ const RISK_COLOR: Record<RiskLevel, { bg: string; text: string; border: string }
 };
 
 function RiskTag({ risk }: { risk: RiskLevel }) {
-  const c = RISK_COLOR[risk];
+  // `risk` comes from a backend string cast to RiskLevel; values outside the
+  // {safe,balanced,aggressive} map (e.g. "custom") would make RISK_COLOR[risk]
+  // undefined and crash the whole screen on `c.bg`. Fall back to balanced.
+  const c = RISK_COLOR[risk] ?? RISK_COLOR.balanced;
+  const label = RISK_LABEL[risk] ?? String(risk).toUpperCase();
   return (
     <span
       className="inline-flex items-baseline gap-1.5 font-mono text-[9px] font-bold tracking-[2px] py-1 px-2.5 uppercase clip-tab"
       style={{ background: c.bg, color: c.text, border: `1px solid ${c.border}` }}
     >
       <span className="opacity-50 mr-0.5">[</span>
-      {RISK_LABEL[risk]}
+      {label}
       <span className="opacity-50 ml-0.5">]</span>
     </span>
   );
