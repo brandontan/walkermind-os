@@ -38,7 +38,7 @@ both to `post_order`.
 ## 2. Current system architecture
 
 CLOB order path (unchanged structure):
-```
+```text
 signal → risk gate → execute() → MarketDataClient.get_tick_size/get_neg_risk → post_order
                     close_position() → MarketDataClient → post_order
                     _on_slippage_retry() → MarketDataClient → post_order
