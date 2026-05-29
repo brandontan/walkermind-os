@@ -29,6 +29,7 @@ from ...integrations.clob import (
     ClobAuthError,
     ClobClientProtocol,
     ClobConfigError,
+    MarketDataClient,
     MockClobClient,
     get_clob_client,
 )
@@ -150,13 +151,56 @@ async def execute(
     if not token_id:
         raise LivePreSubmitError("missing token_id for live order")
 
+    # Fast-path duplicate check before hitting external APIs.
+    # The INSERT ON CONFLICT below is the true idempotency claim (handles races);
+    # this early read ensures a replay on a temporarily unavailable MDC returns
+    # the correct duplicate no-op instead of being routed to paper fallback.
+    pool = get_pool()
+    try:
+        async with pool.acquire() as conn:
+            _dup = await conn.fetchval(
+                "SELECT id FROM orders WHERE idempotency_key = $1",
+                idempotency_key,
+            )
+    except Exception as exc:
+        logger.exception(
+            "live.execute idempotency precheck failed key=%s", idempotency_key,
+        )
+        raise LivePreSubmitError(f"idempotency precheck failed: {exc}") from exc
+    if _dup is not None:
+        logger.info("live.execute idempotent skip (early) key=%s", idempotency_key)
+        return {"status": "duplicate", "mode": "live"}
+
+    # Fetch tick_size + neg_risk from the CLOB market data API.
+    # tick_size: required for price rounding in the signed order.
+    # neg_risk: selects the correct Exchange contract for signing.
+    # Fail pre-submit so the router can paper-fallback cleanly rather than
+    # hitting a post-submit ambiguous rejection on 0.001-tick or neg-risk markets.
+    _tick_size: str = "0.01"
+    _tick_size_f: float = 0.01
+    _neg_risk: bool = False
+    try:
+        async with MarketDataClient() as _mdc:
+            _raw_tick = await _mdc.get_tick_size(token_id)
+            if not _raw_tick:
+                raise ValueError(f"empty tick_size from CLOB API (token={token_id})")
+            _tick_size = _raw_tick
+            _tick_size_f = float(_tick_size)
+            _neg_risk = await _mdc.get_neg_risk(token_id) or False
+    except Exception as _exc:
+        raise LivePreSubmitError(
+            f"CLOB market metadata unavailable — refusing entry without tick_size/neg_risk "
+            f"(token={token_id}): {_exc}"
+        ) from _exc
+
     # Compute aggressive limit price if market-depth params supplied.
     # Uses best_ask + 1 tick for buys, best_bid - 1 tick for sells to
     # cross the spread aggressively and improve fill probability.
     # Falls back to the signal price when market-depth is unavailable.
     limit_price = (
         compute_aggressive_limit_price(
-            side, best_ask=best_ask, best_bid=best_bid, offset_ticks=1
+            side, best_ask=best_ask, best_bid=best_bid, offset_ticks=1,
+            tick_size=_tick_size_f,
         )
         if best_ask is not None and best_bid is not None
         else price
@@ -187,7 +231,6 @@ async def execute(
     except (ClobConfigError, ClobAuthError) as exc:
         raise LivePreSubmitError(f"CLOB client config error: {exc}") from exc
 
-    pool = get_pool()
     # Step 1: claim idempotency by inserting order as 'pending' BEFORE submit.
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -225,6 +268,8 @@ async def execute(
             price=limit_price,
             size=shares,
             order_type=order_type,
+            tick_size=_tick_size,
+            neg_risk=_neg_risk,
         )
     except ClobAuthError as exc:
         async with pool.acquire() as conn:
@@ -358,6 +403,20 @@ async def close_position(
     if not token_id:
         raise RuntimeError("missing token_id for live close")
 
+    _tick_size: str = "0.01"
+    _neg_risk: bool = False
+    try:
+        async with MarketDataClient() as _mdc:
+            _tick_size = await _mdc.get_tick_size(token_id) or "0.01"
+            _neg_risk = await _mdc.get_neg_risk(token_id) or False
+    except Exception as _exc:
+        _tick_size = "0.01"
+        logger.warning(
+            "live.close_position: CLOB tick_size/neg_risk fetch failed — using defaults "
+            "token=%s err=%s",
+            token_id, str(_exc),
+        )
+
     # Close exactly the share count we acquired at open. Computing this from
     # the persisted size_usdc + entry_price guarantees open/close parity:
     # the close SELL submits the SAME quantity regardless of exit_price.
@@ -400,6 +459,8 @@ async def close_position(
             price=exit_price,
             size=shares_to_sell,
             order_type="GTC",
+            tick_size=_tick_size,
+            neg_risk=_neg_risk,
         )
     except Exception:
         async with pool.acquire() as conn:

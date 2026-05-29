@@ -36,6 +36,7 @@ from ...integrations.clob import (
     ClobAuthError,
     ClobClientProtocol,
     ClobConfigError,
+    MarketDataClient,
     get_clob_client,
 )
 from ...wallet import ledger
@@ -632,25 +633,11 @@ class OrderLifecycleManager:
                 order_id=str(order["id"]),
             )
             return
-        broker_id = str(order.get("polymarket_order_id") or "")
-        if broker_id:
-            try:
-                await client.cancel_order(broker_id)
-            except Exception as exc:  # noqa: BLE001
-                log.warning(
-                    "lifecycle slippage_retry: cancel failed",
-                    order_id=str(order["id"]), broker=broker_id, err=str(exc),
-                )
-
-        # Widen by one extra tick in the aggressive direction.
+        # Resolve token_id and fetch CLOB metadata BEFORE cancelling the live order.
+        # If metadata is unavailable, the original order stays live on the broker
+        # and DB state is unchanged — the next tick retries cleanly.
         original_price = float(order.get("price") or 0)
         side = str(order.get("side") or "yes").lower()
-        tick_size = 0.01
-        if side in {"yes", "buy"}:
-            new_limit = round(min(0.99, original_price + tick_size), 4)
-        else:
-            new_limit = round(max(0.01, original_price - tick_size), 4)
-        shares = float(order["size_usdc"]) / max(new_limit, 0.0001)
         async with pool.acquire() as conn:
             mkt = await conn.fetchrow(
                 "SELECT yes_token_id, no_token_id FROM markets WHERE id=$1",
@@ -673,6 +660,40 @@ class OrderLifecycleManager:
             )
             return
 
+        _tick_size: str = "0.01"
+        _tick_size_f: float = 0.01
+        _neg_risk: bool = False
+        try:
+            async with MarketDataClient() as _mdc:
+                _raw_tick = await _mdc.get_tick_size(token_id)
+                if not _raw_tick:
+                    raise ValueError(f"empty tick_size from CLOB API (token={token_id})")
+                _tick_size = _raw_tick
+                _tick_size_f = float(_tick_size)
+                _neg_risk = await _mdc.get_neg_risk(token_id) or False
+        except Exception as _exc:
+            log.error(
+                "lifecycle slippage_retry: CLOB metadata unavailable — skipping re-submit",
+                order_id=str(order["id"]), token_id=token_id, err=str(_exc),
+            )
+            return
+
+        # Metadata confirmed — safe to cancel the live GTC order and replace it.
+        broker_id = str(order.get("polymarket_order_id") or "")
+        if broker_id:
+            try:
+                await client.cancel_order(broker_id)
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "lifecycle slippage_retry: cancel failed",
+                    order_id=str(order["id"]), broker=broker_id, err=str(exc),
+                )
+        if side in {"yes", "buy"}:
+            new_limit = round(min(0.99, original_price + _tick_size_f), 4)
+        else:
+            new_limit = round(max(0.01, original_price - _tick_size_f), 4)
+        shares = float(order["size_usdc"]) / max(new_limit, 0.0001)
+
         new_broker_id = ""
         try:
             result = await client.post_order(
@@ -681,6 +702,8 @@ class OrderLifecycleManager:
                 price=new_limit,
                 size=shares,
                 order_type="GTC",
+                tick_size=_tick_size,
+                neg_risk=_neg_risk,
             )
             new_broker_id = (
                 result.get("orderID") or result.get("order_id") or result.get("id") or ""
