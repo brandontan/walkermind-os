@@ -400,7 +400,14 @@ class TestSlippageRetryTickSize:
         # tick_size=0.001: new_limit = round(min(0.99, 0.60 + 0.001), 4) = 0.601
         assert abs(submitted_price - 0.601) < 1e-9, f"Expected 0.601, got {submitted_price}"
 
-    def test_defaults_used_on_mdc_failure(self) -> None:
+    def test_mdc_failure_aborts_resubmit(self) -> None:
+        """MDC failure must abort the re-submit (return early, no post_order call).
+
+        The original GTC order has already been cancelled; a replacement with
+        wrong tick_size would cause a post-submit ambiguous rejection on
+        0.001-tick or neg-risk markets. Mirrors the post_order exception handler
+        behavior: return without advancing slippage_retry_count.
+        """
         clob = MagicMock()
         clob.cancel_order = AsyncMock(return_value={})
         clob.post_order = AsyncMock(return_value={"orderID": "new-ord"})
@@ -411,6 +418,4 @@ class TestSlippageRetryTickSize:
 
         self._run_retry(clob, broken_mdc, self._order())
 
-        call_kwargs = clob.post_order.call_args.kwargs
-        assert call_kwargs["tick_size"] == "0.01"
-        assert call_kwargs["neg_risk"] is False
+        clob.post_order.assert_not_called()

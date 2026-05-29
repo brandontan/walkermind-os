@@ -669,6 +669,11 @@ class OrderLifecycleManager:
             )
             return
 
+        # The original GTC order has already been cancelled above; the replacement
+        # is a new entry. Submitting with wrong tick_size/neg_risk on 0.001-tick or
+        # neg-risk markets causes a post-submit ambiguous rejection. Abort pre-submit
+        # here — mirrors the post_order exception handler (return without advancing
+        # slippage_retry_count, so the order retries on the next lifecycle tick).
         _tick_size: str = "0.01"
         _tick_size_f: float = 0.01
         _neg_risk: bool = False
@@ -678,12 +683,11 @@ class OrderLifecycleManager:
                 _tick_size_f = float(_tick_size)
                 _neg_risk = await _mdc.get_neg_risk(token_id)
         except Exception as _exc:
-            _tick_size = "0.01"
-            _tick_size_f = 0.01
-            log.warning(
-                "lifecycle slippage_retry: CLOB tick_size/neg_risk fetch failed — using defaults",
+            log.error(
+                "lifecycle slippage_retry: CLOB metadata unavailable — skipping re-submit",
                 order_id=str(order["id"]), token_id=token_id, err=str(_exc),
             )
+            return
         if side in {"yes", "buy"}:
             new_limit = round(min(0.99, original_price + _tick_size_f), 4)
         else:
