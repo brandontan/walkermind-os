@@ -112,14 +112,50 @@ def _risk_kb() -> InlineKeyboardMarkup:
     ])
 
 
-def _preset_pick_kb() -> InlineKeyboardMarkup:
-    # Only candle presets are active — every other preset key was removed in
-    # WARP/R00T/strategy-system-cleanup. Recommended starting point: close_sweep.
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🧹 Close Sweep ⭐", callback_data="onboard:preset:close_sweep")],
-        [InlineKeyboardButton("🔒 Safe Close",     callback_data="onboard:preset:safe_close")],
-        [InlineKeyboardButton("🎯 Flip Hunter",    callback_data="onboard:preset:flip_hunter")],
-    ])
+# Onboarding preset roster — single source of truth. Each tuple is
+# (label, callback_key, backing_strategy). When the operator toggles the
+# backing strategy OFF via /admin, the preset is hidden from new users so
+# they cannot pick a no-op preset (signal_scan_job._preset_allows would
+# block execution silently otherwise).
+_ONBOARD_PRESETS: tuple[tuple[str, str, str], ...] = (
+    ("🧹 Close Sweep ⭐", "close_sweep", "late_entry_v3"),
+    ("🔒 Safe Close",     "safe_close",  "late_entry_v3"),
+    ("🎯 Flip Hunter",    "flip_hunter", "late_entry_v3"),
+)
+
+
+async def _load_disabled_strategies_for_onboarding() -> frozenset[str]:
+    """Read the operator's global on/off set; FAIL-SAFE on DB error.
+
+    Mirrors bot.handlers.presets._load_disabled_strategies — a transient blip
+    must never silently empty the onboarding picker.
+    """
+    from ...database import get_pool
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT name FROM strategies WHERE enabled = FALSE"
+            )
+        return frozenset(str(r["name"]) for r in rows)
+    except Exception:
+        logger.exception("onboarding_preset_picker_disabled_lookup_failed")
+        return frozenset()
+
+
+def _preset_pick_kb(disabled: frozenset[str] | None = None) -> InlineKeyboardMarkup:
+    """Build the onboarding preset picker, hiding presets whose backing
+    strategy is globally disabled. ``disabled`` defaults to empty (FAIL-SAFE)
+    so the keyboard never silently empties on a DB blip."""
+    blocked = disabled or frozenset()
+    rows: list[list[InlineKeyboardButton]] = []
+    for label, key, strat in _ONBOARD_PRESETS:
+        if strat in blocked:
+            continue
+        rows.append([InlineKeyboardButton(
+            label, callback_data=f"onboard:preset:{key}",
+        )])
+    return InlineKeyboardMarkup(rows)
 
 
 def _review_kb() -> InlineKeyboardMarkup:
@@ -301,10 +337,11 @@ async def _risk_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     risk_profile = (q.data or "").split(":")[-1]
     ctx.user_data["onboard_risk"] = risk_profile
 
+    disabled = await _load_disabled_strategies_for_onboarding()
     await q.edit_message_text(
         onboard_preset_pick_text(),
         parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=_preset_pick_kb(),
+        reply_markup=_preset_pick_kb(disabled),
     )
     return ONBOARD_PRESET_PICK
 

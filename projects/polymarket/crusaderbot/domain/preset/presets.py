@@ -1,6 +1,6 @@
 """Named Auto-Trade strategy presets for CrusaderBot MVP.
 
-5 presets covering the full strategy spectrum. Each preset defines:
+3 candle presets, all routing to late_entry_v3. Each preset defines:
   - strategy routing (which execution strategies the engine activates)
   - TP / SL / max-position-per-trade sizing
   - a sensible capital_pct DEFAULT for the customize wizard UI
@@ -95,7 +95,7 @@ def capital_for_risk_profile(profile: str) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Preset definitions — 5 presets covering full strategy spectrum
+# Preset definitions — 3 candle presets, all routing to late_entry_v3
 # ---------------------------------------------------------------------------
 
 PRESETS: Dict[str, Preset] = {
