@@ -155,6 +155,9 @@ async def execute(
     # tick_size: required for price rounding in the signed order.
     # neg_risk: selects the correct Exchange contract for signing.
     # Graceful degradation on fetch failure — defaults match prior behavior.
+    # Metadata required for correct order signing. Fail pre-submit so the
+    # router can paper-fallback cleanly rather than hitting a post-submit
+    # ambiguous rejection on 0.001-tick or neg-risk markets.
     _tick_size: str = "0.01"
     _tick_size_f: float = 0.01
     _neg_risk: bool = False
@@ -164,13 +167,10 @@ async def execute(
             _tick_size_f = float(_tick_size)
             _neg_risk = await _mdc.get_neg_risk(token_id)
     except Exception as _exc:
-        _tick_size = "0.01"
-        _tick_size_f = 0.01
-        logger.warning(
-            "live.execute: CLOB tick_size/neg_risk fetch failed — using defaults "
-            "token=%s err=%s",
-            token_id, str(_exc),
-        )
+        raise LivePreSubmitError(
+            f"CLOB market metadata unavailable — refusing entry without tick_size/neg_risk "
+            f"(token={token_id}): {_exc}"
+        ) from _exc
 
     # Compute aggressive limit price if market-depth params supplied.
     # Uses best_ask + 1 tick for buys, best_bid - 1 tick for sells to

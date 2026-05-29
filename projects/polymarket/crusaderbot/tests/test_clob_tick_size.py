@@ -210,8 +210,17 @@ class TestExecuteTickSize:
         assert call_kwargs["tick_size"] == "0.001"
         assert call_kwargs["neg_risk"] is True
 
-    def test_defaults_used_on_mdc_failure(self) -> None:
-        """execute() falls back to tick_size='0.01', neg_risk=False on fetch error."""
+    def test_mdc_failure_raises_live_pre_submit_error(self) -> None:
+        """execute() must raise LivePreSubmitError on metadata fetch failure.
+
+        Submitting a new entry with wrong tick_size would cause a CLOB rejection
+        as a post-submit ambiguous error (worse than a clean pre-submit abort).
+        Unwind paths (close_position, slippage_retry) keep graceful degradation.
+        """
+        from projects.polymarket.crusaderbot.domain.execution.live import (
+            LivePreSubmitError,
+        )
+
         clob = MagicMock()
         clob.post_order = AsyncMock(return_value={"orderID": "ord-2"})
 
@@ -219,11 +228,8 @@ class TestExecuteTickSize:
         broken_mdc.__aenter__ = AsyncMock(side_effect=RuntimeError("network error"))
         broken_mdc.__aexit__ = AsyncMock(return_value=False)
 
-        self._run(clob, broken_mdc)
-
-        call_kwargs = clob.post_order.call_args.kwargs
-        assert call_kwargs["tick_size"] == "0.01"
-        assert call_kwargs["neg_risk"] is False
+        with pytest.raises(LivePreSubmitError, match="CLOB market metadata unavailable"):
+            self._run(clob, broken_mdc)
 
     def test_non_default_tick_size_affects_price_widen(self) -> None:
         """Real tick_size is used in compute_aggressive_limit_price, not hardcoded 0.01."""
