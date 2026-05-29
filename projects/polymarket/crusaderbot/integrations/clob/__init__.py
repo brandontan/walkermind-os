@@ -277,6 +277,29 @@ def reset_clob_resilience() -> None:
     _limiter = None
 
 
+def effective_credentials(
+    settings: Optional[Settings] = None,
+) -> tuple[str, str, str]:
+    """Resolve the CLOB API credentials the same way everywhere.
+
+    Env vars take priority; fall back to the auto-derived cache (`_derived`,
+    populated by ``ensure_clob_credentials`` when creds are not set in env).
+    Returns ``(api_key, api_secret, passphrase)``. Used by both the REST client
+    and the WebSocket subscribe frame so the WS does not silently send empty
+    auth when credentials were auto-derived (which the broker rejects, causing
+    an endless reconnect loop).
+    """
+    s = settings or get_settings()
+    api_key = s.POLYMARKET_API_KEY or (_derived or {}).get("api_key", "")
+    api_secret = s.POLYMARKET_API_SECRET or (_derived or {}).get("api_secret", "")
+    passphrase = (
+        s.POLYMARKET_API_PASSPHRASE
+        or s.POLYMARKET_PASSPHRASE
+        or (_derived or {}).get("passphrase", "")
+    )
+    return api_key, api_secret, passphrase
+
+
 def get_clob_client(
     settings: Optional[Settings] = None,
 ) -> ClobClientProtocol:
@@ -298,13 +321,7 @@ def get_clob_client(
         return MockClobClient()
 
     # Resolve credentials: env vars take priority; fall back to auto-derived cache.
-    api_key = s.POLYMARKET_API_KEY or (_derived or {}).get("api_key", "")
-    api_secret = s.POLYMARKET_API_SECRET or (_derived or {}).get("api_secret", "")
-    passphrase = (
-        s.POLYMARKET_API_PASSPHRASE
-        or s.POLYMARKET_PASSPHRASE
-        or (_derived or {}).get("passphrase", "")
-    )
+    api_key, api_secret, passphrase = effective_credentials(s)
 
     missing: list[str] = []
     if not api_key:
