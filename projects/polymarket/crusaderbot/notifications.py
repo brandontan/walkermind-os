@@ -161,5 +161,7 @@ async def notify_operator(text: str, parse_mode: str = ParseMode.HTML) -> None:
     await send(get_settings().OPERATOR_CHAT_ID, text, parse_mode=parse_mode)
 
 
-async def notify_user_by_telegram_id(telegram_user_id: int, text: str) -> None:
-    await send(telegram_user_id, text)
+async def notify_user_by_telegram_id(
+    telegram_user_id: int, text: str, parse_mode: str = ParseMode.HTML
+) -> None:
+    await send(telegram_user_id, text, parse_mode=parse_mode)

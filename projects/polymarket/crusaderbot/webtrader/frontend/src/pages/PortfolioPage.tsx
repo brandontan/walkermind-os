@@ -1051,14 +1051,20 @@ function DetailRow({ label, value, tone }: { label: string; value: string; tone?
 function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
   const [data, setData] = useState<PortfolioAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     setLoading(true);
+    setError(false);
     api.getPortfolioAnalytics()
-      .then(setData)
-      .catch(() => setData(null))
+      .then((d) => { setData(d); setError(false); })
+      // Distinguish a fetch failure from a genuinely-empty history — the old
+      // catch→null collapsed both into the "No analytics yet" empty state.
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [api]);
+
+  useEffect(() => { reload(); }, [reload]);
 
   if (loading) {
     return (
@@ -1066,6 +1072,21 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
         {[1, 2, 3].map((i) => (
           <div key={i} className="h-14 rounded-lg border border-surface-3 bg-surface-1 animate-pulse" />
         ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+        <div className="text-2xl mb-2">⚠️</div>
+        <p className="font-hud text-sm font-bold text-ink-2 mb-1">Couldn’t load analytics.</p>
+        <button
+          onClick={reload}
+          className="mt-1 px-3 py-1.5 rounded-md border border-surface-3 text-ink-1 text-xs hover:bg-white/5"
+        >
+          Retry
+        </button>
       </div>
     );
   }
