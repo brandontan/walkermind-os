@@ -238,6 +238,16 @@ class Settings(BaseSettings):
     PRESET_CLOSE_SWEEP_WINDOW_SEC: float = 35.0
     PRESET_CLOSE_SWEEP_MIN_ASK_DIFF: float = 0.05
     PRESET_CLOSE_SWEEP_FAV_PRICE_MIN: float = 0.55
+    # Force-exit close_sweep when rem ≤ this many seconds (Kreo "exit at 299s").
+    # close_sweep used to hold to on-chain resolution, but the 30s exit watcher
+    # could miss the near-resolution mark → position mislabelled market_expired
+    # / 0% PnL. The dedicated fast exit loop (CLOSE_SWEEP_EXIT_INTERVAL) plus
+    # this threshold close it via CLOB ~1–8s before the candle resolves. TP/SL
+    # still exit earlier if they hit first.
+    PRESET_CLOSE_SWEEP_FORCE_EXIT_REM_SEC: float = 8.0
+    # Dedicated fast exit loop for candle-preset positions near resolution.
+    CLOSE_SWEEP_EXIT_INTERVAL: int = 5     # poll cadence (s) — only candle positions
+    CLOSE_SWEEP_EXIT_NEAR_SEC: int = 90    # only evaluate positions within this many s of resolution
 
     PRESET_SAFE_CLOSE_WINDOW_SEC: float = 60.0
     PRESET_SAFE_CLOSE_MIN_ASK_DIFF: float = 0.01  # Kreo Min Edge 1% (was 0.08)

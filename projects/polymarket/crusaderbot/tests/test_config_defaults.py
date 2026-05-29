@@ -54,3 +54,12 @@ def test_other_activation_guards_default_false(
     assert settings.CAPITAL_MODE_CONFIRMED is False
     assert settings.RISK_CONTROLS_VALIDATED is False
     crusaderbot_config.get_settings.cache_clear()
+
+
+def test_close_sweep_fast_exit_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_required_env(monkeypatch)
+    settings = crusaderbot_config.Settings()  # type: ignore[call-arg]
+    assert settings.PRESET_CLOSE_SWEEP_FORCE_EXIT_REM_SEC == 8.0
+    assert settings.CLOSE_SWEEP_EXIT_INTERVAL == 5
+    assert settings.CLOSE_SWEEP_EXIT_NEAR_SEC == 90
+    crusaderbot_config.get_settings.cache_clear()

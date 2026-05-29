@@ -574,6 +574,32 @@ async def check_exits() -> dict:
     }
 
 
+async def check_candle_exits() -> dict:
+    """Fast exit tick scoped to candle-preset positions near resolution.
+
+    Runs every CLOSE_SWEEP_EXIT_INTERVAL (≈5s) so close_sweep force-exits ~1–8s
+    before a 5-minute candle resolves (Kreo "exit at 299s") via a CLOB sell at
+    the live price — instead of falling into the on-chain resolution gap. TP/SL
+    still exit earlier if they hit. Skips Phase B (the global resolved-market
+    sweep stays owned by the 30s `exit_watch`). The 30s watcher remains the
+    backstop; double-close is race-safe (atomic status claim in live.close).
+    """
+    from .domain.positions import registry
+    s = get_settings()
+    result = await exit_watcher.run_once(
+        position_loader=lambda: registry.list_open_candle_positions_for_exit(
+            s.CLOSE_SWEEP_EXIT_NEAR_SEC
+        ),
+        run_resolved_phase=False,
+    )
+    return {
+        "submitted": result.submitted,
+        "expired": result.expired,
+        "held": result.held,
+        "errors": result.errors,
+    }
+
+
 async def log_resumed_open_positions() -> dict:
     """WARP-54 §5: log how many pre-existing open positions exit_watcher is
     about to resume monitoring on startup.
@@ -946,6 +972,11 @@ def setup_scheduler() -> AsyncIOScheduler:
                   next_run_time=datetime.now(timezone.utc))
     sched.add_job(check_exits, "interval", seconds=s.EXIT_WATCH_INTERVAL,
                   id="exit_watch", max_instances=1, coalesce=True)
+    # Dedicated fast exit loop for candle-preset positions near resolution so
+    # close_sweep force-exits ~1–8s before the candle closes (Kreo "299s").
+    sched.add_job(check_candle_exits, "interval", seconds=s.CLOSE_SWEEP_EXIT_INTERVAL,
+                  id="close_sweep_exit_fast", max_instances=1, coalesce=True,
+                  next_run_time=datetime.now(timezone.utc))
     # Portfolio snapshots tick — drives the dormant `cb_portfolio` NOTIFY
     # channel so WebTrader SSE receives live equity updates even without
     # a trade close in the window (handles open-position mark-to-market

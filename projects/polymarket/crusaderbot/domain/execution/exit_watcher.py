@@ -671,6 +671,8 @@ async def run_once(
     *,
     strategy_evaluator: StrategyExitEvaluator = registry_strategy_evaluator,
     close_submitter: Optional[order_module.CloseSubmitter] = None,
+    position_loader: Optional[Callable[[], Awaitable[list]]] = None,
+    run_resolved_phase: bool = True,
 ) -> RunResult:
     """One full pass over every open position. Returns a ``RunResult`` with counts.
 
@@ -698,7 +700,10 @@ async def run_once(
     errors = 0
 
     # Phase A: normal positions — market not yet resolved in local DB.
-    positions = await registry.list_open_for_exit()
+    # ``position_loader`` lets the dedicated fast exit loop pass a scoped query
+    # (candle positions near resolution); default = every open position.
+    loader = position_loader or registry.list_open_for_exit
+    positions = await loader()
     for p in positions:
         try:
             # Resolve the CLOB token_id for this position's side so
@@ -762,7 +767,12 @@ async def run_once(
             errors += 1
 
     # Phase B: positions on resolved markets — invisible to Phase A's query.
-    resolved_positions = await registry.list_open_on_resolved_markets()
+    # Skipped by the scoped fast exit loop (run_resolved_phase=False): the
+    # resolved-market sweep is a global wallet-crediting pass owned by the 30s
+    # watcher, not candle-scoped.
+    resolved_positions = (
+        await registry.list_open_on_resolved_markets() if run_resolved_phase else []
+    )
     for p in resolved_positions:
         try:
             if await _close_expired_position(p):

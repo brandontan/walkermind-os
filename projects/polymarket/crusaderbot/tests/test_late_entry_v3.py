@@ -743,10 +743,10 @@ def test_force_exit_lookup_flip_hunter_15m_returns_480():
     assert force_exit_at_rem_sec_for("flip_hunter", "15m") == pytest.approx(480.0)
 
 
-def test_force_exit_lookup_close_sweep_returns_none():
-    """close_sweep has no fixed-time exit — holds to candle resolution."""
-    assert force_exit_at_rem_sec_for("close_sweep", "5m") is None
-    assert force_exit_at_rem_sec_for("close_sweep", "15m") is None
+def test_force_exit_lookup_close_sweep_returns_8s():
+    """close_sweep now force-exits ~8s before resolution (Kreo "exit at 299s")."""
+    assert force_exit_at_rem_sec_for("close_sweep", "5m") == 8.0
+    assert force_exit_at_rem_sec_for("close_sweep", "15m") == 8.0
 
 
 def test_force_exit_lookup_unknown_preset_returns_none():

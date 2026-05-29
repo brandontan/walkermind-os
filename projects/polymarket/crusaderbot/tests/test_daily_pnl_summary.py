@@ -436,6 +436,8 @@ def test_scheduler_registers_daily_pnl_summary_job():
         SIGNAL_SCAN_INTERVAL = 180
         CLOSE_SWEEP_SCAN_INTERVAL = 15
         EXIT_WATCH_INTERVAL = 60
+        CLOSE_SWEEP_EXIT_INTERVAL = 5
+        CLOSE_SWEEP_EXIT_NEAR_SEC = 90
         PORTFOLIO_SNAPSHOT_INTERVAL = 60
         REDEEM_INTERVAL = 3600
         RESOLUTION_CHECK_INTERVAL = 300
@@ -615,6 +617,8 @@ def test_scheduler_registers_run_job_as_daily_callable():
         SIGNAL_SCAN_INTERVAL = 180
         CLOSE_SWEEP_SCAN_INTERVAL = 15
         EXIT_WATCH_INTERVAL = 60
+        CLOSE_SWEEP_EXIT_INTERVAL = 5
+        CLOSE_SWEEP_EXIT_NEAR_SEC = 90
         PORTFOLIO_SNAPSHOT_INTERVAL = 60
         REDEEM_INTERVAL = 3600
         RESOLUTION_CHECK_INTERVAL = 300
