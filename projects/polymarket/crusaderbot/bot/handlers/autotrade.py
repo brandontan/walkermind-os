@@ -309,8 +309,16 @@ async def _activate_preset(
     cfg = get_preset(preset_key)
     if cfg is None:
         return
+    # TP/SL follow the user's RISK PROFILE, not the preset (Kreo parity). Preset
+    # still routes strategy + capital + max-position; TP/SL come from the
+    # profile (canonical fractions, e.g. balanced 0.20/0.15).
+    from ...domain.risk.constants import tp_sl_for_profile
     pool = get_pool()
     async with pool.acquire() as conn:
+        cur_profile = await conn.fetchval(
+            "SELECT risk_profile FROM user_settings WHERE user_id = $1", user["id"],
+        )
+        _ts = tp_sl_for_profile(cur_profile)
         await conn.execute(
             """UPDATE user_settings SET
                 active_preset     = $2,
@@ -324,8 +332,8 @@ async def _activate_preset(
             user["id"],
             preset_key,
             cfg["capital_pct"] / 100.0,
-            cfg["tp_pct"] / 100.0,
-            cfg["sl_pct"] / 100.0,
+            _ts["tp_pct"],
+            _ts["sl_pct"],
             cfg["strategies"],
             cfg["max_pos_pct"] / 100.0,
         )

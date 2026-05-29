@@ -109,12 +109,15 @@ async def _bootstrap_new_user(user_id: UUID) -> None:
     all operations are idempotent (ON CONFLICT DO NOTHING / balance guards).
 
     Default config (bot OFF, preset ready):
-      risk_profile  = aggressive
+      risk_profile  = balanced
       active_preset = close_sweep
       capital_alloc = 0.40  (40% per trade)
-      tp_pct        = 0.90  (+90% TP)
-      sl_pct        = 0.40  (-40% SL)
+      tp_pct        = 0.20  (+20% TP — balanced profile)
+      sl_pct        = 0.15  (-15% SL — balanced profile)
       auto_trade_on = FALSE (user must explicitly enable)
+
+    TP/SL come from the balanced risk profile (not the preset). A user can
+    switch to aggressive (30/20) or set a custom TP-only / SL-only later.
     """
     from .wallet.vault import create_wallet_for_user
     try:
@@ -131,11 +134,11 @@ async def _bootstrap_new_user(user_id: UUID) -> None:
             await conn.execute(
                 """
                 UPDATE user_settings SET
-                    risk_profile      = 'aggressive',
+                    risk_profile      = 'balanced',
                     active_preset     = 'close_sweep',
                     capital_alloc_pct = 0.40,
-                    tp_pct            = 0.90,
-                    sl_pct            = 0.40
+                    tp_pct            = 0.20,
+                    sl_pct            = 0.15
                 WHERE user_id = $1
                 """,
                 user_id,
