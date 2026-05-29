@@ -633,18 +633,9 @@ class OrderLifecycleManager:
                 order_id=str(order["id"]),
             )
             return
-        broker_id = str(order.get("polymarket_order_id") or "")
-        if broker_id:
-            try:
-                await client.cancel_order(broker_id)
-            except Exception as exc:  # noqa: BLE001
-                log.warning(
-                    "lifecycle slippage_retry: cancel failed",
-                    order_id=str(order["id"]), broker=broker_id, err=str(exc),
-                )
-
-        # Widen by one extra tick in the aggressive direction.
-        # token_id must be resolved first so we can fetch the real tick_size.
+        # Resolve token_id and fetch CLOB metadata BEFORE cancelling the live order.
+        # If metadata is unavailable, the original order stays live on the broker
+        # and DB state is unchanged — the next tick retries cleanly.
         original_price = float(order.get("price") or 0)
         side = str(order.get("side") or "yes").lower()
         async with pool.acquire() as conn:
@@ -669,11 +660,6 @@ class OrderLifecycleManager:
             )
             return
 
-        # The original GTC order has already been cancelled above; the replacement
-        # is a new entry. Submitting with wrong tick_size/neg_risk on 0.001-tick or
-        # neg-risk markets causes a post-submit ambiguous rejection. Abort pre-submit
-        # here — mirrors the post_order exception handler (return without advancing
-        # slippage_retry_count, so the order retries on the next lifecycle tick).
         _tick_size: str = "0.01"
         _tick_size_f: float = 0.01
         _neg_risk: bool = False
@@ -688,6 +674,17 @@ class OrderLifecycleManager:
                 order_id=str(order["id"]), token_id=token_id, err=str(_exc),
             )
             return
+
+        # Metadata confirmed — safe to cancel the live GTC order and replace it.
+        broker_id = str(order.get("polymarket_order_id") or "")
+        if broker_id:
+            try:
+                await client.cancel_order(broker_id)
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "lifecycle slippage_retry: cancel failed",
+                    order_id=str(order["id"]), broker=broker_id, err=str(exc),
+                )
         if side in {"yes", "buy"}:
             new_limit = round(min(0.99, original_price + _tick_size_f), 4)
         else:
