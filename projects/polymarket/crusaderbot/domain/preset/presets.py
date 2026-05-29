@@ -99,71 +99,12 @@ def capital_for_risk_profile(profile: str) -> float:
 # ---------------------------------------------------------------------------
 
 PRESETS: Dict[str, Preset] = {
-    "whale_mirror": Preset(
-        key="whale_mirror",
-        emoji="🐋",
-        name="Whale Mirror",
-        strategies=("copy_trade",),
-        capital_pct=0.40,           # wizard default; activation uses risk profile
-        tp_pct=0.20,
-        sl_pct=0.10,
-        max_position_pct=0.05,
-        badge=PresetBadge.BALANCED,
-        description="Follow proven Polymarket wallets. Low effort, steady returns.",
-    ),
-    "signal_sniper": Preset(
-        key="signal_sniper",
-        emoji="📡",
-        name="Signal Sniper",
-        strategies=("signal",),
-        capital_pct=0.40,           # wizard default; activation uses risk profile
-        tp_pct=0.15,
-        sl_pct=0.08,
-        max_position_pct=0.05,
-        badge=PresetBadge.SAFE,
-        description="Auto-trade from curated signal feeds. Lower frequency, higher conviction.",
-    ),
-    "hybrid": Preset(
-        key="hybrid",
-        emoji="🐋📡",
-        name="Hybrid",
-        strategies=("copy_trade", "signal"),
-        capital_pct=0.40,           # wizard default; activation uses risk profile
-        tp_pct=0.15,
-        sl_pct=0.10,
-        max_position_pct=0.05,
-        badge=PresetBadge.BALANCED,
-        description="Whale Mirror + Signal Sniper combined. More opportunities.",
-    ),
-    "value_hunter": Preset(
-        key="value_hunter",
-        emoji="🎯",
-        name="Value Hunter",
-        strategies=("value",),
-        capital_pct=0.40,           # wizard default; activation uses risk profile
-        tp_pct=0.25,
-        sl_pct=0.12,
-        max_position_pct=0.08,
-        badge=PresetBadge.ADVANCED,
-        description="Finds mispriced markets using edge model. Higher reward, requires patience.",
-    ),
-    "full_auto": Preset(
-        key="full_auto",
-        emoji="🚀",
-        name="Full Auto",
-        strategies=("copy_trade", "signal", "value"),
-        capital_pct=0.40,           # wizard default; activation uses risk profile
-        tp_pct=0.20,
-        sl_pct=0.15,
-        max_position_pct=0.10,
-        badge=PresetBadge.AGGRESSIVE,
-        description="All strategies active. Max exposure. For experienced traders.",
-    ),
-
-    # ------------------------------------------------------------------
-    # Candle presets — all route to late_entry_v3 with different timing
-    # and conviction thresholds. Designed for BTC/ETH/SOL 5m candles.
-    # ------------------------------------------------------------------
+    # All current presets route to late_entry_v3 with different timing and
+    # conviction thresholds. Designed for BTC/ETH/SOL 5m and 15m candles.
+    # The legacy multi-strategy presets (whale_mirror, signal_sniper, hybrid,
+    # value_hunter, full_auto) were removed in WARP/R00T/strategy-system-
+    # cleanup along with the lib/strategies/* modules that backed them — none
+    # of those strategies had a real trigger path.
     "close_sweep": Preset(
         key="close_sweep",
         emoji="🧹",
@@ -203,13 +144,7 @@ PRESETS: Dict[str, Preset] = {
 }
 
 # Display order — picker renders top-to-bottom.
-# Candle presets are grouped at the bottom after general presets.
 PRESET_ORDER: Tuple[str, ...] = (
-    "whale_mirror",
-    "signal_sniper",
-    "hybrid",
-    "value_hunter",
-    "full_auto",
     "close_sweep",
     "safe_close",
     "flip_hunter",

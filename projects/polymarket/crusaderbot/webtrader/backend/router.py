@@ -734,17 +734,34 @@ async def toggle_autotrade(body: AutoTradeToggleRequest, user: _CurrentUser):
 # Preset key → the strategy it routes to, for the global on/off (strategies
 # table) lookup. Mirrors signal_scan_job._PRESET_ALLOWED. Used so the dashboard
 # can show "PAUSED (Admin)" when the active preset's strategy is globally off.
+# Only contains presets that point to a real, reachable strategy.
 _PRESET_TO_STRATEGY: dict[str, str] = {
-    "close_sweep":        "late_entry_v3",
-    "safe_close":         "late_entry_v3",
-    "flip_hunter":        "late_entry_v3",
-    "signal_sniper":      "signal_following",
-    "whale_mirror":       "copy_trade",
-    "value_hunter":       "value_investor",
-    "trend_breakout":     "trend_breakout",
-    "ensemble":           "ensemble",
-    "confluence_scalper": "confluence_scalper",
+    "close_sweep": "late_entry_v3",
+    "safe_close":  "late_entry_v3",
+    "flip_hunter": "late_entry_v3",
 }
+
+
+@router.get("/autotrade/preset-availability")
+async def get_preset_availability(user: _CurrentUser) -> dict:
+    """Per-preset availability for the authenticated user's strategy picker.
+
+    Returns ``{"presets": [{"key": "...", "strategy": "...", "enabled": bool}]}``.
+    The picker (WebTrader AutoTradePage + Telegram preset_tier_kb) MUST hide
+    or lock presets whose backing strategy is globally disabled — this is the
+    user-dashboard half of the operator Admin toggle contract.
+
+    FAIL-SAFE: a missing row in ``strategies`` defaults to enabled=True.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT name, enabled FROM strategies")
+    state = {str(r["name"]): bool(r["enabled"]) for r in rows}
+    presets = [
+        {"key": preset, "strategy": strat, "enabled": state.get(strat, True)}
+        for preset, strat in _PRESET_TO_STRATEGY.items()
+    ]
+    return {"presets": presets}
 
 # Preset key → default risk parameters applied when preset is activated.
 # Risk profile (capital/TP/SL) can be overridden separately via /autotrade/risk-profile.
@@ -2176,12 +2193,15 @@ async def link_telegram_start(user: _CurrentUser) -> dict:
 # hot-pool address + balances for funding), user roster, and global strategy
 # on/off switches. All endpoints gate on users.role = 'admin'.
 
-# Canonical strategy roster the operator can toggle (lib + domain).
+# Canonical strategy roster the operator can toggle. Only strategies with a
+# real user-facing trigger path live here — see migration 068. Adding a new
+# strategy means: (1) implement scan/exit, (2) add a preset that routes to it,
+# (3) seed a row in `strategies`, (4) append the name here, (5) add to
+# _PRESET_TO_STRATEGY so the user dashboard "PAUSED (Admin)" indicator works.
 _ADMIN_STRATEGIES: tuple[str, ...] = (
-    "signal_following", "late_entry_v3", "confluence_scalper",
-    "momentum_reversal", "copy_trade", "trend_breakout", "momentum",
-    "value_investor", "expiration_timing", "pair_arb", "ensemble",
-    "whale_tracking",
+    "late_entry_v3",
+    "signal_following",
+    "copy_trade",
 )
 
 

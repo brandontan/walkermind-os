@@ -106,7 +106,7 @@ def _patch_writes(monkeypatch):
 
 def test_capital_selection_stores_value_and_advances(monkeypatch):
     wz = {
-        "preset_key": "signal_sniper", "is_new_activation": True,
+        "preset_key": "close_sweep", "is_new_activation": True,
         "capital_pct": 0.50, "tp_pct": 0.15, "sl_pct": 0.08,
         "custom_field": None,
     }
@@ -126,7 +126,7 @@ def test_capital_selection_stores_value_and_advances(monkeypatch):
 
 def test_tp_preset_selection_stores_value_and_advances(monkeypatch):
     wz = {
-        "preset_key": "signal_sniper", "is_new_activation": True,
+        "preset_key": "close_sweep", "is_new_activation": True,
         "capital_pct": 0.75, "tp_pct": 0.15, "sl_pct": 0.08,
         "custom_field": None,
     }
@@ -146,7 +146,7 @@ def test_tp_preset_selection_stores_value_and_advances(monkeypatch):
 
 def test_tp_custom_input_valid(monkeypatch):
     wz = {
-        "preset_key": "signal_sniper", "is_new_activation": True,
+        "preset_key": "close_sweep", "is_new_activation": True,
         "capital_pct": 0.75, "tp_pct": 0.15, "sl_pct": 0.08,
         "custom_field": "tp",
     }
@@ -167,7 +167,7 @@ def test_tp_custom_input_valid(monkeypatch):
 
 def test_tp_custom_input_non_numeric_rejected(monkeypatch):
     wz = {
-        "preset_key": "signal_sniper", "is_new_activation": True,
+        "preset_key": "close_sweep", "is_new_activation": True,
         "capital_pct": 0.75, "tp_pct": 0.15, "sl_pct": 0.08,
         "custom_field": "tp",
     }
@@ -186,7 +186,7 @@ def test_tp_custom_input_non_numeric_rejected(monkeypatch):
 
 def test_tp_custom_input_out_of_range_rejected(monkeypatch):
     wz = {
-        "preset_key": "signal_sniper", "is_new_activation": True,
+        "preset_key": "close_sweep", "is_new_activation": True,
         "capital_pct": 0.75, "tp_pct": 0.15, "sl_pct": 0.08,
         "custom_field": "tp",
     }
@@ -205,7 +205,7 @@ def test_tp_custom_input_out_of_range_rejected(monkeypatch):
 
 def test_sl_preset_selection_stores_value_and_advances(monkeypatch):
     wz = {
-        "preset_key": "signal_sniper", "is_new_activation": True,
+        "preset_key": "close_sweep", "is_new_activation": True,
         "capital_pct": 0.75, "tp_pct": 0.20, "sl_pct": 0.08,
         "custom_field": None,
     }
@@ -225,7 +225,7 @@ def test_sl_preset_selection_stores_value_and_advances(monkeypatch):
 
 def test_sl_custom_input_valid(monkeypatch):
     wz = {
-        "preset_key": "value_hunter", "is_new_activation": True,
+        "preset_key": "safe_close", "is_new_activation": True,
         "capital_pct": 0.50, "tp_pct": 0.20, "sl_pct": 0.12,
         "custom_field": "sl",
     }
@@ -247,7 +247,7 @@ def test_sl_custom_input_valid(monkeypatch):
 
 def test_step4_is_skipped_for_all_current_presets(monkeypatch):
     """After SL selection the next state is CUSTOM_REVIEW, not a step-4 state."""
-    for preset_key in ("signal_sniper", "value_hunter", "full_auto"):
+    for preset_key in ("close_sweep", "safe_close", "flip_hunter"):
         wz = {
             "preset_key": preset_key, "is_new_activation": True,
             "capital_pct": 0.50, "tp_pct": 0.15, "sl_pct": 0.08,
@@ -268,16 +268,16 @@ def test_step4_is_skipped_for_all_current_presets(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_review_text_contains_correct_values():
-    p = get_preset("signal_sniper")
+    p = get_preset("close_sweep")
     wz = {
-        "preset_key": "signal_sniper",
+        "preset_key": "close_sweep",
         "capital_pct": 0.75,
         "tp_pct": 0.20,
         "sl_pct": 0.05,
     }
     text = _step5_text(wz, p)
 
-    assert "Signal Sniper" in text
+    assert "Close Sweep" in text
     assert "75%" in text
     assert "+20%" in text
     assert "-5%" in text
@@ -301,7 +301,7 @@ def test_save_new_activation_writes_db(monkeypatch):
     )
 
     wz = {
-        "preset_key": "signal_sniper", "is_new_activation": True,
+        "preset_key": "close_sweep", "is_new_activation": True,
         "capital_pct": 0.75, "tp_pct": 0.20, "sl_pct": 0.05,
         "custom_field": None,
     }
@@ -317,7 +317,7 @@ def test_save_new_activation_writes_db(monkeypatch):
     assert call_kw["capital_alloc_pct"] == pytest.approx(0.75)
     assert call_kw["tp_pct"] == pytest.approx(0.20)
     assert call_kw["sl_pct"] == pytest.approx(0.05)
-    assert call_kw["active_preset"] == "signal_sniper"
+    assert call_kw["active_preset"] == "close_sweep"
     # auto_trade flipped ON
     set_auto_trade.assert_awaited_once_with(uid, True)
     set_paused.assert_awaited_once_with(uid, False)
@@ -335,7 +335,7 @@ def test_save_new_activation_blocked_in_live_mode(monkeypatch):
     )
 
     wz = {
-        "preset_key": "signal_sniper", "is_new_activation": True,
+        "preset_key": "close_sweep", "is_new_activation": True,
         "capital_pct": 0.50, "tp_pct": 0.15, "sl_pct": 0.08,
         "custom_field": None,
     }
@@ -360,7 +360,7 @@ def test_save_edit_only_writes_settings_not_activation(monkeypatch):
     update_settings, set_auto_trade, set_paused = _patch_writes(monkeypatch)
 
     wz = {
-        "preset_key": "signal_sniper", "is_new_activation": False,
+        "preset_key": "safe_close", "is_new_activation": False,
         "capital_pct": 0.50, "tp_pct": 0.15, "sl_pct": 0.08,
         "custom_field": None,
     }
@@ -383,7 +383,7 @@ def test_save_edit_only_writes_settings_not_activation(monkeypatch):
 
 def test_back_at_tp_returns_to_capital(monkeypatch):
     wz = {
-        "preset_key": "signal_sniper", "is_new_activation": True,
+        "preset_key": "close_sweep", "is_new_activation": True,
         "capital_pct": 0.50, "tp_pct": 0.15, "sl_pct": 0.08,
         "custom_field": None,
     }
@@ -398,7 +398,7 @@ def test_back_at_tp_returns_to_capital(monkeypatch):
 
 def test_back_at_sl_returns_to_tp(monkeypatch):
     wz = {
-        "preset_key": "signal_sniper", "is_new_activation": True,
+        "preset_key": "close_sweep", "is_new_activation": True,
         "capital_pct": 0.50, "tp_pct": 0.15, "sl_pct": 0.08,
         "custom_field": None,
     }
@@ -413,7 +413,7 @@ def test_back_at_sl_returns_to_tp(monkeypatch):
 
 def test_back_at_review_returns_to_sl(monkeypatch):
     wz = {
-        "preset_key": "signal_sniper", "is_new_activation": True,
+        "preset_key": "close_sweep", "is_new_activation": True,
         "capital_pct": 0.50, "tp_pct": 0.15, "sl_pct": 0.08,
         "custom_field": None,
     }
@@ -432,7 +432,7 @@ def test_back_at_review_returns_to_sl(monkeypatch):
 
 def test_cancel_exits_clean(monkeypatch):
     wz = {
-        "preset_key": "signal_sniper", "is_new_activation": True,
+        "preset_key": "close_sweep", "is_new_activation": True,
         "capital_pct": 0.50, "tp_pct": 0.15, "sl_pct": 0.08,
         "custom_field": None,
     }
@@ -464,7 +464,7 @@ def test_global_menu_exits_wizard(monkeypatch):
     fake_onboarding.menu_handler = _fake_menu
 
     wz = {
-        "preset_key": "signal_sniper", "is_new_activation": True,
+        "preset_key": "close_sweep", "is_new_activation": True,
         "capital_pct": 0.50, "tp_pct": 0.15, "sl_pct": 0.08,
         "custom_field": None,
     }

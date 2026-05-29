@@ -39,17 +39,19 @@ def test_preset_allows_blocks_globally_disabled():
         job._GLOBALLY_DISABLED_STRATEGIES = frozenset({"late_entry_v3"})
         # late_entry_v3 would normally be allowed under a candle preset
         assert job._preset_allows("close_sweep", "late_entry_v3") is False
-        # a non-disabled strategy still follows preset rules
-        assert job._preset_allows(None, "momentum") is True
     finally:
         job._GLOBALLY_DISABLED_STRATEGIES = original
 
 
 def test_preset_allows_default_when_none_disabled():
+    """Each candle preset fires exactly its backing strategy when no global
+    toggle is OFF — and nothing else."""
     original = job._GLOBALLY_DISABLED_STRATEGIES
     try:
         job._GLOBALLY_DISABLED_STRATEGIES = frozenset()
-        assert job._preset_allows(None, "momentum") is True
+        for preset in ("close_sweep", "safe_close", "flip_hunter"):
+            assert job._preset_allows(preset, "late_entry_v3") is True
+            assert job._preset_allows(preset, "signal_following") is False
     finally:
         job._GLOBALLY_DISABLED_STRATEGIES = original
 

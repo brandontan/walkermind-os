@@ -137,6 +137,11 @@ export function makeApi(token: string | null) {
     enableLive: (live_capital_cap_usdc: number, confirm_phrase: string) =>
       post<LiveEnableResponse>("/live/enable", { live_capital_cap_usdc, confirm_phrase }),
     disableLive: () => post<{ trading_mode: string }>("/live/disable"),
+    // ── Strategy picker availability (mirrors operator admin toggle) ───────
+    getPresetAvailability: () =>
+      get<{ presets: { key: string; strategy: string; enabled: boolean }[] }>(
+        "/autotrade/preset-availability",
+      ),
     // ── Account unification — reverse Telegram-link ────────────────────────
     getLinkTelegramStatus: () => get<{ linked: boolean }>("/account/link-telegram/status"),
     startLinkTelegram: () => post<LinkTelegramStart>("/account/link-telegram/start"),

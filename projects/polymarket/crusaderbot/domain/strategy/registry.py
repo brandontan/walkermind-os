@@ -153,18 +153,14 @@ def bootstrap_default_strategies(
     """
     reg = registry if registry is not None else StrategyRegistry.instance()
     from .strategies import (
-        ConfluenceScalperStrategy,
         CopyTradeStrategy,
         LateEntryV3Strategy,
-        MomentumReversalStrategy,
         SignalFollowingStrategy,
     )
 
     for cls in (
         CopyTradeStrategy,
-        MomentumReversalStrategy,
         SignalFollowingStrategy,
-        ConfluenceScalperStrategy,
         LateEntryV3Strategy,
     ):
         try:

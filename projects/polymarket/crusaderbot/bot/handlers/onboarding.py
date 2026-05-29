@@ -113,15 +113,12 @@ def _risk_kb() -> InlineKeyboardMarkup:
 
 
 def _preset_pick_kb() -> InlineKeyboardMarkup:
+    # Only candle presets are active — every other preset key was removed in
+    # WARP/R00T/strategy-system-cleanup. Recommended starting point: close_sweep.
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🐋 Whale Mirror",   callback_data="onboard:preset:whale_mirror")],
-        [InlineKeyboardButton("📡 Signal Sniper",  callback_data="onboard:preset:signal_sniper")],
-        [InlineKeyboardButton("🐋📡 Hybrid",       callback_data="onboard:preset:hybrid")],
-        [InlineKeyboardButton("🎯 Value Hunter",   callback_data="onboard:preset:value_hunter")],
-        [InlineKeyboardButton("📈 Trend Breakout", callback_data="onboard:preset:trend_breakout")],
-        [InlineKeyboardButton("🔄 Contrarian",     callback_data="onboard:preset:contrarian")],
-        [InlineKeyboardButton("🤖 Smart Mix",      callback_data="onboard:preset:ensemble")],
-        [InlineKeyboardButton("🚀 Full Auto",      callback_data="onboard:preset:full_auto")],
+        [InlineKeyboardButton("🧹 Close Sweep ⭐", callback_data="onboard:preset:close_sweep")],
+        [InlineKeyboardButton("🔒 Safe Close",     callback_data="onboard:preset:safe_close")],
+        [InlineKeyboardButton("🎯 Flip Hunter",    callback_data="onboard:preset:flip_hunter")],
     ])
 
 

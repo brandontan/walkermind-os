@@ -236,6 +236,26 @@ async def _preset_status_text(user: dict, p: Preset) -> str:
 # Entry points
 # ---------------------------------------------------------------------------
 
+async def _load_disabled_strategies() -> frozenset[str]:
+    """Read the operator's global on/off set from the strategies table.
+
+    Mirrors signal_scan_job._refresh_disabled_strategies(): a DB error or
+    empty result keeps every strategy ON (FAIL-SAFE — never silently hides
+    the picker on a transient blip).
+    """
+    from ...database import get_pool
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT name FROM strategies WHERE enabled = FALSE"
+            )
+        return frozenset(str(r["name"]) for r in rows)
+    except Exception:
+        logger.exception("preset_picker_disabled_lookup_failed")
+        return frozenset()
+
+
 async def show_preset_picker(update: Update,
                              ctx: ContextTypes.DEFAULT_TYPE) -> None:
     """Render the compact Auto Mode preset grid."""
@@ -246,10 +266,11 @@ async def show_preset_picker(update: Update,
         ctx.user_data.pop("awaiting", None)
     s = await get_settings_for(user["id"])
     active_preset = s.get("active_preset")
+    disabled = await _load_disabled_strategies()
     await _reply(
         update, _preset_picker_text(active_preset),
         parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=preset_picker(),
+        reply_markup=preset_picker(disabled),
     )
 
 

@@ -332,79 +332,10 @@ class TestProcessCandidateTelemetry:
 class TestRunOnce:
     """run_once() writes scan_runs row and logs structured events."""
 
-    @pytest.mark.asyncio
-    async def test_run_once_records_scan_run_with_approved_candidate(self):
-        """Full smoke path: one user, one valid lib-strategy candidate → approved.
-
-        Asserts:
-            - _insert_scan_run called with strategies_loaded > 0 and live_trading=False
-            - _finish_scan_run called with tel.candidates_emitted >= 1
-            - tel.risk_approved >= 1
-            - tel.paper_orders_created >= 1
-        """
-        pool = _fake_pool_for_market(_MARKET_ROW)
-
-        approved = _approved_result()
-
-        mock_engine = MagicMock()
-        mock_engine.execute = AsyncMock(return_value=approved)
-
-        inserted_runs: list[dict] = []
-        finished_tels: list[ScanTelemetry] = []
-
-        async def _fake_insert(run_id, *, strategies_loaded, live_trading, mode):
-            inserted_runs.append({
-                "run_id": run_id,
-                "strategies_loaded": strategies_loaded,
-                "live_trading": live_trading,
-                "mode": mode,
-            })
-
-        async def _fake_finish(run_id, tel: ScanTelemetry):
-            finished_tels.append(tel)
-
-        with (
-            patch.object(job, "_load_enrolled_users", new_callable=AsyncMock, return_value=[_USER_ROW]),
-            patch.object(job, "_fetch_markets_for_lib_strategies", new_callable=AsyncMock, return_value=[]),
-            patch.object(job, "run_lib_strategy", return_value=[_lib_candidate()]),
-            patch.object(job, "_insert_scan_run", side_effect=_fake_insert),
-            patch.object(job, "_finish_scan_run", side_effect=_fake_finish),
-            patch(_POOL_PATCH, return_value=pool),
-            patch(_PRICE_PATCH, new_callable=AsyncMock, return_value=0.40),
-            patch(_KILL_PATCH, new_callable=AsyncMock, return_value=False),
-            patch(_ENGINE_ATTR, mock_engine),
-            patch.object(job, "_insert_execution_queue", new_callable=AsyncMock, return_value=True),
-            patch.object(job, "_mark_executed", new_callable=AsyncMock),
-            patch.object(job, "_has_open_position_for_market", new_callable=AsyncMock, return_value=False),
-            patch(
-                "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job._event_bus.emit",
-                new_callable=AsyncMock,
-            ),
-            patch(
-                "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job.evaluate_publications_for_user",
-                new_callable=AsyncMock,
-                return_value=[],
-            ),
-        ):
-            await job.run_once()
-
-        assert len(inserted_runs) == 1, "scan_run INSERT must be called once per tick"
-        assert inserted_runs[0]["live_trading"] is False
-        assert inserted_runs[0]["mode"] == "PAPER"
-        assert inserted_runs[0]["strategies_loaded"] > 0
-
-        assert len(finished_tels) == 1, "scan_run UPDATE must be called once per tick"
-        tel = finished_tels[0]
-        assert tel.users_evaluated == 1
-        assert tel.candidates_emitted >= 1, (
-            f"candidates_emitted={tel.candidates_emitted}: engine must receive at "
-            "least one candidate from the lib strategy stub"
-        )
-        assert tel.risk_approved >= 1, (
-            f"risk_approved={tel.risk_approved}: approved TradeResult must increment counter"
-        )
-        assert tel.paper_orders_created >= 1
-        assert tel.positions_created >= 1
+    # Note: the lib-strategy → engine → DB approved/rejected smoke tests were
+    # retired with WARP/R00T/strategy-system-cleanup along with the lib_strategy
+    # loop they exercised. The candle path (late_entry_v3) has its own end-to-end
+    # coverage in test_close_sweep_fast_exit.py + test_signal_scan_job.py.
 
     @pytest.mark.asyncio
     async def test_run_once_no_users_still_writes_scan_run(self):
@@ -433,49 +364,6 @@ class TestRunOnce:
         assert inserted_runs[0]["mode"] == "PAPER"
         assert inserted_runs[0]["strategies_loaded"] > 0
         assert len(finished_tels) == 1
-
-    @pytest.mark.asyncio
-    async def test_run_once_rejection_recorded_in_breakdown(self):
-        """Rejected candidate populates rejection_breakdown in finished telemetry."""
-        pool = _fake_pool_for_market(_MARKET_ROW)
-
-        mock_engine = MagicMock()
-        mock_engine.execute = AsyncMock(return_value=_rejected_result("daily_loss_cap_hit", 5))
-
-        finished_tels: list[ScanTelemetry] = []
-
-        async def _fake_finish(run_id, tel: ScanTelemetry):
-            finished_tels.append(tel)
-
-        with (
-            patch.object(job, "_load_enrolled_users", new_callable=AsyncMock, return_value=[_USER_ROW]),
-            patch.object(job, "_fetch_markets_for_lib_strategies", new_callable=AsyncMock, return_value=[]),
-            patch.object(job, "run_lib_strategy", return_value=[_lib_candidate()]),
-            patch.object(job, "_insert_scan_run", new_callable=AsyncMock),
-            patch.object(job, "_finish_scan_run", side_effect=_fake_finish),
-            patch(_POOL_PATCH, return_value=pool),
-            patch(_PRICE_PATCH, new_callable=AsyncMock, return_value=0.40),
-            patch(_KILL_PATCH, new_callable=AsyncMock, return_value=False),
-            patch(_ENGINE_ATTR, mock_engine),
-            patch.object(job, "_has_open_position_for_market", new_callable=AsyncMock, return_value=False),
-            patch(
-                "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job._event_bus.emit",
-                new_callable=AsyncMock,
-            ),
-            patch(
-                "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job.evaluate_publications_for_user",
-                new_callable=AsyncMock,
-                return_value=[],
-            ),
-        ):
-            await job.run_once()
-
-        assert len(finished_tels) == 1
-        tel = finished_tels[0]
-        assert tel.risk_rejected >= 1
-        assert tel.risk_approved == 0
-        assert "step_5_daily_loss_cap_hit" in tel.rejection_breakdown
-
 
 # ---------------------------------------------------------------------------
 # Startup loud-failure guard

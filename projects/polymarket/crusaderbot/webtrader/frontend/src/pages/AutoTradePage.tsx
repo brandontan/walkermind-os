@@ -115,16 +115,26 @@ export function AutoTradePage() {
   const [filterSaved, setFilterSaved]         = useState(false);
   // Crypto-short preset config (assets shown inline inside the active card)
   const [selectedAssets, setSelectedAssets]   = useState<string[]>([...CRYPTO_ASSETS_DEFAULT]);
+  // Operator's global on/off per preset — refreshed alongside autotrade state.
+  // Default empty → all presets are treated as enabled (FAIL-SAFE) until the
+  // first fetch completes so the picker is never silently hidden on a slow API.
+  const [presetEnabled, setPresetEnabled] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
-    const [autotradeResult, dashResult] = await Promise.allSettled([
+    const [autotradeResult, dashResult, availResult] = await Promise.allSettled([
       api.getAutotrade(),
       api.getDashboard(),
+      api.getPresetAvailability(),
     ]);
     if (autotradeResult.status === "rejected") throw autotradeResult.reason;
     const s = autotradeResult.value;
     setState(s);
     if (dashResult.status === "fulfilled") setTradingMode(dashResult.value.trading_mode);
+    if (availResult.status === "fulfilled") {
+      const map: Record<string, boolean> = {};
+      for (const p of availResult.value.presets) map[p.key] = p.enabled;
+      setPresetEnabled(map);
+    }
     if (s.risk_profile === "custom") {
       setCustomCapital(String(Math.round((s.capital_alloc_pct ?? 0) * 100)));
       // TP/SL may be null (custom TP-only or SL-only) — show blank, not "0".
@@ -364,7 +374,12 @@ export function AutoTradePage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          {STRATEGY_PRESETS.map((p) => {
+          {STRATEGY_PRESETS.filter(
+            // FAIL-SAFE: hide ONLY presets explicitly marked disabled by the
+            // operator. Unknown keys (no row yet, or fetch failed) stay visible
+            // so a transient API blip never wipes the picker.
+            (p) => presetEnabled[p.key] !== false,
+          ).map((p) => {
             const isActive = state.active_preset === p.key;
             // When the operator has globally disabled this strategy, the preset
             // is still "selected" but fires no new trades → show PAUSED (Admin).

@@ -66,16 +66,22 @@ def quick_start_kb() -> InlineKeyboardMarkup:
 # risk-tier selection step first added friction with no benefit.
 # When more presets become visible, re-introduce tiers at that point.
 
-def preset_tier_kb() -> InlineKeyboardMarkup:
+def preset_tier_kb(disabled_strategies: frozenset[str] | None = None) -> InlineKeyboardMarkup:
     """Direct preset list — skips the tier step entirely.
 
-    Renders all visible presets (from VISIBLE_PRESET_ORDER) as a flat
-    list, max 4 presets + nav = 5 rows.
+    Renders visible presets (from VISIBLE_PRESET_ORDER) whose backing strategy
+    is not globally disabled by the operator. The handler fetches the disabled
+    set from the `strategies` table once per render and passes it in; an empty
+    set (FAIL-SAFE on DB error) keeps every preset visible.
     """
     from ...domain.preset import list_presets
     from ...domain.preset.presets import RECOMMENDED_PRESET
+    disabled = disabled_strategies or frozenset()
     rows: list[list[InlineKeyboardButton]] = []
     for p in list_presets():
+        # Hide presets whose backing strategy is globally OFF.
+        if any(strat in disabled for strat in p.strategies):
+            continue
         label = f"{p.emoji} {p.name}"
         if p.key == RECOMMENDED_PRESET:
             label = f"{label} ⭐"
