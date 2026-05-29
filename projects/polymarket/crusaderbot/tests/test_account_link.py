@@ -236,6 +236,10 @@ def _me_conn(row):
     conn = MagicMock()
 
     async def fetchrow(query, *args):
+        # /me now runs two queries: the users row and the user_settings
+        # trading_mode row. Return the canonical mode for the settings query.
+        if "user_settings" in query:
+            return {"trading_mode": "paper"}
         return row
 
     conn.fetchrow = fetchrow
