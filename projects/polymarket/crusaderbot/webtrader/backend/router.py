@@ -751,12 +751,19 @@ async def get_preset_availability(user: _CurrentUser) -> dict:
     or lock presets whose backing strategy is globally disabled — this is the
     user-dashboard half of the operator Admin toggle contract.
 
-    FAIL-SAFE: a missing row in ``strategies`` defaults to enabled=True.
+    FAIL-SAFE: a missing row in ``strategies`` defaults to enabled=True. A DB
+    error is logged at WARNING and the endpoint returns every preset as enabled
+    (consistent with the scanner-side fail-safe: a transient blip must never
+    silently wipe the user's picker).
     """
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT name, enabled FROM strategies")
-    state = {str(r["name"]): bool(r["enabled"]) for r in rows}
+    state: dict[str, bool] = {}
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT name, enabled FROM strategies")
+        state = {str(r["name"]): bool(r["enabled"]) for r in rows}
+    except Exception as exc:  # noqa: BLE001
+        log.warning("preset_availability_db_error: %s", exc)
     presets = [
         {"key": preset, "strategy": strat, "enabled": state.get(strat, True)}
         for preset, strat in _PRESET_TO_STRATEGY.items()

@@ -1397,17 +1397,27 @@ async def run_once() -> None:
         # Uses signal_evaluator which reads user's subscribed feeds and
         # returns SignalCandidates with metadata["publication_id"] set.
         # _process_candidate handles dedup via (user_id, publication_id) unique key.
-        try:
-            user_ctx = _build_user_context(row)
-            market_filters = _build_market_filters(user_ctx.risk_profile, row)
-            feed_candidates = await evaluate_publications_for_user(
-                user_context=user_ctx,
-                market_filters=market_filters,
-                strategy_name=_STRATEGY_NAME,
-            )
-        except Exception as exc:
-            user_log.warning("signal_feed_eval_failed", error=str(exc))
-            feed_candidates = []
+        #
+        # Defense-in-depth: the SQL gate in _load_enrolled_users already filters
+        # out users when the strategies row says signal_following=FALSE, but a
+        # future schema change must not silently re-enable feed firing here.
+        # The in-memory _GLOBALLY_DISABLED_STRATEGIES cache is the documented
+        # operator-toggle contract — honour it explicitly at every fire site.
+        feed_candidates: list[SignalCandidate] = []
+        if _STRATEGY_NAME in _GLOBALLY_DISABLED_STRATEGIES:
+            tel.record_zero_reason("signal_feed", "globally_disabled")
+        else:
+            try:
+                user_ctx = _build_user_context(row)
+                market_filters = _build_market_filters(user_ctx.risk_profile, row)
+                feed_candidates = await evaluate_publications_for_user(
+                    user_context=user_ctx,
+                    market_filters=market_filters,
+                    strategy_name=_STRATEGY_NAME,
+                )
+            except Exception as exc:
+                user_log.warning("signal_feed_eval_failed", error=str(exc))
+                feed_candidates = []
 
         if not feed_candidates:
             tel.record_zero_reason("signal_feed", "no_publications_eligible")

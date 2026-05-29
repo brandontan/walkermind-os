@@ -213,6 +213,41 @@ def test_get_autotrade_globally_enabled_when_no_strategy_row():
     assert out.active_preset_globally_enabled is True
 
 
+# ── /autotrade/preset-availability picker filter ──────────────────────────────
+
+
+def test_preset_availability_returns_one_entry_per_mapped_preset():
+    """Endpoint surfaces every preset in _PRESET_TO_STRATEGY with its enabled bit."""
+    conn = MagicMock()
+    conn.fetch = AsyncMock(return_value=[
+        {"name": "late_entry_v3", "enabled": False},
+    ])
+    with patch.object(r, "get_pool", return_value=_pool(conn)):
+        out = asyncio.run(r.get_preset_availability({"user_id": "x"}))
+    keys = {p["key"] for p in out["presets"]}
+    assert keys == set(r._PRESET_TO_STRATEGY.keys())
+    # Every preset routes to late_entry_v3 → all disabled when that strategy is OFF.
+    assert all(p["enabled"] is False for p in out["presets"])
+
+
+def test_preset_availability_default_enabled_when_no_row():
+    conn = MagicMock()
+    conn.fetch = AsyncMock(return_value=[])
+    with patch.object(r, "get_pool", return_value=_pool(conn)):
+        out = asyncio.run(r.get_preset_availability({"user_id": "x"}))
+    assert all(p["enabled"] is True for p in out["presets"])
+
+
+def test_preset_availability_fail_safe_on_db_error():
+    """A DB blip must NOT 500 — every preset reports enabled=True instead."""
+    pool = MagicMock()
+    pool.acquire = MagicMock(side_effect=RuntimeError("db down"))
+    with patch.object(r, "get_pool", return_value=pool):
+        out = asyncio.run(r.get_preset_availability({"user_id": "x"}))
+    assert all(p["enabled"] is True for p in out["presets"])
+    assert len(out["presets"]) == len(r._PRESET_TO_STRATEGY)
+
+
 def test_preset_to_strategy_maps_candle_presets_to_late_entry():
     assert r._PRESET_TO_STRATEGY["close_sweep"] == "late_entry_v3"
     assert r._PRESET_TO_STRATEGY["safe_close"] == "late_entry_v3"
