@@ -151,13 +151,25 @@ async def execute(
     if not token_id:
         raise LivePreSubmitError("missing token_id for live order")
 
+    # Fast-path duplicate check before hitting external APIs.
+    # The INSERT ON CONFLICT below is the true idempotency claim (handles races);
+    # this early read ensures a replay on a temporarily unavailable MDC returns
+    # the correct duplicate no-op instead of being routed to paper fallback.
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        _dup = await conn.fetchval(
+            "SELECT id FROM orders WHERE idempotency_key = $1",
+            idempotency_key,
+        )
+    if _dup is not None:
+        logger.info("live.execute idempotent skip (early) key=%s", idempotency_key)
+        return {"status": "duplicate", "mode": "live"}
+
     # Fetch tick_size + neg_risk from the CLOB market data API.
     # tick_size: required for price rounding in the signed order.
     # neg_risk: selects the correct Exchange contract for signing.
-    # Graceful degradation on fetch failure — defaults match prior behavior.
-    # Metadata required for correct order signing. Fail pre-submit so the
-    # router can paper-fallback cleanly rather than hitting a post-submit
-    # ambiguous rejection on 0.001-tick or neg-risk markets.
+    # Fail pre-submit so the router can paper-fallback cleanly rather than
+    # hitting a post-submit ambiguous rejection on 0.001-tick or neg-risk markets.
     _tick_size: str = "0.01"
     _tick_size_f: float = 0.01
     _neg_risk: bool = False
@@ -210,7 +222,6 @@ async def execute(
     except (ClobConfigError, ClobAuthError) as exc:
         raise LivePreSubmitError(f"CLOB client config error: {exc}") from exc
 
-    pool = get_pool()
     # Step 1: claim idempotency by inserting order as 'pending' BEFORE submit.
     async with pool.acquire() as conn:
         async with conn.transaction():

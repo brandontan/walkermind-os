@@ -86,6 +86,9 @@ class FakeConn:
             return self.close_claim
         if "status='closed'" in query and "RETURNING id" in query:
             return self.close_finalize
+        # Early duplicate check in execute(): return existing id when simulating duplicate
+        if "SELECT id FROM orders WHERE idempotency_key" in query:
+            return ORDER_ID if not self.insert_returns else None
         return None
 
     async def execute(self, query: str, *args: Any) -> str:

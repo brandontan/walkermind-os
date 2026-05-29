@@ -74,6 +74,8 @@ class FakeConn:
             return self.close_claim
         if "status='closed'" in query:
             return self.close_finalize
+        if "SELECT id FROM orders WHERE idempotency_key" in query:
+            return None  # not a duplicate — proceed with fetch
         return None
 
     async def fetch(self, query: str, *args: Any) -> list:
