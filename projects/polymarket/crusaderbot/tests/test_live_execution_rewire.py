@@ -170,6 +170,15 @@ _EXEC_KWARGS: dict[str, Any] = dict(
 )
 
 
+def _make_mdc_mock(tick_size: str = "0.01", neg_risk: bool = False) -> Any:
+    mdc = MagicMock()
+    mdc.get_tick_size = AsyncMock(return_value=tick_size)
+    mdc.get_neg_risk = AsyncMock(return_value=neg_risk)
+    mdc.__aenter__ = AsyncMock(return_value=mdc)
+    mdc.__aexit__ = AsyncMock(return_value=False)
+    return mdc
+
+
 def _run_execute(conn: FakeConn, settings_obj: Any, client: Any, **overrides: Any) -> dict:
     pool = FakePool(conn)
     with (
@@ -177,6 +186,8 @@ def _run_execute(conn: FakeConn, settings_obj: Any, client: Any, **overrides: An
               return_value=settings_obj),
         patch("projects.polymarket.crusaderbot.domain.execution.live.get_pool",
               return_value=pool),
+        patch("projects.polymarket.crusaderbot.domain.execution.live.MarketDataClient",
+              return_value=_make_mdc_mock()),
         patch("projects.polymarket.crusaderbot.domain.execution.live.audit.write",
               new=AsyncMock()),
         patch("projects.polymarket.crusaderbot.domain.execution.live.notifications.send",
