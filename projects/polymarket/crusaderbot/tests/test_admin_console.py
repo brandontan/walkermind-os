@@ -39,17 +39,19 @@ def test_preset_allows_blocks_globally_disabled():
         job._GLOBALLY_DISABLED_STRATEGIES = frozenset({"late_entry_v3"})
         # late_entry_v3 would normally be allowed under a candle preset
         assert job._preset_allows("close_sweep", "late_entry_v3") is False
-        # a non-disabled strategy still follows preset rules
-        assert job._preset_allows(None, "momentum") is True
     finally:
         job._GLOBALLY_DISABLED_STRATEGIES = original
 
 
 def test_preset_allows_default_when_none_disabled():
+    """Each candle preset fires exactly its backing strategy when no global
+    toggle is OFF — and nothing else."""
     original = job._GLOBALLY_DISABLED_STRATEGIES
     try:
         job._GLOBALLY_DISABLED_STRATEGIES = frozenset()
-        assert job._preset_allows(None, "momentum") is True
+        for preset in ("close_sweep", "safe_close", "flip_hunter"):
+            assert job._preset_allows(preset, "late_entry_v3") is True
+            assert job._preset_allows(preset, "signal_following") is False
     finally:
         job._GLOBALLY_DISABLED_STRATEGIES = original
 
@@ -211,27 +213,55 @@ def test_get_autotrade_globally_enabled_when_no_strategy_row():
     assert out.active_preset_globally_enabled is True
 
 
+# ── /autotrade/preset-availability picker filter ──────────────────────────────
+
+
+def test_preset_availability_returns_one_entry_per_mapped_preset():
+    """Endpoint surfaces every preset in _PRESET_TO_STRATEGY with its enabled bit."""
+    conn = MagicMock()
+    conn.fetch = AsyncMock(return_value=[
+        {"name": "late_entry_v3", "enabled": False},
+    ])
+    with patch.object(r, "get_pool", return_value=_pool(conn)):
+        out = asyncio.run(r.get_preset_availability({"user_id": "x"}))
+    keys = {p["key"] for p in out["presets"]}
+    assert keys == set(r._PRESET_TO_STRATEGY.keys())
+    # Every preset routes to late_entry_v3 → all disabled when that strategy is OFF.
+    assert all(p["enabled"] is False for p in out["presets"])
+
+
+def test_preset_availability_default_enabled_when_no_row():
+    conn = MagicMock()
+    conn.fetch = AsyncMock(return_value=[])
+    with patch.object(r, "get_pool", return_value=_pool(conn)):
+        out = asyncio.run(r.get_preset_availability({"user_id": "x"}))
+    assert all(p["enabled"] is True for p in out["presets"])
+
+
+def test_preset_params_roster_matches_admin_presets_after_cleanup():
+    """activate_preset must reject any archived legacy key. After WARP/R00T
+    cleanup, only the 3 candle presets are valid — a stale client persisting
+    `signal_sniper` / `full_auto` / `ensemble` would create a silent no-op
+    (scanner emits nothing, dashboard can't mark it PAUSED). Pinned here so a
+    future map widening is intentional."""
+    assert set(r._PRESET_PARAMS.keys()) == {"close_sweep", "safe_close", "flip_hunter"}
+    assert set(r._PRESET_TO_STRATEGY.keys()) == set(r._PRESET_PARAMS.keys())
+
+
+def test_preset_availability_fail_safe_on_db_error():
+    """A DB blip must NOT 500 — every preset reports enabled=True instead."""
+    pool = MagicMock()
+    pool.acquire = MagicMock(side_effect=RuntimeError("db down"))
+    with patch.object(r, "get_pool", return_value=pool):
+        out = asyncio.run(r.get_preset_availability({"user_id": "x"}))
+    assert all(p["enabled"] is True for p in out["presets"])
+    assert len(out["presets"]) == len(r._PRESET_TO_STRATEGY)
+
+
 def test_preset_to_strategy_maps_candle_presets_to_late_entry():
     assert r._PRESET_TO_STRATEGY["close_sweep"] == "late_entry_v3"
     assert r._PRESET_TO_STRATEGY["safe_close"] == "late_entry_v3"
     assert r._PRESET_TO_STRATEGY["flip_hunter"] == "late_entry_v3"
-
-
-def test_get_autotrade_sl_only_custom_returns_null_tp():
-    """Custom SL-only (tp_pct NULL in DB) must serialize tp_pct=None, not crash."""
-    row = _autotrade_settings_row("close_sweep")
-    row["risk_profile"] = "custom"
-    row["tp_pct"] = None
-    row["sl_pct"] = 0.20
-    conn = MagicMock()
-    conn.fetchrow = AsyncMock(side_effect=[
-        {"auto_trade_on": True}, row, {"equity_usdc": 100.0},
-    ])
-    conn.fetchval = AsyncMock(return_value=True)
-    with patch.object(r, "get_pool", return_value=_pool(conn)):
-        out = asyncio.run(r.get_autotrade({"user_id": str(uuid4())}))
-    assert out.tp_pct is None
-    assert out.sl_pct == 0.20
 
 
 def test_get_autotrade_sl_only_custom_returns_null_tp():

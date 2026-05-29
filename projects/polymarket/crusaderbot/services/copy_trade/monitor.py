@@ -66,15 +66,40 @@ _notifier: TradeNotifier = TradeNotifier()
 # ---------------------------------------------------------------------------
 
 
+async def _is_globally_disabled() -> bool:
+    """Check the operator's admin toggle in the `strategies` table (mig 067).
+
+    FAIL-SAFE: a DB error or missing row means the strategy is ON (no behaviour
+    change), mirroring _refresh_disabled_strategies() in signal_scan_job.
+    """
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            enabled = await conn.fetchval(
+                "SELECT enabled FROM strategies WHERE name = $1", _STRATEGY_TYPE
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("copy_trade_admin_gate_db_error", error=str(exc))
+        return False
+    if enabled is None:
+        return False
+    return not bool(enabled)
+
+
 async def run_once() -> None:
     """Execute one copy-trade monitor tick.
 
     Safe to call concurrently with other scan loops — all DB writes use
-    ON CONFLICT DO NOTHING for idempotency. If the kill switch is active
-    the tick exits immediately without touching the execution path.
+    ON CONFLICT DO NOTHING for idempotency. If the kill switch is active or
+    the operator has globally disabled copy_trade via the Admin console, the
+    tick exits immediately without touching the execution path.
     """
     if await kill_switch_is_active():
         logger.warning("copy_trade_monitor: kill switch active — skipping tick")
+        return
+
+    if await _is_globally_disabled():
+        logger.info("copy_trade_monitor: globally disabled by admin — skipping tick")
         return
 
     tasks = await list_active_tasks()

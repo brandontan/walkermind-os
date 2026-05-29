@@ -63,7 +63,7 @@ from ...domain.strategy.types import MarketFilters, SignalCandidate, UserContext
 from ...integrations import polymarket as _polymarket
 from ...integrations.polymarket import get_live_market_price
 from ..trade_engine import TradeEngine, TradeResult, TradeSignal
-from .lib_strategy_runner import ENABLED_STRATEGIES, DEFERRED_STRATEGIES, run_lib_strategy
+from .lib_strategy_runner import DEFERRED_STRATEGIES, ENABLED_STRATEGIES
 from ..signal_feed.signal_evaluator import evaluate_publications_for_user
 
 logger = structlog.get_logger(__name__)
@@ -91,38 +91,26 @@ _MAX_TARGET_DRIFT_PCT: float = 0.25  # 25%
 # Preset → lib strategy name mapping
 # ---------------------------------------------------------------------------
 
+# lib/strategies/* were archived in WARP/R00T/strategy-system-cleanup — none
+# had a reachable user-facing preset. ENABLED_STRATEGIES / DEFERRED_STRATEGIES
+# are now empty tuples; this frozenset stays empty until a future strategy is
+# wired with a real preset path.
 _LIB_STRATEGY_NAMES: frozenset[str] = frozenset(ENABLED_STRATEGIES) | frozenset(DEFERRED_STRATEGIES)
 
-# Domain strategies wired into the scan loop alongside lib/ strategies.
-# These live in domain/strategy/strategies/ and are registered via
-# bootstrap_default_strategies(). The scan loop runs them explicitly per user
-# when the active_preset permits. Crypto-only eligibility for the scalper
-# lives in domain/strategy/eligibility.py and is enforced INSIDE
-# ConfluenceScalperStrategy.scan(), so emitted candidates already satisfy
-# the asset whitelist when they reach this loop.
-_CONFLUENCE_SCALPER_NAME = "confluence_scalper"
 _LATE_ENTRY_V3_NAME = "late_entry_v3"
 
 # Domain strategies the scan loop invokes explicitly (registered via
 # bootstrap_default_strategies()). Each runs its own crypto-only eligibility
 # gate inside scan(), so emitted candidates already satisfy the asset whitelist.
-_DOMAIN_STRATEGY_NAMES: frozenset[str] = frozenset(
-    {_CONFLUENCE_SCALPER_NAME, _LATE_ENTRY_V3_NAME}
-)
+_DOMAIN_STRATEGY_NAMES: frozenset[str] = frozenset({_LATE_ENTRY_V3_NAME})
 
+# Preset → strategies it may fire. Narrowed to the 3 candle presets (all
+# routing to late_entry_v3) after WARP/R00T/strategy-system-cleanup. A user
+# with no active_preset is skipped at the top of run_once().
 _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
-    "whale_mirror":        frozenset({"whale_tracking"}),
-    "trend_breakout":      frozenset({"trend_breakout"}),
-    "contrarian":          frozenset({"momentum"}),
-    "value_hunter":        frozenset({"value_investor"}),
-    "close_sweep":         frozenset({_LATE_ENTRY_V3_NAME}),
-    "safe_close":          frozenset({_LATE_ENTRY_V3_NAME}),
-    "flip_hunter":         frozenset({_LATE_ENTRY_V3_NAME}),
-    "pair_arb":            frozenset({"pair_arb"}),
-    "ensemble":            frozenset({"ensemble", "trend_breakout", "momentum", "value_investor"}),
-    "confluence_scalper":  frozenset({_CONFLUENCE_SCALPER_NAME}),
-    "full_auto":           _LIB_STRATEGY_NAMES | _DOMAIN_STRATEGY_NAMES,
-    None:                  _LIB_STRATEGY_NAMES | _DOMAIN_STRATEGY_NAMES,  # no preset set → full_auto behaviour
+    "close_sweep": frozenset({_LATE_ENTRY_V3_NAME}),
+    "safe_close":  frozenset({_LATE_ENTRY_V3_NAME}),
+    "flip_hunter": frozenset({_LATE_ENTRY_V3_NAME}),
 }
 
 
@@ -1294,18 +1282,9 @@ async def run_once() -> None:
         return
 
     markets = await _fetch_markets_for_lib_strategies()
-    strategies_to_run = list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES)
 
     tel.users_evaluated = len(users)
     tel.markets_seen = len(markets)
-
-    # Hoist the domain confluence_scalper instance once per tick — registry
-    # state is process-wide and the lookup does not depend on per-user data.
-    try:
-        confluence_strat = StrategyRegistry.instance().get(_CONFLUENCE_SCALPER_NAME)
-    except KeyError:
-        confluence_strat = None
-        logger.debug("confluence_scalper_not_registered")
 
     try:
         late_entry_strat = StrategyRegistry.instance().get(_LATE_ENTRY_V3_NAME)
@@ -1315,8 +1294,6 @@ async def run_once() -> None:
 
     candidates_processed = 0
     candidates_errored = 0
-    lib_total_signals = 0
-    confluence_signals = 0
     late_entry_signals = 0
 
     for row in users:
@@ -1341,11 +1318,11 @@ async def run_once() -> None:
         # Filter market list to user's chosen categories (empty = all markets).
         user_markets = _filter_markets_by_category(markets, category_filters)
 
-        # Crypto-short presets target the currently-live candle window directly
+        # Candle presets target the currently-live candle window directly
         # (by deterministic slug), so they see the in-window markets with real
         # liquidity instead of the far-future batch a broad list fetch returns.
         crypto_window_markets: list[dict] = []
-        if active_preset in _CANDLE_PRESETS | {"confluence_scalper"}:
+        if active_preset in _CANDLE_PRESETS:
             try:
                 crypto_window_markets = await _polymarket.get_crypto_window_markets(
                     selected_timeframe or "5m", selected_assets or None
@@ -1358,103 +1335,7 @@ async def run_once() -> None:
                 user_log.warning("crypto_window_fetch_failed", error=str(exc))
                 crypto_window_markets = []
 
-        for lib_name in strategies_to_run:
-            if not _preset_allows(active_preset, lib_name):
-                continue
-            # Per-strategy params come from user_settings.strategy_params (JSONB,
-            # user-controlled). _coerce_jsonb guarantees the top-level value is a
-            # dict, but a malformed row (e.g. {"momentum_reversal": "balanced"})
-            # can still hold a non-dict sub-value. Passing that into the lib
-            # strategy as config would raise ValueError: dictionary update
-            # sequence element #0 has length 1; 2 is required. Drop to {} + log.
-            lib_params = strategy_params.get(lib_name, {})
-            if not isinstance(lib_params, dict):
-                user_log.warning(
-                    "signal_scan_strategy_params_not_dict",
-                    strategy=lib_name,
-                    got=type(lib_params).__name__,
-                )
-                lib_params = {}
-            config = {"strategy_params": lib_params}
-
-            # close_sweep now runs the late_entry_v3 domain strategy (Phase B),
-            # not a lib strategy, so the lib loop only handles full_auto/default
-            # presets here. Those scan the general market universe.
-            scan_markets = user_markets
-
-            try:
-                cands: list[SignalCandidate] = await asyncio.get_running_loop().run_in_executor(
-                    None, run_lib_strategy, lib_name, scan_markets, config
-                )
-            except Exception as exc:
-                user_log.warning("lib_strategy_run_failed", strategy=lib_name, error=str(exc))
-                cands = []
-
-            user_log.info(
-                "strategy_run",
-                strategy=lib_name,
-                candidates_emitted=len(cands),
-                zero_reason="filter_or_no_match" if not cands else None,
-            )
-            if not cands:
-                tel.record_zero_reason(lib_name, "filter_or_no_match")
-
-            lib_total_signals += len(cands)
-            tel.candidates_emitted += len(cands)
-            for cand in _diversify_lib_candidates(cands, row["user_id"]):
-                try:
-                    await _process_candidate(row, cand, tel)
-                    candidates_processed += 1
-                except Exception as exc:
-                    candidates_errored += 1
-                    user_log.error(
-                        "signal_scan_candidate_unhandled",
-                        market_id=cand.market_id,
-                        strategy=lib_name,
-                        error=str(exc),
-                    )
-
-        # Phase B: run domain confluence_scalper strategy when the active
-        # preset permits. The strategy applies the crypto-only asset whitelist
-        # inside its own market loop (see domain/strategy/eligibility.py +
-        # strategies/confluence_scalper.py), so emitted candidates already
-        # satisfy the gate. Non-crypto markets self-skip without affecting
-        # other strategies on the same scan tick.
-        if confluence_strat is not None and _preset_allows(
-            active_preset, _CONFLUENCE_SCALPER_NAME
-        ):
-            try:
-                user_ctx = _build_user_context(row)
-                market_filters = _build_market_filters(user_ctx.risk_profile, row)
-                domain_cands = await confluence_strat.scan(market_filters, user_ctx)
-            except Exception as exc:
-                user_log.warning("confluence_scalper_run_failed", error=str(exc))
-                domain_cands = []
-
-            confluence_signals += len(domain_cands)
-            user_log.info(
-                "strategy_run",
-                strategy=_CONFLUENCE_SCALPER_NAME,
-                candidates_emitted=len(domain_cands),
-                zero_reason="filter_or_no_match" if not domain_cands else None,
-            )
-            if not domain_cands:
-                tel.record_zero_reason(_CONFLUENCE_SCALPER_NAME, "filter_or_no_match")
-            tel.candidates_emitted += len(domain_cands)
-            for cand in _diversify_lib_candidates(domain_cands, row["user_id"]):
-                try:
-                    await _process_candidate(row, cand, tel)
-                    candidates_processed += 1
-                except Exception as exc:
-                    candidates_errored += 1
-                    user_log.error(
-                        "signal_scan_candidate_unhandled",
-                        market_id=cand.market_id,
-                        strategy=_CONFLUENCE_SCALPER_NAME,
-                        error=str(exc),
-                    )
-
-        # Phase B2: run domain late_entry_v3 strategy when the active preset
+        # Run domain late_entry_v3 strategy when the active preset
         # permits (close_sweep + full_auto/default). Like confluence_scalper it
         # applies its crypto-candle eligibility + entry-window gates inside
         # scan(), so emitted candidates already satisfy the asset whitelist and
@@ -1516,17 +1397,36 @@ async def run_once() -> None:
         # Uses signal_evaluator which reads user's subscribed feeds and
         # returns SignalCandidates with metadata["publication_id"] set.
         # _process_candidate handles dedup via (user_id, publication_id) unique key.
-        try:
-            user_ctx = _build_user_context(row)
-            market_filters = _build_market_filters(user_ctx.risk_profile, row)
-            feed_candidates = await evaluate_publications_for_user(
-                user_context=user_ctx,
-                market_filters=market_filters,
-                strategy_name=_STRATEGY_NAME,
+        #
+        # _preset_allows enforces BOTH the operator's global on/off toggle AND
+        # the user's preset → strategy mapping. After WARP/R00T cleanup the only
+        # visible presets are candle presets (close_sweep/safe_close/flip_hunter)
+        # which route exclusively to late_entry_v3 — so this short-circuits for
+        # every candle-preset user even when signal_following is globally ON.
+        # That stops Phase C from silently producing signal-feed trades a user
+        # picking a candle preset never asked for. Telemetry distinguishes the
+        # two reasons so operators can see at a glance whether the gate fired
+        # because of the global toggle or the preset restriction.
+        feed_candidates: list[SignalCandidate] = []
+        if not _preset_allows(active_preset, _STRATEGY_NAME):
+            tel.record_zero_reason(
+                "signal_feed",
+                "globally_disabled"
+                if _STRATEGY_NAME in _GLOBALLY_DISABLED_STRATEGIES
+                else "preset_blocks_signal_following",
             )
-        except Exception as exc:
-            user_log.warning("signal_feed_eval_failed", error=str(exc))
-            feed_candidates = []
+        else:
+            try:
+                user_ctx = _build_user_context(row)
+                market_filters = _build_market_filters(user_ctx.risk_profile, row)
+                feed_candidates = await evaluate_publications_for_user(
+                    user_context=user_ctx,
+                    market_filters=market_filters,
+                    strategy_name=_STRATEGY_NAME,
+                )
+            except Exception as exc:
+                user_log.warning("signal_feed_eval_failed", error=str(exc))
+                feed_candidates = []
 
         if not feed_candidates:
             tel.record_zero_reason("signal_feed", "no_publications_eligible")
@@ -1553,9 +1453,7 @@ async def run_once() -> None:
     logger.info(
         "lib_strategy_scan_done",
         scan_run_id=run_id,
-        strategies=len(strategies_to_run),
-        total_signals=lib_total_signals,
-        confluence_signals=confluence_signals,
+        strategies=1,  # late_entry_v3
         late_entry_signals=late_entry_signals,
         candidates_emitted=tel.candidates_emitted,
         risk_approved=tel.risk_approved,
@@ -1568,8 +1466,8 @@ async def run_once() -> None:
     await _finish_scan_run(run_id, tel)
     await _event_bus.emit(
         "pipeline.strategy_scan_done",
-        strategy_count=len(strategies_to_run) + 1,  # +1 for confluence_scalper
-        total_signals=lib_total_signals + confluence_signals,
+        strategy_count=1,
+        total_signals=late_entry_signals,
     )
     await _event_bus.emit(
         "pipeline.scan_completed",

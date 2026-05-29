@@ -681,84 +681,10 @@ def test_process_candidate_band_gate_is_noop_without_metadata():
     )
 
 
-# ---------------------------------------------------------------------------
-# run_once — single user, happy path integration (all internals patched)
-# ---------------------------------------------------------------------------
-
-
-def test_run_once_happy_path_calls_process_candidate():
-    """Two-phase loop: Phase A runs each lib strategy once, Phase B
-    distributes candidates to users filtered by active_preset. With
-    active_preset='full_auto' all lib strategies are allowed; only
-    one strategy yields a candidate so _process_candidate is called once."""
-    bootstrap_default_strategies()
-    row = _user_row()
-    row["active_preset"] = "full_auto"  # full_auto: all lib strategies allowed
-    cand = _candidate()
-    processed = {"calls": 0}
-
-    def _fake_run_lib(lib_name, markets, config):
-        # Only one strategy emits a signal this tick.
-        return [cand] if lib_name == "trend_breakout" else []
-
-    async def _fake_fetch_markets():
-        return []
-
-    async def _fake_process(r, c, tel=None):
-        processed["calls"] += 1
-
-    with patch.object(job, "_load_enrolled_users", return_value=[row]), \
-            patch.object(
-                job, "_fetch_markets_for_lib_strategies",
-                side_effect=_fake_fetch_markets,
-            ), \
-            patch.object(job, "run_lib_strategy", side_effect=_fake_run_lib), \
-            patch.object(job, "_process_candidate", side_effect=_fake_process):
-        asyncio.run(job.run_once())
-
-    assert processed["calls"] == 1
-
-
-# ---------------------------------------------------------------------------
-# run_once — scan failure per user is isolated
-# ---------------------------------------------------------------------------
-
-
-def test_run_once_scan_failure_does_not_stop_other_users():
-    """Phase B per-user isolation: _process_candidate raising for the first
-    user must not prevent the second user from being processed on the same
-    tick."""
-    bootstrap_default_strategies()
-    row1 = _user_row(user_id=UUID("11111111-1111-1111-1111-111111111111"))
-    row2 = _user_row(user_id=UUID("22222222-2222-2222-2222-222222222222"))
-    row1["active_preset"] = "full_auto"
-    row2["active_preset"] = "full_auto"
-    processed = {"row1": 0, "row2": 0}
-
-    def _fake_run_lib(lib_name, markets, config):
-        return [_candidate()] if lib_name == "trend_breakout" else []
-
-    async def _fake_fetch_markets():
-        return []
-
-    async def _fake_process(r, c, tel=None):
-        if r["user_id"] == UUID("11111111-1111-1111-1111-111111111111"):
-            processed["row1"] += 1
-            raise RuntimeError("boom")
-        processed["row2"] += 1
-
-    with patch.object(job, "_load_enrolled_users", return_value=[row1, row2]), \
-            patch.object(
-                job, "_fetch_markets_for_lib_strategies",
-                side_effect=_fake_fetch_markets,
-            ), \
-            patch.object(job, "run_lib_strategy", side_effect=_fake_run_lib), \
-            patch.object(job, "_process_candidate", side_effect=_fake_process):
-        asyncio.run(job.run_once())
-
-    # First user's _process_candidate raised — second user still processed.
-    assert processed["row1"] == 1
-    assert processed["row2"] == 1
+# Note: WARP/R00T/strategy-system-cleanup removed the lib-strategy loop +
+# `full_auto` preset from run_once; per-user isolation is still exercised by
+# the run_close_sweep_fast tests below (which is the only candle code path
+# users actually hit) and by the signal_feed evaluation per user.
 
 
 # ---------------------------------------------------------------------------
@@ -832,7 +758,7 @@ def test_process_candidate_skips_resume_when_kill_switch_active():
 
 
 # ===========================================================================
-# Preset isolation tests (CRUSADERBOT-STRATEGY-RISK-COPY)
+# Preset isolation tests (WARP/R00T/strategy-system-cleanup baseline)
 # ===========================================================================
 
 from projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job import (
@@ -840,48 +766,103 @@ from projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job import
 )
 
 
-def test_preset_allows_whale_mirror_only_whale_tracking():
-    assert _preset_allows("whale_mirror", "whale_tracking") is True
-    assert _preset_allows("whale_mirror", "trend_breakout") is False
-    assert _preset_allows("whale_mirror", "momentum") is False
+def test_preset_allows_candle_presets_route_to_late_entry_v3_only():
+    for preset in ("close_sweep", "safe_close", "flip_hunter"):
+        assert _preset_allows(preset, "late_entry_v3") is True, preset
+        # No other strategy ever fires under a candle preset.
+        for other in ("signal_following", "copy_trade", "anything_else"):
+            assert _preset_allows(preset, other) is False, f"{preset}/{other}"
 
 
-def test_preset_allows_contrarian_only_momentum():
-    assert _preset_allows("contrarian", "momentum") is True
-    assert _preset_allows("contrarian", "trend_breakout") is False
-    assert _preset_allows("contrarian", "pair_arb") is False
+def test_preset_allows_unknown_preset_blocks_every_strategy():
+    """Unknown / removed presets must fail closed — no strategy fires."""
+    for name in ("late_entry_v3", "signal_following", "copy_trade", "trend_breakout"):
+        assert _preset_allows("legacy_preset", name) is False
+        assert _preset_allows(None, name) is False
 
 
-def test_preset_allows_ensemble_subset():
-    for name in ("ensemble", "trend_breakout", "momentum", "value_investor"):
-        assert _preset_allows("ensemble", name) is True, f"ensemble should allow {name}"
-    assert _preset_allows("ensemble", "pair_arb") is False
-    assert _preset_allows("ensemble", "whale_tracking") is False
+def test_preset_allows_globally_disabled_strategy_blocked():
+    """A globally disabled strategy is never allowed regardless of preset."""
+    job._GLOBALLY_DISABLED_STRATEGIES = frozenset({"late_entry_v3"})
+    try:
+        for preset in ("close_sweep", "safe_close", "flip_hunter"):
+            assert _preset_allows(preset, "late_entry_v3") is False
+    finally:
+        job._GLOBALLY_DISABLED_STRATEGIES = frozenset()
 
 
-def test_preset_allows_full_auto_all_strategies():
-    from projects.polymarket.crusaderbot.services.signal_scan.lib_strategy_runner import (
-        ENABLED_STRATEGIES, DEFERRED_STRATEGIES,
+def test_run_once_skips_phase_c_for_candle_preset_users():
+    """After cleanup, candle presets route ONLY to late_entry_v3 — Phase C
+    (signal_publications feed eval) must not fire signal_following candidates
+    for users whose active_preset is close_sweep/safe_close/flip_hunter, even
+    when signal_following is globally ENABLED. Closes Codex P1 (post-cleanup):
+    candle-preset users were receiving unexpected feed trades because Phase C
+    only checked _GLOBALLY_DISABLED_STRATEGIES, not the preset mapping."""
+    import asyncio
+    from unittest.mock import patch, AsyncMock
+
+    eval_called = {"count": 0}
+
+    async def _fake_eval(**kwargs):
+        eval_called["count"] += 1
+        return []
+
+    async def _fake_fetch_markets():
+        return []
+
+    for preset in ("close_sweep", "safe_close", "flip_hunter"):
+        row = _user_row()
+        row["active_preset"] = preset
+        eval_called["count"] = 0
+        with patch.object(job, "_load_enrolled_users", return_value=[row]), \
+                patch.object(job, "_fetch_markets_for_lib_strategies",
+                             side_effect=_fake_fetch_markets), \
+                patch.object(job, "evaluate_publications_for_user",
+                             side_effect=_fake_eval), \
+                patch.object(job, "_process_candidate", new_callable=AsyncMock):
+            asyncio.run(job.run_once())
+        assert eval_called["count"] == 0, (
+            f"preset={preset}: Phase C signal-feed eval must be skipped — "
+            "_preset_allows pins candle presets to late_entry_v3 only."
+        )
+
+
+def test_run_once_skips_phase_c_when_signal_following_globally_disabled():
+    """Defense-in-depth: even if a user row leaks past the SQL load gate, Phase
+    C (signal_publications feed evaluation) must not fire when the operator
+    has toggled signal_following=OFF."""
+    import asyncio
+    from unittest.mock import patch, AsyncMock
+
+    row = _user_row()
+    row["active_preset"] = "close_sweep"
+
+    eval_called = {"count": 0}
+
+    async def _fake_eval(**kwargs):
+        eval_called["count"] += 1
+        return []
+
+    async def _fake_fetch_markets():
+        return []
+
+    job._GLOBALLY_DISABLED_STRATEGIES = frozenset({"signal_following"})
+    try:
+        with patch.object(job, "_load_enrolled_users", return_value=[row]), \
+                patch.object(job, "_fetch_markets_for_lib_strategies",
+                             side_effect=_fake_fetch_markets), \
+                patch.object(job, "evaluate_publications_for_user",
+                             side_effect=_fake_eval), \
+                patch.object(job, "_process_candidate", new_callable=AsyncMock):
+            asyncio.run(job.run_once())
+    finally:
+        job._GLOBALLY_DISABLED_STRATEGIES = frozenset()
+
+    assert eval_called["count"] == 0, (
+        "signal_following toggled OFF must short-circuit Phase C "
+        "evaluate_publications_for_user — defense-in-depth on top of the SQL "
+        "load-gate filter."
     )
-    for name in list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES):
-        assert _preset_allows("full_auto", name) is True, f"full_auto should allow {name}"
-
-
-def test_preset_allows_none_preset_all_strategies():
-    from projects.polymarket.crusaderbot.services.signal_scan.lib_strategy_runner import (
-        ENABLED_STRATEGIES,
-    )
-    for name in ENABLED_STRATEGIES:
-        assert _preset_allows(None, name) is True, f"None preset should allow {name}"
-
-
-def test_preset_allows_unknown_preset_defaults_to_all():
-    # Unknown preset keys fall back to full allow via _LIB_STRATEGY_NAMES default.
-    from projects.polymarket.crusaderbot.services.signal_scan.lib_strategy_runner import (
-        ENABLED_STRATEGIES,
-    )
-    for name in ENABLED_STRATEGIES:
-        assert _preset_allows("unknown_key", name) is True
 
 
 # ===========================================================================
@@ -1197,7 +1178,7 @@ def _close_sweep_user(preset: str) -> dict:
 def test_run_close_sweep_fast_scans_only_close_sweep_users():
     """Only active_preset=='close_sweep' rows reach late_entry_v3; others skip."""
     cs_user = _close_sweep_user("close_sweep")
-    other_user = _close_sweep_user("full_auto")
+    other_user = _close_sweep_user("not_a_candle_preset")
     cand = _candidate(market_id="cand-mkt")
 
     fake_strat = MagicMock()
@@ -1254,7 +1235,7 @@ def test_run_close_sweep_fast_skips_when_late_entry_globally_disabled():
 
 
 def test_run_close_sweep_fast_no_close_sweep_users_is_noop():
-    other_user = _close_sweep_user("full_auto")
+    other_user = _close_sweep_user("not_a_candle_preset")
     fake_strat = MagicMock()
     fake_strat.scan = AsyncMock(return_value=[])
     reg = StrategyRegistry.instance()
@@ -1375,8 +1356,8 @@ def test_resolve_preset_params_flip_hunter_unknown_tf_defaults_to_5m():
 
 def test_resolve_preset_params_non_candle_preset_falls_back_to_static():
     """Unknown / non-candle preset returns the static fallback (no live config read)."""
-    pp = job._resolve_preset_params("full_auto", "5m")
-    # full_auto isn't in _CANDLE_PRESET_STATIC so falls through to close_sweep default.
+    pp = job._resolve_preset_params("unknown_preset", "5m")
+    # unknown preset isn't in _CANDLE_PRESET_STATIC so falls through to close_sweep default.
     assert "min_ask_diff" in pp
     assert pp["min_ask_diff"] == pytest.approx(0.05)  # close_sweep static default
 

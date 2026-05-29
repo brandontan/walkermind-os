@@ -1,7 +1,19 @@
-"""Preset configuration registry — Phase 5 UX Rebuild.
+"""Preset configuration registry.
 
 Maps preset key → static config used by autotrade, confirmation, and customize
-handlers. This is presentation + configuration layer only; no trading logic.
+handlers. Presentation + configuration layer only; no trading logic.
+
+WARP/R00T/strategy-system-cleanup narrowed this set to the 3 candle presets,
+all backed by late_entry_v3. The legacy multi-strategy presets (whale_mirror,
+signal_sniper, hybrid, value_hunter, full_auto, trend_breakout, contrarian,
+pair_arb, ensemble, confluence_scalper) were removed — every one of them
+referenced a strategy that no longer exists or had no real trigger path.
+
+Adding a new preset means: (1) implement the backing strategy under
+domain/strategy/strategies/ or lib/strategies/, (2) wire scan/exit, (3) seed
+a `strategies` table row (mig 067), (4) add it to _ADMIN_STRATEGIES + the
+_PRESET_TO_STRATEGY map in webtrader/backend/router.py, (5) append the key
+here AND in domain/preset/presets.py (the canonical registry).
 """
 from __future__ import annotations
 
@@ -23,98 +35,6 @@ class PresetConfig(TypedDict):
 
 
 PRESET_CONFIG: dict[str, PresetConfig] = {
-    "whale_mirror": {
-        "emoji": "🐋",
-        "name": "Whale Mirror",
-        "strategy_label": "Copy Trade",
-        "strategies": ["copy_trade"],
-        "risk_label": "Safe",
-        "risk_emoji": "🟢",
-        "capital_pct": 50,
-        "tp_pct": 20,
-        "sl_pct": 10,
-        "max_pos_pct": 5,
-        "has_copy_trade": True,
-    },
-    "signal_sniper": {
-        "emoji": "📡",
-        "name": "Signal Sniper",
-        "strategy_label": "Signal Feed",
-        "strategies": ["signal"],
-        "risk_label": "Safe",
-        "risk_emoji": "🟢",
-        "capital_pct": 50,
-        "tp_pct": 15,
-        "sl_pct": 8,
-        "max_pos_pct": 5,
-        "has_copy_trade": False,
-    },
-    "hybrid": {
-        "emoji": "🐋📡",
-        "name": "Hybrid",
-        "strategy_label": "Copy Trade + Signal",
-        "strategies": ["copy_trade", "signal"],
-        "risk_label": "Balanced",
-        "risk_emoji": "🟡",
-        "capital_pct": 60,
-        "tp_pct": 15,
-        "sl_pct": 10,
-        "max_pos_pct": 5,
-        "has_copy_trade": True,
-    },
-    "value_hunter": {
-        "emoji": "🎯",
-        "name": "Value Hunter",
-        "strategy_label": "Value / Edge Model",
-        "strategies": ["value"],
-        "risk_label": "Advanced",
-        "risk_emoji": "🟡",
-        "capital_pct": 40,
-        "tp_pct": 25,
-        "sl_pct": 12,
-        "max_pos_pct": 8,
-        "has_copy_trade": False,
-    },
-    "full_auto": {
-        "emoji": "🚀",
-        "name": "Full Auto",
-        "strategy_label": "All Strategies",
-        "strategies": ["copy_trade", "signal", "value"],
-        "risk_label": "Aggressive",
-        "risk_emoji": "🔴",
-        "capital_pct": 80,
-        "tp_pct": 20,
-        "sl_pct": 15,
-        "max_pos_pct": 10,
-        "has_copy_trade": True,
-    },
-    # ── lib/strategies/ backed presets (added in CRUSADERBOT-STRATEGY-RISK-COPY) ──
-    "trend_breakout": {
-        "emoji": "📈",
-        "name": "Trend Breakout",
-        "strategy_label": "TrendBreakoutStrategy",
-        "strategies": ["signal_following"],
-        "risk_label": "Balanced",
-        "risk_emoji": "🟡",
-        "capital_pct": 40,
-        "tp_pct": 20,
-        "sl_pct": 15,
-        "max_pos_pct": 5,
-        "has_copy_trade": False,
-    },
-    "contrarian": {
-        "emoji": "🔄",
-        "name": "Contrarian",
-        "strategy_label": "MomentumStrategy",
-        "strategies": ["signal_following"],
-        "risk_label": "Balanced",
-        "risk_emoji": "🟡",
-        "capital_pct": 40,
-        "tp_pct": 15,
-        "sl_pct": 10,
-        "max_pos_pct": 5,
-        "has_copy_trade": False,
-    },
     "close_sweep": {
         "emoji": "🧹",
         "name": "Close Sweep",
@@ -128,42 +48,29 @@ PRESET_CONFIG: dict[str, PresetConfig] = {
         "max_pos_pct": 5,
         "has_copy_trade": False,
     },
-    "pair_arb": {
-        "emoji": "💰",
-        "name": "Pair Arb",
-        "strategy_label": "PairArbStrategy",
-        "strategies": ["signal_following"],
+    "safe_close": {
+        "emoji": "🔒",
+        "name": "Safe Close",
+        "strategy_label": "late_entry_v3",
+        "strategies": ["late_entry_v3"],
         "risk_label": "Safe",
         "risk_emoji": "🟢",
-        "capital_pct": 20,
-        "tp_pct": 5,
-        "sl_pct": 3,
+        "capital_pct": 30,
+        "tp_pct": 80,
+        "sl_pct": 35,
         "max_pos_pct": 5,
         "has_copy_trade": False,
     },
-    "ensemble": {
-        "emoji": "🤖",
-        "name": "Smart Mix",
-        "strategy_label": "EnsembleStrategy",
-        "strategies": ["signal_following"],
+    "flip_hunter": {
+        "emoji": "🎯",
+        "name": "Flip Hunter",
+        "strategy_label": "late_entry_v3",
+        "strategies": ["late_entry_v3"],
         "risk_label": "Advanced",
         "risk_emoji": "🟡",
         "capital_pct": 40,
-        "tp_pct": 20,
-        "sl_pct": 12,
-        "max_pos_pct": 8,
-        "has_copy_trade": False,
-    },
-    "confluence_scalper": {
-        "emoji": "🚀",
-        "name": "Crypto Scalper",
-        "strategy_label": "ConfluenceScalperStrategy",
-        "strategies": ["confluence_scalper"],
-        "risk_label": "Advanced",
-        "risk_emoji": "🟡",
-        "capital_pct": 40,
-        "tp_pct": 8,
-        "sl_pct": 4,
+        "tp_pct": 150,
+        "sl_pct": 50,
         "max_pos_pct": 5,
         "has_copy_trade": False,
     },
@@ -175,13 +82,7 @@ def get_preset(key: str) -> PresetConfig | None:
 
 
 PRESET_ORDER: list[str] = [
-    "whale_mirror",
-    "trend_breakout",
-    "contrarian",
-    "value_hunter",
     "close_sweep",
-    "pair_arb",
-    "ensemble",
-    "confluence_scalper",
-    "full_auto",
+    "safe_close",
+    "flip_hunter",
 ]

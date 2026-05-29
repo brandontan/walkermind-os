@@ -390,8 +390,6 @@ async def test_strategy_scan_done_event_emitted():
               AsyncMock(return_value=[_mock_user])),
         patch("projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job._fetch_markets_for_lib_strategies",
               AsyncMock(return_value=[])),
-        patch("projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job.run_lib_strategy",
-              return_value=[]),
         patch(_scan_emit, capture),
     ):
         await run_once()

@@ -734,41 +734,61 @@ async def toggle_autotrade(body: AutoTradeToggleRequest, user: _CurrentUser):
 # Preset key → the strategy it routes to, for the global on/off (strategies
 # table) lookup. Mirrors signal_scan_job._PRESET_ALLOWED. Used so the dashboard
 # can show "PAUSED (Admin)" when the active preset's strategy is globally off.
+# Only contains presets that point to a real, reachable strategy.
 _PRESET_TO_STRATEGY: dict[str, str] = {
-    "close_sweep":        "late_entry_v3",
-    "safe_close":         "late_entry_v3",
-    "flip_hunter":        "late_entry_v3",
-    "signal_sniper":      "signal_following",
-    "whale_mirror":       "copy_trade",
-    "value_hunter":       "value_investor",
-    "trend_breakout":     "trend_breakout",
-    "ensemble":           "ensemble",
-    "confluence_scalper": "confluence_scalper",
+    "close_sweep": "late_entry_v3",
+    "safe_close":  "late_entry_v3",
+    "flip_hunter": "late_entry_v3",
 }
+
+
+@router.get("/autotrade/preset-availability")
+async def get_preset_availability(user: _CurrentUser) -> dict:
+    """Per-preset availability for the authenticated user's strategy picker.
+
+    Returns ``{"presets": [{"key": "...", "strategy": "...", "enabled": bool}]}``.
+    The picker (WebTrader AutoTradePage + Telegram preset_tier_kb) MUST hide
+    or lock presets whose backing strategy is globally disabled — this is the
+    user-dashboard half of the operator Admin toggle contract.
+
+    FAIL-SAFE: a missing row in ``strategies`` defaults to enabled=True. A DB
+    error is logged at WARNING and the endpoint returns every preset as enabled
+    (consistent with the scanner-side fail-safe: a transient blip must never
+    silently wipe the user's picker).
+    """
+    state: dict[str, bool] = {}
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT name, enabled FROM strategies")
+        state = {str(r["name"]): bool(r["enabled"]) for r in rows}
+    except Exception as exc:  # noqa: BLE001
+        log.warning("preset_availability_db_error: %s", exc)
+    presets = [
+        {"key": preset, "strategy": strat, "enabled": state.get(strat, True)}
+        for preset, strat in _PRESET_TO_STRATEGY.items()
+    ]
+    return {"presets": presets}
 
 # Preset key → default risk parameters applied when preset is activated.
 # Risk profile (capital/TP/SL) can be overridden separately via /autotrade/risk-profile.
+#
+# Narrowed to the 3 candle presets after WARP/R00T/strategy-system-cleanup. The
+# scanner's _PRESET_ALLOWED only routes these three to a strategy
+# (late_entry_v3); accepting any other key here would let a stale client /
+# direct API call persist active_preset=<archived> → scanner emits no
+# candidates and the dashboard "PAUSED (Admin)" indicator can't fire because
+# the key is absent from _PRESET_TO_STRATEGY. activate_preset() rejects 400
+# anything not in this map.
 _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
-    # Legacy preset keys — kept for backward compatibility with existing users.
-    "signal_sniper": {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
-    "full_auto":     {"risk_profile": "aggressive",   "capital_alloc_pct": 0.60, "tp_pct": 0.30, "sl_pct": 0.20},
-    "value_hunter":  {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
-    "whale_mirror":  {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
-    "hybrid":        {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.15, "sl_pct": 0.10},
-    # New preset keys mapped to lib/strategies/ classes.
-    "trend_breakout": {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
-    "contrarian":     {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.15, "sl_pct": 0.10},
-    "close_sweep":    {"risk_profile": "balanced",     "capital_alloc_pct": 0.30, "tp_pct": 0.15, "sl_pct": 0.08},
-    "safe_close":     {"risk_profile": "balanced",     "capital_alloc_pct": 0.25, "tp_pct": 0.12, "sl_pct": 0.06},
-    "flip_hunter":    {"risk_profile": "balanced",     "capital_alloc_pct": 0.30, "tp_pct": 0.25, "sl_pct": 0.12},
-    "pair_arb":       {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.05, "sl_pct": 0.03},
-    "ensemble":       {"risk_profile": "balanced",   "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.12},
-    "confluence_scalper": {"risk_profile": "balanced", "capital_alloc_pct": 0.40, "tp_pct": 0.08, "sl_pct": 0.04},
+    "close_sweep": {"risk_profile": "balanced", "capital_alloc_pct": 0.30, "tp_pct": 0.15, "sl_pct": 0.08},
+    "safe_close":  {"risk_profile": "balanced", "capital_alloc_pct": 0.25, "tp_pct": 0.12, "sl_pct": 0.06},
+    "flip_hunter": {"risk_profile": "balanced", "capital_alloc_pct": 0.30, "tp_pct": 0.25, "sl_pct": 0.12},
 }
 
 # Presets restricted to short-duration crypto markets. Activating one auto-locks
 # the market category filter to Crypto only and requires a timeframe (5m/15m).
-_CRYPTO_SHORT_PRESETS: frozenset[str] = frozenset({"confluence_scalper", "close_sweep", "safe_close", "flip_hunter"})
+_CRYPTO_SHORT_PRESETS: frozenset[str] = frozenset({"close_sweep", "safe_close", "flip_hunter"})
 _VALID_TIMEFRAMES: frozenset[str] = frozenset({"5m", "15m"})
 # Assets offered for crypto-short presets. BTC/ETH/SOL/BNB have deep candle
 # books; XRP/DOGE/HYPE are offered but their books are thinner so they are
@@ -2176,12 +2196,15 @@ async def link_telegram_start(user: _CurrentUser) -> dict:
 # hot-pool address + balances for funding), user roster, and global strategy
 # on/off switches. All endpoints gate on users.role = 'admin'.
 
-# Canonical strategy roster the operator can toggle (lib + domain).
+# Canonical strategy roster the operator can toggle. Only strategies with a
+# real user-facing trigger path live here — see migration 068. Adding a new
+# strategy means: (1) implement scan/exit, (2) add a preset that routes to it,
+# (3) seed a row in `strategies`, (4) append the name here, (5) add to
+# _PRESET_TO_STRATEGY so the user dashboard "PAUSED (Admin)" indicator works.
 _ADMIN_STRATEGIES: tuple[str, ...] = (
-    "signal_following", "late_entry_v3", "confluence_scalper",
-    "momentum_reversal", "copy_trade", "trend_breakout", "momentum",
-    "value_investor", "expiration_timing", "pair_arb", "ensemble",
-    "whale_tracking",
+    "late_entry_v3",
+    "signal_following",
+    "copy_trade",
 )
 
 
