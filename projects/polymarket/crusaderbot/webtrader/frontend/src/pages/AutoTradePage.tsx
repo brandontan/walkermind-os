@@ -374,12 +374,18 @@ export function AutoTradePage() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          {STRATEGY_PRESETS.filter(
+          {STRATEGY_PRESETS.filter((p) => {
             // FAIL-SAFE: hide ONLY presets explicitly marked disabled by the
             // operator. Unknown keys (no row yet, or fetch failed) stay visible
             // so a transient API blip never wipes the picker.
-            (p) => presetEnabled[p.key] !== false,
-          ).map((p) => {
+            //
+            // Exception: the user's currently active preset stays visible even
+            // when its backing strategy is admin-OFF, so the "PAUSED (ADMIN)"
+            // badge below has somewhere to render. Hiding it would leave the
+            // user with no visible feedback that the hero is misleading them.
+            if (state.active_preset === p.key) return true;
+            return presetEnabled[p.key] !== false;
+          }).map((p) => {
             const isActive = state.active_preset === p.key;
             // When the operator has globally disabled this strategy, the preset
             // is still "selected" but fires no new trades → show PAUSED (Admin).
