@@ -1719,6 +1719,17 @@ async def run_close_sweep_fast() -> None:
         logger.debug("close_sweep_fast: late_entry_v3 not registered")
         return
 
+    # Honour the operator's global on/off switch in THIS loop too — run_once
+    # gates via _preset_allows, but the fast candle loop has its own dispatch
+    # and would otherwise keep trading a globally-disabled strategy. All candle
+    # presets (close_sweep/safe_close/flip_hunter) route to late_entry_v3, so a
+    # global disable of late_entry_v3 stops every candle entry here. Fail-safe:
+    # a DB blip keeps the previous set (see _refresh_disabled_strategies).
+    await _refresh_disabled_strategies()
+    if _LATE_ENTRY_V3_NAME in _GLOBALLY_DISABLED_STRATEGIES:
+        logger.info("close_sweep_fast: late_entry_v3 globally disabled — skipping tick")
+        return
+
     try:
         users = await _load_enrolled_users()
     except Exception as exc:
