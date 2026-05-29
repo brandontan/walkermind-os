@@ -185,6 +185,13 @@ async def get_crypto_short_markets(limit: int = 500) -> list[dict]:
 
 _TF_WINDOW_SECONDS: dict[str, int] = {"5m": 300, "15m": 900}
 
+# Cache TTL for the candle-window market LIST. The set of markets in a window is
+# stable for the whole window (only prices move, which the scanner re-reads from
+# the CLOB separately), so a slightly longer TTL cuts the /events poll volume
+# (4 coins x 2 slots every scan tick) without staling entry timing — a hedge
+# against the high-frequency polling that can get the bot IP throttled by Gamma.
+_CRYPTO_WINDOW_CACHE_TTL: int = 45
+
 
 async def get_crypto_window_markets(
     timeframe: str,
@@ -221,13 +228,24 @@ async def get_crypto_window_markets(
 
     out: list[dict] = []
     seen: set[str] = set()
+    attempted = 0
+    fetch_errors = 0
     for coin in coins:
         for s in slots:
             slug = f"{coin}-updown-{timeframe}-{s}"
+            attempted += 1
             try:
                 events = await _get_json(f"{GAMMA}/events", params={"slug": slug})
             except Exception as exc:
-                log.debug("get_crypto_window_markets failed", slug=slug, err=str(exc))
+                fetch_errors += 1
+                # WARNING, not debug: a persistent failure here silently starves
+                # the candle scanner of markets. The 2026-05-29 incident ran ~14h
+                # with zero close_sweep/safe_close/flip_hunter trades precisely
+                # because this was logged at debug and invisible to monitoring.
+                log.warning(
+                    "get_crypto_window_markets slug fetch failed",
+                    slug=slug, err=str(exc),
+                )
                 continue
             if isinstance(events, dict):
                 events = events.get("data", [])
@@ -238,7 +256,15 @@ async def get_crypto_window_markets(
                         continue
                     seen.add(mid)
                     out.append({**m, "category": "crypto"})
-    await set_cache(key, out, ttl=20)
+    # Loud signal when the WHOLE candle universe came back empty because every
+    # fetch errored (vs a legitimately marketless gap, which has 0 errors) — this
+    # is the condition that must page the operator, not vanish silently.
+    if not out and fetch_errors:
+        log.warning(
+            "get_crypto_window_markets empty — all candle fetches failed",
+            timeframe=timeframe, attempted=attempted, fetch_errors=fetch_errors,
+        )
+    await set_cache(key, out, ttl=_CRYPTO_WINDOW_CACHE_TTL)
     return out
 
 
