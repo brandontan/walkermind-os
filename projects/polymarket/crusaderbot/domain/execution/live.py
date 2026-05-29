@@ -156,12 +156,16 @@ async def execute(
     # neg_risk: selects the correct Exchange contract for signing.
     # Graceful degradation on fetch failure — defaults match prior behavior.
     _tick_size: str = "0.01"
+    _tick_size_f: float = 0.01
     _neg_risk: bool = False
     try:
         async with MarketDataClient() as _mdc:
             _tick_size = await _mdc.get_tick_size(token_id) or "0.01"
+            _tick_size_f = float(_tick_size)
             _neg_risk = await _mdc.get_neg_risk(token_id)
     except Exception as _exc:
+        _tick_size = "0.01"
+        _tick_size_f = 0.01
         logger.warning(
             "live.execute: CLOB tick_size/neg_risk fetch failed — using defaults "
             "token=%s err=%s",
@@ -175,7 +179,7 @@ async def execute(
     limit_price = (
         compute_aggressive_limit_price(
             side, best_ask=best_ask, best_bid=best_bid, offset_ticks=1,
-            tick_size=float(_tick_size),
+            tick_size=_tick_size_f,
         )
         if best_ask is not None and best_bid is not None
         else price
@@ -386,6 +390,7 @@ async def close_position(
             _tick_size = await _mdc.get_tick_size(token_id) or "0.01"
             _neg_risk = await _mdc.get_neg_risk(token_id)
     except Exception as _exc:
+        _tick_size = "0.01"
         logger.warning(
             "live.close_position: CLOB tick_size/neg_risk fetch failed — using defaults "
             "token=%s err=%s",

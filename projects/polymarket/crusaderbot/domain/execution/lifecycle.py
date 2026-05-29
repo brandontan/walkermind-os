@@ -670,22 +670,24 @@ class OrderLifecycleManager:
             return
 
         _tick_size: str = "0.01"
+        _tick_size_f: float = 0.01
         _neg_risk: bool = False
         try:
             async with MarketDataClient() as _mdc:
                 _tick_size = await _mdc.get_tick_size(token_id) or "0.01"
+                _tick_size_f = float(_tick_size)
                 _neg_risk = await _mdc.get_neg_risk(token_id)
         except Exception as _exc:
+            _tick_size = "0.01"
+            _tick_size_f = 0.01
             log.warning(
                 "lifecycle slippage_retry: CLOB tick_size/neg_risk fetch failed — using defaults",
                 order_id=str(order["id"]), token_id=token_id, err=str(_exc),
             )
-
-        tick_size_f = float(_tick_size)
         if side in {"yes", "buy"}:
-            new_limit = round(min(0.99, original_price + tick_size_f), 4)
+            new_limit = round(min(0.99, original_price + _tick_size_f), 4)
         else:
-            new_limit = round(max(0.01, original_price - tick_size_f), 4)
+            new_limit = round(max(0.01, original_price - _tick_size_f), 4)
         shares = float(order["size_usdc"]) / max(new_limit, 0.0001)
 
         new_broker_id = ""
