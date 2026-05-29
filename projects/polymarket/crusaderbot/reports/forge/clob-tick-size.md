@@ -20,18 +20,22 @@ Three surgical fixes to wire real CLOB market parameters into every live order s
 against the wrong Exchange contract for neg_risk markets → CLOB rejection.
 
 **Fix A — `live.execute()` BUY entry (live.py)**
-After `token_id` is resolved, fetches `tick_size` (e.g. "0.001" or "0.01") and `neg_risk`
-(bool) from `MarketDataClient`. Passes `tick_size` to `compute_aggressive_limit_price` so the
-price offset uses the real tick quantum. Passes both to `post_order`. Graceful degradation on
-fetch failure: logs WARNING and falls back to defaults `("0.01", False)` — same behavior as
-before this fix for the failure case.
+Early idempotency precheck (`SELECT … WHERE idempotency_key`) runs before MDC fetch so replays
+return the correct duplicate no-op even during metadata outages. After `token_id` is resolved,
+fetches `tick_size` (e.g. "0.001" or "0.01") and `neg_risk` (bool) from `MarketDataClient`.
+Passes `tick_size` to `compute_aggressive_limit_price` so the price offset uses the real tick
+quantum. Passes both to `post_order`. On fetch failure: **raises `LivePreSubmitError`** — the
+router can paper-fallback cleanly rather than hitting a post-submit ambiguous rejection from the
+CLOB. Submitting with wrong tick_size is a worse outcome than a clean pre-submit abort.
 
 **Fix B — `live.close_position()` SELL close (live.py)**
 Same fetch pattern after `token_id` resolution. Both values forwarded to `post_order`.
 
 **Fix C — `lifecycle._on_slippage_retry()` slippage retry (lifecycle.py)**
-Restructured: DB market lookup and `token_id` resolution moved BEFORE the tick-based price
-widening calculation (was after). Fetches `tick_size` + `neg_risk` after `token_id` is known.
+Restructured: DB market lookup, `token_id` resolution, and MDC fetch now happen BEFORE
+`cancel_order`. On MDC failure: logs ERROR and returns early — no cancel, no resubmit,
+the original GTC order stays live and DB is unchanged. Replacing with wrong tick_size after
+cancelling would cause a post-submit ambiguous rejection on 0.001-tick or neg_risk markets.
 Replaces hardcoded `tick_size = 0.01` with `float(_tick_size)` for price widening. Forwards
 both to `post_order`.
 
@@ -67,11 +71,14 @@ Modified: projects/polymarket/crusaderbot/domain/execution/lifecycle.py
 
 Created: projects/polymarket/crusaderbot/tests/test_clob_tick_size.py
   - 8 hermetic tests across 3 test classes:
-    * TestExecuteTickSize (3): tick_size+neg_risk forwarded to post_order; graceful fallback
-      on MDC failure; non-default tick_size (0.001) produces correct price 0.601 vs old 0.61
-    * TestClosePositionTickSize (2): same for SELL close path
+    * TestExecuteTickSize (3): tick_size+neg_risk forwarded to post_order; MDC failure raises
+      LivePreSubmitError (pre-submit abort); non-default tick_size (0.001) produces correct
+      price 0.601 vs old 0.61
+    * TestClosePositionTickSize (2): tick_size+neg_risk forwarded; MDC failure gracefully
+      degrades to defaults (SELL unwind must always complete)
     * TestSlippageRetryTickSize (3): tick_size+neg_risk forwarded; price widen uses fetched
-      tick_size (0.001 → price 0.601, not 0.61); defaults on MDC failure
+      tick_size (0.001 → price 0.601, not 0.61); MDC failure aborts resubmit (post_order
+      not called — original GTC order stays live)
 
 ## 4. What is working
 
@@ -79,8 +86,11 @@ Created: projects/polymarket/crusaderbot/tests/test_clob_tick_size.py
 - 8/8 new tests pass
 - 77/77 existing live execution regression tests pass (test_live_execution_rewire,
   test_live_gate_hardening, test_live_path_hardening)
-- Graceful degradation: fetch failure logs WARNING and uses defaults — no behavior change
-  relative to the pre-fix state for the error path
+- `execute()` BUY entry: MDC failure raises `LivePreSubmitError` — clean pre-submit abort,
+  router can paper-fallback without risk of post-submit ambiguous CLOB rejection
+- `close_position()` SELL close: graceful degradation to defaults — unwind path must always
+  be able to complete live exposure
+- `_on_slippage_retry()`: MDC failure returns early, no cancel, original GTC order stays live
 - All three call sites now pass correct CLOB market parameters on the happy path
 
 ## 5. Known issues

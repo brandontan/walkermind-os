@@ -156,11 +156,17 @@ async def execute(
     # this early read ensures a replay on a temporarily unavailable MDC returns
     # the correct duplicate no-op instead of being routed to paper fallback.
     pool = get_pool()
-    async with pool.acquire() as conn:
-        _dup = await conn.fetchval(
-            "SELECT id FROM orders WHERE idempotency_key = $1",
-            idempotency_key,
+    try:
+        async with pool.acquire() as conn:
+            _dup = await conn.fetchval(
+                "SELECT id FROM orders WHERE idempotency_key = $1",
+                idempotency_key,
+            )
+    except Exception as exc:
+        logger.exception(
+            "live.execute idempotency precheck failed key=%s", idempotency_key,
         )
+        raise LivePreSubmitError(f"idempotency precheck failed: {exc}") from exc
     if _dup is not None:
         logger.info("live.execute idempotent skip (early) key=%s", idempotency_key)
         return {"status": "duplicate", "mode": "live"}

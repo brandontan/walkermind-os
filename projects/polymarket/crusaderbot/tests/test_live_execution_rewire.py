@@ -513,6 +513,8 @@ def _run_close(
               return_value=settings_obj),
         patch("projects.polymarket.crusaderbot.domain.execution.live.get_pool",
               return_value=pool),
+        patch("projects.polymarket.crusaderbot.domain.execution.live.MarketDataClient",
+              return_value=_make_mdc_mock()),
         patch("projects.polymarket.crusaderbot.domain.execution.live.audit.write",
               new=AsyncMock()),
         patch("projects.polymarket.crusaderbot.domain.execution.live.ledger.credit_in_conn",
