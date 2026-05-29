@@ -28,7 +28,9 @@ async def _read_dashboard(telegram_user) -> dict:
     if u is None:
         return data
     data["paused"] = bool(u.get("paused"))
-    data["running"] = bool(u.get("auto_trade_enabled")) and not data["paused"]
+    # users.auto_trade_on is the canonical column (NOT "auto_trade_enabled",
+    # which never existed → dashboard always read Stopped even while running).
+    data["running"] = bool(u.get("auto_trade_on")) and not data["paused"]
     settings = await _users.fetch_settings(u["id"])
     preset = settings.get("active_preset")
     if preset:

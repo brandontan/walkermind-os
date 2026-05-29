@@ -394,6 +394,56 @@ async def alert_user_sl_hit(
     )
 
 
+async def alert_user_resolution_win(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    market_question: Optional[str],
+    side: str,
+    exit_price: float,
+    pnl_usdc: float,
+    mode: str,
+) -> None:
+    """Position closed because the market resolved in the user's favour.
+
+    Distinct from TP: the price gapped to resolution past the TP target, so the
+    realised return is the settlement value, not the configured TP percentage.
+    """
+    label = _format_exit_label(market_question, market_id)
+    text = (
+        f"\U0001f3c1 <b>[{html.escape(mode.upper())}] Market resolved — Won</b>\n"
+        f"{label}\n"
+        f"Side: <b>{html.escape(side.upper())}</b> — Settled: <code>{exit_price:.3f}</code>\n"
+        f"P&amp;L: <b>${pnl_usdc:+.2f}</b>"
+    )
+    await _send_user_exit_alert(
+        telegram_user_id, text, alert_kind="resolution_win", market_id=market_id,
+    )
+
+
+async def alert_user_resolution_loss(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    market_question: Optional[str],
+    side: str,
+    exit_price: float,
+    pnl_usdc: float,
+    mode: str,
+) -> None:
+    """Position closed because the market resolved against the user."""
+    label = _format_exit_label(market_question, market_id)
+    text = (
+        f"\U0001f3c1 <b>[{html.escape(mode.upper())}] Market resolved — Lost</b>\n"
+        f"{label}\n"
+        f"Side: <b>{html.escape(side.upper())}</b> — Settled: <code>{exit_price:.3f}</code>\n"
+        f"P&amp;L: <b>${pnl_usdc:+.2f}</b>"
+    )
+    await _send_user_exit_alert(
+        telegram_user_id, text, alert_kind="resolution_loss", market_id=market_id,
+    )
+
+
 async def alert_user_force_close(
     *,
     telegram_user_id: int,

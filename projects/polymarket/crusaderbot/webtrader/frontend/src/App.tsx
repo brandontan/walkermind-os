@@ -149,7 +149,12 @@ function AppShell() {
 
       const seen = new Set(sysAlerts.map((a) => a.id));
       const newItems = [...(offset === 0 ? sysAlerts : []), ...tradeAlerts.filter((a) => !seen.has(a.id))];
-      setAlerts(prev => append ? [...prev, ...newItems] : newItems);
+      // Newest always on top: system + trade alerts are separate sources, so a
+      // plain concat leaves trade alerts after older system ones. Sort the full
+      // merged list by created_at descending.
+      const byNewest = (a: AlertItem, b: AlertItem) =>
+        (b.created_at ? Date.parse(b.created_at) : 0) - (a.created_at ? Date.parse(a.created_at) : 0);
+      setAlerts(prev => (append ? [...prev, ...newItems] : newItems).slice().sort(byNewest));
       setHasMoreAlerts(hasMore);
     } catch {
       // non-critical — panel shows empty state

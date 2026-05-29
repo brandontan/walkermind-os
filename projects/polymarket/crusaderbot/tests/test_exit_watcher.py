@@ -157,6 +157,51 @@ def test_evaluate_force_close_intent_overrides_sl():
     assert decision.reason == ExitReason.FORCE_CLOSE.value
 
 
+def test_evaluate_resolution_win_relabel_when_price_gapped_to_settlement():
+    """NO entry 0.69, TP +30%; live mark gapped to 0.015 (YES resolved → ~0).
+
+    The +217% return crosses TP, but the mark is at a resolution extreme, so the
+    close must be labelled resolution_win — NOT tp_hit (which would falsely imply
+    a clean +30% take-profit).
+    """
+    p = _make_position(side="no", entry_price=0.69, applied_tp_pct=0.30)
+    decision = _run(exit_watcher.evaluate(p, live_price=0.015))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.RESOLUTION_WIN.value
+    assert decision.current_price == pytest.approx(0.015)
+
+
+def test_evaluate_tp_hit_not_relabeled_when_not_resolved():
+    """Same NO position, but mark 0.55 (still trading): genuine TP, stays tp_hit."""
+    p = _make_position(side="no", entry_price=0.69, applied_tp_pct=0.30)
+    decision = _run(exit_watcher.evaluate(p, live_price=0.55))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.TP_HIT.value
+
+
+def test_evaluate_resolution_loss_relabel_when_price_gapped_to_settlement():
+    """NO entry 0.69, SL -20%; mark gapped to 0.995 (YES resolved → ~1) → loss.
+
+    Labelled resolution_loss, not sl_hit.
+    """
+    p = _make_position(side="no", entry_price=0.69, applied_sl_pct=0.20)
+    decision = _run(exit_watcher.evaluate(p, live_price=0.995))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.RESOLUTION_LOSS.value
+
+
+def test_resolution_reasons_are_watcher_emittable():
+    assert ExitReason.RESOLUTION_WIN.value in registry.WATCHER_EXIT_REASONS
+    assert ExitReason.RESOLUTION_LOSS.value in registry.WATCHER_EXIT_REASONS
+
+
+def test_resolution_reasons_route_to_resolved_alerts():
+    assert exit_watcher._user_alert_for_reason(ExitReason.RESOLUTION_WIN.value) \
+        is monitoring_alerts.alert_user_resolution_win
+    assert exit_watcher._user_alert_for_reason(ExitReason.RESOLUTION_LOSS.value) \
+        is monitoring_alerts.alert_user_resolution_loss
+
+
 def test_evaluate_resolved_market_skipped():
     """Resolved markets are NOT closed by evaluate() — redemption pipeline owns the exit."""
     p = _make_position(yes_price=0.99, applied_tp_pct=0.05,
