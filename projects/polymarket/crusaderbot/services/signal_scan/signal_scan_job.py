@@ -251,6 +251,7 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                           WHERE p.user_id = u.id AND p.status = 'open'), 0) AS open_cost_usdc,
                 COALESCE(s.risk_profile, 'balanced') AS risk_profile,
                 COALESCE(s.trading_mode, 'paper')    AS trading_mode,
+                COALESCE(s.live_capital_cap_usdc, 0) AS live_capital_cap_usdc,
                 s.tp_pct,
                 s.sl_pct,
                 s.daily_loss_override,
