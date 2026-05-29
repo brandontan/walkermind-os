@@ -83,6 +83,11 @@ _price_fail_counts: dict[object, int] = {}  # position.id (UUID) -> consecutive 
 # profiles are <= 90d, so the guard is always active in practice.
 _RESOLUTION_DISABLED_DAYS: int = 365
 
+# A live mark at/within this distance of 0 or 1 means the binary market has
+# effectively settled. A TP/SL threshold crossed at such a price is a market
+# resolution (price gapped past the target between polls), not a clean trigger.
+_RESOLUTION_PRICE_EPS: float = 0.02
+
 
 def _horizon_exceeded(position: OpenPositionForExit) -> bool:
     """True when the market resolves beyond the owning user's profile horizon.
@@ -381,6 +386,15 @@ async def evaluate(
                       entry_price=position.entry_price,
                       current_price=cur)
 
+    # A binary market that has settled prices at ~0 or ~1. When the live mark
+    # has gapped to such an extreme, a crossed TP/SL threshold is really a
+    # market *resolution* (the price leapt past the target between polls), not
+    # a clean TP/SL fill at the configured percentage. Label it honestly so the
+    # UI shows "Market Resolution (Won/Lost)" instead of "Take Profit (TP)" with
+    # a realised return far beyond the user's setting.
+    resolved = cur is not None and (cur <= _RESOLUTION_PRICE_EPS
+                                    or cur >= 1.0 - _RESOLUTION_PRICE_EPS)
+
     # 2. TP — read from the immutable applied_tp_pct snapshot, NOT from
     #    user_settings.tp_pct. A user toggling TP via /settings must NOT
     #    affect open positions.
@@ -403,8 +417,9 @@ async def evaluate(
         exit_fill = cur if cur is not None else _tp_exit_price(
             position.side, position.entry_price, position.applied_tp_pct,
         )
+        reason = ExitReason.RESOLUTION_WIN.value if resolved else ExitReason.TP_HIT.value
         return ExitDecision(should_exit=True,
-                            reason=ExitReason.TP_HIT.value,
+                            reason=reason,
                             current_price=exit_fill)
 
     # 3. SL — same snapshot rule. Note SL is stored as a positive magnitude;
@@ -415,8 +430,9 @@ async def evaluate(
         exit_fill = cur if cur is not None else _sl_exit_price(
             position.side, position.entry_price, position.applied_sl_pct,
         )
+        reason = ExitReason.RESOLUTION_LOSS.value if resolved else ExitReason.SL_HIT.value
         return ExitDecision(should_exit=True,
-                            reason=ExitReason.SL_HIT.value,
+                            reason=reason,
                             current_price=exit_fill)
 
     # 4. Strategy hook — priority above horizon/hold. Pass the live favored-side
@@ -444,6 +460,10 @@ def _user_alert_for_reason(reason: str):
         return monitoring_alerts.alert_user_tp_hit
     if reason == ExitReason.SL_HIT.value:
         return monitoring_alerts.alert_user_sl_hit
+    if reason == ExitReason.RESOLUTION_WIN.value:
+        return monitoring_alerts.alert_user_resolution_win
+    if reason == ExitReason.RESOLUTION_LOSS.value:
+        return monitoring_alerts.alert_user_resolution_loss
     if reason == ExitReason.FORCE_CLOSE.value:
         return monitoring_alerts.alert_user_force_close
     if reason == ExitReason.STRATEGY_EXIT.value:

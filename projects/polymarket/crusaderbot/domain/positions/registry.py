@@ -45,6 +45,8 @@ class ExitReason(str, enum.Enum):
     SL_HIT = "sl_hit"
     STRATEGY_EXIT = "strategy_exit"
     RESOLUTION = "resolution"
+    RESOLUTION_WIN = "resolution_win"
+    RESOLUTION_LOSS = "resolution_loss"
     FORCE_CLOSE = "force_close"
     CLOSE_FAILED = "close_failed"
     MARKET_EXPIRED = "market_expired"
@@ -61,6 +63,11 @@ WATCHER_EXIT_REASONS: frozenset[str] = frozenset({
     ExitReason.FORCE_CLOSE.value,
     ExitReason.MARKET_EXPIRED.value,
     ExitReason.HORIZON_EXCEEDED.value,
+    # Emitted when the live mark has gapped to a resolution extreme (≈0/≈1)
+    # at the moment a TP/SL threshold is crossed — the close is a market
+    # resolution, not a clean TP/SL trigger, and is labelled honestly.
+    ExitReason.RESOLUTION_WIN.value,
+    ExitReason.RESOLUTION_LOSS.value,
 })
 
 
