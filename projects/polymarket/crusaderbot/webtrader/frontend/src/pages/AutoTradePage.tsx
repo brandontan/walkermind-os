@@ -365,6 +365,9 @@ export function AutoTradePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           {STRATEGY_PRESETS.map((p) => {
             const isActive = state.active_preset === p.key;
+            // When the operator has globally disabled this strategy, the preset
+            // is still "selected" but fires no new trades → show PAUSED (Admin).
+            const isGloballyPaused = isActive && state.active_preset_globally_enabled === false;
             const showConfig = isActive && CRYPTO_SHORT_PRESETS.includes(p.key);
             return (
               <Fragment key={p.key}>
@@ -385,8 +388,15 @@ export function AutoTradePage() {
                         <div className="font-hud text-sm font-bold text-ink-1 flex items-center gap-2">
                           {p.name}
                           {isActive && (
-                            <span className="text-[9px] font-bold tracking-widest text-gold uppercase px-1.5 py-0.5 rounded border border-gold/40 bg-gold/10">
-                              ACTIVE
+                            <span
+                              className={[
+                                "text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded border",
+                                isGloballyPaused
+                                  ? "text-ink-4 border-ink-3 bg-surface-2"
+                                  : "text-gold border-gold/40 bg-gold/10",
+                              ].join(" ")}
+                            >
+                              {isGloballyPaused ? "PAUSED (ADMIN)" : "ACTIVE"}
                             </span>
                           )}
                         </div>

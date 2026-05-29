@@ -307,6 +307,8 @@ export interface AutoTradeState {
   max_per_trade_pct?: number | null;
   daily_loss_override?: number | null;   // negative $, e.g. -300
   max_drawdown_pct?: number | null;      // 0–0.08
+  // False when the active preset's strategy is globally disabled by the operator.
+  active_preset_globally_enabled?: boolean;
 }
 
 export interface CustomizeParams {
