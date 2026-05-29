@@ -297,11 +297,16 @@ export function AutoTradePage() {
   // link, stale router state) back to the Auto tab. FAIL-SAFE: until the
   // availability fetch completes (strategyEnabled.copy_trade === undefined)
   // we leave the tab visible so a slow API doesn't briefly hide it.
-  if (tab === "copy" && !copyTradeEnabled) {
-    // Same-route swap keeps the back button history clean.
-    navigate("/autotrade", { replace: true });
-    return null;
-  }
+  //
+  // navigate() must NOT run during render (React anti-pattern) — using
+  // useEffect schedules the redirect after commit and avoids the
+  // "Cannot update a component while rendering" warning.
+  useEffect(() => {
+    if (tab === "copy" && !copyTradeEnabled) {
+      navigate("/autotrade", { replace: true });
+    }
+  }, [tab, copyTradeEnabled, navigate]);
+  if (tab === "copy" && !copyTradeEnabled) return null;
   if (tab === "copy") return <CopyTradePage />;
 
   if (!state) return (

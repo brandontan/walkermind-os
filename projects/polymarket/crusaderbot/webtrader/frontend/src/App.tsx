@@ -283,8 +283,17 @@ function AppShell() {
       // the click is hidden permanently. Alerts without a parseable
       // created_at fall through (e.g. system alerts with timing missing) so
       // a malformed row never silently disappears.
+      //
+      // Date.parse treats a timezone-naive ISO string as LOCAL time but
+      // markAllReadAt comes from Date.now() (UTC), so a missing 'Z' would
+      // skew the comparison by the user's UTC offset. Backend rows should
+      // already be tz-aware (TIMESTAMPTZ → asyncpg → .isoformat() with
+      // +00:00), but normalise defensively so a future writer dropping the
+      // suffix never silently wipes alerts in negative-UTC timezones.
       if (markAllReadAt > 0 && a.created_at) {
-        const ts = Date.parse(a.created_at);
+        const hasTz = /Z|[+-]\d{2}:?\d{2}$/.test(a.created_at);
+        const normalized = hasTz ? a.created_at : `${a.created_at}Z`;
+        const ts = Date.parse(normalized);
         if (Number.isFinite(ts) && ts <= markAllReadAt) return false;
       }
       return true;
