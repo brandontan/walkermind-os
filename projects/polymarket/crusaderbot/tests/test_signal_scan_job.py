@@ -791,6 +791,42 @@ def test_preset_allows_globally_disabled_strategy_blocked():
         job._GLOBALLY_DISABLED_STRATEGIES = frozenset()
 
 
+def test_run_once_skips_phase_c_for_candle_preset_users():
+    """After cleanup, candle presets route ONLY to late_entry_v3 — Phase C
+    (signal_publications feed eval) must not fire signal_following candidates
+    for users whose active_preset is close_sweep/safe_close/flip_hunter, even
+    when signal_following is globally ENABLED. Closes Codex P1 (post-cleanup):
+    candle-preset users were receiving unexpected feed trades because Phase C
+    only checked _GLOBALLY_DISABLED_STRATEGIES, not the preset mapping."""
+    import asyncio
+    from unittest.mock import patch, AsyncMock
+
+    eval_called = {"count": 0}
+
+    async def _fake_eval(**kwargs):
+        eval_called["count"] += 1
+        return []
+
+    async def _fake_fetch_markets():
+        return []
+
+    for preset in ("close_sweep", "safe_close", "flip_hunter"):
+        row = _user_row()
+        row["active_preset"] = preset
+        eval_called["count"] = 0
+        with patch.object(job, "_load_enrolled_users", return_value=[row]), \
+                patch.object(job, "_fetch_markets_for_lib_strategies",
+                             side_effect=_fake_fetch_markets), \
+                patch.object(job, "evaluate_publications_for_user",
+                             side_effect=_fake_eval), \
+                patch.object(job, "_process_candidate", new_callable=AsyncMock):
+            asyncio.run(job.run_once())
+        assert eval_called["count"] == 0, (
+            f"preset={preset}: Phase C signal-feed eval must be skipped — "
+            "_preset_allows pins candle presets to late_entry_v3 only."
+        )
+
+
 def test_run_once_skips_phase_c_when_signal_following_globally_disabled():
     """Defense-in-depth: even if a user row leaks past the SQL load gate, Phase
     C (signal_publications feed evaluation) must not fire when the operator

@@ -1398,14 +1398,23 @@ async def run_once() -> None:
         # returns SignalCandidates with metadata["publication_id"] set.
         # _process_candidate handles dedup via (user_id, publication_id) unique key.
         #
-        # Defense-in-depth: the SQL gate in _load_enrolled_users already filters
-        # out users when the strategies row says signal_following=FALSE, but a
-        # future schema change must not silently re-enable feed firing here.
-        # The in-memory _GLOBALLY_DISABLED_STRATEGIES cache is the documented
-        # operator-toggle contract — honour it explicitly at every fire site.
+        # _preset_allows enforces BOTH the operator's global on/off toggle AND
+        # the user's preset → strategy mapping. After WARP/R00T cleanup the only
+        # visible presets are candle presets (close_sweep/safe_close/flip_hunter)
+        # which route exclusively to late_entry_v3 — so this short-circuits for
+        # every candle-preset user even when signal_following is globally ON.
+        # That stops Phase C from silently producing signal-feed trades a user
+        # picking a candle preset never asked for. Telemetry distinguishes the
+        # two reasons so operators can see at a glance whether the gate fired
+        # because of the global toggle or the preset restriction.
         feed_candidates: list[SignalCandidate] = []
-        if _STRATEGY_NAME in _GLOBALLY_DISABLED_STRATEGIES:
-            tel.record_zero_reason("signal_feed", "globally_disabled")
+        if not _preset_allows(active_preset, _STRATEGY_NAME):
+            tel.record_zero_reason(
+                "signal_feed",
+                "globally_disabled"
+                if _STRATEGY_NAME in _GLOBALLY_DISABLED_STRATEGIES
+                else "preset_blocks_signal_following",
+            )
         else:
             try:
                 user_ctx = _build_user_context(row)
