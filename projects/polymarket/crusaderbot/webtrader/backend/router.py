@@ -2168,11 +2168,33 @@ async def admin_overview(user: _AdminUser) -> dict:
     except Exception:
         kill_active = False
 
+    # Polymarket trading-account config so the operator can VERIFY the funder /
+    # sig type / credential source actually loaded (these live in env/secrets,
+    # not the DB, and were previously invisible in the console).
+    try:
+        from ...integrations import clob as _clob
+        _api_key, _, _ = _clob.effective_credentials(s)
+    except Exception:
+        _api_key = ""
+    if s.POLYMARKET_API_KEY:
+        creds_source = "env"
+    elif _api_key:
+        creds_source = "derived"
+    else:
+        creds_source = "none"
+
     return {
         "pool": {
             "address": pool_address,
             "usdc": pool_usdc,
             "matic": pool_matic,
+        },
+        "polymarket": {
+            "funder_address": s.POLYMARKET_FUNDER_ADDRESS or None,
+            "signature_type": int(s.POLYMARKET_SIGNATURE_TYPE),
+            "use_real_clob": bool(s.USE_REAL_CLOB),
+            "creds_source": creds_source,        # env | derived | none
+            "creds_ready": bool(_api_key),
         },
         "guards": {
             "ENABLE_LIVE_TRADING": bool(s.ENABLE_LIVE_TRADING),
