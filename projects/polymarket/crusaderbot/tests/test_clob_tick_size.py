@@ -401,12 +401,10 @@ class TestSlippageRetryTickSize:
         assert abs(submitted_price - 0.601) < 1e-9, f"Expected 0.601, got {submitted_price}"
 
     def test_mdc_failure_aborts_resubmit(self) -> None:
-        """MDC failure must abort the re-submit (return early, no post_order call).
+        """MDC failure must abort before cancel (return early, no broker calls).
 
-        The original GTC order has already been cancelled; a replacement with
-        wrong tick_size would cause a post-submit ambiguous rejection on
-        0.001-tick or neg-risk markets. Mirrors the post_order exception handler
-        behavior: return without advancing slippage_retry_count.
+        When MDC is unavailable, the original GTC order stays live on the broker
+        and DB state is unchanged — enabling a clean retry on the next tick.
         """
         clob = MagicMock()
         clob.cancel_order = AsyncMock(return_value={})
@@ -418,4 +416,5 @@ class TestSlippageRetryTickSize:
 
         self._run_retry(clob, broken_mdc, self._order())
 
+        clob.cancel_order.assert_not_called()
         clob.post_order.assert_not_called()
