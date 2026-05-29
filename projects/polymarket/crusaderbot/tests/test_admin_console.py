@@ -162,3 +162,53 @@ def test_get_me_includes_role_and_is_admin():
         out = asyncio.run(r.get_me({"user_id": "x", "first_name": "A"}))
     assert out["role"] == "admin"
     assert out["is_admin"] is True
+
+
+# ── get_autotrade reflects global strategy on/off ─────────────────────────────
+
+def _autotrade_settings_row(preset):
+    return {
+        "risk_profile": "balanced", "capital_alloc_pct": 0.4, "tp_pct": 0.2,
+        "sl_pct": 0.15, "active_preset": preset, "category_filters": None,
+        "min_liquidity": None, "max_resolution_days": None, "min_volume_24h": None,
+        "slippage_tolerance_pct": None, "selected_timeframe": "5m",
+        "selected_assets": None, "max_per_trade_mode": "auto",
+        "max_per_trade_usdc": None, "max_per_trade_pct": None,
+        "daily_loss_override": None, "max_drawdown_pct": None,
+    }
+
+
+def _run_get_autotrade(preset, strategy_enabled):
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(side_effect=[
+        {"auto_trade_on": True},
+        _autotrade_settings_row(preset),
+        {"equity_usdc": 100.0},
+    ])
+    conn.fetchval = AsyncMock(return_value=strategy_enabled)
+    with patch.object(r, "get_pool", return_value=_pool(conn)):
+        return asyncio.run(r.get_autotrade({"user_id": str(uuid4())}))
+
+
+def test_get_autotrade_flags_globally_disabled_preset():
+    """close_sweep → late_entry_v3; when globally OFF, dashboard flag is False."""
+    out = _run_get_autotrade("close_sweep", False)
+    assert out.active_preset == "close_sweep"
+    assert out.active_preset_globally_enabled is False
+
+
+def test_get_autotrade_globally_enabled_when_strategy_on():
+    out = _run_get_autotrade("close_sweep", True)
+    assert out.active_preset_globally_enabled is True
+
+
+def test_get_autotrade_globally_enabled_when_no_strategy_row():
+    """Missing strategies row (never toggled) defaults to enabled."""
+    out = _run_get_autotrade("close_sweep", None)
+    assert out.active_preset_globally_enabled is True
+
+
+def test_preset_to_strategy_maps_candle_presets_to_late_entry():
+    assert r._PRESET_TO_STRATEGY["close_sweep"] == "late_entry_v3"
+    assert r._PRESET_TO_STRATEGY["safe_close"] == "late_entry_v3"
+    assert r._PRESET_TO_STRATEGY["flip_hunter"] == "late_entry_v3"

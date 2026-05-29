@@ -635,6 +635,18 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
                  FROM wallets w WHERE w.user_id = $1::uuid""",
             user_id,
         )
+        # Is the strategy backing the active preset globally enabled (operator
+        # Ops-Console on/off)? When OFF, no new trades fire even though the
+        # user's preset selection is unchanged — the dashboard reflects this as
+        # "PAUSED (Admin)" instead of "ACTIVE". Default True (missing row = ON).
+        _active_preset = s_row["active_preset"] if s_row else None
+        _strategy_name = _PRESET_TO_STRATEGY.get(str(_active_preset)) if _active_preset else None
+        preset_globally_enabled = True
+        if _strategy_name:
+            _se = await conn.fetchval(
+                "SELECT enabled FROM strategies WHERE name = $1", _strategy_name
+            )
+            preset_globally_enabled = True if _se is None else bool(_se)
 
     cats: list[str] = list(s_row["category_filters"]) if s_row and s_row["category_filters"] else []
     cap_pct = float(s_row["capital_alloc_pct"]) if s_row else 0.5
@@ -672,6 +684,7 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
             if s_row and s_row["max_drawdown_pct"] is not None
             else None
         ),
+        active_preset_globally_enabled=preset_globally_enabled,
     )
 
 
@@ -698,6 +711,21 @@ async def toggle_autotrade(body: AutoTradeToggleRequest, user: _CurrentUser):
         )
     return {"auto_trade_on": body.enabled}
 
+
+# Preset key → the strategy it routes to, for the global on/off (strategies
+# table) lookup. Mirrors signal_scan_job._PRESET_ALLOWED. Used so the dashboard
+# can show "PAUSED (Admin)" when the active preset's strategy is globally off.
+_PRESET_TO_STRATEGY: dict[str, str] = {
+    "close_sweep":        "late_entry_v3",
+    "safe_close":         "late_entry_v3",
+    "flip_hunter":        "late_entry_v3",
+    "signal_sniper":      "signal_following",
+    "whale_mirror":       "copy_trade",
+    "value_hunter":       "value_investor",
+    "trend_breakout":     "trend_breakout",
+    "ensemble":           "ensemble",
+    "confluence_scalper": "confluence_scalper",
+}
 
 # Preset key → default risk parameters applied when preset is activated.
 # Risk profile (capital/TP/SL) can be overridden separately via /autotrade/risk-profile.

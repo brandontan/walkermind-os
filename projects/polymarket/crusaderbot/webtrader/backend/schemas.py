@@ -166,6 +166,10 @@ class AutoTradeState(BaseModel):
     # max_drawdown_pct: 0–8%, e.g. 0.05 = halt at 5% drawdown (stricter than 8% system).
     daily_loss_override: Optional[float] = None
     max_drawdown_pct: Optional[float] = None
+    # False when the active preset's strategy is globally disabled by the
+    # operator (Ops Console on/off). The UI shows "PAUSED (Admin)" instead of
+    # "ACTIVE" — no new trades fire, though the preset selection is unchanged.
+    active_preset_globally_enabled: bool = True
 
 
 class AutoTradeToggleRequest(BaseModel):
