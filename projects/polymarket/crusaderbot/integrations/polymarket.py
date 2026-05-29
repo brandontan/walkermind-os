@@ -580,7 +580,7 @@ async def submit_live_redemption(condition_id: str) -> dict:
             "submit_live_redemption blocked: EXECUTION_PATH_VALIDATED=false"
         )
     from web3 import AsyncWeb3
-    from .polygon import _get_w3
+    from .polygon import _get_w3, gas_price_gwei, nonce_lock
     from ..wallet.vault import master_wallet
 
     w3 = _get_w3()
@@ -598,20 +598,31 @@ async def submit_live_redemption(condition_id: str) -> dict:
         abi=CTF_REDEEM_ABI,
     )
 
-    nonce = await w3.eth.get_transaction_count(addr_cs)
-    gas_price = await w3.eth.gas_price
-    tx = await ctf.functions.redeemPositions(
-        usdc_cs, parent_collection, cond_bytes, [1, 2],
-    ).build_transaction({
-        "from": addr_cs,
-        "nonce": nonce,
-        "gas": 350000,
-        "gasPrice": gas_price,
-        "chainId": 137,
-    })
-    signed = w3.eth.account.sign_transaction(tx, private_key=pk)
-    raw = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
-    tx_hash = await w3.eth.send_raw_transaction(raw)
+    # Gas-price ceiling — parity with transfer_usdc/sweep so a fee spike can't
+    # drain the hot pool on redemption gas.
+    gwei = await gas_price_gwei()
+    if gwei > settings.INSTANT_REDEEM_GAS_GWEI_MAX:
+        raise RuntimeError(
+            f"submit_live_redemption blocked: gas {gwei:.1f} gwei exceeds ceiling "
+            f"{settings.INSTANT_REDEEM_GAS_GWEI_MAX:.1f}"
+        )
+
+    # Serialize nonce read → sign → broadcast against other master-wallet sends.
+    async with nonce_lock(addr_cs):
+        nonce = await w3.eth.get_transaction_count(addr_cs, "pending")
+        gas_price = await w3.eth.gas_price
+        tx = await ctf.functions.redeemPositions(
+            usdc_cs, parent_collection, cond_bytes, [1, 2],
+        ).build_transaction({
+            "from": addr_cs,
+            "nonce": nonce,
+            "gas": 350000,
+            "gasPrice": gas_price,
+            "chainId": 137,
+        })
+        signed = w3.eth.account.sign_transaction(tx, private_key=pk)
+        raw = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
+        tx_hash = await w3.eth.send_raw_transaction(raw)
     receipt = await w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
     status = int(receipt["status"])
     if status != 1:

@@ -6,6 +6,7 @@ logged at ERROR (never silently swallowed).
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Optional
 
@@ -19,6 +20,23 @@ from web3.exceptions import Web3RPCError
 from ..config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Serialize on-chain sends per from-address so concurrent capital ops (withdraw
+# / sweep / redeem) never read the same nonce and collide on-chain. Process-
+# local — the WebTrader + bot run as a single Fly primary, so one lock table is
+# sufficient; pair this with the "pending" block tag on get_transaction_count.
+_nonce_locks: dict[str, asyncio.Lock] = {}
+
+
+def nonce_lock(address: str) -> asyncio.Lock:
+    """Return the shared asyncio.Lock for ``address`` (case-insensitive)."""
+    key = address.lower()
+    lock = _nonce_locks.get(key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _nonce_locks[key] = lock
+    return lock
+
 
 ERC20_ABI: list[dict[str, Any]] = [
     {

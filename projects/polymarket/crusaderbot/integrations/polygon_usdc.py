@@ -22,7 +22,7 @@ from typing import Any
 from web3 import AsyncWeb3
 
 from ..config import get_settings
-from .polygon import _get_w3, gas_price_gwei, get_native_balance, get_usdc_balance
+from .polygon import _get_w3, gas_price_gwei, get_native_balance, get_usdc_balance, nonce_lock
 
 logger = logging.getLogger(__name__)
 
@@ -120,18 +120,21 @@ async def transfer_usdc(to: str, amount_usdc: Decimal) -> dict[str, Any]:
 
     raw_amount = int(amount_usdc * (10 ** settings.USDC_DECIMALS))
     usdc = w3.eth.contract(address=usdc_cs, abi=ERC20_ABI)
-    nonce = await w3.eth.get_transaction_count(src_cs)
-    gas_price = await w3.eth.gas_price
-    tx = await usdc.functions.transfer(to_cs, raw_amount).build_transaction({
-        "from": src_cs,
-        "nonce": nonce,
-        "gas": _TRANSFER_GAS_LIMIT,
-        "gasPrice": gas_price,
-        "chainId": 137,
-    })
-    signed = w3.eth.account.sign_transaction(tx, private_key=pk)
-    raw = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
-    tx_hash = await w3.eth.send_raw_transaction(raw)
+    # Serialize nonce read → sign → broadcast so a concurrent master-wallet send
+    # can't reuse this nonce; "pending" tag counts in-mempool txs too.
+    async with nonce_lock(src_cs):
+        nonce = await w3.eth.get_transaction_count(src_cs, "pending")
+        gas_price = await w3.eth.gas_price
+        tx = await usdc.functions.transfer(to_cs, raw_amount).build_transaction({
+            "from": src_cs,
+            "nonce": nonce,
+            "gas": _TRANSFER_GAS_LIMIT,
+            "gasPrice": gas_price,
+            "chainId": 137,
+        })
+        signed = w3.eth.account.sign_transaction(tx, private_key=pk)
+        raw = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
+        tx_hash = await w3.eth.send_raw_transaction(raw)
     receipt = await w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
     status = int(receipt["status"])
     if status != 1:
@@ -170,15 +173,16 @@ async def _send_native_matic(to_cs: str, amount_matic: float) -> str:
         )
 
     value = w3.to_wei(Decimal(str(amount_matic)), "ether")
-    nonce = await w3.eth.get_transaction_count(master_cs)
-    gas_price = await w3.eth.gas_price
-    tx = {
-        "from": master_cs, "to": to_cs, "value": value, "nonce": nonce,
-        "gas": _MATIC_TRANSFER_GAS, "gasPrice": gas_price, "chainId": 137,
-    }
-    signed = w3.eth.account.sign_transaction(tx, private_key=master_pk)
-    raw = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
-    tx_hash = await w3.eth.send_raw_transaction(raw)
+    async with nonce_lock(master_cs):
+        nonce = await w3.eth.get_transaction_count(master_cs, "pending")
+        gas_price = await w3.eth.gas_price
+        tx = {
+            "from": master_cs, "to": to_cs, "value": value, "nonce": nonce,
+            "gas": _MATIC_TRANSFER_GAS, "gasPrice": gas_price, "chainId": 137,
+        }
+        signed = w3.eth.account.sign_transaction(tx, private_key=master_pk)
+        raw = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
+        tx_hash = await w3.eth.send_raw_transaction(raw)
     receipt = await w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
     if int(receipt["status"]) != 1:
         raise RuntimeError(f"gas top-up reverted (tx={tx_hash.hex()}, to={to_cs})")
@@ -232,15 +236,16 @@ async def sweep_usdc_to_master(from_address: str, from_pk: str) -> dict[str, Any
         topup = settings.SWEEP_GAS_TOPUP_MATIC - matic_bal
         await _send_native_matic(to_cs=src_cs, amount_matic=topup)
 
-    nonce = await w3.eth.get_transaction_count(src_cs)
-    gas_price = await w3.eth.gas_price
-    tx = await usdc.functions.transfer(master_cs, raw_balance).build_transaction({
-        "from": src_cs, "nonce": nonce, "gas": _TRANSFER_GAS_LIMIT,
-        "gasPrice": gas_price, "chainId": 137,
-    })
-    signed = w3.eth.account.sign_transaction(tx, private_key=from_pk)
-    raw = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
-    tx_hash = await w3.eth.send_raw_transaction(raw)
+    async with nonce_lock(src_cs):
+        nonce = await w3.eth.get_transaction_count(src_cs, "pending")
+        gas_price = await w3.eth.gas_price
+        tx = await usdc.functions.transfer(master_cs, raw_balance).build_transaction({
+            "from": src_cs, "nonce": nonce, "gas": _TRANSFER_GAS_LIMIT,
+            "gasPrice": gas_price, "chainId": 137,
+        })
+        signed = w3.eth.account.sign_transaction(tx, private_key=from_pk)
+        raw = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
+        tx_hash = await w3.eth.send_raw_transaction(raw)
     receipt = await w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
     status = int(receipt["status"])
     if status != 1:
