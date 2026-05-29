@@ -43,6 +43,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import random
 import uuid as _uuid_mod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -1610,6 +1611,22 @@ _CANDLE_PRESET_STATIC: dict[str, dict[str, object]] = {
 _CANDLE_PRESET_PARAMS: dict[str, dict[str, object]] = _CANDLE_PRESET_STATIC
 
 
+def _random_close_sweep_min_edge(cfg) -> float:
+    """Per-scan randomized close_sweep min_ask_diff in [MIN, MAX] (Kreo ~2%).
+
+    Returns the lower bound when MIN >= MAX (pinned/deterministic) so tests can
+    fix the value via config. Never raises — falls back to the fixed default.
+    """
+    try:
+        lo = float(cfg.PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MIN)
+        hi = float(cfg.PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MAX)
+    except Exception:
+        return 0.02
+    if lo >= hi:
+        return lo
+    return round(random.uniform(lo, hi), 4)
+
+
 def _resolve_preset_params(
     active_preset: str | None,
     timeframe: str | None,
@@ -1643,11 +1660,14 @@ def _resolve_preset_params(
         return _CANDLE_PRESET_STATIC[active_preset]
     if active_preset == "close_sweep":
         return {
-            "min_ask_diff":    cfg.PRESET_CLOSE_SWEEP_MIN_ASK_DIFF,
+            # Kreo "Min Edge" ~2%: randomize the entry lean threshold per scan
+            # in [MIN, MAX] (2–4%) so entries are not pinned to one fixed value.
+            "min_ask_diff":    _random_close_sweep_min_edge(cfg),
             "entry_window_sec": cfg.PRESET_CLOSE_SWEEP_WINDOW_SEC,
             "fav_price_min":   cfg.PRESET_CLOSE_SWEEP_FAV_PRICE_MIN,
             "fav_price_max":   0.70,
-            # close_sweep intentionally has no force-exit — holds to resolution.
+            # close_sweep force-exit (~8s before resolution) is applied on the
+            # EXIT path via force_exit_at_rem_sec_for, not seeded here.
         }
     if active_preset == "safe_close":
         return {

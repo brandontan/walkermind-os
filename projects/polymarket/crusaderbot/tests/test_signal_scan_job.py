@@ -1272,6 +1272,46 @@ def test_resolve_preset_params_close_sweep_has_no_force_exit():
     assert "force_exit_at_rem_sec" not in pp
 
 
+def test_random_close_sweep_min_edge_band():
+    """_random_close_sweep_min_edge draws within the configured [MIN, MAX] band."""
+    cfg = type("C", (), {
+        "PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MIN": 0.02,
+        "PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MAX": 0.04,
+    })()
+    seen = {job._random_close_sweep_min_edge(cfg) for _ in range(60)}
+    assert all(0.02 <= v <= 0.04 for v in seen)
+    assert len(seen) > 1  # randomized → multiple distinct draws
+
+
+def test_random_close_sweep_min_edge_pinned_when_min_eq_max():
+    """MIN == MAX pins the value (deterministic) for reproducible runs/tests."""
+    cfg = type("C", (), {
+        "PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MIN": 0.03,
+        "PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MAX": 0.03,
+    })()
+    assert job._random_close_sweep_min_edge(cfg) == 0.03
+
+
+def test_random_close_sweep_min_edge_safe_fallback_on_bad_cfg():
+    """A cfg missing the band attrs falls back to 0.02 (never raises)."""
+    assert job._random_close_sweep_min_edge(object()) == 0.02
+
+
+def test_resolve_preset_params_close_sweep_min_edge_in_band_with_config():
+    """With live config present, the close_sweep resolver emits a min_ask_diff
+    inside the randomized [MIN, MAX] band (patched config → deterministic env)."""
+    cfg = type("C", (), {
+        "PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MIN": 0.02,
+        "PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MAX": 0.04,
+        "PRESET_CLOSE_SWEEP_WINDOW_SEC": 35.0,
+        "PRESET_CLOSE_SWEEP_FAV_PRICE_MIN": 0.55,
+    })()
+    with patch("projects.polymarket.crusaderbot.config.get_settings", return_value=cfg):
+        for _ in range(20):
+            pp = job._resolve_preset_params("close_sweep", "5m")
+            assert 0.02 <= pp["min_ask_diff"] <= 0.04
+
+
 def test_resolve_preset_params_safe_close_emits_force_exit_30s():
     """safe_close has force_exit_at_rem_sec=30s for both 5m and 15m (same rem semantics)."""
     pp_5m = job._resolve_preset_params("safe_close", "5m")

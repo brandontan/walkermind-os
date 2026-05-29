@@ -63,3 +63,11 @@ def test_close_sweep_fast_exit_defaults(monkeypatch: pytest.MonkeyPatch) -> None
     assert settings.CLOSE_SWEEP_EXIT_INTERVAL == 5
     assert settings.CLOSE_SWEEP_EXIT_NEAR_SEC == 90
     crusaderbot_config.get_settings.cache_clear()
+
+
+def test_close_sweep_min_edge_band_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_required_env(monkeypatch)
+    settings = crusaderbot_config.Settings()  # type: ignore[call-arg]
+    assert settings.PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MIN == 0.02
+    assert settings.PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MAX == 0.04
+    crusaderbot_config.get_settings.cache_clear()
