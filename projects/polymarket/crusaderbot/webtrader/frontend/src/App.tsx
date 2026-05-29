@@ -97,6 +97,15 @@ export function useScannerStatus(): ScannerCtx {
   return useContext(ScannerContext);
 }
 
+// App-wide trading mode ("paper" | "live"), fetched once from /me and refreshed
+// on live enable/disable. Lets any TopBar render the correct LIVE/PAPER pill
+// even on pages that don't fetch the mode themselves.
+export const TradingModeContext = createContext<string>("paper");
+
+export function useTradingMode(): string {
+  return useContext(TradingModeContext);
+}
+
 function AppShell() {
   const { user } = useAuth();
   const location = useLocation();
@@ -215,10 +224,23 @@ function AppShell() {
 
   const [lastScanMs, setLastScanMs] = useState<number | null>(null);
 
+  // App-wide trading mode. Fetched from /me when authed and refreshed on
+  // system SSE events (live enable/disable broadcasts one), so the TopBar pill
+  // reflects reality on every page — not a hardcoded "paper".
+  const [tradingMode, setTradingMode] = useState<string>("paper");
+  const refreshTradingMode = useCallback(() => {
+    if (!user) return;
+    api.getMe()
+      .then((me) => setTradingMode(me.trading_mode || "paper"))
+      .catch(() => { /* leave last-known mode; non-fatal for chrome */ });
+  }, [api, user]);
+
+  useEffect(() => { refreshTradingMode(); }, [refreshTradingMode]);
+
   // SSE connection — fetchAlerts defined above so it's safe to reference here.
   // Re-fetch on both system and alert events to keep the Alert Center in sync.
   const { connected: sseConnected } = useSSE(user?.token ?? null, {
-    system: () => { setAlertOffset(0); void fetchAlerts(0, false); },
+    system: () => { setAlertOffset(0); void fetchAlerts(0, false); refreshTradingMode(); },
     alert:  () => { setAlertOffset(0); void fetchAlerts(0, false); },
     scanner_tick: (raw) => {
       const payload = raw as { ts?: number };
@@ -273,6 +295,7 @@ function AppShell() {
   );
 
   return (
+    <TradingModeContext.Provider value={tradingMode}>
     <ScannerContext.Provider value={{ lastScanMs }}>
     <AlertCenterContext.Provider value={alertCtx}>
     <SSEStatusContext.Provider value={sseConnected}>
@@ -355,6 +378,7 @@ function AppShell() {
     </SSEStatusContext.Provider>
     </AlertCenterContext.Provider>
     </ScannerContext.Provider>
+    </TradingModeContext.Provider>
   );
 }
 

@@ -144,7 +144,7 @@ export function DashboardPage() {
   );
   if (!data) return (
     <>
-      <TopBar tradingMode="paper" />
+      <TopBar />
       <div className="p-4 text-ink-3 text-sm font-mono">Loading…</div>
     </>
   );

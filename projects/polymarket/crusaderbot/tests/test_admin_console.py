@@ -156,6 +156,9 @@ def test_admin_overview_exposes_polymarket_config():
 def test_get_me_includes_role_and_is_admin():
     conn = MagicMock()
     async def fetchrow(q, *a):
+        # /me runs a second query for user_settings.trading_mode.
+        if "user_settings" in q:
+            return {"trading_mode": "paper"}
         return {"email": "a@b.com", "username": "u", "telegram_user_id": 1, "role": "admin"}
     conn.fetchrow = fetchrow
     with patch.object(r, "get_pool", return_value=_pool(conn)):
