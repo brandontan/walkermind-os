@@ -27,7 +27,7 @@ No production code touched. Two findings surfaced (M-1, M-2) for backlog hardeni
 
 ### Gate ordering inside `_process_candidate` (post-merge)
 
-```
+```text
 step 0   crash-recovery (in-flight trade completion)
 step 0a  BANKROLL_CIRCUIT_BREAKER (config-gated; fails open on config-read failure)
 step 1   permanent dedup (execution_queue)
@@ -153,7 +153,7 @@ Zero production code modified. M-1 and M-2 findings deferred to a future hardeni
 
 ### Recommended enablement order
 
-```
+```text
 1. BANKROLL_CIRCUIT_BREAKER_ENABLED=true
    → observe 24h; confirm skipped_circuit_breaker rate near zero
 
