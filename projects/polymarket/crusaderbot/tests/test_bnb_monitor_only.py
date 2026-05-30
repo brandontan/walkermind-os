@@ -225,6 +225,13 @@ def test_resolve_tradeable_coins_normalises_case_and_blanks():
     assert pm._resolve_tradeable_coins(("BTC", "ETH", "SOL")) == ["btc", "eth", "sol"]
 
 
+def test_resolve_tradeable_coins_handles_bare_string():
+    """A bare string must be treated as ONE ticker, not iterated char-by-char
+    ("BTC" → ["btc"], not ["b","t","c"]). Monitor-only bare string → []."""
+    assert pm._resolve_tradeable_coins("BTC") == ["btc"]
+    assert pm._resolve_tradeable_coins("bnb") == []
+
+
 def test_get_crypto_window_markets_routes_through_resolver():
     """Integration pin: the candle-window fetch must resolve coins via
     `_resolve_tradeable_coins` (which excludes monitor-only assets) rather than

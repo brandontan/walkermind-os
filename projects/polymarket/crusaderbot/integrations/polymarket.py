@@ -214,6 +214,10 @@ def _resolve_tradeable_coins(
     engine. Closes WARP/ROOT/prelaunch-system-audit F3 (the BNB default-asset
     fallback that reintroduced BNB whenever ``assets`` was empty/None).
     """
+    # A bare string is iterable char-by-char — wrap it as a single ticker so
+    # "BTC" resolves to ["btc"], not ["b", "t", "c"].
+    if isinstance(assets, str):
+        assets = [assets]
     requested = [str(a).strip().lower() for a in (assets or [])]
     coins = requested or list(_DEFAULT_TRADEABLE_COINS)
     return [c for c in coins if c and c not in _MONITOR_ONLY_COINS]
