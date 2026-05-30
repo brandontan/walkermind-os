@@ -147,6 +147,19 @@ def test_tob_stale_ms_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     crusaderbot_config.get_settings.cache_clear()
 
 
+def test_tob_stale_ms_rejects_negative(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Negative TOB_STALE_MS must fail at config load — otherwise it would
+    silently disable the gate (the runtime check is `_tob_stale_ms > 0`,
+    so `-1` and `0` behave identically — a misconfiguration trap).
+    """
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("TOB_STALE_MS", "-1")
+    with pytest.raises(Exception) as excinfo:
+        crusaderbot_config.Settings()  # type: ignore[call-arg]
+    assert "TOB_STALE_MS" in str(excinfo.value)
+    crusaderbot_config.get_settings.cache_clear()
+
+
 def test_tob_stale_ms_disable_sentinel_is_zero():
     """Operator must be able to disable the gate (revert to pre-lane
     behaviour) via TOB_STALE_MS=0 without redeploy. The gate code
@@ -155,6 +168,26 @@ def test_tob_stale_ms_disable_sentinel_is_zero():
     assert "_tob_stale_ms > 0" in src, (
         "Regression: TOB freshness gate must short-circuit when "
         "TOB_STALE_MS=0 (operator escape hatch)."
+    )
+
+
+def test_config_read_failure_is_logged_not_swallowed():
+    """AGENTS.md hard rule: no silent failures. If the config read inside
+    the freshness gate raises, the exception must be logged (warning) with
+    the documented fallback before defaulting to 2000ms — never swallowed
+    silently. A regression here masks misconfigurations from the operator.
+    """
+    src = inspect.getsource(ssj._process_candidate)
+    assert "tob_stale_ms_config_read_failed" in src, (
+        "Regression: TOB freshness gate must log a structured warning "
+        "when reading TOB_STALE_MS from config fails — AGENTS.md "
+        "zero-silent-failures hard rule."
+    )
+    # The fallback default must remain documented in the log payload so the
+    # operator can correlate Sentry/structlog noise back to the gate.
+    assert "fallback_ms=2000" in src, (
+        "Regression: log payload must surface the fallback_ms value so "
+        "operator can diagnose how the gate is actually behaving."
     )
 
 

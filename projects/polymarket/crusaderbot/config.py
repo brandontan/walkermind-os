@@ -435,6 +435,20 @@ class Settings(BaseSettings):
                 data["POLYGON_RPC_URL"] = alias
         return data
 
+    @field_validator("TOB_STALE_MS")
+    @classmethod
+    def validate_tob_stale_ms(cls, v: int) -> int:
+        # Reject negative values explicitly: the gate disable sentinel is 0,
+        # and the freshness check branches on `_tob_stale_ms > 0`. A negative
+        # value would silently disable the gate the same as 0, hiding the
+        # misconfiguration from the operator. Fail fast at config load.
+        if v < 0:
+            raise ValueError(
+                f"TOB_STALE_MS must be >= 0 (got {v}); use 0 to disable the "
+                f"freshness gate, any positive integer for the threshold in ms."
+            )
+        return v
+
     @field_validator("DATABASE_URL")
     @classmethod
     def normalize_database_url(cls, v: str) -> str:

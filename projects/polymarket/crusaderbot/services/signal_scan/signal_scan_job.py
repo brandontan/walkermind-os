@@ -1024,7 +1024,15 @@ async def _process_candidate(
         try:
             from ...config import get_settings as _get_settings_tob
             _tob_stale_ms = int(_get_settings_tob().TOB_STALE_MS)
-        except Exception:
+        except Exception as exc:
+            # AGENTS.md hard rule: zero silent failures. Log the diagnostic
+            # context, then fall back to the documented default so the gate
+            # remains operative even on a config-read failure.
+            log.warning(
+                "tob_stale_ms_config_read_failed",
+                error=str(exc),
+                fallback_ms=2000,
+            )
             _tob_stale_ms = 2000
         if _tob_stale_ms > 0:
             try:
