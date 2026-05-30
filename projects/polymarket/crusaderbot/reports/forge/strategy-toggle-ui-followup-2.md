@@ -58,7 +58,7 @@ Closes 3 owner-reported gaps remaining after the previous followup PR (#1466,
 
 ## 2. Current system architecture
 
-```
+```text
 [admin Ops-Console] → strategies.enabled
         │
         ├─► signal_scan_job._GLOBALLY_DISABLED_STRATEGIES  (existing)
@@ -150,18 +150,12 @@ No trading-logic change. No new background jobs. Pure dashboard + persistence.
     bell stays at 0 (cross-device parity).
   - Admin-toggle `copy_trade` OFF → Copy Trade tab still hidden in
     PageTabs + DesktopSidebar + TopBar (regression check for #1466).
-- Validation Tier MAJOR — WARP•SENTINEL may run if WARP🔹CMD wants a
-  full audit before merge. Otherwise WARP🔹CMD review is sufficient
-  given the narrow surface (dashboard chrome + one new endpoint +
-  one new column).
-
-## Validation metadata
-
-- Validation Tier: **MAJOR**
+- Validation Tier: **MAJOR** — WARP•SENTINEL validation required before
+  merge per CLAUDE.md. WARP🔹CMD decides merge after SENTINEL verdict.
 - Claim Level: **NARROW INTEGRATION**
 - Validation Target: AutoTradePage hero rendering paths, DesktopSidebar
   SCANNER row, AlertCenter mark-all-read persistence + filter
 - Not in Scope: trading logic, signal generation, exit watcher, risk
   gate, CLOB orders, Telegram bot, wallet flows
 - Suggested Next Step: WARP🔹CMD apply migration 069 to Supabase, then
-  merge PR #1467, then operator visual check after Fly.io redeploy.
+  run WARP•SENTINEL, then merge after APPROVED verdict + Fly.io redeploy.
