@@ -193,6 +193,32 @@ _TF_WINDOW_SECONDS: dict[str, int] = {"5m": 300, "15m": 900}
 _CRYPTO_WINDOW_CACHE_TTL: int = 45
 
 
+# Crypto candle assets that are MONITOR-ONLY (not tradeable). Mirror of
+# services/signal_scan/signal_scan_job._MONITOR_ONLY_ASSETS (lowercased here for
+# slug construction). These are observed for 30-day edge stats via a separate
+# market_data path but must NEVER be fetched as a tradeable candle window — a
+# window here feeds the trade engine. Keep in sync when an asset graduates
+# to / from monitor-only. (ref WARP/ROOT/prelaunch-system-audit F3.)
+_DEFAULT_TRADEABLE_COINS: tuple[str, ...] = ("btc", "eth", "sol")
+_MONITOR_ONLY_COINS: frozenset[str] = frozenset({"bnb"})
+
+
+def _resolve_tradeable_coins(
+    assets: "list[str] | tuple[str, ...] | None",
+) -> list[str]:
+    """Resolve UI tickers to lowercase tradeable candle coins.
+
+    Empty / None defaults to the tradeable set (BTC/ETH/SOL). Monitor-only
+    assets (BNB) are ALWAYS excluded — even from an explicit ``assets`` list —
+    so a candle window for a non-tradeable asset can never reach the trade
+    engine. Closes WARP/ROOT/prelaunch-system-audit F3 (the BNB default-asset
+    fallback that reintroduced BNB whenever ``assets`` was empty/None).
+    """
+    requested = [str(a).strip().lower() for a in (assets or [])]
+    coins = requested or list(_DEFAULT_TRADEABLE_COINS)
+    return [c for c in coins if c and c not in _MONITOR_ONLY_COINS]
+
+
 async def get_crypto_window_markets(
     timeframe: str,
     assets: "list[str] | tuple[str, ...] | None" = None,
@@ -209,15 +235,19 @@ async def get_crypto_window_markets(
     A broad list fetch buries these among thousands of markets, which is why the
     scanner never saw them.
 
-    ``assets`` are UI tickers (BTC/ETH/SOL/BNB); empty/None defaults to all four.
-    Each returned market dict is annotated ``category="crypto"`` so downstream
-    eligibility passes. Returns [] on any failure. Cached 20s (the live window
-    for a 5-minute candle is itself only minutes long).
+    ``assets`` are UI tickers; empty/None defaults to the tradeable set
+    (BTC/ETH/SOL). Monitor-only assets (e.g. BNB) are always excluded — they
+    must never be fetched as a tradeable candle window. Each returned market
+    dict is annotated ``category="crypto"`` so downstream eligibility passes.
+    Returns [] on any failure. Cached 20s (the live window for a 5-minute
+    candle is itself only minutes long).
     """
     step = _TF_WINDOW_SECONDS.get(timeframe)
     if step is None:
         return []
-    coins = [str(a).strip().lower() for a in (assets or [])] or ["btc", "eth", "sol", "bnb"]
+    coins = _resolve_tradeable_coins(assets)
+    if not coins:
+        return []
     now = int(time.time())
     slot = now // step * step
     slots = [slot, slot + step] if include_next else [slot]
