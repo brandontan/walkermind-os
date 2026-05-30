@@ -18,7 +18,7 @@ const PRESETS = ["close_sweep", "safe_close", "flip_hunter"] as const;
 const RISK_PROFILES = ["conservative", "balanced", "aggressive", "custom"] as const;
 const MAX_PER_TRADE_MODES = ["auto", "fixed", "pct"] as const;
 const TIMEFRAMES = ["5m", "15m"] as const;
-const CRYPTO_ASSETS = ["BTC", "ETH", "SOL", "BNB"] as const;
+const CRYPTO_ASSETS = ["BTC", "ETH", "SOL"] as const;
 const CRYPTO_SHORT_PRESETS = new Set<string>(["close_sweep", "safe_close", "flip_hunter"]);
 
 function fmtUsd(v: number | null | undefined): string {
