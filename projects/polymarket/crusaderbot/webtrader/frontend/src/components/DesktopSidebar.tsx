@@ -42,9 +42,14 @@ export function DesktopSidebar() {
         else setAutoOn(null);
         if (avail.status === "fulfilled") {
           setCopyTradeEnabled(avail.value.strategies?.copy_trade !== false);
+        } else {
+          setCopyTradeEnabled(true);
         }
       } catch {
-        if (!cancelled) setAutoOn(null);
+        if (!cancelled) {
+          setAutoOn(null);
+          setCopyTradeEnabled(true);
+        }
       }
     };
     void tick();

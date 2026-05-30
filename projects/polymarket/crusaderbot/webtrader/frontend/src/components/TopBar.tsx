@@ -41,7 +41,7 @@ export function TopBar({ tradingMode, notifCount: _notifCount, onBellClick: _onB
     let cancelled = false;
     void api.getPresetAvailability()
       .then((avail) => { if (!cancelled) setCopyTradeEnabled(avail.strategies?.copy_trade !== false); })
-      .catch(() => { /* keep last-known state */ });
+      .catch(() => { if (!cancelled) setCopyTradeEnabled(true); });
     return () => { cancelled = true; };
   }, [api, user?.token]);
   const { unreadCount, openAlertCenter } = useAlertCenter();
