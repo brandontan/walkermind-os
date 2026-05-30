@@ -781,6 +781,41 @@ def test_preset_allows_unknown_preset_blocks_every_strategy():
         assert _preset_allows(None, name) is False
 
 
+def test_preset_allows_deny_by_default_robust_to_nonempty_lib_set():
+    """Deny-by-default must NOT route through ``_LIB_STRATEGY_NAMES``.
+
+    Regression for WARP/ROOT/prelaunch-system-audit F2: the unknown-preset
+    fallback used to be ``_LIB_STRATEGY_NAMES``; it is safe today only because
+    that set is empty. A real prod row (``active_preset='contrarian'``) sits on
+    this path, so the moment any lib strategy is re-registered the legacy-preset
+    user would start trading it. Pin that an unknown / NULL preset denies EVEN
+    when the lib set is non-empty — i.e. the fallback is structurally
+    ``frozenset()``, not the lib set.
+    """
+    saved = job._LIB_STRATEGY_NAMES
+    job._LIB_STRATEGY_NAMES = frozenset({"trend_breakout", "signal_following"})
+    try:
+        for name in ("trend_breakout", "signal_following", "late_entry_v3"):
+            assert _preset_allows("contrarian", name) is False, name
+            assert _preset_allows(None, name) is False, name
+        # Canonical presets remain unaffected by the tightening.
+        assert _preset_allows("close_sweep", "late_entry_v3") is True
+    finally:
+        job._LIB_STRATEGY_NAMES = saved
+
+
+def test_preset_allows_source_uses_frozenset_default():
+    """Source pin: the ``_PRESET_ALLOWED`` fallback is ``frozenset()``
+    (deny-by-default), never ``_LIB_STRATEGY_NAMES`` (fail-open)."""
+    import inspect
+
+    src = inspect.getsource(_preset_allows)
+    assert "_PRESET_ALLOWED.get(active_preset, frozenset())" in src
+    # The fail-open pattern (fallback widening to the lib set) must be gone from
+    # the code. (The docstring may still mention _LIB_STRATEGY_NAMES to warn.)
+    assert "_PRESET_ALLOWED.get(active_preset, _LIB_STRATEGY_NAMES)" not in src
+
+
 def test_preset_allows_globally_disabled_strategy_blocked():
     """A globally disabled strategy is never allowed regardless of preset."""
     job._GLOBALLY_DISABLED_STRATEGIES = frozenset({"late_entry_v3"})
