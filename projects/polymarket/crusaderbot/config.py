@@ -105,6 +105,16 @@ class Settings(BaseSettings):
     # --- Heisenberg / Falcon API (market data + signal enrichment) ---
     HEISENBERG_API_TOKEN: Optional[str] = None
 
+    # --- Heisenberg agent 556 (real-time trades) buffer ---
+    # Triple-gated foundation lane: scheduler registers the sync job only when
+    # this flag is on. Default OFF so the buffer table sits idle until WARP🔹CMD
+    # explicitly enables it (field-name assumptions in services/heisenberg_trades.py
+    # need confirmation against real production responses first).
+    HEISENBERG_REALTIME_TRADES_ENABLED: bool = False
+    HEISENBERG_REALTIME_TRADES_INTERVAL_SEC: int = 60   # poll cadence
+    HEISENBERG_REALTIME_TRADES_WINDOW_SEC: int = 300    # look-back per poll
+    HEISENBERG_REALTIME_TRADES_RETENTION_HOURS: int = 24  # buffer retention
+
     # --- Polymarket (only required for LIVE trading) ---
     POLYMARKET_API_KEY: Optional[str] = None
     POLYMARKET_API_SECRET: Optional[str] = None
