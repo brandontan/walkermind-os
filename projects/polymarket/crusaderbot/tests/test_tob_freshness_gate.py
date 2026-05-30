@@ -58,6 +58,19 @@ def _reset_registry():
     StrategyRegistry._reset_for_tests()
 
 
+@pytest.fixture(autouse=True)
+def _clear_settings_cache():
+    # `get_settings` is `@lru_cache`d. Tests that mutate env-driven config
+    # (TOB_STALE_MS) need the cache cleared both BEFORE (in case a prior
+    # test populated it under different env) and AFTER (to leak nothing
+    # into the next test if this one raises mid-way). Manual per-test
+    # cleanup is fragile — autouse-fixture guarantees it runs even when a
+    # test fails or errors out.
+    crusaderbot_config.get_settings.cache_clear()
+    yield
+    crusaderbot_config.get_settings.cache_clear()
+
+
 def _set_required_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "tok")
     monkeypatch.setenv("OPERATOR_CHAT_ID", "1")
@@ -134,7 +147,6 @@ def test_tob_stale_ms_default_is_2000(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("TOB_STALE_MS", raising=False)
     s = crusaderbot_config.Settings()  # type: ignore[call-arg]
     assert s.TOB_STALE_MS == 2000
-    crusaderbot_config.get_settings.cache_clear()
 
 
 def test_tob_stale_ms_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -144,7 +156,6 @@ def test_tob_stale_ms_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TOB_STALE_MS", "0")
     s = crusaderbot_config.Settings()  # type: ignore[call-arg]
     assert s.TOB_STALE_MS == 0
-    crusaderbot_config.get_settings.cache_clear()
 
 
 def test_tob_stale_ms_rejects_negative(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -157,7 +168,6 @@ def test_tob_stale_ms_rejects_negative(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(Exception) as excinfo:
         crusaderbot_config.Settings()  # type: ignore[call-arg]
     assert "TOB_STALE_MS" in str(excinfo.value)
-    crusaderbot_config.get_settings.cache_clear()
 
 
 def test_tob_stale_ms_disable_sentinel_is_zero():
@@ -330,7 +340,6 @@ def test_stale_late_entry_candidate_is_rejected_before_engine(
     """
     _set_required_env(monkeypatch)
     monkeypatch.setenv("TOB_STALE_MS", "2000")
-    crusaderbot_config.get_settings.cache_clear()
     bootstrap_default_strategies()
 
     now_ts = datetime.now(timezone.utc).timestamp()
@@ -341,7 +350,6 @@ def test_stale_late_entry_candidate_is_rejected_before_engine(
         "Stale late_entry_v3 candidate (3s old > 2000ms threshold) must "
         "be rejected at step 3b-0 before reaching the trade engine."
     )
-    crusaderbot_config.get_settings.cache_clear()
 
 
 def test_fresh_late_entry_candidate_reaches_engine(
@@ -353,7 +361,6 @@ def test_fresh_late_entry_candidate_reaches_engine(
     """
     _set_required_env(monkeypatch)
     monkeypatch.setenv("TOB_STALE_MS", "2000")
-    crusaderbot_config.get_settings.cache_clear()
     bootstrap_default_strategies()
 
     now_ts = datetime.now(timezone.utc).timestamp()
@@ -364,7 +371,6 @@ def test_fresh_late_entry_candidate_reaches_engine(
         "Fresh late_entry_v3 candidate (500ms old < 2000ms threshold) "
         "must pass the freshness gate and reach the trade engine."
     )
-    crusaderbot_config.get_settings.cache_clear()
 
 
 def test_disabled_gate_passes_stale_candidate(
@@ -376,7 +382,6 @@ def test_disabled_gate_passes_stale_candidate(
     """
     _set_required_env(monkeypatch)
     monkeypatch.setenv("TOB_STALE_MS", "0")
-    crusaderbot_config.get_settings.cache_clear()
     bootstrap_default_strategies()
 
     now_ts = datetime.now(timezone.utc).timestamp()
@@ -387,7 +392,6 @@ def test_disabled_gate_passes_stale_candidate(
         "Disable sentinel broken: TOB_STALE_MS=0 must skip the gate and "
         "allow even very-stale candidates through (operator escape hatch)."
     )
-    crusaderbot_config.get_settings.cache_clear()
 
 
 def test_candidate_without_stamp_bypasses_gate(
@@ -400,7 +404,6 @@ def test_candidate_without_stamp_bypasses_gate(
     """
     _set_required_env(monkeypatch)
     monkeypatch.setenv("TOB_STALE_MS", "2000")
-    crusaderbot_config.get_settings.cache_clear()
     bootstrap_default_strategies()
 
     cand = _signal_following_candidate()  # no entry_price_ts
@@ -413,4 +416,3 @@ def test_candidate_without_stamp_bypasses_gate(
         "gate — signal_following / momentum / copy_trade cannot afford "
         "a global gate that breaks their normal path."
     )
-    crusaderbot_config.get_settings.cache_clear()
