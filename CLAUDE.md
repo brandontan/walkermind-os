@@ -261,6 +261,15 @@ No `except: pass`. No swallowed exceptions. No placeholder logic presented as co
 
 ---
 
+## Testing
+
+- Run `pytest tests/` from repo root
+- After test suite passes once, do not re-run unless explicitly instructed or required
+- Use Playwright for all frontend, UI, and end-to-end tests
+- Never use manual browser testing as a substitute for Playwright
+
+---
+
 ## PROJECT_STATE FORMAT (LOCKED — do not change structure)
 
 Location: `{PROJECT_ROOT}/state/PROJECT_STATE.md`
