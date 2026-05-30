@@ -248,6 +248,7 @@ export function AutoTradePage() {
       (a) => (CRYPTO_ASSETS as readonly string[]).includes(a),
     );
     if (cleanNext.length === 0) return;
+    const prevAssets = selectedAssets;
     setSelectedAssets(cleanNext);
     setPresetErr(null);
     setPresetSaving(state.active_preset);
@@ -256,6 +257,7 @@ export function AutoTradePage() {
       await api.activatePreset(state.active_preset, tf, cleanNext);
       await load();
     } catch (e) {
+      setSelectedAssets(prevAssets);
       const msg = e instanceof Error ? e.message : String(e);
       setPresetErr(msg.replace(/^HTTP \d+:\s*/, ""));
     } finally {

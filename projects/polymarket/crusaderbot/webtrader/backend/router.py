@@ -851,7 +851,7 @@ def _sanitize_selected_assets(raw: Any) -> Optional[list[str]]:
     "explicit empty selection" keeps working. Comparison normalises
     case + strips whitespace to catch pre-uppercase-normalisation rows.
     """
-    if not raw:
+    if not raw or not isinstance(raw, (list, tuple, set)):
         return None
     out: list[str] = []
     seen: set[str] = set()
