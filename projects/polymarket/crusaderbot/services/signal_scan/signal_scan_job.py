@@ -43,7 +43,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import math as _math
 import random
+import time as _time
 import uuid as _uuid_mod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -165,8 +167,6 @@ def _bankroll_multiplier(
     positive finite number, when no prior baseline exists (first
     observation seeds it), or when the multiplier evaluates non-finite.
     """
-    import math as _math
-    import time as _time
     if not _math.isfinite(current_balance) or current_balance <= 0:
         return 1.0
     key = str(user_id)
