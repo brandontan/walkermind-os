@@ -306,8 +306,44 @@ _EXIT_KIND_SEVERITY: dict[str, str] = {
 }
 
 
+def _exit_metadata(
+    *,
+    market_id: str,
+    market_label: str,
+    side: str,
+    exit_price: Optional[float],
+    pnl_usdc: Optional[float],
+    mode: str,
+    size_usdc: Optional[float] = None,
+    error: Optional[str] = None,
+) -> dict:
+    """Build the structured metadata dict passed to system_alerts.metadata
+    for exit-side alerts so the WebTrader AlertCenter can render typed cards
+    without re-parsing the Telegram HTML body."""
+    payload: dict = {
+        "market_id": market_id,
+        "market_label": market_label,
+        "side": side.upper() if isinstance(side, str) else side,
+        "mode": mode,
+    }
+    if exit_price is not None:
+        payload["exit_price"] = float(exit_price)
+    if pnl_usdc is not None:
+        payload["pnl_usdc"] = float(pnl_usdc)
+    if size_usdc is not None:
+        payload["size_usdc"] = float(size_usdc)
+    if error is not None:
+        payload["error"] = error[:200]
+    return payload
+
+
 async def _send_user_exit_alert(
-    telegram_user_id: int, text: str, *, alert_kind: str, market_id: str,
+    telegram_user_id: int,
+    text: str,
+    *,
+    alert_kind: str,
+    market_id: str,
+    metadata: Optional[dict] = None,
 ) -> bool:
     """Send a user-side exit alert and log a WARNING if delivery was dropped.
 
@@ -332,6 +368,8 @@ async def _send_user_exit_alert(
         web_body=text,
         severity=severity,
         dedup_key=market_id,
+        alert_kind=alert_kind,
+        metadata=metadata,
     )
     if not send_tg:
         # User opted out of TG for this alert key — web mirror (if any)
@@ -368,6 +406,10 @@ async def alert_user_tp_hit(
     )
     await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="tp_hit", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=exit_price, pnl_usdc=pnl_usdc, mode=mode,
+        ),
     )
 
 
@@ -391,6 +433,10 @@ async def alert_user_sl_hit(
     )
     await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="sl_hit", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=exit_price, pnl_usdc=pnl_usdc, mode=mode,
+        ),
     )
 
 
@@ -418,6 +464,10 @@ async def alert_user_resolution_win(
     )
     await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="resolution_win", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=exit_price, pnl_usdc=pnl_usdc, mode=mode,
+        ),
     )
 
 
@@ -441,6 +491,10 @@ async def alert_user_resolution_loss(
     )
     await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="resolution_loss", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=exit_price, pnl_usdc=pnl_usdc, mode=mode,
+        ),
     )
 
 
@@ -464,6 +518,10 @@ async def alert_user_force_close(
     )
     await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="force_close", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=exit_price, pnl_usdc=pnl_usdc, mode=mode,
+        ),
     )
 
 
@@ -487,6 +545,10 @@ async def alert_user_strategy_exit(
     )
     await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="strategy_exit", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=exit_price, pnl_usdc=pnl_usdc, mode=mode,
+        ),
     )
 
 
@@ -510,6 +572,10 @@ async def alert_user_manual_close(
     )
     await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="manual_close", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=exit_price, pnl_usdc=pnl_usdc, mode=mode,
+        ),
     )
 
 
@@ -533,6 +599,10 @@ async def alert_user_market_expired(
     )
     await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="market_expired", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=None, pnl_usdc=None, mode=mode, size_usdc=size_usdc,
+        ),
     )
 
 
@@ -555,6 +625,10 @@ async def alert_user_close_failed(
     )
     delivered = await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="close_failed", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=None, pnl_usdc=None, mode="paper", error=error,
+        ),
     )
     if delivered:
         logger.warning("close_failed user-alert delivered tg=%s market=%s err=%s",

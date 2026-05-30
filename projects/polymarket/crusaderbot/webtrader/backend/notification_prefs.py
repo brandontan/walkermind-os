@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import html as _html
+import json as _json
 import logging
 import re
 import time
@@ -180,12 +181,20 @@ async def persist_user_alert(
     title: str,
     body: Optional[str] = None,
     severity: str = DEFAULT_SEVERITY,
+    alert_kind: Optional[str] = None,
+    metadata: Optional[dict] = None,
 ) -> Optional[str]:
     """Write a per-user row into system_alerts when the user wants web delivery.
 
     Returns the alert UUID on insert, None if the user disabled web delivery
     for this alert_key (or if the write fails — failure is logged, not raised,
     so an alert outage cannot break the calling event flow).
+
+    ``alert_kind`` is a short discriminator (e.g. 'trade_opened', 'tp_hit')
+    that the WebTrader AlertCenter renders by. ``metadata`` carries the
+    structured event fields (market_label, side, size_usdc, entry_price,
+    exit_price, pnl_usdc, strategy, mode, market_id, position_id, ...).
+    Both default to NULL/{} so legacy callers stay unchanged.
     """
     try:
         ok = await should_notify(user_id, alert_key, "web")
@@ -199,17 +208,21 @@ async def persist_user_alert(
 
     clean_title = _strip_html_for_web(title) or title
     clean_body = _strip_html_for_web(body)
+    payload = metadata if isinstance(metadata, dict) else {}
 
     pool = get_pool()
     try:
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                INSERT INTO system_alerts (user_id, severity, title, body)
-                VALUES ($1::uuid, $2, $3, $4)
+                INSERT INTO system_alerts (
+                    user_id, severity, title, body, alert_kind, metadata
+                )
+                VALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb)
                 RETURNING id
                 """,
                 str(user_id), severity, clean_title, clean_body,
+                alert_kind, _json.dumps(payload),
             )
         if row is None:
             return None
@@ -298,6 +311,8 @@ async def route_outgoing_alert(
     web_body: Optional[str] = None,
     severity: str = DEFAULT_SEVERITY,
     dedup_key: Optional[str] = None,
+    alert_kind: Optional[str] = None,
+    metadata: Optional[dict] = None,
 ) -> bool:
     """End-to-end routing for a user-facing notification.
 
@@ -342,6 +357,8 @@ async def route_outgoing_alert(
                 title=web_title,
                 body=web_body,
                 severity=severity,
+                alert_kind=alert_kind,
+                metadata=metadata,
             )
         except Exception:
             logger.warning(

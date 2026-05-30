@@ -455,12 +455,56 @@ export interface MarketFilterSettings {
   min_volume_24h: number;
 }
 
+// Discriminator strings the backend writes into system_alerts.alert_kind.
+// See monitoring/alerts.py + services/trade_notifications/notifier.py.
+export type AlertKind =
+  | "trade_opened"
+  | "copy_trade_opened"
+  | "tp_hit"
+  | "sl_hit"
+  | "resolution_win"
+  | "resolution_loss"
+  | "force_close"
+  | "strategy_exit"
+  | "manual_close"
+  | "emergency_close"
+  | "market_expired"
+  | "close_failed"
+  | "risk"
+  | "system";
+
+// Structured event metadata mirrored from notifier.notify_*. Every field is
+// optional — legacy rows (pre-072 migration) have an empty {} so the typed
+// card components fall back to the body text path.
+export interface AlertMetadata {
+  market_id?: string;
+  market_label?: string;
+  side?: string;
+  size_usdc?: number;
+  entry_price?: number;
+  exit_price?: number;
+  tp_pct?: number;
+  sl_pct?: number;
+  pnl_usdc?: number;
+  strategy?: string;
+  strategy_type?: string | null;
+  mode?: string;
+  position_id?: string | null;
+  signal_reason?: string | null;
+  copy_wallet?: string | null;
+  copy_win_rate?: number | null;
+  trade_id?: string | null;
+  error?: string;
+}
+
 export interface AlertItem {
   id: string;
   severity: string;
   title: string;
   body: string | null;
   created_at: string;
+  alert_kind?: AlertKind | string | null;
+  metadata?: AlertMetadata;
 }
 
 // Per-alert × per-channel notification preferences. Missing keys / channels
