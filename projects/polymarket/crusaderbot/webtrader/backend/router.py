@@ -234,12 +234,12 @@ async def get_activity(user: _CurrentUser, limit: int = 10):
             """
             SELECT p.id, p.status, p.side, p.size_usdc,
                    p.entry_price, p.pnl_usdc, p.exit_reason,
-                   p.strategy_type, p.created_at, p.closed_at,
+                   p.strategy_type, p.opened_at, p.closed_at,
                    COALESCE(m.question, p.market_question) AS market_question
               FROM positions p
               LEFT JOIN markets m ON m.id = p.market_id
              WHERE p.user_id = $1::uuid
-             ORDER BY COALESCE(p.closed_at, p.created_at) DESC
+             ORDER BY COALESCE(p.closed_at, p.opened_at) DESC
              LIMIT $2
             """,
             user_id,
@@ -257,7 +257,7 @@ async def get_activity(user: _CurrentUser, limit: int = 10):
             "exit_reason": r["exit_reason"],
             "strategy_type": r["strategy_type"],
             "market_question": r["market_question"] or "",
-            "ts": (r["closed_at"] or r["created_at"]).isoformat(),
+            "ts": (r["closed_at"] or r["opened_at"]).isoformat(),
         }
         for r in rows
     ]
