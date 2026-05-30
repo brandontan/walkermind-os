@@ -21,8 +21,10 @@
 >   functional-intent, not runtime behaviour; reconcile to `users.role`.
 > - **Launch posture = public PAPER**, not closed beta. LIVE stays OFF behind the
 >   activation guards until an explicit owner flip after paper validation.
-> - **Canonical strategies = 3 ONLY:** `close_sweep`, `safe_close`, `flip_hunter`,
->   all routing to the `late_entry_v3` engine (`domain/preset/presets.py`). The
+> - **Canonical presets = 3 ONLY:** `close_sweep`, `safe_close`, `flip_hunter`,
+>   all routing to the `late_entry_v3` strategy engine (`domain/preset/presets.py`).
+>   (The registered strategies are `late_entry_v3`, `signal_following`,
+>   `copy_trade`; only `late_entry_v3` is reachable by a canonical preset.) The
 >   legacy multi-strategy roster (whale_mirror, signal_sniper, hybrid,
 >   value_hunter, trend_breakout, contrarian, full_auto, confluence_scalper,
 >   pair_arb, ensemble, "Momentum Reversal") was REMOVED in

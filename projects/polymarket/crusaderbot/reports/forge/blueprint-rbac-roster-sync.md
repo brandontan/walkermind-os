@@ -15,7 +15,7 @@ Reconciled the two stale-posture docs to current code truth, additively (flag-do
 
 ## 2. Current system architecture
 
-No code touched. Documentation only. Code truth (unchanged): access control = RBAC `admin`/`user` (no tiers, `access_tier` dropped in mig 044); canonical strategies = `close_sweep` / `safe_close` / `flip_hunter` → `late_entry_v3` (`domain/preset/presets.py`); tradeable assets = BTC/ETH/SOL; launch posture = public PAPER.
+No code touched. Documentation only. Code truth (unchanged): access control = RBAC `admin`/`user` (no tiers, `access_tier` dropped in mig 044); canonical presets = `close_sweep` / `safe_close` / `flip_hunter` → `late_entry_v3` strategy engine (`domain/preset/presets.py`); tradeable assets = BTC/ETH/SOL; launch posture = public PAPER.
 
 ## 3. Files created / modified
 
