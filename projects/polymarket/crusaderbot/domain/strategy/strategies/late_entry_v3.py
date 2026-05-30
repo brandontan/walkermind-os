@@ -582,6 +582,12 @@ async def _evaluate_market(
         size_base, user_context.capital_allocation_pct, ceiling_usdc=ceiling,
     )
 
+    # WARP/R00T/tob-freshness-gate: stamp the wall-clock at which the orderbook
+    # snapshot (yes_ask / no_ask / entry_price) was finalized. Read by
+    # services.signal_scan.signal_scan_job._process_candidate as step 3b-0 to
+    # reject the candidate when scan->fill latency exceeds TOB_STALE_MS.
+    entry_price_ts = datetime.now(timezone.utc).timestamp()
+
     return SignalCandidate(
         market_id=market_id,
         condition_id=condition_id,
@@ -595,6 +601,7 @@ async def _evaluate_market(
             "no_ask": no_ask,
             "fav_price": fav_price,
             "entry_price": entry_price,
+            "entry_price_ts": entry_price_ts,
             "underdog_mode": underdog_mode,
             "ask_diff": ask_diff,
             "spread": spread,
