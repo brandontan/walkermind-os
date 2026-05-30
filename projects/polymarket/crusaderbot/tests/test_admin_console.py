@@ -621,6 +621,21 @@ def test_admin_user_update_writes_audit_and_returns_detail():
     assert sql.count("risk_profile") >= 1  # at minimum, the patched column
 
 
+@pytest.mark.parametrize("field", ["risk_profile", "capital_alloc_pct", "max_per_trade_mode"])
+def test_admin_user_update_rejects_explicit_null_on_not_null_columns(field):
+    """Pinned: explicit null on a NOT NULL column must 400 before reaching the DB
+    (otherwise asyncpg would 500 with IntegrityError on the upsert)."""
+    from projects.polymarket.crusaderbot.webtrader.backend.schemas import AdminUserUpdate
+    body = AdminUserUpdate(**{field: None})
+    with pytest.raises(r.HTTPException) as exc:
+        asyncio.run(r.admin_user_update(
+            str(uuid4()), body, {"user_id": str(uuid4())},
+        ))
+    assert exc.value.status_code == 400
+    assert field in exc.value.detail
+    assert "null" in exc.value.detail.lower()
+
+
 def test_admin_user_update_paper_default_invariant_on_minimal_patch():
     """When patch does NOT touch risk_profile or capital_alloc_pct, the
     INSERT side of the upsert MUST still write 'paper', 'balanced', 0.40 so

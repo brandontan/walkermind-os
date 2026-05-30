@@ -2573,8 +2573,28 @@ async def admin_user_detail(user_id: str, user: _AdminUser) -> AdminUserDetail:
     )
 
 
+_NOT_NULL_PATCH_FIELDS: frozenset[str] = frozenset({
+    "risk_profile", "capital_alloc_pct", "max_per_trade_mode",
+})
+
+
 def _validate_admin_user_patch(body: AdminUserUpdate) -> None:
     """Per-field bounds check. Raises HTTPException(400) on the first miss."""
+    # Reject explicit-null on columns the DB declares NOT NULL — otherwise the
+    # upsert below would attempt to write NULL into risk_profile /
+    # capital_alloc_pct / max_per_trade_mode and 500 with an asyncpg
+    # IntegrityError. The user-facing endpoints can't reach these columns
+    # with a null because their schemas type the field as a non-Optional
+    # value; the admin schema marks them Optional for the "leave alone"
+    # pattern, so we have to enforce the NOT NULL contract here.
+    explicit_fields = body.model_dump(exclude_unset=True)
+    for col in _NOT_NULL_PATCH_FIELDS:
+        if col in explicit_fields and explicit_fields[col] is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{col} cannot be null (column is NOT NULL — omit the "
+                       f"field to leave it unchanged)",
+            )
     if body.active_preset is not None and body.active_preset not in _PRESET_TO_STRATEGY:
         raise HTTPException(
             status_code=400,
