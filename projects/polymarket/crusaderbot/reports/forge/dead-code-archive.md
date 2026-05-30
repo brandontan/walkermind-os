@@ -12,14 +12,14 @@ Closes: WARP/ROOT/prelaunch-system-audit finding F9
 ## 1. What was built
 
 Archived two confirmed-dead files (MOVE via `git mv`, history preserved — never deleted, never force-pushed):
-- `services/allowlist.py` → `archive/services/allowlist.py` — an orphaned integer-tier module with **zero inbound references** (verified: no `import`/`from .allowlist`, and none of its symbols `is_allowlisted` / `add_to_allowlist` / `remove_from_allowlist` / `resolve_tier` / `TIER_ALLOWLISTED` are used anywhere, including tests). Its own docstring's "imported by dispatcher, admin handler, tier gate" claim was false. Superseded by RBAC (`users.role`) + the separate, still-wired `services/tiers.py`.
+- `services/allowlist.py` → `archive/services/allowlist.py` — an orphaned integer-tier module with **zero inbound references** (verified: no `import`/`from .allowlist`, and none of its symbols `is_allowlisted` / `add_to_allowlist` / `remove_from_allowlist` / `get_user_tier` / `TIER_ALLOWLISTED` are used anywhere, including tests). Its own docstring's "imported by dispatcher, admin handler, tier gate" claim was false. Superseded by RBAC (`users.role`) + the separate, still-wired `services/tiers.py`.
 - `docs/blueprint/crusaderbot_old.md` → `docs/archive/blueprint/crusaderbot_old.md` — superseded by `docs/blueprint/crusaderbot.md`; zero inbound references (no doc links, no code/config references).
 
 ## 2. Current system architecture
 
 No runtime change. The live tree no longer carries the dead allowlist module or the superseded blueprint. `services/tiers.py` (the wired FREE/PREMIUM/ADMIN helper that reconciles to `users.role`) is untouched and remains the only tier-named module in the live tree. New `archive/` directory has no `__init__.py`, so archived `.py` files are not importable as a package.
 
-## 3. Files created / modified
+## 3. Files created/modified
 
 - Moved: `projects/polymarket/crusaderbot/services/allowlist.py` → `projects/polymarket/crusaderbot/archive/services/allowlist.py`.
 - Moved: `docs/blueprint/crusaderbot_old.md` → `docs/archive/blueprint/crusaderbot_old.md`.
