@@ -170,6 +170,40 @@ def test_throttle_blocks_intra_tick_drift():
     assert ssj._bankroll_ema_baseline["user-A"] == pytest.approx(seeded_baseline)
 
 
+def test_post_update_intra_tick_uses_active_baseline():
+    """After a throttle-allowed EMA update fires, subsequent intra-tick calls
+    for the same user must use the pre-update baseline (B0), not the newly
+    advanced EMA value (B1).
+
+    Regression for: intra-tick candidates computed multiplier from B1 because
+    _bankroll_ema_baseline was updated before all candidates had been evaluated.
+    Fix: _bankroll_ema_baseline_active freezes B0 so every call within the
+    throttle window uses the same reference.
+    """
+    import time as _time
+
+    # Seed at 1000 (first observation — no prior baseline).
+    _mult("user-A", 1000.0, throttle=5.0)
+
+    # Force last_update 10s into the past so the next call triggers an EMA update.
+    ssj._bankroll_ema_last_update["user-A"] = _time.monotonic() - 10.0
+
+    # Call A: elapsed >= 5s → EMA update fires. active_baseline frozen at B0=1000.
+    # EMA: 0.05*1200 + 0.95*1000 = 1010 (B1, stored in _bankroll_ema_baseline).
+    m_a = _mult("user-A", 1200.0, throttle=5.0)
+    assert m_a == pytest.approx(1.2), (
+        f"Call A must use B0=1000 → mult=1.2, got {m_a}"
+    )
+
+    # Call B: immediately after (elapsed << 5s) — throttle blocks. active_baseline
+    # is still B0=1000. Without the fix it would read B1=1010 and return 1500/1010 ≈ 1.485.
+    m_b = _mult("user-A", 1500.0, throttle=5.0)
+    assert m_b == pytest.approx(1.5), (
+        f"Call B must use frozen B0=1000 → mult=1.5, got {m_b}. "
+        "If this fails (~1.485) the active-baseline fix is missing."
+    )
+
+
 def test_throttle_zero_disables(monkeypatch):
     """throttle=0 must update on every call (the test-fixture default
     path used by every other helper-math test)."""

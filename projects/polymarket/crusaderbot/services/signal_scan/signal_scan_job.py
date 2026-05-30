@@ -137,6 +137,7 @@ _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
 # write per scan tick. Disable entirely via
 # BANKROLL_DYNAMIC_SIZING_ENABLED=false (escape hatch).
 _bankroll_ema_baseline: dict[str, float] = {}
+_bankroll_ema_baseline_active: dict[str, float] = {}  # frozen pre-update baseline for current tick
 _bankroll_ema_last_update: dict[str, float] = {}  # monotonic timestamp
 
 
@@ -172,24 +173,30 @@ def _bankroll_multiplier(
     baseline = _bankroll_ema_baseline.get(key)
     now_mono = _time.monotonic()
     if baseline is None or baseline <= 0:
-        # First observation: seed baseline + last-update; multiplier neutral.
+        # First observation: seed both dicts; multiplier neutral.
         _bankroll_ema_baseline[key] = current_balance
+        _bankroll_ema_baseline_active[key] = current_balance
         _bankroll_ema_last_update[key] = now_mono
-        return 1.0
-    raw_multiplier = current_balance / baseline
-    if not _math.isfinite(raw_multiplier):
         return 1.0
     # Throttle the EMA update: only refresh baseline when sufficient
     # time has elapsed since the last update. Inside a single scan tick
-    # all candidates for the same user share the prior baseline, so
-    # each candidate's multiplier reflects the true deviation, not the
+    # all candidates for the same user share the prior (active) baseline,
+    # so each candidate's multiplier reflects the true deviation, not the
     # already-dragged-toward-current intra-tick artifact.
+    # _bankroll_ema_baseline_active freezes the pre-update baseline so
+    # subsequent intra-tick calls use the same reference even after the
+    # EMA dict has been advanced.
     last_update = _bankroll_ema_last_update.get(key, 0.0)
     if (now_mono - last_update) >= min_update_interval_sec:
+        _bankroll_ema_baseline_active[key] = baseline  # freeze pre-update value
         _bankroll_ema_baseline[key] = (
             ema_alpha * current_balance + (1.0 - ema_alpha) * baseline
         )
         _bankroll_ema_last_update[key] = now_mono
+    active_baseline = _bankroll_ema_baseline_active.get(key, baseline)
+    raw_multiplier = current_balance / active_baseline
+    if not _math.isfinite(raw_multiplier):
+        return 1.0
     # Clamp to operator-configured bounds. Default [0.5, 1.5] caps both
     # the upside (don't blow up on a recent win streak) and the downside
     # (don't shrink positions so small they hit min-size gates).
@@ -199,6 +206,7 @@ def _bankroll_multiplier(
 def _bankroll_reset_for_tests() -> None:
     """Clear the in-memory EMA state. Tests use this to isolate runs."""
     _bankroll_ema_baseline.clear()
+    _bankroll_ema_baseline_active.clear()
     _bankroll_ema_last_update.clear()
 
 
