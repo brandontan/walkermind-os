@@ -236,7 +236,7 @@ export function AdminPage() {
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDrawerUserId(u.user_id); } }}
-                    aria-label={`Open detail for ${u.username ?? u.email ?? u.user_id}`}
+                    aria-label={`Open detail for ${u.username || u.email || u.user_id}`}
                   >
                     <td className="py-1.5 pr-2">
                       <div className="font-mono text-[11px] text-ink-1">

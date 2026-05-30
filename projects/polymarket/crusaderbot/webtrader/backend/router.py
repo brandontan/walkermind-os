@@ -2697,18 +2697,17 @@ async def admin_user_update(
         # Upsert so an operator edit on a brand-new user (no user_settings
         # row yet) creates the row with explicit paper-mode + balanced defaults
         # per the paper-default invariant.
-        insert_cols = ["user_id"] + list(fields.keys()) + ["trading_mode", "risk_profile", "capital_alloc_pct"]
-        insert_vals = ["$1::uuid"] + [f"${i + 2}" for i in range(len(fields))] + ["'paper'", "'balanced'", "0.40"]
-        # If risk_profile / capital_alloc_pct are part of the patch, drop the
-        # fallback literal so we don't INSERT them twice.
-        if "risk_profile" in fields:
-            idx = insert_cols.index("risk_profile", len(fields) + 1)
-            insert_cols.pop(idx)
-            insert_vals.pop(idx)
-        if "capital_alloc_pct" in fields:
-            idx = insert_cols.index("capital_alloc_pct", len(fields) + 1)
-            insert_cols.pop(idx)
-            insert_vals.pop(idx)
+        insert_cols = ["user_id"] + list(fields.keys())
+        insert_vals = ["$1::uuid"] + [f"${i + 2}" for i in range(len(fields))]
+        if "trading_mode" not in fields:
+            insert_cols.append("trading_mode")
+            insert_vals.append("'paper'")
+        if "risk_profile" not in fields:
+            insert_cols.append("risk_profile")
+            insert_vals.append("'balanced'")
+        if "capital_alloc_pct" not in fields:
+            insert_cols.append("capital_alloc_pct")
+            insert_vals.append("0.40")
         sql = (
             f"INSERT INTO user_settings ({', '.join(insert_cols)}) "
             f"VALUES ({', '.join(insert_vals)}) "

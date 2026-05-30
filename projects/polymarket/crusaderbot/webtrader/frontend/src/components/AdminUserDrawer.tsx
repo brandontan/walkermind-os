@@ -65,12 +65,12 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
         setDraft({
           active_preset: d.active_preset ?? "",
           risk_profile: d.risk_profile,
-          capital_alloc_pct: String(d.capital_alloc_pct),
-          tp_pct: d.tp_pct == null ? "" : String(d.tp_pct),
-          sl_pct: d.sl_pct == null ? "" : String(d.sl_pct),
+          capital_alloc_pct: String(d.capital_alloc_pct * 100),
+          tp_pct: d.tp_pct == null ? "" : String(d.tp_pct * 100),
+          sl_pct: d.sl_pct == null ? "" : String(d.sl_pct * 100),
           max_per_trade_mode: d.max_per_trade_mode,
           max_per_trade_usdc: d.max_per_trade_usdc == null ? "" : String(d.max_per_trade_usdc),
-          max_per_trade_pct: d.max_per_trade_pct == null ? "" : String(d.max_per_trade_pct),
+          max_per_trade_pct: d.max_per_trade_pct == null ? "" : String(d.max_per_trade_pct * 100),
         });
       })
       .catch((e) => {
@@ -90,16 +90,16 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
     if (draft.risk_profile && draft.risk_profile !== detail.risk_profile) {
       patch.risk_profile = draft.risk_profile;
     }
-    const cap = Number(draft.capital_alloc_pct);
+    const cap = Number(draft.capital_alloc_pct) / 100;
     if (draft.capital_alloc_pct !== "" && Number.isFinite(cap) && cap !== detail.capital_alloc_pct) {
       patch.capital_alloc_pct = cap;
     }
-    const tp = Number(draft.tp_pct);
+    const tp = Number(draft.tp_pct) / 100;
     const tpInput = draft.tp_pct.trim();
     if (tpInput !== "" && Number.isFinite(tp) && tp !== detail.tp_pct) {
       patch.tp_pct = tp;
     }
-    const sl = Number(draft.sl_pct);
+    const sl = Number(draft.sl_pct) / 100;
     const slInput = draft.sl_pct.trim();
     if (slInput !== "" && Number.isFinite(sl) && sl !== detail.sl_pct) {
       patch.sl_pct = sl;
@@ -111,7 +111,7 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
     if (draft.max_per_trade_usdc !== "" && Number.isFinite(mptu) && mptu !== detail.max_per_trade_usdc) {
       patch.max_per_trade_usdc = mptu;
     }
-    const mptp = Number(draft.max_per_trade_pct);
+    const mptp = Number(draft.max_per_trade_pct) / 100;
     if (draft.max_per_trade_pct !== "" && Number.isFinite(mptp) && mptp !== detail.max_per_trade_pct) {
       patch.max_per_trade_pct = mptp;
     }
@@ -209,27 +209,27 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
                 onChange={(v) => setDraft({ ...draft, risk_profile: v })}
               />
               <FieldNumber
-                label={`Capital alloc % (0.01–0.80, now ${fmtPct(detail.capital_alloc_pct)})`}
+                label={`Capital alloc % (1–80, now ${fmtPct(detail.capital_alloc_pct)})`}
                 value={draft.capital_alloc_pct}
-                step="0.01"
-                min="0.01"
-                max="0.80"
+                step="1"
+                min="1"
+                max="80"
                 onChange={(v) => setDraft({ ...draft, capital_alloc_pct: v })}
               />
               <FieldNumber
-                label={`TP % (0.005–10.00, now ${fmtPct(detail.tp_pct)})`}
+                label={`TP % (0.5–1000, now ${fmtPct(detail.tp_pct)})`}
                 value={draft.tp_pct}
-                step="0.005"
-                min="0.005"
-                max="10"
+                step="0.5"
+                min="0.5"
+                max="1000"
                 onChange={(v) => setDraft({ ...draft, tp_pct: v })}
               />
               <FieldNumber
-                label={`SL % (0.005–1.00, now ${fmtPct(detail.sl_pct)})`}
+                label={`SL % (0.5–100, now ${fmtPct(detail.sl_pct)})`}
                 value={draft.sl_pct}
-                step="0.005"
-                min="0.005"
-                max="1"
+                step="0.5"
+                min="0.5"
+                max="100"
                 onChange={(v) => setDraft({ ...draft, sl_pct: v })}
               />
               <FieldSelect
@@ -248,11 +248,11 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
                 onChange={(v) => setDraft({ ...draft, max_per_trade_usdc: v })}
               />
               <FieldNumber
-                label={`Max per trade % equity (0.005–0.10, now ${fmtPct(detail.max_per_trade_pct)})`}
+                label={`Max per trade % equity (0.5–10, now ${fmtPct(detail.max_per_trade_pct)})`}
                 value={draft.max_per_trade_pct}
-                step="0.005"
-                min="0.005"
-                max="0.10"
+                step="0.5"
+                min="0.5"
+                max="10"
                 onChange={(v) => setDraft({ ...draft, max_per_trade_pct: v })}
               />
             </div>
