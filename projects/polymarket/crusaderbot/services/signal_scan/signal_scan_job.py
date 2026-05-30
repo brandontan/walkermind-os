@@ -203,11 +203,73 @@ def _bankroll_multiplier(
     return max(multiplier_min, min(multiplier_max, raw_multiplier))
 
 
+# --------------------------------------------------------------------
+# Bankroll circuit breaker (WARP/R00T/bankroll-circuit-breaker, ref
+# Polybot directive 1.4 + #6). Per-user latch: trips when current
+# balance falls below `baseline * threshold`, resumes only after
+# climbing back to `baseline * threshold * (1 + hysteresis)`. The
+# baseline is the slow-moving _bankroll_ema_baseline maintained by
+# Lane 5 — same source of truth, no duplicate state.
+#
+# Default OFF (config-gated dark launch). When the latch is True the
+# gate in _process_candidate returns early with
+# scan_outcome="skipped_circuit_breaker". Existing open positions and
+# TP/SL exits are unaffected — the gate blocks NEW entries only.
+# --------------------------------------------------------------------
+_bankroll_circuit_tripped: dict[str, bool] = {}
+
+
+def _evaluate_bankroll_circuit_breaker(
+    user_id: str,
+    current_balance: float,
+    *,
+    threshold: float,
+    hysteresis: float,
+) -> bool:
+    """Update the per-user circuit-breaker latch and return its new state.
+
+    State transitions (per directive 1.4 + #6):
+      - Tripped when ``current_balance < baseline * threshold``
+      - Resumes when ``current_balance > baseline * threshold * (1 + hysteresis)``
+      - Below the resume bound but above the trip bound: latch holds
+        whatever state it had — that's the hysteresis cushion that
+        prevents the "circuit breaker loop" failure mode (Appendix C).
+
+    Fail-safe: returns False (NOT tripped) when no baseline exists yet
+    (first observation — can't measure deviation against an unknown
+    reference), when current balance is non-positive / non-finite, or
+    when threshold computation evaluates non-finite.
+    """
+    if not _math.isfinite(current_balance) or current_balance <= 0:
+        return False
+    key = str(user_id)
+    baseline = _bankroll_ema_baseline_active.get(key) or _bankroll_ema_baseline.get(key)
+    if baseline is None or baseline <= 0:
+        return False
+    trip_bound = baseline * threshold
+    resume_bound = trip_bound * (1.0 + hysteresis)
+    if not (_math.isfinite(trip_bound) and _math.isfinite(resume_bound)):
+        return False
+    was_tripped = _bankroll_circuit_tripped.get(key, False)
+    if was_tripped:
+        # Latched: only release if balance has climbed past the resume bound.
+        if current_balance > resume_bound:
+            _bankroll_circuit_tripped[key] = False
+            return False
+        return True
+    # Not yet tripped: trip if balance has fallen below the trip bound.
+    if current_balance < trip_bound:
+        _bankroll_circuit_tripped[key] = True
+        return True
+    return False
+
+
 def _bankroll_reset_for_tests() -> None:
     """Clear the in-memory EMA state. Tests use this to isolate runs."""
     _bankroll_ema_baseline.clear()
     _bankroll_ema_baseline_active.clear()
     _bankroll_ema_last_update.clear()
+    _bankroll_circuit_tripped.clear()
 
 
 # =====================================================================
@@ -1046,6 +1108,83 @@ async def _process_candidate(
                     await _mark_failed(user_id, pub_uuid, _stale_idem, err_str)
                 except Exception as mark_exc:
                     log.warning("exec_queue_mark_failed_error", error=str(mark_exc))
+            return
+
+    # 0a. Bankroll circuit breaker (WARP/R00T/bankroll-circuit-breaker,
+    #     ref Polybot directive 1.4 + #6). Per-user latch checked BEFORE
+    #     dedup / open-position / strategy gates so a tripped user does
+    #     not consume any work for net new entries. The crash-recovery
+    #     branch (step 0) runs FIRST so an already-approved-but-
+    #     interrupted trade still completes — the breaker only blocks
+    #     NEW entries, never the recovery of in-flight ones.
+    #
+    #     Reference: _bankroll_ema_baseline maintained by Lane 5
+    #     (bankroll-dynamic-sizing). Trip at `baseline * THRESHOLD`,
+    #     resume at `baseline * THRESHOLD * (1 + HYSTERESIS)`.
+    #     Operator escape hatch: BANKROLL_CIRCUIT_BREAKER_ENABLED=false
+    #     (default) disables the gate entirely.
+    try:
+        from ...config import get_settings as _gs_cb
+        _cfg_cb = _gs_cb()
+        _cb_enabled = bool(getattr(_cfg_cb, "BANKROLL_CIRCUIT_BREAKER_ENABLED", False))
+    except Exception as exc:
+        # AGENTS.md hard rule: zero silent failures. Log the diagnostic
+        # context and fail closed — disable the gate rather than risk a
+        # crashed config read silently locking every user out.
+        log.warning(
+            "bankroll_circuit_breaker_config_read_failed",
+            error=str(exc),
+            fallback_enabled=False,
+        )
+        _cb_enabled = False
+    if _cb_enabled:
+        try:
+            _cb_threshold = float(_cfg_cb.BANKROLL_CIRCUIT_BREAKER_THRESHOLD)
+            _cb_hysteresis = float(_cfg_cb.BANKROLL_CIRCUIT_BREAKER_HYSTERESIS)
+        except Exception as exc:
+            log.warning(
+                "bankroll_circuit_breaker_params_read_failed",
+                error=str(exc),
+                fallback_threshold=0.20,
+                fallback_hysteresis=0.10,
+            )
+            _cb_threshold = 0.20
+            _cb_hysteresis = 0.10
+        try:
+            _cb_balance = float(row.get("balance_usdc") or 0.0)
+        except (TypeError, ValueError):
+            _cb_balance = 0.0
+        _cb_tripped = _evaluate_bankroll_circuit_breaker(
+            str(row["user_id"]),
+            _cb_balance,
+            threshold=_cb_threshold,
+            hysteresis=_cb_hysteresis,
+        )
+        if _cb_tripped:
+            _cb_baseline = (
+                _bankroll_ema_baseline_active.get(str(row["user_id"]))
+                or _bankroll_ema_baseline.get(str(row["user_id"]))
+            )
+            log.info(
+                "scan_outcome",
+                outcome="skipped_circuit_breaker",
+                side=side,
+                market_id=cand.market_id,
+                strategy=cand.strategy_name,
+                balance_usdc=_cb_balance,
+                baseline_usdc=_cb_baseline,
+                threshold=_cb_threshold,
+                hysteresis=_cb_hysteresis,
+                message=(
+                    f"Bankroll circuit breaker tripped: balance "
+                    f"{_cb_balance:.2f} below baseline "
+                    f"{_cb_baseline if _cb_baseline is not None else 'N/A'} "
+                    f"* threshold {_cb_threshold}; resume requires balance "
+                    f"> baseline * threshold * (1 + {_cb_hysteresis})."
+                ),
+            )
+            if telemetry is not None:
+                telemetry.record_skip("skipped_circuit_breaker")
             return
 
     # 1. Permanent dedup — skip if execution_queue already has this row.
