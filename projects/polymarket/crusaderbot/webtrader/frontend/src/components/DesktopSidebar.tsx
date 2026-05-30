@@ -23,6 +23,11 @@ export function DesktopSidebar() {
   // global scheduler. Polled every 30s so a toggle from Auto tab
   // propagates here without a full reload.
   const [autoOn, setAutoOn] = useState<boolean | null>(null);
+  // Admin pause indicator — true when the operator has globally disabled the
+  // strategy backing the user's active preset. SCANNER must report PAUSED
+  // (ADMIN) in that case; reading auto_trade_on alone would keep saying
+  // RUNNING even though the scanner emits no candidates.
+  const [adminPaused, setAdminPaused] = useState(false);
   // Mirror AutoTradePage: when the operator has globally disabled copy_trade
   // the "↳ Copy Trade" sidebar subitem is hidden so it cannot send the user
   // to a tab that will just bounce back. FAIL-SAFE: until the availability
@@ -38,8 +43,13 @@ export function DesktopSidebar() {
           api.getPresetAvailability(),
         ]);
         if (cancelled) return;
-        if (dash.status === "fulfilled") setAutoOn(dash.value.auto_trade_on);
-        else setAutoOn(null);
+        if (dash.status === "fulfilled") {
+          setAutoOn(dash.value.auto_trade_on);
+          setAdminPaused(dash.value.active_preset_globally_enabled === false);
+        } else {
+          setAutoOn(null);
+          setAdminPaused(false);
+        }
         if (avail.status === "fulfilled") {
           setCopyTradeEnabled(avail.value.strategies?.copy_trade !== false);
         } else {
@@ -48,6 +58,7 @@ export function DesktopSidebar() {
       } catch {
         if (!cancelled) {
           setAutoOn(null);
+          setAdminPaused(false);
           setCopyTradeEnabled(true);
         }
       }
@@ -231,13 +242,16 @@ export function DesktopSidebar() {
           {[
             // SCANNER reflects the user's auto_trade_on, not the global
             // scheduler. When the user's bot is off, the scanner is
-            // semantically IDLE for them. autoOn === null while we're
+            // semantically IDLE for them. When the operator has globally
+            // disabled the active preset's strategy, surface PAUSED (ADMIN)
+            // — reading auto_trade_on alone would say RUNNING even though
+            // the scanner emits no candidates. autoOn === null while we're
             // still fetching the first tick — fall back to RUNNING then.
-            {
-              label: "SCANNER",
-              value: autoOn === false ? "IDLE" : "RUNNING",
-              tone: autoOn === false ? "dim" : "grn",
-            },
+            adminPaused
+              ? { label: "SCANNER", value: "PAUSED (ADMIN)", tone: "warn" }
+              : autoOn === false
+                ? { label: "SCANNER", value: "IDLE", tone: "dim" }
+                : { label: "SCANNER", value: "RUNNING", tone: "grn" },
             { label: "MODE",    value: "PAPER",   tone: "blue" },
             { label: "GUARDS",  value: "LOCKED",  tone: "warn" },
           ].map(({ label, value, tone }) => (

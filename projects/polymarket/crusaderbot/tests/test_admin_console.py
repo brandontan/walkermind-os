@@ -290,6 +290,109 @@ def test_preset_to_strategy_maps_candle_presets_to_late_entry():
     assert r._PRESET_TO_STRATEGY["flip_hunter"] == "late_entry_v3"
 
 
+# ── /dashboard mirrors active_preset_globally_enabled + alerts_ack_at ─────────
+# The desktop sidebar System Status block and the AlertCenter visibleAlerts
+# filter both read these fields from /dashboard. Previously SCANNER kept
+# saying RUNNING during an admin pause because the dashboard payload had no
+# such flag, and "Mark all read" was localStorage-only — clearing storage or
+# switching devices resurfaced every alert.
+
+
+def _dashboard_settings_row(active_preset, alerts_ack_at=None):
+    return {
+        "risk_profile": "balanced",
+        "capital_alloc_pct": 0.4,
+        "tp_pct": 0.2,
+        "sl_pct": 0.15,
+        "active_preset": active_preset,
+        "trading_mode": "paper",
+        "alerts_ack_at": alerts_ack_at,
+    }
+
+
+def _run_get_dashboard(active_preset, *, strategy_enabled=True, alerts_ack_at=None):
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(side_effect=[
+        {"auto_trade_on": True},
+        _dashboard_settings_row(active_preset, alerts_ack_at),
+        {"balance_usdc": 100.0},
+        {"total": 0, "wins": 0, "losses": 0},
+    ])
+    # fetchval call order in get_dashboard:
+    #   open_count → pnl_today → pnl_7d → pnl_alltime → signals_today
+    #   → (only if active_preset set) strategies.enabled lookup.
+    fetchval_returns = [0, 0, 0, 0, 0]
+    if active_preset:
+        fetchval_returns.append(strategy_enabled)
+    conn.fetchval = AsyncMock(side_effect=fetchval_returns)
+    with patch.object(r, "get_pool", return_value=_pool(conn)), \
+         patch.object(r.kill_switch, "is_active", AsyncMock(return_value=False)):
+        return asyncio.run(r.get_dashboard({"user_id": str(uuid4())}))
+
+
+def test_dashboard_marks_active_preset_paused_when_strategy_off():
+    """SCANNER must read PAUSED (ADMIN) when the backing strategy is OFF."""
+    out = _run_get_dashboard("close_sweep", strategy_enabled=False)
+    assert out.active_preset_globally_enabled is False
+
+
+def test_dashboard_marks_active_preset_enabled_when_strategy_on():
+    out = _run_get_dashboard("close_sweep", strategy_enabled=True)
+    assert out.active_preset_globally_enabled is True
+
+
+def test_dashboard_globally_enabled_when_no_active_preset():
+    """No preset selected → no strategies lookup, defaults to enabled=True."""
+    out = _run_get_dashboard(None)
+    assert out.active_preset_globally_enabled is True
+
+
+def test_dashboard_surfaces_alerts_ack_at():
+    """AlertCenter watermark must round-trip through the dashboard payload so
+    a localStorage-clear or second-device session still respects the click."""
+    from datetime import datetime, timezone
+    ts = datetime(2026, 5, 30, 12, 0, tzinfo=timezone.utc)
+    out = _run_get_dashboard("close_sweep", alerts_ack_at=ts)
+    assert out.alerts_ack_at == ts
+
+
+def test_dashboard_alerts_ack_at_defaults_none():
+    out = _run_get_dashboard("close_sweep")
+    assert out.alerts_ack_at is None
+
+
+# ── /alerts/ack-all persists the click server-side ────────────────────────────
+
+
+def test_ack_all_alerts_writes_now_and_returns_iso_ts():
+    """Endpoint upserts NOW() into user_settings.alerts_ack_at and returns
+    the new timestamp as ISO-8601 so the client can update its filter
+    immediately without waiting for the next /dashboard."""
+    from datetime import datetime, timezone
+    ts = datetime(2026, 5, 30, 12, 0, tzinfo=timezone.utc)
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(return_value={"alerts_ack_at": ts})
+    with patch.object(r, "get_pool", return_value=_pool(conn)):
+        out = asyncio.run(r.ack_all_alerts({"user_id": str(uuid4())}))
+    assert out["alerts_ack_at"] == ts.isoformat()
+    # Sanity: the upsert query, not a bare UPDATE — covers users without an
+    # existing user_settings row.
+    args = conn.fetchrow.call_args
+    assert "INSERT INTO user_settings" in args.args[0]
+    assert "ON CONFLICT" in args.args[0]
+
+
+def test_ack_all_alerts_handles_null_return():
+    """Hardened: if the upsert returns no row (shouldn't happen, but guards
+    against an asyncpg edge case) the endpoint returns None instead of
+    raising AttributeError on the response builder."""
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(return_value=None)
+    with patch.object(r, "get_pool", return_value=_pool(conn)):
+        out = asyncio.run(r.ack_all_alerts({"user_id": str(uuid4())}))
+    assert out["alerts_ack_at"] is None
+
+
 def test_get_autotrade_sl_only_custom_returns_null_tp():
     """Custom SL-only (tp_pct NULL in DB) must serialize tp_pct=None, not crash."""
     row = _autotrade_settings_row("close_sweep")

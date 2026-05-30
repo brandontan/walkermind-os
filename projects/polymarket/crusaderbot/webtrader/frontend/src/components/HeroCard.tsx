@@ -17,6 +17,10 @@ type Props = {
   metaItems?: ReactNode;
   /** Status pill (ACTIVE, IDLE etc.) on left. */
   statusLabel?: string;
+  /** Tone for the status dot + label. "active" pulses green/gold (default),
+      "paused" renders muted ink so the admin-pause state can't be mistaken
+      for a live system, "idle" is ink-3 with no pulse. */
+  statusTone?: "active" | "paused" | "idle";
   /** Strategy code shown next to status, advanced only — caller can wrap in <AdvancedOnly>. */
   statusCode?: ReactNode;
   /** Risk tag pill on right of meta row. */
@@ -45,6 +49,7 @@ export function HeroCard({
   valueFontSize = 58,
   metaItems,
   statusLabel,
+  statusTone = "active",
   statusCode,
   risk,
   ctaPrimary,
@@ -112,11 +117,27 @@ export function HeroCard({
           {statusLabel && (
             <div className="flex items-center gap-2">
               <span
-                className="w-[7px] h-[7px] rounded-full bg-grn animate-status-pulse"
-                style={{ boxShadow: "0 0 10px var(--grn,#00FF9C)" }}
+                className={[
+                  "w-[7px] h-[7px] rounded-full",
+                  statusTone === "active" ? "bg-grn animate-status-pulse" :
+                  statusTone === "paused" ? "bg-ink-3" :
+                                            "bg-ink-4",
+                ].join(" ")}
+                style={
+                  statusTone === "active"
+                    ? { boxShadow: "0 0 10px var(--grn,#00FF9C)" }
+                    : undefined
+                }
                 aria-hidden
               />
-              <span className="font-mono text-[9px] font-bold tracking-[2.5px] text-gold uppercase">
+              <span
+                className={[
+                  "font-mono text-[9px] font-bold tracking-[2.5px] uppercase",
+                  statusTone === "active" ? "text-gold" :
+                  statusTone === "paused" ? "text-ink-3" :
+                                            "text-ink-4",
+                ].join(" ")}
+              >
                 {statusLabel}
               </span>
               {statusCode && (

@@ -199,10 +199,29 @@ function AppShell() {
   const fetchAlerts = useCallback(async (offset = 0, append = false) => {
     if (!user) return;
     try {
-      const [sysResult, posResult] = await Promise.allSettled([
+      const [sysResult, posResult, dashResult] = await Promise.allSettled([
         offset === 0 ? api.getAlerts() : Promise.resolve([] as AlertItem[]),
         api.getPositions("closed", ALERT_PAGE + 1, offset),
+        // Fold the server-side alerts_ack_at watermark into the local one on
+        // every fetch — survives a localStorage clear / a fresh device / a
+        // private window. The /alerts call is already filtered server-side
+        // by alerts_ack_at, but closed-position alerts come from /positions
+        // and need the client-side visibleAlerts filter to honour the same
+        // cut-off.
+        offset === 0 ? api.getDashboard() : Promise.resolve(null),
       ]);
+      if (dashResult.status === "fulfilled" && dashResult.value && dashResult.value.alerts_ack_at) {
+        const serverAckMs = Date.parse(dashResult.value.alerts_ack_at);
+        if (Number.isFinite(serverAckMs)) {
+          setMarkAllReadAt((prev) => {
+            const next = Math.max(prev, serverAckMs);
+            if (next > prev) {
+              try { localStorage.setItem(scopeKey(MARK_ALL_READ_AT_KEY_BASE, userKey), String(next)); } catch { /* quota */ }
+            }
+            return next;
+          });
+        }
+      }
       const sysAlerts: AlertItem[] = sysResult.status === "fulfilled" ? sysResult.value : [];
       const closedRaw = posResult.status === "fulfilled" ? posResult.value : [];
       const hasMore = closedRaw.length > ALERT_PAGE;
@@ -236,7 +255,7 @@ function AppShell() {
     } catch {
       // non-critical — panel shows empty state
     }
-  }, [api, user]);
+  }, [api, user, userKey]);
 
   const loadMoreAlerts = useCallback(async () => {
     const next = alertOffset + ALERT_PAGE;
@@ -260,6 +279,12 @@ function AppShell() {
   // click. Still adds IDs to dismissed + seenIds for back-compat with the
   // legacy ID-based path, but the watermark is what actually keeps stale
   // alerts gone across reloads.
+  //
+  // Watermark is also persisted server-side via POST /alerts/ack-all so a
+  // second device / private window / localStorage clear cannot resurface
+  // already-acknowledged alerts. The local optimistic update fires first so
+  // the panel collapses instantly; the server call refines the timestamp to
+  // the canonical NOW() if the request succeeds.
   const markAllRead = useCallback(() => {
     setDismissed(prev => {
       const next = [...prev, ...alerts.map(a => a.id)];
@@ -279,7 +304,24 @@ function AppShell() {
     // setLastSeen already writes the scoped LAST_SEEN_KEY_BASE entry — a
     // second setItem here would be a duplicate write.
     setLastSeen(now);
-  }, [alerts, userKey]);
+    // Persist server-side. Best-effort: a network failure leaves the local
+    // watermark in place so the click still sticks for this device. When
+    // the server responds we ALWAYS adopt its canonical NOW() — a
+    // `serverMs > now` guard would lose the canonical value on a
+    // fast client clock (Date.now() ahead of server) and risk hiding
+    // legitimate alerts that arrive between server-time and client-time.
+    api.ackAllAlerts()
+      .then((resp) => {
+        if (resp.alerts_ack_at) {
+          const serverMs = Date.parse(resp.alerts_ack_at);
+          if (Number.isFinite(serverMs)) {
+            setMarkAllReadAt(serverMs);
+            try { localStorage.setItem(scopeKey(MARK_ALL_READ_AT_KEY_BASE, userKey), String(serverMs)); } catch { /* quota */ }
+          }
+        }
+      })
+      .catch(() => { /* non-fatal — local watermark suffices */ });
+  }, [alerts, userKey, api]);
 
   // Per-alert "mark as read" without dismissing. Used when an unread alert
   // is auto-acknowledged after the user has had time to read it (panel open

@@ -367,31 +367,35 @@ export function AutoTradePage() {
         {/* Hero — admin pause takes precedence over user auto-trade toggle.
             If the active preset's backing strategy is globally disabled the
             scanner will not emit any candidates, so showing RUNNING would
-            mislead the user even though state.auto_trade_on is true. */}
-        <HeroCard
-          label="Auto Trade"
-          value={heroValue}
-          valueFontSize={38}
-          prefix=""
-          statusLabel={
-            state.active_preset_globally_enabled === false
-              ? "PAUSED (ADMIN)"
-              : state.auto_trade_on
-                ? "STRATEGY ACTIVE"
-                : "STRATEGY PAUSED"
-          }
-          metaItems={
+            mislead the user even though state.auto_trade_on is true. The dot
+            tone, label colour, AND CTA all collapse to a passive paused state
+            in that case — previously the green dot + "Stop Auto Trade" red
+            button were hardcoded on, so the admin pause was only visible via
+            the text label and could be mistaken for an active system. */}
+        {(() => {
+          const adminPaused = state.active_preset_globally_enabled === false;
+          const tone: "active" | "paused" | "idle" = adminPaused
+            ? "paused"
+            : state.auto_trade_on
+              ? "active"
+              : "idle";
+          const statusLabel = adminPaused
+            ? "PAUSED (ADMIN)"
+            : state.auto_trade_on
+              ? "STRATEGY ACTIVE"
+              : "STRATEGY PAUSED";
+          const metaItems = (
             <>
               <span
                 className={
-                  state.active_preset_globally_enabled === false
+                  adminPaused
                     ? "text-ink-3 font-bold"
                     : state.auto_trade_on
                       ? "text-grn font-bold"
                       : "text-ink-2 font-bold"
                 }
               >
-                {state.active_preset_globally_enabled === false
+                {adminPaused
                   ? "● PAUSED (ADMIN)"
                   : state.auto_trade_on
                     ? "● RUNNING"
@@ -402,16 +406,65 @@ export function AutoTradePage() {
                 {state.risk_profile.toUpperCase()} RISK
               </span>
             </>
+          );
+          // When admin-paused, do NOT offer a "Stop Auto Trade" CTA — the
+          // user toggle is moot while the scanner is disabled, and clicking
+          // it would just flip a flag with no visible effect. Surface a
+          // passive info banner instead (rendered below the hero).
+          if (adminPaused) {
+            return (
+              <HeroCard
+                label="Auto Trade"
+                value={heroValue}
+                valueFontSize={38}
+                prefix=""
+                statusLabel={statusLabel}
+                statusTone="paused"
+                metaItems={metaItems}
+              />
+            );
           }
-          {...(state.auto_trade_on
-            ? { ctaDanger: { label: "🛑 Stop Auto Trade", onClick: () => void handleToggle() } }
-            : {
-                ctaPrimary: {
-                  label: loading ? "Starting…" : "▶ Start Auto Trade",
-                  onClick: () => void handleToggle(),
-                },
-              })}
-        />
+          return (
+            <HeroCard
+              label="Auto Trade"
+              value={heroValue}
+              valueFontSize={38}
+              prefix=""
+              statusLabel={statusLabel}
+              statusTone={tone}
+              metaItems={metaItems}
+              {...(state.auto_trade_on
+                ? { ctaDanger: { label: "🛑 Stop Auto Trade", onClick: () => void handleToggle() } }
+                : {
+                    ctaPrimary: {
+                      label: loading ? "Starting…" : "▶ Start Auto Trade",
+                      onClick: () => void handleToggle(),
+                    },
+                  })}
+            />
+          );
+        })()}
+
+        {/* Admin-pause info banner — shown right below the hero so the user
+            understands why their bot is idle even though they had auto-trade
+            on. Replaces the misleading red Stop CTA above. */}
+        {state.active_preset_globally_enabled === false && (
+          <div
+            className="mb-3 px-3 py-2.5 rounded border flex items-start gap-2 text-[11px] font-mono"
+            style={{
+              background: "rgba(120, 140, 170, 0.06)",
+              borderColor: "rgba(120, 140, 170, 0.25)",
+              color: "var(--ink-2)",
+            }}
+            role="status"
+          >
+            <span className="text-base leading-none" aria-hidden>🔒</span>
+            <span className="leading-snug">
+              The <span className="font-bold">{activeStrategy?.name ?? state.active_preset}</span> strategy
+              is currently paused by the operator. New entries will resume automatically once it&apos;s re-enabled.
+            </span>
+          </div>
+        )}
 
         {/* ── SECTION A: Strategy Preset ── */}
         <SectionTitle>Strategy Preset</SectionTitle>

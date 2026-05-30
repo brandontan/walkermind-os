@@ -59,6 +59,18 @@ class DashboardSummary(BaseModel):
     risk_profile: str = "balanced"
     pnl_alltime: float = 0.0
     signals_today: int = 0
+    # Whether the strategy backing the user's active preset is globally
+    # enabled (operator Ops-Console). When False, the scanner emits no
+    # candidates even though ``auto_trade_on`` is True — used by the desktop
+    # sidebar System Status block + topbar pill so SCANNER shows PAUSED
+    # (ADMIN) instead of RUNNING. Defaults True (no preset / no row = ON).
+    active_preset_globally_enabled: bool = True
+    # Server-side AlertCenter "Mark all read" watermark. NULL = never
+    # acknowledged. Frontend mirrors it onto its visibleAlerts filter so the
+    # closed-position alert stream (sourced from /positions, not /alerts)
+    # also collapses after a click, surviving localStorage clears + device
+    # changes. Serialised as ISO-8601 with offset (tz-aware).
+    alerts_ack_at: Optional[datetime] = None
 
 
 # ── Market feed ───────────────────────────────────────────────────────────────

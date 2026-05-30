@@ -272,7 +272,7 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
         )
         settings_row = await conn.fetchrow(
             """SELECT risk_profile, capital_alloc_pct, tp_pct, sl_pct,
-                      active_preset, trading_mode
+                      active_preset, trading_mode, alerts_ack_at
                FROM user_settings WHERE user_id = $1::uuid""",
             user_id,
         )
@@ -317,6 +317,18 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
         )
         ks_active = await kill_switch.is_active()
 
+        # Same global-pause lookup as /autotrade — the System Status sidebar
+        # and topbar consume DashboardSummary, so SCANNER would still read
+        # RUNNING during an admin pause if we relied on auto_trade_on alone.
+        _active_preset = settings_row["active_preset"] if settings_row else None
+        _strategy_name = _PRESET_TO_STRATEGY.get(str(_active_preset)) if _active_preset else None
+        preset_globally_enabled = True
+        if _strategy_name:
+            _se = await conn.fetchval(
+                "SELECT enabled FROM strategies WHERE name = $1", _strategy_name
+            )
+            preset_globally_enabled = True if _se is None else bool(_se)
+
     balance = float(wallet_row["balance_usdc"]) if wallet_row else 0.0
     trading_mode = settings_row["trading_mode"] if settings_row else "paper"
 
@@ -336,6 +348,8 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
         risk_profile=str(settings_row["risk_profile"] or "balanced") if settings_row else "balanced",
         pnl_alltime=float(pnl_alltime or 0),
         signals_today=int(signals_today or 0),
+        active_preset_globally_enabled=preset_globally_enabled,
+        alerts_ack_at=settings_row["alerts_ack_at"] if settings_row else None,
     )
 
 
@@ -1315,18 +1329,26 @@ async def get_alerts(user: _CurrentUser) -> list[AlertItem]:
     """Active alerts for the current user.
 
     Includes both broadcast operator banners (user_id IS NULL) AND per-user
-    trade-lifecycle events (user_id = current user). Limit 50 covers a
-    busy auto-trade session without forcing the UI to paginate.
+    trade-lifecycle events (user_id = current user). Limit 50 covers a busy
+    auto-trade session without forcing the UI to paginate.
+
+    Server-side respects ``user_settings.alerts_ack_at`` (the "Mark all read"
+    watermark) so a click in AlertCenter sticks across devices, browsers,
+    and localStorage clears — the localStorage-only watermark used to
+    resurface every alert on a fresh refresh because the bell count was
+    rebuilt purely from the latest /alerts payload.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """SELECT id, severity, title, body, created_at
-               FROM system_alerts
-               WHERE dismissed=FALSE
-                 AND (expires_at IS NULL OR expires_at > NOW())
-                 AND (user_id IS NULL OR user_id = $1::uuid)
-               ORDER BY created_at DESC
+            """SELECT a.id, a.severity, a.title, a.body, a.created_at
+               FROM system_alerts a
+               LEFT JOIN user_settings us ON us.user_id = $1::uuid
+               WHERE a.dismissed = FALSE
+                 AND (a.expires_at IS NULL OR a.expires_at > NOW())
+                 AND (a.user_id IS NULL OR a.user_id = $1::uuid)
+                 AND (us.alerts_ack_at IS NULL OR a.created_at > us.alerts_ack_at)
+               ORDER BY a.created_at DESC
                LIMIT 50""",
             user["user_id"],
         )
@@ -1340,6 +1362,42 @@ async def get_alerts(user: _CurrentUser) -> list[AlertItem]:
         )
         for r in rows
     ]
+
+
+@router.post("/alerts/ack-all")
+async def ack_all_alerts(user: _CurrentUser) -> dict:
+    """Persist the AlertCenter "Mark all read" click server-side.
+
+    Sets ``user_settings.alerts_ack_at = NOW()`` so subsequent /alerts and
+    closed-position alert fetches collapse to "nothing pre-dating the click"
+    on every device the user signs in from. Returns the new watermark
+    serialised as ISO-8601 with offset so the caller can update its local
+    visibleAlerts filter immediately without waiting for the next /dashboard
+    refresh.
+
+    Idempotent: a second call simply moves the watermark forward to the
+    current NOW() and returns the new ts.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        # INSERT...ON CONFLICT covers users who haven't materialised a
+        # user_settings row yet (rare in practice but possible on the
+        # signup → settings-write race).
+        # NOT NULL columns (risk_profile, trading_mode, …) carry DEFAULTs in
+        # the migration 001 schema, but we still write the canonical paper-
+        # parity literals here so this endpoint stays aligned with the rest
+        # of the codebase's "explicit > schema default" convention pinned by
+        # test_paper_default_invariant (signup INSERTs are required to spell
+        # trading_mode='paper' so a future schema edit that drops the
+        # default doesn't silently flip a brand-new user to live mode).
+        row = await conn.fetchrow(
+            """INSERT INTO user_settings (user_id, alerts_ack_at, trading_mode, risk_profile)
+               VALUES ($1::uuid, NOW(), 'paper', 'balanced')
+               ON CONFLICT (user_id) DO UPDATE SET alerts_ack_at = NOW()
+               RETURNING alerts_ack_at""",
+            user["user_id"],
+        )
+    return {"alerts_ack_at": row["alerts_ack_at"].isoformat() if row and row["alerts_ack_at"] else None}
 
 
 @router.get("/settings/notification-prefs")
