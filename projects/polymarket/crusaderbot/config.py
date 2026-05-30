@@ -378,6 +378,42 @@ class Settings(BaseSettings):
     # updates still land.
     BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC: float = 5.0  # env: BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC
 
+    # --- Bankroll circuit breaker (WARP/R00T/bankroll-circuit-breaker) ---
+    # Halt new-entry processing for a user when their current balance
+    # drops below `baseline * BANKROLL_CIRCUIT_BREAKER_THRESHOLD`. Resumes
+    # only when balance climbs back to
+    # `baseline * BANKROLL_CIRCUIT_BREAKER_THRESHOLD * (1 + HYSTERESIS)`
+    # — hysteresis prevents a thrashing trip/reset loop at the boundary
+    # (directive Appendix C "circuit breaker loop" failure mode).
+    #
+    # `baseline` is the slow-moving EMA reference that Lane 5
+    # (`bankroll-dynamic-sizing`) already maintains per user — same
+    # _bankroll_ema_baseline dict, no second source of truth. This means
+    # the gate fires on relative bankroll deterioration vs the user's own
+    # equilibrium, not against a fixed-USD target (each user starts at a
+    # different balance, so a fixed-USD target would be meaningless).
+    #
+    # The gate only blocks NEW entries — existing open positions and
+    # their TP/SL exits are unaffected (operator can still emergency-stop
+    # via /kill which routes through `users.set_paused(True)` and the
+    # existing exit pipeline). A future live-mode lane will add active
+    # order cancellation as the directive spec calls for.
+    #
+    # Default OFF (dark launch). Operator enables once we've watched the
+    # `skipped_circuit_breaker` rate in paper mode for a couple of
+    # sessions and confirmed it does not over-fire on benign DD.
+    BANKROLL_CIRCUIT_BREAKER_ENABLED: bool = False  # env: BANKROLL_CIRCUIT_BREAKER_ENABLED
+    # Trip threshold as a fraction of the user's bankroll baseline:
+    # gate fires when `balance < baseline * THRESHOLD`. Default 0.20 →
+    # trip when bankroll falls below 20% of baseline (~80% drawdown).
+    # Matches the Polybot directive #6 reference (stop when only 20%
+    # of bankroll remains). Bounds: (0, 1].
+    BANKROLL_CIRCUIT_BREAKER_THRESHOLD: float = 0.20  # env: BANKROLL_CIRCUIT_BREAKER_THRESHOLD
+    # Hysteresis cushion above the threshold required to resume trading.
+    # Default 0.10 → resume at `threshold * 1.10` (22% recovery). Bounds:
+    # [0, 1].
+    BANKROLL_CIRCUIT_BREAKER_HYSTERESIS: float = 0.10  # env: BANKROLL_CIRCUIT_BREAKER_HYSTERESIS
+
     # --- Safe-close direction concentration limit
     #     (WARP/R00T/safe-close-direction-limit, Lane 4/5) ---
     # Max accepted safe_close entries per (user, side) within a rolling
@@ -578,6 +614,45 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"BANKROLL_EMA_ALPHA must be in (0, 1] (got {v}); "
                 f"alpha=0 freezes the baseline, alpha>1 overshoots."
+            )
+        return v
+
+    @field_validator("BANKROLL_CIRCUIT_BREAKER_THRESHOLD")
+    @classmethod
+    def validate_circuit_breaker_threshold(cls, v: float) -> float:
+        # Threshold must be in (0, 1]: 0 would mean "trip at zero
+        # bankroll" (never useful — by then the trade is already moot),
+        # > 1 would mean "trip above 100% baseline" (always tripped, no
+        # entries ever land — silent kill switch). Both fail closed at
+        # config load.
+        if not math.isfinite(v):
+            raise ValueError(
+                f"BANKROLL_CIRCUIT_BREAKER_THRESHOLD must be a finite "
+                f"number (got {v!r})."
+            )
+        if v <= 0 or v > 1:
+            raise ValueError(
+                f"BANKROLL_CIRCUIT_BREAKER_THRESHOLD must be in (0, 1] "
+                f"(got {v}); 0 would never trip, > 1 would always trip."
+            )
+        return v
+
+    @field_validator("BANKROLL_CIRCUIT_BREAKER_HYSTERESIS")
+    @classmethod
+    def validate_circuit_breaker_hysteresis(cls, v: float) -> float:
+        # Hysteresis must be in [0, 1]: 0 = no cushion (gate flaps on the
+        # boundary), > 1 would require > 200% recovery to resume (silent
+        # permanent lockout once tripped — exactly the trap to avoid).
+        if not math.isfinite(v):
+            raise ValueError(
+                f"BANKROLL_CIRCUIT_BREAKER_HYSTERESIS must be a finite "
+                f"number (got {v!r})."
+            )
+        if v < 0 or v > 1:
+            raise ValueError(
+                f"BANKROLL_CIRCUIT_BREAKER_HYSTERESIS must be in [0, 1] "
+                f"(got {v}); 0 disables hysteresis, > 1 would lock the "
+                f"breaker permanently."
             )
         return v
 
