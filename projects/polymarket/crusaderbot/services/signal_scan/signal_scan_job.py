@@ -121,6 +121,65 @@ _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Monitor-only asset hygiene (WARP/R00T/bnb-monitor-only, ref Polybot
+# directive Part 4 Tier 3). Assets listed here are NOT tradable — the
+# webtrader router validator rejects them at preset-activation time, but
+# existing user rows persisted before this lane was shipped can still
+# carry them in their `selected_assets` JSONB array. We strip those
+# entries here so the scanner never includes monitor-only markets in
+# any user's signal universe, even on legacy data. The user's next
+# preset re-activation through the router normalises the DB column.
+#
+# Add to this set when an asset graduates to monitor-only; remove when
+# 30-day edge stats validate re-enabling (directive Part 4 Phase 2).
+# ---------------------------------------------------------------------------
+_MONITOR_ONLY_ASSETS: frozenset[str] = frozenset({"BNB"})
+
+
+def _filter_monitor_only_assets(assets: Any) -> list[str]:
+    """Drop monitor-only assets from a persisted ``selected_assets`` row.
+
+    Returns a list (not tuple) so call sites can keep the existing
+    ``selected_assets: list[str]`` typing. Empty / None input yields
+    an empty list. Comparison is case-insensitive — DB rows may have
+    been written before the router normalised to uppercase.
+
+    Defensive type handling: the ``selected_assets`` column is currently
+    ``TEXT[]`` so asyncpg returns a Python list, but if it ever migrates
+    to JSONB (or some upstream caller hands us a JSON-encoded string),
+    iterating the raw string would walk characters one-by-one and
+    produce nonsense. Parse stringified JSON first; reject any other
+    non-sequence type rather than crashing.
+    """
+    if assets is None:
+        return []
+    if isinstance(assets, str):
+        # Empty string short-circuits without touching json.loads.
+        if not assets.strip():
+            return []
+        try:
+            parsed = json.loads(assets)
+        except Exception:
+            return []
+        # Only accept the parsed value if it's actually a list (a JSON
+        # string like '"BTC"' decodes to a bare string — reject that).
+        if not isinstance(parsed, list):
+            return []
+        assets = parsed
+    if not isinstance(assets, (list, tuple, set, frozenset)):
+        return []
+    out: list[str] = []
+    for a in assets:
+        sym = str(a).strip().upper()
+        if not sym:
+            continue
+        if sym in _MONITOR_ONLY_ASSETS:
+            continue
+        out.append(sym)
+    return out
+
+
 # =====================================================================
 # Bankroll dynamic sizing multiplier
 # (WARP/R00T/bankroll-dynamic-sizing, Lane 5/5 Polybot directive)
@@ -859,7 +918,7 @@ def _build_user_context(row: dict[str, Any]) -> UserContext:
     allocation = max(0.0, min(1.0, allocation))
     sub_account_id = str(row.get("sub_account_id") or row["user_id"])
     _tf = row.get("selected_timeframe")
-    _assets = tuple(str(a) for a in (row.get("selected_assets") or []))
+    _assets = tuple(_filter_monitor_only_assets(row.get("selected_assets")))
     balance = float(row.get("balance_usdc") or 0.0)
     # Equity = free balance + capital already deployed in open positions (cost
     # basis). Sizing is based on equity so the deployable pool reflects the
@@ -1861,7 +1920,7 @@ async def run_once() -> None:
         strategy_params: dict = _coerce_jsonb(row.get("strategy_params"), {})
         _tf = row.get("selected_timeframe")
         selected_timeframe: str | None = str(_tf) if _tf else None
-        selected_assets: list[str] = [str(a) for a in (row.get("selected_assets") or [])]
+        selected_assets: list[str] = _filter_monitor_only_assets(row.get("selected_assets"))
         user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
 
         # Filter market list to user's chosen categories (empty = all markets).
@@ -2211,7 +2270,7 @@ async def run_close_sweep_fast() -> None:
 
         _tf = row.get("selected_timeframe")
         selected_timeframe: str | None = str(_tf) if _tf else None
-        selected_assets: list[str] = [str(a) for a in (row.get("selected_assets") or [])]
+        selected_assets: list[str] = _filter_monitor_only_assets(row.get("selected_assets"))
         user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
 
         # Per-user param resolution — flip_hunter is timeframe-aware so we cannot

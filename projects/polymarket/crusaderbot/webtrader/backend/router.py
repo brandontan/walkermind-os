@@ -817,10 +817,16 @@ _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
 # the market category filter to Crypto only and requires a timeframe (5m/15m).
 _CRYPTO_SHORT_PRESETS: frozenset[str] = frozenset({"close_sweep", "safe_close", "flip_hunter"})
 _VALID_TIMEFRAMES: frozenset[str] = frozenset({"5m", "15m"})
-# Assets offered for crypto-short presets. BTC/ETH are default-active; SOL/BNB
-# are opt-in (thinner books). XRP/DOGE/HYPE have been removed from the preset
-# universe. Activation with no explicit selection defaults to BTC + ETH.
-_CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH", "SOL", "BNB")
+# Assets offered for crypto-short presets. BTC/ETH are default-active;
+# SOL is opt-in (thinner book). XRP/DOGE/HYPE/BNB are NOT in the
+# tradable set:
+#   XRP / DOGE / HYPE — removed in candle-preset-asset-config
+#   BNB — moved to MONITOR-ONLY in bnb-monitor-only (Polybot directive
+#         Part 4 Tier 3: collect 30-day edge stats before re-enabling;
+#         book depth on Polymarket BNB candles is too thin for the
+#         existing spread / fill-rate / edge thresholds).
+# Activation with no explicit selection defaults to BTC + ETH.
+_CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH", "SOL")
 _VALID_ASSETS: frozenset[str] = frozenset(_CRYPTO_SHORT_ASSETS)
 _DEFAULT_CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH")
 

@@ -22,7 +22,7 @@ const STRATEGY_PRESETS = [
     name: "Close Sweep",
     emoji: "🧹",
     engine: "W.A.R.P_STRIKE",
-    signal: "Final 35s entry on BTC/ETH/SOL/BNB candles. Strong lean required.",
+    signal: "Final 35s entry on BTC/ETH/SOL candles. Strong lean required.",
     risk: "safe" as const,
     freq: "Medium",
     visible: true,
@@ -63,10 +63,12 @@ const COMING_SOON_PRESETS: readonly {
 const CRYPTO_SHORT_PRESETS: readonly string[] = ["close_sweep", "safe_close", "flip_hunter"];
 const TIMEFRAMES = ["5m", "15m"] as const;
 type Timeframe = (typeof TIMEFRAMES)[number];
-const CRYPTO_ASSETS = ["BTC", "ETH", "SOL", "BNB"] as const;
-// Default active: BTC + ETH. SOL and BNB are available but opt-in — their
-// candle books are thinner so they default inactive to avoid "selected but
-// never fills" on lower-liquidity tickers.
+const CRYPTO_ASSETS = ["BTC", "ETH", "SOL"] as const;
+// Default active: BTC + ETH. SOL is available but opt-in — its candle
+// book is thinner so it defaults inactive to avoid "selected but never
+// fills" on lower-liquidity tickers. BNB moved to MONITOR-ONLY in
+// WARP/R00T/bnb-monitor-only (Polybot directive Part 4 Tier 3) —
+// re-evaluate after 30-day edge stats.
 const CRYPTO_ASSETS_DEFAULT: readonly string[] = ["BTC", "ETH"];
 
 // ── Section B: Risk Profiles ──────────────────────────────────────────────────
