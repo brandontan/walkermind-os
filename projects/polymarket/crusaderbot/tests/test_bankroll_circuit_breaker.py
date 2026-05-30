@@ -405,13 +405,35 @@ def test_enabled_gate_passes_healthy_user(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_enabled_gate_passes_first_observation(monkeypatch: pytest.MonkeyPatch) -> None:
     """Fail-safe: first scan for a user (no baseline) must NOT block —
-    we can't measure deviation against an unknown reference. Operator
-    is protected on day-0 against a buggy breaker."""
+    the seed-on-first-observation helper sets baseline = current balance,
+    so the comparison `current < baseline * threshold` is `1.0 < 0.20`,
+    which never trips. Day-0 users are protected against a buggy breaker.
+    """
     _set_required_env(monkeypatch)
     monkeypatch.setenv("BANKROLL_CIRCUIT_BREAKER_ENABLED", "true")
     bootstrap_default_strategies()
 
-    # No _seed_baseline — baseline absent.
-    row = _user_row(balance=10.0)  # very low; would trip if baseline existed
+    # No _seed_baseline — baseline absent at start of test.
+    row = _user_row(balance=10.0)  # very low; would trip if baseline existed at prior level
 
     assert _run_process_candidate(row=row, cand=_candidate()) is True
+
+
+def test_breaker_works_independent_of_lane5(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Decouple contract: when Lane 5 (dynamic sizing) is OFF and no
+    prior tick has seeded the baseline, the breaker MUST still seed
+    its own baseline so subsequent ticks have a reference. Without
+    this, the breaker would be a silent no-op whenever the operator
+    runs with sizing disabled.
+    """
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("BANKROLL_CIRCUIT_BREAKER_ENABLED", "true")
+    monkeypatch.setenv("BANKROLL_DYNAMIC_SIZING_ENABLED", "false")
+    bootstrap_default_strategies()
+
+    # No _seed_baseline call; Lane 5 disabled so multiplier never runs.
+    row = _user_row(balance=1000.0)
+    assert _run_process_candidate(row=row, cand=_candidate()) is True
+    # The breaker's seed-on-first-observation must populate the baseline
+    # so the NEXT scan tick (when the user is drained) can actually trip.
+    assert ssj._bankroll_ema_baseline.get(str(_USER_UUID)) == 1000.0

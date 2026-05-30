@@ -219,6 +219,31 @@ def _bankroll_multiplier(
 _bankroll_circuit_tripped: dict[str, bool] = {}
 
 
+def _ensure_bankroll_baseline_seeded(user_id: str, current_balance: float) -> None:
+    """Seed the per-user EMA baseline with ``current_balance`` if absent.
+
+    Decouples the circuit breaker from Lane 5's dynamic-sizing knob:
+    when ``BANKROLL_DYNAMIC_SIZING_ENABLED=false`` the multiplier path
+    never seeds ``_bankroll_ema_baseline``, leaving the breaker without
+    a reference to measure deviation against. This helper seeds on
+    first observation (multiplier-neutral; current_balance becomes the
+    reference) so the breaker has something to compare against even
+    when sizing is off.
+
+    Does NOT advance the EMA — only seeds. Advancement remains the
+    multiplier's job so Lane 5's throttle semantics are preserved.
+    No-op when a baseline already exists.
+    """
+    if not _math.isfinite(current_balance) or current_balance <= 0:
+        return
+    key = str(user_id)
+    if key in _bankroll_ema_baseline:
+        return
+    _bankroll_ema_baseline[key] = current_balance
+    _bankroll_ema_baseline_active[key] = current_balance
+    _bankroll_ema_last_update[key] = _time.monotonic()
+
+
 def _evaluate_bankroll_circuit_breaker(
     user_id: str,
     current_balance: float,
@@ -1159,6 +1184,11 @@ async def _process_candidate(
             _cb_balance = float(row.get("balance_usdc") or 0.0)
         except (TypeError, ValueError):
             _cb_balance = 0.0
+        # Decouple from Lane 5: warm the baseline ourselves so the
+        # breaker works even when BANKROLL_DYNAMIC_SIZING_ENABLED=false.
+        # No-op when a baseline already exists (Lane 5 path seeds it on
+        # first multiplier call) so this never overwrites Lane 5 state.
+        _ensure_bankroll_baseline_seeded(str(row["user_id"]), _cb_balance)
         _cb_tripped = _evaluate_bankroll_circuit_breaker(
             str(row["user_id"]),
             _cb_balance,

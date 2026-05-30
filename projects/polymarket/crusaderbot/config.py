@@ -403,9 +403,11 @@ class Settings(BaseSettings):
     # `skipped_circuit_breaker` rate in paper mode for a couple of
     # sessions and confirmed it does not over-fire on benign DD.
     BANKROLL_CIRCUIT_BREAKER_ENABLED: bool = False  # env: BANKROLL_CIRCUIT_BREAKER_ENABLED
-    # Trip threshold as a fraction of the user's bankroll baseline.
-    # Default 0.20 (20%) matches the Polybot directive #6 reference: stop
-    # at 20% bankroll loss = baseline_drop_to 80%. Bounds: (0, 1].
+    # Trip threshold as a fraction of the user's bankroll baseline:
+    # gate fires when `balance < baseline * THRESHOLD`. Default 0.20 →
+    # trip when bankroll falls below 20% of baseline (~80% drawdown).
+    # Matches the Polybot directive #6 reference (stop when only 20%
+    # of bankroll remains). Bounds: (0, 1].
     BANKROLL_CIRCUIT_BREAKER_THRESHOLD: float = 0.20  # env: BANKROLL_CIRCUIT_BREAKER_THRESHOLD
     # Hysteresis cushion above the threshold required to resume trading.
     # Default 0.10 → resume at `threshold * 1.10` (22% recovery). Bounds:
