@@ -254,23 +254,40 @@ def _approved_result() -> TradeResult:
     )
 
 
-def _run(*, row: dict, cand: SignalCandidate) -> bool:
-    """Drive _process_candidate with full mock stack; return True iff
-    the trade engine was reached (gate did not skip)."""
+def _run(
+    *,
+    row: dict,
+    cand: SignalCandidate,
+    execute=None,
+    insert_returns: bool = True,
+) -> bool:
+    """Drive `_process_candidate` with the full mock stack and return
+    True iff `_engine.execute` was reached (i.e. the gate did not
+    short-circuit).
+
+    `execute`: optional async callable to patch in as the engine's
+    `execute`. Defaults to a tracker that records the call and returns
+    `_approved_result()`. Callers that need a different result shape
+    (e.g. mode='duplicate') pass their own coroutine.
+
+    `insert_returns`: value to make `_insert_execution_queue` return.
+    Callers test the concurrent-tick ON CONFLICT path by passing False.
+    """
     engine_called = {"called": False}
 
     async def _track_execute(signal):
         engine_called["called"] = True
         return _approved_result()
 
+    exec_fn = execute or _track_execute
     with patch.object(ssj, "_load_stale_queued_row", return_value=None), \
             patch.object(ssj, "_publication_already_queued", return_value=False), \
             patch.object(ssj, "_has_open_position_for_market", return_value=False), \
             patch.object(ssj, "_load_market", return_value=_market_row()), \
             patch.object(ssj, "get_live_market_price",
                          new=AsyncMock(return_value=0.66)), \
-            patch.object(ssj._engine, "execute", side_effect=_track_execute), \
-            patch.object(ssj, "_insert_execution_queue", return_value=True), \
+            patch.object(ssj._engine, "execute", side_effect=exec_fn), \
+            patch.object(ssj, "_insert_execution_queue", return_value=insert_returns), \
             patch.object(ssj, "_mark_executed", new=AsyncMock()):
         asyncio.run(ssj._process_candidate(row, cand))
     return engine_called["called"]
@@ -391,24 +408,12 @@ def test_no_record_on_insert_conflict(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR", "10")
     bootstrap_default_strategies()
 
-    engine_called = {"called": False}
-
-    async def _track_execute(signal):
-        engine_called["called"] = True
-        return _approved_result()
-
-    with patch.object(ssj, "_load_stale_queued_row", return_value=None), \
-            patch.object(ssj, "_publication_already_queued", return_value=False), \
-            patch.object(ssj, "_has_open_position_for_market", return_value=False), \
-            patch.object(ssj, "_load_market", return_value=_market_row()), \
-            patch.object(ssj, "get_live_market_price",
-                         new=AsyncMock(return_value=0.66)), \
-            patch.object(ssj._engine, "execute", side_effect=_track_execute), \
-            patch.object(ssj, "_insert_execution_queue", return_value=False), \
-            patch.object(ssj, "_mark_executed", new=AsyncMock()):
-        asyncio.run(ssj._process_candidate(_user_row(), _late_entry_candidate("YES")))
-
-    assert engine_called["called"], "engine.execute should have run"
+    reached_engine = _run(
+        row=_user_row(),
+        cand=_late_entry_candidate("YES"),
+        insert_returns=False,
+    )
+    assert reached_engine, "engine.execute should have run"
     now = datetime.now(timezone.utc).timestamp()
     assert ssj._safe_close_recent_count(str(_USER_UUID), "YES", now) == 0, (
         "inserted=False (concurrent ON CONFLICT) must not advance the "
@@ -435,17 +440,7 @@ def test_no_record_on_duplicate_result(monkeypatch: pytest.MonkeyPatch) -> None:
             final_size_usdc=Decimal("10"),
         )
 
-    with patch.object(ssj, "_load_stale_queued_row", return_value=None), \
-            patch.object(ssj, "_publication_already_queued", return_value=False), \
-            patch.object(ssj, "_has_open_position_for_market", return_value=False), \
-            patch.object(ssj, "_load_market", return_value=_market_row()), \
-            patch.object(ssj, "get_live_market_price",
-                         new=AsyncMock(return_value=0.66)), \
-            patch.object(ssj._engine, "execute", side_effect=_dup_execute), \
-            patch.object(ssj, "_insert_execution_queue", return_value=True), \
-            patch.object(ssj, "_mark_executed", new=AsyncMock()):
-        asyncio.run(ssj._process_candidate(_user_row(), _late_entry_candidate("YES")))
-
+    _run(row=_user_row(), cand=_late_entry_candidate("YES"), execute=_dup_execute)
     now = datetime.now(timezone.utc).timestamp()
     assert ssj._safe_close_recent_count(str(_USER_UUID), "YES", now) == 0, (
         "Duplicate results must not advance the directional counter; "

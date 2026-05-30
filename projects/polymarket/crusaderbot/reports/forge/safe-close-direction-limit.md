@@ -31,7 +31,7 @@ Per-user, per-side rolling 1h counter for accepted `safe_close` entries with a h
 
 ## 2. Current system architecture (relevant slice)
 
-```
+```text
 services.signal_scan.signal_scan_job (module level)
     ├─ NEW: _SAFE_CLOSE_DIRECTION_WINDOW_SEC = 3600
     ├─ NEW: _safe_close_direction_log: dict[(user_id, side), list[timestamp]]
