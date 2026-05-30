@@ -1391,8 +1391,8 @@ async def ack_all_alerts(user: _CurrentUser) -> dict[str, str | None]:
         # trading_mode='paper' so a future schema edit that drops the
         # default doesn't silently flip a brand-new user to live mode).
         row = await conn.fetchrow(
-            """INSERT INTO user_settings (user_id, alerts_ack_at, trading_mode, risk_profile)
-               VALUES ($1::uuid, NOW(), 'paper', 'balanced')
+            """INSERT INTO user_settings (user_id, alerts_ack_at, trading_mode, risk_profile, capital_alloc_pct)
+               VALUES ($1::uuid, NOW(), 'paper', 'balanced', 0.40)
                ON CONFLICT (user_id) DO UPDATE SET alerts_ack_at = NOW()
                RETURNING alerts_ack_at""",
             user["user_id"],
