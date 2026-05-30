@@ -895,6 +895,25 @@ async def _maybe_fire_fast_topup(
         _yes_p = float(market.get("yes_price") or 0.5)
         _no_p = float(market.get("no_price") or (1.0 - _yes_p))
         _topup_price = _no_p if lagging_side_lower == "no" else _yes_p
+        # Candle markets use a 0.01 CLOB tick; a Gamma-seed price that
+        # is not on the tick (e.g. 0.505) means no real CLOB activity
+        # has occurred for this leg yet. Executing at a stale midpoint
+        # distorts paper P&L and would cost real slippage in LIVE.
+        # Mirrors the step 3b-i guard on the lead entry path.
+        _slug = str(market.get("slug") or "")
+        if "updown" in _slug:
+            _cents = _topup_price * 100.0
+            if abs(_cents - round(_cents)) > 1e-6:
+                log.info(
+                    "scan_outcome",
+                    outcome="fast_topup_skipped",
+                    reason="stale_fallback_price",
+                    market_id=market_id,
+                    side=lagging_side_lower,
+                    topup_price=_topup_price,
+                    slug=_slug,
+                )
+                return
 
     # close_sweep top-up must honour the per-leg spread limit that the
     # close-sweep-spread-gate enforces on the lead scan path.
