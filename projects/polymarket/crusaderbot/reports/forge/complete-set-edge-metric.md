@@ -39,7 +39,7 @@ The data was already implicitly available via the existing `spread = yes_ask + n
 
 ## 3. Validation declaration
 
-```
+```text
 Validation Tier   : MINOR
 Claim Level       : FOUNDATION
 Validation Target : late_entry_v3._evaluate_market complete_set_edge computation + metadata stamp
