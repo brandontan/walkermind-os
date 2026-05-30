@@ -147,6 +147,7 @@ class LateEntryV3Strategy(BaseStrategy):
         min_entry_sec: float | None = None,
         underdog_mode: bool = False,
         force_exit_at_rem_sec: float | None = None,
+        max_leg_spread: float | None = None,
     ) -> list[SignalCandidate]:
         """Emit one candidate per in-window crypto candle market.
 
@@ -165,6 +166,12 @@ class LateEntryV3Strategy(BaseStrategy):
         to this value (Kreo-style fixed-time exit; e.g. safe_close 30s exits
         BEFORE the noisy final 30s). When None, no time-based exit is applied
         and the position runs to TP/SL/flip-stop/market_expired as before.
+
+        ``max_leg_spread``: if set (and > 0), reject any market where either
+        leg's per-side bid-ask spread (``best_ask - best_bid``) exceeds the
+        threshold. Scoped to ``close_sweep`` (the only preset that fires in
+        the noisy final 35s where illiquidity → slippage); ``None`` no-ops
+        for safe_close + flip_hunter which already entry earlier in the window.
 
         Returns an empty list on any failure or when no market qualifies.
         Never raises — scan errors must not crash the scheduler scan loop.
@@ -228,6 +235,7 @@ class LateEntryV3Strategy(BaseStrategy):
                     min_entry_sec=min_entry_sec,
                     underdog_mode=underdog_mode,
                     force_exit_at_rem_sec=force_exit_at_rem_sec,
+                    max_leg_spread=max_leg_spread,
                 )
             except Exception as exc:
                 log.debug("late_entry_v3 scan: skip market", err=str(exc))
@@ -363,6 +371,27 @@ def _best_ask(book: dict[str, Any] | None) -> float | None:
     return best
 
 
+def _best_bid(book: dict[str, Any] | None) -> float | None:
+    """Best (highest-price) bid from a CLOB orderbook, or None when empty/malformed.
+
+    Same scan-and-pick pattern as ``_best_ask`` — never trust the array
+    ordering. The best bid is the HIGHEST price someone is willing to pay,
+    so it's the max of the positive bid prices. Used by the close_sweep
+    per-leg spread gate to compute (best_ask - best_bid) per side.
+    """
+    if not isinstance(book, dict):
+        return None
+    best: float | None = None
+    for b in (book.get("bids") or []):
+        try:
+            p = float(b["price"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if p > 0.0 and (best is None or p > best):
+            best = p
+    return best
+
+
 def _book_depth_usdc(book: dict[str, Any] | None) -> float:
     """Total bid-side depth in USDC from a CLOB orderbook.
 
@@ -438,6 +467,7 @@ async def _evaluate_market(
     min_entry_sec: float | None = None,
     underdog_mode: bool = False,
     force_exit_at_rem_sec: float | None = None,
+    max_leg_spread: float | None = None,
 ) -> tuple[SignalCandidate | None, str | None]:
     """Return (candidate, None) on success or (None, reject_reason) on any gate failure.
 
@@ -514,6 +544,34 @@ async def _evaluate_market(
             slug=slug, yes_ask=yes_ask, no_ask=no_ask,
         )
         return None, "empty_book"
+
+    # Per-leg bid-ask spread (WARP/R00T/close-sweep-spread-gate, Lane 2/5).
+    # Scoped to close_sweep via the `max_leg_spread` parameter: the preset
+    # fires in the final ~35s before candle close where book depth thins
+    # and a wide per-leg spread = high slippage on the taker fill. safe_close
+    # and flip_hunter pass max_leg_spread=None (no-op) — they entry earlier
+    # in the candle where this risk is lower and the existing complete-set
+    # `spread` check (yes_ask + no_ask vs MAX_SPREAD) is sufficient.
+    yes_bid = _best_bid(yes_book)
+    no_bid = _best_bid(no_book)
+    leg_spread_yes = (yes_ask - yes_bid) if yes_bid is not None else None
+    leg_spread_no = (no_ask - no_bid) if no_bid is not None else None
+    if max_leg_spread is not None and max_leg_spread > 0:
+        if leg_spread_yes is None or leg_spread_no is None:
+            log.debug(
+                "late_entry_v3 skip leg_spread_missing_bid",
+                slug=slug, yes_bid=yes_bid, no_bid=no_bid,
+            )
+            return None, "leg_spread_missing_bid"
+        if leg_spread_yes > max_leg_spread or leg_spread_no > max_leg_spread:
+            log.debug(
+                "late_entry_v3 skip leg_spread_too_wide",
+                slug=slug,
+                yes_spread=leg_spread_yes,
+                no_spread=leg_spread_no,
+                max=max_leg_spread,
+            )
+            return None, "leg_spread_too_wide"
 
     # CLOB-derived liquidity: sum of bid depth across both sides.
     # Gamma's liquidity field is near-zero for candle markets (not tracked by
@@ -599,6 +657,10 @@ async def _evaluate_market(
         metadata={
             "yes_ask": yes_ask,
             "no_ask": no_ask,
+            "yes_bid": yes_bid,
+            "no_bid": no_bid,
+            "leg_spread_yes": leg_spread_yes,
+            "leg_spread_no": leg_spread_no,
             "fav_price": fav_price,
             "entry_price": entry_price,
             "entry_price_ts": entry_price_ts,

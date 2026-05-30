@@ -1422,6 +1422,11 @@ async def run_once() -> None:
                     min_entry_sec=float(_le_pp["min_entry_sec"]) if _le_pp and "min_entry_sec" in _le_pp else None,
                     underdog_mode=bool(_le_pp.get("underdog_mode", False)) if _le_pp else False,
                     force_exit_at_rem_sec=float(_le_force) if _le_force is not None else None,
+                    max_leg_spread=(
+                        float(_le_pp["max_leg_spread"])
+                        if _le_pp and "max_leg_spread" in _le_pp
+                        else None
+                    ),
                 )
             except Exception as exc:
                 user_log.warning("late_entry_v3_run_failed", error=str(exc))
@@ -1627,6 +1632,11 @@ def _resolve_preset_params(
             "entry_window_sec": cfg.PRESET_CLOSE_SWEEP_WINDOW_SEC,
             "fav_price_min":   cfg.PRESET_CLOSE_SWEEP_FAV_PRICE_MIN,
             "fav_price_max":   0.70,
+            # WARP/R00T/close-sweep-spread-gate: per-leg bid-ask spread guard
+            # scoped to close_sweep (final-candle illiquidity → high slippage).
+            # safe_close + flip_hunter omit this key → max_leg_spread=None → no-op.
+            # `getattr` defensive so partial-mock cfg objects in tests don't break.
+            "max_leg_spread":  getattr(cfg, "CLOSE_SWEEP_MAX_LEG_SPREAD", 0.02),
             # close_sweep force-exit (~8s before resolution) is applied on the
             # EXIT path via force_exit_at_rem_sec_for, not seeded here.
         }
@@ -1741,6 +1751,7 @@ async def run_close_sweep_fast() -> None:
                 min_entry_sec=float(pp["min_entry_sec"]) if "min_entry_sec" in pp else None,
                 underdog_mode=bool(pp.get("underdog_mode", False)),
                 force_exit_at_rem_sec=float(_force_exit) if _force_exit is not None else None,
+                max_leg_spread=float(pp["max_leg_spread"]) if "max_leg_spread" in pp else None,
             )
         except Exception as exc:
             user_log.warning("close_sweep_fast_run_failed", error=str(exc))
