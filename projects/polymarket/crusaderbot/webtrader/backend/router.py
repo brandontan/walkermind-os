@@ -815,12 +815,12 @@ _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
 # the market category filter to Crypto only and requires a timeframe (5m/15m).
 _CRYPTO_SHORT_PRESETS: frozenset[str] = frozenset({"close_sweep", "safe_close", "flip_hunter"})
 _VALID_TIMEFRAMES: frozenset[str] = frozenset({"5m", "15m"})
-# Assets offered for crypto-short presets. BTC/ETH/SOL/BNB have deep candle
-# books; XRP/DOGE/HYPE are offered but their books are thinner so they are
-# opt-in. Activation with no explicit selection defaults to BTC only.
-_CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "HYPE")
+# Assets offered for crypto-short presets. BTC/ETH are default-active; SOL/BNB
+# are opt-in (thinner books). XRP/DOGE/HYPE have been removed from the preset
+# universe. Activation with no explicit selection defaults to BTC + ETH.
+_CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH", "SOL", "BNB")
 _VALID_ASSETS: frozenset[str] = frozenset(_CRYPTO_SHORT_ASSETS)
-_DEFAULT_CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC",)
+_DEFAULT_CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH")
 
 # Light per-timeframe params merged into user_settings.strategy_params (JSONB).
 # close_sweep / safe_close: expiration_timing lib strategy reads these config knobs.
