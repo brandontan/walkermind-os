@@ -114,6 +114,11 @@ async def _process_wallet(
         (t.last_realtime_seen_at or fallback) for t in tasks
     )
 
+    # Agent 556 stores wallets as all-lowercase hex (verified on live buffer).
+    # `task.wallet_address` may be checksummed (mixed case) depending on how
+    # the user entered it. Lowercase the query arg so the index hit is preserved
+    # without resorting to LOWER(wallet) which would defeat the wallet index.
+    wallet_key = wallet.lower()
     pool = get_pool()
     try:
         async with pool.acquire() as conn:
@@ -125,7 +130,7 @@ async def _process_wallet(
                    AND trade_time > $2
                  ORDER BY trade_time ASC
                 """,
-                wallet, earliest,
+                wallet_key, earliest,
             )
     except Exception as exc:
         log.warning(

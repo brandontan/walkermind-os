@@ -299,3 +299,40 @@ def test_feature_flag_defaults_off():
     """The fast-track must default OFF until WARP🔹CMD explicitly enables it."""
     from projects.polymarket.crusaderbot.config import Settings
     assert Settings.model_fields["HEISENBERG_FAST_TRACK_ENABLED"].default is False
+
+
+# ---------------------------------------------------------------------------
+# Gemini review pin — wallet case normalisation
+# ---------------------------------------------------------------------------
+
+
+def test_buffer_query_lowercases_wallet():
+    """task.wallet_address may be checksummed (mixed case) but the agent 556
+    buffer stores all-lowercase hex. The consumer MUST lowercase before the
+    SQL query, otherwise the buffer fetch silently returns 0 rows."""
+    task = _make_task(
+        wallet="0xAaBbCcDdEeFf112233445566778899AaBbCcDdEe",  # checksummed
+        last_seen=None,
+    )
+    rows = [{
+        "trade_time": datetime.now(timezone.utc),
+        "raw": {"id": "tx1", "side": "BUY"},
+    }]
+    pool, conn = _make_pool_with_rows(rows)
+
+    with (
+        patch.object(ft._monitor, "kill_switch_is_active",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft._monitor, "_is_globally_disabled",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft, "list_active_tasks",
+                     new=AsyncMock(return_value=[task])),
+        patch.object(ft._monitor, "_process_one", new=AsyncMock()),
+        patch.object(ft, "get_pool", return_value=pool),
+    ):
+        asyncio.run(ft.run_once())
+
+    # The buffer fetch arg must be lowercased.
+    fetch_arg = conn.fetch.await_args.args[1]
+    assert fetch_arg == "0xaabbccddeeff112233445566778899aabbccddee"
+    assert fetch_arg != task.wallet_address  # explicitly different from original
