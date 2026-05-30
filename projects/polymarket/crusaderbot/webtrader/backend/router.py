@@ -2785,9 +2785,16 @@ async def admin_user_update(
 
     # `paused` lives on `users`, not `user_settings`. Split it out so the
     # user_settings upsert never tries to write a non-existent column.
+    # Reject an explicit null — `bool(None)` would silently resume the user.
     paused_value: Optional[bool] = None
     if "paused" in fields:
-        paused_value = bool(fields.pop("paused"))
+        raw_paused = fields.pop("paused")
+        if raw_paused is None:
+            raise HTTPException(
+                status_code=400,
+                detail="paused cannot be null; omit the field to leave it unchanged",
+            )
+        paused_value = bool(raw_paused)
 
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -2831,13 +2838,20 @@ async def admin_user_update(
             )
             await conn.execute(sql, target_uuid, *values)
 
-    audit_payload: dict[str, Any] = {"target_user_id": str(target_uuid), "patch": fields}
+    # Scope the audit row to the TARGET user so the per-user recent-audit slice
+    # in admin_user_detail (WHERE user_id = $1::uuid) surfaces the change in
+    # that user's drawer. The actor's id is preserved in the payload.
+    audit_payload: dict[str, Any] = {
+        "target_user_id": str(target_uuid),
+        "actor_user_id": str(user["user_id"]),
+        "patch": fields,
+    }
     if paused_value is not None:
         audit_payload["paused"] = paused_value
     await audit.write(
         actor_role="admin",
         action="admin_user_settings_update",
-        user_id=UUID(str(user["user_id"])),
+        user_id=target_uuid,
         payload=audit_payload,
     )
     return await admin_user_detail(str(target_uuid), user)

@@ -615,11 +615,15 @@ def test_admin_user_update_writes_audit_and_returns_detail():
         ))
     assert out.active_preset == "safe_close"
     assert out.risk_profile == "aggressive"
-    # Audit recorded the actor + target + patch payload.
+    # Audit row is scoped to the TARGET user (so admin_user_detail's per-user
+    # recent-audit slice surfaces the change in that user's drawer); the actor
+    # id is preserved in the payload.
     assert len(audit_calls) == 1
     assert audit_calls[0]["actor_role"] == "admin"
     assert audit_calls[0]["action"] == "admin_user_settings_update"
+    assert audit_calls[0]["user_id"] == target_id
     assert audit_calls[0]["payload"]["target_user_id"] == str(target_id)
+    assert audit_calls[0]["payload"]["actor_user_id"] == str(actor_id)
     assert audit_calls[0]["payload"]["patch"] == {
         "active_preset": "safe_close",
         "risk_profile": "aggressive",
