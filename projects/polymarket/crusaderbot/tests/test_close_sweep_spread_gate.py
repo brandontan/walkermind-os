@@ -328,6 +328,30 @@ async def test_evaluate_market_disable_sentinel_is_zero(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_evaluate_market_accepts_exact_boundary_spread(monkeypatch):
+    """IEEE-754 trap regression: ``0.65 - 0.63`` evaluates to
+    ``0.020000000000000018`` which strictly > 0.02. Without rounding to
+    a sub-tick precision, a market with an exact 0.02-spread leg gets
+    falsely rejected as `leg_spread_too_wide`. Polymarket tick is 0.01
+    so 4-decimal rounding preserves accuracy while killing the float
+    artifact."""
+    yes_book = _book(ask=0.65, bid=0.63)   # exact 0.02 spread (or 0.020000000000000018 raw)
+    no_book = _book(ask=0.35, bid=0.34)    # spread 0.01
+    m = _market_with_seconds_left(yes_book, no_book)
+
+    async def _fake_get_book(token_id: str):
+        return yes_book if token_id == "yes_tok" else no_book
+
+    monkeypatch.setattr(lev3.pm, "get_book", _fake_get_book)
+
+    cand, reason = await lev3._evaluate_market(m, **_evaluate_args(max_leg_spread=0.02))
+    assert reason != "leg_spread_too_wide", (
+        "IEEE-754 false-reject regression: exact 0.02 boundary spread "
+        f"got rejected as too wide (raw subtraction = {0.65 - 0.63!r})."
+    )
+
+
+@pytest.mark.asyncio
 async def test_evaluate_market_rejects_when_bid_missing(monkeypatch):
     """If a leg has no bid at all the gate cannot evaluate the spread;
     rejecting `leg_spread_missing_bid` is safer than letting it through

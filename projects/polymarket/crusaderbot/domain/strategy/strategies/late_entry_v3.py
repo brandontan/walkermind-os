@@ -554,8 +554,12 @@ async def _evaluate_market(
     # `spread` check (yes_ask + no_ask vs MAX_SPREAD) is sufficient.
     yes_bid = _best_bid(yes_book)
     no_bid = _best_bid(no_book)
-    leg_spread_yes = (yes_ask - yes_bid) if yes_bid is not None else None
-    leg_spread_no = (no_ask - no_bid) if no_bid is not None else None
+    # Round to 4 decimals (Polymarket tick is 0.01 — 4 decimals is well below
+    # tick granularity) to dodge IEEE-754 float subtraction error: literal
+    # 0.65 - 0.63 evaluates to 0.020000000000000018 which would falsely
+    # exceed a 0.02 threshold on the strict `>` comparison below.
+    leg_spread_yes = round(yes_ask - yes_bid, 4) if yes_bid is not None else None
+    leg_spread_no = round(no_ask - no_bid, 4) if no_bid is not None else None
     if max_leg_spread is not None and max_leg_spread > 0:
         if leg_spread_yes is None or leg_spread_no is None:
             log.debug(
