@@ -749,6 +749,38 @@ async def _fetch_market_inventory_for_override(
 
 
 _FAST_TOPUP_ELIGIBLE_PRESETS: frozenset[str] = frozenset({"flip_hunter", "safe_close"})
+# Extended set when CLOSE_SWEEP_DUAL_LEG_ENABLED is on. close_sweep is
+# tracked separately so an operator can enable D-3 (safe_close +
+# flip_hunter top-up) without enabling D-4 (close_sweep dual-leg), or
+# vice versa. See _resolve_eligible_topup_presets below for the
+# runtime resolution.
+_CLOSE_SWEEP_DUAL_LEG_PRESETS: frozenset[str] = frozenset({"close_sweep"})
+
+
+def _resolve_eligible_topup_presets(cfg: Any) -> frozenset[str]:
+    """Compute the runtime-eligible preset set from the two flags.
+
+    Returns the union of base D-3 presets (when
+    ``FLIP_HUNTER_FAST_TOPUP_ENABLED``) and D-4 presets (when
+    ``CLOSE_SWEEP_DUAL_LEG_ENABLED``). When neither flag is on the
+    result is empty and ``_maybe_fire_fast_topup`` bails immediately.
+
+    Defensive: a ``None`` config (e.g. from a config-init failure
+    upstream) returns an empty frozenset rather than raising
+    ``AttributeError`` — the caller is expected to log + bail
+    on the empty result, not crash the scan loop.
+
+    Kept as a small named helper so tests can pin the resolution
+    contract without duplicating the boolean-soup in the hot path.
+    """
+    if cfg is None:
+        return frozenset()
+    presets: set[str] = set()
+    if getattr(cfg, "FLIP_HUNTER_FAST_TOPUP_ENABLED", False):
+        presets |= _FAST_TOPUP_ELIGIBLE_PRESETS
+    if getattr(cfg, "CLOSE_SWEEP_DUAL_LEG_ENABLED", False):
+        presets |= _CLOSE_SWEEP_DUAL_LEG_PRESETS
+    return frozenset(presets)
 
 
 async def _maybe_fire_fast_topup(
@@ -780,10 +812,13 @@ async def _maybe_fire_fast_topup(
     try:
         from ...config import get_settings as _gs_ft
         _cfg = _gs_ft()
-        if not getattr(_cfg, "FLIP_HUNTER_FAST_TOPUP_ENABLED", False):
+        _eligible_presets = _resolve_eligible_topup_presets(_cfg)
+        if not _eligible_presets:
+            # Neither D-3 (FLIP_HUNTER_FAST_TOPUP_ENABLED) nor D-4
+            # (CLOSE_SWEEP_DUAL_LEG_ENABLED) is on. Fully bypass.
             return
         preset = str(row.get("active_preset") or "").lower()
-        if preset not in _FAST_TOPUP_ELIGIBLE_PRESETS:
+        if preset not in _eligible_presets:
             return
         _min_usdc = float(_cfg.FAST_TOPUP_MIN_USDC)
         _cooldown = float(_cfg.FAST_TOPUP_COOLDOWN_SECONDS)
