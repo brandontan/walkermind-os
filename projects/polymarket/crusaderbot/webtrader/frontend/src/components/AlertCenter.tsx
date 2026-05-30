@@ -557,6 +557,7 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
   );
 }
 
-// Re-export the type guards for downstream tests / debugging consumers.
+// Export dedupAlerts so a future test suite can pin the 60s window logic
+// without re-instantiating the panel. AlertKind is intentionally NOT
+// re-exported — consumers import it directly from lib/api.ts.
 export { dedupAlerts };
-export type { AlertKind };
