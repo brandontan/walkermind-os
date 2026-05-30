@@ -32,7 +32,14 @@ from .domain.activation.auto_fallback import (
     LOOKBACK_SECONDS as AUTO_FALLBACK_INTERVAL,
     run_auto_fallback_check,
 )
-from .jobs import daily_pnl_summary, hourly_report, market_signal_scanner, market_sync, weekly_insights
+from .jobs import (
+    daily_pnl_summary,
+    heisenberg_realtime_sync,
+    hourly_report,
+    market_signal_scanner,
+    market_sync,
+    weekly_insights,
+)
 from .services.daily_report_service import daily_pnl_report_job, JOB_ID as DAILY_REPORT_JOB_ID
 from .services.signal_scan import signal_scan_job as sf_scan_job
 from .services.copy_trade import monitor as copy_trade_monitor
@@ -970,6 +977,18 @@ def setup_scheduler() -> AsyncIOScheduler:
                   seconds=1800,
                   id="leaderboard_sync", max_instances=1, coalesce=True,
                   next_run_time=datetime.now(timezone.utc))
+    # Heisenberg agent 556 (real-time trades) buffer sync — triple-gated.
+    # Scheduler only registers the job when the feature flag is ON; the job
+    # itself also checks HEISENBERG_API_TOKEN at every tick and is a no-op
+    # when the token is unset (defence-in-depth for the staged-rollout case
+    # where the flag is on but the token hasn't been provisioned yet).
+    if getattr(s, "HEISENBERG_REALTIME_TRADES_ENABLED", False):
+        sched.add_job(
+            heisenberg_realtime_sync.run_job, "interval",
+            seconds=int(getattr(s, "HEISENBERG_REALTIME_TRADES_INTERVAL_SEC", 60)),
+            id=heisenberg_realtime_sync.JOB_ID,
+            max_instances=1, coalesce=True,
+        )
     sched.add_job(check_exits, "interval", seconds=s.EXIT_WATCH_INTERVAL,
                   id="exit_watch", max_instances=1, coalesce=True)
     # Dedicated fast exit loop for candle-preset positions near resolution so
