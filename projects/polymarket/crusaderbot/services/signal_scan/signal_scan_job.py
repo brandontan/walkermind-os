@@ -1279,7 +1279,24 @@ async def _process_candidate(
         if _min_edge > 0:
             try:
                 _candidate_edge = float(_meta_edge)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                # AGENTS.md hard rule: zero silent failures. A malformed
+                # complete_set_edge stamp would bypass the gate silently —
+                # log it loud so the operator can fix the producer
+                # (late_entry_v3._evaluate_market) and we don't ship
+                # negative-arb entries on a broken stamp.
+                log.warning(
+                    "complete_set_edge_parse_failed",
+                    market_id=cand.market_id,
+                    strategy=cand.strategy_name,
+                    raw=repr(_meta_edge),
+                    error=str(exc),
+                    message=(
+                        "Candidate carried a non-numeric complete_set_edge "
+                        "stamp; bypassing the gate for this candidate but "
+                        "the producer should be fixed."
+                    ),
+                )
                 _candidate_edge = None
             if _candidate_edge is not None and _candidate_edge < _min_edge:
                 log.info(
