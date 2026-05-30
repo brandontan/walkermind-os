@@ -119,6 +119,52 @@ _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
 # ---------------------------------------------------------------------------
 
 
+# =====================================================================
+# Safe-close direction concentration window
+# (WARP/R00T/safe-close-direction-limit, Lane 4/5 Polybot directive)
+# =====================================================================
+#
+# Per-user, per-side rolling 1h log of accepted safe_close entries. Used
+# to skip new safe_close entries on a side the user is already
+# over-concentrated on — defends against the trending-market case where
+# the dynamic `fav_side = "YES" if yes_ask > no_ask else "NO"` filter
+# repeatedly leans the same direction across many candles (e.g. BTC
+# downtrend Dec 14-18 2025 produced 55.9% NO win-rate in Polybot
+# research, which is sample-period bias, not edge).
+#
+# Per-user — concentration is a single-user risk, not a global one.
+# In-memory — the window is 1h, eviction is O(n_entries_for_user); a
+# crash drops the counter (acceptable: worst case is a single extra
+# entry before the limiter rebuilds, much smaller than a stuck DB hit
+# per scan tick).
+_SAFE_CLOSE_DIRECTION_WINDOW_SEC = 3600.0
+_safe_close_direction_log: dict[tuple[str, str], list[float]] = {}
+
+
+def _safe_close_recent_count(user_id: str, side: str, now_ts: float) -> int:
+    """Return the count of recorded safe_close entries for (user, side)
+    within the last `_SAFE_CLOSE_DIRECTION_WINDOW_SEC` seconds. Prunes
+    expired entries in-place as a side effect."""
+    key = (str(user_id), side.upper())
+    entries = _safe_close_direction_log.setdefault(key, [])
+    cutoff = now_ts - _SAFE_CLOSE_DIRECTION_WINDOW_SEC
+    if entries and entries[0] < cutoff:
+        entries[:] = [t for t in entries if t >= cutoff]
+    return len(entries)
+
+
+def _safe_close_record_entry(user_id: str, side: str, now_ts: float) -> None:
+    """Append a timestamp to the (user, side) window. Called on accepted
+    paper-mode safe_close entries (skip on duplicate / rejected)."""
+    key = (str(user_id), side.upper())
+    _safe_close_direction_log.setdefault(key, []).append(now_ts)
+
+
+def _safe_close_reset_for_tests() -> None:
+    """Clear the in-memory window. Tests use this to isolate runs."""
+    _safe_close_direction_log.clear()
+
+
 @dataclass
 class ScanTelemetry:
     """Accumulates per-scan-run observability counts for the scan_runs table."""
@@ -1147,6 +1193,56 @@ async def _process_candidate(
                 telemetry.record_skip("skipped_fill_drifted")
             return
 
+    # 3d. Safe-close direction concentration gate
+    #     (WARP/R00T/safe-close-direction-limit, Lane 4/5).
+    #     Only fires when the user's active_preset == "safe_close".
+    #     Other presets (close_sweep / flip_hunter / signal_following) bypass.
+    #
+    #     Rationale: late_entry_v3 chooses side dynamically per scan
+    #     (`fav_side = "YES" if yes_ask > no_ask else "NO"`), so there is
+    #     no per-candle bias. But in a trending market the same side
+    #     ends up favoured candle after candle — the bot then aggregates
+    #     directional risk that the per-candle filter never sees. This
+    #     gate caps that aggregate at SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR
+    #     per (user, side) within a rolling 1h window.
+    #
+    #     Set SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR=0 to disable; runtime
+    #     branches on `> 0`. Negative values rejected at config load.
+    if (row.get("active_preset") or "").lower() == "safe_close":
+        try:
+            from ...config import get_settings as _gs_safe_close
+            _safe_close_limit = int(_gs_safe_close().SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR)
+        except Exception as exc:
+            log.warning(
+                "safe_close_direction_limit_config_read_failed",
+                error=str(exc),
+                fallback=8,
+            )
+            _safe_close_limit = 8
+        if _safe_close_limit > 0:
+            _now_ts = datetime.now(timezone.utc).timestamp()
+            _recent = _safe_close_recent_count(str(user_id), side, _now_ts)
+            if _recent >= _safe_close_limit:
+                log.info(
+                    "scan_outcome",
+                    outcome="skipped_safe_close_direction_concentration",
+                    side=side,
+                    user_id=str(user_id),
+                    market_id=cand.market_id,
+                    recent_count=_recent,
+                    limit=_safe_close_limit,
+                    window_sec=_SAFE_CLOSE_DIRECTION_WINDOW_SEC,
+                    message=(
+                        f"User has {_recent} safe_close {side.upper()} "
+                        f"entries in the last hour (limit "
+                        f"{_safe_close_limit}); skipping to avoid "
+                        f"directional concentration in trending markets."
+                    ),
+                )
+                if telemetry is not None:
+                    telemetry.record_skip("skipped_safe_close_direction_concentration")
+                return
+
     try:
         signal = _build_trade_signal(
             row=row, cand=cand, market=market, idempotency_key=idem_key,
@@ -1217,6 +1313,14 @@ async def _process_candidate(
         )
         if telemetry is not None:
             telemetry.record_approved()
+        # Record this entry for the safe_close direction-concentration
+        # limiter (Lane 4). Only counted on accepted, non-duplicate
+        # entries — duplicates and rejections never go to broker so they
+        # don't contribute to directional exposure.
+        if (row.get("active_preset") or "").lower() == "safe_close":
+            _safe_close_record_entry(
+                str(user_id), side, datetime.now(timezone.utc).timestamp(),
+            )
     else:
         log.info("scan_outcome", outcome="duplicate", mode=result.chosen_mode)
 

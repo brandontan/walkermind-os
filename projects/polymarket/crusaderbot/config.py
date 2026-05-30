@@ -338,6 +338,21 @@ class Settings(BaseSettings):
     # live position becomes redeemable, defer to the hourly queue. ---
     INSTANT_REDEEM_GAS_GWEI_MAX: float = 200.0
 
+    # --- Safe-close direction concentration limit
+    #     (WARP/R00T/safe-close-direction-limit, Lane 4/5) ---
+    # Max accepted safe_close entries per (user, side) within a rolling
+    # 1h window. Defends against the trending-market case where the
+    # dynamic `fav_side` filter in late_entry_v3 leans the same
+    # direction across many candles, aggregating directional risk that
+    # the per-candle filter never sees (Polybot research: BTC downtrend
+    # Dec 14-18 2025 produced 55.9% NO win-rate = sample-period bias,
+    # not edge).
+    #
+    # Default 8 (Polybot directive reference). Set to 0 to disable the
+    # gate (escape hatch — runtime branches on `> 0`). Negative values
+    # rejected at config load (same trap as the other guardrail knobs).
+    SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR: int = 8  # env: SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR
+
     # --- Close-sweep per-leg spread gate (WARP/R00T/close-sweep-spread-gate) ---
     # Max per-side bid-ask spread (best_ask - best_bid) tolerated by the
     # close_sweep preset. Wide per-leg spread in the noisy final ~35s of a
@@ -448,6 +463,20 @@ class Settings(BaseSettings):
             if (legacy is None or str(legacy).strip() == "") and alias:
                 data["POLYGON_RPC_URL"] = alias
         return data
+
+    @field_validator("SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR")
+    @classmethod
+    def validate_safe_close_direction_limit(cls, v: int) -> int:
+        # Same silent-disable trap as the other guardrail knobs: runtime
+        # branches on `> 0`, so a negative value would behave identically
+        # to 0 (disabled). Fail fast at load with a clear error.
+        if v < 0:
+            raise ValueError(
+                f"SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR must be >= 0 (got {v}); "
+                f"use 0 to disable the gate, or a positive integer (e.g. 8) "
+                f"for the max entries per (user, side) per hour."
+            )
+        return v
 
     @field_validator("CLOSE_SWEEP_MAX_LEG_SPREAD")
     @classmethod
