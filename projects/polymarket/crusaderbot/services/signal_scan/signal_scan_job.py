@@ -916,13 +916,13 @@ async def _maybe_fire_fast_topup(
                     _asks = sorted(
                         float(e["price"])
                         for e in (_lag_book.get("asks") or [])
-                        if float(e.get("price") or 0) > 0
+                        if e.get("price") and float(e["price"]) > 0
                     )
                     _bids = sorted(
                         (
                             float(e["price"])
                             for e in (_lag_book.get("bids") or [])
-                            if float(e.get("price") or 0) > 0
+                            if e.get("price") and float(e["price"]) > 0
                         ),
                         reverse=True,
                     )
