@@ -524,10 +524,10 @@ def test_admin_user_update_validates_risk_profile():
 
 
 @pytest.mark.parametrize("field,bad,good", [
-    ("capital_alloc_pct", 1.5, 0.5),  # >MAX
-    ("capital_alloc_pct", 0.0, 0.5),  # <MIN
-    ("tp_pct", 10.0, 0.5),            # >MAX (5.0)
-    ("sl_pct", 2.0, 0.5),             # >MAX (1.0)
+    ("capital_alloc_pct", 0.90, 0.5),  # >MAX (0.80)
+    ("capital_alloc_pct", 0.0, 0.5),   # <MIN
+    ("tp_pct", 15.0, 0.5),             # >MAX (10.0)
+    ("sl_pct", 2.0, 0.5),              # >MAX (1.0)
     ("max_per_trade_usdc", 999.0, 100.0),  # >MAX (500)
     ("max_per_trade_pct", 0.50, 0.05),     # >MAX (0.10)
 ])

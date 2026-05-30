@@ -209,19 +209,19 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
                 onChange={(v) => setDraft({ ...draft, risk_profile: v })}
               />
               <FieldNumber
-                label={`Capital alloc % (0.01–1.00, now ${fmtPct(detail.capital_alloc_pct)})`}
+                label={`Capital alloc % (0.01–0.80, now ${fmtPct(detail.capital_alloc_pct)})`}
                 value={draft.capital_alloc_pct}
                 step="0.01"
                 min="0.01"
-                max="1"
+                max="0.80"
                 onChange={(v) => setDraft({ ...draft, capital_alloc_pct: v })}
               />
               <FieldNumber
-                label={`TP % (0.005–5.00, now ${fmtPct(detail.tp_pct)})`}
+                label={`TP % (0.005–10.00, now ${fmtPct(detail.tp_pct)})`}
                 value={draft.tp_pct}
                 step="0.005"
                 min="0.005"
-                max="5"
+                max="10"
                 onChange={(v) => setDraft({ ...draft, tp_pct: v })}
               />
               <FieldNumber
