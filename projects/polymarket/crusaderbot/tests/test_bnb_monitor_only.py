@@ -218,6 +218,10 @@ def test_resolve_tradeable_coins_strips_bnb_from_explicit_list():
     # BNB-only request resolves to empty (caller fetches nothing — never BNB).
     assert pm._resolve_tradeable_coins(["bnb"]) == []
     assert pm._resolve_tradeable_coins(["Bnb", "  "]) == []
+    # Non-tradeable assets (xrp/doge/hype) are excluded by the allowlist
+    # intersection too — not only the monitor-only BNB.
+    assert pm._resolve_tradeable_coins(["BTC", "XRP", "DOGE", "HYPE"]) == ["btc"]
+    assert pm._resolve_tradeable_coins(["xrp"]) == []
 
 
 def test_resolve_tradeable_coins_normalises_case_and_blanks():

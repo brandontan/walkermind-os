@@ -220,7 +220,16 @@ def _resolve_tradeable_coins(
         assets = [assets]
     requested = [str(a).strip().lower() for a in (assets or [])]
     coins = requested or list(_DEFAULT_TRADEABLE_COINS)
-    return [c for c in coins if c and c not in _MONITOR_ONLY_COINS]
+    # Allowlist intersection: keep ONLY tradeable coins. An explicit request for
+    # a non-tradeable asset (xrp/doge/hype) or a monitor-only one (bnb) resolves
+    # away rather than slipping through. The monitor-only check is retained as
+    # belt-and-suspenders intent (still excludes bnb even if it were ever added
+    # back to _DEFAULT_TRADEABLE_COINS by mistake).
+    return [
+        c
+        for c in coins
+        if c in _DEFAULT_TRADEABLE_COINS and c not in _MONITOR_ONLY_COINS
+    ]
 
 
 async def get_crypto_window_markets(
@@ -243,8 +252,8 @@ async def get_crypto_window_markets(
     (BTC/ETH/SOL). Monitor-only assets (e.g. BNB) are always excluded — they
     must never be fetched as a tradeable candle window. Each returned market
     dict is annotated ``category="crypto"`` so downstream eligibility passes.
-    Returns [] on any failure. Cached 20s (the live window for a 5-minute
-    candle is itself only minutes long).
+    Returns [] on any failure. Cached ~45s (``_CRYPTO_WINDOW_CACHE_TTL``; the
+    live window for a 5-minute candle is itself only minutes long).
     """
     step = _TF_WINDOW_SECONDS.get(timeframe)
     if step is None:
