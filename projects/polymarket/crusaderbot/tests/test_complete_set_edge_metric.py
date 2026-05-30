@@ -18,9 +18,7 @@ Stamp lives in: ``late_entry_v3._evaluate_market``
 from __future__ import annotations
 
 import asyncio
-import inspect
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
 
 import pytest
 
@@ -30,38 +28,12 @@ from projects.polymarket.crusaderbot.domain.strategy.strategies import (
 from projects.polymarket.crusaderbot.domain.strategy.types import UserContext
 
 
-# ---------------------------------------------------------------------
-# Source-level pins — math correctness + metadata stamp.
-# ---------------------------------------------------------------------
-
-
-def test_evaluate_market_computes_complete_set_edge():
-    """`_evaluate_market` must compute the complete-set edge as
-    `1 - (yes_ask + no_ask)` — the textbook arb-edge definition for a
-    binary UP/DOWN market that settles to $1.00."""
-    src = inspect.getsource(lev3._evaluate_market)
-    assert "complete_set_edge" in src, (
-        "Regression: _evaluate_market lost the complete_set_edge metric."
-    )
-    # Must be derived from `1.0 - spread` (where spread = yes_ask + no_ask
-    # per existing line above), not invented or hard-coded.
-    assert "1.0 - spread" in src, (
-        "Regression: complete_set_edge must be `1.0 - spread` "
-        "(spread = yes_ask + no_ask). Any other formula breaks the "
-        "textbook arb-edge contract."
-    )
-
-
-def test_evaluate_market_stamps_complete_set_edge_in_metadata():
-    """The metric must be stamped in SignalCandidate.metadata so
-    operator dashboards / downstream code can read it without
-    recomputing from yes_ask/no_ask."""
-    src = inspect.getsource(lev3._evaluate_market)
-    # The dict key inside the SignalCandidate metadata block.
-    assert '"complete_set_edge": complete_set_edge' in src, (
-        "Regression: complete_set_edge must be stamped into "
-        "SignalCandidate.metadata for operator visibility."
-    )
+# Coverage strategy: the formula correctness + metadata stamp are fully
+# covered by the parametrized math fingerprint and the three behavioural
+# regime tests below. Earlier drafts also kept `inspect.getsource` source
+# pins; dropped per Gemini review on PR #1477 because they assert on
+# implementation syntax (quote style, expression layout) and would break
+# on any formatter pass even when behaviour is unchanged.
 
 
 # ---------------------------------------------------------------------
@@ -212,10 +184,11 @@ async def test_metric_captures_positive_edge_when_book_underpriced(monkeypatch):
 
     cand, reason = await lev3._evaluate_market(m, **_evaluate_args())
     # ask_diff = 0.12 (well above min 0.02), entry_price = 0.55
-    # (== fav_price_min, gate uses `<`)
-    if cand is None:
-        pytest.skip(
-            f"Test setup didn't pass an unrelated gate (reason={reason!r}); "
-            f"adjust the market shape to land inside the entry band."
-        )
+    # (== fav_price_min, gate uses `<`). Explicit assert (not skip) so a
+    # regression that newly rejects this market trips a real failure
+    # instead of silently passing.
+    assert cand is not None, (
+        f"Underpriced market with cost=0.98 (edge=+0.02) and YES "
+        f"at fav_price_min must produce a candidate; got reason={reason!r}."
+    )
     assert cand.metadata["complete_set_edge"] == pytest.approx(0.02)
