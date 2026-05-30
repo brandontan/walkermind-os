@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useAlertCenter } from "../App";
-import type { AlertItem, AlertKind, AlertMetadata } from "../lib/api";
+import type { AlertItem, AlertMetadata } from "../lib/api";
 
 type Category = "TRADE" | "SIGNAL" | "RISK" | "SYSTEM";
 
