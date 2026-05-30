@@ -29,9 +29,9 @@ function PageLoader() {
 
 // AlertCenter persistence keys. Suffixed by userId so a shared browser cannot
 // leak one account's "mark all read" / dismissed state onto the next signed-in
-// user. The unsuffixed names below are kept only for the legacy fallback (see
-// loadDismissed) so existing single-user installs keep their state on the first
-// load after this change.
+// user. The unsuffixed base names below ARE also read on first load (see
+// readWithLegacy) and migrated into the scoped key so existing single-user
+// installs keep their dismissed/read state across this upgrade.
 const LAST_SEEN_KEY_BASE = "alertCenter_lastSeen";
 const DISMISSED_KEY_BASE = "alertCenter_dismissed";
 const SEEN_IDS_KEY_BASE = "alertCenter_seenIds";
@@ -45,9 +45,29 @@ const SEEN_IDS_CAP = 500;
 const scopeKey = (base: string, userId: string | null | undefined) =>
   `${base}_${userId || "_anon"}`;
 
+// Read the scoped key first; if absent, fall back to the legacy unsuffixed
+// key (pre-WARP/R00T/strategy-toggle-ui-followup) and migrate it forward so
+// existing users do not see previously-dismissed alerts resurface on their
+// first load after this upgrade. The legacy key is intentionally NOT cleared
+// — that would orphan state for any other client (older bundle, different
+// tab) that still reads the unsuffixed name.
+function readWithLegacy(base: string, userId: string | null): string | null {
+  try {
+    const scoped = localStorage.getItem(scopeKey(base, userId));
+    if (scoped !== null) return scoped;
+    const legacy = localStorage.getItem(base);
+    if (legacy !== null) {
+      try { localStorage.setItem(scopeKey(base, userId), legacy); } catch { /* quota — ignore */ }
+    }
+    return legacy;
+  } catch {
+    return null;
+  }
+}
+
 function loadDismissed(userId: string | null): Set<string> {
   try {
-    const stored = localStorage.getItem(scopeKey(DISMISSED_KEY_BASE, userId));
+    const stored = readWithLegacy(DISMISSED_KEY_BASE, userId);
     return stored ? new Set<string>(JSON.parse(stored) as string[]) : new Set<string>();
   } catch {
     return new Set<string>();
@@ -56,7 +76,7 @@ function loadDismissed(userId: string | null): Set<string> {
 
 function loadSeenIds(userId: string | null): Set<string> {
   try {
-    const stored = localStorage.getItem(scopeKey(SEEN_IDS_KEY_BASE, userId));
+    const stored = readWithLegacy(SEEN_IDS_KEY_BASE, userId);
     return stored ? new Set<string>(JSON.parse(stored) as string[]) : new Set<string>();
   } catch {
     return new Set<string>();
@@ -65,7 +85,7 @@ function loadSeenIds(userId: string | null): Set<string> {
 
 function loadMarkAllReadAt(userId: string | null): number {
   try {
-    const stored = localStorage.getItem(scopeKey(MARK_ALL_READ_AT_KEY_BASE, userId));
+    const stored = readWithLegacy(MARK_ALL_READ_AT_KEY_BASE, userId);
     const parsed = stored ? Number(stored) : 0;
     return Number.isFinite(parsed) ? parsed : 0;
   } catch {
