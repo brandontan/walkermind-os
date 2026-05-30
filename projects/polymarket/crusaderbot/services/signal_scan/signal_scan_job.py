@@ -243,7 +243,12 @@ def _evaluate_bankroll_circuit_breaker(
     if not _math.isfinite(current_balance) or current_balance <= 0:
         return False
     key = str(user_id)
-    baseline = _bankroll_ema_baseline_active.get(key) or _bankroll_ema_baseline.get(key)
+    # Use the latest computed baseline (not the per-tick frozen
+    # `_bankroll_ema_baseline_active`): the breaker compares against
+    # the user's current EMA reference, and the log payload should
+    # reflect the same value so an operator debugging a trip sees the
+    # exact denominator the gate used.
+    baseline = _bankroll_ema_baseline.get(key)
     if baseline is None or baseline <= 0:
         return False
     trip_bound = baseline * threshold
@@ -1161,10 +1166,9 @@ async def _process_candidate(
             hysteresis=_cb_hysteresis,
         )
         if _cb_tripped:
-            _cb_baseline = (
-                _bankroll_ema_baseline_active.get(str(row["user_id"]))
-                or _bankroll_ema_baseline.get(str(row["user_id"]))
-            )
+            # Mirror the helper's baseline source so the log payload
+            # surfaces the exact denominator the gate used.
+            _cb_baseline = _bankroll_ema_baseline.get(str(row["user_id"]))
             log.info(
                 "scan_outcome",
                 outcome="skipped_circuit_breaker",
