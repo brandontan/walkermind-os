@@ -47,7 +47,7 @@ import random
 import uuid as _uuid_mod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 from typing import Any
 from uuid import UUID
 
@@ -117,6 +117,70 @@ _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
 # ---------------------------------------------------------------------------
 # Scan run telemetry
 # ---------------------------------------------------------------------------
+
+
+# =====================================================================
+# Bankroll dynamic sizing multiplier
+# (WARP/R00T/bankroll-dynamic-sizing, Lane 5/5 Polybot directive)
+# =====================================================================
+#
+# Per-user EMA-smoothed bankroll baseline. The multiplier compares the
+# user's current balance to its slow-moving baseline and scales the
+# proposed trade size proportionally, bounded by [MIN, MAX]. Effect:
+#   - Recent winners get slightly larger entries (up to MAX)
+#   - Recent losers get slightly smaller entries (down to MIN)
+#   - First observation seeds the baseline → multiplier = 1.0 (no change)
+#
+# In-process state (same lifecycle as Lane 4 direction window): a Fly
+# restart re-seeds baselines on next scan, briefly returning all users
+# to multiplier=1.0 — acceptable soft-reset, far cheaper than a DB
+# write per scan tick. Disable entirely via
+# BANKROLL_DYNAMIC_SIZING_ENABLED=false (escape hatch).
+_bankroll_ema_baseline: dict[str, float] = {}
+
+
+def _bankroll_multiplier(
+    user_id: str,
+    current_balance: float,
+    *,
+    multiplier_min: float,
+    multiplier_max: float,
+    ema_alpha: float,
+) -> float:
+    """Return the sizing multiplier for (user, current_balance), and
+    update the EMA-smoothed baseline as a side effect.
+
+    Fail-safe: returns 1.0 (no scaling) when current_balance is not a
+    positive finite number, when no prior baseline exists (first
+    observation seeds it), or when the multiplier evaluates non-finite.
+    """
+    import math as _math
+    if not _math.isfinite(current_balance) or current_balance <= 0:
+        return 1.0
+    key = str(user_id)
+    baseline = _bankroll_ema_baseline.get(key)
+    if baseline is None or baseline <= 0:
+        # First observation: seed baseline, multiplier neutral.
+        _bankroll_ema_baseline[key] = current_balance
+        return 1.0
+    raw_multiplier = current_balance / baseline
+    if not _math.isfinite(raw_multiplier):
+        return 1.0
+    # Update EMA for the NEXT call (this call uses the prior baseline so
+    # the multiplier reflects deviation from the historical average,
+    # not from a value the same call already mutated).
+    _bankroll_ema_baseline[key] = (
+        ema_alpha * current_balance + (1.0 - ema_alpha) * baseline
+    )
+    # Clamp to operator-configured bounds. Default [0.5, 1.5] caps both
+    # the upside (don't blow up on a recent win streak) and the downside
+    # (don't shrink positions so small they hit min-size gates).
+    return max(multiplier_min, min(multiplier_max, raw_multiplier))
+
+
+def _bankroll_reset_for_tests() -> None:
+    """Clear the in-memory EMA state. Tests use this to isolate runs."""
+    _bankroll_ema_baseline.clear()
 
 
 # =====================================================================
@@ -776,6 +840,43 @@ def _build_trade_signal(
         else float(market.get("liquidity_usdc") or 0.0)
     )
 
+    # Bankroll dynamic sizing multiplier
+    # (WARP/R00T/bankroll-dynamic-sizing, Lane 5/5).
+    # Scales the candidate's base size by the user's bankroll deviation
+    # from its EMA-smoothed baseline. Fail-safe = 1.0 (no scaling) when
+    # the knob is off, the user has no baseline yet (first observation),
+    # the current balance is non-positive / non-finite, or the config
+    # read raises. Risk gate (Kelly etc.) inside the engine still
+    # applies to the scaled value, so position caps remain authoritative.
+    _base_size = Decimal(str(cand.suggested_size_usdc))
+    _proposed_size = _base_size
+    try:
+        from ...config import get_settings as _gs_bankroll
+        _cfg_b = _gs_bankroll()
+        if getattr(_cfg_b, "BANKROLL_DYNAMIC_SIZING_ENABLED", False):
+            _mult = _bankroll_multiplier(
+                str(row["user_id"]),
+                float(row.get("balance_usdc") or 0.0),
+                multiplier_min=float(_cfg_b.BANKROLL_MULTIPLIER_MIN),
+                multiplier_max=float(_cfg_b.BANKROLL_MULTIPLIER_MAX),
+                ema_alpha=float(_cfg_b.BANKROLL_EMA_ALPHA),
+            )
+            if _mult != 1.0:
+                _proposed_size = (
+                    _base_size * Decimal(str(_mult))
+                ).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    except Exception as exc:
+        # AGENTS.md hard rule: zero silent failures. Log the diagnostic
+        # context and fall back to the unscaled base size. `logger`
+        # (not `log`) — _build_trade_signal is module-level scope, the
+        # per-call `log = logger.bind(...)` only exists in
+        # _process_candidate.
+        logger.warning(
+            "bankroll_dynamic_sizing_failed",
+            error=str(exc),
+            fallback_size_usdc=str(_base_size),
+        )
+
     return TradeSignal(
         user_id=UUID(str(row["user_id"])),
         telegram_user_id=int(row["telegram_user_id"]),
@@ -787,7 +888,7 @@ def _build_trade_signal(
         yes_token_id=market.get("yes_token_id"),
         no_token_id=market.get("no_token_id"),
         side=_side,
-        proposed_size_usdc=Decimal(str(cand.suggested_size_usdc)),
+        proposed_size_usdc=_proposed_size,
         price=_price,
         market_liquidity=_market_liquidity,
         market_status=str(market.get("status") or ""),
