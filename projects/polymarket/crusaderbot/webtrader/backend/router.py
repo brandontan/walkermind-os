@@ -705,7 +705,7 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         min_volume_24h=float(s_row["min_volume_24h"]) if s_row and s_row["min_volume_24h"] is not None else 100.0,
         slippage_tolerance_pct=float(s_row["slippage_tolerance_pct"]) if s_row and s_row["slippage_tolerance_pct"] is not None else None,
         selected_timeframe=s_row["selected_timeframe"] if s_row else None,
-        selected_assets=list(s_row["selected_assets"]) if s_row and s_row["selected_assets"] else None,
+        selected_assets=_sanitize_selected_assets(s_row["selected_assets"]) if s_row else None,
         equity_usdc=round(equity, 2),
         effective_max_per_trade_usdc=round(suggested_trade_size(equity, cap_pct, ceiling_usdc=ceiling), 2),
         max_per_trade_mode=mpt_mode,
@@ -829,6 +829,36 @@ _VALID_TIMEFRAMES: frozenset[str] = frozenset({"5m", "15m"})
 _CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH", "SOL")
 _VALID_ASSETS: frozenset[str] = frozenset(_CRYPTO_SHORT_ASSETS)
 _DEFAULT_CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH")
+
+
+def _sanitize_selected_assets(raw: Any) -> Optional[list[str]]:
+    """Normalise persisted ``selected_assets`` against the current
+    tradable set on READ.
+
+    Legacy user rows may carry assets (e.g. ``["BNB"]``) that were
+    valid when the preset was last activated but have since been moved
+    to monitor-only. Without this filter, ``/autotrade/state`` +
+    ``/admin/users/{id}`` echo the stale asset, the UI rerenders it as
+    "selected", the user saves, and the validator 400s — blocking
+    timeframe/asset edits for affected users.
+
+    Returns ``None`` (not ``[]``) for empty / fully-invalid input so
+    downstream code that distinguishes "no selection persisted" from
+    "explicit empty selection" keeps working. Comparison normalises
+    case + strips whitespace to catch pre-uppercase-normalisation rows.
+    """
+    if not raw:
+        return None
+    out: list[str] = []
+    seen: set[str] = set()
+    for a in raw:
+        sym = str(a).strip().upper()
+        if not sym or sym in seen:
+            continue
+        if sym in _VALID_ASSETS:
+            seen.add(sym)
+            out.append(sym)
+    return out or None
 
 # Light per-timeframe params merged into user_settings.strategy_params (JSONB).
 # close_sweep / safe_close: expiration_timing lib strategy reads these config knobs.
@@ -2647,7 +2677,7 @@ async def admin_user_detail(user_id: str, user: _AdminUser) -> AdminUserDetail:
         max_per_trade_usdc=float(s_row["max_per_trade_usdc"]) if s_row and s_row["max_per_trade_usdc"] is not None else None,
         max_per_trade_pct=float(s_row["max_per_trade_pct"]) if s_row and s_row["max_per_trade_pct"] is not None else None,
         selected_timeframe=s_row["selected_timeframe"] if s_row else None,
-        selected_assets=list(s_row["selected_assets"]) if s_row and s_row["selected_assets"] else None,
+        selected_assets=_sanitize_selected_assets(s_row["selected_assets"]) if s_row else None,
         recent_trades=recent_trades,
         recent_audit=recent_audit,
     )

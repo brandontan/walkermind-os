@@ -192,3 +192,49 @@ def test_build_user_context_uses_filter():
         "Regression: _build_user_context bypassed the monitor-only "
         "filter — stale BNB rows can now reach the scanner."
     )
+
+
+# ---------------------------------------------------------------------
+# Router-side sanitizer: legacy `selected_assets` on READ.
+# Without this, /autotrade/state + /admin/users/{id} echo stale BNB
+# back to the UI, the UI rerenders it as selected, the user saves, and
+# activate_preset's validator 400s — blocking timeframe/asset edits.
+# ---------------------------------------------------------------------
+
+
+def test_router_sanitize_drops_bnb():
+    """Legacy ["BTC", "BNB", "ETH"] persisted row → ["BTC", "ETH"] on
+    read. The UI sees only tradable assets so a save-back round-trip
+    can't re-submit BNB."""
+    assert r._sanitize_selected_assets(["BTC", "BNB", "ETH"]) == ["BTC", "ETH"]
+
+
+def test_router_sanitize_preserves_tradables():
+    """All tradable assets must pass through unchanged + de-duplicated."""
+    assert r._sanitize_selected_assets(["BTC", "ETH", "SOL"]) == [
+        "BTC", "ETH", "SOL",
+    ]
+
+
+def test_router_sanitize_case_insensitive_and_dedup():
+    """DB rows from before router uppercase-normalisation may carry
+    lowercase / duplicate entries — both must be cleaned."""
+    assert r._sanitize_selected_assets(["btc", "BTC", "  eth  "]) == [
+        "BTC", "ETH",
+    ]
+
+
+def test_router_sanitize_all_invalid_returns_none():
+    """A row whose every entry is now invalid (e.g. only "BNB") must
+    return None so the UI / response shape matches the "no selection
+    persisted" path and the operator can pick fresh assets without a
+    pre-populated invalid set."""
+    assert r._sanitize_selected_assets(["BNB"]) is None
+    assert r._sanitize_selected_assets(["XRP", "DOGE", "HYPE"]) is None
+
+
+@pytest.mark.parametrize("inp", [None, [], (), ""])
+def test_router_sanitize_empty_returns_none(inp):
+    """Empty / None input yields None (not [] — caller distinguishes
+    "no selection" from "explicit empty selection")."""
+    assert r._sanitize_selected_assets(inp) is None
