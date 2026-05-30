@@ -35,8 +35,9 @@ from __future__ import annotations
 
 import structlog
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from uuid import UUID
 
+from ...config import get_settings
 from ...database import get_pool
 from ...domain.copy_trade.models import CopyTradeTask
 from ...domain.copy_trade.repository import list_active_tasks
@@ -58,6 +59,22 @@ async def run_once() -> tuple[int, int]:
     must never see an unhandled exception.
     """
     try:
+        # Defence-in-depth: scheduler only registers this job when
+        # HEISENBERG_FAST_TRACK_ENABLED is on, but if the operator flips
+        # HEISENBERG_REALTIME_TRADES_ENABLED off without disabling the
+        # fast-track, the buffer goes stale. Same for HEISENBERG_API_TOKEN —
+        # without it the producer cannot insert fresh rows. Enforce both
+        # explicitly so the consumer cannot operate on stale data.
+        s = get_settings()
+        if not getattr(s, "HEISENBERG_FAST_TRACK_ENABLED", False):
+            return 0, 0
+        if not getattr(s, "HEISENBERG_REALTIME_TRADES_ENABLED", False):
+            log.info("copy_trade_fast_track: realtime producer disabled — skipping tick")
+            return 0, 0
+        if not (getattr(s, "HEISENBERG_API_TOKEN", "") or "").strip():
+            log.info("copy_trade_fast_track: HEISENBERG_API_TOKEN unset — skipping tick")
+            return 0, 0
+
         # Same gates as the existing monitor — reuse rather than duplicate.
         if await _monitor.kill_switch_is_active():
             log.warning("copy_trade_fast_track: kill switch active — skipping tick")
@@ -145,9 +162,14 @@ async def _process_wallet(
     scanned = 0
     dispatched = 0
     # Per task, find the trades newer than its watermark and dispatch.
+    # Watermark advances ONLY past successfully-processed trades — a failure
+    # halts the loop so the failed trade (and any after it) get retried on the
+    # next tick. copy_trade_idempotency dedupes the retry of already-processed
+    # successes that fell before the failure.
     for task in tasks:
         task_cutoff = task.last_realtime_seen_at or fallback
         latest_seen = task_cutoff
+        failed = False
         for row in rows:
             trade_time = row["trade_time"]
             if trade_time <= task_cutoff:
@@ -157,21 +179,29 @@ async def _process_wallet(
             try:
                 await _monitor._process_one(task, raw, wallet)
                 dispatched += 1
+                if trade_time > latest_seen:
+                    latest_seen = trade_time
             except Exception as exc:
                 log.warning(
-                    "copy_trade_fast_track: _process_one failed",
+                    "copy_trade_fast_track: _process_one failed — halting task",
                     task_id=str(task.id), wallet=wallet, error=str(exc),
                 )
-            if trade_time > latest_seen:
-                latest_seen = trade_time
+                failed = True
+                break
 
         if latest_seen > task_cutoff:
             await _bump_watermark(task.id, latest_seen)
 
+        if failed:
+            log.info(
+                "copy_trade_fast_track: task paused for retry on next tick",
+                task_id=str(task.id), wallet=wallet,
+            )
+
     return scanned, dispatched
 
 
-async def _bump_watermark(task_id: Any, ts: datetime) -> None:
+async def _bump_watermark(task_id: UUID, ts: datetime) -> None:
     """UPDATE copy_trade_tasks.last_realtime_seen_at — best-effort."""
     try:
         pool = get_pool()

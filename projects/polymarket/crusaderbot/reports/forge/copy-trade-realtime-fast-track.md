@@ -154,7 +154,7 @@ Modified:
   - 1 failure-isolation test (one task's `_process_one` raises → other task
     still dispatches)
   - 1 buffer-fetch-failure never-raises guard
-  - 3 source pins (JOB_ID, _INITIAL_LOOKBACK_SEC, config default OFF)
+  - 3 source pins (`JOB_ID`, `_INITIAL_LOOKBACK_SEC`, config default OFF)
 - Full suite: **1888 passed, 6 skipped, 0 failed** (1864 prior + 24 new from
   this lane and pre-existing tests).
 - `python -m py_compile` clean on all 5 modified/created Python files.
