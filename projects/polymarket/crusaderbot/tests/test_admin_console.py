@@ -422,7 +422,13 @@ def _admin_user_row(*, role="user", auto_on=False, paused=False):
         "auto_trade_on": auto_on,
         "paused": paused,
         "created_at": None,
+        "telegram_user_id": None,
     }
+
+
+def _wallet_row(balance: float = 0.0, addr: str | None = None) -> dict:
+    """Mirror the columns admin_user_detail now SELECTs from `wallets`."""
+    return {"balance_usdc": balance, "deposit_address": addr}
 
 
 def _admin_settings_row(**overrides):
@@ -447,8 +453,9 @@ def test_admin_user_detail_returns_full_view():
     u_row = _admin_user_row()
     s_row = _admin_settings_row()
     conn = MagicMock()
-    conn.fetchrow = AsyncMock(side_effect=[u_row, s_row, {"balance_usdc": 123.45}])
+    conn.fetchrow = AsyncMock(side_effect=[u_row, s_row, _wallet_row(123.45, "0xabc")])
     conn.fetchval = AsyncMock(return_value=2)
+    conn.fetch = AsyncMock(side_effect=[[], []])  # recent_trades, recent_audit
     with patch.object(r, "get_pool", return_value=_pool(conn)):
         out = asyncio.run(r.admin_user_detail(str(u_row["id"]), {"user_id": str(uuid4())}))
     assert out.user_id == str(u_row["id"])
@@ -456,7 +463,10 @@ def test_admin_user_detail_returns_full_view():
     assert out.trading_mode == "paper"
     assert out.active_preset == "close_sweep"
     assert out.balance_usdc == 123.45
+    assert out.wallet_address == "0xabc"
     assert out.open_positions == 2
+    assert out.recent_trades == []
+    assert out.recent_audit == []
 
 
 def test_admin_user_detail_404_when_missing():
@@ -480,6 +490,7 @@ def test_admin_user_detail_strips_telegram_local_email():
     conn = MagicMock()
     conn.fetchrow = AsyncMock(side_effect=[u_row, _admin_settings_row(), None])
     conn.fetchval = AsyncMock(return_value=0)
+    conn.fetch = AsyncMock(side_effect=[[], []])
     with patch.object(r, "get_pool", return_value=_pool(conn)):
         out = asyncio.run(r.admin_user_detail(str(u_row["id"]), {"user_id": str(uuid4())}))
     assert out.email is None
@@ -491,12 +502,14 @@ def test_admin_user_detail_missing_settings_defaults_to_paper_balanced():
     conn = MagicMock()
     conn.fetchrow = AsyncMock(side_effect=[u_row, None, None])
     conn.fetchval = AsyncMock(return_value=0)
+    conn.fetch = AsyncMock(side_effect=[[], []])
     with patch.object(r, "get_pool", return_value=_pool(conn)):
         out = asyncio.run(r.admin_user_detail(str(u_row["id"]), {"user_id": str(uuid4())}))
     assert out.trading_mode == "paper"
     assert out.risk_profile == "balanced"
     assert out.capital_alloc_pct == 0.40
     assert out.balance_usdc == 0.0
+    assert out.wallet_address is None
 
 
 def test_admin_user_update_validates_preset():
@@ -586,7 +599,8 @@ def test_admin_user_update_writes_audit_and_returns_detail():
     # (fetchrow x2: u_row, s_row, then fetchrow: wallet, then fetchval: open_count).
     conn.fetchval = AsyncMock(side_effect=[1, 0])  # exists, then open_count
     conn.execute = AsyncMock(return_value=None)
-    conn.fetchrow = AsyncMock(side_effect=[u_row, s_row, {"balance_usdc": 50.0}])
+    conn.fetchrow = AsyncMock(side_effect=[u_row, s_row, _wallet_row(50.0, "0xdef")])
+    conn.fetch = AsyncMock(side_effect=[[], []])
     audit_calls = []
 
     async def _fake_audit_write(**kwargs):
@@ -601,11 +615,15 @@ def test_admin_user_update_writes_audit_and_returns_detail():
         ))
     assert out.active_preset == "safe_close"
     assert out.risk_profile == "aggressive"
-    # Audit recorded the actor + target + patch payload.
+    # Audit row is scoped to the TARGET user (so admin_user_detail's per-user
+    # recent-audit slice surfaces the change in that user's drawer); the actor
+    # id is preserved in the payload.
     assert len(audit_calls) == 1
     assert audit_calls[0]["actor_role"] == "admin"
     assert audit_calls[0]["action"] == "admin_user_settings_update"
+    assert audit_calls[0]["user_id"] == target_id
     assert audit_calls[0]["payload"]["target_user_id"] == str(target_id)
+    assert audit_calls[0]["payload"]["actor_user_id"] == str(actor_id)
     assert audit_calls[0]["payload"]["patch"] == {
         "active_preset": "safe_close",
         "risk_profile": "aggressive",
@@ -649,6 +667,7 @@ def test_admin_user_update_paper_default_invariant_on_minimal_patch():
     conn.fetchval = AsyncMock(side_effect=[1, 0])
     conn.execute = AsyncMock(return_value=None)
     conn.fetchrow = AsyncMock(side_effect=[u_row, _admin_settings_row(), None])
+    conn.fetch = AsyncMock(side_effect=[[], []])
     with patch.object(r, "get_pool", return_value=_pool(conn)), \
          patch.object(r.audit, "write", new=AsyncMock()):
         asyncio.run(r.admin_user_update(

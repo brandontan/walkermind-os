@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, Optional
+from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -31,6 +31,8 @@ from .auth import (
 )
 from . import notification_prefs as _notif_prefs
 from .schemas import (
+    AdminRecentAudit,
+    AdminRecentTrade,
     AdminUserDetail,
     AdminUserUpdate,
     AlertItem,
@@ -2544,7 +2546,7 @@ async def admin_user_detail(user_id: str, user: _AdminUser) -> AdminUserDetail:
     async with pool.acquire() as conn:
         u_row = await conn.fetchrow(
             """SELECT u.id, u.username, u.email, u.role, u.auto_trade_on,
-                      u.paused, u.created_at
+                      u.paused, u.created_at, u.telegram_user_id
                  FROM users u
                 WHERE u.id = $1::uuid""",
             target_uuid,
@@ -2560,7 +2562,7 @@ async def admin_user_detail(user_id: str, user: _AdminUser) -> AdminUserDetail:
             target_uuid,
         )
         w_row = await conn.fetchrow(
-            "SELECT balance_usdc FROM wallets WHERE user_id = $1::uuid",
+            "SELECT balance_usdc, deposit_address FROM wallets WHERE user_id = $1::uuid",
             target_uuid,
         )
         open_count = await conn.fetchval(
@@ -2568,13 +2570,61 @@ async def admin_user_detail(user_id: str, user: _AdminUser) -> AdminUserDetail:
             "WHERE user_id = $1::uuid AND status IN ('open','pending_settlement')",
             target_uuid,
         ) or 0
+        # Read-only context for the operator drawer: last 5 trades + last 3
+        # audit rows for the target user. Audit is in a separate schema
+        # (audit.log) and is INSERT-only from the app, so this read is safe.
+        trade_rows = await conn.fetch(
+            """SELECT p.id, p.status, p.side, p.size_usdc, p.entry_price,
+                      p.pnl_usdc, p.exit_reason, p.strategy_type,
+                      p.created_at, p.closed_at,
+                      COALESCE(m.question, p.market_question) AS market_question
+                 FROM positions p
+                 LEFT JOIN markets m ON m.id = p.market_id
+                WHERE p.user_id = $1::uuid
+                ORDER BY COALESCE(p.closed_at, p.created_at) DESC
+                LIMIT 5""",
+            target_uuid,
+        )
+        audit_rows = await conn.fetch(
+            """SELECT ts, actor_role, action
+                 FROM audit.log
+                WHERE user_id = $1::uuid
+                ORDER BY ts DESC
+                LIMIT 3""",
+            target_uuid,
+        )
     email = u_row["email"]
     if email and email.endswith("@telegram.local"):
         email = None
+    recent_trades = [
+        AdminRecentTrade(
+            id=str(r["id"]),
+            status=str(r["status"]),
+            side=r["side"],
+            size_usdc=float(r["size_usdc"]) if r["size_usdc"] is not None else None,
+            entry_price=float(r["entry_price"]) if r["entry_price"] is not None else None,
+            pnl_usdc=float(r["pnl_usdc"]) if r["pnl_usdc"] is not None else None,
+            exit_reason=r["exit_reason"],
+            strategy_type=r["strategy_type"],
+            market_question=r["market_question"] or "",
+            ts=(r["closed_at"] or r["created_at"]).isoformat(),
+        )
+        for r in trade_rows
+    ]
+    recent_audit = [
+        AdminRecentAudit(
+            ts=r["ts"].isoformat(),
+            actor_role=str(r["actor_role"]),
+            action=str(r["action"]),
+        )
+        for r in audit_rows
+    ]
     return AdminUserDetail(
         user_id=str(u_row["id"]),
         username=u_row["username"],
         email=email,
+        telegram_user_id=int(u_row["telegram_user_id"]) if u_row["telegram_user_id"] is not None else None,
+        wallet_address=str(w_row["deposit_address"]) if w_row and w_row["deposit_address"] else None,
         role=str(u_row["role"]),
         created_at=u_row["created_at"],
         trading_mode=str(s_row["trading_mode"]) if s_row else "paper",
@@ -2592,6 +2642,8 @@ async def admin_user_detail(user_id: str, user: _AdminUser) -> AdminUserDetail:
         max_per_trade_pct=float(s_row["max_per_trade_pct"]) if s_row and s_row["max_per_trade_pct"] is not None else None,
         selected_timeframe=s_row["selected_timeframe"] if s_row else None,
         selected_assets=list(s_row["selected_assets"]) if s_row and s_row["selected_assets"] else None,
+        recent_trades=recent_trades,
+        recent_audit=recent_audit,
     )
 
 
@@ -2668,6 +2720,21 @@ def _validate_admin_user_patch(body: AdminUserUpdate) -> None:
             detail=f"max_per_trade_pct out of range "
                    f"[{_MAX_PER_TRADE_PCT_MIN}, {_MAX_PER_TRADE_PCT_MAX}]",
         )
+    if body.selected_timeframe is not None and body.selected_timeframe not in _VALID_TIMEFRAMES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid selected_timeframe: {body.selected_timeframe} "
+                   f"(expected one of {sorted(_VALID_TIMEFRAMES)})",
+        )
+    if body.selected_assets is not None:
+        normalized = [str(a).strip().upper() for a in body.selected_assets]
+        bad = [a for a in normalized if a not in _VALID_ASSETS]
+        if bad:
+            raise HTTPException(
+                status_code=400,
+                detail=f"invalid asset(s): {', '.join(bad)} "
+                       f"(expected any of {', '.join(_CRYPTO_SHORT_ASSETS)})",
+            )
 
 
 @router.patch(
@@ -2704,6 +2771,31 @@ async def admin_user_update(
     if not fields:
         raise HTTPException(status_code=400, detail="empty patch body")
 
+    # Normalize selected_assets to uppercase + de-dup (validator already
+    # rejected unknown symbols). Empty list = clear the column to NULL.
+    if "selected_assets" in fields and fields["selected_assets"] is not None:
+        seen: set[str] = set()
+        normalized: list[str] = []
+        for a in fields["selected_assets"]:
+            up = str(a).strip().upper()
+            if up and up not in seen:
+                seen.add(up)
+                normalized.append(up)
+        fields["selected_assets"] = normalized if normalized else None
+
+    # `paused` lives on `users`, not `user_settings`. Split it out so the
+    # user_settings upsert never tries to write a non-existent column.
+    # Reject an explicit null — `bool(None)` would silently resume the user.
+    paused_value: Optional[bool] = None
+    if "paused" in fields:
+        raw_paused = fields.pop("paused")
+        if raw_paused is None:
+            raise HTTPException(
+                status_code=400,
+                detail="paused cannot be null; omit the field to leave it unchanged",
+            )
+        paused_value = bool(raw_paused)
+
     pool = get_pool()
     async with pool.acquire() as conn:
         # 404 guard — fail before touching user_settings so we never lazy-
@@ -2714,34 +2806,52 @@ async def admin_user_update(
         if not exists:
             raise HTTPException(status_code=404, detail="user not found")
 
-        set_clauses = [f"{col} = ${i + 2}" for i, col in enumerate(fields.keys())]
-        values = list(fields.values())
-        # Upsert so an operator edit on a brand-new user (no user_settings
-        # row yet) creates the row with explicit paper-mode + balanced defaults
-        # per the paper-default invariant.
-        insert_cols = ["user_id"] + list(fields.keys())
-        insert_vals = ["$1::uuid"] + [f"${i + 2}" for i in range(len(fields))]
-        if "trading_mode" not in fields:
-            insert_cols.append("trading_mode")
-            insert_vals.append("'paper'")
-        if "risk_profile" not in fields:
-            insert_cols.append("risk_profile")
-            insert_vals.append("'balanced'")
-        if "capital_alloc_pct" not in fields:
-            insert_cols.append("capital_alloc_pct")
-            insert_vals.append("0.40")
-        sql = (
-            f"INSERT INTO user_settings ({', '.join(insert_cols)}) "
-            f"VALUES ({', '.join(insert_vals)}) "
-            f"ON CONFLICT (user_id) DO UPDATE SET "
-            f"{', '.join(set_clauses)}, updated_at = NOW()"
-        )
-        await conn.execute(sql, target_uuid, *values)
+        if paused_value is not None:
+            # Route through the canonical helper so any side effects on the
+            # risk gate (cached ctx, signal scan loop) stay consistent with
+            # the user-facing /kill + /resume paths.
+            from ...users import set_paused
+            await set_paused(target_uuid, paused_value)
 
+        if fields:
+            set_clauses = [f"{col} = ${i + 2}" for i, col in enumerate(fields.keys())]
+            values = list(fields.values())
+            # Upsert so an operator edit on a brand-new user (no user_settings
+            # row yet) creates the row with explicit paper-mode + balanced defaults
+            # per the paper-default invariant.
+            insert_cols = ["user_id"] + list(fields.keys())
+            insert_vals = ["$1::uuid"] + [f"${i + 2}" for i in range(len(fields))]
+            if "trading_mode" not in fields:
+                insert_cols.append("trading_mode")
+                insert_vals.append("'paper'")
+            if "risk_profile" not in fields:
+                insert_cols.append("risk_profile")
+                insert_vals.append("'balanced'")
+            if "capital_alloc_pct" not in fields:
+                insert_cols.append("capital_alloc_pct")
+                insert_vals.append("0.40")
+            sql = (
+                f"INSERT INTO user_settings ({', '.join(insert_cols)}) "
+                f"VALUES ({', '.join(insert_vals)}) "
+                f"ON CONFLICT (user_id) DO UPDATE SET "
+                f"{', '.join(set_clauses)}, updated_at = NOW()"
+            )
+            await conn.execute(sql, target_uuid, *values)
+
+    # Scope the audit row to the TARGET user so the per-user recent-audit slice
+    # in admin_user_detail (WHERE user_id = $1::uuid) surfaces the change in
+    # that user's drawer. The actor's id is preserved in the payload.
+    audit_payload: dict[str, Any] = {
+        "target_user_id": str(target_uuid),
+        "actor_user_id": str(user["user_id"]),
+        "patch": fields,
+    }
+    if paused_value is not None:
+        audit_payload["paused"] = paused_value
     await audit.write(
         actor_role="admin",
         action="admin_user_settings_update",
-        user_id=UUID(str(user["user_id"])),
-        payload={"target_user_id": str(target_uuid), "patch": fields},
+        user_id=target_uuid,
+        payload=audit_payload,
     )
     return await admin_user_detail(str(target_uuid), user)

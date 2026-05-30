@@ -418,6 +418,27 @@ class StrategyToggleRequest(BaseModel):
     enabled: bool
 
 
+class AdminRecentTrade(BaseModel):
+    """One row in the per-user recent-trades slice on the admin drawer."""
+    id: str
+    status: str
+    side: Optional[str] = None
+    size_usdc: Optional[float] = None
+    entry_price: Optional[float] = None
+    pnl_usdc: Optional[float] = None
+    exit_reason: Optional[str] = None
+    strategy_type: Optional[str] = None
+    market_question: str = ""
+    ts: str
+
+
+class AdminRecentAudit(BaseModel):
+    """One row in the per-user recent-audit slice on the admin drawer."""
+    ts: str
+    actor_role: str
+    action: str
+
+
 class AdminUserDetail(BaseModel):
     """GET /api/web/admin/users/{user_id} — full per-user operator view.
 
@@ -429,6 +450,8 @@ class AdminUserDetail(BaseModel):
     user_id: str
     username: Optional[str] = None
     email: Optional[str] = None
+    telegram_user_id: Optional[int] = None
+    wallet_address: Optional[str] = None
     role: str
     created_at: Optional[datetime] = None
     # Runtime state
@@ -448,6 +471,9 @@ class AdminUserDetail(BaseModel):
     max_per_trade_pct: Optional[float] = None
     selected_timeframe: Optional[str] = None
     selected_assets: Optional[list[str]] = None
+    # Read-only context — last 5 trades + last 3 audit rows for this user
+    recent_trades: list[AdminRecentTrade] = []
+    recent_audit: list[AdminRecentAudit] = []
 
 
 class AdminUserUpdate(BaseModel):
@@ -456,7 +482,8 @@ class AdminUserUpdate(BaseModel):
     Every field optional. Only fields explicitly provided are written. The
     handler validates each against the same allowed-value sets as the
     user-facing endpoints (preset → _PRESET_TO_STRATEGY,
-    risk_profile → _VALID_RISK_PROFILES, max_per_trade_mode → {auto,fixed,pct}).
+    risk_profile → _VALID_RISK_PROFILES, max_per_trade_mode → {auto,fixed,pct},
+    selected_timeframe → {5m,15m}, selected_assets ⊆ {BTC,ETH,SOL,BNB}).
     """
     active_preset: Optional[str] = None
     risk_profile: Optional[str] = None
@@ -466,4 +493,7 @@ class AdminUserUpdate(BaseModel):
     max_per_trade_mode: Optional[str] = None
     max_per_trade_usdc: Optional[float] = None
     max_per_trade_pct: Optional[float] = None
+    selected_timeframe: Optional[str] = None
+    selected_assets: Optional[list[str]] = None
+    paused: Optional[bool] = None
 

@@ -208,10 +208,31 @@ export interface AdminStrategy {
   enabled: boolean;
 }
 
+export interface AdminRecentTrade {
+  id: string;
+  status: string;
+  side: string | null;
+  size_usdc: number | null;
+  entry_price: number | null;
+  pnl_usdc: number | null;
+  exit_reason: string | null;
+  strategy_type: string | null;
+  market_question: string;
+  ts: string;
+}
+
+export interface AdminRecentAudit {
+  ts: string;
+  actor_role: string;
+  action: string;
+}
+
 export interface AdminUserDetail {
   user_id: string;
   username: string | null;
   email: string | null;
+  telegram_user_id: number | null;
+  wallet_address: string | null;
   role: string;
   created_at: string | null;
   trading_mode: string;
@@ -229,6 +250,8 @@ export interface AdminUserDetail {
   max_per_trade_pct: number | null;
   selected_timeframe: string | null;
   selected_assets: string[] | null;
+  recent_trades: AdminRecentTrade[];
+  recent_audit: AdminRecentAudit[];
 }
 
 export interface AdminUserPatch {
@@ -240,6 +263,9 @@ export interface AdminUserPatch {
   max_per_trade_mode?: string;
   max_per_trade_usdc?: number | null;
   max_per_trade_pct?: number | null;
+  selected_timeframe?: string | null;
+  selected_assets?: string[] | null;
+  paused?: boolean;
 }
 
 export interface LinkTelegramStart {
