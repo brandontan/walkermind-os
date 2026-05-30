@@ -181,23 +181,58 @@ def test_tob_stale_ms_disable_sentinel_is_zero():
     )
 
 
-def test_config_read_failure_is_logged_not_swallowed():
-    """AGENTS.md hard rule: no silent failures. If the config read inside
-    the freshness gate raises, the exception must be logged (warning) with
-    the documented fallback before defaulting to 2000ms — never swallowed
-    silently. A regression here masks misconfigurations from the operator.
+def test_config_read_failure_is_logged_not_swallowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Runtime assertion (not source pin): when the lazy ``get_settings()``
+    call inside the freshness gate raises, the gate MUST emit a structured
+    warning ``tob_stale_ms_config_read_failed`` with the error + fallback
+    payload, then fall back to the 2000ms default and continue evaluation.
+    AGENTS.md zero-silent-failures hard rule.
+
+    A source-only pin would pass if the log statement existed but was
+    behind a dead branch; this exercises the actual code path.
     """
-    src = inspect.getsource(ssj._process_candidate)
-    assert "tob_stale_ms_config_read_failed" in src, (
-        "Regression: TOB freshness gate must log a structured warning "
-        "when reading TOB_STALE_MS from config fails — AGENTS.md "
-        "zero-silent-failures hard rule."
+    import structlog
+
+    _set_required_env(monkeypatch)
+    bootstrap_default_strategies()
+
+    def _boom() -> object:
+        raise RuntimeError("boom")
+
+    # _process_candidate lazy-imports `get_settings` only inside the gate;
+    # patching the module attribute affects only that one call site.
+    monkeypatch.setattr(crusaderbot_config, "get_settings", _boom)
+
+    now_ts = datetime.now(timezone.utc).timestamp()
+    # Stale candidate so the gate fully executes (still emits warning even
+    # if fresh; the warning is upstream of the staleness comparison).
+    cand = _late_entry_candidate(entry_price_ts=now_ts - 3.0)
+
+    with structlog.testing.capture_logs() as captured:
+        _run_process_candidate(row=_user_row(), cand=cand)
+
+    warnings = [
+        e for e in captured
+        if e.get("event") == "tob_stale_ms_config_read_failed"
+    ]
+    assert warnings, (
+        "Expected structured warning 'tob_stale_ms_config_read_failed' "
+        "was not emitted — the config-read failure was silently "
+        "swallowed (AGENTS.md zero-silent-failures violation)."
     )
-    # The fallback default must remain documented in the log payload so the
-    # operator can correlate Sentry/structlog noise back to the gate.
-    assert "fallback_ms=2000" in src, (
-        "Regression: log payload must surface the fallback_ms value so "
-        "operator can diagnose how the gate is actually behaving."
+    assert warnings[0].get("log_level") == "warning", (
+        "Config-read failure must be logged at WARNING level so it "
+        "surfaces to Sentry / operator dashboards, not buried at DEBUG."
+    )
+    assert warnings[0].get("error") == "boom", (
+        "Warning payload must include the exception details so the "
+        "operator can diagnose the underlying config failure."
+    )
+    assert warnings[0].get("fallback_ms") == 2000, (
+        "Warning payload must surface the fallback_ms value so the "
+        "operator knows what the gate is actually using."
     )
 
 
