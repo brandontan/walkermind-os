@@ -1003,6 +1003,55 @@ async def _process_candidate(
                 _live_fill_price = _candidate_entry
         except (TypeError, ValueError):
             _live_fill_price = None
+
+    # 3b-0. TOB freshness gate (WARP/R00T/tob-freshness-gate, ref Directive 7).
+    #       Reject the candidate when the orderbook snapshot used to compute
+    #       metadata["entry_price"] is older than TOB_STALE_MS. Scope: only
+    #       candidates that carry metadata["entry_price_ts"] (late_entry_v3 —
+    #       close_sweep / safe_close / flip_hunter); candidates without the
+    #       stamp (signal_following / momentum / copy_trade) bypass cleanly.
+    #       Disable by setting TOB_STALE_MS=0 in config / env.
+    #
+    #       Why: scan -> _process_candidate -> gate -> CLOB submission can take
+    #       multiple seconds when scheduler back-pressures or the executor is
+    #       busy; firing a trade on an orderbook snapshot that is several
+    #       seconds old is the directional analogue of the sub-cent stale-
+    #       Gamma bug (PR #1413) — the live mark has already moved by the time
+    #       the order leaves the router, so the strategy's intended setup is
+    #       no longer the setup we're actually buying.
+    _meta_ts = cand.metadata.get("entry_price_ts")
+    if _meta_ts is not None:
+        try:
+            from ...config import get_settings as _get_settings_tob
+            _tob_stale_ms = int(_get_settings_tob().TOB_STALE_MS)
+        except Exception:
+            _tob_stale_ms = 2000
+        if _tob_stale_ms > 0:
+            try:
+                _tob_age_ms = (
+                    datetime.now(timezone.utc).timestamp() - float(_meta_ts)
+                ) * 1000.0
+            except (TypeError, ValueError):
+                _tob_age_ms = None
+            if _tob_age_ms is not None and _tob_age_ms > _tob_stale_ms:
+                log.info(
+                    "scan_outcome",
+                    outcome="skipped_stale_tob",
+                    side=side,
+                    market_id=cand.market_id,
+                    strategy=cand.strategy_name,
+                    age_ms=round(_tob_age_ms, 1),
+                    threshold_ms=_tob_stale_ms,
+                    message=(
+                        f"Orderbook snapshot age {_tob_age_ms:.0f}ms exceeds "
+                        f"TOB_STALE_MS={_tob_stale_ms}; rejecting to avoid "
+                        f"firing on stale CLOB data."
+                    ),
+                )
+                if telemetry is not None:
+                    telemetry.record_skip("skipped_stale_tob")
+                return
+
     if _live_fill_price is None:
         try:
             _live_fill_price = await get_live_market_price(cand.market_id, side)

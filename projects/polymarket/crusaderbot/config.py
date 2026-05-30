@@ -337,6 +337,22 @@ class Settings(BaseSettings):
     # live position becomes redeemable, defer to the hourly queue. ---
     INSTANT_REDEEM_GAS_GWEI_MAX: float = 200.0
 
+    # --- TOB freshness gate (WARP/R00T/tob-freshness-gate) ---
+    # Max age in milliseconds for the orderbook snapshot that produced
+    # a candidate's metadata["entry_price"]. Read by
+    # services.signal_scan.signal_scan_job._process_candidate step 3b-0:
+    # if (now - metadata["entry_price_ts"]) > TOB_STALE_MS, the candidate
+    # is rejected with scan_outcome="skipped_stale_tob".
+    #
+    # Set to 0 to disable the gate (escape hatch — operator can revert
+    # without redeploy). Default 2000ms matches the Polybot research
+    # reference value: scan->fill latency above 2s means the live mark has
+    # materially moved away from the strategy's intended setup.
+    #
+    # Scoped to candidates that carry the stamp (late_entry_v3 — close_sweep,
+    # safe_close, flip_hunter); candidates without the stamp no-op.
+    TOB_STALE_MS: int = 2000  # env: TOB_STALE_MS
+
     # --- Order lifecycle polling (Phase 4C) ---
     # Interval between OrderLifecycleManager.poll_once ticks. Default 30s
     # gives a snappy dashboard without hammering the broker API.
