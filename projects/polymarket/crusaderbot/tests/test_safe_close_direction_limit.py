@@ -120,6 +120,28 @@ def test_window_boundary_exactly_1h_kept():
     assert ssj._safe_close_recent_count("user-A", "YES", now) == 1
 
 
+def test_empty_keys_removed_after_full_prune():
+    """Memory hygiene: when all entries for a (user, side) key expire,
+    the dict key itself must be deleted — otherwise the log grows
+    monotonically with rotating user IDs and inactive-user fossils."""
+    now = datetime.now(timezone.utc).timestamp()
+    ssj._safe_close_record_entry("user-A", "YES", now - 7200.0)  # 2h ago
+    ssj._safe_close_record_entry("user-A", "YES", now - 7200.0)
+    assert ("user-A", "YES") in ssj._safe_close_direction_log
+    # Reading at `now` prunes all 2h-old entries → list empties → key
+    # must be removed.
+    assert ssj._safe_close_recent_count("user-A", "YES", now) == 0
+    assert ("user-A", "YES") not in ssj._safe_close_direction_log
+
+
+def test_recent_count_does_not_create_empty_key():
+    """A read on a never-recorded (user, side) must not leave an empty
+    list behind — same memory-hygiene contract as the prune path."""
+    now = datetime.now(timezone.utc).timestamp()
+    assert ssj._safe_close_recent_count("user-NEW", "YES", now) == 0
+    assert ("user-NEW", "YES") not in ssj._safe_close_direction_log
+
+
 # ---------------------------------------------------------------------
 # Config knob — default + env override + negative rejection.
 # ---------------------------------------------------------------------
@@ -358,6 +380,40 @@ def test_record_on_accepted_entry_only(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # The accept path must have logged the entry.
     assert ssj._safe_close_recent_count(str(_USER_UUID), "YES", now) == 1
+
+
+def test_no_record_on_insert_conflict(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When `_insert_execution_queue` returns False (concurrent tick
+    won the ON CONFLICT race), the OTHER tick is authoritative — this
+    tick must NOT record again or the user gets double-counted toward
+    the cap and is wrongly blocked sooner than intended."""
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR", "10")
+    bootstrap_default_strategies()
+
+    engine_called = {"called": False}
+
+    async def _track_execute(signal):
+        engine_called["called"] = True
+        return _approved_result()
+
+    with patch.object(ssj, "_load_stale_queued_row", return_value=None), \
+            patch.object(ssj, "_publication_already_queued", return_value=False), \
+            patch.object(ssj, "_has_open_position_for_market", return_value=False), \
+            patch.object(ssj, "_load_market", return_value=_market_row()), \
+            patch.object(ssj, "get_live_market_price",
+                         new=AsyncMock(return_value=0.66)), \
+            patch.object(ssj._engine, "execute", side_effect=_track_execute), \
+            patch.object(ssj, "_insert_execution_queue", return_value=False), \
+            patch.object(ssj, "_mark_executed", new=AsyncMock()):
+        asyncio.run(ssj._process_candidate(_user_row(), _late_entry_candidate("YES")))
+
+    assert engine_called["called"], "engine.execute should have run"
+    now = datetime.now(timezone.utc).timestamp()
+    assert ssj._safe_close_recent_count(str(_USER_UUID), "YES", now) == 0, (
+        "inserted=False (concurrent ON CONFLICT) must not advance the "
+        "counter — the other tick is authoritative for this trade."
+    )
 
 
 def test_no_record_on_duplicate_result(monkeypatch: pytest.MonkeyPatch) -> None:

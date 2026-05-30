@@ -144,12 +144,19 @@ _safe_close_direction_log: dict[tuple[str, str], list[float]] = {}
 def _safe_close_recent_count(user_id: str, side: str, now_ts: float) -> int:
     """Return the count of recorded safe_close entries for (user, side)
     within the last `_SAFE_CLOSE_DIRECTION_WINDOW_SEC` seconds. Prunes
-    expired entries in-place as a side effect."""
+    expired entries in-place as a side effect; deletes the dict key
+    entirely if pruning empties the list (memory hygiene — avoids
+    monotonic growth of the dict from inactive-user keys)."""
     key = (str(user_id), side.upper())
-    entries = _safe_close_direction_log.setdefault(key, [])
+    entries = _safe_close_direction_log.get(key)
+    if entries is None:
+        return 0
     cutoff = now_ts - _SAFE_CLOSE_DIRECTION_WINDOW_SEC
     if entries and entries[0] < cutoff:
         entries[:] = [t for t in entries if t >= cutoff]
+    if not entries:
+        del _safe_close_direction_log[key]
+        return 0
     return len(entries)
 
 
@@ -1314,10 +1321,13 @@ async def _process_candidate(
         if telemetry is not None:
             telemetry.record_approved()
         # Record this entry for the safe_close direction-concentration
-        # limiter (Lane 4). Only counted on accepted, non-duplicate
-        # entries — duplicates and rejections never go to broker so they
-        # don't contribute to directional exposure.
-        if (row.get("active_preset") or "").lower() == "safe_close":
+        # limiter (Lane 4). Guard on `inserted` so a concurrent-tick
+        # ON CONFLICT skip (another tick already won and recorded) does
+        # not double-count toward the user's directional cap. Also
+        # guard on result.mode != "duplicate" (implicit — we're already
+        # inside that branch) so engine-level idempotency dedup also
+        # bypasses the counter.
+        if inserted and (row.get("active_preset") or "").lower() == "safe_close":
             _safe_close_record_entry(
                 str(user_id), side, datetime.now(timezone.utc).timestamp(),
             )
