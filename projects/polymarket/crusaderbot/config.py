@@ -462,6 +462,33 @@ class Settings(BaseSettings):
     # load.
     SAFE_CLOSE_IMBALANCE_THRESHOLD_USDC: float = 5.0  # env: SAFE_CLOSE_IMBALANCE_THRESHOLD_USDC
 
+    # --- Flip Hunter fast top-up (WARP/R00T/flip-hunter-fast-topup,
+    #     Polybot directive 1.5 + 1.3.2) ---
+    # After a successful safe_close / flip_hunter entry that left the
+    # user's per-market exposure imbalanced (`|imbalance_usdc| >=
+    # FAST_TOPUP_MIN_USDC`), immediately fire a follow-up entry for the
+    # opposite (lagging) leg via the standard TradeEngine path. Lets
+    # the strategy chase complete-set parity in the moments after the
+    # lead leg fills, recovering from the case where only one side of
+    # an intended pair actually landed.
+    #
+    # Cooldown is per-(user, market) so two markets independently
+    # rebalance without rate-limiting each other.
+    #
+    # Default OFF (dark launch). When ON it ONLY fires after a
+    # SUCCESSFUL `late_entry_v3` execution where the user's
+    # `active_preset` is `safe_close` or `flip_hunter`.
+    FLIP_HUNTER_FAST_TOPUP_ENABLED: bool = False  # env: FLIP_HUNTER_FAST_TOPUP_ENABLED
+    # Minimum imbalance (USDC cost basis) required to trigger a top-up.
+    # Bounds: must be > 0. Zero would fire on any non-zero imbalance,
+    # producing infinite back-and-forth between legs. Rejected at load.
+    FAST_TOPUP_MIN_USDC: float = 5.0  # env: FAST_TOPUP_MIN_USDC
+    # Cooldown window between top-ups for the same (user, market) pair.
+    # Default 15s matches the Polybot directive reference. Bounds:
+    # must be > 0. Zero cooldown would allow the same (user, market)
+    # to spin top-ups continuously.
+    FAST_TOPUP_COOLDOWN_SECONDS: float = 15.0  # env: FAST_TOPUP_COOLDOWN_SECONDS
+
     # --- Close-sweep per-leg spread gate (WARP/R00T/close-sweep-spread-gate) ---
     # Max per-side bid-ask spread (best_ask - best_bid) tolerated by the
     # close_sweep preset. Wide per-leg spread in the noisy final ~35s of a
@@ -737,6 +764,42 @@ class Settings(BaseSettings):
                 f"SAFE_CLOSE_IMBALANCE_THRESHOLD_USDC must be > 0 "
                 f"(got {v}); 0 would override on any non-zero imbalance, "
                 f"collapsing the gate into a noise amplifier."
+            )
+        return v
+
+    @field_validator("FAST_TOPUP_MIN_USDC")
+    @classmethod
+    def validate_fast_topup_min_usdc(cls, v: float) -> float:
+        # Non-finite + non-positive both collapse to silent over-fire.
+        # Reject at load.
+        if not math.isfinite(v):
+            raise ValueError(
+                f"FAST_TOPUP_MIN_USDC must be a finite number (got {v!r})."
+            )
+        if v <= 0:
+            raise ValueError(
+                f"FAST_TOPUP_MIN_USDC must be > 0 (got {v}); "
+                f"0 would trigger top-ups on any non-zero imbalance, "
+                f"producing infinite back-and-forth between legs."
+            )
+        return v
+
+    @field_validator("FAST_TOPUP_COOLDOWN_SECONDS")
+    @classmethod
+    def validate_fast_topup_cooldown(cls, v: float) -> float:
+        # 0 cooldown would allow the same (user, market) to spin
+        # top-ups continuously. Non-finite would silently disable
+        # the cooldown by making every comparison False.
+        if not math.isfinite(v):
+            raise ValueError(
+                f"FAST_TOPUP_COOLDOWN_SECONDS must be a finite number "
+                f"(got {v!r})."
+            )
+        if v <= 0:
+            raise ValueError(
+                f"FAST_TOPUP_COOLDOWN_SECONDS must be > 0 (got {v}); "
+                f"zero cooldown would let the same (user, market) "
+                f"spin top-ups indefinitely."
             )
         return v
 

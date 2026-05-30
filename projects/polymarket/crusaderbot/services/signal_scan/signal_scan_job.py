@@ -277,6 +277,25 @@ def _bankroll_multiplier(
 # --------------------------------------------------------------------
 _bankroll_circuit_tripped: dict[str, bool] = {}
 
+# --------------------------------------------------------------------
+# Fast top-up state (WARP/R00T/flip-hunter-fast-topup, Polybot directive
+# 1.5 + 1.3.2). Per-(user, market) monotonic timestamp of the last
+# top-up fired so we can enforce the FAST_TOPUP_COOLDOWN_SECONDS gate.
+# In-process state; a Fly restart clears it (acceptable — the next
+# eligible safe_close/flip_hunter entry simply re-arms the cooldown).
+# --------------------------------------------------------------------
+_fast_topup_last_at: dict[str, float] = {}
+
+
+def _fast_topup_reset_for_tests() -> None:
+    """Clear the per-(user, market) cooldown tracker. Tests use this
+    to isolate runs."""
+    _fast_topup_last_at.clear()
+
+
+def _fast_topup_key(user_id: Any, market_id: str) -> str:
+    return f"{str(user_id)}:{market_id}"
+
 
 def _ensure_bankroll_baseline_seeded(user_id: str, current_balance: float) -> None:
     """Seed the per-user EMA baseline with ``current_balance`` if absent.
@@ -727,6 +746,208 @@ async def _fetch_market_inventory_for_override(
             market_id=market_id,
         )
         return None
+
+
+_FAST_TOPUP_ELIGIBLE_PRESETS: frozenset[str] = frozenset({"flip_hunter", "safe_close"})
+
+
+async def _maybe_fire_fast_topup(
+    *,
+    row: dict[str, Any],
+    market: dict[str, Any],
+    just_filled_side: str,
+    just_filled_size_usdc: Decimal,
+    log,
+) -> None:
+    """Optionally fire an opposite-leg top-up after a successful entry.
+
+    Implements Polybot directive 1.5 + 1.3.2 (fast top-up after partial
+    fill). For our paper engine fills are always complete so the
+    "partial fill" condition collapses to "after every successful
+    entry" — the helper recomputes inventory, identifies the lagging
+    leg, and synthesises a TradeSignal for it. Risk gate inside
+    TradeEngine.execute applies (Kelly, position caps, daily loss).
+
+    Default OFF; controlled by `config.FLIP_HUNTER_FAST_TOPUP_ENABLED`.
+    Scoped to users whose `active_preset` is `safe_close` or
+    `flip_hunter`. Per-(user, market) cooldown prevents the same pair
+    spinning top-ups within `FAST_TOPUP_COOLDOWN_SECONDS`.
+
+    Returns None on every path (fire-and-forget from the caller's
+    perspective). Exceptions are caught + logged — a top-up failure
+    must never crash the originating entry's success branch.
+    """
+    try:
+        from ...config import get_settings as _gs_ft
+        _cfg = _gs_ft()
+        if not getattr(_cfg, "FLIP_HUNTER_FAST_TOPUP_ENABLED", False):
+            return
+        preset = str(row.get("active_preset") or "").lower()
+        if preset not in _FAST_TOPUP_ELIGIBLE_PRESETS:
+            return
+        _min_usdc = float(_cfg.FAST_TOPUP_MIN_USDC)
+        _cooldown = float(_cfg.FAST_TOPUP_COOLDOWN_SECONDS)
+    except Exception as exc:
+        log.warning("fast_topup_config_read_failed", error=str(exc))
+        return
+
+    user_id = UUID(str(row["user_id"]))
+    market_id = str(market.get("id") or "")
+    if not market_id:
+        return
+
+    # Cooldown check — per-(user, market). Skip without DB hit.
+    key = _fast_topup_key(user_id, market_id)
+    last_at = _fast_topup_last_at.get(key, 0.0)
+    now_mono = _time.monotonic()
+    if (now_mono - last_at) < _cooldown:
+        log.info(
+            "fast_topup_skipped",
+            reason="cooldown",
+            market_id=market_id,
+            cooldown_remaining_sec=round(_cooldown - (now_mono - last_at), 2),
+        )
+        return
+
+    # Compute inventory AFTER the lead entry has committed — includes
+    # the position just created.
+    inventory = await _fetch_market_inventory_for_override(user_id, market_id)
+    if inventory is None or inventory.is_empty:
+        return
+    imb = float(inventory.imbalance_usdc)
+    if abs(imb) < _min_usdc:
+        log.info(
+            "fast_topup_skipped",
+            reason="below_threshold",
+            market_id=market_id,
+            imbalance_usdc=round(imb, 4),
+            threshold_usdc=_min_usdc,
+        )
+        return
+
+    # Lagging side: imb > 0 → YES-heavy → lag is NO.
+    lagging_side_upper = "NO" if imb > 0 else "YES"
+    lagging_side_lower = lagging_side_upper.lower()
+    just_filled_lower = str(just_filled_side).lower()
+    if just_filled_lower == lagging_side_lower:
+        # The lead entry already targeted the lagging leg — nothing
+        # to top up. Possible when the imbalance override flipped the
+        # side or when the strategy just happened to pick lagging.
+        return
+
+    # Choose top-up size: |imbalance| capped to the lead entry size so
+    # we never over-shoot the original commitment. Subject to the
+    # engine's Kelly + per-trade caps downstream.
+    topup_usdc = min(Decimal(str(abs(imb))), just_filled_size_usdc)
+    if topup_usdc <= Decimal("0"):
+        return
+
+    # Resolve a fill price for the lagging leg: prefer the live mark
+    # so the top-up reflects current orderbook state. Fall back to
+    # 1 - (lead price) when the live fetch fails (binary market
+    # invariant). The TradeEngine risk gate will sanity-check.
+    try:
+        _topup_price = await get_live_market_price(market_id, lagging_side_lower)
+    except Exception as exc:
+        log.warning(
+            "fast_topup_price_fetch_failed", error=str(exc),
+            market_id=market_id, side=lagging_side_lower,
+        )
+        _topup_price = None
+    if _topup_price is None or not (0.0 < _topup_price < 1.0):
+        # Binary settlement invariant: YES + NO = 1. Use the
+        # market_row's stored prices as a defensive fallback.
+        _yes_p = float(market.get("yes_price") or 0.5)
+        _no_p = float(market.get("no_price") or (1.0 - _yes_p))
+        _topup_price = _no_p if lagging_side_lower == "no" else _yes_p
+
+    # Synthesise an idempotency key — distinct from the lead entry's
+    # so the engine's duplicate guard doesn't reject the top-up as a
+    # double-execute.
+    topup_idem = f"fast_topup:{key}:{int(now_mono * 1000)}"
+
+    # Build a TradeSignal directly. Bypassing _build_trade_signal +
+    # _process_candidate gates is deliberate: the top-up is reactive,
+    # not predictive (TOB freshness / complete-set edge / safe-close
+    # direction limit don't apply). The 13-step risk gate inside
+    # TradeEngine.execute still runs.
+    try:
+        from ..trade_engine import TradeSignal
+        signal = TradeSignal(
+            user_id=user_id,
+            telegram_user_id=int(row["telegram_user_id"]),
+            role=str(row.get("role") or "user"),
+            auto_trade_on=bool(row.get("auto_trade_on", False)),
+            paused=bool(row.get("paused", False)),
+            market_id=market_id,
+            market_question=str(market.get("question") or "") or None,
+            yes_token_id=market.get("yes_token_id"),
+            no_token_id=market.get("no_token_id"),
+            side=lagging_side_lower,
+            proposed_size_usdc=topup_usdc,
+            price=_topup_price,
+            market_liquidity=float(market.get("liquidity_usdc") or 0.0),
+            market_status=str(market.get("status") or "active"),
+            idempotency_key=topup_idem,
+            strategy_type="fast_topup",
+            risk_profile=str(row.get("resolved_profile") or "balanced"),
+            trading_mode=str(row.get("trading_mode") or "paper"),
+            signal_ts=datetime.now(timezone.utc),
+            tp_pct=float(row["tp_pct"]) if row.get("tp_pct") is not None else None,
+            sl_pct=float(row["sl_pct"]) if row.get("sl_pct") is not None else None,
+            daily_loss_override=(
+                float(row["daily_loss_override"])
+                if row.get("daily_loss_override") is not None
+                else None
+            ),
+            user_min_liquidity=float(row.get("min_liquidity_threshold") or 0.0),
+            max_drawdown_pct=(
+                float(row["max_drawdown_pct"])
+                if row.get("max_drawdown_pct") is not None
+                else None
+            ),
+            active_preset=preset,
+            live_capital_cap_usdc=float(row.get("live_capital_cap_usdc") or 0.0),
+        )
+    except Exception as exc:
+        log.warning("fast_topup_signal_build_failed", error=str(exc))
+        return
+
+    try:
+        result = await _engine.execute(signal)
+    except Exception as exc:
+        log.warning(
+            "fast_topup_engine_failed", error=str(exc),
+            market_id=market_id, side=lagging_side_lower,
+        )
+        return
+
+    # Stamp cooldown regardless of approval — a rejected top-up still
+    # tried to fire; we don't want the rejection feedback loop to
+    # immediately re-trigger the same attempt on the next inventory
+    # check.
+    _fast_topup_last_at[key] = now_mono
+
+    if result.approved:
+        log.info(
+            "scan_outcome",
+            outcome="fast_topup_fired",
+            market_id=market_id,
+            side=lagging_side_lower,
+            size_usdc=str(topup_usdc),
+            price=_topup_price,
+            imbalance_usdc=round(imb, 4),
+            preset=preset,
+        )
+    else:
+        log.info(
+            "scan_outcome",
+            outcome="fast_topup_rejected",
+            market_id=market_id,
+            side=lagging_side_lower,
+            reason=result.rejection_reason,
+            failed_step=result.failed_gate_step,
+        )
 
 
 async def _has_open_position_for_side(
@@ -1938,6 +2159,23 @@ async def _process_candidate(
             _safe_close_record_entry(
                 str(user_id), side, datetime.now(timezone.utc).timestamp(),
             )
+
+        # Fast top-up (WARP/R00T/flip-hunter-fast-topup, directive 1.5
+        # + 1.3.2). Fire-and-forget — failures inside the helper are
+        # caught + logged, never propagated. Only attempts after a
+        # genuinely-new fill (gated on `inserted`); a duplicate /
+        # concurrent-tick skip doesn't trigger a top-up.
+        if inserted:
+            try:
+                await _maybe_fire_fast_topup(
+                    row=row,
+                    market=market,
+                    just_filled_side=side,
+                    just_filled_size_usdc=Decimal(str(final_size)),
+                    log=log,
+                )
+            except Exception as exc:
+                log.warning("fast_topup_unexpected_error", error=str(exc))
     else:
         log.info("scan_outcome", outcome="duplicate", mode=result.chosen_mode)
 
