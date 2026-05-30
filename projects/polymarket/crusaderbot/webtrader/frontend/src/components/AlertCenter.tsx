@@ -119,9 +119,12 @@ function formatMoney(n: number | undefined): string {
 
 function formatSignedMoney(n: number | undefined): string {
   if (n === undefined || n === null || !Number.isFinite(n)) return "—";
-  if (n === 0) return "Even";
+  // Round first so very small non-zero floats (e.g. 0.003) collapse to "Even"
+  // instead of rendering as "+$0.00". `n === 0` alone misses these cases.
+  const rounded = Math.abs(n).toFixed(2);
+  if (rounded === "0.00") return "Even";
   const sign = n > 0 ? "+" : "−";
-  return `${sign}$${Math.abs(n).toFixed(2)}`;
+  return `${sign}$${rounded}`;
 }
 
 function formatPrice(n: number | undefined): string {
@@ -286,7 +289,9 @@ function kindTitle(alert: AlertItem): string {
     market_expired: "Market expired",
     close_failed: "Close failed",
   };
-  return titleMap[k] ?? stripHtml(alert.title) ?? "Notification";
+  // `||` (not `??`) so empty strings from stripHtml fall through to the
+  // "Notification" fallback instead of rendering an empty title row.
+  return titleMap[k] || stripHtml(alert.title) || "Notification";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

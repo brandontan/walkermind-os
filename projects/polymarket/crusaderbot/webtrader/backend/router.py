@@ -1380,8 +1380,7 @@ def _coerce_alert_metadata(raw) -> dict:
         return raw
     if isinstance(raw, str):
         try:
-            import json as _json
-            parsed = _json.loads(raw)
+            parsed = json.loads(raw)
             return parsed if isinstance(parsed, dict) else {}
         except Exception:
             return {}

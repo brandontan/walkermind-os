@@ -558,6 +558,22 @@ class TradeNotifier:
             telegram_user_id, text,
             event=NotificationEvent.COPY_TRADE, market_id=market_id,
             reply_markup=InlineKeyboardMarkup(kb_rows),
+            alert_kind="copy_trade_opened",
+            metadata={
+                "market_id": market_id,
+                "market_label": label,
+                "side": side.upper(),
+                "size_usdc": float(size_usdc),
+                "entry_price": float(price),
+                "tp_pct": float(tp_pct) if tp_pct is not None else None,
+                "sl_pct": float(sl_pct) if sl_pct is not None else None,
+                "strategy": "Copy Trade",
+                "strategy_type": "copy_trade",
+                "mode": mode,
+                "position_id": position_id,
+                "copy_wallet": target_wallet,
+                "copy_task_id": copy_task_id,
+            },
         )
 
     # ------------------------------------------------------------------
