@@ -911,44 +911,52 @@ async def _maybe_fire_fast_topup(
                     if lagging_side_lower == "yes"
                     else market.get("no_token_id")
                 )
-                if _lag_token:
-                    _lag_book = await _polymarket.get_book(str(_lag_token))
-                    _asks = sorted(
+                if not _lag_token:
+                    log.info(
+                        "scan_outcome",
+                        outcome="fast_topup_skipped",
+                        reason="leg_spread_missing_token",
+                        market_id=market_id,
+                        side=lagging_side_lower,
+                    )
+                    return
+                _lag_book = await _polymarket.get_book(str(_lag_token))
+                _asks = sorted(
+                    float(e["price"])
+                    for e in (_lag_book.get("asks") or [])
+                    if e.get("price") and float(e["price"]) > 0
+                )
+                _bids = sorted(
+                    (
                         float(e["price"])
-                        for e in (_lag_book.get("asks") or [])
+                        for e in (_lag_book.get("bids") or [])
                         if e.get("price") and float(e["price"]) > 0
+                    ),
+                    reverse=True,
+                )
+                _lag_ask = _asks[0] if _asks else None
+                _lag_bid = _bids[0] if _bids else None
+                if _lag_ask is None or _lag_bid is None:
+                    log.info(
+                        "scan_outcome",
+                        outcome="fast_topup_skipped",
+                        reason="leg_spread_missing_bid",
+                        market_id=market_id,
+                        side=lagging_side_lower,
                     )
-                    _bids = sorted(
-                        (
-                            float(e["price"])
-                            for e in (_lag_book.get("bids") or [])
-                            if e.get("price") and float(e["price"]) > 0
-                        ),
-                        reverse=True,
+                    return
+                _leg_spread = round(_lag_ask - _lag_bid, 4)
+                if _leg_spread > _max_spread:
+                    log.info(
+                        "scan_outcome",
+                        outcome="fast_topup_skipped",
+                        reason="leg_spread_too_wide",
+                        market_id=market_id,
+                        side=lagging_side_lower,
+                        leg_spread=_leg_spread,
+                        max_spread=_max_spread,
                     )
-                    _lag_ask = _asks[0] if _asks else None
-                    _lag_bid = _bids[0] if _bids else None
-                    if _lag_ask is None or _lag_bid is None:
-                        log.info(
-                            "scan_outcome",
-                            outcome="fast_topup_skipped",
-                            reason="leg_spread_missing_bid",
-                            market_id=market_id,
-                            side=lagging_side_lower,
-                        )
-                        return
-                    _leg_spread = round(_lag_ask - _lag_bid, 4)
-                    if _leg_spread > _max_spread:
-                        log.info(
-                            "scan_outcome",
-                            outcome="fast_topup_skipped",
-                            reason="leg_spread_too_wide",
-                            market_id=market_id,
-                            side=lagging_side_lower,
-                            leg_spread=_leg_spread,
-                            max_spread=_max_spread,
-                        )
-                        return
+                    return
         except Exception as exc:
             log.warning(
                 "fast_topup_spread_check_failed",
