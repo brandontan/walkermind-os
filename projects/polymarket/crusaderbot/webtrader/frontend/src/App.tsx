@@ -27,34 +27,45 @@ function PageLoader() {
   );
 }
 
-const LAST_SEEN_KEY = "alertCenter_lastSeen";
-const DISMISSED_KEY = "alertCenter_dismissed";
-const SEEN_IDS_KEY = "alertCenter_seenIds";
-const MARK_ALL_READ_AT_KEY = "alertCenter_markAllReadAt";
+// AlertCenter persistence keys. Suffixed by userId so a shared browser cannot
+// leak one account's "mark all read" / dismissed state onto the next signed-in
+// user. The unsuffixed names below are kept only for the legacy fallback (see
+// loadDismissed) so existing single-user installs keep their state on the first
+// load after this change.
+const LAST_SEEN_KEY_BASE = "alertCenter_lastSeen";
+const DISMISSED_KEY_BASE = "alertCenter_dismissed";
+const SEEN_IDS_KEY_BASE = "alertCenter_seenIds";
+const MARK_ALL_READ_AT_KEY_BASE = "alertCenter_markAllReadAt";
 const DISMISSED_CAP = 500;
 const SEEN_IDS_CAP = 500;
 
-function loadDismissed(): Set<string> {
+// Scope every alert-center localStorage entry to a stable user id so two
+// accounts on the same browser do not see each other's read state. Falls back
+// to "_anon" before login so the listeners can mount cleanly.
+const scopeKey = (base: string, userId: string | null | undefined) =>
+  `${base}_${userId || "_anon"}`;
+
+function loadDismissed(userId: string | null): Set<string> {
   try {
-    const stored = localStorage.getItem(DISMISSED_KEY);
+    const stored = localStorage.getItem(scopeKey(DISMISSED_KEY_BASE, userId));
     return stored ? new Set<string>(JSON.parse(stored) as string[]) : new Set<string>();
   } catch {
     return new Set<string>();
   }
 }
 
-function loadSeenIds(): Set<string> {
+function loadSeenIds(userId: string | null): Set<string> {
   try {
-    const stored = localStorage.getItem(SEEN_IDS_KEY);
+    const stored = localStorage.getItem(scopeKey(SEEN_IDS_KEY_BASE, userId));
     return stored ? new Set<string>(JSON.parse(stored) as string[]) : new Set<string>();
   } catch {
     return new Set<string>();
   }
 }
 
-function loadMarkAllReadAt(): number {
+function loadMarkAllReadAt(userId: string | null): number {
   try {
-    const stored = localStorage.getItem(MARK_ALL_READ_AT_KEY);
+    const stored = localStorage.getItem(scopeKey(MARK_ALL_READ_AT_KEY_BASE, userId));
     const parsed = stored ? Number(stored) : 0;
     return Number.isFinite(parsed) ? parsed : 0;
   } catch {
@@ -126,8 +137,13 @@ function AppShell() {
   const showChrome = Boolean(user) && !isAuth;
 
   // ── Alert Center global state ────────────────────────────────────────────
+  // Per-user-scoped storage keys — recomputed on every render against the
+  // current auth state. Account A's "mark all read" can no longer suppress
+  // account B's alerts on a shared browser, and signing out clears the
+  // in-memory state via the auth-change effect below.
+  const userKey = user?.userId ?? null;
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
-  const [dismissed, setDismissed] = useState<Set<string>>(loadDismissed);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => loadDismissed(userKey));
   const [alertOffset, setAlertOffset] = useState(0);
   const [hasMoreAlerts, setHasMoreAlerts] = useState(false);
   const ALERT_PAGE = 10;
@@ -137,7 +153,7 @@ function AppShell() {
   // user explicitly dismisses or hits "Mark all read". (Legacy lastSeen
   // timestamp is still written to localStorage for backward compatibility
   // with any older client cache.)
-  const [seenIds, setSeenIds] = useState<Set<string>>(loadSeenIds);
+  const [seenIds, setSeenIds] = useState<Set<string>>(() => loadSeenIds(userKey));
   // Hard "everything before this is read" watermark. Updated by markAllRead.
   // Survives page refresh — visibleAlerts filters out anything with
   // created_at <= markAllReadAt so the user does NOT see the same closed
@@ -145,8 +161,20 @@ function AppShell() {
   // user-visible fix for "I marked all read but refresh brings them all
   // back" — the old design only tracked the in-memory alert IDs at the time
   // of the click, which were dropped once the backend served new rows.
-  const [markAllReadAt, setMarkAllReadAt] = useState<number>(loadMarkAllReadAt);
-  const setLastSeen = (v: number) => { try { localStorage.setItem(LAST_SEEN_KEY, String(v)); } catch { /* quota */ } };
+  const [markAllReadAt, setMarkAllReadAt] = useState<number>(() => loadMarkAllReadAt(userKey));
+  const setLastSeen = (v: number) => { try { localStorage.setItem(scopeKey(LAST_SEEN_KEY_BASE, userKey), String(v)); } catch { /* quota */ } };
+
+  // Reset / reload alert-center state whenever the signed-in user changes.
+  // Without this a sign-out → sign-in cycle would leak the previous user's
+  // in-memory dismissed/seenIds set onto the new account's panel until the
+  // first full reload.
+  useEffect(() => {
+    setDismissed(loadDismissed(userKey));
+    setSeenIds(loadSeenIds(userKey));
+    setMarkAllReadAt(loadMarkAllReadAt(userKey));
+    setAlerts([]);
+    setAlertOffset(0);
+  }, [userKey]);
 
   const fetchAlerts = useCallback(async (offset = 0, append = false) => {
     if (!user) return;
@@ -201,7 +229,7 @@ function AppShell() {
       const next = [...prev, id];
       // Bound localStorage growth — keep the most recent ids only.
       const capped = next.length > DISMISSED_CAP ? next.slice(next.length - DISMISSED_CAP) : next;
-      try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(capped)); } catch { /* quota — ignore */ }
+      try { localStorage.setItem(scopeKey(DISMISSED_KEY_BASE, userKey), JSON.stringify(capped)); } catch { /* quota — ignore */ }
       return new Set(capped);
     });
   }, []);
@@ -216,20 +244,20 @@ function AppShell() {
     setDismissed(prev => {
       const next = [...prev, ...alerts.map(a => a.id)];
       const capped = next.length > DISMISSED_CAP ? next.slice(next.length - DISMISSED_CAP) : next;
-      try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(capped)); } catch { /* quota — ignore */ }
+      try { localStorage.setItem(scopeKey(DISMISSED_KEY_BASE, userKey), JSON.stringify(capped)); } catch { /* quota — ignore */ }
       return new Set(capped);
     });
     setSeenIds(prev => {
       const next = [...prev, ...alerts.map(a => a.id)];
       const capped = next.length > SEEN_IDS_CAP ? next.slice(next.length - SEEN_IDS_CAP) : next;
-      try { localStorage.setItem(SEEN_IDS_KEY, JSON.stringify(capped)); } catch { /* quota — ignore */ }
+      try { localStorage.setItem(scopeKey(SEEN_IDS_KEY_BASE, userKey), JSON.stringify(capped)); } catch { /* quota — ignore */ }
       return new Set(capped);
     });
     const now = Date.now();
     setMarkAllReadAt(now);
-    try { localStorage.setItem(MARK_ALL_READ_AT_KEY, String(now)); } catch { /* quota — ignore */ }
+    try { localStorage.setItem(scopeKey(MARK_ALL_READ_AT_KEY_BASE, userKey), String(now)); } catch { /* quota — ignore */ }
     setLastSeen(now);
-    try { localStorage.setItem(LAST_SEEN_KEY, String(now)); } catch { /* quota — ignore */ }
+    try { localStorage.setItem(scopeKey(LAST_SEEN_KEY_BASE, userKey), String(now)); } catch { /* quota — ignore */ }
   }, [alerts]);
 
   // Per-alert "mark as read" without dismissing. Used when an unread alert
@@ -241,7 +269,7 @@ function AppShell() {
       if (prev.has(id)) return prev;
       const next = [...prev, id];
       const capped = next.length > SEEN_IDS_CAP ? next.slice(next.length - SEEN_IDS_CAP) : next;
-      try { localStorage.setItem(SEEN_IDS_KEY, JSON.stringify(capped)); } catch { /* quota — ignore */ }
+      try { localStorage.setItem(scopeKey(SEEN_IDS_KEY_BASE, userKey), JSON.stringify(capped)); } catch { /* quota — ignore */ }
       return new Set(capped);
     });
   }, []);
@@ -316,7 +344,7 @@ function AppShell() {
     // per-card gold-bar treatment persists until explicit user action.
     const now = Date.now();
     setLastSeen(now);
-    localStorage.setItem(LAST_SEEN_KEY, String(now));
+    localStorage.setItem(scopeKey(LAST_SEEN_KEY_BASE, userKey), String(now));
   }, []);
 
   const closeAlertCenter = useCallback(() => setIsAlertOpen(false), []);
@@ -415,7 +443,7 @@ function AppShell() {
       {/* Alert Center — rendered at root so it overlays all pages */}
       <AlertCenter
         isOpen={isAlertOpen}
-        alerts={alerts}
+        alerts={visibleAlerts}
         onClose={closeAlertCenter}
       />
     </div>
