@@ -2543,7 +2543,8 @@ async def admin_user_detail(user_id: str, user: _AdminUser) -> AdminUserDetail:
             target_uuid,
         )
         open_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM positions WHERE user_id = $1::uuid AND status = 'open'",
+            "SELECT COUNT(*) FROM positions "
+            "WHERE user_id = $1::uuid AND status IN ('open','pending_settlement')",
             target_uuid,
         ) or 0
     email = u_row["email"]

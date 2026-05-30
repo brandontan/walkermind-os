@@ -23,7 +23,7 @@ the bot better, and what (if anything) is blocking it?
 All 4 agents are already coded and integrated. Every one is dormant because
 `HEISENBERG_API_TOKEN` is not set in Fly.io secrets.
 
-```
+```text
 HEISENBERG_API_TOKEN (not set)
         │
         ├─► Agent 574  jobs/market_sync.py          ← dormant
@@ -59,7 +59,7 @@ No files modified (research only).
 
 Files surveyed:
 
-```
+```text
 projects/polymarket/crusaderbot/services/heisenberg.py
 projects/polymarket/crusaderbot/jobs/market_sync.py
 projects/polymarket/crusaderbot/jobs/market_signal_scanner.py
@@ -71,7 +71,13 @@ projects/polymarket/crusaderbot/.env.example
 
 ---
 
-## 4. Agent ROI ranking
+## 4. What is working
+
+All 6 Heisenberg agents (574, 575, 568, 585, 584, 581) are integrated and
+code-complete. The implementation is dormant pending `HEISENBERG_API_TOKEN`
+configuration — no signals emitted, no leaderboard sync, no wallet 360 enrichment.
+
+### Agent ROI ranking
 
 ### #1 — Agent 568 (Candlesticks) — HIGHEST ROI
 
@@ -168,7 +174,7 @@ writes to. Both sources converge at the same table.
 ### Immediate (highest ROI, zero code)
 
 Set `HEISENBERG_API_TOKEN` in Fly.io secrets:
-```
+```bash
 fly secrets set HEISENBERG_API_TOKEN=<token> -a crusaderbot
 ```
 This activates 574 + 575 + 568 + 585 + 584 + 581 in a single deploy. The live
