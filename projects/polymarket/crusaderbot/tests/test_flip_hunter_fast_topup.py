@@ -230,6 +230,7 @@ def _drive(
     just_filled_size: Decimal = Decimal("10"),
     engine_result: TradeResult | None = None,
     live_price: float | None = 0.34,
+    market: dict | None = None,
 ):
     """Run `_maybe_fire_fast_topup` against mocked dependencies and
     return the resolved engine call args (or None if engine wasn't
@@ -258,13 +259,21 @@ def _drive(
     ):
         asyncio.run(
             ssj._maybe_fire_fast_topup(
-                row=row, market=_market(),
+                row=row, market=market if market is not None else _market(),
                 just_filled_side=just_filled_side,
                 just_filled_size_usdc=just_filled_size,
                 log=_Log(),
             )
         )
     return captured["signal"]
+
+
+def _candle_market(*, no_price: float = 0.35) -> dict:
+    m = _market()
+    m["slug"] = "btc-updown-5m-market"
+    m["no_price"] = no_price
+    m["yes_price"] = round(1.0 - no_price, 4)
+    return m
 
 
 def test_disabled_does_not_fire(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -432,3 +441,65 @@ def test_topup_falls_back_to_market_price_on_live_fetch_fail(
     assert sig is not None
     # market.no_price = 0.35
     assert sig.price == 0.35
+
+
+# ---------------------------------------------------------------------------
+# M-1 hardening: stale-fallback tick guard (WARP/R00T/fast-topup-tick-guard)
+# ---------------------------------------------------------------------------
+
+
+def test_candle_stale_fallback_price_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Candle market ('updown' slug), live price None, DB fallback 0.505
+    (not on 0.01 CLOB tick) → guard must skip the top-up.
+    Mirrors the step 3b-i protection on the lead entry path."""
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("FLIP_HUNTER_FAST_TOPUP_ENABLED", "true")
+    monkeypatch.setenv("FAST_TOPUP_MIN_USDC", "5.0")
+    bootstrap_default_strategies()
+
+    sig = _drive(
+        row=_row(),
+        inventory=_inv(20.0, 5.0),
+        live_price=None,
+        market=_candle_market(no_price=0.505),
+    )
+    assert sig is None
+
+
+def test_candle_tick_aligned_fallback_fires(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Candle market, live price None, DB fallback 0.35 (on 0.01 tick) →
+    guard passes, top-up fires at the fallback price."""
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("FLIP_HUNTER_FAST_TOPUP_ENABLED", "true")
+    monkeypatch.setenv("FAST_TOPUP_MIN_USDC", "5.0")
+    bootstrap_default_strategies()
+
+    sig = _drive(
+        row=_row(),
+        inventory=_inv(20.0, 5.0),
+        live_price=None,
+        market=_candle_market(no_price=0.35),
+    )
+    assert sig is not None
+    assert sig.price == 0.35
+
+
+def test_non_candle_sub_cent_not_blocked(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Non-candle slug (no 'updown'), live price None, DB fallback 0.505 →
+    tick guard is scoped to candle markets only, top-up must still fire."""
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("FLIP_HUNTER_FAST_TOPUP_ENABLED", "true")
+    monkeypatch.setenv("FAST_TOPUP_MIN_USDC", "5.0")
+    bootstrap_default_strategies()
+
+    m = _market()
+    m["no_price"] = 0.505
+    m["yes_price"] = 0.495
+    sig = _drive(
+        row=_row(),
+        inventory=_inv(20.0, 5.0),
+        live_price=None,
+        market=m,
+    )
+    assert sig is not None
+    assert sig.price == 0.505
