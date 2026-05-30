@@ -256,8 +256,9 @@ function AppShell() {
     const now = Date.now();
     setMarkAllReadAt(now);
     try { localStorage.setItem(scopeKey(MARK_ALL_READ_AT_KEY_BASE, userKey), String(now)); } catch { /* quota — ignore */ }
+    // setLastSeen already writes the scoped LAST_SEEN_KEY_BASE entry — a
+    // second setItem here would be a duplicate write.
     setLastSeen(now);
-    try { localStorage.setItem(scopeKey(LAST_SEEN_KEY_BASE, userKey), String(now)); } catch { /* quota — ignore */ }
   }, [alerts, userKey]);
 
   // Per-alert "mark as read" without dismissing. Used when an unread alert
