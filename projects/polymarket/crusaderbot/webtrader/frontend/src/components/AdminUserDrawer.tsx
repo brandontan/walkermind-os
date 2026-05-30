@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import type { AdminUserDetail, AdminUserPatch } from "../lib/api";
+import type {
+  AdminRecentAudit,
+  AdminRecentTrade,
+  AdminUserDetail,
+  AdminUserPatch,
+} from "../lib/api";
 import { makeApi } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
@@ -12,6 +17,9 @@ interface Props {
 const PRESETS = ["close_sweep", "safe_close", "flip_hunter"] as const;
 const RISK_PROFILES = ["conservative", "balanced", "aggressive", "custom"] as const;
 const MAX_PER_TRADE_MODES = ["auto", "fixed", "pct"] as const;
+const TIMEFRAMES = ["5m", "15m"] as const;
+const CRYPTO_ASSETS = ["BTC", "ETH", "SOL", "BNB"] as const;
+const CRYPTO_SHORT_PRESETS = new Set<string>(["close_sweep", "safe_close", "flip_hunter"]);
 
 function fmtUsd(v: number | null | undefined): string {
   if (v == null) return "—";
@@ -21,6 +29,23 @@ function fmtUsd(v: number | null | undefined): string {
 function fmtPct(v: number | null | undefined): string {
   if (v == null) return "—";
   return `${(v * 100).toFixed(2)}%`;
+}
+
+function shortAddr(addr: string | null | undefined): string {
+  if (!addr) return "—";
+  if (addr.length <= 14) return addr;
+  return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
+}
+
+function relTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "—";
+  const diff = Math.floor((Date.now() - t) / 1000);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 }
 
 export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
@@ -43,6 +68,8 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
     max_per_trade_mode: string;
     max_per_trade_usdc: string;
     max_per_trade_pct: string;
+    selected_timeframe: string;
+    selected_assets: string[] | null;  // null = unchanged; [] = clear; [...] = explicit set
   }>({
     active_preset: "",
     risk_profile: "",
@@ -52,6 +79,8 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
     max_per_trade_mode: "",
     max_per_trade_usdc: "",
     max_per_trade_pct: "",
+    selected_timeframe: "",
+    selected_assets: null,
   });
 
   useEffect(() => {
@@ -71,6 +100,8 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
           max_per_trade_mode: d.max_per_trade_mode,
           max_per_trade_usdc: d.max_per_trade_usdc == null ? "" : String(d.max_per_trade_usdc),
           max_per_trade_pct: d.max_per_trade_pct == null ? "" : String(d.max_per_trade_pct * 100),
+          selected_timeframe: d.selected_timeframe ?? "",
+          selected_assets: null,
         });
       })
       .catch((e) => {
@@ -115,6 +146,22 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
     if (draft.max_per_trade_pct !== "" && Number.isFinite(mptp) && mptp !== detail.max_per_trade_pct) {
       patch.max_per_trade_pct = mptp;
     }
+    if (draft.selected_timeframe && draft.selected_timeframe !== (detail.selected_timeframe ?? "")) {
+      patch.selected_timeframe = draft.selected_timeframe;
+    }
+    if (draft.selected_assets !== null) {
+      // Only send if the operator actively toggled an asset. Empty array
+      // clears the column (NULL on the backend); a non-empty array sets it.
+      const current = detail.selected_assets ?? [];
+      const next = draft.selected_assets;
+      const changed =
+        next.length !== current.length ||
+        next.some((a) => !current.includes(a)) ||
+        current.some((a) => !next.includes(a));
+      if (changed) {
+        patch.selected_assets = next;
+      }
+    }
     return patch;
   }
 
@@ -131,6 +178,7 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
     try {
       const next = await api.updateAdminUser(userId, patch);
       setDetail(next);
+      setDraft((d) => ({ ...d, selected_assets: null }));
       setSavedNote("Saved.");
       onSaved?.(next);
     } catch (e) {
@@ -141,9 +189,40 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
     }
   }
 
+  async function togglePaused(nextPaused: boolean) {
+    if (!detail) return;
+    setSaving(true);
+    setError(null);
+    setSavedNote(null);
+    try {
+      const next = await api.updateAdminUser(userId, { paused: nextPaused });
+      setDetail(next);
+      setSavedNote(nextPaused ? "User paused." : "User resumed.");
+      onSaved?.(next);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg.replace(/^\d+:\s*/, ""));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleAsset(asset: string) {
+    setDraft((d) => {
+      const base = d.selected_assets ?? (detail?.selected_assets ?? []).slice();
+      const has = base.includes(asset);
+      const next = has ? base.filter((a) => a !== asset) : [...base, asset];
+      return { ...d, selected_assets: next };
+    });
+  }
+
   const label = detail
     ? (detail.username ? `@${detail.username}` : (detail.email ?? detail.user_id.slice(0, 8)))
     : userId.slice(0, 8);
+
+  const activePreset = draft.active_preset || (detail?.active_preset ?? "");
+  const showCryptoShortFields = CRYPTO_SHORT_PRESETS.has(activePreset);
+  const effectiveAssets = draft.selected_assets ?? detail?.selected_assets ?? [];
 
   return (
     <div
@@ -192,11 +271,51 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
         {detail && (
           <>
             {/* Read-only runtime snapshot */}
-            <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="grid grid-cols-2 gap-2 mb-3">
               <Stat label="Mode" value={detail.trading_mode.toUpperCase()} />
               <Stat label="Auto" value={detail.paused ? "PAUSED" : detail.auto_trade_on ? "ON" : "OFF"} />
               <Stat label="Balance" value={fmtUsd(detail.balance_usdc)} />
               <Stat label="Open positions" value={String(detail.open_positions)} />
+            </div>
+
+            {/* Identity block */}
+            <p className="font-hud text-[10px] font-bold tracking-[1.5px] uppercase text-gold mb-2">Identity</p>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <Stat label="Email" value={detail.email ?? "—"} />
+              <Stat label="Telegram" value={detail.telegram_user_id != null ? String(detail.telegram_user_id) : "—"} />
+              <div className="col-span-2 bg-surface-2 border border-surface-3 rounded-sm px-2.5 py-1.5">
+                <p className="font-hud text-[8px] tracking-[1px] uppercase text-ink-4">Wallet</p>
+                <p
+                  className="font-mono text-[11px] text-ink-1 mt-0.5 truncate"
+                  title={detail.wallet_address ?? ""}
+                >
+                  {shortAddr(detail.wallet_address)}
+                </p>
+              </div>
+            </div>
+
+            {/* Per-user pause toggle */}
+            <div className="flex items-center justify-between gap-2 bg-surface-2 border border-surface-3 rounded-sm px-2.5 py-2 mb-4">
+              <div className="min-w-0">
+                <p className="font-hud text-[8px] tracking-[1px] uppercase text-ink-4">User Paused</p>
+                <p className="font-mono text-[11px] text-ink-1 mt-0.5">
+                  {detail.paused
+                    ? "Risk gate is blocking new trades for this user."
+                    : "User is active. Risk gate accepts trades."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void togglePaused(!detail.paused)}
+                disabled={saving}
+                className={`flex-shrink-0 font-mono text-[10px] tracking-[1px] uppercase px-3 py-1.5 rounded-sm disabled:opacity-50 ${
+                  detail.paused
+                    ? "bg-green/80 hover:bg-green text-ink-1"
+                    : "bg-red/80 hover:bg-red text-ink-1"
+                }`}
+              >
+                {detail.paused ? "Resume" : "Pause"}
+              </button>
             </div>
 
             {/* Strategy + risk edit */}
@@ -225,11 +344,11 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
                 onChange={(v) => setDraft({ ...draft, capital_alloc_pct: v })}
               />
               <FieldNumber
-                label={`TP % (0.5–1000, now ${fmtPct(detail.tp_pct)})`}
+                label={`TP % (0.5–100, now ${fmtPct(detail.tp_pct)})`}
                 value={draft.tp_pct}
                 step="0.5"
                 min="0.5"
-                max="1000"
+                max="100"
                 onChange={(v) => setDraft({ ...draft, tp_pct: v })}
               />
               <FieldNumber
@@ -263,7 +382,71 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
                 max="10"
                 onChange={(v) => setDraft({ ...draft, max_per_trade_pct: v })}
               />
+
+              {showCryptoShortFields && (
+                <>
+                  <FieldSelect
+                    label={`Timeframe (now ${detail.selected_timeframe ?? "—"})`}
+                    value={draft.selected_timeframe}
+                    options={TIMEFRAMES}
+                    placeholder={detail.selected_timeframe ?? "(unchanged)"}
+                    onChange={(v) => setDraft({ ...draft, selected_timeframe: v })}
+                  />
+                  <div>
+                    <p className="font-hud text-[8px] tracking-[1.5px] uppercase text-ink-4 mb-1">
+                      Assets (now {(detail.selected_assets ?? []).join(", ") || "—"})
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {CRYPTO_ASSETS.map((asset) => {
+                        const active = effectiveAssets.includes(asset);
+                        return (
+                          <button
+                            key={asset}
+                            type="button"
+                            onClick={() => toggleAsset(asset)}
+                            className={`font-mono text-[11px] px-2.5 py-1 rounded-sm border ${
+                              active
+                                ? "bg-gold/80 text-ink-1 border-gold"
+                                : "bg-surface-2 text-ink-3 border-surface-3 hover:text-ink-1"
+                            }`}
+                          >
+                            {asset}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
+
+            {/* Recent activity — last 5 trades */}
+            <p className="font-hud text-[10px] font-bold tracking-[1.5px] uppercase text-gold mt-5 mb-2">
+              Recent Trades
+            </p>
+            {detail.recent_trades.length === 0 ? (
+              <p className="font-mono text-[11px] text-ink-4">No trades yet.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {detail.recent_trades.map((t) => (
+                  <RecentTradeRow key={t.id} t={t} />
+                ))}
+              </ul>
+            )}
+
+            {/* Recent audit log */}
+            <p className="font-hud text-[10px] font-bold tracking-[1.5px] uppercase text-gold mt-4 mb-2">
+              Recent Audit
+            </p>
+            {detail.recent_audit.length === 0 ? (
+              <p className="font-mono text-[11px] text-ink-4">No audit entries.</p>
+            ) : (
+              <ul className="space-y-1">
+                {detail.recent_audit.map((a, i) => (
+                  <RecentAuditRow key={`${a.ts}-${i}`} a={a} />
+                ))}
+              </ul>
+            )}
           </>
         )}
         </div>
@@ -302,7 +485,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-surface-2 border border-surface-3 rounded-sm px-2.5 py-1.5">
       <p className="font-hud text-[8px] tracking-[1px] uppercase text-ink-4">{label}</p>
-      <p className="font-mono text-[13px] text-ink-1 mt-0.5">{value}</p>
+      <p className="font-mono text-[13px] text-ink-1 mt-0.5 truncate" title={value}>{value}</p>
     </div>
   );
 }
@@ -357,5 +540,45 @@ function FieldNumber({
         className="w-full bg-surface-2 border border-surface-3 text-ink-1 font-mono text-[12px] px-2 py-1.5 rounded-sm"
       />
     </label>
+  );
+}
+
+function RecentTradeRow({ t }: { t: AdminRecentTrade }) {
+  const pnl = t.pnl_usdc;
+  const pnlColor = pnl == null
+    ? "text-ink-3"
+    : pnl > 0 ? "text-green" : pnl < 0 ? "text-red" : "text-ink-3";
+  const pnlText = pnl == null ? "—" : `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}`;
+  const sideColor = t.side === "YES" ? "text-green" : t.side === "NO" ? "text-red" : "text-ink-3";
+  const market = t.market_question || "—";
+  return (
+    <li className="bg-surface-2 border border-surface-3 rounded-sm px-2.5 py-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-mono text-[11px] text-ink-1 truncate min-w-0" title={market}>
+          {market}
+        </p>
+        <span className={`font-mono text-[11px] font-bold flex-shrink-0 ${pnlColor}`}>{pnlText}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2 mt-0.5">
+        <p className="font-mono text-[9px] text-ink-4">
+          <span className={`font-bold ${sideColor}`}>{t.side ?? "—"}</span>
+          {" · "}{t.status}
+          {t.exit_reason ? ` · ${t.exit_reason}` : ""}
+          {t.strategy_type ? ` · ${t.strategy_type}` : ""}
+        </p>
+        <p className="font-mono text-[9px] text-ink-4 flex-shrink-0">{relTime(t.ts)}</p>
+      </div>
+    </li>
+  );
+}
+
+function RecentAuditRow({ a }: { a: AdminRecentAudit }) {
+  return (
+    <li className="flex items-center justify-between gap-2 bg-surface-2 border border-surface-3 rounded-sm px-2.5 py-1">
+      <p className="font-mono text-[10px] text-ink-1 truncate min-w-0" title={a.action}>
+        <span className="text-ink-4">{a.actor_role}</span>{" · "}{a.action}
+      </p>
+      <p className="font-mono text-[9px] text-ink-4 flex-shrink-0">{relTime(a.ts)}</p>
+    </li>
   );
 }
