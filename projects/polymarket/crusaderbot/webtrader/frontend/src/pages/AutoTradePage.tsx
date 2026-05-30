@@ -106,6 +106,11 @@ export function AutoTradePage() {
   const [customSl, setCustomSl]           = useState("10");
   const [customErr, setCustomErr]         = useState<string | null>(null);
   const [savingRisk, setSavingRisk]       = useState(false);
+  // Surface preset/timeframe/asset toggle errors so a 400 from the
+  // backend doesn't silently swallow the user's tap. Cleared on next
+  // successful preset change.
+  const [presetErr, setPresetErr]         = useState<string | null>(null);
+  const [presetSaving, setPresetSaving]   = useState<string | null>(null);
 
   // Market filter state
   const [filterCats, setFilterCats]           = useState<string[]>(ALL_CATEGORIES);
@@ -178,35 +183,86 @@ export function AutoTradePage() {
   }
 
   async function handleActivatePreset(key: string) {
-    if (CRYPTO_SHORT_PRESETS.includes(key)) {
-      // Crypto-short presets carry a timeframe + asset selection.
-      const tf = (state?.selected_timeframe as Timeframe) ?? "5m";
-      const assets = selectedAssets.length > 0 ? selectedAssets : [...CRYPTO_ASSETS_DEFAULT];
-      await api.activatePreset(key, tf, assets);
-    } else {
-      await api.activatePreset(key);
+    if (presetSaving) return;  // ignore double-taps while a request is in flight
+    setPresetErr(null);
+    setPresetSaving(key);
+    try {
+      if (CRYPTO_SHORT_PRESETS.includes(key)) {
+        // Crypto-short presets carry a timeframe + asset selection.
+        // Filter `selectedAssets` against the UI's current asset
+        // universe so a stale persisted entry (e.g. legacy BNB before
+        // the universe trim) doesn't get re-submitted and 400 the
+        // backend. The backend ALSO drops + heals stale entries, but
+        // a clean payload makes the round-trip predictable.
+        const cleanAssets = selectedAssets.filter(
+          (a) => (CRYPTO_ASSETS as readonly string[]).includes(a),
+        );
+        const tf = (state?.selected_timeframe as Timeframe) ?? "5m";
+        const assets = cleanAssets.length > 0 ? cleanAssets : [...CRYPTO_ASSETS_DEFAULT];
+        await api.activatePreset(key, tf, assets);
+      } else {
+        await api.activatePreset(key);
+      }
+      await load();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // Trim the leading "HTTP 400: " prefix common to api.ts errors so
+      // the visible message reads as the operator-facing reason.
+      setPresetErr(msg.replace(/^HTTP \d+:\s*/, ""));
+    } finally {
+      setPresetSaving(null);
     }
-    await load();
   }
 
   async function handleSelectTimeframe(tf: Timeframe) {
     if (!state?.active_preset) return;
-    const assets = selectedAssets.length > 0 ? selectedAssets : [...CRYPTO_ASSETS_DEFAULT];
-    await api.activatePreset(state.active_preset, tf, assets);
-    await load();
+    if (presetSaving) return;
+    setPresetErr(null);
+    setPresetSaving(state.active_preset);
+    try {
+      const cleanAssets = selectedAssets.filter(
+        (a) => (CRYPTO_ASSETS as readonly string[]).includes(a),
+      );
+      const assets = cleanAssets.length > 0 ? cleanAssets : [...CRYPTO_ASSETS_DEFAULT];
+      await api.activatePreset(state.active_preset, tf, assets);
+      await load();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setPresetErr(msg.replace(/^HTTP \d+:\s*/, ""));
+    } finally {
+      setPresetSaving(null);
+    }
   }
 
   async function handleToggleAsset(asset: string) {
     if (!state?.active_preset) return;
+    if (presetSaving) return;
     // Keep at least one asset selected.
     const next = selectedAssets.includes(asset)
       ? selectedAssets.filter(a => a !== asset)
       : [...selectedAssets, asset];
     if (next.length === 0) return;
-    setSelectedAssets(next);
-    const tf = (state.selected_timeframe as Timeframe) ?? "5m";
-    await api.activatePreset(state.active_preset, tf, next);
-    await load();
+    // Filter against current asset universe so a stale persisted
+    // entry (e.g. legacy BNB) doesn't get re-submitted.
+    const cleanNext = next.filter(
+      (a) => (CRYPTO_ASSETS as readonly string[]).includes(a),
+    );
+    if (cleanNext.length === 0) return;
+    const prevAssets = selectedAssets;
+    setSelectedAssets(cleanNext);
+    setPresetErr(null);
+    setPresetSaving(state.active_preset);
+    try {
+      const tf = (state.selected_timeframe as Timeframe) ?? "5m";
+      await api.activatePreset(state.active_preset, tf, cleanNext);
+      await load();
+    } catch (e) {
+      setSelectedAssets(prevAssets);
+      const msg = e instanceof Error ? e.message : String(e);
+      setPresetErr(msg.replace(/^HTTP \d+:\s*/, ""));
+    } finally {
+      setPresetSaving(null);
+    }
   }
 
   async function handleActivateRisk(profile: RiskProfileParams["profile"]) {
@@ -473,6 +529,12 @@ export function AutoTradePage() {
         <p className="text-ink-3 text-xs font-mono mb-3 mx-0.5">
           Select the algorithm to drive your trades. Independent of risk sizing.
         </p>
+
+        {presetErr && (
+          <div className="mb-3 px-3 py-2 rounded-lg border border-red/40 bg-red/10 text-red text-xs font-mono">
+            {presetErr}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           {STRATEGY_PRESETS.filter((p) => {

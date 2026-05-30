@@ -705,7 +705,10 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         min_volume_24h=float(s_row["min_volume_24h"]) if s_row and s_row["min_volume_24h"] is not None else 100.0,
         slippage_tolerance_pct=float(s_row["slippage_tolerance_pct"]) if s_row and s_row["slippage_tolerance_pct"] is not None else None,
         selected_timeframe=s_row["selected_timeframe"] if s_row else None,
-        selected_assets=list(s_row["selected_assets"]) if s_row and s_row["selected_assets"] else None,
+        # noqa next line: ruff F821 false-positive — _sanitize_selected_assets
+        # is defined at module level a few hundred lines below; Python
+        # resolves the name at request time, not at module-load time.
+        selected_assets=_sanitize_selected_assets(s_row["selected_assets"]) if s_row else None,  # noqa: F821
         equity_usdc=round(equity, 2),
         effective_max_per_trade_usdc=round(suggested_trade_size(equity, cap_pct, ceiling_usdc=ceiling), 2),
         max_per_trade_mode=mpt_mode,
@@ -830,6 +833,37 @@ _CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH", "SOL")
 _VALID_ASSETS: frozenset[str] = frozenset(_CRYPTO_SHORT_ASSETS)
 _DEFAULT_CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH")
 
+
+def _sanitize_selected_assets(raw: Any) -> Optional[list[str]]:
+    """Normalise persisted ``selected_assets`` against the current
+    tradable set on READ.
+
+    Legacy user rows may carry assets (e.g. ``["BNB","XRP","DOGE","HYPE"]``)
+    that were valid when the preset was last activated but have since
+    been removed from the universe. Without this filter,
+    ``/autotrade/state`` + ``/admin/users/{id}`` echo the stale assets,
+    the UI re-renders them as "selected", the user clicks save, and
+    the activate_preset validator 400s — blocking timeframe/asset
+    edits for affected users.
+
+    Returns ``None`` (not ``[]``) for empty / fully-invalid input so
+    downstream code that distinguishes "no selection persisted" from
+    "explicit empty selection" keeps working. Comparison normalises
+    case + strips whitespace to catch pre-uppercase-normalisation rows.
+    """
+    if not raw or not isinstance(raw, (list, tuple, set)):
+        return None
+    out: list[str] = []
+    seen: set[str] = set()
+    for a in raw:
+        sym = str(a).strip().upper()
+        if not sym or sym in seen:
+            continue
+        if sym in _VALID_ASSETS:
+            seen.add(sym)
+            out.append(sym)
+    return out or None
+
 # Light per-timeframe params merged into user_settings.strategy_params (JSONB).
 # close_sweep / safe_close: expiration_timing lib strategy reads these config knobs.
 # flip_hunter: same market filters; underdog direction is hardcoded in the strategy.
@@ -892,14 +926,25 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
             raise HTTPException(
                 status_code=400, detail=f"invalid timeframe: {timeframe} (expected 5m or 15m)"
             )
-        # Normalize + validate the asset selection; default to all offered assets.
+        # Normalize + silently drop assets that are no longer tradable
+        # (e.g. legacy ["BNB","XRP","DOGE","HYPE"] from before the
+        # universe was trimmed). Returning 400 here would lock the UI:
+        # the user can't switch presets because their persisted state
+        # carries an asset that's no longer in _VALID_ASSETS. Drop +
+        # heal on the way through. We log if anything was dropped so
+        # the operator can spot drift but don't fail the request.
         raw_assets = [str(a).strip().upper() for a in (body.selected_assets or [])]
-        assets = [a for a in raw_assets if a in _VALID_ASSETS]
-        bad = [a for a in raw_assets if a not in _VALID_ASSETS]
-        if bad:
-            raise HTTPException(
-                status_code=400,
-                detail=f"invalid asset(s): {', '.join(bad)} (expected any of {', '.join(_CRYPTO_SHORT_ASSETS)})",
+        assets = _sanitize_selected_assets(body.selected_assets) or []
+        dropped = [a for a in raw_assets if a not in _VALID_ASSETS]
+        if dropped:
+            log.info(
+                "activate_preset_dropped_stale_assets",
+                extra={
+                    "user_id": str(user_id),
+                    "preset": body.preset_key,
+                    "dropped": dropped,
+                    "kept": assets,
+                },
             )
         if not assets:
             assets = list(_DEFAULT_CRYPTO_SHORT_ASSETS)
@@ -2647,7 +2692,10 @@ async def admin_user_detail(user_id: str, user: _AdminUser) -> AdminUserDetail:
         max_per_trade_usdc=float(s_row["max_per_trade_usdc"]) if s_row and s_row["max_per_trade_usdc"] is not None else None,
         max_per_trade_pct=float(s_row["max_per_trade_pct"]) if s_row and s_row["max_per_trade_pct"] is not None else None,
         selected_timeframe=s_row["selected_timeframe"] if s_row else None,
-        selected_assets=list(s_row["selected_assets"]) if s_row and s_row["selected_assets"] else None,
+        # Same stale-asset sanitisation as get_autotrade — operator-side
+        # admin drawer must not show ["BNB"] etc as selected, else the
+        # operator's save round-trip would 400.
+        selected_assets=_sanitize_selected_assets(s_row["selected_assets"]) if s_row else None,
         recent_trades=recent_trades,
         recent_audit=recent_audit,
     )
