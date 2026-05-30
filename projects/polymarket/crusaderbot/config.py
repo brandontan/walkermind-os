@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -451,6 +452,18 @@ class Settings(BaseSettings):
     @field_validator("CLOSE_SWEEP_MAX_LEG_SPREAD")
     @classmethod
     def validate_close_sweep_max_leg_spread(cls, v: float) -> float:
+        # Reject NaN / +Inf / -Inf BEFORE the sign check. Pydantic accepts
+        # non-finite floats by default; NaN comparisons are always False
+        # (NaN > 0 → False) so NaN would silently disable the gate, and
+        # +Inf would make `leg_spread_yes > max_leg_spread` impossible to
+        # satisfy (also a silent disable). Same silent-disable trap as
+        # the negative-value case — fail fast at load with a clear error.
+        if not math.isfinite(v):
+            raise ValueError(
+                f"CLOSE_SWEEP_MAX_LEG_SPREAD must be a finite number "
+                f"(got {v!r}); use 0 to disable the gate or a positive "
+                f"finite value (e.g. 0.02 for 2 cents)."
+            )
         # Same rationale as TOB_STALE_MS: the runtime check branches on
         # `> 0`, so a negative value would silently disable the gate.
         # Reject at load with a clear ValueError.

@@ -170,6 +170,21 @@ def test_close_sweep_max_leg_spread_rejects_negative(
     assert "CLOSE_SWEEP_MAX_LEG_SPREAD" in str(excinfo.value)
 
 
+@pytest.mark.parametrize("bad", ["nan", "inf", "-inf"])
+def test_close_sweep_max_leg_spread_rejects_non_finite(
+    monkeypatch: pytest.MonkeyPatch, bad: str,
+) -> None:
+    """Pydantic accepts NaN/Inf for float fields by default. Both are
+    silent-disable traps: NaN > 0 → False (gate inactive); +Inf makes
+    `leg_spread > max_leg_spread` impossible to satisfy (gate inactive).
+    Validator must reject all non-finite values at config load."""
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("CLOSE_SWEEP_MAX_LEG_SPREAD", bad)
+    with pytest.raises(Exception) as excinfo:
+        crusaderbot_config.Settings()  # type: ignore[call-arg]
+    assert "CLOSE_SWEEP_MAX_LEG_SPREAD" in str(excinfo.value)
+
+
 # ---------------------------------------------------------------------
 # Behavioural — _evaluate_market accepts / rejects on per-leg spread.
 # ---------------------------------------------------------------------
