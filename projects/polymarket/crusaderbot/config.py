@@ -429,6 +429,39 @@ class Settings(BaseSettings):
     # rejected at config load (same trap as the other guardrail knobs).
     SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR: int = 8  # env: SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR
 
+    # --- Safe-close inventory imbalance override
+    #     (WARP/R00T/safe-close-imbalance-override, Polybot directive 1.2.1.c) ---
+    # When a safe_close candidate fires on a market where the user
+    # already holds imbalanced exposure (|imbalance_usdc| > threshold),
+    # override the candidate side to the lagging leg and bypass the
+    # standard same-market open-position dedup. Lets the strategy
+    # rebalance toward complete-set parity (the "balance lagging leg"
+    # half of the directive's dual-leg arb model — full simultaneous
+    # entry is a future lane).
+    #
+    # Inventory source: `domain.strategy.inventory.compute_market_inventory`
+    # (foundation lane WARP/R00T/inventory-tracker-foundation). Reads
+    # the same `positions` table the existing dedup gate reads.
+    #
+    # Default OFF (dark launch). When OFF the override path is fully
+    # bypassed and behaviour is identical to pre-lane. When ON it ONLY
+    # fires for late_entry_v3 candidates whose user has
+    # active_preset='safe_close' — every other strategy / preset
+    # continues to use the broad open-position dedup.
+    SAFE_CLOSE_IMBALANCE_OVERRIDE_ENABLED: bool = False  # env: SAFE_CLOSE_IMBALANCE_OVERRIDE_ENABLED
+    # Imbalance threshold in USDC cost basis (NOT shares — the directive
+    # spec uses shares but our position model tracks cost basis). At
+    # 5.0 USDC, a user with $30 YES + $5 NO ($25 imbalance) triggers
+    # the override; $30 YES + $25 NO ($5 imbalance) does NOT — there's
+    # already near-parity and the standard dedup correctly blocks a
+    # second entry.
+    #
+    # Bounds: must be > 0. Zero would override on any imbalance which
+    # collapses to "always override when both legs aren't exactly
+    # equal" — a noise amplifier, not a guardrail. Reject at config
+    # load.
+    SAFE_CLOSE_IMBALANCE_THRESHOLD_USDC: float = 5.0  # env: SAFE_CLOSE_IMBALANCE_THRESHOLD_USDC
+
     # --- Close-sweep per-leg spread gate (WARP/R00T/close-sweep-spread-gate) ---
     # Max per-side bid-ask spread (best_ask - best_bid) tolerated by the
     # close_sweep preset. Wide per-leg spread in the noisy final ~35s of a
@@ -681,6 +714,29 @@ class Settings(BaseSettings):
                 f"SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR must be >= 0 (got {v}); "
                 f"use 0 to disable the gate, or a positive integer (e.g. 8) "
                 f"for the max entries per (user, side) per hour."
+            )
+        return v
+
+    @field_validator("SAFE_CLOSE_IMBALANCE_THRESHOLD_USDC")
+    @classmethod
+    def validate_safe_close_imbalance_threshold(cls, v: float) -> float:
+        # Non-finite (NaN / ±Inf) and non-positive thresholds collapse
+        # the gate to "always override" (NaN comparisons are False;
+        # `|imbalance| > 0` is true on any non-zero exposure). Both are
+        # silent disable / silent over-fire traps. Reject at load with
+        # a clear error.
+        if not math.isfinite(v):
+            raise ValueError(
+                f"SAFE_CLOSE_IMBALANCE_THRESHOLD_USDC must be a finite "
+                f"number (got {v!r}); use a positive value such as 5.0 "
+                f"for the minimum imbalance (USDC cost basis) that "
+                f"triggers a side override."
+            )
+        if v <= 0:
+            raise ValueError(
+                f"SAFE_CLOSE_IMBALANCE_THRESHOLD_USDC must be > 0 "
+                f"(got {v}); 0 would override on any non-zero imbalance, "
+                f"collapsing the gate into a noise amplifier."
             )
         return v
 
