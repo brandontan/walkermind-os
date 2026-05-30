@@ -67,13 +67,18 @@ _MAX = 1.5
 _ALPHA = 0.05
 
 
-def _mult(user_id: str, balance: float) -> float:
+def _mult(user_id: str, balance: float, *, throttle: float = 0.0) -> float:
+    """Helper-test wrapper that defaults `min_update_interval_sec=0` so
+    helper-math tests get deterministic per-call baseline updates.
+    Tests that specifically validate the throttle pass `throttle=5.0`.
+    """
     return ssj._bankroll_multiplier(
         user_id,
         balance,
         multiplier_min=_MIN,
         multiplier_max=_MAX,
         ema_alpha=_ALPHA,
+        min_update_interval_sec=throttle,
     )
 
 
@@ -136,11 +141,43 @@ def test_non_finite_balance_returns_one():
 
 def test_baseline_drifts_with_ema_alpha():
     """Baseline must move slowly toward current_balance per the alpha;
-    after one update at +20% the baseline shifts ~alpha * delta."""
+    after one update at +20% the baseline shifts ~alpha * delta.
+    Throttle disabled here so each call updates the baseline."""
     _mult("user-A", 1000.0)
     _mult("user-A", 1200.0)
     # Expected baseline: alpha * 1200 + (1 - alpha) * 1000 = 1010 for alpha=0.05
     assert ssj._bankroll_ema_baseline["user-A"] == pytest.approx(1010.0)
+
+
+def test_throttle_blocks_intra_tick_drift():
+    """Within the throttle window, subsequent calls for the same user
+    must NOT update the baseline — defends the multiplier against the
+    multi-candidate-per-tick case where each candidate would otherwise
+    drift the baseline toward the static balance, collapsing the
+    multiplier to ~1.0 for later candidates in the same tick."""
+    # Seed at 1000 (this call always updates because no prior `last_update`).
+    _mult("user-A", 1000.0, throttle=5.0)
+    seeded_baseline = ssj._bankroll_ema_baseline["user-A"]
+    # 5 rapid intra-tick calls at +20% balance — all return raw multiplier
+    # from the seeded baseline, none drift it.
+    for _ in range(5):
+        m = _mult("user-A", 1200.0, throttle=5.0)
+        assert m == pytest.approx(1.2), (
+            "Throttle bypassed: intra-tick calls must use the prior "
+            f"baseline so multiplier stays at 1.2 (got {m})."
+        )
+    # Baseline must remain at the seeded value across all 5 calls.
+    assert ssj._bankroll_ema_baseline["user-A"] == pytest.approx(seeded_baseline)
+
+
+def test_throttle_zero_disables(monkeypatch):
+    """throttle=0 must update on every call (the test-fixture default
+    path used by every other helper-math test)."""
+    _mult("user-A", 1000.0, throttle=0.0)
+    seeded = ssj._bankroll_ema_baseline["user-A"]
+    _mult("user-A", 1200.0, throttle=0.0)
+    after = ssj._bankroll_ema_baseline["user-A"]
+    assert after != seeded, "throttle=0 must allow baseline drift on the next call."
 
 
 def test_per_user_isolation():
@@ -224,6 +261,47 @@ def test_alpha_upper_boundary_one_accepted(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("BANKROLL_EMA_ALPHA", "1.0")
     s = crusaderbot_config.Settings()  # type: ignore[call-arg]
     assert s.BANKROLL_EMA_ALPHA == pytest.approx(1.0)
+
+
+def test_min_greater_than_max_rejected_at_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cross-field invariant: MIN must not exceed MAX, otherwise the
+    runtime `max(MIN, min(MAX, raw))` clamp degenerates to a constant
+    multiplier of MIN regardless of bankroll. Fail fast at load."""
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("BANKROLL_MULTIPLIER_MIN", "2.0")
+    monkeypatch.setenv("BANKROLL_MULTIPLIER_MAX", "1.0")
+    with pytest.raises(ValidationError) as excinfo:
+        crusaderbot_config.Settings()  # type: ignore[call-arg]
+    msg = str(excinfo.value)
+    assert "BANKROLL_MULTIPLIER_MIN" in msg
+    assert "BANKROLL_MULTIPLIER_MAX" in msg
+
+
+def test_min_equal_to_max_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """MIN == MAX is a legitimate operator config (effectively pins
+    the multiplier at one value); accepted at load."""
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("BANKROLL_MULTIPLIER_MIN", "1.0")
+    monkeypatch.setenv("BANKROLL_MULTIPLIER_MAX", "1.0")
+    s = crusaderbot_config.Settings()  # type: ignore[call-arg]
+    assert s.BANKROLL_MULTIPLIER_MIN == pytest.approx(1.0)
+    assert s.BANKROLL_MULTIPLIER_MAX == pytest.approx(1.0)
+
+
+def test_baseline_throttle_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_required_env(monkeypatch)
+    s = crusaderbot_config.Settings()  # type: ignore[call-arg]
+    assert s.BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC == pytest.approx(5.0)
+
+
+def test_baseline_throttle_rejects_negative(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC", "-1.0")
+    with pytest.raises(ValidationError) as excinfo:
+        crusaderbot_config.Settings()  # type: ignore[call-arg]
+    assert "BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC" in str(excinfo.value)
 
 
 # ---------------------------------------------------------------------

@@ -365,6 +365,19 @@ class Settings(BaseSettings):
     # giving the multiplier a meaningful window in which to react.
     BANKROLL_EMA_ALPHA: float = 0.05  # env: BANKROLL_EMA_ALPHA
 
+    # Minimum interval between baseline EMA updates (seconds).
+    # `_process_candidate` is called sequentially for multiple
+    # candidates of the same user within one scan tick (e.g. several
+    # candle markets for one late_entry_v3 user); without throttling,
+    # each candidate drifts the baseline toward the static
+    # intra-tick balance, collapsing it to ~= current and zeroing the
+    # multiplier for the rest of the tick. 5s is comfortably longer
+    # than a single scan tick (15s cadence at most, but the per-tick
+    # candidate burst is sub-second) and shorter than the
+    # CLOSE_SWEEP_SCAN_INTERVAL fast loop, so legitimate cross-tick
+    # updates still land.
+    BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC: float = 5.0  # env: BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC
+
     # --- Safe-close direction concentration limit
     #     (WARP/R00T/safe-close-direction-limit, Lane 4/5) ---
     # Max accepted safe_close entries per (user, side) within a rolling
@@ -509,6 +522,24 @@ class Settings(BaseSettings):
             )
         return v
 
+    @field_validator("BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC")
+    @classmethod
+    def validate_bankroll_baseline_throttle(cls, v: float) -> float:
+        # Must be finite + non-negative (0 disables the throttle).
+        if not math.isfinite(v):
+            raise ValueError(
+                f"BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC must be "
+                f"finite (got {v!r})."
+            )
+        if v < 0:
+            raise ValueError(
+                f"BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC must be "
+                f">= 0 (got {v}); use 0 to disable the throttle, or "
+                f"a positive value to require N seconds between "
+                f"baseline EMA updates."
+            )
+        return v
+
     @field_validator("BANKROLL_EMA_ALPHA")
     @classmethod
     def validate_bankroll_ema_alpha(cls, v: float) -> float:
@@ -524,6 +555,20 @@ class Settings(BaseSettings):
                 f"alpha=0 freezes the baseline, alpha>1 overshoots."
             )
         return v
+
+    @model_validator(mode="after")
+    def validate_bankroll_multiplier_range(self) -> "Settings":
+        # MIN must not exceed MAX — otherwise the runtime `max(MIN, min(MAX, raw))`
+        # clamp clamps to MIN unconditionally (raw <= MAX always evaluates to
+        # the smaller MAX → outer max picks MIN), effectively constant-multiplier
+        # at MIN regardless of bankroll. Fail fast at load.
+        if self.BANKROLL_MULTIPLIER_MIN > self.BANKROLL_MULTIPLIER_MAX:
+            raise ValueError(
+                f"BANKROLL_MULTIPLIER_MIN ({self.BANKROLL_MULTIPLIER_MIN}) "
+                f"must not exceed BANKROLL_MULTIPLIER_MAX "
+                f"({self.BANKROLL_MULTIPLIER_MAX})."
+            )
+        return self
 
     @field_validator("SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR")
     @classmethod

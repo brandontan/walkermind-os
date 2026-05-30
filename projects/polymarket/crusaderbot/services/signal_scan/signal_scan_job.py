@@ -137,6 +137,7 @@ _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
 # write per scan tick. Disable entirely via
 # BANKROLL_DYNAMIC_SIZING_ENABLED=false (escape hatch).
 _bankroll_ema_baseline: dict[str, float] = {}
+_bankroll_ema_last_update: dict[str, float] = {}  # monotonic timestamp
 
 
 def _bankroll_multiplier(
@@ -146,32 +147,49 @@ def _bankroll_multiplier(
     multiplier_min: float,
     multiplier_max: float,
     ema_alpha: float,
+    min_update_interval_sec: float = 0.0,
 ) -> float:
-    """Return the sizing multiplier for (user, current_balance), and
-    update the EMA-smoothed baseline as a side effect.
+    """Return the sizing multiplier for (user, current_balance) and
+    conditionally update the EMA-smoothed baseline as a side effect.
+
+    ``min_update_interval_sec``: throttle the baseline update so that
+    multiple candidates processed for the same user within a single
+    scan tick (e.g. several markets for the same late_entry_v3 user)
+    do NOT each drift the baseline toward `current_balance`. Without
+    the throttle, N intra-tick candidates collapse the baseline to ~=
+    current, defeating the multiplier. Set to 0 to update on every
+    call (test convenience).
 
     Fail-safe: returns 1.0 (no scaling) when current_balance is not a
     positive finite number, when no prior baseline exists (first
     observation seeds it), or when the multiplier evaluates non-finite.
     """
     import math as _math
+    import time as _time
     if not _math.isfinite(current_balance) or current_balance <= 0:
         return 1.0
     key = str(user_id)
     baseline = _bankroll_ema_baseline.get(key)
+    now_mono = _time.monotonic()
     if baseline is None or baseline <= 0:
-        # First observation: seed baseline, multiplier neutral.
+        # First observation: seed baseline + last-update; multiplier neutral.
         _bankroll_ema_baseline[key] = current_balance
+        _bankroll_ema_last_update[key] = now_mono
         return 1.0
     raw_multiplier = current_balance / baseline
     if not _math.isfinite(raw_multiplier):
         return 1.0
-    # Update EMA for the NEXT call (this call uses the prior baseline so
-    # the multiplier reflects deviation from the historical average,
-    # not from a value the same call already mutated).
-    _bankroll_ema_baseline[key] = (
-        ema_alpha * current_balance + (1.0 - ema_alpha) * baseline
-    )
+    # Throttle the EMA update: only refresh baseline when sufficient
+    # time has elapsed since the last update. Inside a single scan tick
+    # all candidates for the same user share the prior baseline, so
+    # each candidate's multiplier reflects the true deviation, not the
+    # already-dragged-toward-current intra-tick artifact.
+    last_update = _bankroll_ema_last_update.get(key, 0.0)
+    if (now_mono - last_update) >= min_update_interval_sec:
+        _bankroll_ema_baseline[key] = (
+            ema_alpha * current_balance + (1.0 - ema_alpha) * baseline
+        )
+        _bankroll_ema_last_update[key] = now_mono
     # Clamp to operator-configured bounds. Default [0.5, 1.5] caps both
     # the upside (don't blow up on a recent win streak) and the downside
     # (don't shrink positions so small they hit min-size gates).
@@ -181,6 +199,7 @@ def _bankroll_multiplier(
 def _bankroll_reset_for_tests() -> None:
     """Clear the in-memory EMA state. Tests use this to isolate runs."""
     _bankroll_ema_baseline.clear()
+    _bankroll_ema_last_update.clear()
 
 
 # =====================================================================
@@ -860,6 +879,9 @@ def _build_trade_signal(
                 multiplier_min=float(_cfg_b.BANKROLL_MULTIPLIER_MIN),
                 multiplier_max=float(_cfg_b.BANKROLL_MULTIPLIER_MAX),
                 ema_alpha=float(_cfg_b.BANKROLL_EMA_ALPHA),
+                min_update_interval_sec=float(
+                    getattr(_cfg_b, "BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC", 5.0)
+                ),
             )
             if _mult != 1.0:
                 _proposed_size = (
