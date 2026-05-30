@@ -109,16 +109,23 @@ class MarketInventory:
         """True iff there is no live exposure on either leg."""
         return self.yes_count == 0 and self.no_count == 0
 
+    @classmethod
+    def empty(cls, user_id: UUID | str, market_id: str) -> "MarketInventory":
+        """Return an empty inventory (zero exposure on both legs).
 
-def _empty_inventory(user_id: str, market_id: str) -> MarketInventory:
-    return MarketInventory(
-        user_id=user_id,
-        market_id=market_id,
-        yes_size_usdc=Decimal("0"),
-        no_size_usdc=Decimal("0"),
-        yes_count=0,
-        no_count=0,
-    )
+        Downstream callers use this as a stable shape so they never need
+        to branch on ``inv is None``. Also the natural return type from
+        ``compute_market_inventory`` when the user has no live positions
+        on the market.
+        """
+        return cls(
+            user_id=str(user_id),
+            market_id=market_id,
+            yes_size_usdc=Decimal("0"),
+            no_size_usdc=Decimal("0"),
+            yes_count=0,
+            no_count=0,
+        )
 
 
 async def compute_market_inventory(
@@ -159,7 +166,17 @@ async def compute_market_inventory(
     no_count = 0
     for r in rows:
         side = str(r["side"] or "").lower()
-        size = Decimal(str(r["total_size"] or 0))
+        raw_size = r["total_size"]
+        # asyncpg decodes NUMERIC to Decimal in production, but tests
+        # (and any future caller passing a float) need the string
+        # coercion to avoid Decimal+float precision drift. Fast-path
+        # the production case to skip an unnecessary round-trip.
+        if raw_size is None:
+            size = Decimal("0")
+        elif isinstance(raw_size, Decimal):
+            size = raw_size
+        else:
+            size = Decimal(str(raw_size))
         n = int(r["n"] or 0)
         if side == "yes":
             yes_size = size

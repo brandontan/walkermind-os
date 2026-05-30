@@ -13,6 +13,7 @@ Module under test:
 from __future__ import annotations
 
 import asyncio
+from dataclasses import FrozenInstanceError
 from decimal import Decimal
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -22,7 +23,6 @@ import pytest
 from projects.polymarket.crusaderbot.domain.strategy.inventory import (
     MarketInventory,
     _LIVE_POSITION_STATUSES,
-    _empty_inventory,
     compute_market_inventory,
 )
 
@@ -82,18 +82,32 @@ def test_market_inventory_balanced():
 def test_market_inventory_empty_pct_is_none():
     """Avoid divide-by-zero when both legs are empty — `None` is the
     documented sentinel for 'no position to be imbalanced against'."""
-    inv = _empty_inventory("u-1", _MARKET_ID)
+    inv = MarketInventory.empty("u-1", _MARKET_ID)
     assert inv.imbalance_pct is None
     assert inv.imbalance_usdc == Decimal("0")
     assert inv.is_empty is True
 
 
+def test_market_inventory_empty_coerces_uuid():
+    """`empty()` must coerce a UUID user_id to str — the dataclass
+    typing says `user_id: str` so passing a UUID would otherwise
+    flow through unconverted and break equality / serialisation
+    downstream."""
+    from uuid import UUID
+    uid = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+    inv = MarketInventory.empty(uid, _MARKET_ID)
+    assert isinstance(inv.user_id, str)
+    assert inv.user_id == str(uid)
+
+
 def test_market_inventory_is_frozen():
     """Dataclass is frozen so consumers can pass it through async
     contexts / cache it without worrying about mutation. Pin the
-    contract here to catch accidental `frozen=False` edits."""
-    inv = _empty_inventory("u-1", _MARKET_ID)
-    with pytest.raises(Exception):
+    contract here with the specific FrozenInstanceError so a refactor
+    that flips `frozen=False` (and therefore swallows the AttributeError
+    that this previously caught) surfaces immediately."""
+    inv = MarketInventory.empty("u-1", _MARKET_ID)
+    with pytest.raises(FrozenInstanceError):
         inv.yes_size_usdc = Decimal("99")  # type: ignore[misc]
 
 
@@ -175,6 +189,29 @@ def test_compute_handles_decimal_strings():
     conn = _conn([_row("yes", "12.345678", 1)])
     inv = asyncio.run(compute_market_inventory(conn, uuid4(), _MARKET_ID))
     assert inv.yes_size_usdc == Decimal("12.345678")
+
+
+def test_compute_decimal_fast_path():
+    """Production asyncpg decodes NUMERIC directly to Decimal; the
+    helper must reuse the value without a `str()` round-trip
+    (preserves precision + avoids unnecessary allocation in the
+    scanner hot path).
+    """
+    incoming = Decimal("42.123456")
+    conn = _conn([_row("yes", incoming, 1)])
+    inv = asyncio.run(compute_market_inventory(conn, uuid4(), _MARKET_ID))
+    # Same Decimal value — and same identity proves no str-coercion
+    # round-trip happened in the fast path.
+    assert inv.yes_size_usdc == incoming
+    assert inv.yes_size_usdc is incoming
+
+
+def test_compute_handles_none_size():
+    """A row whose `total_size` is NULL (impossible per the GROUP BY
+    but defensive) must yield zero, not raise."""
+    conn = _conn([_row("yes", None, 0)])
+    inv = asyncio.run(compute_market_inventory(conn, uuid4(), _MARKET_ID))
+    assert inv.yes_size_usdc == Decimal("0")
 
 
 def test_compute_uses_live_status_filter():
