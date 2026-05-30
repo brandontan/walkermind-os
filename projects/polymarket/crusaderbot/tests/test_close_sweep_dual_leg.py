@@ -232,6 +232,15 @@ def _approved_result() -> TradeResult:
     )
 
 
+def _tight_book() -> dict:
+    """Default book for the lagging leg: spread = 0.01, well under the
+    0.02 CLOSE_SWEEP_MAX_LEG_SPREAD default — spread guard passes."""
+    return {
+        "asks": [{"price": "0.35", "size": "100"}],
+        "bids": [{"price": "0.34", "size": "100"}],
+    }
+
+
 def _drive(
     *,
     row: dict,
@@ -239,6 +248,7 @@ def _drive(
     just_filled_side: str = "yes",
     just_filled_size: Decimal = Decimal("10"),
     engine_result: TradeResult | None = None,
+    book: dict | None = None,
 ):
     captured: dict = {"signal": None}
 
@@ -248,6 +258,8 @@ def _drive(
 
     async def _fake_inv(uid, mid):
         return inventory
+
+    _book = book if book is not None else _tight_book()
 
     class _Log:
         def info(self, *a, **kw): pass
@@ -259,6 +271,9 @@ def _drive(
     ), patch.object(
         ssj, "get_live_market_price",
         new=AsyncMock(return_value=0.34),
+    ), patch.object(
+        ssj._polymarket, "get_book",
+        new=AsyncMock(return_value=_book),
     ), patch.object(
         ssj._engine, "execute", side_effect=_fake_execute,
     ):
@@ -366,3 +381,61 @@ def test_close_sweep_dual_leg_respects_cooldown(
     assert sig1 is not None
     sig2 = _drive(row=_row(), inventory=inv)
     assert sig2 is None
+
+
+# ---------------------------------------------------------------------------
+# M-2 hardening: close_sweep spread guard
+# (WARP/R00T/close-sweep-dual-leg-spread-guard)
+# ---------------------------------------------------------------------------
+
+
+def test_close_sweep_topup_wide_spread_skipped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """close_sweep top-up must be skipped when the lagging leg's spread
+    exceeds CLOSE_SWEEP_MAX_LEG_SPREAD (mirrors the lead scan-path gate)."""
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("CLOSE_SWEEP_DUAL_LEG_ENABLED", "true")
+    monkeypatch.setenv("FAST_TOPUP_MIN_USDC", "5.0")
+    monkeypatch.setenv("CLOSE_SWEEP_MAX_LEG_SPREAD", "0.02")
+    bootstrap_default_strategies()
+
+    wide_book = {
+        "asks": [{"price": "0.40", "size": "10"}],
+        "bids": [{"price": "0.34", "size": "10"}],  # spread = 0.06 > 0.02
+    }
+    sig = _drive(row=_row(), inventory=_inv(20.0, 0.0), book=wide_book)
+    assert sig is None
+
+
+def test_close_sweep_topup_tight_spread_fires(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """close_sweep top-up fires when the lagging leg spread is within limit."""
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("CLOSE_SWEEP_DUAL_LEG_ENABLED", "true")
+    monkeypatch.setenv("FAST_TOPUP_MIN_USDC", "5.0")
+    monkeypatch.setenv("CLOSE_SWEEP_MAX_LEG_SPREAD", "0.02")
+    bootstrap_default_strategies()
+
+    sig = _drive(row=_row(), inventory=_inv(20.0, 0.0))  # default _tight_book (0.01)
+    assert sig is not None
+    assert sig.side == "no"
+
+
+def test_close_sweep_topup_missing_bid_skipped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """close_sweep top-up must be skipped when the lagging leg book has no
+    bids (thin-book / no-buyer scenario in the final 35s window)."""
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("CLOSE_SWEEP_DUAL_LEG_ENABLED", "true")
+    monkeypatch.setenv("FAST_TOPUP_MIN_USDC", "5.0")
+    bootstrap_default_strategies()
+
+    no_bid_book = {
+        "asks": [{"price": "0.40", "size": "10"}],
+        "bids": [],
+    }
+    sig = _drive(row=_row(), inventory=_inv(20.0, 0.0), book=no_bid_book)
+    assert sig is None
