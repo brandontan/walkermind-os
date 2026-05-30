@@ -51,6 +51,15 @@ def _safe_float(val: Any) -> float | None:
     return f if math.isfinite(f) else None
 
 
+def _first_not_none(*vals: Any) -> Any:
+    """First arg that is not None. Used so legitimate falsy values (0, 0.0, '')
+    survive field-alias fallback — `or` chains would drop them."""
+    for v in vals:
+        if v is not None:
+            return v
+    return None
+
+
 def _coerce_dt(val: Any) -> datetime | None:
     """Parse a Heisenberg timestamp (ISO-8601, epoch int, or epoch str)."""
     if val is None:
@@ -89,22 +98,22 @@ def _normalise(r: dict[str, Any]) -> RealtimeTrade | None:
     side = r.get("side") or r.get("direction") or r.get("outcome")
     if not (wallet and condition_id and side):
         return None
-    trade_time = _coerce_dt(
-        r.get("trade_time")
-        or r.get("timestamp")
-        or r.get("ts")
-        or r.get("created_at")
-    )
+    trade_time = _coerce_dt(_first_not_none(
+        r.get("trade_time"), r.get("timestamp"), r.get("ts"), r.get("created_at"),
+    ))
     if trade_time is None:
         return None
     return RealtimeTrade(
         wallet=str(wallet)[:42],
         condition_id=str(condition_id)[:80],
         side=str(side)[:8].upper(),
-        price=_safe_float(r.get("price") or r.get("fill_price")),
-        size_usdc=_safe_float(
-            r.get("size_usdc") or r.get("size") or r.get("notional_usdc")
-        ),
+        # `_first_not_none` instead of `or` so a legitimate 0 / 0.0 price or
+        # size survives — in prediction markets price=0 is a real value
+        # (fully-resolved-NO outcome).
+        price=_safe_float(_first_not_none(r.get("price"), r.get("fill_price"))),
+        size_usdc=_safe_float(_first_not_none(
+            r.get("size_usdc"), r.get("size"), r.get("notional_usdc"),
+        )),
         trade_time=trade_time,
         raw=r,
     )
@@ -144,7 +153,16 @@ async def fetch_recent(
                 )
                 return []
             data = resp.json()
-    except (httpx.HTTPError, httpx.TimeoutException) as exc:
+            if not isinstance(data, dict):
+                log.warning(
+                    "heisenberg_trades: expected dict response, got %s",
+                    type(data).__name__,
+                )
+                return []
+    except Exception as exc:
+        # Broad catch upholds the "never raises" contract — covers
+        # httpx.HTTPError / TimeoutException / json.JSONDecodeError /
+        # any unexpected upstream malformation.
         log.warning("heisenberg_trades: request failed: %s", exc)
         return []
 

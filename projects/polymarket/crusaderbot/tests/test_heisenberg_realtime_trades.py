@@ -275,3 +275,96 @@ def test_feature_flag_defaults_off_in_settings_class():
 def test_job_id_pinned():
     """Source-level pin so scheduler.add_job id collisions are caught here."""
     assert sync_job.JOB_ID == "heisenberg_realtime_trades_sync"
+
+
+# ---------------------------------------------------------------------------
+# Gemini review pins — falsy 0 preservation + broadened never-raises contract
+# ---------------------------------------------------------------------------
+
+
+def test_normalise_preserves_zero_price_and_zero_size():
+    """Price=0 and size_usdc=0 are LEGITIMATE in prediction markets
+    (fully-resolved-NO outcome; flatten-to-zero orders). The `or` fallback
+    chain would drop them — `_first_not_none` must not."""
+    row = {
+        "wallet": "0xzero",
+        "condition_id": "cond-zero",
+        "side": "NO",
+        "price": 0,           # legitimately 0 (resolved NO)
+        "size_usdc": 0.0,     # legitimately 0 (zero notional)
+        "trade_time": "2026-05-30T05:00:00Z",
+    }
+    tr = heisenberg_trades._normalise(row)
+    assert tr is not None
+    assert tr.price == 0.0    # not None!
+    assert tr.size_usdc == 0.0  # not None!
+
+
+def test_normalise_falls_through_to_alias_when_primary_is_none():
+    """If `price` key is missing/None, fall through to `fill_price`. If
+    `size_usdc` is None, fall through to `size`, then `notional_usdc`."""
+    row = {
+        "wallet": "0xfallback",
+        "condition_id": "cond-fb",
+        "side": "YES",
+        "price": None,
+        "fill_price": 0.55,
+        "size_usdc": None,
+        "size": None,
+        "notional_usdc": 25.0,
+        "trade_time": "2026-05-30T05:00:00Z",
+    }
+    tr = heisenberg_trades._normalise(row)
+    assert tr is not None
+    assert tr.price == pytest.approx(0.55)
+    assert tr.size_usdc == pytest.approx(25.0)
+
+
+def test_fetch_recent_swallows_json_decode_error():
+    """Upstream returning invalid JSON must NOT raise — return [] instead."""
+    fake_resp = MagicMock()
+    fake_resp.status_code = 200
+    fake_resp.text = "not valid json"
+    fake_resp.json = MagicMock(side_effect=ValueError("malformed json"))
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, *args, **kwargs):
+            return fake_resp
+
+    with (
+        patch.dict("os.environ", {"HEISENBERG_API_TOKEN": "x"}),
+        patch.object(heisenberg_trades.httpx, "AsyncClient", return_value=_Client()),
+    ):
+        result = asyncio.run(heisenberg_trades.fetch_recent())
+    assert result == []
+
+
+def test_fetch_recent_rejects_non_dict_response():
+    """Upstream returning a JSON list / scalar (not a dict) must NOT raise on
+    `.get()` — return [] with a warning instead."""
+    fake_resp = MagicMock()
+    fake_resp.status_code = 200
+    fake_resp.json = MagicMock(return_value=["unexpected", "list"])
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, *args, **kwargs):
+            return fake_resp
+
+    with (
+        patch.dict("os.environ", {"HEISENBERG_API_TOKEN": "x"}),
+        patch.object(heisenberg_trades.httpx, "AsyncClient", return_value=_Client()),
+    ):
+        result = asyncio.run(heisenberg_trades.fetch_recent())
+    assert result == []
