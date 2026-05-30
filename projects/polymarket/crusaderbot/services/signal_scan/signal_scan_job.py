@@ -915,6 +915,75 @@ async def _maybe_fire_fast_topup(
                 )
                 return
 
+    # close_sweep top-up must honour the per-leg spread limit that the
+    # close-sweep-spread-gate enforces on the lead scan path.
+    # _maybe_fire_fast_topup bypasses _process_candidate so the gate in
+    # late_entry_v3._evaluate_market never runs for the top-up leg.
+    # close_sweep fires in the final ~35s where thin-book spread = real
+    # taker slippage in LIVE.
+    if preset == "close_sweep":
+        try:
+            _max_spread = getattr(_cfg, "CLOSE_SWEEP_MAX_LEG_SPREAD", 0.02)
+            if _max_spread > 0:
+                _lag_token = (
+                    market.get("yes_token_id")
+                    if lagging_side_lower == "yes"
+                    else market.get("no_token_id")
+                )
+                if not _lag_token:
+                    log.info(
+                        "scan_outcome",
+                        outcome="fast_topup_skipped",
+                        reason="leg_spread_missing_token",
+                        market_id=market_id,
+                        side=lagging_side_lower,
+                    )
+                    return
+                _lag_book = await _polymarket.get_book(str(_lag_token))
+                _asks = sorted(
+                    float(e["price"])
+                    for e in (_lag_book.get("asks") or [])
+                    if e.get("price") and float(e["price"]) > 0
+                )
+                _bids = sorted(
+                    (
+                        float(e["price"])
+                        for e in (_lag_book.get("bids") or [])
+                        if e.get("price") and float(e["price"]) > 0
+                    ),
+                    reverse=True,
+                )
+                _lag_ask = _asks[0] if _asks else None
+                _lag_bid = _bids[0] if _bids else None
+                if _lag_ask is None or _lag_bid is None:
+                    log.info(
+                        "scan_outcome",
+                        outcome="fast_topup_skipped",
+                        reason="leg_spread_missing_bid",
+                        market_id=market_id,
+                        side=lagging_side_lower,
+                    )
+                    return
+                _leg_spread = round(_lag_ask - _lag_bid, 4)
+                if _leg_spread > _max_spread:
+                    log.info(
+                        "scan_outcome",
+                        outcome="fast_topup_skipped",
+                        reason="leg_spread_too_wide",
+                        market_id=market_id,
+                        side=lagging_side_lower,
+                        leg_spread=_leg_spread,
+                        max_spread=_max_spread,
+                    )
+                    return
+        except Exception as exc:
+            log.warning(
+                "fast_topup_spread_check_failed",
+                error=str(exc),
+                market_id=market_id,
+            )
+            return  # fail closed — skip top-up on spread-check error
+
     # Synthesise an idempotency key — distinct from the lead entry's
     # so the engine's duplicate guard doesn't reject the top-up as a
     # double-execute.
