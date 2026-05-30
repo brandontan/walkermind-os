@@ -1408,12 +1408,16 @@ async def _process_candidate(
             _imbalance_override_active = True
             # Lagging leg is the side with LESS exposure: imb > 0 means
             # YES-heavy → lagging is NO. imb < 0 → lagging is YES.
-            lagging_side = "no" if _imb > 0 else "yes"
-            current_side = (cand.side or "").lower()
-            if current_side != lagging_side:
+            # SignalCandidate.side validator enforces uppercase
+            # ('YES' / 'NO'); the lowercase `side` local is the
+            # execution-engine-facing convention. Track both.
+            lagging_side_upper = "NO" if _imb > 0 else "YES"
+            lagging_side_lower = lagging_side_upper.lower()
+            current_side_lower = (cand.side or "").lower()
+            if current_side_lower != lagging_side_lower:
                 _override_log = {
-                    "original_side": current_side,
-                    "new_side": lagging_side,
+                    "original_side": current_side_lower,
+                    "new_side": lagging_side_lower,
                     "imbalance_usdc": round(_imb, 4),
                     "threshold_usdc": _threshold,
                     "yes_size_usdc": str(_inventory.yes_size_usdc),
@@ -1427,19 +1431,20 @@ async def _process_candidate(
                     **_override_log,
                     message=(
                         f"Safe-close imbalance override: "
-                        f"{current_side} → {lagging_side} "
+                        f"{current_side_lower} → {lagging_side_lower} "
                         f"(imbalance ${_imb:.2f} > ${_threshold:.2f})"
                     ),
                 )
-                # SignalCandidate is a frozen dataclass — use
-                # dataclasses.replace to produce a side-corrected copy
-                # with the override-stamped metadata, then rebind the
-                # local `cand` + `side` so the rest of this function
-                # operates on the rebalanced candidate.
+                # SignalCandidate is a frozen dataclass with an
+                # uppercase-side validator. `dataclasses.replace`
+                # requires the uppercase form; the local `side`
+                # variable stays lowercase for the rest of the function.
                 _new_md = dict(cand.metadata)
                 _new_md["imbalance_override"] = _override_log
-                cand = _dc_replace(cand, side=lagging_side, metadata=_new_md)
-                side = lagging_side
+                cand = _dc_replace(
+                    cand, side=lagging_side_upper, metadata=_new_md,
+                )
+                side = lagging_side_lower
                 # _imbalance_override_active was already set True above
                 # when |imbalance| > threshold; the side-flip is a
                 # subset of that condition.

@@ -113,7 +113,7 @@ def test_dataclass_replace_used_not_attribute_assignment():
     `dataclasses.replace` (imported as `_dc_replace`) so a regression
     that flips back to mutation surfaces immediately."""
     src = inspect.getsource(ssj._process_candidate)
-    assert "_dc_replace(cand" in src
+    assert "_dc_replace(" in src and "metadata=_new_md" in src
 
 
 # ---------------------------------------------------------------------
