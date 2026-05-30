@@ -1,5 +1,8 @@
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSSEStatus } from "../lib/sse";
+import { useAuth } from "../lib/auth";
+import { makeApi } from "../lib/api";
 import { useAlertCenter, useScannerStatus, useTradingMode } from "../App";
 
 const TOPNAV = [
@@ -27,6 +30,20 @@ export function TopBar({ tradingMode, notifCount: _notifCount, onBellClick: _onB
   const { lastScanMs } = useScannerStatus();
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
+  // Hide the desktop "Copy" pill when the operator has globally disabled
+  // copy_trade. Mirrors DesktopSidebar + AutoTradePage; FAIL-SAFE shows the
+  // pill until the availability fetch resolves (or on fetch error).
+  const [copyTradeEnabled, setCopyTradeEnabled] = useState(true);
+  useEffect(() => {
+    if (!user?.token) return;
+    let cancelled = false;
+    void api.getPresetAvailability()
+      .then((avail) => { if (!cancelled) setCopyTradeEnabled(avail.strategies?.copy_trade !== false); })
+      .catch(() => { if (!cancelled) setCopyTradeEnabled(true); });
+    return () => { cancelled = true; };
+  }, [api, user?.token]);
   const { unreadCount, openAlertCenter } = useAlertCenter();
   const ctxMode = useTradingMode();
   // Explicit prop (freshest, from a page that fetched it) wins; otherwise fall
@@ -80,7 +97,7 @@ export function TopBar({ tradingMode, notifCount: _notifCount, onBellClick: _onB
 
       {/* Desktop center topnav pills — flex-1 keeps it between brand and right cluster, never overlaps */}
       <div className="hidden md:flex flex-1 items-center justify-center gap-0.5 px-2">
-        {TOPNAV.map(({ to, label }) => {
+        {TOPNAV.filter(({ to }) => to !== "/copy-trade" || copyTradeEnabled).map(({ to, label }) => {
           const active = location.pathname === to || location.pathname.startsWith(to + "/");
           return (
             <button

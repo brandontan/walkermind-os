@@ -23,15 +23,33 @@ export function DesktopSidebar() {
   // global scheduler. Polled every 30s so a toggle from Auto tab
   // propagates here without a full reload.
   const [autoOn, setAutoOn] = useState<boolean | null>(null);
+  // Mirror AutoTradePage: when the operator has globally disabled copy_trade
+  // the "↳ Copy Trade" sidebar subitem is hidden so it cannot send the user
+  // to a tab that will just bounce back. FAIL-SAFE: until the availability
+  // fetch completes (or on a fetch error) the entry stays visible.
+  const [copyTradeEnabled, setCopyTradeEnabled] = useState(true);
   useEffect(() => {
     if (!user?.token) return;
     let cancelled = false;
     const tick = async () => {
       try {
-        const s = await api.getDashboard();
-        if (!cancelled) setAutoOn(s.auto_trade_on);
+        const [dash, avail] = await Promise.allSettled([
+          api.getDashboard(),
+          api.getPresetAvailability(),
+        ]);
+        if (cancelled) return;
+        if (dash.status === "fulfilled") setAutoOn(dash.value.auto_trade_on);
+        else setAutoOn(null);
+        if (avail.status === "fulfilled") {
+          setCopyTradeEnabled(avail.value.strategies?.copy_trade !== false);
+        } else {
+          setCopyTradeEnabled(true);
+        }
       } catch {
-        if (!cancelled) setAutoOn(null);
+        if (!cancelled) {
+          setAutoOn(null);
+          setCopyTradeEnabled(true);
+        }
       }
     };
     void tick();
@@ -111,7 +129,7 @@ export function DesktopSidebar() {
                 <span className="text-[15px] w-5 text-center flex-shrink-0">{item.icon}</span>
                 {item.label}
               </button>
-              {"sub" in item && item.sub && (
+              {"sub" in item && item.sub && copyTradeEnabled && (
                 <button
                   onClick={() => navigate(item.sub!.to)}
                   className={[

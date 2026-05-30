@@ -238,6 +238,32 @@ def test_preset_availability_default_enabled_when_no_row():
     assert all(p["enabled"] is True for p in out["presets"])
 
 
+def test_preset_availability_includes_strategies_map():
+    """strategies payload covers every admin-toggle key so the frontend can
+    gate non-preset features (Copy Trade tab) without a separate fetch."""
+    conn = MagicMock()
+    conn.fetch = AsyncMock(return_value=[
+        {"name": "copy_trade", "enabled": False},
+    ])
+    with patch.object(r, "get_pool", return_value=_pool(conn)):
+        out = asyncio.run(r.get_preset_availability({"user_id": "x"}))
+    assert set(out["strategies"].keys()) == set(r._ADMIN_STRATEGIES)
+    assert out["strategies"]["copy_trade"] is False
+    # FAIL-SAFE: a missing row defaults to enabled=True.
+    assert out["strategies"]["late_entry_v3"] is True
+    assert out["strategies"]["signal_following"] is True
+
+
+def test_preset_availability_strategies_default_enabled_on_db_error():
+    """A DB blip must NOT 500 — strategies map reports every admin key as
+    enabled=True instead, consistent with the presets fail-safe."""
+    pool = MagicMock()
+    pool.acquire = MagicMock(side_effect=RuntimeError("db down"))
+    with patch.object(r, "get_pool", return_value=pool):
+        out = asyncio.run(r.get_preset_availability({"user_id": "x"}))
+    assert all(out["strategies"][name] is True for name in r._ADMIN_STRATEGIES)
+
+
 def test_preset_params_roster_matches_admin_presets_after_cleanup():
     """activate_preset must reject any archived legacy key. After WARP/R00T
     cleanup, only the 3 candle presets are valid — a stale client persisting

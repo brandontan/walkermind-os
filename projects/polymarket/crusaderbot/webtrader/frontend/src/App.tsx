@@ -27,27 +27,69 @@ function PageLoader() {
   );
 }
 
-const LAST_SEEN_KEY = "alertCenter_lastSeen";
-const DISMISSED_KEY = "alertCenter_dismissed";
-const SEEN_IDS_KEY = "alertCenter_seenIds";
+// AlertCenter persistence keys. Suffixed by userId so a shared browser cannot
+// leak one account's "mark all read" / dismissed state onto the next signed-in
+// user. The unsuffixed base names below ARE also read on first load (see
+// readWithLegacy) and migrated into the scoped key so existing single-user
+// installs keep their dismissed/read state across this upgrade.
+const LAST_SEEN_KEY_BASE = "alertCenter_lastSeen";
+const DISMISSED_KEY_BASE = "alertCenter_dismissed";
+const SEEN_IDS_KEY_BASE = "alertCenter_seenIds";
+const MARK_ALL_READ_AT_KEY_BASE = "alertCenter_markAllReadAt";
 const DISMISSED_CAP = 500;
 const SEEN_IDS_CAP = 500;
 
-function loadDismissed(): Set<string> {
+// Scope every alert-center localStorage entry to a stable user id so two
+// accounts on the same browser do not see each other's read state. Falls back
+// to "_anon" before login so the listeners can mount cleanly.
+const scopeKey = (base: string, userId: string | null | undefined) =>
+  `${base}_${userId || "_anon"}`;
+
+// Read the scoped key first; if absent, fall back to the legacy unsuffixed
+// key (pre-WARP/R00T/strategy-toggle-ui-followup) and migrate it forward so
+// existing users do not see previously-dismissed alerts resurface on their
+// first load after this upgrade. The legacy key is intentionally NOT cleared
+// — that would orphan state for any other client (older bundle, different
+// tab) that still reads the unsuffixed name.
+function readWithLegacy(base: string, userId: string | null): string | null {
   try {
-    const stored = localStorage.getItem(DISMISSED_KEY);
+    const scoped = localStorage.getItem(scopeKey(base, userId));
+    if (scoped !== null) return scoped;
+    const legacy = localStorage.getItem(base);
+    if (legacy !== null) {
+      try { localStorage.setItem(scopeKey(base, userId), legacy); } catch { /* quota — ignore */ }
+    }
+    return legacy;
+  } catch {
+    return null;
+  }
+}
+
+function loadDismissed(userId: string | null): Set<string> {
+  try {
+    const stored = readWithLegacy(DISMISSED_KEY_BASE, userId);
     return stored ? new Set<string>(JSON.parse(stored) as string[]) : new Set<string>();
   } catch {
     return new Set<string>();
   }
 }
 
-function loadSeenIds(): Set<string> {
+function loadSeenIds(userId: string | null): Set<string> {
   try {
-    const stored = localStorage.getItem(SEEN_IDS_KEY);
+    const stored = readWithLegacy(SEEN_IDS_KEY_BASE, userId);
     return stored ? new Set<string>(JSON.parse(stored) as string[]) : new Set<string>();
   } catch {
     return new Set<string>();
+  }
+}
+
+function loadMarkAllReadAt(userId: string | null): number {
+  try {
+    const stored = readWithLegacy(MARK_ALL_READ_AT_KEY_BASE, userId);
+    const parsed = stored ? Number(stored) : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch {
+    return 0;
   }
 }
 
@@ -115,8 +157,13 @@ function AppShell() {
   const showChrome = Boolean(user) && !isAuth;
 
   // ── Alert Center global state ────────────────────────────────────────────
+  // Per-user-scoped storage keys — recomputed on every render against the
+  // current auth state. Account A's "mark all read" can no longer suppress
+  // account B's alerts on a shared browser, and signing out clears the
+  // in-memory state via the auth-change effect below.
+  const userKey = user?.userId ?? null;
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
-  const [dismissed, setDismissed] = useState<Set<string>>(loadDismissed);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => loadDismissed(userKey));
   const [alertOffset, setAlertOffset] = useState(0);
   const [hasMoreAlerts, setHasMoreAlerts] = useState(false);
   const ALERT_PAGE = 10;
@@ -126,8 +173,28 @@ function AppShell() {
   // user explicitly dismisses or hits "Mark all read". (Legacy lastSeen
   // timestamp is still written to localStorage for backward compatibility
   // with any older client cache.)
-  const [seenIds, setSeenIds] = useState<Set<string>>(loadSeenIds);
-  const setLastSeen = (v: number) => { try { localStorage.setItem(LAST_SEEN_KEY, String(v)); } catch { /* quota */ } };
+  const [seenIds, setSeenIds] = useState<Set<string>>(() => loadSeenIds(userKey));
+  // Hard "everything before this is read" watermark. Updated by markAllRead.
+  // Survives page refresh — visibleAlerts filters out anything with
+  // created_at <= markAllReadAt so the user does NOT see the same closed
+  // positions pop back up after the next /positions fetch. This is the
+  // user-visible fix for "I marked all read but refresh brings them all
+  // back" — the old design only tracked the in-memory alert IDs at the time
+  // of the click, which were dropped once the backend served new rows.
+  const [markAllReadAt, setMarkAllReadAt] = useState<number>(() => loadMarkAllReadAt(userKey));
+  const setLastSeen = (v: number) => { try { localStorage.setItem(scopeKey(LAST_SEEN_KEY_BASE, userKey), String(v)); } catch { /* quota */ } };
+
+  // Reset / reload alert-center state whenever the signed-in user changes.
+  // Without this a sign-out → sign-in cycle would leak the previous user's
+  // in-memory dismissed/seenIds set onto the new account's panel until the
+  // first full reload.
+  useEffect(() => {
+    setDismissed(loadDismissed(userKey));
+    setSeenIds(loadSeenIds(userKey));
+    setMarkAllReadAt(loadMarkAllReadAt(userKey));
+    setAlerts([]);
+    setAlertOffset(0);
+  }, [userKey]);
 
   const fetchAlerts = useCallback(async (offset = 0, append = false) => {
     if (!user) return;
@@ -182,31 +249,37 @@ function AppShell() {
       const next = [...prev, id];
       // Bound localStorage growth — keep the most recent ids only.
       const capped = next.length > DISMISSED_CAP ? next.slice(next.length - DISMISSED_CAP) : next;
-      try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(capped)); } catch { /* quota — ignore */ }
+      try { localStorage.setItem(scopeKey(DISMISSED_KEY_BASE, userKey), JSON.stringify(capped)); } catch { /* quota — ignore */ }
       return new Set(capped);
     });
-  }, []);
+  }, [userKey]);
 
-  // Mark ALL currently-visible alerts as read in one shot. Dismisses every
-  // visible alert AND adds their IDs to seenIds so any that come back via
-  // re-fetch don't reappear as unread. Idempotent and resilient to quota errors.
+  // Mark ALL currently-visible alerts as read in one shot. Sets the persistent
+  // markAllReadAt watermark so that on the next /positions or /alerts fetch
+  // (or full page refresh) we do NOT re-surface anything that pre-dates the
+  // click. Still adds IDs to dismissed + seenIds for back-compat with the
+  // legacy ID-based path, but the watermark is what actually keeps stale
+  // alerts gone across reloads.
   const markAllRead = useCallback(() => {
     setDismissed(prev => {
       const next = [...prev, ...alerts.map(a => a.id)];
       const capped = next.length > DISMISSED_CAP ? next.slice(next.length - DISMISSED_CAP) : next;
-      try { localStorage.setItem(DISMISSED_KEY, JSON.stringify(capped)); } catch { /* quota — ignore */ }
+      try { localStorage.setItem(scopeKey(DISMISSED_KEY_BASE, userKey), JSON.stringify(capped)); } catch { /* quota — ignore */ }
       return new Set(capped);
     });
     setSeenIds(prev => {
       const next = [...prev, ...alerts.map(a => a.id)];
       const capped = next.length > SEEN_IDS_CAP ? next.slice(next.length - SEEN_IDS_CAP) : next;
-      try { localStorage.setItem(SEEN_IDS_KEY, JSON.stringify(capped)); } catch { /* quota — ignore */ }
+      try { localStorage.setItem(scopeKey(SEEN_IDS_KEY_BASE, userKey), JSON.stringify(capped)); } catch { /* quota — ignore */ }
       return new Set(capped);
     });
     const now = Date.now();
+    setMarkAllReadAt(now);
+    try { localStorage.setItem(scopeKey(MARK_ALL_READ_AT_KEY_BASE, userKey), String(now)); } catch { /* quota — ignore */ }
+    // setLastSeen already writes the scoped LAST_SEEN_KEY_BASE entry — a
+    // second setItem here would be a duplicate write.
     setLastSeen(now);
-    try { localStorage.setItem(LAST_SEEN_KEY, String(now)); } catch { /* quota — ignore */ }
-  }, [alerts]);
+  }, [alerts, userKey]);
 
   // Per-alert "mark as read" without dismissing. Used when an unread alert
   // is auto-acknowledged after the user has had time to read it (panel open
@@ -217,10 +290,10 @@ function AppShell() {
       if (prev.has(id)) return prev;
       const next = [...prev, id];
       const capped = next.length > SEEN_IDS_CAP ? next.slice(next.length - SEEN_IDS_CAP) : next;
-      try { localStorage.setItem(SEEN_IDS_KEY, JSON.stringify(capped)); } catch { /* quota — ignore */ }
+      try { localStorage.setItem(scopeKey(SEEN_IDS_KEY_BASE, userKey), JSON.stringify(capped)); } catch { /* quota — ignore */ }
       return new Set(capped);
     });
-  }, []);
+  }, [userKey]);
 
   const [lastScanMs, setLastScanMs] = useState<number | null>(null);
 
@@ -253,8 +326,28 @@ function AppShell() {
   }, [fetchAlerts]);
 
   const visibleAlerts = useMemo(
-    () => alerts.filter((a) => !dismissed.has(a.id)),
-    [alerts, dismissed],
+    () => alerts.filter((a) => {
+      if (dismissed.has(a.id)) return false;
+      // Persistent "mark all read" watermark — anything timestamped before
+      // the click is hidden permanently. Alerts without a parseable
+      // created_at fall through (e.g. system alerts with timing missing) so
+      // a malformed row never silently disappears.
+      //
+      // Date.parse treats a timezone-naive ISO string as LOCAL time but
+      // markAllReadAt comes from Date.now() (UTC), so a missing 'Z' would
+      // skew the comparison by the user's UTC offset. Backend rows should
+      // already be tz-aware (TIMESTAMPTZ → asyncpg → .isoformat() with
+      // +00:00), but normalise defensively so a future writer dropping the
+      // suffix never silently wipes alerts in negative-UTC timezones.
+      if (markAllReadAt > 0 && a.created_at) {
+        const hasTz = /Z|[+-]\d{2}:?\d{2}$/.test(a.created_at);
+        const normalized = hasTz ? a.created_at : `${a.created_at}Z`;
+        const ts = Date.parse(normalized);
+        if (Number.isFinite(ts) && ts <= markAllReadAt) return false;
+      }
+      return true;
+    }),
+    [alerts, dismissed, markAllReadAt],
   );
 
   // Unread = alert whose ID hasn't been added to seenIds yet. Persistent
@@ -272,8 +365,8 @@ function AppShell() {
     // per-card gold-bar treatment persists until explicit user action.
     const now = Date.now();
     setLastSeen(now);
-    localStorage.setItem(LAST_SEEN_KEY, String(now));
-  }, []);
+    localStorage.setItem(scopeKey(LAST_SEEN_KEY_BASE, userKey), String(now));
+  }, [userKey]);
 
   const closeAlertCenter = useCallback(() => setIsAlertOpen(false), []);
 
@@ -371,7 +464,7 @@ function AppShell() {
       {/* Alert Center — rendered at root so it overlays all pages */}
       <AlertCenter
         isOpen={isAlertOpen}
-        alerts={alerts}
+        alerts={visibleAlerts}
         onClose={closeAlertCenter}
       />
     </div>
