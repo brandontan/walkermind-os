@@ -276,3 +276,133 @@ def test_min_liquidity_constant_is_10k():
 def test_edge_price_threshold_constant_preserved():
     """Regression guard: EDGE_PRICE_THRESHOLD constant still exists for test mocks."""
     assert scanner.EDGE_PRICE_THRESHOLD == 0.15
+
+
+# ---------------------------------------------------------------------------
+# Tests — agent 585 social momentum confidence boost
+# ---------------------------------------------------------------------------
+
+
+def _run_heisenberg_with_social(
+    *,
+    social_response: list[dict],
+    monkeypatch_token: str = "x",
+) -> list:
+    """Run _run_heisenberg_signals with a single market + patched heisenberg.retrieve.
+
+    Returns the list of args tuples passed to _publish (one per signal).
+    """
+    published_calls: list = []
+
+    async def _fake_publish(*args, **kwargs):
+        published_calls.append(args)
+
+    # Liquidity (575) → OK; Candles (568) → 6 candles trending up; Social (585) → param.
+    candle_results = [{"c": 0.50 + i * 0.01} for i in range(7)]
+
+    async def _fake_retrieve(agent_id, params, limit=50):
+        if agent_id == scanner._AGENT_LIQUIDITY:
+            return [{"liquidity_tier": "medium"}]
+        if agent_id == scanner._AGENT_CANDLESTICKS:
+            return candle_results
+        if agent_id == scanner._AGENT_SOCIAL:
+            return social_response
+        return []
+
+    pool = MagicMock()
+    market_row = {
+        "id": "mkt-h1",
+        "condition_id": "mkt-h1",
+        "yes_token_id": "tok-1",
+        "question": "Will BTC exceed 120k this month?",
+    }
+    conn = MagicMock()
+    # _feed_active → True; second fetch returns markets list
+    conn.fetchrow = AsyncMock(return_value={"id": "feed", "is_active": True})
+    conn.fetch = AsyncMock(return_value=[market_row])
+    conn.fetchval = AsyncMock(return_value=False)  # _already_published
+    pool.acquire = MagicMock(return_value=_acquire_ctx(conn))
+
+    import os
+    prev_token = os.environ.get("HEISENBERG_API_TOKEN")
+    os.environ["HEISENBERG_API_TOKEN"] = monkeypatch_token
+    try:
+        with (
+            patch.object(scanner, "get_pool", return_value=pool),
+            patch.object(scanner, "get_settings", return_value=_FAKE_CFG),
+            patch.object(scanner.heisenberg, "retrieve", new=AsyncMock(side_effect=_fake_retrieve)),
+            patch.object(scanner, "_publish", side_effect=_fake_publish),
+            patch.object(scanner, "_already_published", new=AsyncMock(return_value=False)),
+            patch.object(scanner, "_feed_active", new=AsyncMock(return_value=True)),
+        ):
+            asyncio.run(scanner._run_heisenberg_signals())
+    finally:
+        if prev_token is None:
+            os.environ.pop("HEISENBERG_API_TOKEN", None)
+        else:
+            os.environ["HEISENBERG_API_TOKEN"] = prev_token
+
+    return published_calls
+
+
+def test_585_social_momentum_boosts_confidence():
+    """Agent 585 above thresholds → payload.confidence = DEFAULT_CONFIDENCE + 0.05."""
+    calls = _run_heisenberg_with_social(
+        social_response=[{"acceleration": 1.5, "author_diversity_pct": 55}],
+    )
+    assert calls, "expected at least one published signal"
+    # _publish signature: (feed_id, market_id, side, price, signal_type, payload, is_demo)
+    payload = calls[0][5]
+    assert payload["social_momentum"] is True
+    assert payload["confidence"] == pytest.approx(
+        scanner.DEFAULT_CONFIDENCE + scanner.SOCIAL_MOMENTUM_CONFIDENCE_BOOST
+    )
+
+
+def test_585_social_below_threshold_does_not_boost():
+    """Agent 585 below thresholds → confidence unchanged, no social_momentum flag."""
+    calls = _run_heisenberg_with_social(
+        social_response=[{"acceleration": 0.5, "author_diversity_pct": 20}],
+    )
+    assert calls
+    payload = calls[0][5]
+    assert "social_momentum" not in payload
+    assert payload["confidence"] == pytest.approx(scanner.DEFAULT_CONFIDENCE)
+
+
+def test_585_empty_social_response_does_not_crash():
+    """Agent 585 returning [] → confidence untouched, no exception, signal still published."""
+    calls = _run_heisenberg_with_social(social_response=[])
+    assert calls
+    payload = calls[0][5]
+    assert "social_momentum" not in payload
+    assert payload["confidence"] == pytest.approx(scanner.DEFAULT_CONFIDENCE)
+
+
+def test_585_confidence_ceiling_caps_boost():
+    """Boost never exceeds SOCIAL_MOMENTUM_CONFIDENCE_CEIL (0.90).
+
+    Simulates an upstream confidence already near the cap to verify the min()
+    ceiling rather than a naive addition.
+    """
+    original_default = scanner.DEFAULT_CONFIDENCE
+    try:
+        scanner.DEFAULT_CONFIDENCE = 0.88  # near ceiling
+        calls = _run_heisenberg_with_social(
+            social_response=[{"acceleration": 2.0, "author_diversity_pct": 80}],
+        )
+        assert calls
+        payload = calls[0][5]
+        assert payload["social_momentum"] is True
+        # 0.88 + 0.05 = 0.93 → clamped to 0.90
+        assert payload["confidence"] == pytest.approx(
+            scanner.SOCIAL_MOMENTUM_CONFIDENCE_CEIL
+        )
+    finally:
+        scanner.DEFAULT_CONFIDENCE = original_default
+
+
+def test_585_confidence_constants_pinned():
+    """Source-level pin: boost=+0.05, ceiling=0.90 (matches forge report rec)."""
+    assert scanner.SOCIAL_MOMENTUM_CONFIDENCE_BOOST == 0.05
+    assert scanner.SOCIAL_MOMENTUM_CONFIDENCE_CEIL == 0.90
