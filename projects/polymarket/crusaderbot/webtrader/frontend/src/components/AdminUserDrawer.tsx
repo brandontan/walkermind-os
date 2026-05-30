@@ -147,18 +147,24 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-2"
+      className="fixed inset-0 z-[200] flex items-center justify-center px-2"
       style={{ background: "rgba(0,0,0,0.78)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog"
       aria-modal="true"
       aria-label="User detail"
     >
+      {/* 3-region layout (mobile-friendly):
+            - sticky header: always-visible close ×
+            - scrollable body: form fields
+            - sticky footer: Cancel/Save above the BottomNav (z-100)
+          z-[200] beats BottomNav so the modal is never obstructed. */}
       <div
-        className="w-full max-w-lg bg-surface border border-border-1 clip-card p-4 max-h-[92vh] overflow-y-auto"
+        className="w-full max-w-lg bg-surface border border-border-1 clip-card flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between mb-3">
+        {/* === sticky header === */}
+        <div className="flex items-start justify-between p-4 pb-3 border-b border-surface-3 flex-shrink-0">
           <div>
             <p className="font-hud text-[10px] font-bold tracking-[1.5px] uppercase text-gold mb-1">User Detail</p>
             <p className="font-mono text-[13px] text-ink-1">
@@ -169,13 +175,15 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="font-mono text-[11px] text-ink-3 hover:text-ink-1 px-2 py-1"
+            className="font-mono text-[16px] text-ink-3 hover:text-ink-1 px-3 py-1 -mr-1 -mt-1"
             aria-label="Close"
           >
             ✕
           </button>
         </div>
 
+        {/* === scrollable body === */}
+        <div className="flex-1 overflow-y-auto p-4 pt-3">
         {error && <p className="text-red text-[11px] font-mono mb-2">{error}</p>}
         {!detail && !error && (
           <p className="text-ink-3 text-[11px] font-mono">Loading user detail…</p>
@@ -193,7 +201,7 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
 
             {/* Strategy + risk edit */}
             <p className="font-hud text-[10px] font-bold tracking-[1.5px] uppercase text-gold mb-2">Edit Bot Settings</p>
-            <div className="space-y-2.5 mb-3">
+            <div className="space-y-2.5">
               <FieldSelect
                 label="Active preset"
                 value={draft.active_preset}
@@ -256,30 +264,34 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
                 onChange={(v) => setDraft({ ...draft, max_per_trade_pct: v })}
               />
             </div>
+          </>
+        )}
+        </div>
 
-            <div className="flex items-center justify-between gap-2 pt-2 border-t border-surface-3">
-              <p className="font-mono text-[10px] text-ink-4">
-                {savedNote ?? "Edits are audit-logged."}
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="font-mono text-[11px] text-ink-3 hover:text-ink-1 px-3 py-1.5"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSave()}
-                  disabled={saving}
-                  className="font-mono text-[11px] text-ink-1 bg-gold/90 hover:bg-gold disabled:opacity-50 px-3 py-1.5 rounded-sm"
-                >
+        {/* === sticky footer === always visible Save/Cancel, mobile-safe */}
+        {detail && (
+          <div className="flex items-center justify-between gap-2 p-3 border-t border-surface-3 bg-surface flex-shrink-0">
+            <p className="font-mono text-[10px] text-ink-4 truncate min-w-0">
+              {savedNote ?? "Edits are audit-logged."}
+            </p>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={onClose}
+                className="font-mono text-[11px] text-ink-3 hover:text-ink-1 px-3 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSave()}
+                disabled={saving}
+                className="font-mono text-[11px] text-ink-1 bg-gold/90 hover:bg-gold disabled:opacity-50 px-4 py-2 rounded-sm"
+              >
                   {saving ? "Saving…" : "Save"}
                 </button>
               </div>
             </div>
-          </>
         )}
       </div>
     </div>
