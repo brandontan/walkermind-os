@@ -244,8 +244,10 @@ def _run(*, row: dict, cand: SignalCandidate, inventory: MarketInventory | None 
         seen["final_side"] = signal.side
         return _approved_trade_result()
 
-    async def _fake_compute_inventory(conn, user_id, market_id):
-        return inventory if inventory is not None else _imbalanced_inventory(0, 0)
+    async def _fake_fetch_inventory(user_id, market_id):
+        return inventory if inventory is not None else MarketInventory.empty(
+            str(user_id), market_id,
+        )
 
     with patch.object(ssj, "_load_stale_queued_row", return_value=None), \
             patch.object(ssj, "_publication_already_queued", return_value=False), \
@@ -257,9 +259,9 @@ def _run(*, row: dict, cand: SignalCandidate, inventory: MarketInventory | None 
             patch.object(ssj._engine, "execute", side_effect=_track_execute), \
             patch.object(ssj, "_insert_execution_queue", return_value=True), \
             patch.object(ssj, "_mark_executed", new=AsyncMock()), \
-            patch(
-                "projects.polymarket.crusaderbot.domain.strategy.inventory.compute_market_inventory",
-                new=AsyncMock(side_effect=_fake_compute_inventory),
+            patch.object(
+                ssj, "_fetch_market_inventory_for_override",
+                new=AsyncMock(side_effect=_fake_fetch_inventory),
             ):
         asyncio.run(ssj._process_candidate(row, cand))
     return seen
@@ -325,9 +327,15 @@ def test_enabled_override_no_flip_when_already_on_lagging_side(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """User has $30 YES + $5 NO. Safe Close fires a NO candidate
-    (already targets the lagging side). No mutation needed —
-    side-aware dedup applies, and there's no NO position yet so it
-    passes."""
+    (already targets the lagging side). No side mutation needed —
+    but `_imbalance_override_active` is still set so the side-aware
+    dedup applies. With `dup_side=False` (no existing NO position)
+    the rebalance entry passes.
+
+    This pins the Gemini-flagged correction: side-aware dedup must
+    activate whenever |imbalance| > threshold, not only on a side
+    flip — otherwise a correctly-directed rebalance is blocked by
+    the broad market-wide dedup."""
     _set_required_env(monkeypatch)
     monkeypatch.setenv("SAFE_CLOSE_IMBALANCE_OVERRIDE_ENABLED", "true")
     monkeypatch.setenv("SAFE_CLOSE_IMBALANCE_THRESHOLD_USDC", "5.0")
@@ -337,17 +345,11 @@ def test_enabled_override_no_flip_when_already_on_lagging_side(
         row=_user_row(),
         cand=_safe_close_candidate(side="NO"),
         inventory=_imbalanced_inventory(yes_size=30.0, no_size=5.0),
-        dup_market=True,   # broad dedup (unused — but if used it would block)
-        dup_side=False,
+        dup_market=True,   # broad dedup would block — but side-aware kicks in
+        dup_side=False,    # no NO position yet → passes
     )
-    # Candidate already on lagging side → not flipped; engine sees "no".
-    # Standard broad dedup would normally block but this candidate
-    # already targets the lagging leg so the override should still
-    # treat it as the rebalance entry. NOTE: in the current impl when
-    # current_side == lagging_side, no override fires and broad dedup
-    # blocks. Pin that behaviour explicitly so a future change here is
-    # deliberate.
-    assert result["engine_called"] is False
+    assert result["engine_called"] is True
+    assert result["final_side"] == "no"
 
 
 def test_enabled_override_no_flip_for_close_sweep(

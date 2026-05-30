@@ -704,6 +704,31 @@ async def _load_stale_queued_row(
     return dict(row) if row else None
 
 
+async def _fetch_market_inventory_for_override(
+    user_id: UUID, market_id: str,
+):
+    """Fetch the per-market inventory for the safe-close override gate.
+
+    Wraps pool acquisition + `compute_market_inventory` + error
+    handling so the gate path stays small and tests have a single
+    patch target (rather than mocking the whole connection pool).
+    Returns ``None`` on any failure — the caller treats None the
+    same as "no inventory data; do not override".
+    """
+    try:
+        from ...domain.strategy.inventory import compute_market_inventory
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            return await compute_market_inventory(conn, user_id, market_id)
+    except Exception as exc:
+        logger.warning(
+            "safe_close_inventory_compute_failed",
+            error=str(exc),
+            market_id=market_id,
+        )
+        return None
+
+
 async def _has_open_position_for_side(
     user_id: UUID, market_id: str, side: str,
 ) -> bool:
@@ -1369,23 +1394,18 @@ async def _process_candidate(
                 fallback_usdc=5.0,
             )
             _threshold = 5.0
-        try:
-            from ...domain.strategy.inventory import compute_market_inventory
-            pool = get_pool()
-            async with pool.acquire() as conn:
-                _inventory = await compute_market_inventory(
-                    conn, user_id, cand.market_id,
-                )
-            _imb = float(_inventory.imbalance_usdc)
-        except Exception as exc:
-            log.warning(
-                "safe_close_inventory_compute_failed",
-                error=str(exc),
-                market_id=cand.market_id,
-            )
-            _inventory = None
-            _imb = 0.0
+        _inventory = await _fetch_market_inventory_for_override(
+            user_id, cand.market_id,
+        )
+        _imb = float(_inventory.imbalance_usdc) if _inventory is not None else 0.0
         if _inventory is not None and not _inventory.is_empty and abs(_imb) > _threshold:
+            # Activate the side-aware dedup whenever a significant
+            # imbalance exists — even if the candidate naturally
+            # targets the lagging leg (no flip required). Otherwise
+            # the broad market-wide dedup would block a correctly-
+            # directed rebalance entry because the heavy-leg position
+            # is already open. Gemini-flagged inconsistency.
+            _imbalance_override_active = True
             # Lagging leg is the side with LESS exposure: imb > 0 means
             # YES-heavy → lagging is NO. imb < 0 → lagging is YES.
             lagging_side = "no" if _imb > 0 else "yes"
@@ -1420,7 +1440,9 @@ async def _process_candidate(
                 _new_md["imbalance_override"] = _override_log
                 cand = _dc_replace(cand, side=lagging_side, metadata=_new_md)
                 side = lagging_side
-                _imbalance_override_active = True
+                # _imbalance_override_active was already set True above
+                # when |imbalance| > threshold; the side-flip is a
+                # subset of that condition.
 
     # 1b. Open-position market dedup — skip if user already holds an open
     #     position on this market_id. Closes the race window between concurrent
