@@ -1,7 +1,7 @@
 # fast-topup-tick-guard
 
 **Role:** WARP•R00T
-**Tier:** STANDARD (runtime behaviour change — candle-market top-up guard)
+**Validation Tier:** STANDARD (runtime behaviour change — candle-market top-up guard)
 **Claim Level:** NARROW INTEGRATION
 **Validation Target:** `_maybe_fire_fast_topup` fallback-price path for candle markets (`signal_scan_job.py:892-897`); closes finding M-1 from `pre-flip-integrity-sweep`
 **Not in Scope:** live-price path; non-candle markets; M-2 (close-sweep spread guard — separate lane)
@@ -42,7 +42,7 @@ cooldown stamp
 
 ---
 
-## 3. Files created / modified
+## 3. Files created/modified
 
 ```text
 projects/polymarket/crusaderbot/services/signal_scan/signal_scan_job.py   (MODIFIED — 14 lines added inside fallback block)
