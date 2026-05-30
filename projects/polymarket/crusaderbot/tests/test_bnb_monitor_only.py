@@ -138,6 +138,44 @@ def test_filter_returns_list_type():
     assert isinstance(out, list)
 
 
+def test_filter_handles_stringified_json():
+    """Defensive: if asyncpg ever returns the column as a JSON string
+    (current schema is TEXT[] but a future migration to JSONB or a
+    misconfigured codec would silently flip the type), the filter
+    must parse the string rather than iterating its characters.
+    Iterating the raw '["BTC", "BNB"]' would yield '[', '"', 'B', ...
+    and produce a nonsense output. Parse, then filter.
+    """
+    assert ssj._filter_monitor_only_assets('["BTC", "BNB", "ETH"]') == [
+        "BTC", "ETH",
+    ]
+
+
+def test_filter_rejects_invalid_json_string():
+    """Malformed JSON must yield empty list (not raise) — corruption
+    in the persisted row is the operator's problem to fix, not a reason
+    to crash the entire scan loop."""
+    assert ssj._filter_monitor_only_assets("not valid json") == []
+
+
+def test_filter_rejects_json_non_list():
+    """A JSON-decoded BARE STRING (e.g. `'"BTC"'`) decodes to the str
+    'BTC' — which IS iterable but iteration would yield characters
+    'B', 'T', 'C'. Reject any decoded non-list defensively so the
+    filter never falls through to character iteration."""
+    assert ssj._filter_monitor_only_assets('"BTC"') == []
+    assert ssj._filter_monitor_only_assets('42') == []
+    assert ssj._filter_monitor_only_assets('{"BTC": true}') == []
+
+
+def test_filter_rejects_unexpected_type():
+    """Non-iterable / non-string inputs (int, float, bool) must yield
+    empty list rather than raising a TypeError mid-scan."""
+    assert ssj._filter_monitor_only_assets(42) == []
+    assert ssj._filter_monitor_only_assets(3.14) == []
+    assert ssj._filter_monitor_only_assets(True) == []
+
+
 # ---------------------------------------------------------------------
 # Source-level pin — fail closed if a future edit reads
 # `row["selected_assets"]` directly without filtering.

@@ -144,8 +144,30 @@ def _filter_monitor_only_assets(assets: Any) -> list[str]:
     ``selected_assets: list[str]`` typing. Empty / None input yields
     an empty list. Comparison is case-insensitive — DB rows may have
     been written before the router normalised to uppercase.
+
+    Defensive type handling: the ``selected_assets`` column is currently
+    ``TEXT[]`` so asyncpg returns a Python list, but if it ever migrates
+    to JSONB (or some upstream caller hands us a JSON-encoded string),
+    iterating the raw string would walk characters one-by-one and
+    produce nonsense. Parse stringified JSON first; reject any other
+    non-sequence type rather than crashing.
     """
-    if not assets:
+    if assets is None:
+        return []
+    if isinstance(assets, str):
+        # Empty string short-circuits without touching json.loads.
+        if not assets.strip():
+            return []
+        try:
+            parsed = json.loads(assets)
+        except Exception:
+            return []
+        # Only accept the parsed value if it's actually a list (a JSON
+        # string like '"BTC"' decodes to a bare string — reject that).
+        if not isinstance(parsed, list):
+            return []
+        assets = parsed
+    if not isinstance(assets, (list, tuple, set, frozenset)):
         return []
     out: list[str] = []
     for a in assets:
