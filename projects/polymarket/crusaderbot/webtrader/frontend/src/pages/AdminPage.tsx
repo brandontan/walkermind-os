@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AdminUserDrawer } from "../components/AdminUserDrawer";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { Toggle } from "../components/Toggle";
 import { TopBar } from "../components/TopBar";
@@ -25,6 +26,7 @@ export function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [savingStrat, setSavingStrat] = useState<string | null>(null);
+  const [drawerUserId, setDrawerUserId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -227,7 +229,15 @@ export function AdminPage() {
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.user_id} className="border-t border-surface-3">
+                  <tr
+                    key={u.user_id}
+                    className="border-t border-surface-3 cursor-pointer hover:bg-surface-2"
+                    onClick={() => setDrawerUserId(u.user_id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDrawerUserId(u.user_id); } }}
+                    aria-label={`Open detail for ${u.username ?? u.email ?? u.user_id}`}
+                  >
                     <td className="py-1.5 pr-2">
                       <div className="font-mono text-[11px] text-ink-1">
                         {u.username ? `@${u.username}` : (u.email ?? u.user_id.slice(0, 8))}
@@ -254,6 +264,27 @@ export function AdminPage() {
           </div>
         </Section>
       </div>
+      {drawerUserId && (
+        <AdminUserDrawer
+          userId={drawerUserId}
+          onClose={() => setDrawerUserId(null)}
+          onSaved={(next) => {
+            // Reflect the edited row inline so the table stays in sync with the
+            // drawer without forcing a full /admin/users reload.
+            setUsers((prev) => prev.map((u) => u.user_id === next.user_id
+              ? {
+                  ...u,
+                  active_preset: next.active_preset,
+                  trading_mode: next.trading_mode,
+                  balance_usdc: next.balance_usdc,
+                  auto_trade_on: next.auto_trade_on,
+                  paused: next.paused,
+                  open_positions: next.open_positions,
+                }
+              : u));
+          }}
+        />
+      )}
     </>
   );
 }
