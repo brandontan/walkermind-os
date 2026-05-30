@@ -9,6 +9,29 @@
 
 ---
 
+## 0.0 POSTURE RECONCILIATION (2026-05-31 — WARP/ROOT/prelaunch-system-audit)
+
+> **This banner is the current code-truth posture and supersedes any conflicting
+> framing in the historical body below (preserved per flag-don't-rewrite; stale
+> spots are marked inline).**
+>
+> - **Access control = RBAC only.** Two roles in code: `admin` / `user` (default
+>   `user`). NO tier model — `access_tier` was dropped (migration 044). Any
+>   Tier 1–4 / closed-beta / allowlist / owner-gate framing below is STALE
+>   functional-intent, not runtime behaviour; reconcile to `users.role`.
+> - **Launch posture = public PAPER**, not closed beta. LIVE stays OFF behind the
+>   activation guards until an explicit owner flip after paper validation.
+> - **Canonical strategies = 3 ONLY:** `close_sweep`, `safe_close`, `flip_hunter`,
+>   all routing to the `late_entry_v3` engine (`domain/preset/presets.py`). The
+>   legacy multi-strategy roster (whale_mirror, signal_sniper, hybrid,
+>   value_hunter, trend_breakout, contrarian, full_auto, confluence_scalper,
+>   pair_arb, ensemble, "Momentum Reversal") was REMOVED in
+>   WARP/R00T/strategy-system-cleanup — the strategy/preset tables below are
+>   historical. Copy Trade remains a separate gate-coupled path.
+> - **Tradeable assets = BTC / ETH / SOL.** BNB/XRP/DOGE/HYPE are monitor-only.
+
+---
+
 ## 0. LIVE+PAPER Readiness Pass (v3.4, 2026-05-28)
 
 The WARP•R00T LIVE+PAPER readiness pass is **COMPLETE + DEPLOYED**. Engineering is LIVE-ready; production posture remains PAPER ONLY until the owner flips the activation guards. The blueprint sections below describe target architecture intent — every safety rail referenced is wired in code as of this revision.
@@ -99,7 +122,7 @@ CrusaderBot is a **multi-user, autonomous trading service for Polymarket**, cont
 - Exit: user-overridable via TP/SL setting; otherwise strategy default; otherwise hold-to-resolve
 - Force-close: emergency override available per-position
 
-### Access Tiers
+### Access Tiers — ⚠️ STALE framing (see §0.0): code truth = RBAC `admin`/`user`, no tiers
 
 > **Implementation note (v3.2):** The `access_tier` column (Tier 1–4) was dropped in migration 044 (WARP-51). The running system uses `users.role` (RBAC) as the access control mechanism. The tier descriptions below represent functional intent; the code truth is role-based.
 
@@ -259,7 +282,7 @@ class BaseStrategy:
     def default_tp_sl(self) -> tuple[float, float]
 ```
 
-### Strategies (launch order)
+### Strategies (launch order) — ⚠️ STALE roster (see §0.0): code truth = 3 presets via late_entry_v3
 
 #### Domain strategies (registered in `domain/strategy/registry.py`)
 
@@ -284,6 +307,10 @@ class BaseStrategy:
 | `sentiment` / `logic_arb` / `market_making` / `weather_arb` | 🔲 | — | Present in lib, not in ENABLED_STRATEGIES |
 
 #### Presets (user-facing, `bot/presets.py`)
+
+> ⚠️ **STALE** — superseded by `domain/preset/presets.py` (3 presets only:
+> `close_sweep` / `safe_close` / `flip_hunter`, all → `late_entry_v3`). The
+> table below is historical record (see §0.0).
 
 | Preset key | Name | Strategy backing | Risk label |
 |---|---|---|---|

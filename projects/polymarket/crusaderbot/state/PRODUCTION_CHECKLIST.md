@@ -16,7 +16,7 @@ Last Updated: 2026-05-28 11:35 Asia/Jakarta
 ## A. Engineering — COMPLETE (paper-mode)
 
 - [x] Core trading pipeline DATA→STRATEGY→INTELLIGENCE→RISK→EXECUTION→MONITORING
-- [x] Strategies: Copy Trade, Signal Following, Momentum Reversal
+- [x] Strategies: close_sweep / safe_close / flip_hunter (3 canonical presets → late_entry_v3 engine) + Copy Trade (separate gate-coupled path). Legacy "Signal Following / Momentum Reversal" roster removed (WARP/R00T/strategy-system-cleanup)
 - [x] Risk gate (13-step), Kelly a=0.25, kill switch
 - [x] Telegram UX (V5 rebuild) + WebTrader v3.2 dashboard
 - [x] Multi-user isolation (SENTINEL 98/100, PR #988)
