@@ -150,6 +150,13 @@ def test_resolver_missing_attrs_defaults_to_disabled():
     assert presets == frozenset()
 
 
+def test_resolver_none_input_returns_empty():
+    """Defensive: a None config (config-init failure upstream) must
+    NOT raise AttributeError. Returns an empty frozenset so the
+    caller's "neither flag is on" short-circuit kicks in."""
+    assert ssj._resolve_eligible_topup_presets(None) == frozenset()
+
+
 # ---------------------------------------------------------------------
 # Config knob.
 # ---------------------------------------------------------------------

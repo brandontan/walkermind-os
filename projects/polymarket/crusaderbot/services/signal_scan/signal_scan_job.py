@@ -760,14 +760,21 @@ _CLOSE_SWEEP_DUAL_LEG_PRESETS: frozenset[str] = frozenset({"close_sweep"})
 def _resolve_eligible_topup_presets(cfg: Any) -> frozenset[str]:
     """Compute the runtime-eligible preset set from the two flags.
 
-    Returns the union of base D-3 presets (when FAST_TOPUP_ENABLED)
-    and D-4 presets (when CLOSE_SWEEP_DUAL_LEG_ENABLED). When neither
-    flag is on the result is empty and `_maybe_fire_fast_topup` bails
-    immediately.
+    Returns the union of base D-3 presets (when
+    ``FLIP_HUNTER_FAST_TOPUP_ENABLED``) and D-4 presets (when
+    ``CLOSE_SWEEP_DUAL_LEG_ENABLED``). When neither flag is on the
+    result is empty and ``_maybe_fire_fast_topup`` bails immediately.
+
+    Defensive: a ``None`` config (e.g. from a config-init failure
+    upstream) returns an empty frozenset rather than raising
+    ``AttributeError`` — the caller is expected to log + bail
+    on the empty result, not crash the scan loop.
 
     Kept as a small named helper so tests can pin the resolution
     contract without duplicating the boolean-soup in the hot path.
     """
+    if cfg is None:
+        return frozenset()
     presets: set[str] = set()
     if getattr(cfg, "FLIP_HUNTER_FAST_TOPUP_ENABLED", False):
         presets |= _FAST_TOPUP_ELIGIBLE_PRESETS
