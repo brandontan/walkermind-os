@@ -23,17 +23,39 @@ Stamp lives in:
 """
 from __future__ import annotations
 
+import asyncio
 import inspect
+from datetime import datetime, timezone
+from decimal import Decimal
+from unittest.mock import AsyncMock, patch
+from uuid import UUID, uuid4
 
 import pytest
 
 from projects.polymarket.crusaderbot import config as crusaderbot_config
+from projects.polymarket.crusaderbot.domain.strategy import (
+    StrategyRegistry,
+    bootstrap_default_strategies,
+)
 from projects.polymarket.crusaderbot.domain.strategy.strategies import (
     late_entry_v3 as lev3,
 )
+from projects.polymarket.crusaderbot.domain.strategy.types import SignalCandidate
 from projects.polymarket.crusaderbot.services.signal_scan import (
     signal_scan_job as ssj,
 )
+from projects.polymarket.crusaderbot.services.trade_engine import TradeResult
+
+
+_USER_UUID = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+_MARKET_ID = "tob-gate-market"
+
+
+@pytest.fixture(autouse=True)
+def _reset_registry():
+    StrategyRegistry._reset_for_tests()
+    yield
+    StrategyRegistry._reset_for_tests()
 
 
 def _set_required_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -137,20 +159,225 @@ def test_tob_stale_ms_disable_sentinel_is_zero():
 
 
 # ---------------------------------------------------------------------
-# Mathematical fingerprint — age threshold semantics.
+# Behavioural integration — call _process_candidate end-to-end with the
+# upstream/downstream dependencies mocked to the same surface as the
+# existing band-gate tests (test_signal_scan_job.py). The gate's correct
+# operator (`>`) and its scope (stamped-only) are exercised by observing
+# whether the trade engine is reached.
 # ---------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("age_ms", [2001, 2500, 5000, 60000])
-def test_age_above_threshold_rejects(age_ms):
-    """Any age strictly greater than the threshold must reject."""
-    threshold_ms = 2000
-    assert age_ms > threshold_ms
+def _user_row() -> dict:
+    return {
+        "user_id": _USER_UUID,
+        "telegram_user_id": 42,
+        "auto_trade_on": True,
+        "paused": False,
+        "balance_usdc": 500.0,
+        "risk_profile": "balanced",
+        "trading_mode": "paper",
+        "tp_pct": 0.20,
+        "sl_pct": 0.08,
+        "daily_loss_override": None,
+        "capital_allocation_pct": 0.10,
+        "sub_account_id": uuid4(),
+        "resolved_profile": "balanced",
+    }
 
 
-@pytest.mark.parametrize("age_ms", [0, 100, 500, 1500, 1999, 2000])
-def test_age_at_or_below_threshold_accepts(age_ms):
-    """Ages at or below the threshold must accept (the gate uses strict
-    `>` comparison so the boundary value 2000 is still fresh)."""
-    threshold_ms = 2000
-    assert age_ms <= threshold_ms
+def _market_row() -> dict:
+    # No "updown" in slug so the sub-cent guard (step 3b-i) does not
+    # interfere with the freshness gate (step 3b-0) being tested here.
+    return {
+        "id": _MARKET_ID,
+        "slug": "tob-gate-market",
+        "question": "Will X happen?",
+        "status": "active",
+        "yes_price": 0.65,
+        "no_price": 0.35,
+        "yes_token_id": "tok_yes",
+        "no_token_id": "tok_no",
+        "liquidity_usdc": 20000.0,
+    }
+
+
+def _late_entry_candidate(
+    *,
+    entry_price_ts: float | None,
+    entry_price: float = 0.65,
+) -> SignalCandidate:
+    md: dict = {
+        "market_id": _MARKET_ID,
+        "entry_price": entry_price,
+        "fav_price_min": 0.60,
+        "fav_price_max": 0.70,
+        "underdog_mode": False,
+    }
+    if entry_price_ts is not None:
+        md["entry_price_ts"] = entry_price_ts
+    return SignalCandidate(
+        market_id=_MARKET_ID,
+        condition_id=_MARKET_ID,
+        side="YES",
+        confidence=0.7,
+        suggested_size_usdc=10.0,
+        strategy_name="late_entry_v3",
+        signal_ts=datetime.now(timezone.utc),
+        metadata=md,
+    )
+
+
+def _signal_following_candidate() -> SignalCandidate:
+    # No entry_price_ts stamp — represents signal_following / momentum /
+    # copy_trade. The freshness gate MUST no-op for these.
+    return SignalCandidate(
+        market_id=_MARKET_ID,
+        condition_id=_MARKET_ID,
+        side="YES",
+        confidence=0.7,
+        suggested_size_usdc=10.0,
+        strategy_name="signal_following",
+        signal_ts=datetime.now(timezone.utc),
+        metadata={
+            "feed_id": str(uuid4()),
+            "publication_id": str(uuid4()),
+            "market_id": _MARKET_ID,
+        },
+    )
+
+
+def _approved_trade_result() -> TradeResult:
+    return TradeResult(
+        approved=True,
+        mode="paper",
+        order_id=uuid4(),
+        position_id=uuid4(),
+        rejection_reason=None,
+        failed_gate_step=None,
+        chosen_mode="paper",
+        final_size_usdc=Decimal("10"),
+    )
+
+
+def _run_process_candidate(
+    *,
+    row: dict,
+    cand: SignalCandidate,
+    fill_price: float = 0.66,
+) -> bool:
+    """Drive `_process_candidate` with upstream/downstream mocks; return
+    True iff the trade engine was actually reached.
+    """
+    engine_called = {"called": False}
+
+    async def _track_execute(signal):
+        engine_called["called"] = True
+        return _approved_trade_result()
+
+    with patch.object(ssj, "_load_stale_queued_row", return_value=None), \
+            patch.object(ssj, "_publication_already_queued", return_value=False), \
+            patch.object(ssj, "_has_open_position_for_market", return_value=False), \
+            patch.object(ssj, "_load_market", return_value=_market_row()), \
+            patch.object(ssj, "get_live_market_price",
+                         new=AsyncMock(return_value=fill_price)), \
+            patch.object(ssj._engine, "execute", side_effect=_track_execute), \
+            patch.object(ssj, "_insert_execution_queue", return_value=True), \
+            patch.object(ssj, "_mark_executed", new=AsyncMock()):
+        asyncio.run(ssj._process_candidate(row, cand))
+    return engine_called["called"]
+
+
+def test_stale_late_entry_candidate_is_rejected_before_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A late_entry_v3 candidate with `entry_price_ts` 3s old (threshold
+    2000ms) MUST short-circuit at the freshness gate — the trade engine
+    must never be called. Validates the gate's `>` operator: if a future
+    edit flipped the comparison the engine would fire and this asserts.
+    """
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("TOB_STALE_MS", "2000")
+    crusaderbot_config.get_settings.cache_clear()
+    bootstrap_default_strategies()
+
+    now_ts = datetime.now(timezone.utc).timestamp()
+    cand = _late_entry_candidate(entry_price_ts=now_ts - 3.0)
+
+    reached_engine = _run_process_candidate(row=_user_row(), cand=cand)
+    assert not reached_engine, (
+        "Stale late_entry_v3 candidate (3s old > 2000ms threshold) must "
+        "be rejected at step 3b-0 before reaching the trade engine."
+    )
+    crusaderbot_config.get_settings.cache_clear()
+
+
+def test_fresh_late_entry_candidate_reaches_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A late_entry_v3 candidate with `entry_price_ts` 500ms old MUST
+    pass the freshness gate and reach the engine (downstream gates also
+    mocked to pass). Validates the gate is not over-eager.
+    """
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("TOB_STALE_MS", "2000")
+    crusaderbot_config.get_settings.cache_clear()
+    bootstrap_default_strategies()
+
+    now_ts = datetime.now(timezone.utc).timestamp()
+    cand = _late_entry_candidate(entry_price_ts=now_ts - 0.5)
+
+    reached_engine = _run_process_candidate(row=_user_row(), cand=cand)
+    assert reached_engine, (
+        "Fresh late_entry_v3 candidate (500ms old < 2000ms threshold) "
+        "must pass the freshness gate and reach the trade engine."
+    )
+    crusaderbot_config.get_settings.cache_clear()
+
+
+def test_disabled_gate_passes_stale_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Operator escape hatch: with `TOB_STALE_MS=0` a stale candidate
+    MUST still reach the engine (the gate is fully disabled — revert to
+    pre-lane behaviour without redeploy).
+    """
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("TOB_STALE_MS", "0")
+    crusaderbot_config.get_settings.cache_clear()
+    bootstrap_default_strategies()
+
+    now_ts = datetime.now(timezone.utc).timestamp()
+    cand = _late_entry_candidate(entry_price_ts=now_ts - 60.0)  # 60s old
+
+    reached_engine = _run_process_candidate(row=_user_row(), cand=cand)
+    assert reached_engine, (
+        "Disable sentinel broken: TOB_STALE_MS=0 must skip the gate and "
+        "allow even very-stale candidates through (operator escape hatch)."
+    )
+    crusaderbot_config.get_settings.cache_clear()
+
+
+def test_candidate_without_stamp_bypasses_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Scope assertion: a signal_following candidate that carries NO
+    `entry_price_ts` MUST pass the freshness gate (no-op for strategies
+    that don't stamp the snapshot time). A regression that made the gate
+    global would break every non-late_entry_v3 strategy.
+    """
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("TOB_STALE_MS", "2000")
+    crusaderbot_config.get_settings.cache_clear()
+    bootstrap_default_strategies()
+
+    cand = _signal_following_candidate()  # no entry_price_ts
+
+    # signal_following doesn't carry entry_price → fill resolves via
+    # get_live_market_price (mocked to 0.66, inside any reasonable band).
+    reached_engine = _run_process_candidate(row=_user_row(), cand=cand)
+    assert reached_engine, (
+        "Candidates without entry_price_ts must bypass the freshness "
+        "gate — signal_following / momentum / copy_trade cannot afford "
+        "a global gate that breaks their normal path."
+    )
+    crusaderbot_config.get_settings.cache_clear()
