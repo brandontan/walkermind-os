@@ -489,6 +489,29 @@ class Settings(BaseSettings):
     # to spin top-ups continuously.
     FAST_TOPUP_COOLDOWN_SECONDS: float = 15.0  # env: FAST_TOPUP_COOLDOWN_SECONDS
 
+    # --- Close-sweep dual-leg execution
+    #     (WARP/R00T/close-sweep-dual-leg, Polybot directive 1.1.2.c) ---
+    # Extends the fast-topup mechanism (D-3) to close_sweep candidates.
+    # The directive specifies close_sweep should enter BOTH legs
+    # simultaneously via TAKER market orders because the final 35s
+    # entry window is too tight for staged dual-leg placement. Our
+    # paper engine fills instantly, so "simultaneous" collapses to
+    # "lead entry succeeds → immediately fire opposite-leg top-up" —
+    # the same mechanism Lane D-3 ships for safe_close + flip_hunter.
+    #
+    # This knob simply extends the eligible-preset set to include
+    # close_sweep so the existing _maybe_fire_fast_topup helper
+    # handles it. Default OFF (dark launch). Independent of the
+    # FLIP_HUNTER_FAST_TOPUP_ENABLED flag so the operator can enable
+    # close_sweep dual-leg without enabling the safe_close /
+    # flip_hunter top-up at the same time (or vice versa).
+    #
+    # Shares the same FAST_TOPUP_MIN_USDC + FAST_TOPUP_COOLDOWN_SECONDS
+    # knobs as D-3 — no need for separate close_sweep-specific
+    # thresholds, and using shared limits keeps operator dashboards
+    # honest about the unified mechanism.
+    CLOSE_SWEEP_DUAL_LEG_ENABLED: bool = False  # env: CLOSE_SWEEP_DUAL_LEG_ENABLED
+
     # --- Close-sweep per-leg spread gate (WARP/R00T/close-sweep-spread-gate) ---
     # Max per-side bid-ask spread (best_ask - best_bid) tolerated by the
     # close_sweep preset. Wide per-leg spread in the noisy final ~35s of a
