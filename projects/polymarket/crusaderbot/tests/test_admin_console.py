@@ -512,6 +512,46 @@ def test_admin_user_detail_missing_settings_defaults_to_paper_balanced():
     assert out.wallet_address is None
 
 
+def test_admin_user_detail_recent_trades_uses_opened_at():
+    """Regression: trade_rows must read `opened_at` (positions has no `created_at`).
+
+    Empty-list mocks in prior tests masked a SELECT that referenced
+    `p.created_at`, which doesn't exist on the positions table — every
+    admin User Detail open 500'd. This pins the row-mapping path with a
+    populated row so the column name regression cannot recur.
+    """
+    from datetime import datetime, timezone
+    u_row = _admin_user_row()
+    s_row = _admin_settings_row()
+    opened = datetime(2026, 5, 30, 12, 0, tzinfo=timezone.utc)
+    trade_row = {
+        "id": uuid4(),
+        "status": "open",
+        "side": "YES",
+        "size_usdc": 10.0,
+        "entry_price": 0.42,
+        "pnl_usdc": None,
+        "exit_reason": None,
+        "strategy_type": "late_entry_v3",
+        "opened_at": opened,
+        "closed_at": None,
+        "market_question": "Will X happen?",
+    }
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(side_effect=[u_row, s_row, _wallet_row(0.0, None)])
+    conn.fetchval = AsyncMock(return_value=1)
+    conn.fetch = AsyncMock(side_effect=[[trade_row], []])
+    with patch.object(r, "get_pool", return_value=_pool(conn)):
+        out = asyncio.run(r.admin_user_detail(str(u_row["id"]), {"user_id": str(uuid4())}))
+    assert len(out.recent_trades) == 1
+    assert out.recent_trades[0].ts == opened.isoformat()
+    assert out.recent_trades[0].strategy_type == "late_entry_v3"
+    assert out.recent_trades[0].market_question == "Will X happen?"
+    sql = conn.fetch.call_args_list[0].args[0]
+    assert "p.opened_at" in sql
+    assert "p.created_at" not in sql
+
+
 def test_admin_user_update_validates_preset():
     from projects.polymarket.crusaderbot.webtrader.backend.schemas import AdminUserUpdate
     with pytest.raises(r.HTTPException) as exc:
