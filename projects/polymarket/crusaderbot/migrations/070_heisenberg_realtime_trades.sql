@@ -21,9 +21,13 @@ CREATE TABLE IF NOT EXISTS heisenberg_realtime_trades (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     wallet            VARCHAR(42) NOT NULL,
     condition_id      VARCHAR(80) NOT NULL,
-    side              VARCHAR(8)  NOT NULL,            -- 'YES' / 'NO' (or 'BUY' / 'SELL' if upstream uses orderbook side)
-    price             NUMERIC(8,5),                    -- normalised to [0, 1]; nullable in case upstream omits
-    size_usdc         NUMERIC(18,6),                   -- nullable: upstream may report shares instead of USDC
+    side              VARCHAR(8)  NOT NULL,            -- 'YES' / 'NO' (or 'BUY' / 'SELL' if upstream uses orderbook side) — no CHECK so defensive client aliasing stays forward-compatible with any new upstream side enum
+    price             NUMERIC(8,5)
+        CONSTRAINT heisenberg_realtime_trades_price_range_check
+        CHECK (price IS NULL OR (price >= 0 AND price <= 1)),  -- prediction-market probability bound
+    size_usdc         NUMERIC(18,6)
+        CONSTRAINT heisenberg_realtime_trades_size_nonneg_check
+        CHECK (size_usdc IS NULL OR size_usdc >= 0),
     trade_time        TIMESTAMPTZ NOT NULL,            -- wall-clock time the trade happened upstream
     raw               JSONB,                           -- full raw payload for forensic debugging
     fetched_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()

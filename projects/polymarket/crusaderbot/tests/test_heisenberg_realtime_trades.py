@@ -368,3 +368,73 @@ def test_fetch_recent_rejects_non_dict_response():
     ):
         result = asyncio.run(heisenberg_trades.fetch_recent())
     assert result == []
+
+
+# ---------------------------------------------------------------------------
+# CodeRabbit review pins — UTC normalisation + never-raises DB guard
+# ---------------------------------------------------------------------------
+
+
+def test_coerce_dt_normalises_naive_datetime_to_utc():
+    """A naive datetime instance must come out tagged as UTC, not pass through
+    unchanged (which would silently break the `trade_time` UTC contract)."""
+    naive = datetime(2026, 5, 30, 4, 0)  # no tzinfo
+    out = heisenberg_trades._coerce_dt(naive)
+    assert out is not None
+    assert out.tzinfo == timezone.utc
+    assert out == datetime(2026, 5, 30, 4, 0, tzinfo=timezone.utc)
+
+
+def test_coerce_dt_converts_non_utc_aware_to_utc():
+    """An aware datetime in a different tz must be converted (not passed through),
+    so every downstream value is in the same UTC frame."""
+    from datetime import timedelta as _td
+    jakarta = timezone(_td(hours=7))
+    aware_jkt = datetime(2026, 5, 30, 11, 0, tzinfo=jakarta)  # = 04:00 UTC
+    out = heisenberg_trades._coerce_dt(aware_jkt)
+    assert out is not None
+    assert out.tzinfo == timezone.utc
+    assert out == datetime(2026, 5, 30, 4, 0, tzinfo=timezone.utc)
+
+
+def test_coerce_dt_normalises_iso_string_without_tz_to_utc():
+    """ISO-8601 timestamps without explicit offset must default to UTC, not
+    pass through as naive (which would break the contract for downstream)."""
+    out = heisenberg_trades._coerce_dt("2026-05-30T04:00:00")  # naive ISO
+    assert out is not None
+    assert out.tzinfo == timezone.utc
+    assert out == datetime(2026, 5, 30, 4, 0, tzinfo=timezone.utc)
+
+
+def test_job_returns_zero_zero_when_db_acquire_raises():
+    """Pool/acquire failure must NOT bubble up to APScheduler — the contract
+    is 'never raises'. Returns (0, 0) and logs."""
+    sample_trades = [
+        heisenberg_trades.RealtimeTrade(
+            wallet="0xabc",
+            condition_id="cond-1",
+            side="YES",
+            price=0.42,
+            size_usdc=50.0,
+            trade_time=datetime(2026, 5, 30, 4, 30, tzinfo=timezone.utc),
+            raw={"k": "v"},
+        ),
+    ]
+
+    pool = MagicMock()
+    # Simulate the pool failing the moment we touch acquire().
+    pool.acquire = MagicMock(side_effect=RuntimeError("pool exhausted"))
+
+    with (
+        patch.dict("os.environ", {"HEISENBERG_API_TOKEN": "x"}),
+        patch.object(sync_job, "get_settings", return_value=_fake_settings()),
+        patch.object(sync_job, "get_pool", return_value=pool),
+        patch.object(
+            sync_job.heisenberg_trades,
+            "fetch_recent",
+            new=AsyncMock(return_value=sample_trades),
+        ),
+    ):
+        upserted, pruned = asyncio.run(sync_job.run_job())
+
+    assert (upserted, pruned) == (0, 0)

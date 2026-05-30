@@ -65,7 +65,11 @@ def _coerce_dt(val: Any) -> datetime | None:
     if val is None:
         return None
     if isinstance(val, datetime):
-        return val if val.tzinfo else val.replace(tzinfo=timezone.utc)
+        # Normalise to UTC: naive → assume UTC, aware → convert. Guarantees
+        # `trade_time` is always UTC-aware downstream regardless of upstream shape.
+        if val.tzinfo is None:
+            return val.replace(tzinfo=timezone.utc)
+        return val.astimezone(timezone.utc)
     if isinstance(val, (int, float)):
         try:
             return datetime.fromtimestamp(float(val), tz=timezone.utc)
@@ -81,9 +85,12 @@ def _coerce_dt(val: Any) -> datetime | None:
         pass
     # Fall back to ISO-8601 (with the common Z-suffix tolerance).
     try:
-        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
     except (ValueError, TypeError):
         return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def _normalise(r: dict[str, Any]) -> RealtimeTrade | None:

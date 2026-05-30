@@ -63,32 +63,39 @@ async def run_job() -> tuple[int, int]:
         return 0, await _prune(retention_hours)
 
     upserted = 0
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        for tr in trades:
-            try:
-                await conn.execute(
-                    """
-                    INSERT INTO heisenberg_realtime_trades
-                        (wallet, condition_id, side, price, size_usdc,
-                         trade_time, raw, fetched_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, NOW())
-                    ON CONFLICT (wallet, condition_id, trade_time, side)
-                    DO UPDATE SET
-                        price       = COALESCE(EXCLUDED.price, heisenberg_realtime_trades.price),
-                        size_usdc   = COALESCE(EXCLUDED.size_usdc, heisenberg_realtime_trades.size_usdc),
-                        raw         = EXCLUDED.raw,
-                        fetched_at  = NOW()
-                    """,
-                    tr.wallet, tr.condition_id, tr.side, tr.price, tr.size_usdc,
-                    tr.trade_time, json.dumps(tr.raw, default=str),
-                )
-                upserted += 1
-            except Exception as exc:
-                log.warning(
-                    "heisenberg_realtime_sync: upsert failed wallet=%s cid=%s: %s",
-                    tr.wallet, tr.condition_id, exc,
-                )
+    # Top-level guard so a pool/acquire failure honours the module's
+    # "never raises" contract — the APScheduler executor must never see an
+    # unhandled exception bubble up.
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            for tr in trades:
+                try:
+                    await conn.execute(
+                        """
+                        INSERT INTO heisenberg_realtime_trades
+                            (wallet, condition_id, side, price, size_usdc,
+                             trade_time, raw, fetched_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, NOW())
+                        ON CONFLICT (wallet, condition_id, trade_time, side)
+                        DO UPDATE SET
+                            price       = COALESCE(EXCLUDED.price, heisenberg_realtime_trades.price),
+                            size_usdc   = COALESCE(EXCLUDED.size_usdc, heisenberg_realtime_trades.size_usdc),
+                            raw         = EXCLUDED.raw,
+                            fetched_at  = NOW()
+                        """,
+                        tr.wallet, tr.condition_id, tr.side, tr.price, tr.size_usdc,
+                        tr.trade_time, json.dumps(tr.raw, default=str),
+                    )
+                    upserted += 1
+                except Exception as exc:
+                    log.warning(
+                        "heisenberg_realtime_sync: upsert failed wallet=%s cid=%s: %s",
+                        tr.wallet, tr.condition_id, exc,
+                    )
+    except Exception as exc:
+        log.exception("heisenberg_realtime_sync: db upsert phase failed: %s", exc)
+        return 0, 0
 
     pruned = await _prune(retention_hours)
     log.info(
@@ -113,7 +120,11 @@ async def _prune(retention_hours: int) -> int:
         # asyncpg `execute()` returns 'DELETE N' on success.
         try:
             return int(str(result).split()[-1])
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as exc:
+            log.warning(
+                "heisenberg_realtime_sync: prune result parse failed result=%r err=%s",
+                result, exc,
+            )
             return 0
     except Exception as exc:
         log.warning("heisenberg_realtime_sync: prune failed: %s", exc)
