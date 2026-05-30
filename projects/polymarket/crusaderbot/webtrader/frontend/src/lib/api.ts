@@ -156,6 +156,10 @@ export function makeApi(token: string | null) {
     getAdminStrategies: () => get<{ strategies: AdminStrategy[] }>("/admin/strategies"),
     toggleStrategy: (name: string, enabled: boolean) =>
       post<{ name: string; enabled: boolean }>("/admin/strategies/toggle", { name, enabled }),
+    getAdminUserDetail: (userId: string) =>
+      get<AdminUserDetail>(`/admin/users/${encodeURIComponent(userId)}`),
+    updateAdminUser: (userId: string, body: AdminUserPatch) =>
+      patch<AdminUserDetail>(`/admin/users/${encodeURIComponent(userId)}`, body),
   };
 }
 
@@ -202,6 +206,40 @@ export interface AdminUsersPage {
 export interface AdminStrategy {
   name: string;
   enabled: boolean;
+}
+
+export interface AdminUserDetail {
+  user_id: string;
+  username: string | null;
+  email: string | null;
+  role: string;
+  created_at: string | null;
+  trading_mode: string;
+  auto_trade_on: boolean;
+  paused: boolean;
+  open_positions: number;
+  balance_usdc: number;
+  active_preset: string | null;
+  risk_profile: string;
+  capital_alloc_pct: number;
+  tp_pct: number | null;
+  sl_pct: number | null;
+  max_per_trade_mode: string;
+  max_per_trade_usdc: number | null;
+  max_per_trade_pct: number | null;
+  selected_timeframe: string | null;
+  selected_assets: string[] | null;
+}
+
+export interface AdminUserPatch {
+  active_preset?: string;
+  risk_profile?: string;
+  capital_alloc_pct?: number;
+  tp_pct?: number | null;
+  sl_pct?: number | null;
+  max_per_trade_mode?: string;
+  max_per_trade_usdc?: number | null;
+  max_per_trade_pct?: number | null;
 }
 
 export interface LinkTelegramStart {

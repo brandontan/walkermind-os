@@ -31,6 +31,8 @@ from .auth import (
 )
 from . import notification_prefs as _notif_prefs
 from .schemas import (
+    AdminUserDetail,
+    AdminUserUpdate,
     AlertItem,
     AutoTradeState,
     AutoTradeToggleRequest,
@@ -2480,3 +2482,225 @@ async def admin_toggle_strategy(body: StrategyToggleRequest, user: _AdminUser) -
         payload={"strategy": body.name, "enabled": bool(body.enabled)},
     )
     return {"name": body.name, "enabled": bool(body.enabled)}
+
+
+# ── Admin user detail + edit ──────────────────────────────────────────────────
+# Per-user operator view + partial settings update. Mirrors the user-facing
+# /autotrade/preset, /autotrade/risk-profile, /autotrade/settings entry points
+# but acting on behalf of any user (operator override). Every mutating call
+# is audit-logged with actor_role='admin' + target user_id.
+
+
+_VALID_MAX_PER_TRADE_MODES: frozenset[str] = frozenset({"auto", "fixed", "pct"})
+# Hard ceilings (echoed from the user-facing customize path). Operator edits
+# are subject to the same physical bounds — admin can change a user's value,
+# not bypass the system fence.
+_MAX_PER_TRADE_USDC_MIN = 1.0
+_MAX_PER_TRADE_USDC_MAX = 500.0
+_MAX_PER_TRADE_PCT_MIN = 0.005
+_MAX_PER_TRADE_PCT_MAX = 0.10
+_CAPITAL_ALLOC_PCT_MIN = 0.01
+_CAPITAL_ALLOC_PCT_MAX = 1.0
+_TP_PCT_MIN = 0.005
+_TP_PCT_MAX = 5.0
+_SL_PCT_MIN = 0.005
+_SL_PCT_MAX = 1.0
+
+
+@router.get("/admin/users/{user_id}", response_model=AdminUserDetail)
+async def admin_user_detail(user_id: str, user: _AdminUser) -> AdminUserDetail:
+    """Full per-user operator view (read-only).
+
+    404 when the target user does not exist. Surfaces every editable field +
+    runtime state so the Ops Console drawer can render "what the user sees
+    now" without re-fetching across multiple endpoints.
+    """
+    try:
+        target_uuid = UUID(user_id)
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(status_code=400, detail="invalid user_id") from exc
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        u_row = await conn.fetchrow(
+            """SELECT u.id, u.username, u.email, u.role, u.auto_trade_on,
+                      u.paused, u.created_at
+                 FROM users u
+                WHERE u.id = $1::uuid""",
+            target_uuid,
+        )
+        if not u_row:
+            raise HTTPException(status_code=404, detail="user not found")
+        s_row = await conn.fetchrow(
+            """SELECT trading_mode, active_preset, risk_profile,
+                      capital_alloc_pct, tp_pct, sl_pct,
+                      max_per_trade_mode, max_per_trade_usdc, max_per_trade_pct,
+                      selected_timeframe, selected_assets
+                 FROM user_settings WHERE user_id = $1::uuid""",
+            target_uuid,
+        )
+        w_row = await conn.fetchrow(
+            "SELECT balance_usdc FROM wallets WHERE user_id = $1::uuid",
+            target_uuid,
+        )
+        open_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM positions WHERE user_id = $1::uuid AND status = 'open'",
+            target_uuid,
+        ) or 0
+    email = u_row["email"]
+    if email and email.endswith("@telegram.local"):
+        email = None
+    return AdminUserDetail(
+        user_id=str(u_row["id"]),
+        username=u_row["username"],
+        email=email,
+        role=str(u_row["role"]),
+        created_at=u_row["created_at"],
+        trading_mode=str(s_row["trading_mode"]) if s_row else "paper",
+        auto_trade_on=bool(u_row["auto_trade_on"]),
+        paused=bool(u_row["paused"]),
+        open_positions=int(open_count),
+        balance_usdc=float(w_row["balance_usdc"]) if w_row else 0.0,
+        active_preset=s_row["active_preset"] if s_row else None,
+        risk_profile=str(s_row["risk_profile"]) if s_row else "balanced",
+        capital_alloc_pct=float(s_row["capital_alloc_pct"]) if s_row else 0.40,
+        tp_pct=float(s_row["tp_pct"]) if s_row and s_row["tp_pct"] is not None else None,
+        sl_pct=float(s_row["sl_pct"]) if s_row and s_row["sl_pct"] is not None else None,
+        max_per_trade_mode=str(s_row["max_per_trade_mode"]) if s_row else "auto",
+        max_per_trade_usdc=float(s_row["max_per_trade_usdc"]) if s_row and s_row["max_per_trade_usdc"] is not None else None,
+        max_per_trade_pct=float(s_row["max_per_trade_pct"]) if s_row and s_row["max_per_trade_pct"] is not None else None,
+        selected_timeframe=s_row["selected_timeframe"] if s_row else None,
+        selected_assets=list(s_row["selected_assets"]) if s_row and s_row["selected_assets"] else None,
+    )
+
+
+def _validate_admin_user_patch(body: AdminUserUpdate) -> None:
+    """Per-field bounds check. Raises HTTPException(400) on the first miss."""
+    if body.active_preset is not None and body.active_preset not in _PRESET_TO_STRATEGY:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid active_preset: {body.active_preset}. "
+                   f"Must be one of {sorted(_PRESET_TO_STRATEGY.keys())}",
+        )
+    if body.risk_profile is not None and body.risk_profile not in _VALID_RISK_PROFILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid risk_profile: {body.risk_profile}. "
+                   f"Must be one of {sorted(_VALID_RISK_PROFILES)}",
+        )
+    if body.capital_alloc_pct is not None:
+        if not (_CAPITAL_ALLOC_PCT_MIN <= body.capital_alloc_pct <= _CAPITAL_ALLOC_PCT_MAX):
+            raise HTTPException(
+                status_code=400,
+                detail=f"capital_alloc_pct out of range "
+                       f"[{_CAPITAL_ALLOC_PCT_MIN}, {_CAPITAL_ALLOC_PCT_MAX}]",
+            )
+    if body.tp_pct is not None and not (_TP_PCT_MIN <= body.tp_pct <= _TP_PCT_MAX):
+        raise HTTPException(
+            status_code=400,
+            detail=f"tp_pct out of range [{_TP_PCT_MIN}, {_TP_PCT_MAX}]",
+        )
+    if body.sl_pct is not None and not (_SL_PCT_MIN <= body.sl_pct <= _SL_PCT_MAX):
+        raise HTTPException(
+            status_code=400,
+            detail=f"sl_pct out of range [{_SL_PCT_MIN}, {_SL_PCT_MAX}]",
+        )
+    if body.max_per_trade_mode is not None and body.max_per_trade_mode not in _VALID_MAX_PER_TRADE_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid max_per_trade_mode: {body.max_per_trade_mode}. "
+                   f"Must be one of {sorted(_VALID_MAX_PER_TRADE_MODES)}",
+        )
+    if body.max_per_trade_usdc is not None and not (
+        _MAX_PER_TRADE_USDC_MIN <= body.max_per_trade_usdc <= _MAX_PER_TRADE_USDC_MAX
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"max_per_trade_usdc out of range "
+                   f"[{_MAX_PER_TRADE_USDC_MIN}, {_MAX_PER_TRADE_USDC_MAX}]",
+        )
+    if body.max_per_trade_pct is not None and not (
+        _MAX_PER_TRADE_PCT_MIN <= body.max_per_trade_pct <= _MAX_PER_TRADE_PCT_MAX
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"max_per_trade_pct out of range "
+                   f"[{_MAX_PER_TRADE_PCT_MIN}, {_MAX_PER_TRADE_PCT_MAX}]",
+        )
+
+
+@router.patch(
+    "/admin/users/{user_id}",
+    response_model=AdminUserDetail,
+    dependencies=[Depends(per_user_rate_limit("admin_user_patch", limit=60))],
+)
+async def admin_user_update(
+    user_id: str,
+    body: AdminUserUpdate,
+    user: _AdminUser,
+) -> AdminUserDetail:
+    """Partial update of a user's bot settings (operator override).
+
+    Only fields explicitly provided in the request body are written. Skipped
+    fields are left untouched (COALESCE-style). Every successful call is
+    audit-logged with the actor admin's user_id, the target user_id, and the
+    full patch payload so post-hoc operator review can attribute changes.
+
+    Returns the freshly-fetched AdminUserDetail so the client can re-render
+    without a second round-trip.
+    """
+    try:
+        target_uuid = UUID(user_id)
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(status_code=400, detail="invalid user_id") from exc
+    _validate_admin_user_patch(body)
+
+    # Build the field list dynamically so unset fields are NOT overwritten —
+    # COALESCE($n, col) would not work for nullable-by-design fields like
+    # tp_pct (a legitimate "clear it to None" edit is indistinguishable from
+    # "leave it alone" through COALESCE).
+    fields = body.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="empty patch body")
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        # 404 guard — fail before touching user_settings so we never lazy-
+        # create a row for a non-existent user.
+        exists = await conn.fetchval(
+            "SELECT 1 FROM users WHERE id = $1::uuid", target_uuid,
+        )
+        if not exists:
+            raise HTTPException(status_code=404, detail="user not found")
+
+        set_clauses = [f"{col} = ${i + 2}" for i, col in enumerate(fields.keys())]
+        values = list(fields.values())
+        # Upsert so an operator edit on a brand-new user (no user_settings
+        # row yet) creates the row with explicit paper-mode + balanced defaults
+        # per the paper-default invariant.
+        insert_cols = ["user_id"] + list(fields.keys()) + ["trading_mode", "risk_profile", "capital_alloc_pct"]
+        insert_vals = ["$1::uuid"] + [f"${i + 2}" for i in range(len(fields))] + ["'paper'", "'balanced'", "0.40"]
+        # If risk_profile / capital_alloc_pct are part of the patch, drop the
+        # fallback literal so we don't INSERT them twice.
+        if "risk_profile" in fields:
+            idx = insert_cols.index("risk_profile", len(fields) + 1)
+            insert_cols.pop(idx)
+            insert_vals.pop(idx)
+        if "capital_alloc_pct" in fields:
+            idx = insert_cols.index("capital_alloc_pct", len(fields) + 1)
+            insert_cols.pop(idx)
+            insert_vals.pop(idx)
+        sql = (
+            f"INSERT INTO user_settings ({', '.join(insert_cols)}) "
+            f"VALUES ({', '.join(insert_vals)}) "
+            f"ON CONFLICT (user_id) DO UPDATE SET "
+            f"{', '.join(set_clauses)}, updated_at = NOW()"
+        )
+        await conn.execute(sql, target_uuid, *values)
+
+    await audit.write(
+        actor_role="admin",
+        action="admin_user_settings_update",
+        user_id=UUID(str(user["user_id"])),
+        payload={"target_user_id": str(target_uuid), "patch": fields},
+    )
+    return await admin_user_detail(str(target_uuid), user)

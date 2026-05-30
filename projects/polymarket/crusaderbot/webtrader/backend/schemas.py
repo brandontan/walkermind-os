@@ -412,3 +412,53 @@ class StrategyToggleRequest(BaseModel):
     name: str
     enabled: bool
 
+
+class AdminUserDetail(BaseModel):
+    """GET /api/web/admin/users/{user_id} — full per-user operator view.
+
+    Read-only superset of the AdminUsers row plus all editable settings, the
+    wallet snapshot, and a small recent-activity slice. Mirrors the field
+    set the regular user sees on AutoTradePage so the operator panel can
+    show "what the user sees right now".
+    """
+    user_id: str
+    username: Optional[str] = None
+    email: Optional[str] = None
+    role: str
+    created_at: Optional[datetime] = None
+    # Runtime state
+    trading_mode: str
+    auto_trade_on: bool
+    paused: bool
+    open_positions: int
+    balance_usdc: float
+    # Strategy / risk settings (editable subset)
+    active_preset: Optional[str] = None
+    risk_profile: str
+    capital_alloc_pct: float
+    tp_pct: Optional[float] = None
+    sl_pct: Optional[float] = None
+    max_per_trade_mode: str = "auto"
+    max_per_trade_usdc: Optional[float] = None
+    max_per_trade_pct: Optional[float] = None
+    selected_timeframe: Optional[str] = None
+    selected_assets: Optional[list[str]] = None
+
+
+class AdminUserUpdate(BaseModel):
+    """PATCH /api/web/admin/users/{user_id} — partial settings update.
+
+    Every field optional. Only fields explicitly provided are written. The
+    handler validates each against the same allowed-value sets as the
+    user-facing endpoints (preset → _PRESET_TO_STRATEGY,
+    risk_profile → _VALID_RISK_PROFILES, max_per_trade_mode → {auto,fixed,pct}).
+    """
+    active_preset: Optional[str] = None
+    risk_profile: Optional[str] = None
+    capital_alloc_pct: Optional[float] = None
+    tp_pct: Optional[float] = None
+    sl_pct: Optional[float] = None
+    max_per_trade_mode: Optional[str] = None
+    max_per_trade_usdc: Optional[float] = None
+    max_per_trade_pct: Optional[float] = None
+
