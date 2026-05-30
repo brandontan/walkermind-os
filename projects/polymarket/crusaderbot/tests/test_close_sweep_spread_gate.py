@@ -22,6 +22,7 @@ from __future__ import annotations
 import inspect
 
 import pytest
+from pydantic import ValidationError
 
 from projects.polymarket.crusaderbot import config as crusaderbot_config
 from projects.polymarket.crusaderbot.domain.strategy.strategies import (
@@ -165,7 +166,7 @@ def test_close_sweep_max_leg_spread_rejects_negative(
     would silently disable the gate the same as 0. Reject at load."""
     _set_required_env(monkeypatch)
     monkeypatch.setenv("CLOSE_SWEEP_MAX_LEG_SPREAD", "-0.01")
-    with pytest.raises(Exception) as excinfo:
+    with pytest.raises(ValidationError) as excinfo:
         crusaderbot_config.Settings()  # type: ignore[call-arg]
     assert "CLOSE_SWEEP_MAX_LEG_SPREAD" in str(excinfo.value)
 
@@ -180,7 +181,7 @@ def test_close_sweep_max_leg_spread_rejects_non_finite(
     Validator must reject all non-finite values at config load."""
     _set_required_env(monkeypatch)
     monkeypatch.setenv("CLOSE_SWEEP_MAX_LEG_SPREAD", bad)
-    with pytest.raises(Exception) as excinfo:
+    with pytest.raises(ValidationError) as excinfo:
         crusaderbot_config.Settings()  # type: ignore[call-arg]
     assert "CLOSE_SWEEP_MAX_LEG_SPREAD" in str(excinfo.value)
 
