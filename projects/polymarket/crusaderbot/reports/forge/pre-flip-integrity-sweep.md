@@ -120,7 +120,7 @@ Zero production code modified. M-1 and M-2 findings deferred to a future hardeni
 | Config-read failure | Fails CLOSED (override disabled). Correct — won't silently relax dedup |
 | Scope guard | Only fires for `late_entry_v3` candidates with `active_preset == 'safe_close'` |
 | Side-aware dedup | Drops 24h closed-position window — intentional; override is for a NEW opposite-side position |
-| Always-on when `|imbalance| > threshold` | Activates side-aware dedup even when candidate naturally targets lagging — prevents broad dedup from blocking correctly-directed rebalance |
+| Always-on when `\|imbalance\| > threshold` | Activates side-aware dedup even when candidate naturally targets lagging — prevents broad dedup from blocking correctly-directed rebalance |
 | Direction-limit interaction | Override mutates `cand.side` before `_safe_close_record_entry` — limit records the final (flipped) side |
 
 **Note on closed-window removal:** After a safe_close position closes, D-2 can immediately reopen on the same market on the lagging side. `SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR=8` is the only frequency backstop for the same side; the opposite side is unconstrained per-market until D-2 hits the directional cap.
