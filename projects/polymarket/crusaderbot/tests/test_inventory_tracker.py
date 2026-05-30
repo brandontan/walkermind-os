@@ -159,10 +159,14 @@ def test_compute_no_rows_returns_empty():
 
 
 def test_compute_normalises_uppercase_side_labels():
-    """SQL projects ``LOWER(side)`` so even if a row had ``side='YES'``
-    the aggregation buckets it correctly. Pin the contract by passing
-    lower-case (the projection is already done in the query)."""
-    conn = _conn([_row("yes", 10.0, 1), _row("no", 20.0, 1)])
+    """SQL projects ``LOWER(side)`` AND the Python loop also calls
+    ``.lower()`` defensively. Feed UPPERCASE labels so the test
+    actually exercises the normalisation path (catches a regression
+    that removed `.lower()` from the loop — the SQL projection alone
+    would still bucket correctly, but the loop's defensive layer
+    matters when a mocked/test conn bypasses the SQL).
+    """
+    conn = _conn([_row("YES", 10.0, 1), _row("No", 20.0, 1)])
     inv = asyncio.run(compute_market_inventory(conn, uuid4(), _MARKET_ID))
     assert inv.yes_size_usdc == Decimal("10")
     assert inv.no_size_usdc == Decimal("20")
@@ -231,6 +235,25 @@ def test_compute_uses_live_status_filter():
     # ANY($3::text[]) parameter; verify it's exactly the constant the
     # module exports (no silent drift to a wider set).
     assert set(call_args.args[3]) == set(_LIVE_POSITION_STATUSES)
+
+
+def test_compute_passes_query_timeout():
+    """CLAUDE.md `Resilience: retry + backoff + timeout on all external
+    calls`. The asyncpg fetch MUST be invoked with the documented
+    timeout so a stalled socket / locked row can't hang the entire
+    scan tick once this gets wired in Lane D-2.
+    """
+    from projects.polymarket.crusaderbot.domain.strategy.inventory import (
+        _INVENTORY_QUERY_TIMEOUT_SEC,
+    )
+    conn = _conn([])
+    asyncio.run(compute_market_inventory(conn, uuid4(), _MARKET_ID))
+    call_args = conn.fetch.call_args
+    assert "timeout" in call_args.kwargs, (
+        "Regression: compute_market_inventory dropped its query timeout. "
+        "Without it a hung socket would stall the scan tick."
+    )
+    assert call_args.kwargs["timeout"] == _INVENTORY_QUERY_TIMEOUT_SEC
 
 
 def test_live_position_statuses_pinned():

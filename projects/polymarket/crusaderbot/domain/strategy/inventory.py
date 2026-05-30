@@ -55,6 +55,22 @@ from uuid import UUID
 
 _LIVE_POSITION_STATUSES: frozenset[str] = frozenset({"open", "pending_settlement"})
 
+# asyncpg query timeout for the inventory aggregation. The query is
+# small and indexed (positions has idx_positions_user + idx_positions_status)
+# so the timeout exists purely as a stall-guard: if the round-trip
+# hangs on a slow socket / locked row, the candidate processing tick
+# raises rather than blocking the whole scan loop. 5s is generous
+# relative to the expected ~10ms query latency but cheap relative to
+# the operator's tolerance for a stalled scanner.
+#
+# Retry/backoff is intentionally NOT layered here — the caller
+# (signal_scan_job._process_candidate when this gets wired in Lane
+# D-2) already runs each candidate inside a try/except boundary that
+# logs + skips on failure. A retry inside the helper would conflict
+# with that boundary by double-handling the same transient error.
+# Pool-level reconnection in asyncpg covers the connection-down case.
+_INVENTORY_QUERY_TIMEOUT_SEC: float = 5.0
+
 
 @dataclass(frozen=True)
 class MarketInventory:
@@ -159,6 +175,7 @@ async def compute_market_inventory(
         uid,
         market_id,
         list(_LIVE_POSITION_STATUSES),
+        timeout=_INVENTORY_QUERY_TIMEOUT_SEC,
     )
     yes_size = Decimal("0")
     no_size = Decimal("0")
