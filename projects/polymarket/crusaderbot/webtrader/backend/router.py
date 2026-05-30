@@ -934,12 +934,7 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
         # heal on the way through. We log if anything was dropped so
         # the operator can spot drift but don't fail the request.
         raw_assets = [str(a).strip().upper() for a in (body.selected_assets or [])]
-        assets = []
-        seen: set[str] = set()
-        for a in raw_assets:
-            if a in _VALID_ASSETS and a not in seen:
-                seen.add(a)
-                assets.append(a)
+        assets = _sanitize_selected_assets(body.selected_assets) or []
         dropped = [a for a in raw_assets if a not in _VALID_ASSETS]
         if dropped:
             log.info(
