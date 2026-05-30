@@ -585,6 +585,21 @@ async def _evaluate_market(
     clob_liquidity = _book_depth_usdc(yes_book) + _book_depth_usdc(no_book)
 
     spread = yes_ask + no_ask
+    # Observational metric (WARP/R00T/complete-set-edge-metric, Lane 3/5).
+    # Polymarket UP+DOWN settle to $1.00 at expiry, so the live complete-set
+    # cost is `yes_ask + no_ask`. Edge = (1 - cost) measures how far the
+    # market is from a textbook taker-side arbitrage:
+    #   edge > 0  → cost < 1.00 → buying both legs is a guaranteed payout
+    #               (rare on Polymarket — usually book is shallow at the
+    #               quoted prices so size constraints kill the arb)
+    #   edge = 0  → cost = 1.00 → efficient pricing, no slack
+    #   edge < 0  → cost > 1.00 → market overpriced relative to the
+    #               $1.00 settlement bound (taker can never profit)
+    # MINOR-FOUNDATION lane: stamp the metric in candidate metadata so
+    # operator dashboards / future hard gates can read it. No trade logic
+    # change — directional strategies stay unchanged. Rounded to 4
+    # decimals (same IEEE-754 precision argument as the leg-spread gate).
+    complete_set_edge = round(1.0 - spread, 4)
     ask_diff = abs(yes_ask - no_ask)
     # Majority side — always the higher-priced side.
     fav_side = "YES" if yes_ask > no_ask else "NO"
@@ -671,6 +686,7 @@ async def _evaluate_market(
             "underdog_mode": underdog_mode,
             "ask_diff": ask_diff,
             "spread": spread,
+            "complete_set_edge": complete_set_edge,
             "seconds_to_close": seconds_left,
             "flip_stop_price": flip_stop,
             "clob_liquidity": clob_liquidity,
