@@ -30,6 +30,8 @@ class CopyTradeTask:
     copy_direction: str = "buys_only"   # 'buys_only' | 'buys_and_sells'
     execution_mode: str = "auto"         # 'auto' | 'manual'
     allow_topups: bool = True
+    # Migration 071 — fast-track buffer watermark. None = never run.
+    last_realtime_seen_at: datetime | None = None
 
     @property
     def is_active(self) -> bool:

@@ -1,0 +1,470 @@
+"""Hermetic tests for services/copy_trade/realtime_fast_track.py.
+
+No DB, no HTTP, no scheduler — buffer fetch, monitor._process_one,
+watermark UPDATE, and the kill_switch / globally-disabled guards are
+all patched at module boundary.
+"""
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID, uuid4
+
+import pytest
+
+from projects.polymarket.crusaderbot.services.copy_trade import (
+    realtime_fast_track as ft,
+)
+
+
+def _make_task(
+    *,
+    wallet: str = "0xabc",
+    user_id: UUID | None = None,
+    last_seen: datetime | None = None,
+) -> SimpleNamespace:
+    """Return an object that quacks like CopyTradeTask for the consumer's
+    purposes (.id, .user_id, .wallet_address, .last_realtime_seen_at)."""
+    return SimpleNamespace(
+        id=uuid4(),
+        user_id=user_id or uuid4(),
+        wallet_address=wallet,
+        last_realtime_seen_at=last_seen,
+    )
+
+
+def _make_pool_with_rows(rows):
+    conn = MagicMock()
+    conn.fetch = AsyncMock(return_value=rows)
+    conn.execute = AsyncMock(return_value="UPDATE 1")
+    pool = MagicMock()
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=conn)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    pool.acquire = MagicMock(return_value=cm)
+    return pool, conn
+
+
+def _fake_cfg(**overrides) -> SimpleNamespace:
+    """Minimal settings stub the consumer's gate checks read from."""
+    base = dict(
+        HEISENBERG_FAST_TRACK_ENABLED=True,
+        HEISENBERG_REALTIME_TRADES_ENABLED=True,
+        HEISENBERG_API_TOKEN="x",
+    )
+    base.update(overrides)
+    return SimpleNamespace(**base)
+
+
+# ---------------------------------------------------------------------------
+# Gate tests — kill_switch / globally_disabled / no tasks
+# ---------------------------------------------------------------------------
+
+
+def test_skip_when_kill_switch_active():
+    with (
+        patch.object(ft, "get_settings", return_value=_fake_cfg()),
+        patch.object(ft._monitor, "kill_switch_is_active",
+                     new=AsyncMock(return_value=True)),
+        patch.object(ft._monitor, "_is_globally_disabled",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft, "list_active_tasks",
+                     new=AsyncMock(return_value=[_make_task()])),
+    ):
+        scanned, dispatched = asyncio.run(ft.run_once())
+    assert (scanned, dispatched) == (0, 0)
+
+
+def test_skip_when_globally_disabled():
+    with (
+        patch.object(ft, "get_settings", return_value=_fake_cfg()),
+        patch.object(ft._monitor, "kill_switch_is_active",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft._monitor, "_is_globally_disabled",
+                     new=AsyncMock(return_value=True)),
+        patch.object(ft, "list_active_tasks",
+                     new=AsyncMock(return_value=[_make_task()])),
+    ):
+        scanned, dispatched = asyncio.run(ft.run_once())
+    assert (scanned, dispatched) == (0, 0)
+
+
+def test_zero_when_no_active_tasks():
+    with (
+        patch.object(ft, "get_settings", return_value=_fake_cfg()),
+        patch.object(ft._monitor, "kill_switch_is_active",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft._monitor, "_is_globally_disabled",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft, "list_active_tasks",
+                     new=AsyncMock(return_value=[])),
+    ):
+        scanned, dispatched = asyncio.run(ft.run_once())
+    assert (scanned, dispatched) == (0, 0)
+
+
+# ---------------------------------------------------------------------------
+# Buffer fetch + dispatch
+# ---------------------------------------------------------------------------
+
+
+def test_dispatches_each_fresh_trade_and_bumps_watermark():
+    """One task, two fresh buffer rows → two _process_one dispatches +
+    watermark UPDATE to the latest trade_time."""
+    task = _make_task(last_seen=datetime(2026, 5, 30, 5, 30, tzinfo=timezone.utc))
+    rows = [
+        {
+            "trade_time": datetime(2026, 5, 30, 5, 35, tzinfo=timezone.utc),
+            "raw": {"id": "tx1", "side": "BUY", "outcome": "Yes"},
+        },
+        {
+            "trade_time": datetime(2026, 5, 30, 5, 36, tzinfo=timezone.utc),
+            "raw": {"id": "tx2", "side": "SELL", "outcome": "No"},
+        },
+    ]
+    pool, conn = _make_pool_with_rows(rows)
+    process_one = AsyncMock()
+
+    with (
+        patch.object(ft, "get_settings", return_value=_fake_cfg()),
+        patch.object(ft._monitor, "kill_switch_is_active",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft._monitor, "_is_globally_disabled",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft, "list_active_tasks",
+                     new=AsyncMock(return_value=[task])),
+        patch.object(ft._monitor, "_process_one", new=process_one),
+        patch.object(ft, "get_pool", return_value=pool),
+    ):
+        scanned, dispatched = asyncio.run(ft.run_once())
+
+    assert scanned == 2
+    assert dispatched == 2
+    assert process_one.await_count == 2
+    # Watermark UPDATE was issued with the latest trade_time (5:36).
+    update_calls = [
+        c for c in conn.execute.await_args_list
+        if "UPDATE copy_trade_tasks" in c.args[0]
+    ]
+    assert len(update_calls) == 1
+    assert update_calls[0].args[1] == task.id
+    assert update_calls[0].args[2] == datetime(2026, 5, 30, 5, 36, tzinfo=timezone.utc)
+
+
+def test_skips_trades_older_than_watermark():
+    """A task with watermark 5:35 must NOT dispatch the 5:30 trade."""
+    task = _make_task(last_seen=datetime(2026, 5, 30, 5, 35, tzinfo=timezone.utc))
+    rows = [
+        # Older than the watermark.
+        {
+            "trade_time": datetime(2026, 5, 30, 5, 30, tzinfo=timezone.utc),
+            "raw": {"id": "tx_old"},
+        },
+        # Newer.
+        {
+            "trade_time": datetime(2026, 5, 30, 5, 40, tzinfo=timezone.utc),
+            "raw": {"id": "tx_new"},
+        },
+    ]
+    pool, conn = _make_pool_with_rows(rows)
+    process_one = AsyncMock()
+
+    with (
+        patch.object(ft, "get_settings", return_value=_fake_cfg()),
+        patch.object(ft._monitor, "kill_switch_is_active",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft._monitor, "_is_globally_disabled",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft, "list_active_tasks",
+                     new=AsyncMock(return_value=[task])),
+        patch.object(ft._monitor, "_process_one", new=process_one),
+        patch.object(ft, "get_pool", return_value=pool),
+    ):
+        scanned, dispatched = asyncio.run(ft.run_once())
+
+    assert scanned == 1
+    assert dispatched == 1
+    assert process_one.await_args.args[1]["id"] == "tx_new"
+
+
+def test_null_watermark_uses_fallback_lookback():
+    """A task with NULL watermark should look back _INITIAL_LOOKBACK_SEC
+    (default 300s = 5min) rather than from epoch."""
+    task = _make_task(last_seen=None)  # never run
+
+    now = datetime.now(timezone.utc)
+    # One trade within window, one outside.
+    row_in = {
+        "trade_time": now - timedelta(seconds=60),
+        "raw": {"id": "tx_recent"},
+    }
+    # Buffer fetch SQL filters server-side via the cutoff so an "outside"
+    # row would not actually arrive — sim the in-window row only.
+    pool, conn = _make_pool_with_rows([row_in])
+    process_one = AsyncMock()
+
+    with (
+        patch.object(ft, "get_settings", return_value=_fake_cfg()),
+        patch.object(ft._monitor, "kill_switch_is_active",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft._monitor, "_is_globally_disabled",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft, "list_active_tasks",
+                     new=AsyncMock(return_value=[task])),
+        patch.object(ft._monitor, "_process_one", new=process_one),
+        patch.object(ft, "get_pool", return_value=pool),
+    ):
+        scanned, dispatched = asyncio.run(ft.run_once())
+
+    assert (scanned, dispatched) == (1, 1)
+    # The fetch query was called with earliest = NOW() - 300s; assert the
+    # cutoff is within a 5-second jitter window from the expected value.
+    fetch_args = conn.fetch.await_args
+    cutoff_arg = fetch_args.args[2]
+    expected = now - timedelta(seconds=ft._INITIAL_LOOKBACK_SEC)
+    assert abs((cutoff_arg - expected).total_seconds()) < 5
+
+
+def test_failure_halts_task_and_does_not_advance_watermark():
+    """Critical correctness pin (CodeRabbit review). If _process_one raises
+    for the FIRST eligible trade, the watermark must NOT advance — neither
+    past the failed trade nor past any subsequent trade in the same tick —
+    so the failure gets retried on the next tick (idempotency dedupes any
+    earlier successes that happen to fall before the failed trade)."""
+    task = _make_task(last_seen=datetime(2026, 5, 30, 5, 30, tzinfo=timezone.utc))
+    t1 = datetime(2026, 5, 30, 5, 35, tzinfo=timezone.utc)
+    t2 = datetime(2026, 5, 30, 5, 40, tzinfo=timezone.utc)
+    rows = [
+        {"trade_time": t1, "raw": {"id": "tx1"}},
+        {"trade_time": t2, "raw": {"id": "tx2"}},
+    ]
+    pool, conn = _make_pool_with_rows(rows)
+    process_one = AsyncMock(side_effect=[RuntimeError("kaboom on first"), None])
+
+    with (
+        patch.object(ft, "get_settings", return_value=_fake_cfg()),
+        patch.object(ft._monitor, "kill_switch_is_active",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft._monitor, "_is_globally_disabled",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft, "list_active_tasks",
+                     new=AsyncMock(return_value=[task])),
+        patch.object(ft._monitor, "_process_one", new=process_one),
+        patch.object(ft, "get_pool", return_value=pool),
+    ):
+        scanned, dispatched = asyncio.run(ft.run_once())
+
+    # Only the failed trade was attempted; loop halted before t2.
+    assert scanned == 1
+    assert dispatched == 0
+    assert process_one.await_count == 1
+    # CRITICAL: watermark UPDATE must NOT have been issued — latest_seen
+    # never advanced past task_cutoff because no trade succeeded.
+    update_calls = [
+        c for c in conn.execute.await_args_list
+        if "UPDATE copy_trade_tasks" in c.args[0]
+    ]
+    assert update_calls == [], "watermark must not advance on failure"
+
+
+def test_success_then_failure_advances_only_to_success():
+    """If first trade succeeds but second trade fails, watermark advances
+    to the success but stops there — the failed trade gets retried next tick."""
+    task = _make_task(last_seen=datetime(2026, 5, 30, 5, 30, tzinfo=timezone.utc))
+    t1_ok = datetime(2026, 5, 30, 5, 35, tzinfo=timezone.utc)
+    t2_fail = datetime(2026, 5, 30, 5, 40, tzinfo=timezone.utc)
+    rows = [
+        {"trade_time": t1_ok, "raw": {"id": "tx1"}},
+        {"trade_time": t2_fail, "raw": {"id": "tx2"}},
+    ]
+    pool, conn = _make_pool_with_rows(rows)
+    process_one = AsyncMock(side_effect=[None, RuntimeError("kaboom on second")])
+
+    with (
+        patch.object(ft, "get_settings", return_value=_fake_cfg()),
+        patch.object(ft._monitor, "kill_switch_is_active",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft._monitor, "_is_globally_disabled",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft, "list_active_tasks",
+                     new=AsyncMock(return_value=[task])),
+        patch.object(ft._monitor, "_process_one", new=process_one),
+        patch.object(ft, "get_pool", return_value=pool),
+    ):
+        scanned, dispatched = asyncio.run(ft.run_once())
+
+    assert scanned == 2
+    assert dispatched == 1
+    update_calls = [
+        c for c in conn.execute.await_args_list
+        if "UPDATE copy_trade_tasks" in c.args[0]
+    ]
+    # Watermark moved to t1 (success) but not t2 (failure).
+    assert len(update_calls) == 1
+    assert update_calls[0].args[2] == t1_ok
+
+
+def test_process_one_failure_doesnt_break_other_tasks():
+    """If _process_one raises for one task, the consumer must continue and
+    still dispatch trades for the other task."""
+    task_a = _make_task(wallet="0xa", last_seen=None)
+    task_b = _make_task(wallet="0xb", last_seen=None)
+
+    a_rows = [{
+        "trade_time": datetime.now(timezone.utc),
+        "raw": {"id": "tx_a"},
+    }]
+    b_rows = [{
+        "trade_time": datetime.now(timezone.utc),
+        "raw": {"id": "tx_b"},
+    }]
+
+    # Two separate pool fetches — one per wallet.
+    fetch_results = [a_rows, b_rows]
+    conn = MagicMock()
+    conn.fetch = AsyncMock(side_effect=fetch_results)
+    conn.execute = AsyncMock(return_value="UPDATE 1")
+    pool = MagicMock()
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=conn)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    pool.acquire = MagicMock(return_value=cm)
+
+    process_one = AsyncMock(
+        side_effect=[RuntimeError("kaboom on a"), None],
+    )
+
+    with (
+        patch.object(ft, "get_settings", return_value=_fake_cfg()),
+        patch.object(ft._monitor, "kill_switch_is_active",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft._monitor, "_is_globally_disabled",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft, "list_active_tasks",
+                     new=AsyncMock(return_value=[task_a, task_b])),
+        patch.object(ft._monitor, "_process_one", new=process_one),
+        patch.object(ft, "get_pool", return_value=pool),
+    ):
+        scanned, dispatched = asyncio.run(ft.run_once())
+
+    # Both attempts counted as scanned; only the successful one as dispatched.
+    assert scanned == 2
+    assert dispatched == 1
+
+
+def test_buffer_fetch_failure_returns_zero_doesnt_raise():
+    """Pool/connection failure on the buffer fetch must NOT bubble out."""
+    task = _make_task(last_seen=None)
+
+    pool = MagicMock()
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(side_effect=RuntimeError("pool dead"))
+    cm.__aexit__ = AsyncMock(return_value=False)
+    pool.acquire = MagicMock(return_value=cm)
+
+    with (
+        patch.object(ft, "get_settings", return_value=_fake_cfg()),
+        patch.object(ft._monitor, "kill_switch_is_active",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft._monitor, "_is_globally_disabled",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft, "list_active_tasks",
+                     new=AsyncMock(return_value=[task])),
+        patch.object(ft, "get_pool", return_value=pool),
+    ):
+        scanned, dispatched = asyncio.run(ft.run_once())
+
+    assert (scanned, dispatched) == (0, 0)
+
+
+# ---------------------------------------------------------------------------
+# Source pins
+# ---------------------------------------------------------------------------
+
+
+def test_job_id_pinned():
+    assert ft.JOB_ID == "copy_trade_realtime_fast_track"
+
+
+def test_initial_lookback_default():
+    assert ft._INITIAL_LOOKBACK_SEC == 300
+
+
+def test_feature_flag_defaults_off():
+    """The fast-track must default OFF until WARP🔹CMD explicitly enables it."""
+    from projects.polymarket.crusaderbot.config import Settings
+    assert Settings.model_fields["HEISENBERG_FAST_TRACK_ENABLED"].default is False
+
+
+# ---------------------------------------------------------------------------
+# Gemini review pin — wallet case normalisation
+# ---------------------------------------------------------------------------
+
+
+def test_buffer_query_lowercases_wallet():
+    """task.wallet_address may be checksummed (mixed case) but the agent 556
+    buffer stores all-lowercase hex. The consumer MUST lowercase before the
+    SQL query, otherwise the buffer fetch silently returns 0 rows."""
+    task = _make_task(
+        wallet="0xAaBbCcDdEeFf112233445566778899AaBbCcDdEe",  # checksummed
+        last_seen=None,
+    )
+    rows = [{
+        "trade_time": datetime.now(timezone.utc),
+        "raw": {"id": "tx1", "side": "BUY"},
+    }]
+    pool, conn = _make_pool_with_rows(rows)
+
+    with (
+        patch.object(ft, "get_settings", return_value=_fake_cfg()),
+        patch.object(ft._monitor, "kill_switch_is_active",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft._monitor, "_is_globally_disabled",
+                     new=AsyncMock(return_value=False)),
+        patch.object(ft, "list_active_tasks",
+                     new=AsyncMock(return_value=[task])),
+        patch.object(ft._monitor, "_process_one", new=AsyncMock()),
+        patch.object(ft, "get_pool", return_value=pool),
+    ):
+        asyncio.run(ft.run_once())
+
+    # The buffer fetch arg must be lowercased.
+    fetch_arg = conn.fetch.await_args.args[1]
+    assert fetch_arg == "0xaabbccddeeff112233445566778899aabbccddee"
+    assert fetch_arg != task.wallet_address  # explicitly different from original
+
+
+# ---------------------------------------------------------------------------
+# Defence-in-depth gate tests — fast-track / producer / token flags
+# ---------------------------------------------------------------------------
+
+
+def test_skip_when_fast_track_flag_off():
+    """If HEISENBERG_FAST_TRACK_ENABLED is False, run_once must return (0,0)
+    before any other check (defends staged rollouts where the scheduler
+    didn't see the latest flag flip)."""
+    with patch.object(ft, "get_settings",
+                      return_value=_fake_cfg(HEISENBERG_FAST_TRACK_ENABLED=False)):
+        scanned, dispatched = asyncio.run(ft.run_once())
+    assert (scanned, dispatched) == (0, 0)
+
+
+def test_skip_when_realtime_producer_disabled():
+    """If HEISENBERG_REALTIME_TRADES_ENABLED is False, the buffer is stale.
+    Consumer must skip rather than dispatch old trades."""
+    with patch.object(ft, "get_settings",
+                      return_value=_fake_cfg(HEISENBERG_REALTIME_TRADES_ENABLED=False)):
+        scanned, dispatched = asyncio.run(ft.run_once())
+    assert (scanned, dispatched) == (0, 0)
+
+
+def test_skip_when_heisenberg_token_missing():
+    """If HEISENBERG_API_TOKEN is empty/whitespace, the producer cannot
+    populate the buffer. Consumer skips."""
+    with patch.object(ft, "get_settings",
+                      return_value=_fake_cfg(HEISENBERG_API_TOKEN="   ")):
+        scanned, dispatched = asyncio.run(ft.run_once())
+    assert (scanned, dispatched) == (0, 0)

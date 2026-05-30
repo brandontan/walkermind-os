@@ -18,7 +18,8 @@ _SELECT = """
            nickname,
            COALESCE(copy_direction, 'buys_only')  AS copy_direction,
            COALESCE(execution_mode, 'auto')        AS execution_mode,
-           COALESCE(allow_topups, true)            AS allow_topups
+           COALESCE(allow_topups, true)            AS allow_topups,
+           last_realtime_seen_at
       FROM copy_trade_tasks
 """
 
@@ -51,6 +52,8 @@ def _row_to_task(row: object) -> CopyTradeTask:
         copy_direction=row["copy_direction"],
         execution_mode=row["execution_mode"],
         allow_topups=bool(row["allow_topups"]),
+        last_realtime_seen_at=row["last_realtime_seen_at"]
+            if "last_realtime_seen_at" in row else None,
     )
 
 
@@ -86,7 +89,8 @@ async def create_task(
                       nickname,
                       COALESCE(copy_direction, 'buys_only') AS copy_direction,
                       COALESCE(execution_mode, 'auto')       AS execution_mode,
-                      COALESCE(allow_topups, true)           AS allow_topups
+                      COALESCE(allow_topups, true)           AS allow_topups,
+                      last_realtime_seen_at
             """,
             user_id, wallet_address, task_name, copy_mode,
             copy_amount, copy_pct, tp_pct, sl_pct,
@@ -131,7 +135,8 @@ async def update_task(
                       nickname,
                       COALESCE(copy_direction, 'buys_only') AS copy_direction,
                       COALESCE(execution_mode, 'auto')       AS execution_mode,
-                      COALESCE(allow_topups, true)           AS allow_topups
+                      COALESCE(allow_topups, true)           AS allow_topups,
+                      last_realtime_seen_at
             """,
             task_id, user_id, *values,
         )
