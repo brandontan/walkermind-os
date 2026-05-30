@@ -232,7 +232,7 @@ function AppShell() {
       try { localStorage.setItem(scopeKey(DISMISSED_KEY_BASE, userKey), JSON.stringify(capped)); } catch { /* quota — ignore */ }
       return new Set(capped);
     });
-  }, []);
+  }, [userKey]);
 
   // Mark ALL currently-visible alerts as read in one shot. Sets the persistent
   // markAllReadAt watermark so that on the next /positions or /alerts fetch
@@ -258,7 +258,7 @@ function AppShell() {
     try { localStorage.setItem(scopeKey(MARK_ALL_READ_AT_KEY_BASE, userKey), String(now)); } catch { /* quota — ignore */ }
     setLastSeen(now);
     try { localStorage.setItem(scopeKey(LAST_SEEN_KEY_BASE, userKey), String(now)); } catch { /* quota — ignore */ }
-  }, [alerts]);
+  }, [alerts, userKey]);
 
   // Per-alert "mark as read" without dismissing. Used when an unread alert
   // is auto-acknowledged after the user has had time to read it (panel open
@@ -272,7 +272,7 @@ function AppShell() {
       try { localStorage.setItem(scopeKey(SEEN_IDS_KEY_BASE, userKey), JSON.stringify(capped)); } catch { /* quota — ignore */ }
       return new Set(capped);
     });
-  }, []);
+  }, [userKey]);
 
   const [lastScanMs, setLastScanMs] = useState<number | null>(null);
 
@@ -345,7 +345,7 @@ function AppShell() {
     const now = Date.now();
     setLastSeen(now);
     localStorage.setItem(scopeKey(LAST_SEEN_KEY_BASE, userKey), String(now));
-  }, []);
+  }, [userKey]);
 
   const closeAlertCenter = useCallback(() => setIsAlertOpen(false), []);
 
