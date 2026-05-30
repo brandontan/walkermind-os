@@ -43,6 +43,7 @@ from .jobs import (
 from .services.daily_report_service import daily_pnl_report_job, JOB_ID as DAILY_REPORT_JOB_ID
 from .services.signal_scan import signal_scan_job as sf_scan_job
 from .services.copy_trade import monitor as copy_trade_monitor
+from .services.copy_trade import realtime_fast_track as copy_trade_fast_track
 from .services.copy_trade import leaderboard_sync
 from .services.redeem import hourly_worker as redeem_hourly_worker
 from .services.redeem import redeem_router
@@ -987,6 +988,18 @@ def setup_scheduler() -> AsyncIOScheduler:
             heisenberg_realtime_sync.run_job, "interval",
             seconds=int(getattr(s, "HEISENBERG_REALTIME_TRADES_INTERVAL_SEC", 60)),
             id=heisenberg_realtime_sync.JOB_ID,
+            max_instances=1, coalesce=True,
+        )
+    # Copy-trade fast-track consumer — sub-minute mirror evaluation on top of
+    # the agent 556 buffer. Same triple-gating pattern as the producer above:
+    # registered only when the flag is on; dedup via the existing
+    # copy_trade_idempotency table prevents double-fires with the slower
+    # wallet-watcher path that copy_trade_monitor.run_once still drives.
+    if getattr(s, "HEISENBERG_FAST_TRACK_ENABLED", False):
+        sched.add_job(
+            copy_trade_fast_track.run_once, "interval",
+            seconds=int(getattr(s, "HEISENBERG_FAST_TRACK_INTERVAL_SEC", 30)),
+            id=copy_trade_fast_track.JOB_ID,
             max_instances=1, coalesce=True,
         )
     sched.add_job(check_exits, "interval", seconds=s.EXIT_WATCH_INTERVAL,

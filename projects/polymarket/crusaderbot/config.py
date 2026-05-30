@@ -115,6 +115,14 @@ class Settings(BaseSettings):
     HEISENBERG_REALTIME_TRADES_WINDOW_SEC: int = 300    # look-back per poll
     HEISENBERG_REALTIME_TRADES_RETENTION_HOURS: int = 24  # buffer retention
 
+    # --- Copy-trade fast-track (consumes heisenberg_realtime_trades buffer) ---
+    # Scheduler registers the consumer job only when this flag is on. Default
+    # OFF — flip to true once the agent 556 buffer is observed populating
+    # cleanly. Dedup via existing copy_trade_idempotency table prevents double
+    # execution with the slower wallet-watcher monitor.
+    HEISENBERG_FAST_TRACK_ENABLED: bool = False
+    HEISENBERG_FAST_TRACK_INTERVAL_SEC: int = 30
+
     # --- Polymarket (only required for LIVE trading) ---
     POLYMARKET_API_KEY: Optional[str] = None
     POLYMARKET_API_SECRET: Optional[str] = None
