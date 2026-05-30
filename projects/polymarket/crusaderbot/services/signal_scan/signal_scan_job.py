@@ -1244,6 +1244,63 @@ async def _process_candidate(
                     telemetry.record_skip("skipped_stale_tob")
                 return
 
+    # 3b-0a. Complete-set edge gate (WARP/R00T/complete-set-edge-gate, ref
+    #        directive 1.1). Polymarket binary UP/DOWN settles to $1.00 at
+    #        expiry → `cost = ask_UP + ask_DOWN` is the spot arb bound; the
+    #        complementary `edge = 1 - cost` is the per-tick profit a taker
+    #        could lock in by buying both legs. When edge < MIN_COMPLETE_SET_EDGE
+    #        the market is too efficiently priced for the per-side entry to
+    #        carry a real edge: the strategy's directional thesis is paying
+    #        full price for a coin flip after fees, with no arb safety net.
+    #
+    #        The metric was stamped observationally by Lane 3
+    #        (late_entry_v3._evaluate_market → metadata["complete_set_edge"]);
+    #        this gate promotes it to a hard reject. Scoped to candidates that
+    #        carry the stamp (late_entry_v3 — close_sweep / safe_close /
+    #        flip_hunter); signal_following / momentum / copy_trade bypass.
+    #
+    #        Operator escape hatch: MIN_COMPLETE_SET_EDGE=0 disables the gate
+    #        without redeploy (runtime branches on `> 0`).
+    _meta_edge = cand.metadata.get("complete_set_edge")
+    if _meta_edge is not None:
+        try:
+            from ...config import get_settings as _get_settings_edge
+            _min_edge = float(_get_settings_edge().MIN_COMPLETE_SET_EDGE)
+        except Exception as exc:
+            # AGENTS.md hard rule: zero silent failures. Log the diagnostic
+            # context, then fall back to the documented default so the gate
+            # remains operative even on a config-read failure.
+            log.warning(
+                "min_complete_set_edge_config_read_failed",
+                error=str(exc),
+                fallback=0.005,
+            )
+            _min_edge = 0.005
+        if _min_edge > 0:
+            try:
+                _candidate_edge = float(_meta_edge)
+            except (TypeError, ValueError):
+                _candidate_edge = None
+            if _candidate_edge is not None and _candidate_edge < _min_edge:
+                log.info(
+                    "scan_outcome",
+                    outcome="skipped_negative_arb",
+                    side=side,
+                    market_id=cand.market_id,
+                    strategy=cand.strategy_name,
+                    complete_set_edge=round(_candidate_edge, 4),
+                    threshold=_min_edge,
+                    message=(
+                        f"Complete-set edge {_candidate_edge:.4f} below "
+                        f"MIN_COMPLETE_SET_EDGE={_min_edge}; rejecting "
+                        f"to avoid directional entry into market priced at or "
+                        f"above the $1.00 settlement bound."
+                    ),
+                )
+                if telemetry is not None:
+                    telemetry.record_skip("skipped_negative_arb")
+                return
+
     if _live_fill_price is None:
         try:
             _live_fill_price = await get_live_market_price(cand.market_id, side)

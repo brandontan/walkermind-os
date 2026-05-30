@@ -406,6 +406,31 @@ class Settings(BaseSettings):
     # without redeploy). Negative values are rejected at config load.
     CLOSE_SWEEP_MAX_LEG_SPREAD: float = 0.02  # env: CLOSE_SWEEP_MAX_LEG_SPREAD
 
+    # --- Complete-set edge gate (WARP/R00T/complete-set-edge-gate) ---
+    # Polymarket binary UP/DOWN settles to $1.00 at expiry, so the spot
+    # arbitrage bound is `cost = ask_UP + ask_DOWN`. When cost >= $1.00,
+    # the per-side ask is already at or above the settlement bound — any
+    # entry there is a guaranteed loss vs the complete-set arb (paying $1
+    # to receive $1). The metric was stamped observationally in PR #1477
+    # (late_entry_v3._evaluate_market → metadata["complete_set_edge"]);
+    # this knob promotes it to a real entry gate in
+    # services.signal_scan.signal_scan_job._process_candidate.
+    #
+    # Threshold: minimum `complete_set_edge = round(1 - (ask_UP + ask_DOWN), 4)`
+    # required to accept the candidate. Default 0.005 (50 bps) matches the
+    # directive's MIN_EDGE: covers Polymarket maker/taker fees + a thin
+    # buffer above pure arb breakeven.
+    #
+    # Set to 0 to disable the gate (escape hatch — operator can revert
+    # without redeploy). Negative values are rejected at config load
+    # (the runtime check is `metric < threshold`, and a negative threshold
+    # would silently accept negative-edge entries — the directional
+    # analogue of the negative-spread silent-disable trap).
+    #
+    # Scoped to candidates that carry the stamp (late_entry_v3 — close_sweep,
+    # safe_close, flip_hunter); signal_following / copy_trade bypass.
+    MIN_COMPLETE_SET_EDGE: float = 0.005  # env: MIN_COMPLETE_SET_EDGE
+
     # --- TOB freshness gate (WARP/R00T/tob-freshness-gate) ---
     # Max age in milliseconds for the orderbook snapshot that produced
     # a candidate's metadata["entry_price"]. Read by
@@ -607,6 +632,28 @@ class Settings(BaseSettings):
                 f"CLOSE_SWEEP_MAX_LEG_SPREAD must be >= 0 (got {v}); use 0 "
                 f"to disable the gate, any positive value (e.g. 0.02 for "
                 f"2 cents) for the per-leg spread threshold."
+            )
+        return v
+
+    @field_validator("MIN_COMPLETE_SET_EDGE")
+    @classmethod
+    def validate_min_complete_set_edge(cls, v: float) -> float:
+        # Same defence-in-depth as CLOSE_SWEEP_MAX_LEG_SPREAD: a non-finite
+        # threshold (NaN / ±Inf) would silently disable the gate (`metric <
+        # NaN` is always False; `metric < +Inf` always accepts), and a
+        # negative threshold would accept negative-edge entries (the exact
+        # bug the gate exists to prevent). Both fail-closed at config load.
+        if not math.isfinite(v):
+            raise ValueError(
+                f"MIN_COMPLETE_SET_EDGE must be a finite number (got {v!r}); "
+                f"use 0 to disable the gate, or a positive value such as "
+                f"0.005 for 50 bps minimum complete-set edge."
+            )
+        if v < 0:
+            raise ValueError(
+                f"MIN_COMPLETE_SET_EDGE must be >= 0 (got {v}); use 0 to "
+                f"disable the gate, any positive value for the minimum edge "
+                f"required to accept the entry."
             )
         return v
 
