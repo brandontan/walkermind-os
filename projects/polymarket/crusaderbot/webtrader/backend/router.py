@@ -1365,7 +1365,7 @@ async def get_alerts(user: _CurrentUser) -> list[AlertItem]:
 
 
 @router.post("/alerts/ack-all")
-async def ack_all_alerts(user: _CurrentUser) -> dict:
+async def ack_all_alerts(user: _CurrentUser) -> dict[str, str | None]:
     """Persist the AlertCenter "Mark all read" click server-side.
 
     Sets ``user_settings.alerts_ack_at = NOW()`` so subsequent /alerts and

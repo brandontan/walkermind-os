@@ -305,18 +305,21 @@ function AppShell() {
     // second setItem here would be a duplicate write.
     setLastSeen(now);
     // Persist server-side. Best-effort: a network failure leaves the local
-    // watermark in place so the click still sticks for this device. When
-    // the server responds we ALWAYS adopt its canonical NOW() — a
-    // `serverMs > now` guard would lose the canonical value on a
-    // fast client clock (Date.now() ahead of server) and risk hiding
-    // legitimate alerts that arrive between server-time and client-time.
+    // watermark in place so the click still sticks for this device. Adopt
+    // server canonical NOW() monotonically — functional updater prevents an
+    // out-of-order response from lowering the watermark and re-showing alerts.
     api.ackAllAlerts()
       .then((resp) => {
         if (resp.alerts_ack_at) {
           const serverMs = Date.parse(resp.alerts_ack_at);
           if (Number.isFinite(serverMs)) {
-            setMarkAllReadAt(serverMs);
-            try { localStorage.setItem(scopeKey(MARK_ALL_READ_AT_KEY_BASE, userKey), String(serverMs)); } catch { /* quota */ }
+            setMarkAllReadAt((prev) => {
+              const next = Math.max(prev, serverMs);
+              if (next > prev) {
+                try { localStorage.setItem(scopeKey(MARK_ALL_READ_AT_KEY_BASE, userKey), String(next)); } catch { /* quota */ }
+              }
+              return next;
+            });
           }
         }
       })
