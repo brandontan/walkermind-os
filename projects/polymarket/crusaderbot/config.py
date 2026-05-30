@@ -338,6 +338,46 @@ class Settings(BaseSettings):
     # live position becomes redeemable, defer to the hourly queue. ---
     INSTANT_REDEEM_GAS_GWEI_MAX: float = 200.0
 
+    # --- Bankroll dynamic sizing
+    #     (WARP/R00T/bankroll-dynamic-sizing, Lane 5/5) ---
+    # Scales the candidate's base size by the user's bankroll deviation
+    # from its EMA-smoothed baseline. Applied in
+    # signal_scan_job._build_trade_signal BEFORE the risk gate, so the
+    # engine's Kelly + position caps still authoritatively bound the
+    # final size after the multiplier.
+    #
+    # Disabled by default — flip ENABLED to true after operator review
+    # of how the multiplier interacts with their bankroll distribution.
+    # Fail-safe: when disabled OR the user has no prior baseline (first
+    # observation seeds it) OR the current balance is non-positive OR
+    # any config read raises, the multiplier is 1.0 (no scaling).
+    BANKROLL_DYNAMIC_SIZING_ENABLED: bool = False  # env: BANKROLL_DYNAMIC_SIZING_ENABLED
+
+    # Bounds on the multiplier so a recent win streak can't blow up
+    # position sizes and a recent loss streak can't shrink them below
+    # min-size gates. Default [0.5, 1.5] matches the Polybot directive.
+    BANKROLL_MULTIPLIER_MIN: float = 0.5  # env: BANKROLL_MULTIPLIER_MIN
+    BANKROLL_MULTIPLIER_MAX: float = 1.5  # env: BANKROLL_MULTIPLIER_MAX
+
+    # EMA smoothing factor for the baseline (0 < alpha <= 1).
+    # alpha=0.05 makes the baseline drift slowly: ~95% of the change
+    # from a sudden balance shift takes ~60 observations to absorb,
+    # giving the multiplier a meaningful window in which to react.
+    BANKROLL_EMA_ALPHA: float = 0.05  # env: BANKROLL_EMA_ALPHA
+
+    # Minimum interval between baseline EMA updates (seconds).
+    # `_process_candidate` is called sequentially for multiple
+    # candidates of the same user within one scan tick (e.g. several
+    # candle markets for one late_entry_v3 user); without throttling,
+    # each candidate drifts the baseline toward the static
+    # intra-tick balance, collapsing it to ~= current and zeroing the
+    # multiplier for the rest of the tick. 5s is comfortably longer
+    # than a single scan tick (15s cadence at most, but the per-tick
+    # candidate burst is sub-second) and shorter than the
+    # CLOSE_SWEEP_SCAN_INTERVAL fast loop, so legitimate cross-tick
+    # updates still land.
+    BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC: float = 5.0  # env: BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC
+
     # --- Safe-close direction concentration limit
     #     (WARP/R00T/safe-close-direction-limit, Lane 4/5) ---
     # Max accepted safe_close entries per (user, side) within a rolling
@@ -463,6 +503,72 @@ class Settings(BaseSettings):
             if (legacy is None or str(legacy).strip() == "") and alias:
                 data["POLYGON_RPC_URL"] = alias
         return data
+
+    @field_validator("BANKROLL_MULTIPLIER_MIN", "BANKROLL_MULTIPLIER_MAX")
+    @classmethod
+    def validate_bankroll_multiplier_bound(cls, v: float) -> float:
+        # The multiplier IS the size scaler — non-finite or non-positive
+        # would zero / NaN the proposed_size at runtime. Fail fast at
+        # load with a clear error.
+        if not math.isfinite(v):
+            raise ValueError(
+                f"BANKROLL_MULTIPLIER_{{MIN,MAX}} must be a finite "
+                f"number (got {v!r}); typical bounds are 0.5..1.5."
+            )
+        if v <= 0:
+            raise ValueError(
+                f"BANKROLL_MULTIPLIER_{{MIN,MAX}} must be > 0 (got {v}); "
+                f"a non-positive multiplier would zero out trade sizes."
+            )
+        return v
+
+    @field_validator("BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC")
+    @classmethod
+    def validate_bankroll_baseline_throttle(cls, v: float) -> float:
+        # Must be finite + non-negative (0 disables the throttle).
+        if not math.isfinite(v):
+            raise ValueError(
+                f"BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC must be "
+                f"finite (got {v!r})."
+            )
+        if v < 0:
+            raise ValueError(
+                f"BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC must be "
+                f">= 0 (got {v}); use 0 to disable the throttle, or "
+                f"a positive value to require N seconds between "
+                f"baseline EMA updates."
+            )
+        return v
+
+    @field_validator("BANKROLL_EMA_ALPHA")
+    @classmethod
+    def validate_bankroll_ema_alpha(cls, v: float) -> float:
+        # alpha must be in (0, 1] — 0 freezes the baseline forever (no
+        # tracking), > 1 over-shoots and oscillates. Fail fast at load.
+        if not math.isfinite(v):
+            raise ValueError(
+                f"BANKROLL_EMA_ALPHA must be a finite number (got {v!r})."
+            )
+        if v <= 0 or v > 1:
+            raise ValueError(
+                f"BANKROLL_EMA_ALPHA must be in (0, 1] (got {v}); "
+                f"alpha=0 freezes the baseline, alpha>1 overshoots."
+            )
+        return v
+
+    @model_validator(mode="after")
+    def validate_bankroll_multiplier_range(self) -> "Settings":
+        # MIN must not exceed MAX — otherwise the runtime `max(MIN, min(MAX, raw))`
+        # clamp clamps to MIN unconditionally (raw <= MAX always evaluates to
+        # the smaller MAX → outer max picks MIN), effectively constant-multiplier
+        # at MIN regardless of bankroll. Fail fast at load.
+        if self.BANKROLL_MULTIPLIER_MIN > self.BANKROLL_MULTIPLIER_MAX:
+            raise ValueError(
+                f"BANKROLL_MULTIPLIER_MIN ({self.BANKROLL_MULTIPLIER_MIN}) "
+                f"must not exceed BANKROLL_MULTIPLIER_MAX "
+                f"({self.BANKROLL_MULTIPLIER_MAX})."
+            )
+        return self
 
     @field_validator("SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR")
     @classmethod
