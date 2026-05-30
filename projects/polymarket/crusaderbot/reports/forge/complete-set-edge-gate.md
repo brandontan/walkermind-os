@@ -10,7 +10,7 @@ This is the directive's Sprint-1 item 4 (Close Sweep complete-set edge gate) + i
 
 ## 2. Current system architecture
 
-```
+```text
 late_entry_v3._evaluate_market   ← Lane 3, unchanged
         │ stamps:
         │   complete_set_edge = round(1 - (yes_ask + no_ask), 4)
@@ -36,7 +36,7 @@ Strategies that do not stamp the metric (`signal_following`, `momentum`, `copy_t
 
 ## 3. Files created / modified
 
-```
+```text
 projects/polymarket/crusaderbot/config.py
 projects/polymarket/crusaderbot/services/signal_scan/signal_scan_job.py
 projects/polymarket/crusaderbot/tests/test_complete_set_edge_gate.py
