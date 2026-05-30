@@ -246,6 +246,23 @@ class TradeNotifier:
             event=NotificationEvent.ENTRY,
             market_id=market_id,
             reply_markup=kb,
+            alert_kind="trade_opened",
+            metadata={
+                "market_id": market_id,
+                "market_label": label,
+                "side": side_upper,
+                "size_usdc": float(size_usdc),
+                "entry_price": float(price),
+                "tp_pct": float(tp_pct) if tp_pct is not None else None,
+                "sl_pct": float(sl_pct) if sl_pct is not None else None,
+                "strategy": strat,
+                "strategy_type": strategy_type,
+                "mode": mode,
+                "position_id": position_id,
+                "signal_reason": signal_reason,
+                "copy_wallet": copy_wallet,
+                "copy_win_rate": copy_win_rate,
+            },
         )
 
     async def animated_entry_sequence(
@@ -352,6 +369,16 @@ class TradeNotifier:
             telegram_user_id, text,
             event=NotificationEvent.TP_HIT, market_id=market_id,
             reply_markup=reply_markup,
+            alert_kind="tp_hit",
+            metadata={
+                "market_id": market_id,
+                "market_label": label,
+                "side": side.upper(),
+                "exit_price": float(exit_price),
+                "pnl_usdc": float(pnl_usdc),
+                "mode": mode,
+                "trade_id": trade_id,
+            },
         )
 
     async def notify_sl_hit(
@@ -387,6 +414,15 @@ class TradeNotifier:
             telegram_user_id, text,
             event=NotificationEvent.SL_HIT, market_id=market_id,
             reply_markup=reply_markup,
+            alert_kind="sl_hit",
+            metadata={
+                "market_id": market_id,
+                "market_label": label,
+                "side": side.upper(),
+                "exit_price": float(exit_price),
+                "pnl_usdc": float(pnl_usdc),
+                "mode": mode,
+            },
         )
 
     async def notify_manual_close(
@@ -418,6 +454,15 @@ class TradeNotifier:
             telegram_user_id, text,
             event=NotificationEvent.MANUAL, market_id=market_id,
             reply_markup=reply_markup,
+            alert_kind="manual_close",
+            metadata={
+                "market_id": market_id,
+                "market_label": label,
+                "side": side.upper(),
+                "exit_price": float(exit_price),
+                "pnl_usdc": float(pnl_usdc),
+                "mode": mode,
+            },
         )
 
     async def notify_emergency_close(
@@ -447,6 +492,15 @@ class TradeNotifier:
             telegram_user_id, text,
             event=NotificationEvent.EMERGENCY, market_id=market_id,
             reply_markup=emergency_kb,
+            alert_kind="emergency_close",
+            metadata={
+                "market_id": market_id,
+                "market_label": label,
+                "side": side.upper(),
+                "exit_price": float(exit_price),
+                "pnl_usdc": float(pnl_usdc),
+                "mode": mode,
+            },
         )
 
     async def notify_copy_trade_entry(
@@ -518,6 +572,8 @@ class TradeNotifier:
         event: NotificationEvent,
         market_id: str,
         reply_markup: Optional[InlineKeyboardMarkup] = None,
+        alert_kind: Optional[str] = None,
+        metadata: Optional[dict] = None,
     ) -> None:
         """Send text to user. Catches all failures — runtime must not be interrupted.
 
@@ -525,6 +581,10 @@ class TradeNotifier:
         WebTrader AlertCenter when web is enabled, only fires TG send when tg
         is enabled. The legacy ``notifications_enabled_by_telegram_id`` flag
         still gates the TG channel as a global kill switch.
+
+        ``alert_kind`` and ``metadata`` are forwarded to the web mirror so the
+        AlertCenter can render typed cards (entry / closed / TP / SL) instead
+        of dumping the Telegram ASCII text body. Telegram delivery is unchanged.
         """
         from ...users import notifications_enabled_by_telegram_id
 
@@ -538,6 +598,8 @@ class TradeNotifier:
                 web_body=text,
                 severity="info",
                 dedup_key=market_id,
+                alert_kind=alert_kind,
+                metadata=metadata,
             )
         except Exception:
             send_tg = True

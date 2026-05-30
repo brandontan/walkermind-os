@@ -1343,7 +1343,8 @@ async def get_alerts(user: _CurrentUser) -> list[AlertItem]:
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """SELECT a.id, a.severity, a.title, a.body, a.created_at
+            """SELECT a.id, a.severity, a.title, a.body, a.created_at,
+                      a.alert_kind, a.metadata
                FROM system_alerts a
                LEFT JOIN user_settings us ON us.user_id = $1::uuid
                WHERE a.dismissed = FALSE
@@ -1361,9 +1362,30 @@ async def get_alerts(user: _CurrentUser) -> list[AlertItem]:
             title=r["title"],
             body=r["body"],
             created_at=r["created_at"],
+            alert_kind=r["alert_kind"],
+            metadata=_coerce_alert_metadata(r["metadata"]),
         )
         for r in rows
     ]
+
+
+def _coerce_alert_metadata(raw) -> dict:
+    """asyncpg returns JSONB as str or dict depending on codec config; coerce
+    to a dict so the AlertItem schema validation never trips on a JSON-encoded
+    string. Empty/None coerces to {} so the frontend's typed-card path can
+    safely access metadata.get(...) without a guard."""
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        try:
+            import json as _json
+            parsed = _json.loads(raw)
+            return parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+    return {}
 
 
 @router.post("/alerts/ack-all")

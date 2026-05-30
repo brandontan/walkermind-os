@@ -1,7 +1,8 @@
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useAlertCenter } from "../App";
-import type { AlertItem } from "../lib/api";
+import type { AlertItem, AlertKind, AlertMetadata } from "../lib/api";
 
 type Category = "TRADE" | "SIGNAL" | "RISK" | "SYSTEM";
 
@@ -12,9 +13,26 @@ const CATEGORY_STYLE: Record<Category, { color: string; bg: string; border: stri
   SYSTEM: { color: "var(--ink-2)", bg: "var(--ink-2-08)", border: "var(--ink-2-20)" },
 };
 
-// Icon-by-category mirrors the screenshot: lightning for trade events
-// (Position Opened / Closed), satellite for inbound signals + copy follows,
-// computer for bot/system state, warning sign for risk events.
+// Icon by alert_kind first (precise), category fallback (legacy rows). The
+// trade-lifecycle icons mirror Kreo / Polymarket conventions: ⚡ entry,
+// 🎯 TP, 🛑 SL, 🏁 resolution, ✅ manual close, 🚨 emergency, 🐋 copy.
+const KIND_ICON: Record<string, string> = {
+  trade_opened: "⚡",
+  copy_trade_opened: "🐋",
+  tp_hit: "🎯",
+  sl_hit: "🛑",
+  resolution_win: "🏁",
+  resolution_loss: "🏁",
+  force_close: "🚨",
+  strategy_exit: "📉",
+  manual_close: "✅",
+  emergency_close: "🚨",
+  market_expired: "⏰",
+  close_failed: "⚠️",
+  risk: "⚠️",
+  system: "🖥",
+};
+
 const CATEGORY_ICON: Record<Category, string> = {
   TRADE:  "⚡",
   SIGNAL: "📡",
@@ -22,16 +40,36 @@ const CATEGORY_ICON: Record<Category, string> = {
   SYSTEM: "🖥",
 };
 
+// Map alert_kind → visual category for the icon-badge background.
+const KIND_CATEGORY: Record<string, Category> = {
+  trade_opened: "TRADE",
+  copy_trade_opened: "TRADE",
+  tp_hit: "TRADE",
+  sl_hit: "RISK",
+  resolution_win: "TRADE",
+  resolution_loss: "RISK",
+  force_close: "RISK",
+  strategy_exit: "TRADE",
+  manual_close: "TRADE",
+  emergency_close: "RISK",
+  market_expired: "SYSTEM",
+  close_failed: "RISK",
+  risk: "RISK",
+  system: "SYSTEM",
+};
+
 function deriveCategory(alert: AlertItem): Category {
+  // Prefer alert_kind (precise, set by backend on new writes).
+  if (alert.alert_kind && KIND_CATEGORY[alert.alert_kind]) {
+    return KIND_CATEGORY[alert.alert_kind];
+  }
+  // Legacy heuristic fallback (pre-072 rows have no alert_kind).
   const s = (alert.severity ?? "").toLowerCase();
   const t = (alert.title ?? "").toLowerCase();
-  // Signal-type events: copy-trade follows + scanner publications.
   if (s === "copy" || s === "signal" || t.includes("signal") || t.includes("copy"))
     return "SIGNAL";
-  // Trade lifecycle: open / close / TP / SL / position updates.
   if (s === "trade" || t.includes("trade") || t.includes("position") || t.includes("tp_") || t.includes("sl_"))
     return "TRADE";
-  // Risk + safety events.
   if (s === "error" || s === "risk" || t.includes("risk") || t.includes("kill") || t.includes("drawdown"))
     return "RISK";
   return "SYSTEM";
@@ -74,9 +112,217 @@ function stripHtml(text: string | null | undefined): string {
     .trim();
 }
 
+function formatMoney(n: number | undefined): string {
+  if (n === undefined || n === null || !Number.isFinite(n)) return "—";
+  return `$${n.toFixed(2)}`;
+}
+
+function formatSignedMoney(n: number | undefined): string {
+  if (n === undefined || n === null || !Number.isFinite(n)) return "—";
+  if (n === 0) return "Even";
+  const sign = n > 0 ? "+" : "−";
+  return `${sign}$${Math.abs(n).toFixed(2)}`;
+}
+
+function formatPrice(n: number | undefined): string {
+  if (n === undefined || n === null || !Number.isFinite(n)) return "—";
+  return n.toFixed(3);
+}
+
+function formatPct(n: number | undefined): string {
+  if (n === undefined || n === null || !Number.isFinite(n)) return "—";
+  return `${(n * 100).toFixed(1)}%`;
+}
+
+// P&L color by sign — green/red/muted. Returns a CSS var for theme parity.
+function pnlColor(pnl: number | undefined): string {
+  if (pnl === undefined || pnl === null || !Number.isFinite(pnl) || pnl === 0) return "var(--ink-2)";
+  return pnl > 0 ? "var(--grn, #4ade80)" : "var(--red, #f87171)";
+}
+
+function sideColor(side: string | undefined): string {
+  if (!side) return "var(--ink-3)";
+  const s = side.toUpperCase();
+  if (s === "YES") return "var(--grn, #4ade80)";
+  if (s === "NO") return "var(--red, #f87171)";
+  return "var(--ink-2)";
+}
+
+// Truncate the market title to a reasonable card width (full string preserved
+// in the `title` attribute so hover reveals the rest).
+function shortMarket(label: string | undefined, max = 38): string {
+  if (!label) return "—";
+  return label.length > max ? `${label.slice(0, max - 1)}…` : label;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Typed card renderers — one per alert_kind cluster. Each returns the inner
+// body content; the outer card chrome (icon badge, header row, dismiss, time)
+// stays in the parent so layout is consistent across kinds.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function EntryBody({ md }: { md: AlertMetadata }) {
+  const fullLabel = md.market_label ?? "—";
+  return (
+    <div className="space-y-1">
+      <div className="font-mono text-[10.5px] text-ink-2 leading-snug break-words" title={fullLabel}>
+        {shortMarket(fullLabel)}
+      </div>
+      <div className="flex items-center gap-2 flex-wrap font-mono text-[10px]">
+        <span
+          className="px-1.5 py-[1px] rounded font-bold text-[9.5px]"
+          style={{ background: "rgba(255,255,255,0.04)", color: sideColor(md.side), border: `1px solid ${sideColor(md.side)}30` }}
+        >
+          {md.side ?? "—"}
+        </span>
+        <span className="text-ink-3">{formatMoney(md.size_usdc)}</span>
+        <span className="text-ink-4">@</span>
+        <span className="text-ink-2 font-bold">{formatPrice(md.entry_price)}</span>
+      </div>
+      <div className="flex items-center gap-3 font-mono text-[9.5px] text-ink-4">
+        <span>TP {formatPct(md.tp_pct)}</span>
+        <span>SL {formatPct(md.sl_pct)}</span>
+        {md.strategy && (
+          <span className="ml-auto text-ink-3 font-bold tracking-[0.5px]">{md.strategy}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ExitBody({ md, kind }: { md: AlertMetadata; kind: string }) {
+  const fullLabel = md.market_label ?? "—";
+  const verb =
+    kind === "tp_hit" ? "TP" :
+    kind === "sl_hit" ? "SL" :
+    kind === "resolution_win" ? "Settled" :
+    kind === "resolution_loss" ? "Settled" :
+    kind === "force_close" ? "Force-closed" :
+    kind === "manual_close" ? "Closed" :
+    kind === "emergency_close" ? "Emergency-closed" :
+    "Closed";
+  return (
+    <div className="space-y-1">
+      <div className="font-mono text-[10.5px] text-ink-2 leading-snug break-words" title={fullLabel}>
+        {shortMarket(fullLabel)}
+      </div>
+      <div className="flex items-center gap-2 flex-wrap font-mono text-[10px]">
+        <span
+          className="px-1.5 py-[1px] rounded font-bold text-[9.5px]"
+          style={{ background: "rgba(255,255,255,0.04)", color: sideColor(md.side), border: `1px solid ${sideColor(md.side)}30` }}
+        >
+          {md.side ?? "—"}
+        </span>
+        <span className="text-ink-3">{verb}</span>
+        <span className="text-ink-4">@</span>
+        <span className="text-ink-2 font-bold">{formatPrice(md.exit_price)}</span>
+        <span
+          className="ml-auto font-bold"
+          style={{ color: pnlColor(md.pnl_usdc) }}
+        >
+          {formatSignedMoney(md.pnl_usdc)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ExpiredBody({ md }: { md: AlertMetadata }) {
+  const fullLabel = md.market_label ?? "—";
+  return (
+    <div className="space-y-1">
+      <div className="font-mono text-[10.5px] text-ink-2 leading-snug break-words" title={fullLabel}>
+        {shortMarket(fullLabel)}
+      </div>
+      <div className="font-mono text-[10px] text-ink-3">
+        Market expired — capital returned {formatMoney(md.size_usdc)}
+      </div>
+    </div>
+  );
+}
+
+function FailedBody({ md }: { md: AlertMetadata }) {
+  const fullLabel = md.market_label ?? "—";
+  return (
+    <div className="space-y-1">
+      <div className="font-mono text-[10.5px] text-ink-2 leading-snug break-words" title={fullLabel}>
+        {shortMarket(fullLabel)}
+      </div>
+      {md.error && (
+        <div className="font-mono text-[9.5px] text-ink-3 leading-snug break-words">
+          {md.error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Plain-text fallback for legacy rows / system messages with no metadata.
+function FallbackBody({ body }: { body: string | null | undefined }) {
+  const text = stripHtml(body);
+  if (!text) return null;
+  return (
+    <div className="font-mono text-[10px] text-ink-3 leading-snug whitespace-pre-line break-words">
+      {text}
+    </div>
+  );
+}
+
+// Title override per kind — the backend writes generic web titles ("Take-profit
+// hit", "Trade opened"), but we can do better on the visual surface.
+function kindTitle(alert: AlertItem): string {
+  const k = (alert.alert_kind ?? "").toString();
+  const titleMap: Record<string, string> = {
+    trade_opened: "Trade opened",
+    copy_trade_opened: "Copy trade opened",
+    tp_hit: "Take-profit hit",
+    sl_hit: "Stop-loss hit",
+    resolution_win: "Resolved — Won",
+    resolution_loss: "Resolved — Lost",
+    force_close: "Force close",
+    strategy_exit: "Strategy exit",
+    manual_close: "Manual close",
+    emergency_close: "Emergency close",
+    market_expired: "Market expired",
+    close_failed: "Close failed",
+  };
+  return titleMap[k] ?? stripHtml(alert.title) ?? "Notification";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dedup: when a strategy_exit fires for the same (user, market) within 60s
+// of a more-specific exit (tp_hit / sl_hit / resolution_*), the strategy_exit
+// row is redundant noise. Drop it client-side; the backend write is preserved
+// for audit purposes.
+// ─────────────────────────────────────────────────────────────────────────────
+function dedupAlerts(alerts: AlertItem[]): AlertItem[] {
+  const out: AlertItem[] = [];
+  for (const a of alerts) {
+    if (a.alert_kind !== "strategy_exit") { out.push(a); continue; }
+    const market = a.metadata?.market_id;
+    if (!market) { out.push(a); continue; }
+    const aTs = new Date(a.created_at).getTime();
+    // Look for a sibling exit on the same market within 60s in either direction.
+    const sibling = alerts.find((b) =>
+      b.id !== a.id &&
+      b.metadata?.market_id === market &&
+      (b.alert_kind === "tp_hit" || b.alert_kind === "sl_hit" ||
+       b.alert_kind === "resolution_win" || b.alert_kind === "resolution_loss" ||
+       b.alert_kind === "force_close" || b.alert_kind === "manual_close" ||
+       b.alert_kind === "emergency_close") &&
+      Math.abs(new Date(b.created_at).getTime() - aTs) < 60_000
+    );
+    if (!sibling) out.push(a);
+  }
+  return out;
+}
+
 export function AlertCenter({ isOpen, alerts, onClose }: Props) {
   const { dismissAlert, markAllRead, loadMoreAlerts, hasMoreAlerts, unreadCount, seenIds } = useAlertCenter();
   const navigate = useNavigate();
+
+  // Apply dedup once per render of the panel.
+  const visibleAlerts = useMemo(() => dedupAlerts(alerts), [alerts]);
 
   // "Preferences" link target — opens the Settings page where alert filtering
   // already lives. Keeps the panel a viewer + actions surface; settings are
@@ -112,36 +358,28 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
           boxShadow: isOpen ? `-8px 0 32px var(--shadow-deep)` : "none",
         }}
       >
-        {/* Header — title + NEW badge + Mark all read + close X */}
-        <div className="flex items-center justify-between px-4 py-3.5 border-b border-border-2 flex-shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="font-hud text-[13px] font-bold tracking-[3px] uppercase text-gold">
-              Notifications
-            </span>
-            {unreadCount > 0 && (
-              <span
-                className="font-mono text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
-                style={{ background: "rgba(245,200,66,0.15)", color: "var(--gold,#F5C842)", border: "1px solid rgba(245,200,66,0.3)" }}
-              >
-                {unreadCount} NEW
+        {/* Header — title + NEW badge on top row, Mark all read + close on actions row.
+            Two-row layout avoids the badge/link collision visible in the prior screenshot
+            when "10 NEW" + "Mark all read" + × competed for horizontal space at mobile widths. */}
+        <div className="flex flex-col gap-2 px-4 pt-3.5 pb-3 border-b border-border-2 flex-shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-hud text-[13px] font-bold tracking-[3px] uppercase text-gold">
+                Notifications
               </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {alerts.length > 0 && (
-              <button
-                type="button"
-                onClick={markAllRead}
-                className="font-mono text-[10px] text-ink-3 hover:text-gold transition-colors whitespace-nowrap"
-                aria-label="Mark all read"
-              >
-                Mark all read
-              </button>
-            )}
+              {unreadCount > 0 && (
+                <span
+                  className="font-mono text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"
+                  style={{ background: "rgba(245,200,66,0.15)", color: "var(--gold,#F5C842)", border: "1px solid rgba(245,200,66,0.3)" }}
+                >
+                  {unreadCount} NEW
+                </span>
+              )}
+            </div>
             <button
               type="button"
               onClick={onClose}
-              className="w-7 h-7 flex items-center justify-center rounded text-ink-3 hover:text-ink-1 transition-colors bg-border-1"
+              className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded text-ink-3 hover:text-ink-1 transition-colors bg-border-1"
               aria-label="Close"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
@@ -151,11 +389,23 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
               </svg>
             </button>
           </div>
+          {visibleAlerts.length > 0 && (
+            <div className="flex items-center justify-end">
+              <button
+                type="button"
+                onClick={markAllRead}
+                className="font-mono text-[10px] text-ink-3 hover:text-gold transition-colors whitespace-nowrap"
+                aria-label="Mark all read"
+              >
+                Mark all read
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Alert list */}
         <div className="flex-1 overflow-y-auto">
-          {alerts.length === 0 ? (
+          {visibleAlerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 py-12">
               <span className="text-3xl opacity-40" aria-hidden>🔔</span>
               <span className="font-mono text-[11px] text-ink-4">No notifications yet.</span>
@@ -166,14 +416,21 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
           ) : (
             <div>
               <div className="divide-y divide-border-1">
-                {alerts.map((alert) => {
+                {visibleAlerts.map((alert) => {
                   const cat = deriveCategory(alert);
                   const style = CATEGORY_STYLE[cat];
-                  const icon = CATEGORY_ICON[cat];
-                  // Unread = alert ID not yet in the persistent seenIds set.
-                  // The treatment persists across panel re-opens until the
-                  // user explicitly acknowledges (dismiss or Mark all read).
+                  const kind = (alert.alert_kind ?? "").toString();
+                  const icon = KIND_ICON[kind] ?? CATEGORY_ICON[cat];
+                  const md = (alert.metadata ?? {}) as AlertMetadata;
                   const isUnread = !seenIds.has(alert.id);
+                  const hasTypedRenderer =
+                    kind === "trade_opened" || kind === "copy_trade_opened" ||
+                    kind === "tp_hit" || kind === "sl_hit" ||
+                    kind === "resolution_win" || kind === "resolution_loss" ||
+                    kind === "force_close" || kind === "strategy_exit" ||
+                    kind === "manual_close" || kind === "emergency_close" ||
+                    kind === "market_expired" || kind === "close_failed";
+                  const titleStr = hasTypedRenderer ? kindTitle(alert) : stripHtml(alert.title);
                   return (
                     <div
                       key={alert.id}
@@ -198,7 +455,7 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
 
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start gap-1.5 mb-0.5">
+                        <div className="flex items-start gap-1.5 mb-1">
                           {isUnread && (
                             <span
                               className="inline-block w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
@@ -211,10 +468,13 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
                               isUnread ? "text-ink-1 font-bold" : "text-ink-2 font-semibold"
                             }`}
                           >
-                            {stripHtml(alert.title)}
+                            {titleStr}
+                            {md.mode && md.mode.toLowerCase() !== "paper" && (
+                              <span className="ml-1.5 text-[9px] font-mono font-bold uppercase tracking-wider text-amber-400">
+                                {md.mode}
+                              </span>
+                            )}
                           </span>
-                          {/* Dismiss — always visible (was hover-only). Matches the screenshot
-                              where every card shows a discoverable × on tap targets. */}
                           <button
                             type="button"
                             onClick={() => dismissAlert(alert.id)}
@@ -227,15 +487,24 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
                             </svg>
                           </button>
                         </div>
-                        {alert.body && (
-                          // Body wraps (no truncate) so long titles like the screenshot's
-                          // "BUY signal on 'Will Bitcoin exceed $120k?'" stay readable.
-                          // stripHtml is defensive — backend already cleans on insert.
-                          <div className="font-mono text-[10px] text-ink-3 leading-snug mb-1 whitespace-pre-line break-words">
-                            {stripHtml(alert.body)}
-                          </div>
+
+                        {/* Typed card body by alert_kind, or fallback to body text. */}
+                        {kind === "trade_opened" || kind === "copy_trade_opened" ? (
+                          <EntryBody md={md} />
+                        ) : kind === "tp_hit" || kind === "sl_hit" ||
+                            kind === "resolution_win" || kind === "resolution_loss" ||
+                            kind === "force_close" || kind === "strategy_exit" ||
+                            kind === "manual_close" || kind === "emergency_close" ? (
+                          <ExitBody md={md} kind={kind} />
+                        ) : kind === "market_expired" ? (
+                          <ExpiredBody md={md} />
+                        ) : kind === "close_failed" ? (
+                          <FailedBody md={md} />
+                        ) : (
+                          <FallbackBody body={alert.body} />
                         )}
-                        <span className="font-mono text-[9px] text-ink-4">
+
+                        <span className="font-mono text-[9px] text-ink-4 block mt-1.5">
                           {relativeTime(alert.created_at)}
                         </span>
                       </div>
@@ -264,8 +533,8 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
           style={{ background: "var(--surface)" }}
         >
           <span className="font-mono text-[9px] text-ink-4">
-            {alerts.length > 0
-              ? `${alerts.length} shown · click × to dismiss`
+            {visibleAlerts.length > 0
+              ? `${visibleAlerts.length} shown · tap × to dismiss`
               : "No new notifications"}
           </span>
           <button
@@ -282,3 +551,7 @@ export function AlertCenter({ isOpen, alerts, onClose }: Props) {
     </>
   );
 }
+
+// Re-export the type guards for downstream tests / debugging consumers.
+export { dedupAlerts };
+export type { AlertKind };

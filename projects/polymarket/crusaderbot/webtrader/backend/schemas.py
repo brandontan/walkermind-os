@@ -280,6 +280,11 @@ class AlertItem(BaseModel):
     title: str
     body: Optional[str] = None
     created_at: datetime
+    # New: structured fields for typed AlertCenter card rendering. Both default
+    # to None / empty so legacy rows from pre-072 migration still render via
+    # the body fallback path on the client.
+    alert_kind: Optional[str] = None
+    metadata: dict = {}
 
 
 # ── Portfolio ─────────────────────────────────────────────────────────────────
