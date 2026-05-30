@@ -323,24 +323,16 @@ def _run_heisenberg_with_social(
     conn.fetchval = AsyncMock(return_value=False)  # _already_published
     pool.acquire = MagicMock(return_value=_acquire_ctx(conn))
 
-    import os
-    prev_token = os.environ.get("HEISENBERG_API_TOKEN")
-    os.environ["HEISENBERG_API_TOKEN"] = monkeypatch_token
-    try:
-        with (
-            patch.object(scanner, "get_pool", return_value=pool),
-            patch.object(scanner, "get_settings", return_value=_FAKE_CFG),
-            patch.object(scanner.heisenberg, "retrieve", new=AsyncMock(side_effect=_fake_retrieve)),
-            patch.object(scanner, "_publish", side_effect=_fake_publish),
-            patch.object(scanner, "_already_published", new=AsyncMock(return_value=False)),
-            patch.object(scanner, "_feed_active", new=AsyncMock(return_value=True)),
-        ):
-            asyncio.run(scanner._run_heisenberg_signals())
-    finally:
-        if prev_token is None:
-            os.environ.pop("HEISENBERG_API_TOKEN", None)
-        else:
-            os.environ["HEISENBERG_API_TOKEN"] = prev_token
+    with (
+        patch.dict("os.environ", {"HEISENBERG_API_TOKEN": monkeypatch_token}),
+        patch.object(scanner, "get_pool", return_value=pool),
+        patch.object(scanner, "get_settings", return_value=_FAKE_CFG),
+        patch.object(scanner.heisenberg, "retrieve", new=AsyncMock(side_effect=_fake_retrieve)),
+        patch.object(scanner, "_publish", side_effect=_fake_publish),
+        patch.object(scanner, "_already_published", new=AsyncMock(return_value=False)),
+        patch.object(scanner, "_feed_active", new=AsyncMock(return_value=True)),
+    ):
+        asyncio.run(scanner._run_heisenberg_signals())
 
     return published_calls
 

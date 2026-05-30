@@ -349,8 +349,7 @@ async def _run_heisenberg_signals() -> tuple[int, int]:
                             # the signal's position-sizing footprint downstream
                             # (consumed by signal_scan_job._resolve_size_usdc).
                             payload["confidence"] = min(
-                                float(payload.get("confidence", DEFAULT_CONFIDENCE))
-                                + SOCIAL_MOMENTUM_CONFIDENCE_BOOST,
+                                payload["confidence"] + SOCIAL_MOMENTUM_CONFIDENCE_BOOST,
                                 SOCIAL_MOMENTUM_CONFIDENCE_CEIL,
                             )
                 except Exception as exc:
