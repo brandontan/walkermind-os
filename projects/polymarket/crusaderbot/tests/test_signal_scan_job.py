@@ -804,18 +804,6 @@ def test_preset_allows_deny_by_default_robust_to_nonempty_lib_set():
         job._LIB_STRATEGY_NAMES = saved
 
 
-def test_preset_allows_source_uses_frozenset_default():
-    """Source pin: the ``_PRESET_ALLOWED`` fallback is ``frozenset()``
-    (deny-by-default), never ``_LIB_STRATEGY_NAMES`` (fail-open)."""
-    import inspect
-
-    src = inspect.getsource(_preset_allows)
-    assert "_PRESET_ALLOWED.get(active_preset, frozenset())" in src
-    # The fail-open pattern (fallback widening to the lib set) must be gone from
-    # the code. (The docstring may still mention _LIB_STRATEGY_NAMES to warn.)
-    assert "_PRESET_ALLOWED.get(active_preset, _LIB_STRATEGY_NAMES)" not in src
-
-
 def test_preset_allows_globally_disabled_strategy_blocked():
     """A globally disabled strategy is never allowed regardless of preset."""
     job._GLOBALLY_DISABLED_STRATEGIES = frozenset({"late_entry_v3"})
