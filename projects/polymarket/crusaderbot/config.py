@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -337,6 +338,19 @@ class Settings(BaseSettings):
     # live position becomes redeemable, defer to the hourly queue. ---
     INSTANT_REDEEM_GAS_GWEI_MAX: float = 200.0
 
+    # --- Close-sweep per-leg spread gate (WARP/R00T/close-sweep-spread-gate) ---
+    # Max per-side bid-ask spread (best_ask - best_bid) tolerated by the
+    # close_sweep preset. Wide per-leg spread in the noisy final ~35s of a
+    # candle = thin book + high slippage on the taker fill. Scoped to
+    # close_sweep only via _resolve_preset_params → late_entry_v3.scan;
+    # safe_close + flip_hunter pass None (no-op) since they entry earlier
+    # in the candle where this is not the dominant risk.
+    #
+    # Default 0.02 (2c) matches the Polybot research reference.
+    # Set to 0 to disable the gate (escape hatch — operator can revert
+    # without redeploy). Negative values are rejected at config load.
+    CLOSE_SWEEP_MAX_LEG_SPREAD: float = 0.02  # env: CLOSE_SWEEP_MAX_LEG_SPREAD
+
     # --- TOB freshness gate (WARP/R00T/tob-freshness-gate) ---
     # Max age in milliseconds for the orderbook snapshot that produced
     # a candidate's metadata["entry_price"]. Read by
@@ -434,6 +448,32 @@ class Settings(BaseSettings):
             if (legacy is None or str(legacy).strip() == "") and alias:
                 data["POLYGON_RPC_URL"] = alias
         return data
+
+    @field_validator("CLOSE_SWEEP_MAX_LEG_SPREAD")
+    @classmethod
+    def validate_close_sweep_max_leg_spread(cls, v: float) -> float:
+        # Reject NaN / +Inf / -Inf BEFORE the sign check. Pydantic accepts
+        # non-finite floats by default; NaN comparisons are always False
+        # (NaN > 0 → False) so NaN would silently disable the gate, and
+        # +Inf would make `leg_spread_yes > max_leg_spread` impossible to
+        # satisfy (also a silent disable). Same silent-disable trap as
+        # the negative-value case — fail fast at load with a clear error.
+        if not math.isfinite(v):
+            raise ValueError(
+                f"CLOSE_SWEEP_MAX_LEG_SPREAD must be a finite number "
+                f"(got {v!r}); use 0 to disable the gate or a positive "
+                f"finite value (e.g. 0.02 for 2 cents)."
+            )
+        # Same rationale as TOB_STALE_MS: the runtime check branches on
+        # `> 0`, so a negative value would silently disable the gate.
+        # Reject at load with a clear ValueError.
+        if v < 0:
+            raise ValueError(
+                f"CLOSE_SWEEP_MAX_LEG_SPREAD must be >= 0 (got {v}); use 0 "
+                f"to disable the gate, any positive value (e.g. 0.02 for "
+                f"2 cents) for the per-leg spread threshold."
+            )
+        return v
 
     @field_validator("TOB_STALE_MS")
     @classmethod
