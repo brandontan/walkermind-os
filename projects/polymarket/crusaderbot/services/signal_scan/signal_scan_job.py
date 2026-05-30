@@ -47,7 +47,7 @@ import math as _math
 import random
 import time as _time
 import uuid as _uuid_mod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as _dc_replace
 from datetime import datetime, timezone
 from decimal import ROUND_DOWN, Decimal
 from typing import Any
@@ -704,6 +704,65 @@ async def _load_stale_queued_row(
     return dict(row) if row else None
 
 
+async def _fetch_market_inventory_for_override(
+    user_id: UUID, market_id: str,
+):
+    """Fetch the per-market inventory for the safe-close override gate.
+
+    Wraps pool acquisition + `compute_market_inventory` + error
+    handling so the gate path stays small and tests have a single
+    patch target (rather than mocking the whole connection pool).
+    Returns ``None`` on any failure — the caller treats None the
+    same as "no inventory data; do not override".
+    """
+    try:
+        from ...domain.strategy.inventory import compute_market_inventory
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            return await compute_market_inventory(conn, user_id, market_id)
+    except Exception as exc:
+        logger.warning(
+            "safe_close_inventory_compute_failed",
+            error=str(exc),
+            market_id=market_id,
+        )
+        return None
+
+
+async def _has_open_position_for_side(
+    user_id: UUID, market_id: str, side: str,
+) -> bool:
+    """Side-aware variant of `_has_open_position_for_market`.
+
+    Used ONLY by the safe-close imbalance override path
+    (WARP/R00T/safe-close-imbalance-override). When the override fires,
+    the candidate is rebalancing toward the lagging leg so the broad
+    market-wide dedup is wrong — it would block the rebalance even
+    though the opposite leg is what we actually want to enter.
+
+    Returns True if the user already holds a live position on
+    ``(market_id, side)``. Does NOT include the 24h closed-position
+    window — the override is specifically opening a NEW opposite-side
+    position, and a recently-closed same-side position is no reason
+    to block.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT 1 FROM positions
+             WHERE user_id = $1 AND market_id = $2
+               AND LOWER(side) = $3
+               AND status IN ('open', 'pending_settlement')
+             LIMIT 1
+            """,
+            user_id,
+            market_id,
+            side.lower(),
+        )
+    return row is not None
+
+
 async def _has_open_position_for_market(user_id: UUID, market_id: str) -> bool:
     """Return True when the user has an open OR recently closed (24h) position on this market.
 
@@ -1293,15 +1352,126 @@ async def _process_candidate(
                 telemetry.record_skip("skipped_dedup")
             return
 
+    # 1a-2. Safe-close inventory imbalance override
+    #       (WARP/R00T/safe-close-imbalance-override, Polybot directive 1.2.1.c).
+    #       Default OFF (dark launch). When ON it ONLY fires for
+    #       late_entry_v3 candidates whose user has active_preset =
+    #       'safe_close' AND has imbalanced existing exposure on the
+    #       market. The override:
+    #         - mutates cand.side to the lagging leg
+    #         - stamps metadata["imbalance_override"] for audit
+    #         - sets `_imbalance_override_active` so the open-position
+    #           dedup below switches to the side-aware variant
+    #       Other strategies / presets keep the broad open-position
+    #       dedup unchanged.
+    _imbalance_override_active = False
+    _override_log: dict[str, Any] = {}
+    try:
+        from ...config import get_settings as _gs_imb
+        _cfg_imb = _gs_imb()
+        _imb_enabled = bool(getattr(_cfg_imb, "SAFE_CLOSE_IMBALANCE_OVERRIDE_ENABLED", False))
+    except Exception as exc:
+        # Fail CLOSED — disable the override path on config-read failure
+        # so a broken config never silently lets us into the dedup-relax
+        # branch. Matches the bankroll-circuit-breaker pattern.
+        log.warning(
+            "safe_close_imbalance_override_config_read_failed",
+            error=str(exc),
+            fallback_enabled=False,
+        )
+        _imb_enabled = False
+    if (
+        _imb_enabled
+        and cand.strategy_name == "late_entry_v3"
+        and (row.get("active_preset") or "").lower() == "safe_close"
+    ):
+        try:
+            _threshold = float(_cfg_imb.SAFE_CLOSE_IMBALANCE_THRESHOLD_USDC)
+        except Exception as exc:
+            log.warning(
+                "safe_close_imbalance_threshold_read_failed",
+                error=str(exc),
+                fallback_usdc=5.0,
+            )
+            _threshold = 5.0
+        _inventory = await _fetch_market_inventory_for_override(
+            user_id, cand.market_id,
+        )
+        _imb = float(_inventory.imbalance_usdc) if _inventory is not None else 0.0
+        if _inventory is not None and not _inventory.is_empty and abs(_imb) > _threshold:
+            # Activate the side-aware dedup whenever a significant
+            # imbalance exists — even if the candidate naturally
+            # targets the lagging leg (no flip required). Otherwise
+            # the broad market-wide dedup would block a correctly-
+            # directed rebalance entry because the heavy-leg position
+            # is already open. Gemini-flagged inconsistency.
+            _imbalance_override_active = True
+            # Lagging leg is the side with LESS exposure: imb > 0 means
+            # YES-heavy → lagging is NO. imb < 0 → lagging is YES.
+            # SignalCandidate.side validator enforces uppercase
+            # ('YES' / 'NO'); the lowercase `side` local is the
+            # execution-engine-facing convention. Track both.
+            lagging_side_upper = "NO" if _imb > 0 else "YES"
+            lagging_side_lower = lagging_side_upper.lower()
+            current_side_lower = (cand.side or "").lower()
+            if current_side_lower != lagging_side_lower:
+                _override_log = {
+                    "original_side": current_side_lower,
+                    "new_side": lagging_side_lower,
+                    "imbalance_usdc": round(_imb, 4),
+                    "threshold_usdc": _threshold,
+                    "yes_size_usdc": str(_inventory.yes_size_usdc),
+                    "no_size_usdc": str(_inventory.no_size_usdc),
+                }
+                log.info(
+                    "scan_outcome",
+                    outcome="imbalance_override_applied",
+                    market_id=cand.market_id,
+                    strategy=cand.strategy_name,
+                    **_override_log,
+                    message=(
+                        f"Safe-close imbalance override: "
+                        f"{current_side_lower} → {lagging_side_lower} "
+                        f"(imbalance ${_imb:.2f} > ${_threshold:.2f})"
+                    ),
+                )
+                # SignalCandidate is a frozen dataclass with an
+                # uppercase-side validator. `dataclasses.replace`
+                # requires the uppercase form; the local `side`
+                # variable stays lowercase for the rest of the function.
+                _new_md = dict(cand.metadata)
+                _new_md["imbalance_override"] = _override_log
+                cand = _dc_replace(
+                    cand, side=lagging_side_upper, metadata=_new_md,
+                )
+                side = lagging_side_lower
+                # _imbalance_override_active was already set True above
+                # when |imbalance| > threshold; the side-flip is a
+                # subset of that condition.
+
     # 1b. Open-position market dedup — skip if user already holds an open
     #     position on this market_id. Closes the race window between concurrent
     #     ticks that both clear gate step 10 (orders-table dedup) before either
     #     has committed its position row. Crash-recovery resumes above this
     #     check so stale 'queued' rows are not blocked.
+    #
+    #     Override-aware: when the imbalance override above mutated
+    #     cand.side, switch to the side-aware variant so we only block
+    #     if the user already holds a position on the NEW (lagging)
+    #     side. Otherwise the broad market-wide dedup would defeat the
+    #     rebalance — the whole point of the override is to enter the
+    #     opposite leg.
     try:
-        if await _has_open_position_for_market(user_id, cand.market_id):
+        if _imbalance_override_active:
+            _is_dup = await _has_open_position_for_side(
+                user_id, cand.market_id, side,
+            )
+        else:
+            _is_dup = await _has_open_position_for_market(user_id, cand.market_id)
+        if _is_dup:
             log.info("scan_outcome", outcome="skipped_open_position_exists",
                      market_id=cand.market_id,
+                     side_aware=_imbalance_override_active,
                      message="duplicate skipped — open position exists for market")
             if telemetry is not None:
                 telemetry.record_skip("skipped_open_position_exists")
