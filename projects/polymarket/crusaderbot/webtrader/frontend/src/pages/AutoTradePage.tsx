@@ -26,6 +26,13 @@ const STRATEGY_PRESETS = [
     risk: "safe" as const,
     freq: "Medium",
     visible: true,
+    features: ["⚡ Time-decay sizing", "🛡 Spread-guarded", "↔ Dual-leg arb"],
+    detail: [
+      "Enters in the last 35s before candle close when one side shows a strong lean.",
+      "Size auto-scales down near close — 75% inside 35s, 50% inside 10s — so bets shrink when there's less time to be right.",
+      "A spread guard blocks the entry when the order book is too wide to fill cleanly.",
+      "Dual-leg (operator option): once the lead side fills, the opposite side is bought to lock a complete-set arb toward $1.00 settlement.",
+    ],
   },
   {
     key: "safe_close",
@@ -36,16 +43,28 @@ const STRATEGY_PRESETS = [
     risk: "safe" as const,
     freq: "Low",
     visible: true,
+    features: ["🎯 Tighter lean filter", "🔒 Fewer, cleaner entries"],
+    detail: [
+      "Enters 30–60s before close — earlier than Close Sweep, with a stricter lean threshold.",
+      "Trades less often, but each entry clears a higher-conviction bar.",
+      "Imbalance override (operator option) can still take a strong late skew when the book confirms it.",
+    ],
   },
   {
     key: "flip_hunter",
     name: "Flip Hunter",
     emoji: "🎯",
     engine: "W.A.R.P_STRIKE",
-    signal: "Early 140s entry on cheap side (0.26–0.35). Asymmetric upside on flips.",
+    signal: "Arb: buy the cheap side 0.10–0.36, 60–180s out. Holds to settlement.",
     risk: "advanced" as const,
     freq: "Low",
     visible: true,
+    features: ["🎯 Arbitrage mode", "💎 Cheap-side entry", "⏳ Holds to $1"],
+    detail: [
+      "Targets the underdog side priced 0.10–0.36, entering 60–180s before close.",
+      "Pure arbitrage stance — needs at least a 1% complete-set edge to enter.",
+      "No mid-candle exit: holds the position through to settlement to capture the full payout.",
+    ],
   },
   {
     key: "weather_monitor",
@@ -56,6 +75,12 @@ const STRATEGY_PRESETS = [
     risk: "balanced" as const,
     freq: "Low",
     visible: true,
+    features: ["🌡 Ensemble forecast", "📉 Trailing-stop exit"],
+    detail: [
+      "Scans daily high-temperature markets across 20 cities.",
+      "Enters when the ensemble forecast disagrees with the market-implied temperature bucket.",
+      "Protects gains with a trailing stop and re-checks the position on forecast shifts.",
+    ],
   },
 ] as const;
 
@@ -131,6 +156,9 @@ export function AutoTradePage() {
   // successful preset change.
   const [presetErr, setPresetErr]         = useState<string | null>(null);
   const [presetSaving, setPresetSaving]   = useState<string | null>(null);
+  // Which preset's "How it works" detail panel is expanded (null = all collapsed).
+  // Opening one collapses any other so only a single explanation shows at a time.
+  const [expandedDetail, setExpandedDetail] = useState<string | null>(null);
 
   // Market filter state
   const [filterCats, setFilterCats]           = useState<string[]>(ALL_CATEGORIES);
@@ -577,13 +605,14 @@ export function AutoTradePage() {
             // is still "selected" but fires no new trades → show PAUSED (Admin).
             const isGloballyPaused = isActive && state.active_preset_globally_enabled === false;
             const showConfig = isActive && CRYPTO_SHORT_PRESETS.includes(p.key);
+            const isDetailOpen = expandedDetail === p.key;
             return (
               <Fragment key={p.key}>
                 <button
                   onClick={() => void handleActivatePreset(p.key)}
                   className={[
                     "w-full text-left p-3 rounded-lg border transition-all",
-                    showConfig ? "rounded-b-none" : "",
+                    showConfig || isDetailOpen ? "rounded-b-none" : "",
                     isActive
                       ? "border-gold bg-surface-2 shadow-[0_0_8px_rgba(191,155,48,0.25)]"
                       : "border-surface-3 bg-surface-1 hover:border-ink-3",
@@ -616,10 +645,64 @@ export function AutoTradePage() {
                       <div className="text-ink-4">{p.freq} freq</div>
                     </div>
                   </div>
-                  <div className="mt-1.5 text-[10px] text-ink-4 font-mono">
-                    Engine: {p.engine}
+                  {/* Feature chips — what this strategy actually does. Honest
+                      capability descriptions, not runtime on/off state. */}
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {p.features.map((f) => (
+                      <span
+                        key={f}
+                        className="text-[9px] font-mono font-bold tracking-wide text-ink-2 px-1.5 py-0.5 rounded border border-surface-3 bg-surface-1"
+                      >
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-ink-4 font-mono">
+                      Engine: {p.engine}
+                    </span>
+                    {/* Inline toggle — span (not button) to avoid nesting inside
+                        the activate <button>; stopPropagation keeps a tap on
+                        "details" from also flipping the active preset. */}
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedDetail(isDetailOpen ? null : p.key);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.stopPropagation();
+                          setExpandedDetail(isDetailOpen ? null : p.key);
+                        }
+                      }}
+                      className="text-[10px] font-mono font-bold text-gold/80 hover:text-gold cursor-pointer select-none"
+                    >
+                      {isDetailOpen ? "Hide details ▲" : "ⓘ How it works ▾"}
+                    </span>
                   </div>
                 </button>
+
+                {/* "How it works" detail — joined directly under the card.
+                    Square bottom when the asset/timeframe config follows. */}
+                {isDetailOpen && (
+                  <div
+                    className={[
+                      "md:col-span-3 p-3 border border-t-0 border-gold/40 bg-surface-2",
+                      showConfig ? "" : "rounded-lg rounded-t-none",
+                    ].join(" ")}
+                  >
+                    <ul className="space-y-1.5">
+                      {p.detail.map((line, i) => (
+                        <li key={i} className="flex gap-2 text-[11px] font-mono text-ink-2 leading-snug">
+                          <span className="text-gold shrink-0" aria-hidden>·</span>
+                          <span>{line}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {/* Inline config for crypto-short presets: assets + timeframe */}
                 {showConfig && (
@@ -708,25 +791,12 @@ export function AutoTradePage() {
 
         {/* ── SECTION B: Risk Profile ── */}
         <SectionTitle>Risk Profile</SectionTitle>
-        <p className="text-ink-3 text-xs font-mono mb-2 mx-0.5">
+        <p className="text-ink-3 text-xs font-mono mb-3 mx-0.5">
           Controls capital %, take profit, and stop loss. Applies to all trade types.
         </p>
-        {/* CAP% is the deployable POOL, not the per-trade size. Surface the real
-            max-per-trade so users don't read "60%" as "$600 per trade". */}
-        {state.effective_max_per_trade_usdc != null && (
-          <p className="text-[11px] font-mono mb-2 mx-0.5 px-2 py-1.5 rounded border border-gold/30 bg-gold/5 text-ink-2">
-            <span className="text-gold font-bold">Max per trade: ${state.effective_max_per_trade_usdc.toFixed(2)}</span>
-            {state.equity_usdc != null && (
-              <span className="text-ink-3"> · CAP {Math.round(state.capital_alloc_pct * 100)}% of ${state.equity_usdc.toFixed(2)} equity is the deployable pool, not one trade</span>
-            )}
-          </p>
-        )}
-        <MaxPerTradeControl state={state} api={api} onSaved={() => void load()} />
-        <DailyLossControl state={state} api={api} onSaved={() => void load()} />
-        <MaxDrawdownControl state={state} api={api} onSaved={() => void load()} />
 
-
-        {/* 3 preset cards — equal width row */}
+        {/* Profile picker comes first — pick the profile, then fine-tune the
+            limits below. 3 preset cards — equal width row. */}
         <div className="grid grid-cols-3 gap-2 mb-2">
           {RISK_PROFILES.filter(rp => rp.key !== "custom").map((rp) => {
             const isActive = state.risk_profile === rp.key;
@@ -823,6 +893,26 @@ export function AutoTradePage() {
             </div>
           );
         })()}
+
+        {/* CAP% is the deployable POOL, not the per-trade size. Surface the real
+            max-per-trade so users don't read "60%" as "$600 per trade". */}
+        {state.effective_max_per_trade_usdc != null && (
+          <p className="text-[11px] font-mono mt-3 mb-2 mx-0.5 px-2 py-1.5 rounded border border-gold/30 bg-gold/5 text-ink-2">
+            <span className="text-gold font-bold">Max per trade: ${state.effective_max_per_trade_usdc.toFixed(2)}</span>
+            {state.equity_usdc != null && (
+              <span className="text-ink-3"> · CAP {Math.round(state.capital_alloc_pct * 100)}% of ${state.equity_usdc.toFixed(2)} equity is the deployable pool, not one trade</span>
+            )}
+          </p>
+        )}
+
+        {/* Fine-tune limits — collapsed by default so the profile picker stays
+            the focus. Caps the per-trade size, daily loss, and drawdown halt
+            within the system-enforced bounds. */}
+        <CollapsibleSection id="autotrade_finetune_limits" label="Fine-tune Limits" defaultOpen={false}>
+          <MaxPerTradeControl state={state} api={api} onSaved={() => void load()} />
+          <DailyLossControl state={state} api={api} onSaved={() => void load()} />
+          <MaxDrawdownControl state={state} api={api} onSaved={() => void load()} />
+        </CollapsibleSection>
 
         {/* ── SECTION C: Market Filter ── */}
         <CollapsibleSection id="autotrade_market_filter" label="Market Filter" defaultOpen={true}>
@@ -956,7 +1046,7 @@ export function AutoTradePage() {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between mt-4 mb-2 mx-0.5">
+    <div className="flex items-center justify-between mt-6 mb-2.5 mx-0.5">
       <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
         <span className="w-3 h-px bg-gold" aria-hidden />
         {children}
