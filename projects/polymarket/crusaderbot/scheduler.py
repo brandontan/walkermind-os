@@ -1082,6 +1082,21 @@ def setup_scheduler() -> AsyncIOScheduler:
         check_balance_alerts, "interval", hours=1,
         id="check_balance_alerts", max_instances=1, coalesce=True,
     )
+    # WeatherStrategy jobs (WARP-49) — only registered when flag is ON.
+    # Scan cycle runs hourly; monitor cycle runs every 10 minutes.
+    if getattr(s, "WEATHER_STRATEGY_ENABLED", False):
+        from .strategies.weather import WeatherStrategy as _WeatherStrategy
+        _weather_strategy = _WeatherStrategy()
+        sched.add_job(
+            _weather_strategy.scan_cycle, "interval", hours=1,
+            id="weather_scan", max_instances=1, coalesce=True,
+            next_run_time=datetime.now(timezone.utc),
+        )
+        sched.add_job(
+            _weather_strategy.monitor_cycle, "interval", minutes=10,
+            id="weather_monitor", max_instances=1, coalesce=True,
+        )
+        log.info("WeatherStrategy registered: scan=hourly, monitor=10min")
     sched.add_listener(
         _job_tracker_listener,
         EVENT_JOB_SUBMITTED | EVENT_JOB_EXECUTED | EVENT_JOB_ERROR,

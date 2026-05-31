@@ -1,0 +1,1 @@
+"""CrusaderBot strategies package."""

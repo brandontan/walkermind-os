@@ -124,6 +124,13 @@ class Settings(BaseSettings):
     HEISENBERG_FAST_TRACK_ENABLED: bool = False
     HEISENBERG_FAST_TRACK_INTERVAL_SEC: int = 30
 
+    # --- WeatherStrategy (WARP-49) ---
+    # Feature-flag gates scheduler registration. Default OFF — operator must
+    # set WEATHER_STRATEGY_ENABLED=true to activate the hourly scan and
+    # 10-minute monitor jobs. VISUALCROSSING_API_KEY is read from env only
+    # inside strategies/weather/forecast.py; it is never stored here.
+    WEATHER_STRATEGY_ENABLED: bool = False
+
     # --- Polymarket (only required for LIVE trading) ---
     POLYMARKET_API_KEY: Optional[str] = None
     POLYMARKET_API_SECRET: Optional[str] = None
