@@ -9,3 +9,4 @@ build/
 venv/
 projects/polymarket/polyquantbot/report/*.json
 data/polyquantbot.db
+graphify-out/
