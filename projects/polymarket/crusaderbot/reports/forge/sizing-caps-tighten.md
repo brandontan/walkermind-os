@@ -22,7 +22,7 @@ Both knobs are env-overridable (`MAX_SINGLE_POSITION_PCT`, `MAX_TOTAL_EXPOSURE_P
 
 ## 2. Current System Architecture
 
-No architecture change. The two constants feed the existing risk gate steps (step 5: single-position cap, step 6: total-exposure cap) in `domain/risk/gate.py`. The 13-step risk gate chain is unchanged.
+No architecture change. The two constants feed `validate_risk_caps` which runs at **step 0** (Hard risk caps — fail-fast before any gate logging) in `domain/risk/gate.py:evaluate`. The 13-step risk gate chain is unchanged.
 
 ---
 
