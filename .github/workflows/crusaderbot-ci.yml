@@ -87,6 +87,13 @@ jobs:
               time.sleep(attempt * 5)
           PY
 
+      - name: Ensure cffi C extension is present
+        # The --ignore-installed pass above may reinstall cffi with a wheel
+        # that lacks the _cffi_backend C extension (needed by the system
+        # cryptography package on ubuntu-latest). Force-reinstall cffi last
+        # so the compiled .so is always present for test collection.
+        run: pip install --force-reinstall cffi
+
       - name: Lint (ruff)
         run: ruff check .
 
