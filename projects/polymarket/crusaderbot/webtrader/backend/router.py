@@ -822,6 +822,17 @@ _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
 # Presets restricted to short-duration crypto markets. Activating one auto-locks
 # the market category filter to Crypto only and requires a timeframe (5m/15m).
 _CRYPTO_SHORT_PRESETS: frozenset[str] = frozenset({"close_sweep", "safe_close", "flip_hunter"})
+
+# Preset → market category that activation auto-locks. Crypto-short presets lock
+# to Crypto; weather_monitor locks to Weather. A preset absent from this map
+# leaves the user's existing category_filters untouched (COALESCE NULL below).
+# Mirrored in the frontend AutoTradePage PRESET_LOCKED_CATEGORY map.
+_PRESET_LOCKED_CATEGORY: dict[str, str] = {
+    "close_sweep":     "Crypto",
+    "safe_close":      "Crypto",
+    "flip_hunter":     "Crypto",
+    "weather_monitor": "Weather",
+}
 _VALID_TIMEFRAMES: frozenset[str] = frozenset({"5m", "15m"})
 # Assets offered for crypto-short presets. BTC/ETH are default-active;
 # SOL is opt-in (thinner book). XRP/DOGE/HYPE/BNB are NOT in the
@@ -952,9 +963,11 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
         if not assets:
             assets = list(_DEFAULT_CRYPTO_SHORT_ASSETS)
 
-    # Auto-lock market category to Crypto only for crypto-short presets;
-    # None leaves the existing category_filters untouched for other presets.
-    category_filters = ["Crypto"] if is_crypto_short else None
+    # Auto-lock market category on activation per _PRESET_LOCKED_CATEGORY
+    # (Crypto for candle presets, Weather for weather_monitor). None leaves the
+    # existing category_filters untouched for presets not in the map.
+    _locked_category = _PRESET_LOCKED_CATEGORY.get(body.preset_key)
+    category_filters = [_locked_category] if _locked_category else None
 
     # Light per-timeframe params → merged into strategy_params for candle presets.
     tf_params_json: str | None = None
@@ -1062,6 +1075,20 @@ async def customize_strategy(body: CustomizeRequest, user: _CurrentUser):
 
     params.append(user_id)
     async with pool.acquire() as conn:
+        # Reject attempts to override a preset's locked market category.
+        # (e.g. weather_monitor locks to "Weather"; crypto-short presets lock to "Crypto")
+        if body.category_filters is not None:
+            row = await conn.fetchrow(
+                "SELECT active_preset FROM user_settings WHERE user_id=$1::uuid",
+                user_id,
+            )
+            preset = ((row["active_preset"] if row else None) or "")
+            locked = _PRESET_LOCKED_CATEGORY.get(preset)
+            if locked and body.category_filters != [locked]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"preset '{preset}' locks market category to '{locked}' — cannot override",
+                )
         await conn.execute(
             f"UPDATE user_settings SET {', '.join(updates)}, updated_at=NOW() WHERE user_id=${len(params)}::uuid",
             *params,
@@ -1090,6 +1117,20 @@ async def update_market_filters(body: MarketFilterUpdate, user: _CurrentUser):
 
     params.append(user_id)
     async with pool.acquire() as conn:
+        # Reject attempts to override a preset's locked market category.
+        if "market_categories" in data:
+            row = await conn.fetchrow(
+                "SELECT active_preset FROM user_settings WHERE user_id=$1::uuid",
+                user_id,
+            )
+            preset = ((row["active_preset"] if row else None) or "")
+            locked = _PRESET_LOCKED_CATEGORY.get(preset)
+            incoming_cats = data["market_categories"]
+            if locked and incoming_cats != [locked]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"preset '{preset}' locks market category to '{locked}' — cannot override",
+                )
         await conn.execute(
             f"UPDATE user_settings SET {', '.join(updates)}, updated_at=NOW() WHERE user_id=${len(params)}::uuid",
             *params,
