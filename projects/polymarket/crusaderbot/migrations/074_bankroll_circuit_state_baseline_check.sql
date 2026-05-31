@@ -17,6 +17,7 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint
         WHERE conname = 'bankroll_circuit_state_baseline_positive'
+          AND conrelid = 'bankroll_circuit_state'::regclass
     ) THEN
         ALTER TABLE bankroll_circuit_state
             ADD CONSTRAINT bankroll_circuit_state_baseline_positive CHECK (baseline > 0);
