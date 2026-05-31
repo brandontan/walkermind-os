@@ -15,7 +15,7 @@ interface Props {
   onSaved?: (next: AdminUserDetail) => void;
 }
 
-const PRESETS = ["close_sweep", "safe_close", "flip_hunter"] as const;
+const PRESETS = ["close_sweep", "safe_close", "flip_hunter", "weather_monitor"] as const;
 const RISK_PROFILES = ["conservative", "balanced", "aggressive", "custom"] as const;
 const MAX_PER_TRADE_MODES = ["auto", "fixed", "pct"] as const;
 const TIMEFRAMES = ["5m", "15m"] as const;

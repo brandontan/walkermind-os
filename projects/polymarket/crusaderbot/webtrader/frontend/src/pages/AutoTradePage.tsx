@@ -102,9 +102,9 @@ const RISK_PROFILES = [
 
 const riskColor: Record<string, string> = {
   safe:       "text-grn",
-  balanced:   "text-amber-400",
-  advanced:   "text-amber-500",
-  aggressive: "text-red-400",
+  balanced:   "text-blue",
+  advanced:   "text-gold",
+  aggressive: "text-red",
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
