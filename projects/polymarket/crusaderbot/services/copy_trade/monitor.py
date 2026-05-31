@@ -571,8 +571,13 @@ def _extract_size(trade: dict[str, Any]) -> float:
             except (TypeError, ValueError):
                 continue
     # Compute USDC notional from shares × price when explicit field is absent.
-    raw_size = trade.get("size") or trade.get("amount")
-    raw_price = trade.get("price") or trade.get("avg_price") or trade.get("avgPrice")
+    # Use is-not-None checks — 0.0 is falsy and would be skipped by `or`.
+    raw_size = trade.get("size") if trade.get("size") is not None else trade.get("amount")
+    raw_price = (
+        trade.get("price") if trade.get("price") is not None
+        else trade.get("avg_price") if trade.get("avg_price") is not None
+        else trade.get("avgPrice")
+    )
     if raw_size is not None and raw_price is not None:
         try:
             return float(raw_size) * float(raw_price)
@@ -646,11 +651,12 @@ def _compute_copy_size(
         # Fixed: use copy_amount directly, capped at remaining daily spend
         fixed = float(task.copy_amount)
         return fixed if fixed >= MIN_TRADE_SIZE_USDC else 0.0
-    # Proportional: fold copy_pct into the position cap so the scaler's
-    # internal floor ($1) is never applied before the pct reduction.
-    # copy_pct = 0.10 with max_position_pct = 0.10 → effective cap = 1 % of
-    # remaining_spend.  The caller (monitor) applies the final floor check.
-    pct_factor = float(task.copy_pct) if task.copy_pct else 1.0
+    # Proportional: scale both leader_size and the position cap by copy_pct so
+    # the reduction applies whether the trade is below or above the cap.
+    # Use is-not-None so copy_pct=0.0 (explicit zero) is honoured, not
+    # collapsed to 1.0 by a falsy check.
+    pct_factor = float(task.copy_pct) if task.copy_pct is not None else 1.0
+    scaled_leader_size = leader_size * pct_factor
     effective_position_pct = 0.10 * pct_factor  # hard 10 % cap × user fraction
     leader_bankroll = float(
         leader_trade.get("bankroll")
@@ -660,13 +666,13 @@ def _compute_copy_size(
     )
     if leader_bankroll > 0.0:
         return scale_size(
-            leader_size=leader_size,
+            leader_size=scaled_leader_size,
             leader_bankroll=leader_bankroll,
             user_available=remaining_spend,
             max_position_pct=effective_position_pct,
         )
     return mirror_size_direct(
-        leader_size=leader_size,
+        leader_size=scaled_leader_size,
         user_available=remaining_spend,
         max_position_pct=effective_position_pct,
     )
