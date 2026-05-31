@@ -20,11 +20,14 @@ def bucket_prob(mean: float, sigma: float, low: float, high: float) -> float:
 
 
 def expected_value(p_true: float, price: float) -> float:
-    """Edge (EV) for a YES position at given price.
+    """Expected return per dollar invested for a YES position.
 
-    EV = p_true - price
+    EV = p * (1/price - 1) - (1 - p)  =  (p_true - price) / price
+    Returns 0.0 for degenerate prices.
     """
-    return p_true - price
+    if price <= 0.0:
+        return 0.0
+    return (p_true - price) / price
 
 
 def kelly_size(
