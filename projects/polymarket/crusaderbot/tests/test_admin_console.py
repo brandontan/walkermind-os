@@ -719,3 +719,116 @@ def test_admin_user_update_paper_default_invariant_on_minimal_patch():
     assert "'paper'" in sql
     assert "'balanced'" in sql
     assert "0.40" in sql
+
+
+# ── auto_trade_on toggle via admin_user_update ────────────────────────────────
+
+
+def test_admin_user_update_auto_trade_on_calls_set_auto_trade():
+    """auto_trade_on in patch calls set_auto_trade and records it in audit."""
+    from projects.polymarket.crusaderbot.webtrader.backend.schemas import AdminUserUpdate
+    target_id = uuid4()
+    actor_id = uuid4()
+    u_row = _admin_user_row(auto_on=True)
+    u_row["id"] = target_id
+    conn = MagicMock()
+    conn.fetchval = AsyncMock(side_effect=[1, 0])  # exists, open_count
+    conn.execute = AsyncMock(return_value=None)
+    conn.fetchrow = AsyncMock(side_effect=[u_row, _admin_settings_row(), _wallet_row(500.0)])
+    conn.fetch = AsyncMock(side_effect=[[], []])
+    set_auto_trade_calls: list = []
+
+    async def _fake_set_auto_trade(uid, on):
+        set_auto_trade_calls.append((uid, on))
+
+    audit_calls: list = []
+
+    async def _fake_audit(**kwargs):
+        audit_calls.append(kwargs)
+
+    with patch.object(r, "get_pool", return_value=_pool(conn)), \
+         patch.object(r.audit, "write", side_effect=_fake_audit), \
+         patch("projects.polymarket.crusaderbot.users.set_auto_trade",
+               side_effect=_fake_set_auto_trade):
+        asyncio.run(r.admin_user_update(
+            str(target_id),
+            AdminUserUpdate(auto_trade_on=False),
+            {"user_id": str(actor_id)},
+        ))
+    assert len(set_auto_trade_calls) == 1
+    assert set_auto_trade_calls[0] == (target_id, False)
+    assert audit_calls[0]["payload"]["auto_trade_on"] is False
+
+
+def test_admin_user_update_rejects_explicit_null_auto_trade_on():
+    """auto_trade_on=None must 400 before reaching the DB."""
+    from projects.polymarket.crusaderbot.webtrader.backend.schemas import AdminUserUpdate
+    with pytest.raises(r.HTTPException) as exc:
+        asyncio.run(r.admin_user_update(
+            str(uuid4()),
+            AdminUserUpdate(auto_trade_on=None),
+            {"user_id": str(uuid4())},
+        ))
+    assert exc.value.status_code == 400
+    assert "auto_trade_on" in exc.value.detail
+
+
+# ── admin_paper_reset ─────────────────────────────────────────────────────────
+
+
+def test_admin_paper_reset_happy_path():
+    """Paper reset deletes positions/orders/ledger and resets wallet to $1,000."""
+    target_id = uuid4()
+    actor_id = uuid4()
+    conn = MagicMock()
+    # fetchrow: user+trading_mode check
+    conn.fetchrow = AsyncMock(return_value={"id": target_id, "trading_mode": "paper"})
+    # fetchval sequence: orders_count, positions_count, ledger_count
+    conn.fetchval = AsyncMock(side_effect=[3, 5, 12])
+    conn.execute = AsyncMock(return_value=None)
+    conn.transaction = MagicMock(return_value=_ctx(None))
+    audit_calls: list = []
+
+    async def _fake_audit(**kwargs):
+        audit_calls.append(kwargs)
+
+    with patch.object(r, "get_pool", return_value=_pool(conn)), \
+         patch.object(r.audit, "write", side_effect=_fake_audit):
+        out = asyncio.run(r.admin_paper_reset(str(target_id), {"user_id": str(actor_id)}))
+
+    assert out.positions_deleted == 5
+    assert out.orders_deleted == 3
+    assert out.ledger_entries_deleted == 12
+    assert out.balance_reset_usdc == 1000.0
+    assert out.user_id == str(target_id)
+    # Audit logged to the target user
+    assert audit_calls[0]["action"] == "admin_paper_reset"
+    assert audit_calls[0]["user_id"] == target_id
+    # Wallet reset + seed ledger INSERT must be in the execute calls
+    all_sql = " ".join(call.args[0] for call in conn.execute.call_args_list)
+    assert "UPDATE wallets SET balance_usdc=1000" in all_sql
+    assert "INSERT INTO ledger" in all_sql
+
+
+def test_admin_paper_reset_blocks_live_mode_user():
+    """Paper reset must 400 when the target user is in live mode."""
+    target_id = uuid4()
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(return_value={"id": target_id, "trading_mode": "live"})
+    conn.transaction = MagicMock(return_value=_ctx(None))
+    with patch.object(r, "get_pool", return_value=_pool(conn)):
+        with pytest.raises(r.HTTPException) as exc:
+            asyncio.run(r.admin_paper_reset(str(target_id), {"user_id": str(uuid4())}))
+    assert exc.value.status_code == 400
+    assert "live" in exc.value.detail
+
+
+def test_admin_paper_reset_404_on_missing_user():
+    """Paper reset must 404 when the user does not exist."""
+    conn = MagicMock()
+    conn.fetchrow = AsyncMock(return_value=None)
+    conn.transaction = MagicMock(return_value=_ctx(None))
+    with patch.object(r, "get_pool", return_value=_pool(conn)):
+        with pytest.raises(r.HTTPException) as exc:
+            asyncio.run(r.admin_paper_reset(str(uuid4()), {"user_id": str(uuid4())}))
+    assert exc.value.status_code == 404

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type {
+  AdminPaperResetResult,
   AdminRecentAudit,
   AdminRecentTrade,
   AdminUserDetail,
@@ -56,6 +57,9 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedNote, setSavedNote] = useState<string | null>(null);
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetResult, setResetResult] = useState<AdminPaperResetResult | null>(null);
   // Editable draft — mirrors AdminUserPatch but with all fields tracked as
   // local strings so the user can clear / edit without us mid-eating an empty
   // input. Empty string === "leave unchanged" (NOT "clear to null").
@@ -189,6 +193,43 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
     }
   }
 
+  async function toggleAutoTrade(next: boolean) {
+    if (!detail) return;
+    setSaving(true);
+    setError(null);
+    setSavedNote(null);
+    try {
+      const nextDetail = await api.updateAdminUser(userId, { auto_trade_on: next });
+      setDetail(nextDetail);
+      setSavedNote(next ? "Auto-trade ON." : "Auto-trade OFF.");
+      onSaved?.(nextDetail);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg.replace(/^\d+:\s*/, ""));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handlePaperReset() {
+    setResetting(true);
+    setError(null);
+    setResetResult(null);
+    try {
+      const result = await api.paperResetUser(userId);
+      setResetResult(result);
+      const next = await api.getAdminUserDetail(userId);
+      setDetail(next);
+      setResetConfirm(false);
+      onSaved?.(next);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg.replace(/^\d+:\s*/, ""));
+    } finally {
+      setResetting(false);
+    }
+  }
+
   async function togglePaused(nextPaused: boolean) {
     if (!detail) return;
     setSaving(true);
@@ -294,28 +335,53 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
               </div>
             </div>
 
-            {/* Per-user pause toggle */}
-            <div className="flex items-center justify-between gap-2 bg-surface-2 border border-surface-3 rounded-sm px-2.5 py-2 mb-4">
-              <div className="min-w-0">
-                <p className="font-hud text-[8px] tracking-[1px] uppercase text-ink-4">User Paused</p>
-                <p className="font-mono text-[11px] text-ink-1 mt-0.5">
-                  {detail.paused
-                    ? "Risk gate is blocking new trades for this user."
-                    : "User is active. Risk gate accepts trades."}
-                </p>
+            {/* Runtime controls: Pause + Auto-trade */}
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center justify-between gap-2 bg-surface-2 border border-surface-3 rounded-sm px-2.5 py-2">
+                <div className="min-w-0">
+                  <p className="font-hud text-[8px] tracking-[1px] uppercase text-ink-4">User Paused</p>
+                  <p className="font-mono text-[11px] text-ink-1 mt-0.5">
+                    {detail.paused
+                      ? "Risk gate blocking new trades."
+                      : "Risk gate accepting trades."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void togglePaused(!detail.paused)}
+                  disabled={saving}
+                  className={`flex-shrink-0 font-mono text-[10px] tracking-[1px] uppercase px-3 py-1.5 rounded-sm disabled:opacity-50 ${
+                    detail.paused
+                      ? "bg-green/80 hover:bg-green text-ink-1"
+                      : "bg-red/80 hover:bg-red text-ink-1"
+                  }`}
+                >
+                  {detail.paused ? "Resume" : "Pause"}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => void togglePaused(!detail.paused)}
-                disabled={saving}
-                className={`flex-shrink-0 font-mono text-[10px] tracking-[1px] uppercase px-3 py-1.5 rounded-sm disabled:opacity-50 ${
-                  detail.paused
-                    ? "bg-green/80 hover:bg-green text-ink-1"
-                    : "bg-red/80 hover:bg-red text-ink-1"
-                }`}
-              >
-                {detail.paused ? "Resume" : "Pause"}
-              </button>
+
+              <div className="flex items-center justify-between gap-2 bg-surface-2 border border-surface-3 rounded-sm px-2.5 py-2">
+                <div className="min-w-0">
+                  <p className="font-hud text-[8px] tracking-[1px] uppercase text-ink-4">Auto Trade</p>
+                  <p className="font-mono text-[11px] text-ink-1 mt-0.5">
+                    {detail.auto_trade_on
+                      ? "Bot is scanning and placing trades."
+                      : "Bot is idle — auto-trade is off."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void toggleAutoTrade(!detail.auto_trade_on)}
+                  disabled={saving}
+                  className={`flex-shrink-0 font-mono text-[10px] tracking-[1px] uppercase px-3 py-1.5 rounded-sm disabled:opacity-50 ${
+                    detail.auto_trade_on
+                      ? "bg-red/80 hover:bg-red text-ink-1"
+                      : "bg-green/80 hover:bg-green text-ink-1"
+                  }`}
+                >
+                  {detail.auto_trade_on ? "Turn OFF" : "Turn ON"}
+                </button>
+              </div>
             </div>
 
             {/* Strategy + risk edit */}
@@ -446,6 +512,54 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
                   <RecentAuditRow key={`${a.ts}-${i}`} a={a} />
                 ))}
               </ul>
+            )}
+
+            {/* Danger zone — paper reset */}
+            <p className="font-hud text-[10px] font-bold tracking-[1.5px] uppercase text-red mt-5 mb-2">
+              Danger Zone
+            </p>
+            {resetResult && (
+              <div className="bg-green/10 border border-green/30 rounded-sm px-2.5 py-2 mb-2">
+                <p className="font-mono text-[11px] text-green">
+                  Reset complete — {resetResult.positions_deleted} positions deleted,
+                  balance reset to ${resetResult.balance_reset_usdc.toFixed(2)}.
+                </p>
+              </div>
+            )}
+            {!resetConfirm ? (
+              <button
+                type="button"
+                onClick={() => { setResetConfirm(true); setResetResult(null); }}
+                disabled={resetting || detail.trading_mode === "live"}
+                title={detail.trading_mode === "live" ? "Switch user to paper mode first" : ""}
+                className="w-full font-mono text-[11px] text-red border border-red/40 hover:bg-red/10 px-3 py-2 rounded-sm disabled:opacity-40"
+              >
+                Reset Paper History &amp; Balance
+              </button>
+            ) : (
+              <div className="bg-surface-2 border border-red/40 rounded-sm px-3 py-3 space-y-2">
+                <p className="font-mono text-[11px] text-ink-1">
+                  This will permanently delete <span className="text-red font-bold">all positions, orders, and ledger entries</span> for this user and reset their wallet to <span className="text-gold font-bold">$1,000</span>. This cannot be undone.
+                </p>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setResetConfirm(false)}
+                    disabled={resetting}
+                    className="flex-1 font-mono text-[11px] text-ink-3 hover:text-ink-1 border border-surface-3 px-3 py-1.5 rounded-sm disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handlePaperReset()}
+                    disabled={resetting}
+                    className="flex-1 font-mono text-[11px] text-ink-1 bg-red/80 hover:bg-red px-3 py-1.5 rounded-sm disabled:opacity-50"
+                  >
+                    {resetting ? "Resetting…" : "Confirm Reset"}
+                  </button>
+                </div>
+              </div>
             )}
           </>
         )}

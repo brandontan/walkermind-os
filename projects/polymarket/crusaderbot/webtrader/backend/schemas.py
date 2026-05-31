@@ -496,4 +496,14 @@ class AdminUserUpdate(BaseModel):
     selected_timeframe: Optional[str] = None
     selected_assets: Optional[list[str]] = None
     paused: Optional[bool] = None
+    auto_trade_on: Optional[bool] = None
+
+
+class AdminPaperResetResult(BaseModel):
+    """POST /api/web/admin/users/{user_id}/paper-reset — result summary."""
+    user_id: str
+    positions_deleted: int
+    orders_deleted: int
+    ledger_entries_deleted: int
+    balance_reset_usdc: float
 

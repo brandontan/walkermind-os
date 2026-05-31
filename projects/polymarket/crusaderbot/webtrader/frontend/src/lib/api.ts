@@ -160,6 +160,8 @@ export function makeApi(token: string | null) {
       get<AdminUserDetail>(`/admin/users/${encodeURIComponent(userId)}`),
     updateAdminUser: (userId: string, body: AdminUserPatch) =>
       patch<AdminUserDetail>(`/admin/users/${encodeURIComponent(userId)}`, body),
+    paperResetUser: (userId: string) =>
+      post<AdminPaperResetResult>(`/admin/users/${encodeURIComponent(userId)}/paper-reset`, {}),
   };
 }
 
@@ -266,6 +268,15 @@ export interface AdminUserPatch {
   selected_timeframe?: string | null;
   selected_assets?: string[] | null;
   paused?: boolean;
+  auto_trade_on?: boolean;
+}
+
+export interface AdminPaperResetResult {
+  user_id: string;
+  positions_deleted: number;
+  orders_deleted: number;
+  ledger_entries_deleted: number;
+  balance_reset_usdc: number;
 }
 
 export interface LinkTelegramStart {
