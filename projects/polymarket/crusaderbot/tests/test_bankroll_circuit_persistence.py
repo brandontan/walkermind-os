@@ -93,6 +93,10 @@ def test_persist_upserts_baseline_and_tripped():
     sql, args = conn.executes[0]
     assert "INSERT INTO bankroll_circuit_state" in sql
     assert "ON CONFLICT (user_id) DO UPDATE" in sql
+    # user_id column is UUID; the param is a Python str, so the query MUST cast
+    # ($1::uuid) or asyncpg raises DataError and — under the fail-open wrapper —
+    # silently never persists. Pin the cast.
+    assert "$1::uuid" in sql
     assert args == (uid, 100.0, True)
 
 

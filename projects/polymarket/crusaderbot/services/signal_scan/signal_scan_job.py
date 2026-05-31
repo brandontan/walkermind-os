@@ -462,7 +462,7 @@ async def _persist_bankroll_circuit_state(user_id: str) -> None:
             await conn.execute(
                 """
                 INSERT INTO bankroll_circuit_state (user_id, baseline, tripped, updated_at)
-                VALUES ($1, $2, $3, now())
+                VALUES ($1::uuid, $2, $3, now())
                 ON CONFLICT (user_id) DO UPDATE
                     SET baseline = EXCLUDED.baseline,
                         tripped = EXCLUDED.tripped,
