@@ -23,10 +23,13 @@ def _parse_trade_ts(trade: dict) -> datetime | None:
         return None
     try:
         if isinstance(raw, (int, float)):
-            return datetime.fromtimestamp(int(raw), tz=timezone.utc)
+            return datetime.fromtimestamp(float(raw), tz=timezone.utc)
         stripped = str(raw).strip()
-        if stripped.isdigit():
-            return datetime.fromtimestamp(int(stripped), tz=timezone.utc)
+        # Handle pure integers and stringified floats ("1700000000.5")
+        try:
+            return datetime.fromtimestamp(float(stripped), tz=timezone.utc)
+        except (ValueError, OSError, OverflowError):
+            pass
         if stripped.endswith("Z"):
             stripped = stripped[:-1] + "+00:00"
         dt = datetime.fromisoformat(stripped)
@@ -64,7 +67,7 @@ class CopyTradeStrategy(BaseStrategy):
                 continue
             for trade in trades:
                 trade_ts = _parse_trade_ts(trade)
-                if trade_ts is not None and trade_ts < cutoff:
+                if trade_ts is None or trade_ts < cutoff:
                     continue
                 tx = trade.get("transactionHash") or trade.get("tx_hash")
                 market_id = (trade.get("market") or trade.get("conditionId")
