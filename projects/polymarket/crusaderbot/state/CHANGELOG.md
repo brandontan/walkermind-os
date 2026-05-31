@@ -1,4 +1,6 @@
 <!-- gate-notify-verify-v3 -->
+2026-05-31 23:30 | WARP/ROOT/sizing-caps-tighten | WARP-48 B3: MAX_SINGLE_POSITION_PCT 0.10→0.05, MAX_TOTAL_EXPOSURE_PCT 0.80→0.60; closes sizing-cap confirm gate for pre-LIVE hardening; env-overridable without redeploy
+2026-05-31 22:00 | ops/paper-db-reset | paper trading DB reset to clean state; all 17 tables truncated (positions, orders, fills, ledger, portfolio_snapshots, scan_runs + supporting tables); all wallets reset to $1000 USDC starting balance
 2026-05-31 22:45 | WARP/ROOT/disable-complete-set-edge-gate | disabled complete-set-edge gate (MIN_COMPLETE_SET_EDGE 0.005→0.0) to restore late_entry_v3 trading blocked since commit 16c0fae (2026-05-30 15:16 UTC); gate was wrong for directional strategy — complete_set_edge always negative on liquid Polymarket CLOB books
 2026-05-31 14:00 | WARP/ROOT/bankroll-cb-paper-enable | BANKROLL_CIRCUIT_BREAKER_ENABLED=true set in Fly secrets. Migrations 073+074 confirmed on Supabase prod. 7d paper observation started. SENTINEL condition fully satisfied.
 2026-05-31 13:30 | WARP/ROOT/bankroll-cb-sentinel | WARP•SENTINEL APPROVED (conditional) 95/100. Full restart-durable bankroll CB persistence chain validated (restore/persist/wiring + migrations 073+074 + 12 hermetic tests). Condition: apply mig 073+074 to Supabase before enabling BANKROLL_CIRCUIT_BREAKER_ENABLED.

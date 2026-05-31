@@ -214,8 +214,8 @@ class Settings(BaseSettings):
     FEE_COLLECTION_ENABLED: bool = False
 
     # --- Risk caps (Track D) — hard caps enforced per-user before any order ---
-    MAX_SINGLE_POSITION_PCT: float = 0.10      # 10% of balance per position
-    MAX_TOTAL_EXPOSURE_PCT: float = 0.80       # 80% of balance max open exposure
+    MAX_SINGLE_POSITION_PCT: float = 0.05      # 5% of balance per position
+    MAX_TOTAL_EXPOSURE_PCT: float = 0.60       # 60% of balance max open exposure
     MAX_DAILY_LOSS_USD: float = -50.00         # configurable via env MAX_DAILY_LOSS_USD
     MAX_OPEN_POSITIONS: int = 20               # hard cap on concurrent open positions
     REFERRAL_PAYOUT_ENABLED: bool = False
