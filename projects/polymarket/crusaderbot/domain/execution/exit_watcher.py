@@ -506,6 +506,22 @@ async def _act_on_decision(
         await registry.update_current_price(
             position.id, decision.current_price, position.user_id, pnl_usdc=pnl
         )
+        # Weather trailing stop (Exit 2) needs a running peak price. Persist the
+        # high-water mark into strategy_metadata on every held tick so the next
+        # tick's evaluate_exit can see whether the position ran +20% above entry.
+        # Atomic + only-raises in the registry; a falling market is a no-op.
+        # Failure here must never poison the hold path — the price refresh above
+        # already succeeded; a missed high-water bump self-heals on the next tick.
+        if position.strategy_type == "weather":
+            try:
+                await registry.bump_high_water_price(
+                    position.id, position.user_id, decision.current_price
+                )
+            except Exception as exc:
+                log.warning(
+                    "exit_watcher: high-water bump failed",
+                    position_id=str(position.id), err=str(exc),
+                )
         try:
             from ...webtrader.backend.sse import push_position_updated
             push_position_updated(
