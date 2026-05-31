@@ -24,7 +24,7 @@ The breaker keeps two per-user maps **in memory**: `_bankroll_circuit_baseline` 
 
 - Created (this lane): `projects/polymarket/crusaderbot/reports/forge/bankroll-cb-persistence.md` (this spec).
 - Planned (implementation lane — see §6):
-  - `infra/migrations/0NN_bankroll_circuit_state.sql` — additive `CREATE TABLE bankroll_circuit_state(user_id UUID PRIMARY KEY, baseline NUMERIC NOT NULL, tripped BOOLEAN NOT NULL DEFAULT false, updated_at TIMESTAMPTZ NOT NULL DEFAULT now())` + RLS deny-by-default (match the 43/43 RLS posture).
+  - `infra/migrations/0NN_bankroll_circuit_state.sql` — additive `CREATE TABLE bankroll_circuit_state(user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, baseline NUMERIC NOT NULL, tripped BOOLEAN NOT NULL DEFAULT false, updated_at TIMESTAMPTZ NOT NULL DEFAULT now())` + RLS deny-by-default (match the 43/43 RLS posture). FK + `ON DELETE CASCADE` keeps state referentially clean and auto-reaps rows when a user is deleted (per CodeRabbit/Gemini review).
   - `services/signal_scan/signal_scan_job.py` — implement `_bankroll_circuit_baseline_persist_hook` (UPSERT baseline+tripped); add `_restore_bankroll_circuit_state()` (load all rows → in-memory maps) called once at scan-job start; write the latch on trip AND on hysteresis-resume.
   - `tests/test_bankroll_circuit_persistence.py` — hermetic.
 
@@ -43,7 +43,7 @@ Implementation steps, each behind the OFF flag (dark) so prod is untouched until
 1. Migration (additive table + RLS). Applied by owner; an unused table is inert.
 2. `_restore_bankroll_circuit_state()` at scan start, **gated on `BANKROLL_CIRCUIT_BREAKER_ENABLED`** (no restore work when off).
 3. Persist on every state change: baseline ratchet (via the existing hook), trip, and resume.
-4. Cold-start seed: `baseline = max(current_balance, all-time peak from portfolio_snapshots)` so a first-ever start (no persisted row) still measures from a real peak.
+4. Cold-start seed: `baseline = max(current_balance, COALESCE(peak_from_portfolio_snapshots, 0))` — handle `None`/`NULL` defensively (no snapshots → fall back to `current_balance`; never `max(x, None)` which raises `TypeError`) so a first-ever start still measures from a real peak.
 5. Fail-OPEN on any persistence error (match the existing breaker contract at signal_scan_job.py:1622-1625 — a persistence bug must never halt every user).
 6. Hermetic tests: persist→restore round-trip; tripped latch survives a simulated restart; baseline ratchet-up only; resume clears the latch + persists; fail-open on DB error; **no-op when flag is OFF** (dark pin).
 
