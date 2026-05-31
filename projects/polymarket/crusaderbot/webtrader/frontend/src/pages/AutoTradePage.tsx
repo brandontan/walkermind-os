@@ -71,6 +71,16 @@ const COMING_SOON_PRESETS: readonly {
 // All candle presets route to W.A.R.P_STRIKE engine on short-duration crypto markets.
 // Selecting one locks the market category to Crypto and surfaces the 5m/15m toggle.
 const CRYPTO_SHORT_PRESETS: readonly string[] = ["close_sweep", "safe_close", "flip_hunter"];
+
+// Preset → market category that activation auto-locks. Mirrors the backend
+// router _PRESET_LOCKED_CATEGORY. Crypto-short presets lock to Crypto;
+// weather_monitor locks to Weather. Presets absent here leave the filter free.
+const PRESET_LOCKED_CATEGORY: Record<string, string> = {
+  close_sweep:     "Crypto",
+  safe_close:      "Crypto",
+  flip_hunter:     "Crypto",
+  weather_monitor: "Weather",
+};
 const TIMEFRAMES = ["5m", "15m"] as const;
 type Timeframe = (typeof TIMEFRAMES)[number];
 const CRYPTO_ASSETS = ["BTC", "ETH", "SOL"] as const;
@@ -386,8 +396,11 @@ export function AutoTradePage() {
 
   const activeStrategy = STRATEGY_PRESETS.find(p => p.key === state.active_preset);
   const heroValue = activeStrategy ? activeStrategy.name.toUpperCase() : "IDLE";
-  const isCryptoShortActive =
-    !!state.active_preset && CRYPTO_SHORT_PRESETS.includes(state.active_preset);
+  // Category the active preset locks the market filter to (Crypto / Weather /
+  // none). Mirrors backend _PRESET_LOCKED_CATEGORY. Drives the disabled +
+  // "Locked to X" treatment on the category checkboxes below.
+  const lockedCategory: string | undefined =
+    state.active_preset ? PRESET_LOCKED_CATEGORY[state.active_preset] : undefined;
   const activeTimeframe = (state.selected_timeframe as Timeframe | null) ?? "5m";
 
   return (
@@ -821,9 +834,9 @@ export function AutoTradePage() {
           {/* Categories */}
           <div>
             <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-2">Categories</p>
-            {isCryptoShortActive && (
+            {lockedCategory && (
               <p className="text-[10px] text-gold font-mono mb-2">
-                Locked to Crypto by the active {activeStrategy?.name ?? "strategy"} preset.
+                Locked to {lockedCategory} by the active {activeStrategy?.name ?? "strategy"} preset.
               </p>
             )}
             <div className="grid grid-cols-3 gap-1.5">
@@ -834,7 +847,7 @@ export function AutoTradePage() {
                     key={cat}
                     className={[
                       "flex items-center gap-1.5 px-2 py-1.5 rounded border text-[10px] font-mono transition-colors",
-                      isCryptoShortActive
+                      lockedCategory
                         ? "cursor-not-allowed opacity-50"
                         : "cursor-pointer",
                       on
@@ -845,7 +858,7 @@ export function AutoTradePage() {
                     <input
                       type="checkbox"
                       checked={on}
-                      disabled={isCryptoShortActive}
+                      disabled={!!lockedCategory}
                       onChange={() => toggleCategory(cat)}
                       className="accent-gold w-3 h-3 shrink-0"
                     />
