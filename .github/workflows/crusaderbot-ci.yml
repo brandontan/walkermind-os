@@ -89,10 +89,15 @@ jobs:
 
       - name: Ensure cffi C extension is present
         # The --ignore-installed pass above may reinstall cffi with a wheel
-        # that lacks the _cffi_backend C extension (needed by the system
-        # cryptography package on ubuntu-latest). Force-reinstall cffi last
-        # so the compiled .so is always present for test collection.
-        run: pip install --force-reinstall cffi
+        # that lacks the _cffi_backend C extension (needed by cryptography
+        # which is transitively imported via python-telegram-bot). Force-
+        # reinstall cffi without cache and verify the import chain works
+        # before lint/tests run — fail fast with a useful trace.
+        run: |
+          pip install --force-reinstall --no-cache-dir cffi
+          python -c "import _cffi_backend; print('_cffi_backend:', _cffi_backend.__file__)"
+          python -c "from cryptography.hazmat.primitives import hashes; print('cryptography OK')"
+          python -c "from telegram import Bot; print('telegram OK')"
 
       - name: Lint (ruff)
         run: ruff check .
