@@ -74,6 +74,19 @@ PRESET_CONFIG: dict[str, PresetConfig] = {
         "max_pos_pct": 5,
         "has_copy_trade": False,
     },
+    "weather_monitor": {
+        "emoji": "🌤",
+        "name": "Weather Monitor",
+        "strategy_label": "weather",
+        "strategies": ["weather"],
+        "risk_label": "Balanced",
+        "risk_emoji": "🟡",
+        "capital_pct": 20,
+        "tp_pct": 25,
+        "sl_pct": 20,
+        "max_pos_pct": 5,
+        "has_copy_trade": False,
+    },
 }
 
 
@@ -85,4 +98,5 @@ PRESET_ORDER: list[str] = [
     "close_sweep",
     "safe_close",
     "flip_hunter",
+    "weather_monitor",
 ]

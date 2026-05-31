@@ -65,6 +65,19 @@ class WeatherStrategy:
         self._entries_total: int = 0
         self._errors: int = 0
         get_data_dir().mkdir(parents=True, exist_ok=True)
+        self._load_positions_from_storage()
+
+    def _load_positions_from_storage(self) -> None:
+        """Populate _positions from persisted JSON files on startup."""
+        try:
+            from .storage import list_market_files, load_market_state
+            for safe_id in list_market_files():
+                state = load_market_state(safe_id)
+                if state.get("status") == "open":
+                    market_id = state.get("market_id") or safe_id
+                    self._positions[market_id] = state
+        except Exception as exc:
+            log.warning("weather load_positions_from_storage failed", extra={"err": str(exc)})
 
     # ------------------------------------------------------------------ #
     # Scan cycle (hourly)                                                  #
@@ -288,11 +301,11 @@ class WeatherStrategy:
             target_date = end_date[:10] if end_date else datetime.now(timezone.utc).strftime("%Y-%m-%d")
             forecasts = await fetch_all(loc, target_date)
             current_mean = ensemble_tmax(forecasts)
-            entry_mean: float = pos.get("entry_mean_tmax_f", 0.0)
-            if current_mean is not None and abs(current_mean - entry_mean) >= cfg["forecast_exit_shift_f"]:
+            entry_mean_val = pos.get("entry_mean_tmax_f") or pos.get("mean_tmax_f")
+            if entry_mean_val is not None and current_mean is not None and abs(current_mean - float(entry_mean_val)) >= cfg["forecast_exit_shift_f"]:
                 log.info("weather forecast-shift exit",
                          extra={"market_id": pos.get("market_id"),
-                                "entry_mean": entry_mean, "current_mean": current_mean})
+                                "entry_mean": entry_mean_val, "current_mean": current_mean})
                 return "close"
 
         return "hold"

@@ -100,19 +100,20 @@ _MAX_TARGET_DRIFT_PCT: float = 0.25  # 25%
 _LIB_STRATEGY_NAMES: frozenset[str] = frozenset(ENABLED_STRATEGIES) | frozenset(DEFERRED_STRATEGIES)
 
 _LATE_ENTRY_V3_NAME = "late_entry_v3"
+_WEATHER_STRATEGY_NAME = "weather"
 
 # Domain strategies the scan loop invokes explicitly (registered via
-# bootstrap_default_strategies()). Each runs its own crypto-only eligibility
-# gate inside scan(), so emitted candidates already satisfy the asset whitelist.
-_DOMAIN_STRATEGY_NAMES: frozenset[str] = frozenset({_LATE_ENTRY_V3_NAME})
+# bootstrap_default_strategies()). Each runs its own eligibility gate inside
+# scan(), so emitted candidates already satisfy their universe constraints.
+_DOMAIN_STRATEGY_NAMES: frozenset[str] = frozenset({_LATE_ENTRY_V3_NAME, _WEATHER_STRATEGY_NAME})
 
-# Preset → strategies it may fire. Narrowed to the 3 candle presets (all
-# routing to late_entry_v3) after WARP/R00T/strategy-system-cleanup. A user
-# with no active_preset is skipped at the top of run_once().
+# Preset → strategies it may fire. Deny-by-default: unknown/NULL presets
+# return frozenset() and fire nothing.
 _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
-    "close_sweep": frozenset({_LATE_ENTRY_V3_NAME}),
-    "safe_close":  frozenset({_LATE_ENTRY_V3_NAME}),
-    "flip_hunter": frozenset({_LATE_ENTRY_V3_NAME}),
+    "close_sweep":     frozenset({_LATE_ENTRY_V3_NAME}),
+    "safe_close":      frozenset({_LATE_ENTRY_V3_NAME}),
+    "flip_hunter":     frozenset({_LATE_ENTRY_V3_NAME}),
+    "weather_monitor": frozenset({_WEATHER_STRATEGY_NAME}),
 }
 
 
@@ -2567,9 +2568,16 @@ async def run_once() -> None:
         late_entry_strat = None
         logger.debug("late_entry_v3_not_registered")
 
+    try:
+        weather_strat = StrategyRegistry.instance().get(_WEATHER_STRATEGY_NAME)
+    except KeyError:
+        weather_strat = None
+        logger.debug("weather_not_registered")
+
     candidates_processed = 0
     candidates_errored = 0
     late_entry_signals = 0
+    weather_signals = 0
 
     for row in users:
         active_preset = row.get("active_preset")
@@ -2674,6 +2682,39 @@ async def run_once() -> None:
                         error=str(exc),
                     )
 
+        # Phase B2: run weather domain strategy when the active preset permits.
+        if weather_strat is not None and _preset_allows(active_preset, _WEATHER_STRATEGY_NAME):
+            try:
+                user_ctx = _build_user_context(row)
+                market_filters = _build_market_filters(user_ctx.risk_profile, row)
+                weather_cands = await weather_strat.scan(market_filters, user_ctx)
+            except Exception as exc:
+                user_log.warning("weather_strategy_run_failed", error=str(exc))
+                weather_cands = []
+
+            weather_signals += len(weather_cands)
+            user_log.info(
+                "strategy_run",
+                strategy=_WEATHER_STRATEGY_NAME,
+                candidates_emitted=len(weather_cands),
+                zero_reason="filter_or_no_match" if not weather_cands else None,
+            )
+            if not weather_cands:
+                tel.record_zero_reason(_WEATHER_STRATEGY_NAME, "filter_or_no_match")
+            tel.candidates_emitted += len(weather_cands)
+            for cand in weather_cands:
+                try:
+                    await _process_candidate(row, cand, tel)
+                    candidates_processed += 1
+                except Exception as exc:
+                    candidates_errored += 1
+                    user_log.error(
+                        "signal_scan_candidate_unhandled",
+                        market_id=cand.market_id,
+                        strategy=_WEATHER_STRATEGY_NAME,
+                        error=str(exc),
+                    )
+
         # Phase C: evaluate signal_publications feed for this user.
         # Uses signal_evaluator which reads user's subscribed feeds and
         # returns SignalCandidates with metadata["publication_id"] set.
@@ -2734,8 +2775,9 @@ async def run_once() -> None:
     logger.info(
         "lib_strategy_scan_done",
         scan_run_id=run_id,
-        strategies=1,  # late_entry_v3
+        strategies=2,  # late_entry_v3 + weather
         late_entry_signals=late_entry_signals,
+        weather_signals=weather_signals,
         candidates_emitted=tel.candidates_emitted,
         risk_approved=tel.risk_approved,
         risk_rejected=tel.risk_rejected,

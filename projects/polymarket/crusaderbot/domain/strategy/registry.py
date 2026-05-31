@@ -156,12 +156,14 @@ def bootstrap_default_strategies(
         CopyTradeStrategy,
         LateEntryV3Strategy,
         SignalFollowingStrategy,
+        WeatherDomainStrategy,
     )
 
     for cls in (
         CopyTradeStrategy,
         SignalFollowingStrategy,
         LateEntryV3Strategy,
+        WeatherDomainStrategy,
     ):
         try:
             reg.get(cls.name)

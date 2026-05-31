@@ -48,7 +48,7 @@ def update_sigma(forecast_temp: float, actual_temp: float) -> float:
     """
     global _sigma_cache
     data = load_calibration()
-    history: list[float] = data.get("mae_history", [])
+    history: list[float] = data.get("mae_history") or []
     history.append(abs(forecast_temp - actual_temp))
     data["mae_history"] = history[-_MAE_WINDOW:]
     data["sample_count"] = len(data["mae_history"])
