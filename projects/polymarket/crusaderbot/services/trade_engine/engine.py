@@ -102,6 +102,12 @@ class TradeSignal:
     # opted in to live mode; gate step 15 rejects any live trade. Set via
     # /api/web/live/enable typed-confirm flow.
     live_capital_cap_usdc: float = 0.0
+    # Opaque per-strategy snapshot (e.g. weather city/bucket bounds, entry
+    # forecast mean, high-water price). Persisted to positions.strategy_metadata
+    # and replayed into the strategy exit hook so exits like the weather
+    # trailing-stop + adaptive forecast-shift have the data they need. None for
+    # strategies that emit no metadata.
+    strategy_metadata: Optional[dict] = None
 
 
 @dataclass(frozen=True)
@@ -188,6 +194,7 @@ class TradeEngine:
             tp_pct=signal.tp_pct,
             sl_pct=signal.sl_pct,
             active_preset=signal.active_preset,
+            strategy_metadata=signal.strategy_metadata,
         )
 
         # Idempotent skip: paper engine returns status="duplicate" when the

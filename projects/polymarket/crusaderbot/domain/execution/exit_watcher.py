@@ -172,10 +172,14 @@ async def registry_strategy_evaluator(
 
     # Weather strategy — enrich payload with resolution_at as end_date so
     # time-based exits (tp_48h, tp_48h_plus, near_expiry) can compute
-    # hours_remaining. strategy_metadata (city, bucket bounds, entry forecast)
-    # will be added once migration 076 lands; for now those fields fall back
-    # to the graceful no-op paths already in evaluate_exit().
+    # hours_remaining, and spread the persisted strategy_metadata (city,
+    # bucket bounds, entry forecast mean, high-water price) so the trailing-stop
+    # (Exit 2) and adaptive forecast-shift (Exit 4) have their inputs. Metadata
+    # keys are spread at the top level (the hook reads position.get("city")
+    # etc.); explicit payload keys below win on any collision.
     if name == "weather":
+        if isinstance(position.strategy_metadata, dict):
+            payload.update(position.strategy_metadata)
         if position.resolution_at is not None:
             payload["end_date"] = position.resolution_at.isoformat()
 
