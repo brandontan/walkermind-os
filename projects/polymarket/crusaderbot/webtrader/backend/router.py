@@ -1075,6 +1075,20 @@ async def customize_strategy(body: CustomizeRequest, user: _CurrentUser):
 
     params.append(user_id)
     async with pool.acquire() as conn:
+        # Reject attempts to override a preset's locked market category.
+        # (e.g. weather_monitor locks to "Weather"; crypto-short presets lock to "Crypto")
+        if body.category_filters is not None:
+            row = await conn.fetchrow(
+                "SELECT active_preset FROM user_settings WHERE user_id=$1::uuid",
+                user_id,
+            )
+            preset = ((row["active_preset"] if row else None) or "")
+            locked = _PRESET_LOCKED_CATEGORY.get(preset)
+            if locked and body.category_filters != [locked]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"preset '{preset}' locks market category to '{locked}' — cannot override",
+                )
         await conn.execute(
             f"UPDATE user_settings SET {', '.join(updates)}, updated_at=NOW() WHERE user_id=${len(params)}::uuid",
             *params,
@@ -1103,6 +1117,20 @@ async def update_market_filters(body: MarketFilterUpdate, user: _CurrentUser):
 
     params.append(user_id)
     async with pool.acquire() as conn:
+        # Reject attempts to override a preset's locked market category.
+        if "market_categories" in data:
+            row = await conn.fetchrow(
+                "SELECT active_preset FROM user_settings WHERE user_id=$1::uuid",
+                user_id,
+            )
+            preset = ((row["active_preset"] if row else None) or "")
+            locked = _PRESET_LOCKED_CATEGORY.get(preset)
+            incoming_cats = data["market_categories"]
+            if locked and incoming_cats != [locked]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"preset '{preset}' locks market category to '{locked}' — cannot override",
+                )
         await conn.execute(
             f"UPDATE user_settings SET {', '.join(updates)}, updated_at=NOW() WHERE user_id=${len(params)}::uuid",
             *params,
