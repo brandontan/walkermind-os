@@ -1350,23 +1350,23 @@ def test_resolve_preset_params_safe_close_emits_force_exit_30s():
     assert pp_5m["min_entry_sec"] == pytest.approx(30.0)
 
 
-def test_resolve_preset_params_flip_hunter_5m_kreo_alignment():
-    """flip_hunter 5m: with-trend (NOT underdog), early window (rem 160-300), force-exit 160s, Min Edge 3%."""
+def test_resolve_preset_params_flip_hunter_5m_directive_mode_a():
+    """flip_hunter 5m: Directive Mode A — cheap side (underdog=True), entry rem 60–180s, hold-to-settlement."""
     pp = job._resolve_preset_params("flip_hunter", "5m")
-    assert pp.get("underdog_mode", False) is False, "Kreo With Trend → favored side"
-    assert pp["entry_window_sec"] == pytest.approx(300.0), "rem upper = full 5m candle"
-    assert pp["min_entry_sec"] == pytest.approx(160.0), "rem lower = end of first 140s elapsed"
-    assert pp["force_exit_at_rem_sec"] == pytest.approx(160.0)
-    assert pp["min_ask_diff"] == pytest.approx(0.03), "Kreo Min Edge 3%"
+    assert pp.get("underdog_mode") is True, "Directive Mode A → cheap side"
+    assert pp["entry_window_sec"] == pytest.approx(180.0), "max 180s remaining before close"
+    assert pp["min_entry_sec"] == pytest.approx(60.0), "min 60s remaining before close"
+    assert pp["force_exit_at_rem_sec"] == pytest.approx(0.0), "Mode A: hold to settlement"
+    assert pp["min_ask_diff"] == pytest.approx(0.01), "Directive min_arb_edge=1%"
 
 
-def test_resolve_preset_params_flip_hunter_15m_kreo_alignment():
-    """flip_hunter 15m: same with-trend semantics, scaled to 15m candle (rem 480-900, force-exit 480)."""
+def test_resolve_preset_params_flip_hunter_15m_directive_mode_a():
+    """flip_hunter 15m: Directive Mode A — same 60–180s entry window, hold-to-settlement."""
     pp = job._resolve_preset_params("flip_hunter", "15m")
-    assert pp.get("underdog_mode", False) is False
-    assert pp["entry_window_sec"] == pytest.approx(900.0)
-    assert pp["min_entry_sec"] == pytest.approx(480.0)
-    assert pp["force_exit_at_rem_sec"] == pytest.approx(480.0)
+    assert pp.get("underdog_mode") is True
+    assert pp["entry_window_sec"] == pytest.approx(180.0)
+    assert pp["min_entry_sec"] == pytest.approx(60.0)
+    assert pp["force_exit_at_rem_sec"] == pytest.approx(0.0)
 
 
 def test_resolve_preset_params_flip_hunter_unknown_tf_defaults_to_5m():
@@ -1391,11 +1391,11 @@ def test_resolve_preset_params_safe_close_loosened_to_kreo_min_edge():
     assert pp["min_ask_diff"] == pytest.approx(0.01)
 
 
-def test_resolve_preset_params_flip_hunter_fav_band_no_longer_underdog():
-    """flip_hunter band changed from underdog [0.26, 0.36] to favored [0.50, 0.95]."""
+def test_resolve_preset_params_flip_hunter_directive_cheap_side_band():
+    """flip_hunter band is Directive Mode A cheap-side: min=0.10, max=0.36 (exclusive)."""
     pp = job._resolve_preset_params("flip_hunter", "5m")
-    assert pp["fav_price_min"] == pytest.approx(0.50)
-    assert pp["fav_price_max"] == pytest.approx(0.95)
+    assert pp["fav_price_min"] == pytest.approx(0.10), "cheap_side_min_price=0.10"
+    assert pp["fav_price_max"] == pytest.approx(0.36), "cheap_side_max_price=0.35 (excl)"
 
 
 def test_run_close_sweep_fast_telemetry_markets_seen_reflects_candle_universe(monkeypatch):
