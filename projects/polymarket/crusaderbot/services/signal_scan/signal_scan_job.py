@@ -1755,10 +1755,12 @@ async def _process_candidate(
         # breaker works even when BANKROLL_DYNAMIC_SIZING_ENABLED=false.
         # No-op when a baseline already exists (Lane 5 path seeds it on
         # first multiplier call) so this never overwrites Lane 5 state.
-        _ensure_bankroll_baseline_seeded(str(row["user_id"]), _cb_balance)
+        # Capture prev state BEFORE seeding so the first-ever seed is
+        # detected as a transition (_prev_baseline=None → _new_baseline=X).
         _uid_str = str(row["user_id"])
         _prev_baseline = _bankroll_ema_baseline.get(_uid_str)
         _prev_tripped = _bankroll_circuit_tripped.get(_uid_str, False)
+        _ensure_bankroll_baseline_seeded(_uid_str, _cb_balance)
         _cb_tripped = _evaluate_bankroll_circuit_breaker(
             _uid_str,
             _cb_balance,
@@ -2317,6 +2319,8 @@ async def _process_candidate(
                     telemetry.record_skip("skipped_safe_close_direction_concentration")
                 return
 
+    if _cb_enabled:
+        _base_before_build = _bankroll_ema_baseline.get(_uid_str)
     try:
         signal = _build_trade_signal(
             row=row, cand=cand, market=market, idempotency_key=idem_key,
@@ -2325,6 +2329,8 @@ async def _process_candidate(
     except Exception as exc:
         log.warning("trade_signal_build_failed", error=str(exc))
         return
+    if _cb_enabled and _bankroll_ema_baseline.get(_uid_str) != _base_before_build:
+        await _persist_bankroll_circuit_state(_uid_str)
 
     # 4. Execute through TradeEngine — risk gate (13 steps) is mandatory inside
     #    the engine; router_execute is never called directly on this path.
