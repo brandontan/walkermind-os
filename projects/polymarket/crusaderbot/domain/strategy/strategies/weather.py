@@ -23,7 +23,12 @@ _WEATHER_STRATEGY_NAME = "weather"
 # Module-level TTL cache: (city, date) → (expires_monotonic, markets, forecasts)
 # Shared across all WeatherDomainStrategy instances so the forecast + market
 # API calls happen once per city per scan tick regardless of user count.
+#
+# _IN_FLIGHT tracks in-progress fetch Tasks per (city, date).  A second
+# coroutine that hits the cache during a live fetch awaits the same Task
+# instead of launching a duplicate API call (single-flight pattern).
 _FORECAST_CACHE: dict[tuple[str, str], tuple[float, list[Any], list[Any]]] = {}
+_IN_FLIGHT: dict[tuple[str, str], "asyncio.Task[tuple[list[Any], list[Any]]]"] = {}
 _CACHE_TTL_S: float = 300.0  # 5 minutes
 
 
@@ -39,7 +44,12 @@ def _cache_get(city: str, date: str) -> tuple[list[Any], list[Any]] | None:
 
 
 def _cache_set(city: str, date: str, markets: list[Any], forecasts: list[Any]) -> None:
-    _FORECAST_CACHE[(city, date)] = (time.monotonic() + _CACHE_TTL_S, markets, forecasts)
+    now = time.monotonic()
+    # Evict all stale entries to prevent memory accumulation as dates roll over.
+    expired = [k for k, v in _FORECAST_CACHE.items() if now > v[0]]
+    for k in expired:
+        _FORECAST_CACHE.pop(k, None)
+    _FORECAST_CACHE[(city, date)] = (now + _CACHE_TTL_S, markets, forecasts)
 
 
 class WeatherDomainStrategy(BaseStrategy):
@@ -102,27 +112,50 @@ class WeatherDomainStrategy(BaseStrategy):
         today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         sem = asyncio.Semaphore(5)
 
+        async def _fetch_city(loc_name: str, loc: Any) -> tuple[list[Any], list[Any]]:
+            """Fetch markets + forecasts, deduplicated via _IN_FLIGHT single-flight."""
+            key = (loc_name, today_utc)
+            # Check cache first — fast path, no Task allocation.
+            cached = _cache_get(loc_name, today_utc)
+            if cached is not None:
+                return cached
+            # If a fetch is already in-flight for this city+date, await it
+            # instead of launching a duplicate API call.
+            existing = _IN_FLIGHT.get(key)
+            if existing is not None:
+                try:
+                    return await existing
+                except Exception:
+                    return [], []
+            # We're first — create the Task and register it.
+            async def _do_fetch() -> tuple[list[Any], list[Any]]:
+                result = await asyncio.gather(
+                    fetch_weather_markets(city=loc_name, limit=20),
+                    fetch_all(loc, today_utc),
+                    return_exceptions=False,
+                )
+                m, f = result  # type: ignore[misc]
+                _cache_set(loc_name, today_utc, m, f)
+                return m, f
+            task: asyncio.Task[tuple[list[Any], list[Any]]] = asyncio.ensure_future(_do_fetch())
+            _IN_FLIGHT[key] = task
+            try:
+                result2 = await task
+            except Exception as exc:
+                log.warning("weather_domain_city_scan_failed",
+                            extra={"city": loc_name, "err": str(exc)})
+                result2 = ([], [])
+            finally:
+                _IN_FLIGHT.pop(key, None)
+            return result2
+
         async def _scan_city(loc_name: str) -> list[SignalCandidate]:
             async with sem:
                 loc = LOCATION_BY_CITY.get(loc_name)
                 if not loc:
                     return []
 
-                cached = _cache_get(loc_name, today_utc)
-                if cached is not None:
-                    markets, forecasts = cached
-                else:
-                    try:
-                        markets, forecasts = await asyncio.gather(
-                            fetch_weather_markets(city=loc_name, limit=20),
-                            fetch_all(loc, today_utc),
-                            return_exceptions=False,
-                        )
-                    except Exception as exc:
-                        log.warning("weather_domain_city_scan_failed",
-                                    extra={"city": loc_name, "err": str(exc)})
-                        return []
-                    _cache_set(loc_name, today_utc, markets, forecasts)
+                markets, forecasts = await _fetch_city(loc_name, loc)
 
                 if not markets or not forecasts:
                     return []

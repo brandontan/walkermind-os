@@ -170,6 +170,15 @@ async def registry_strategy_evaluator(
         "strategy_type": name,
     }
 
+    # Weather strategy — enrich payload with resolution_at as end_date so
+    # time-based exits (tp_48h, tp_48h_plus, near_expiry) can compute
+    # hours_remaining. strategy_metadata (city, bucket bounds, entry forecast)
+    # will be added once migration 076 lands; for now those fields fall back
+    # to the graceful no-op paths already in evaluate_exit().
+    if name == "weather":
+        if position.resolution_at is not None:
+            payload["end_date"] = position.resolution_at.isoformat()
+
     # late_entry_v3 force-exit plumbing — Kreo-style fixed-time exit.
     # Compute current rem from resolution_at and look up the (preset, tf)
     # threshold. Both must be available; otherwise the strategy hook falls
