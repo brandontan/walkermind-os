@@ -571,13 +571,9 @@ def _extract_size(trade: dict[str, Any]) -> float:
             except (TypeError, ValueError):
                 continue
     # Compute USDC notional from shares × price when explicit field is absent.
-    # Use is-not-None checks — 0.0 is falsy and would be skipped by `or`.
-    raw_size = trade.get("size") if trade.get("size") is not None else trade.get("amount")
-    raw_price = (
-        trade.get("price") if trade.get("price") is not None
-        else trade.get("avg_price") if trade.get("avg_price") is not None
-        else trade.get("avgPrice")
-    )
+    # next() with is-not-None guard handles 0.0 correctly (falsy but valid).
+    raw_size = next((trade.get(k) for k in ("size", "amount") if trade.get(k) is not None), None)
+    raw_price = next((trade.get(k) for k in ("price", "avg_price", "avgPrice") if trade.get(k) is not None), None)
     if raw_size is not None and raw_price is not None:
         try:
             return float(raw_size) * float(raw_price)
@@ -657,7 +653,7 @@ def _compute_copy_size(
     # collapsed to 1.0 by a falsy check.
     pct_factor = float(task.copy_pct) if task.copy_pct is not None else 1.0
     scaled_leader_size = leader_size * pct_factor
-    effective_position_pct = 0.10 * pct_factor  # hard 10 % cap × user fraction
+    effective_position_pct = min(0.10 * pct_factor, 1.0)  # hard 10 % cap × user fraction, never > 1.0
     leader_bankroll = float(
         leader_trade.get("bankroll")
         or leader_trade.get("portfolioValue")
