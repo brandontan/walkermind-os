@@ -141,6 +141,18 @@ PRESETS: Dict[str, Preset] = {
         badge=PresetBadge.ADVANCED,
         description="Early 140s entry on low-odds lean. Asymmetric upside on flips.",
     ),
+    "weather_monitor": Preset(
+        key="weather_monitor",
+        emoji="🌤",
+        name="Weather Monitor",
+        strategies=("weather",),
+        capital_pct=0.20,
+        tp_pct=0.25,
+        sl_pct=0.20,
+        max_position_pct=0.05,
+        badge=PresetBadge.BALANCED,
+        description="Daily temperature markets across 20 cities. Ensemble forecast edge.",
+    ),
 }
 
 # Display order — picker renders top-to-bottom.
@@ -148,17 +160,18 @@ PRESET_ORDER: Tuple[str, ...] = (
     "close_sweep",
     "safe_close",
     "flip_hunter",
+    "weather_monitor",
 )
 
 # Candle preset keys — used by the picker to render a section divider.
 CANDLE_PRESET_KEYS: frozenset[str] = frozenset({"close_sweep", "safe_close", "flip_hunter"})
 
 # Presets visible in the Telegram picker.
-# All three candle presets are now active and validated.
 VISIBLE_PRESET_ORDER: Tuple[str, ...] = (
     "close_sweep",
     "safe_close",
     "flip_hunter",
+    "weather_monitor",
 )
 
 RECOMMENDED_PRESET: str = "close_sweep"

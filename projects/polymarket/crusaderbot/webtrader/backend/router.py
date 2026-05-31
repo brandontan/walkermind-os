@@ -758,9 +758,10 @@ async def toggle_autotrade(body: AutoTradeToggleRequest, user: _CurrentUser):
 # can show "PAUSED (Admin)" when the active preset's strategy is globally off.
 # Only contains presets that point to a real, reachable strategy.
 _PRESET_TO_STRATEGY: dict[str, str] = {
-    "close_sweep": "late_entry_v3",
-    "safe_close":  "late_entry_v3",
-    "flip_hunter": "late_entry_v3",
+    "close_sweep":     "late_entry_v3",
+    "safe_close":      "late_entry_v3",
+    "flip_hunter":     "late_entry_v3",
+    "weather_monitor": "weather",
 }
 
 
@@ -812,9 +813,10 @@ async def get_preset_availability(user: _CurrentUser) -> dict:
 # the key is absent from _PRESET_TO_STRATEGY. activate_preset() rejects 400
 # anything not in this map.
 _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
-    "close_sweep": {"risk_profile": "balanced", "capital_alloc_pct": 0.30, "tp_pct": 0.15, "sl_pct": 0.08},
-    "safe_close":  {"risk_profile": "balanced", "capital_alloc_pct": 0.25, "tp_pct": 0.12, "sl_pct": 0.06},
-    "flip_hunter": {"risk_profile": "balanced", "capital_alloc_pct": 0.30, "tp_pct": 0.25, "sl_pct": 0.12},
+    "close_sweep":     {"risk_profile": "balanced", "capital_alloc_pct": 0.30, "tp_pct": 0.15, "sl_pct": 0.08},
+    "safe_close":      {"risk_profile": "balanced", "capital_alloc_pct": 0.25, "tp_pct": 0.12, "sl_pct": 0.06},
+    "flip_hunter":     {"risk_profile": "balanced", "capital_alloc_pct": 0.30, "tp_pct": 0.25, "sl_pct": 0.12},
+    "weather_monitor": {"risk_profile": "balanced", "capital_alloc_pct": 0.20, "tp_pct": 0.25, "sl_pct": 0.20},
 }
 
 # Presets restricted to short-duration crypto markets. Activating one auto-locks
@@ -2349,6 +2351,7 @@ _ADMIN_STRATEGIES: tuple[str, ...] = (
     "late_entry_v3",
     "signal_following",
     "copy_trade",
+    "weather",
 )
 
 

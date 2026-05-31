@@ -13,9 +13,11 @@ routed to it, so the toggles were cosmetic.
 from .copy_trade import CopyTradeStrategy
 from .late_entry_v3 import LateEntryV3Strategy
 from .signal_following import SignalFollowingStrategy
+from .weather import WeatherDomainStrategy
 
 __all__ = [
     "CopyTradeStrategy",
     "LateEntryV3Strategy",
     "SignalFollowingStrategy",
+    "WeatherDomainStrategy",
 ]
