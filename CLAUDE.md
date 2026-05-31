@@ -1106,3 +1106,69 @@ Notes:
 * Skip Phase 0 (WARP•SENTINEL)
 * Run WARP•SENTINEL on MINOR or STANDARD tasks
 * Silently fail — always deliver file to user if GitHub write fails
+
+---
+
+## DEV TOOLING — gstack (dev-side only)
+
+gstack (Garry Tan / YC) is an AI dev-workflow toolkit of slash commands used
+*inside Claude Code* to help develop and maintain this repo. It is a pure
+dev-side helper — it does NOT override AGENTS.md / CLAUDE.md authority, and the
+WARP agent hierarchy (R00T > CMD > FORGE/SENTINEL/ECHO) remains in force.
+
+### Scope (HARD)
+
+* Installed **globally** at `~/.claude/skills/gstack` (outside this repo)
+* NEVER committed to the repo, NEVER deployed to production
+* NEVER touches runtime code: trading engine, WARP agents, risk parameters
+* The only repo artifact from setup is this documentation section
+
+### Project commands (for gstack to use)
+
+Test (from repo root):
+
+```
+pytest tests/ -v --tb=short        # config: pytest.ini -> projects/polymarket/crusaderbot/tests
+ruff check .                       # lint
+```
+
+* Coverage: none configured
+* Python: 3.11+
+
+Deploy:
+
+```
+# PRIMARY — Fly.io (automated CD)
+flyctl deploy                      # auto via .github/workflows/crusaderbot-cd.yml on merge to main
+                                   # APP_VERSION = git rev-parse --short=12 HEAD
+                                   # working dir: projects/polymarket/crusaderbot
+
+# SECONDARY / legacy — Procfile worker (PolyQuantBot path)
+worker: python main.py
+```
+
+### Agent structure (WARP roles gstack assists)
+
+| Role | Responsibility |
+| --- | --- |
+| WARP•R00T | system-wide hardening / root-cause / architecture |
+| WARP•FORGE | build / implement / refactor / fix |
+| WARP•SENTINEL | validate / audit MAJOR lanes (system UNSAFE until proven) |
+| WARP•ECHO | report / dashboard / visualize |
+
+### Relevant gstack commands -> WARP workflow
+
+| gstack command | Use in WARP workflow |
+| --- | --- |
+| `/cso` | security audit of trading algo (OWASP + STRIDE) — supports WARP•SENTINEL |
+| `/investigate` | debug bot behavior / logic errors — supports WARP•FORGE / WARP•R00T |
+| `/review` | code review before merge to `main` — supports WARP🔹CMD merge gate |
+| `/qa` | exercise trading logic in paper mode (`MODE=PAPER`; never bypass `ENABLE_LIVE_TRADING`) — supports WARP•SENTINEL |
+| `/ship` | deploy to Fly.io with git-SHA versioning — WARP🔹CMD-gated only |
+
+### Notes
+
+* gstack's browser/QA commands need Playwright Chromium (`cdn.playwright.dev`);
+  if that host is not in the environment network allowlist, those commands are
+  unavailable. Core dev commands above do not require a browser.
+* gstack does NOT replace mandatory WARP validation tiers or PR gates.
