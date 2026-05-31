@@ -3,7 +3,7 @@
 Role: WARP•R00T
 Branch: WARP/ROOT/bankroll-cb-persistence
 Date: 2026-05-31 Asia/Jakarta
-Validation Tier: MAJOR (bankroll circuit breaker — risk path) → WARP•SENTINEL on implementation
+Validation Tier: MINOR (this lane = design spec, docs only, no production code). The IMPLEMENTATION lane will be MAJOR (bankroll circuit breaker — risk path) → WARP•SENTINEL.
 Claim Level: FOUNDATION (design spec — no runtime code in this lane)
 Validation Target: persistence/restart-durability of the bankroll circuit breaker state (audit F19/F4)
 Not in Scope: ENABLING the breaker (`BANKROLL_CIRCUIT_BREAKER_ENABLED` stays FALSE — owner's directive validate track); the always-on 8% drawdown halt (gate step 6, unchanged)
