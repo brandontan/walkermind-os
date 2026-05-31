@@ -1127,7 +1127,7 @@ WARP agent hierarchy (R00T > CMD > FORGE/SENTINEL/ECHO) remains in force.
 
 Test (from repo root):
 
-```
+```bash
 pytest tests/ -v --tb=short        # config: pytest.ini -> projects/polymarket/crusaderbot/tests
 ruff check .                       # lint
 ```
@@ -1137,7 +1137,7 @@ ruff check .                       # lint
 
 Deploy:
 
-```
+```bash
 # PRIMARY — Fly.io (automated CD)
 flyctl deploy                      # auto via .github/workflows/crusaderbot-cd.yml on merge to main
                                    # APP_VERSION = git rev-parse --short=12 HEAD
