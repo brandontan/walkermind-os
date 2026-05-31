@@ -20,6 +20,7 @@ Contract (R12c):
 from __future__ import annotations
 
 import enum
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
@@ -116,6 +117,12 @@ class OpenPositionForExit:
     # any code path that joined the snapshot before this column existed) working.
     active_preset: Optional[str] = None
     selected_timeframe: Optional[str] = None
+    # Opaque per-strategy snapshot persisted at entry (weather: city, bucket
+    # bounds, entry forecast mean, high-water price). Replayed into the strategy
+    # exit hook so exits like the weather trailing-stop + adaptive forecast-shift
+    # have their data. None when the position carries no metadata or predates
+    # migration 076.
+    strategy_metadata: Optional[dict] = None
 
     def to_router_dict(self) -> dict[str, Any]:
         """Build the payload shape ``router.close`` expects.
@@ -154,7 +161,7 @@ _OPEN_FOR_EXIT_COLS = """
                    p.entry_price, p.size_usdc, p.mode, p.status,
                    p.applied_tp_pct, p.applied_sl_pct,
                    p.force_close_intent, p.close_failure_count,
-                   p.strategy_type,
+                   p.strategy_type, p.strategy_metadata,
                    m.question AS market_question,
                    m.yes_price, m.no_price, m.resolved AS market_resolved,
                    m.resolution_at, m.yes_token_id, m.no_token_id,
@@ -169,6 +176,29 @@ _OPEN_FOR_EXIT_COLS = """
 
 # Candle presets whose positions the fast exit loop is scoped to.
 _CANDLE_PRESETS = ("close_sweep", "safe_close", "flip_hunter")
+
+
+def _loads_jsonb(raw: Any) -> Optional[dict]:
+    """Coerce a JSONB column value to a dict (or None).
+
+    asyncpg has no pool-level JSONB codec, so a JSONB column comes back as a
+    ``str`` — decode it. A dict (codec configured, or a hand-built test row)
+    passes through. Anything else, or a malformed payload, returns None rather
+    than poisoning the exit-watcher tick (zero silent crash; the malformed case
+    is logged).
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, (str, bytes, bytearray)):
+        try:
+            parsed = json.loads(raw)
+        except (ValueError, TypeError) as exc:
+            logger.warning("strategy_metadata JSONB decode failed: %s", exc)
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
 
 
 def _row_to_open_position(r) -> OpenPositionForExit:
@@ -202,6 +232,7 @@ def _row_to_open_position(r) -> OpenPositionForExit:
         no_token_id=(str(r["no_token_id"]) if r["no_token_id"] else None),
         active_preset=(str(r["active_preset"]) if r["active_preset"] else None),
         selected_timeframe=(str(r["selected_timeframe"]) if r["selected_timeframe"] else None),
+        strategy_metadata=_loads_jsonb(r.get("strategy_metadata")),
     )
 
 

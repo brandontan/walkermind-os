@@ -1606,6 +1606,10 @@ def _build_trade_signal(
         # on a stale schema → defaults to 0 → gate step 15 rejects live mode
         # (safe-by-default).
         live_capital_cap_usdc=float(row.get("live_capital_cap_usdc") or 0.0),
+        # Forward the strategy's opaque signal metadata (weather: city/bucket/
+        # entry-forecast) so it persists on the position for the exit hook.
+        # None when the candidate carries no metadata (keeps the column NULL).
+        strategy_metadata=(cand.metadata or None),
     )
 
 

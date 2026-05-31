@@ -30,7 +30,8 @@ async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,
                   idempotency_key: str, strategy_type: str,
                   tp_pct: float | None, sl_pct: float | None,
                   trading_mode: str = "paper",
-                  active_preset: str | None = None) -> dict:
+                  active_preset: str | None = None,
+                  strategy_metadata: dict | None = None) -> dict:
     if chosen_mode == "live":
         try:
             live_engine.assert_live_guards(role, trading_mode)
@@ -50,7 +51,7 @@ async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,
             return await _paper(
                 user_id, telegram_user_id, market_id, market_question,
                 side, size_usdc, price, idempotency_key, strategy_type,
-                tp_pct, sl_pct, active_preset,
+                tp_pct, sl_pct, active_preset, strategy_metadata,
             )
         try:
             return await live_engine.execute(
@@ -96,24 +97,25 @@ async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,
             return await _paper(
                 user_id, telegram_user_id, market_id, market_question,
                 side, size_usdc, price, idempotency_key, strategy_type,
-                tp_pct, sl_pct, active_preset,
+                tp_pct, sl_pct, active_preset, strategy_metadata,
             )
     return await _paper(
         user_id, telegram_user_id, market_id, market_question,
         side, size_usdc, price, idempotency_key, strategy_type,
-        tp_pct, sl_pct, active_preset,
+        tp_pct, sl_pct, active_preset, strategy_metadata,
     )
 
 
 async def _paper(user_id, telegram_user_id, market_id, market_question, side,
                  size_usdc, price, idempotency_key, strategy_type, tp_pct, sl_pct,
-                 active_preset=None):
+                 active_preset=None, strategy_metadata=None):
     return await paper_engine.execute(
         user_id=user_id, telegram_user_id=telegram_user_id,
         market_id=market_id, market_question=market_question,
         side=side, size_usdc=size_usdc, price=price,
         idempotency_key=idempotency_key, strategy_type=strategy_type,
         tp_pct=tp_pct, sl_pct=sl_pct, active_preset=active_preset,
+        strategy_metadata=strategy_metadata,
     )
 
 
