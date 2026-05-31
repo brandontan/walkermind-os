@@ -437,6 +437,48 @@ async def update_current_price(
             )
 
 
+async def bump_high_water_price(
+    position_id: UUID,
+    user_id: UUID,
+    price: float,
+) -> None:
+    """Persist a new peak mark into ``positions.strategy_metadata.high_water_price``.
+
+    The weather strategy's Exit 2 (trailing-stop breakeven) reads this value
+    back on the next watcher tick to decide whether a position that once ran
+    +20% above entry has since fallen back below breakeven.
+
+    Single atomic statement: a JSONB merge that ONLY raises the stored
+    high-water, never lowers it. The ``$1 > COALESCE(stored, 0)`` guard means:
+      * the write is a no-op on a falling / flat market (zero wasted writes),
+      * concurrent ticks cannot race a lower value over a higher one,
+      * a NULL ``strategy_metadata`` (non-weather legacy rows) is seeded with a
+        fresh object via ``COALESCE(..., '{}'::jsonb)``.
+
+    Existing metadata keys (city / bucket bounds / entry mean) are preserved —
+    the ``||`` operator merges, replacing only the ``high_water_price`` key.
+
+    Degenerate prices (None / <= 0) are ignored: a 0-or-below mark is never a
+    valid peak and must not seed the trailing stop.
+    """
+    if price is None or price <= 0.0:
+        return
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE positions
+               SET strategy_metadata =
+                     COALESCE(strategy_metadata, '{}'::jsonb)
+                     || jsonb_build_object('high_water_price', $1::float8)
+             WHERE id = $2 AND user_id = $3
+               AND $1::float8 > COALESCE(
+                     (strategy_metadata ->> 'high_water_price')::float8, 0.0)
+            """,
+            float(price), position_id, user_id,
+        )
+
+
 async def record_close_failure(position_id: UUID, user_id: UUID) -> int:
     """Increment ``close_failure_count`` and return the new value.
 
