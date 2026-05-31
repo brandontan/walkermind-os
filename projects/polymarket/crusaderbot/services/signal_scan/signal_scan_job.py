@@ -1756,22 +1756,27 @@ async def _process_candidate(
         # No-op when a baseline already exists (Lane 5 path seeds it on
         # first multiplier call) so this never overwrites Lane 5 state.
         _ensure_bankroll_baseline_seeded(str(row["user_id"]), _cb_balance)
+        _uid_str = str(row["user_id"])
+        _prev_baseline = _bankroll_ema_baseline.get(_uid_str)
+        _prev_tripped = _bankroll_circuit_tripped.get(_uid_str, False)
         _cb_tripped = _evaluate_bankroll_circuit_breaker(
-            str(row["user_id"]),
+            _uid_str,
             _cb_balance,
             threshold=_cb_threshold,
             hysteresis=_cb_hysteresis,
         )
-        # Persist baseline + latch so the state survives a restart / redeploy
-        # (WARP/ROOT/bankroll-cb-persistence-impl, F19/F4). Runs on every
-        # evaluation so both the trip transition AND the hysteresis-resume
-        # transition are written. Fail-open: a persistence error never blocks
-        # the gate decision below.
-        await _persist_bankroll_circuit_state(str(row["user_id"]))
+        # Persist only on state transition (baseline ratchet or latch flip) to
+        # avoid a spurious UPSERT on every evaluation. Both trip and hysteresis-
+        # resume transitions are captured because either changes _new_tripped.
+        # Fail-open: a persistence error never blocks the gate decision below.
+        _new_baseline = _bankroll_ema_baseline.get(_uid_str)
+        _new_tripped = _bankroll_circuit_tripped.get(_uid_str, False)
+        if (_new_baseline != _prev_baseline) or (_new_tripped != _prev_tripped):
+            await _persist_bankroll_circuit_state(_uid_str)
         if _cb_tripped:
             # Mirror the helper's baseline source so the log payload
             # surfaces the exact denominator the gate used.
-            _cb_baseline = _bankroll_ema_baseline.get(str(row["user_id"]))
+            _cb_baseline = _bankroll_ema_baseline.get(_uid_str)
             log.info(
                 "scan_outcome",
                 outcome="skipped_circuit_breaker",
