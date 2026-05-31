@@ -2962,12 +2962,12 @@ async def admin_paper_reset(
             )
 
         async with conn.transaction():
-            # Count + delete fills (FK references orders)
-            fills_deleted = await conn.fetchval(
+            # Delete fills first (FK references orders)
+            await conn.execute(
                 "DELETE FROM fills WHERE order_id IN "
-                "(SELECT id FROM orders WHERE user_id=$1::uuid) "
-                "RETURNING 1", target_uuid,
-            ) or 0
+                "(SELECT id FROM orders WHERE user_id=$1::uuid)",
+                target_uuid,
+            )
 
             # Count + delete orders
             orders_deleted: int = await conn.fetchval(
