@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from ...database import get_pool
@@ -10,6 +10,32 @@ from ...integrations.polymarket import get_user_activity
 from .base import BaseStrategy, SignalCandidate
 
 logger = logging.getLogger(__name__)
+
+# Only mirror trades younger than this window.  The scanner runs every ~3 min;
+# 2 h gives a generous catch-up buffer when a task is freshly added while
+# preventing stale historical trades from flooding the portfolio.
+_FRESHNESS_WINDOW = timedelta(hours=2)
+
+
+def _parse_trade_ts(trade: dict) -> datetime | None:
+    raw = trade.get("timestamp") or trade.get("ts") or trade.get("created_at")
+    if raw is None:
+        return None
+    try:
+        if isinstance(raw, (int, float)):
+            return datetime.fromtimestamp(float(raw), tz=timezone.utc)
+        stripped = str(raw).strip()
+        # Handle pure integers and stringified floats ("1700000000.5")
+        try:
+            return datetime.fromtimestamp(float(stripped), tz=timezone.utc)
+        except (ValueError, OSError, OverflowError):
+            pass
+        if stripped.endswith("Z"):
+            stripped = stripped[:-1] + "+00:00"
+        dt = datetime.fromisoformat(stripped)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
 
 
 class CopyTradeStrategy(BaseStrategy):
@@ -30,6 +56,7 @@ class CopyTradeStrategy(BaseStrategy):
         capital_pct = Decimal(str(settings.get("capital_alloc_pct") or 0.5))
         balance = Decimal(str(user.get("balance_usdc") or 0))
         budget = balance * capital_pct
+        cutoff = datetime.now(timezone.utc) - _FRESHNESS_WINDOW
 
         for t in tasks:
             try:
@@ -39,6 +66,9 @@ class CopyTradeStrategy(BaseStrategy):
                                t["wallet_address"], exc)
                 continue
             for trade in trades:
+                trade_ts = _parse_trade_ts(trade)
+                if trade_ts is None or trade_ts < cutoff:
+                    continue
                 tx = trade.get("transactionHash") or trade.get("tx_hash")
                 market_id = (trade.get("market") or trade.get("conditionId")
                              or trade.get("market_id"))
