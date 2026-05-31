@@ -306,7 +306,8 @@ class LateEntryV3Strategy(BaseStrategy):
                 _secs_left = float(secs_left)
             except (TypeError, ValueError):
                 _force_at = _secs_left = None  # type: ignore[assignment]
-            if _force_at is not None and _secs_left is not None and _secs_left <= _force_at:
+            if (_force_at is not None and _force_at > 0.0
+                    and _secs_left is not None and _secs_left <= _force_at):
                 return ExitDecision(
                     should_exit=True,
                     reason="strategy_exit",

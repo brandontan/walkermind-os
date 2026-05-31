@@ -2904,6 +2904,7 @@ def _resolve_preset_params(
             # safe_close + flip_hunter omit this key → max_leg_spread=None → no-op.
             # `getattr` defensive so partial-mock cfg objects in tests don't break.
             "max_leg_spread":  getattr(cfg, "CLOSE_SWEEP_MAX_LEG_SPREAD", 0.02),
+            "size_time_decay": True,             # Directive 1.4: <10s=0.5x, 10–35s=0.75x
             # close_sweep force-exit (~8s before resolution) is applied on the
             # EXIT path via force_exit_at_rem_sec_for, not seeded here.
         }
@@ -3019,6 +3020,7 @@ async def run_close_sweep_fast() -> None:
                 underdog_mode=bool(pp.get("underdog_mode", False)),
                 force_exit_at_rem_sec=float(_force_exit) if _force_exit is not None else None,
                 max_leg_spread=float(pp["max_leg_spread"]) if "max_leg_spread" in pp else None,
+                size_time_decay=bool(pp.get("size_time_decay", False)),
             )
         except Exception as exc:
             user_log.warning("close_sweep_fast_run_failed", error=str(exc))
