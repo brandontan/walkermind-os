@@ -413,8 +413,8 @@ def test_run_once_uses_custom_position_loader_and_skips_resolved_phase():
     assert (result.submitted + result.held) == 1  # the one scoped position evaluated
 
 
-def test_registry_evaluator_fires_flip_hunter_5m_force_exit_at_160s():
-    """flip_hunter 5m closes when candle rem ≤ 160s (= end of early entry window)."""
+def test_registry_evaluator_flip_hunter_5m_holds_to_settlement():
+    """Directive Mode A: flip_hunter 5m must hold to settlement (force_exit=0 = no time-exit)."""
     import dataclasses
 
     from projects.polymarket.crusaderbot.domain.strategy import (
@@ -425,7 +425,8 @@ def test_registry_evaluator_fires_flip_hunter_5m_force_exit_at_160s():
     StrategyRegistry._reset_for_tests()
     try:
         bootstrap_default_strategies()
-        res_at = datetime.now(timezone.utc) + timedelta(seconds=155)  # rem ≈ 155s, below 160s threshold
+        # rem ≈ 155s — old Kreo threshold was 160s; Mode A must NOT exit here
+        res_at = datetime.now(timezone.utc) + timedelta(seconds=155)
         p = dataclasses.replace(
             _make_position(side="yes", entry_price=0.62,
                            applied_tp_pct=0.50, applied_sl_pct=0.50,
@@ -435,8 +436,7 @@ def test_registry_evaluator_fires_flip_hunter_5m_force_exit_at_160s():
             selected_timeframe="5m",
         )
         decision = _run(exit_watcher.evaluate(p, live_price=0.62))
-        assert decision.should_exit
-        assert decision.reason == ExitReason.STRATEGY_EXIT.value
+        assert not decision.should_exit, "Mode A holds to settlement — no time-based exit"
     finally:
         StrategyRegistry._reset_for_tests()
 

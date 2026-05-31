@@ -2882,13 +2882,13 @@ def _resolve_preset_params(
         from ...config import get_settings as _gs
         cfg = _gs()
     except Exception:
-        # Static fallback — flip_hunter needs a 15m variant since its rem window
-        # scales with candle length. safe_close + close_sweep are tf-invariant.
+        # Static fallback — flip_hunter 15m uses same Directive Mode A window as
+        # 5m (60-180s before close); tf-invariant for safe_close + close_sweep.
         if active_preset == "flip_hunter" and tf == "15m":
             base = dict(_CANDLE_PRESET_STATIC["flip_hunter"])
-            base["entry_window_sec"] = 900.0
-            base["min_entry_sec"] = 480.0
-            base["force_exit_at_rem_sec"] = 480.0
+            base["entry_window_sec"] = 180.0   # Directive: max 180s before close
+            base["min_entry_sec"] = 60.0       # Directive: min 60s before close
+            base["force_exit_at_rem_sec"] = 0.0  # Mode A: hold to settlement
             return base
         return _CANDLE_PRESET_STATIC[active_preset]
     if active_preset == "close_sweep":
