@@ -30,7 +30,7 @@ from ..database import ping as db_ping
 
 logger = logging.getLogger(__name__)
 
-CHECK_TIMEOUT_SECONDS: float = 3.0
+CHECK_TIMEOUT_SECONDS: float = 5.0
 
 # Strip the path (and any query/fragment) from anything that looks like a URL
 # in a string. Alchemy embeds the API key in the URL path

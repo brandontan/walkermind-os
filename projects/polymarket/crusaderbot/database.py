@@ -91,7 +91,7 @@ async def init_pool() -> asyncpg.Pool:
     # `SELECT * FROM pg_stat_activity WHERE application_name=$1` on the
     # Supabase SQL editor (or Postgres directly) can immediately tell
     # which sessions belong to this bot, distinct from psql / Studio /
-    # other workloads sharing the same project.
+    # other workloads sharing the project.
     _pool = await asyncpg.create_pool(
         dsn=settings.DATABASE_URL,
         min_size=1,
@@ -99,6 +99,7 @@ async def init_pool() -> asyncpg.Pool:
         max_inactive_connection_lifetime=60.0,
         command_timeout=30,
         statement_cache_size=0,
+        timeout=10,
         init=_init_connection,
         server_settings={"application_name": "crusaderbot"},
     )
@@ -158,7 +159,7 @@ async def ping() -> bool:
     global _last_ping_error
     try:
         pool = await init_pool()
-        async with pool.acquire() as conn:
+        async with pool.acquire(timeout=4.5) as conn:
             ok = await conn.fetchval("SELECT 1") == 1
         if ok:
             _last_ping_error = None
