@@ -33,6 +33,7 @@ from . import notification_prefs as _notif_prefs
 from .schemas import (
     AdminRecentAudit,
     AdminRecentTrade,
+    AdminPaperResetResult,
     AdminUserDetail,
     AdminUserUpdate,
     AlertItem,
@@ -2837,9 +2838,8 @@ async def admin_user_update(
                 normalized.append(up)
         fields["selected_assets"] = normalized if normalized else None
 
-    # `paused` lives on `users`, not `user_settings`. Split it out so the
-    # user_settings upsert never tries to write a non-existent column.
-    # Reject an explicit null — `bool(None)` would silently resume the user.
+    # `paused` and `auto_trade_on` live on `users`, not `user_settings`. Split
+    # both out so the user_settings upsert never writes non-existent columns.
     paused_value: Optional[bool] = None
     if "paused" in fields:
         raw_paused = fields.pop("paused")
@@ -2849,6 +2849,16 @@ async def admin_user_update(
                 detail="paused cannot be null; omit the field to leave it unchanged",
             )
         paused_value = bool(raw_paused)
+
+    auto_trade_value: Optional[bool] = None
+    if "auto_trade_on" in fields:
+        raw_at = fields.pop("auto_trade_on")
+        if raw_at is None:
+            raise HTTPException(
+                status_code=400,
+                detail="auto_trade_on cannot be null; omit the field to leave it unchanged",
+            )
+        auto_trade_value = bool(raw_at)
 
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -2861,11 +2871,12 @@ async def admin_user_update(
             raise HTTPException(status_code=404, detail="user not found")
 
         if paused_value is not None:
-            # Route through the canonical helper so any side effects on the
-            # risk gate (cached ctx, signal scan loop) stay consistent with
-            # the user-facing /kill + /resume paths.
             from ...users import set_paused
             await set_paused(target_uuid, paused_value)
+
+        if auto_trade_value is not None:
+            from ...users import set_auto_trade
+            await set_auto_trade(target_uuid, auto_trade_value)
 
         if fields:
             set_clauses = [f"{col} = ${i + 2}" for i, col in enumerate(fields.keys())]
@@ -2902,6 +2913,8 @@ async def admin_user_update(
     }
     if paused_value is not None:
         audit_payload["paused"] = paused_value
+    if auto_trade_value is not None:
+        audit_payload["auto_trade_on"] = auto_trade_value
     await audit.write(
         actor_role="admin",
         action="admin_user_settings_update",
@@ -2909,3 +2922,112 @@ async def admin_user_update(
         payload=audit_payload,
     )
     return await admin_user_detail(str(target_uuid), user)
+
+
+@router.post(
+    "/admin/users/{user_id}/paper-reset",
+    response_model=AdminPaperResetResult,
+    dependencies=[Depends(per_user_rate_limit("admin_paper_reset", limit=10))],
+)
+async def admin_paper_reset(
+    user_id: str,
+    user: _AdminUser,
+) -> AdminPaperResetResult:
+    """Hard-reset a user's paper trading history and balance.
+
+    Deletes all positions, orders, fills, and ledger entries for the target
+    user, then resets their wallet balance to $1,000. Only valid for paper
+    trading users. Audit-logged. Irreversible.
+    """
+    try:
+        target_uuid = UUID(user_id)
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(status_code=400, detail="invalid user_id") from exc
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT u.id, us.trading_mode "
+            "FROM users u "
+            "LEFT JOIN user_settings us ON us.user_id = u.id "
+            "WHERE u.id = $1::uuid",
+            target_uuid,
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="user not found")
+        if row["trading_mode"] == "live":
+            raise HTTPException(
+                status_code=400,
+                detail="cannot reset a live-mode user; switch to paper first",
+            )
+
+        async with conn.transaction():
+            # Count + delete fills (FK references orders)
+            fills_deleted = await conn.fetchval(
+                "DELETE FROM fills WHERE order_id IN "
+                "(SELECT id FROM orders WHERE user_id=$1::uuid) "
+                "RETURNING 1", target_uuid,
+            ) or 0
+
+            # Count + delete orders
+            orders_deleted: int = await conn.fetchval(
+                "SELECT COUNT(*) FROM orders WHERE user_id=$1::uuid", target_uuid,
+            ) or 0
+            await conn.execute(
+                "DELETE FROM orders WHERE user_id=$1::uuid", target_uuid,
+            )
+
+            # Count + delete positions (includes open + closed)
+            positions_deleted: int = await conn.fetchval(
+                "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid", target_uuid,
+            ) or 0
+            await conn.execute(
+                "DELETE FROM positions WHERE user_id=$1::uuid", target_uuid,
+            )
+
+            # Count + delete portfolio snapshots
+            await conn.execute(
+                "DELETE FROM portfolio_snapshots WHERE user_id=$1::uuid", target_uuid,
+            )
+
+            # Count + delete ledger entries
+            ledger_deleted: int = await conn.fetchval(
+                "SELECT COUNT(*) FROM ledger WHERE user_id=$1::uuid", target_uuid,
+            ) or 0
+            await conn.execute(
+                "DELETE FROM ledger WHERE user_id=$1::uuid", target_uuid,
+            )
+
+            # Reset wallet balance to $1,000 and write seed ledger entry
+            await conn.execute(
+                "UPDATE wallets SET balance_usdc=1000 WHERE user_id=$1::uuid",
+                target_uuid,
+            )
+            await conn.execute(
+                "INSERT INTO ledger (user_id, type, amount_usdc, note) "
+                "VALUES ($1::uuid, 'deposit', 1000, "
+                "'Paper wallet — admin reset $1,000 credit')",
+                target_uuid,
+            )
+
+    await audit.write(
+        actor_role="admin",
+        action="admin_paper_reset",
+        user_id=target_uuid,
+        payload={
+            "target_user_id": str(target_uuid),
+            "actor_user_id": str(user["user_id"]),
+            "positions_deleted": positions_deleted,
+            "orders_deleted": orders_deleted,
+            "ledger_entries_deleted": ledger_deleted,
+            "balance_reset_usdc": 1000.0,
+        },
+    )
+
+    return AdminPaperResetResult(
+        user_id=str(target_uuid),
+        positions_deleted=positions_deleted,
+        orders_deleted=orders_deleted,
+        ledger_entries_deleted=ledger_deleted,
+        balance_reset_usdc=1000.0,
+    )
