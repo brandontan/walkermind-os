@@ -221,12 +221,13 @@ def test_preset_availability_returns_one_entry_per_mapped_preset():
     conn = MagicMock()
     conn.fetch = AsyncMock(return_value=[
         {"name": "late_entry_v3", "enabled": False},
+        {"name": "weather", "enabled": False},
     ])
     with patch.object(r, "get_pool", return_value=_pool(conn)):
         out = asyncio.run(r.get_preset_availability({"user_id": "x"}))
     keys = {p["key"] for p in out["presets"]}
     assert keys == set(r._PRESET_TO_STRATEGY.keys())
-    # Every preset routes to late_entry_v3 → all disabled when that strategy is OFF.
+    # All backing strategies disabled → every preset reports disabled.
     assert all(p["enabled"] is False for p in out["presets"])
 
 
@@ -266,11 +267,15 @@ def test_preset_availability_strategies_default_enabled_on_db_error():
 
 def test_preset_params_roster_matches_admin_presets_after_cleanup():
     """activate_preset must reject any archived legacy key. After WARP/R00T
-    cleanup, only the 3 candle presets are valid — a stale client persisting
+    cleanup, only the listed presets are valid — a stale client persisting
     `signal_sniper` / `full_auto` / `ensemble` would create a silent no-op
     (scanner emits nothing, dashboard can't mark it PAUSED). Pinned here so a
-    future map widening is intentional."""
-    assert set(r._PRESET_PARAMS.keys()) == {"close_sweep", "safe_close", "flip_hunter"}
+    future map widening is intentional.
+
+    weather_monitor added by WARP-49 (weather strategy pipeline)."""
+    assert set(r._PRESET_PARAMS.keys()) == {
+        "close_sweep", "safe_close", "flip_hunter", "weather_monitor",
+    }
     assert set(r._PRESET_TO_STRATEGY.keys()) == set(r._PRESET_PARAMS.keys())
 
 
