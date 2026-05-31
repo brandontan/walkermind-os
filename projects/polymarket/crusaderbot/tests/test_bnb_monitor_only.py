@@ -38,6 +38,7 @@ import inspect
 
 import pytest
 
+from projects.polymarket.crusaderbot.integrations import polymarket as pm
 from projects.polymarket.crusaderbot.services.signal_scan import (
     signal_scan_job as ssj,
 )
@@ -192,3 +193,53 @@ def test_build_user_context_uses_filter():
         "Regression: _build_user_context bypassed the monitor-only "
         "filter — stale BNB rows can now reach the scanner."
     )
+
+
+# ---------------------------------------------------------------------
+# Candle-window coin resolution — the second leak surface
+# (WARP/ROOT/bnb-monitor-only-fallback-fix, audit F3).
+#
+# `get_crypto_window_markets(tf, None)` used to default to
+# ["btc","eth","sol","bnb"], so a user whose `selected_assets` was empty
+# (or BNB-only, stripped to empty by `_filter_monitor_only_assets`)
+# reintroduced BNB candle markets straight into the trade path. The pure
+# resolver now defaults to the tradeable set AND drops monitor-only coins
+# from any explicit list.
+# ---------------------------------------------------------------------
+
+
+def test_resolve_tradeable_coins_defaults_exclude_bnb():
+    assert pm._resolve_tradeable_coins(None) == ["btc", "eth", "sol"]
+    assert pm._resolve_tradeable_coins([]) == ["btc", "eth", "sol"]
+
+
+def test_resolve_tradeable_coins_strips_bnb_from_explicit_list():
+    assert pm._resolve_tradeable_coins(["BTC", "BNB"]) == ["btc"]
+    # BNB-only request resolves to empty (caller fetches nothing — never BNB).
+    assert pm._resolve_tradeable_coins(["bnb"]) == []
+    assert pm._resolve_tradeable_coins(["Bnb", "  "]) == []
+    # Non-tradeable assets (xrp/doge/hype) are excluded by the allowlist
+    # intersection too — not only the monitor-only BNB.
+    assert pm._resolve_tradeable_coins(["BTC", "XRP", "DOGE", "HYPE"]) == ["btc"]
+    assert pm._resolve_tradeable_coins(["xrp"]) == []
+
+
+def test_resolve_tradeable_coins_normalises_case_and_blanks():
+    assert pm._resolve_tradeable_coins([" Btc ", "", "ETH"]) == ["btc", "eth"]
+    assert pm._resolve_tradeable_coins(("BTC", "ETH", "SOL")) == ["btc", "eth", "sol"]
+
+
+def test_resolve_tradeable_coins_handles_bare_string():
+    """A bare string must be treated as ONE ticker, not iterated char-by-char
+    ("BTC" → ["btc"], not ["b","t","c"]). Monitor-only bare string → []."""
+    assert pm._resolve_tradeable_coins("BTC") == ["btc"]
+    assert pm._resolve_tradeable_coins("bnb") == []
+
+
+def test_get_crypto_window_markets_routes_through_resolver():
+    """Integration pin: the candle-window fetch must resolve coins via
+    `_resolve_tradeable_coins` (which excludes monitor-only assets) rather than
+    a hardcoded default that reintroduces BNB. Mirrors the existing
+    `test_build_user_context_uses_filter` guard on the other leak surface."""
+    src = inspect.getsource(pm.get_crypto_window_markets)
+    assert "_resolve_tradeable_coins(assets)" in src
