@@ -2658,6 +2658,7 @@ async def run_once() -> None:
                         if _le_pp and "max_leg_spread" in _le_pp
                         else None
                     ),
+                    size_time_decay=bool(_le_pp.get("size_time_decay", False)) if _le_pp else False,
                 )
             except Exception as exc:
                 user_log.warning("late_entry_v3_run_failed", error=str(exc))
@@ -2809,8 +2810,8 @@ _CANDLE_PRESETS: frozenset[str] = frozenset({"close_sweep", "safe_close", "flip_
 # Per-preset scan params for late_entry_v3. Kreo-aligned (post WARP/ROOT/safe-close-flip-hunter-kreo-parity).
 # close_sweep : final 35s, moderate lean, fav ≥0.55 — holds to candle resolution
 # safe_close  : enter rem 30–60s (elapsed 240–270s 5m / 840–870s 15m), Min Edge 1%, force-exit rem 30s
-# flip_hunter : Kreo "Early Flip Hunter" — enter FIRST 140s 5m / 420s 15m, With Trend (favored side),
-#               Min Edge 3%, force-exit at upper bound of entry window
+# flip_hunter : Directive Mode A (Pure Arb) — enter cheap side (0.10–0.35) in final 60–180s,
+#               underdog_mode=True, min_arb_edge=1%, hold to settlement (force_exit=0)
 # Static fallback when get_settings() fails (import / test edge cases).
 # Runtime path always goes through _resolve_preset_params for live env override.
 _CANDLE_PRESET_STATIC: dict[str, dict[str, object]] = {
@@ -2819,6 +2820,7 @@ _CANDLE_PRESET_STATIC: dict[str, dict[str, object]] = {
         "entry_window_sec": 35.0,
         "fav_price_min":   0.55,
         "fav_price_max":   0.70,
+        "size_time_decay": True,             # Directive 1.4: <10s=0.5x, 10–35s=0.75x
     },
     "safe_close": {
         "min_ask_diff":    0.01,                # Kreo Min Edge 1%
@@ -2829,13 +2831,13 @@ _CANDLE_PRESET_STATIC: dict[str, dict[str, object]] = {
         "force_exit_at_rem_sec": 30.0,          # exit BEFORE noisy final 30s
     },
     "flip_hunter": {
-        "min_ask_diff":    0.03,                # Kreo Min Edge 3%
-        "entry_window_sec": 300.0,              # 5m default — _resolve overrides per tf
-        "fav_price_min":   0.50,                # favored side (was 0.26 underdog floor)
-        "fav_price_max":   0.95,                # skip near-resolved (was 0.36 underdog ceiling)
-        "min_entry_sec":   160.0,               # 5m default — _resolve overrides per tf
-        "underdog_mode":   False,               # Kreo "With Trend" → favored side
-        "force_exit_at_rem_sec": 160.0,         # 5m default — _resolve overrides per tf
+        "min_ask_diff":    0.01,                # Directive min_arb_edge=1%
+        "entry_window_sec": 180.0,              # Directive: max 180s before close (5m default)
+        "fav_price_min":   0.10,                # Directive cheap_side_min_price=0.10
+        "fav_price_max":   0.36,                # Directive cheap_side_max_price=0.35 (excl)
+        "min_entry_sec":   60.0,                # Directive entry_window_min_seconds=60
+        "underdog_mode":   True,                # Directive Mode A: enter cheap side
+        "force_exit_at_rem_sec": 0.0,           # Mode A: hold to settlement (0=no time-exit)
     },
 }
 # Back-compat alias kept so any external test imports still resolve.
@@ -2929,8 +2931,8 @@ def _resolve_preset_params(
         "fav_price_min":   cfg.PRESET_FLIP_HUNTER_FAV_PRICE_MIN,
         "fav_price_max":   cfg.PRESET_FLIP_HUNTER_FAV_PRICE_MAX,
         "min_entry_sec":   min_rem,
-        "underdog_mode":   False,           # Kreo With Trend
-        "force_exit_at_rem_sec": force_exit,
+        "underdog_mode":   True,            # Directive Mode A: enter cheap side
+        "force_exit_at_rem_sec": 0.0,       # Mode A: hold to settlement (0=no time-exit)
     }
 
 

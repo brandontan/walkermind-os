@@ -148,6 +148,7 @@ class LateEntryV3Strategy(BaseStrategy):
         underdog_mode: bool = False,
         force_exit_at_rem_sec: float | None = None,
         max_leg_spread: float | None = None,
+        size_time_decay: bool = False,
     ) -> list[SignalCandidate]:
         """Emit one candidate per in-window crypto candle market.
 
@@ -236,6 +237,7 @@ class LateEntryV3Strategy(BaseStrategy):
                     underdog_mode=underdog_mode,
                     force_exit_at_rem_sec=force_exit_at_rem_sec,
                     max_leg_spread=max_leg_spread,
+                    size_time_decay=size_time_decay,
                 )
             except Exception as exc:
                 log.debug("late_entry_v3 scan: skip market", err=str(exc))
@@ -468,6 +470,7 @@ async def _evaluate_market(
     underdog_mode: bool = False,
     force_exit_at_rem_sec: float | None = None,
     max_leg_spread: float | None = None,
+    size_time_decay: bool = False,
 ) -> tuple[SignalCandidate | None, str | None]:
     """Return (candidate, None) on success or (None, reject_reason) on any gate failure.
 
@@ -658,6 +661,13 @@ async def _evaluate_market(
     suggested = suggested_trade_size(
         size_base, user_context.capital_allocation_pct, ceiling_usdc=ceiling,
     )
+    # Directive 1.4: close_sweep time-based sizing — reduce size near expiry where
+    # liquidity thins. Only active when the caller enables size_time_decay.
+    if size_time_decay:
+        if seconds_left < 10.0:
+            suggested = max(_SUGGESTED_SIZE_MIN_USDC, round(suggested * 0.5, 2))
+        elif seconds_left <= 35.0:
+            suggested = max(_SUGGESTED_SIZE_MIN_USDC, round(suggested * 0.75, 2))
 
     # WARP/R00T/tob-freshness-gate: stamp the wall-clock at which the orderbook
     # snapshot (yes_ask / no_ask / entry_price) was finalized. Read by
@@ -720,7 +730,7 @@ async def _evaluate_market(
 # defaults so the helper produces sensible values even without live config.
 _FORCE_EXIT_STATIC: dict[str, dict[str, float]] = {
     "safe_close": {"5m": 30.0, "15m": 30.0},
-    "flip_hunter": {"5m": 160.0, "15m": 480.0},
+    "flip_hunter": {"5m": 0.0, "15m": 0.0},   # Mode A: hold to settlement (0=no time-exit)
     # close_sweep now force-exits ~8s before resolution (Kreo "exit at 299s"),
     # evaluated by the dedicated fast exit loop. TP/SL still exit earlier.
     "close_sweep": {"5m": 8.0, "15m": 8.0},

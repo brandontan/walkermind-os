@@ -733,14 +733,14 @@ def test_force_exit_lookup_safe_close_30s_either_tf():
     assert force_exit_at_rem_sec_for("safe_close", "15m") == pytest.approx(30.0)
 
 
-def test_force_exit_lookup_flip_hunter_5m_returns_160():
-    """Kreo Early Flip Hunter 5m exits at rem=160s (elapsed 140s)."""
-    assert force_exit_at_rem_sec_for("flip_hunter", "5m") == pytest.approx(160.0)
+def test_force_exit_lookup_flip_hunter_5m_returns_0():
+    """Directive Mode A: flip_hunter holds to settlement — force_exit=0 (no time-exit)."""
+    assert force_exit_at_rem_sec_for("flip_hunter", "5m") == pytest.approx(0.0)
 
 
-def test_force_exit_lookup_flip_hunter_15m_returns_480():
-    """Kreo Early Flip Hunter 15m exits at rem=480s (elapsed 420s)."""
-    assert force_exit_at_rem_sec_for("flip_hunter", "15m") == pytest.approx(480.0)
+def test_force_exit_lookup_flip_hunter_15m_returns_0():
+    """Directive Mode A: flip_hunter holds to settlement — force_exit=0 (no time-exit)."""
+    assert force_exit_at_rem_sec_for("flip_hunter", "15m") == pytest.approx(0.0)
 
 
 def test_force_exit_lookup_close_sweep_returns_8s():
@@ -756,5 +756,5 @@ def test_force_exit_lookup_unknown_preset_returns_none():
 
 
 def test_force_exit_lookup_flip_hunter_defaults_to_5m_for_missing_tf():
-    """Missing timeframe defaults to 5m mapping (safe default for crypto candle scanner)."""
-    assert force_exit_at_rem_sec_for("flip_hunter", None) == pytest.approx(160.0)
+    """Missing timeframe defaults to 5m mapping — Mode A: hold to settlement (0=no time-exit)."""
+    assert force_exit_at_rem_sec_for("flip_hunter", None) == pytest.approx(0.0)
