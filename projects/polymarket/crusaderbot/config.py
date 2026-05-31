@@ -548,7 +548,7 @@ class Settings(BaseSettings):
     #
     # Scoped to candidates that carry the stamp (late_entry_v3 — close_sweep,
     # safe_close, flip_hunter); signal_following / copy_trade bypass.
-    MIN_COMPLETE_SET_EDGE: float = 0.005  # env: MIN_COMPLETE_SET_EDGE
+    MIN_COMPLETE_SET_EDGE: float = 0.0  # env: MIN_COMPLETE_SET_EDGE — 0 disables gate
 
     # --- TOB freshness gate (WARP/R00T/tob-freshness-gate) ---
     # Max age in milliseconds for the orderbook snapshot that produced
