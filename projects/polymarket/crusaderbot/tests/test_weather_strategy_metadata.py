@@ -238,6 +238,32 @@ def test_evaluator_end_date_wins_over_metadata_end_date():
     _with_fake_weather(run)
 
 
+def test_evaluator_metadata_cannot_clobber_authoritative_payload_keys():
+    """A stale metadata value must never overwrite a live base payload key."""
+    def run(strat):
+        # Hostile metadata: collides with every authoritative base key. The
+        # live current_price + entry_price + side must survive untouched.
+        meta = {
+            "current_price": 0.99,      # stale — live is 0.42
+            "entry_price": 0.01,        # stale — position entry is 0.40
+            "side": "no",               # wrong — position side is yes
+            "market_id": "WRONG",
+            "strategy_type": "spoofed",
+            "city": "NYC",              # legit metadata key, must pass through
+        }
+        pos = _make_position(strategy_metadata=meta, side="yes", entry_price=0.40)
+        _run(exit_watcher.registry_strategy_evaluator(pos, current_price=0.42))
+        assert strat.captured["current_price"] == 0.42
+        assert strat.captured["entry_price"] == 0.40
+        assert strat.captured["side"] == "yes"
+        assert strat.captured["market_id"] == pos.market_id
+        assert strat.captured["strategy_type"] == "weather"
+        # non-colliding metadata still flows through
+        assert strat.captured["city"] == "NYC"
+
+    _with_fake_weather(run)
+
+
 def test_evaluator_no_metadata_still_dispatches():
     def run(strat):
         pos = _make_position(strategy_metadata=None)

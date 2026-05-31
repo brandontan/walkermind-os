@@ -179,7 +179,12 @@ async def registry_strategy_evaluator(
     # etc.); explicit payload keys below win on any collision.
     if name == "weather":
         if isinstance(position.strategy_metadata, dict):
-            payload.update(position.strategy_metadata)
+            # Only fill keys not already authoritative in the base payload —
+            # a stale signal-time metadata value (e.g. current_price/side/
+            # entry_price) must never clobber the live values computed above.
+            for k, v in position.strategy_metadata.items():
+                if k not in payload:
+                    payload[k] = v
         if position.resolution_at is not None:
             payload["end_date"] = position.resolution_at.isoformat()
 
