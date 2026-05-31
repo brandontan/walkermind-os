@@ -224,16 +224,16 @@ class WeatherDomainStrategy(BaseStrategy):
             try:
                 forecasts = await fetch_all(loc, target_date)
                 current_mean = ensemble_tmax(forecasts)
-                entry_mean: float = float(position.get("entry_mean_tmax_f") or 0.0)
-                if current_mean is not None and abs(current_mean - entry_mean) >= forecast_exit_shift:
+                entry_mean_val = position.get("entry_mean_tmax_f") or position.get("mean_tmax_f")
+                if entry_mean_val is not None and current_mean is not None and abs(current_mean - float(entry_mean_val)) >= forecast_exit_shift:
                     return ExitDecision(
                         should_exit=True,
                         reason="strategy_exit",
                         metadata={
                             "trigger": "forecast_shift",
-                            "entry_mean": entry_mean,
+                            "entry_mean": entry_mean_val,
                             "current_mean": current_mean,
-                            "shift": round(abs(current_mean - entry_mean), 2),
+                            "shift": round(abs(current_mean - float(entry_mean_val)), 2),
                         },
                     )
             except Exception as exc:

@@ -48,7 +48,7 @@ async def fetch_ecmwf(loc: Location, target_date: str) -> ForecastResult:
             resp = await client.get(_OPEN_METEO_URL, params=params)
             resp.raise_for_status()
             data = resp.json()
-        daily = data.get("daily", {})
+        daily = (data or {}).get("daily") or {}
         tmax_list = daily.get("temperature_2m_max") or []
         tmin_list = daily.get("temperature_2m_min") or []
         tmax = _c_to_f(tmax_list[0]) if tmax_list and tmax_list[0] is not None else None
@@ -82,7 +82,7 @@ async def fetch_hrrr(loc: Location, target_date: str) -> ForecastResult:
             resp = await client.get(_OPEN_METEO_URL, params=params)
             resp.raise_for_status()
             data = resp.json()
-        daily = data.get("daily", {})
+        daily = (data or {}).get("daily") or {}
         tmax_list = daily.get("temperature_2m_max") or []
         tmin_list = daily.get("temperature_2m_min") or []
         tmax = _c_to_f(tmax_list[0]) if tmax_list and tmax_list[0] is not None else None
@@ -171,7 +171,7 @@ async def fetch_all(loc: Location, target_date: str) -> list[ForecastResult]:
         fetch_ecmwf(loc, target_date),
         fetch_hrrr(loc, target_date),
         fetch_visual_crossing(loc, target_date),
-        return_exceptions=False,
+        return_exceptions=True,
     )
     available = [r for r in results if isinstance(r, ForecastResult) and r.available]
     return available
