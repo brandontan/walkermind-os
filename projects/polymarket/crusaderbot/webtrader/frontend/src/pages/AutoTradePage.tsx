@@ -47,6 +47,16 @@ const STRATEGY_PRESETS = [
     freq: "Low",
     visible: true,
   },
+  {
+    key: "weather_monitor",
+    name: "Weather Monitor",
+    emoji: "🌤",
+    engine: "W.A.R.P_FORECAST",
+    signal: "Daily temperature markets across 20 cities. Ensemble forecast edge.",
+    risk: "balanced" as const,
+    freq: "Low",
+    visible: true,
+  },
 ] as const;
 
 // No presets currently locked — all candle presets are active.
