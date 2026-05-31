@@ -155,15 +155,16 @@ def test_disable_sentinel_is_zero():
 # ---------------------------------------------------------------------
 
 
-def test_min_complete_set_edge_default_is_50bps(
+def test_min_complete_set_edge_default_is_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Default matches the directive (50bps): covers Polymarket maker/taker
-    fees + thin buffer above pure arb breakeven."""
+    """Default is 0.0 (gate disabled): complete_set_edge is always negative
+    on liquid Polymarket CLOB books (yes_ask + no_ask > 1.00), so the 0.005
+    threshold blocked 100% of late_entry_v3 directional candidates."""
     _set_required_env(monkeypatch)
     monkeypatch.delenv("MIN_COMPLETE_SET_EDGE", raising=False)
     s = crusaderbot_config.Settings()  # type: ignore[call-arg]
-    assert s.MIN_COMPLETE_SET_EDGE == 0.005
+    assert s.MIN_COMPLETE_SET_EDGE == 0.0
 
 
 def test_min_complete_set_edge_env_override(
