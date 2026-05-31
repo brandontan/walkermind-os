@@ -381,6 +381,104 @@ def _bankroll_reset_for_tests() -> None:
 
 
 # =====================================================================
+# Bankroll circuit-breaker persistence
+# (WARP/ROOT/bankroll-cb-persistence-impl, closes audit F19/F4)
+# =====================================================================
+#
+# The breaker's baseline (peak high-water reference) and tripped latch live in
+# the in-memory dicts above. Without persistence they reset on every restart /
+# redeploy: a TRIPPED breaker would silently un-trip, and the peak baseline
+# would reset to the current (possibly drawn-down) balance. This module
+# persists both to the `bankroll_circuit_state` table (migration 073) so the
+# state is restart-durable.
+#
+# DARK: every function here is a no-op unless BANKROLL_CIRCUIT_BREAKER_ENABLED
+# is true (the callers gate on it), so this has zero production effect until the
+# breaker is enabled via the directive validate track.
+#
+# FAIL-OPEN: a persistence error must NEVER halt the scan or lock users out.
+# Restore failures leave the in-memory dicts empty (breaker measures from the
+# next observed balance — same as today's restart behaviour). Persist failures
+# are logged and swallowed (the in-memory latch still governs the live tick).
+
+
+async def _restore_bankroll_circuit_state() -> None:
+    """Load persisted baseline + tripped latch into the in-memory dicts.
+
+    Called once at scan-job start (gated on BANKROLL_CIRCUIT_BREAKER_ENABLED by
+    the caller). Idempotent: only seeds keys not already present, so it never
+    clobbers fresher in-process state on a re-run within the same process.
+
+    Fail-open: any error leaves the dicts as-is and is logged at WARNING — the
+    breaker then behaves exactly as it does today on a cold start.
+    """
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT user_id, baseline, tripped FROM bankroll_circuit_state"
+            )
+    except Exception as exc:  # noqa: BLE001 — fail-open, never block the scan
+        logger.warning("bankroll_circuit_restore_failed", error=str(exc))
+        return
+
+    restored = 0
+    for r in rows:
+        key = str(r["user_id"])
+        try:
+            baseline = float(r["baseline"])
+        except (TypeError, ValueError):
+            continue
+        if not _math.isfinite(baseline) or baseline <= 0:
+            continue
+        # Do not overwrite state already warmed this process.
+        if key not in _bankroll_ema_baseline:
+            _bankroll_ema_baseline[key] = baseline
+            _bankroll_ema_baseline_active[key] = baseline
+            _bankroll_ema_last_update[key] = _time.monotonic()
+        if key not in _bankroll_circuit_tripped:
+            _bankroll_circuit_tripped[key] = bool(r["tripped"])
+        restored += 1
+    if restored:
+        logger.info("bankroll_circuit_restored", users=restored)
+
+
+async def _persist_bankroll_circuit_state(user_id: str) -> None:
+    """UPSERT the current baseline + tripped latch for one user.
+
+    Called after every state change (baseline seed/ratchet, trip, resume) by the
+    circuit-breaker gate — gated on BANKROLL_CIRCUIT_BREAKER_ENABLED by the
+    caller. Fail-open: a persistence error is logged and swallowed so the live
+    in-memory latch still governs the current tick.
+    """
+    key = str(user_id)
+    baseline = _bankroll_ema_baseline.get(key)
+    if baseline is None or not _math.isfinite(baseline) or baseline <= 0:
+        return
+    tripped = bool(_bankroll_circuit_tripped.get(key, False))
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO bankroll_circuit_state (user_id, baseline, tripped, updated_at)
+                VALUES ($1::uuid, $2, $3, now())
+                ON CONFLICT (user_id) DO UPDATE
+                    SET baseline = EXCLUDED.baseline,
+                        tripped = EXCLUDED.tripped,
+                        updated_at = now()
+                """,
+                key,
+                baseline,
+                tripped,
+            )
+    except Exception as exc:  # noqa: BLE001 — fail-open, never block the scan
+        logger.warning(
+            "bankroll_circuit_persist_failed", user_id=key, error=str(exc)
+        )
+
+
+# =====================================================================
 # Safe-close direction concentration window
 # (WARP/R00T/safe-close-direction-limit, Lane 4/5 Polybot directive)
 # =====================================================================
@@ -1664,6 +1762,12 @@ async def _process_candidate(
             threshold=_cb_threshold,
             hysteresis=_cb_hysteresis,
         )
+        # Persist baseline + latch so the state survives a restart / redeploy
+        # (WARP/ROOT/bankroll-cb-persistence-impl, F19/F4). Runs on every
+        # evaluation so both the trip transition AND the hysteresis-resume
+        # transition are written. Fail-open: a persistence error never blocks
+        # the gate decision below.
+        await _persist_bankroll_circuit_state(str(row["user_id"]))
         if _cb_tripped:
             # Mirror the helper's baseline source so the log payload
             # surfaces the exact denominator the gate used.
@@ -2393,6 +2497,20 @@ async def run_once() -> None:
     except Exception:
         _live_trading = False
     _mode: str = "LIVE" if _live_trading else "PAPER"
+
+    # Restore restart-durable bankroll circuit-breaker state once per scan tick
+    # (WARP/ROOT/bankroll-cb-persistence-impl, F19/F4). Idempotent + only seeds
+    # keys not already warmed this process, so the per-tick cost is a single
+    # cheap SELECT after the first populated run. Gated on the breaker flag so
+    # it is a no-op (zero DB work) while the breaker is dark. Reads settings
+    # independently of the _live_trading try above (where _s may be unbound on a
+    # config-read failure). Fail-open: any error skips restore, never blocks.
+    try:
+        _cb_on = bool(getattr(_get_settings(), "BANKROLL_CIRCUIT_BREAKER_ENABLED", False))
+        if _cb_on:
+            await _restore_bankroll_circuit_state()
+    except Exception as exc:  # noqa: BLE001 — never let restore block the scan
+        logger.warning("bankroll_circuit_restore_gate_failed", error=str(exc))
 
     # Refresh the operator on/off switch once per tick (fail-safe).
     await _refresh_disabled_strategies()
