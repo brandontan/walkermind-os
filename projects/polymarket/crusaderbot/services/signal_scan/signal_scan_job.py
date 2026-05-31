@@ -495,12 +495,19 @@ async def _refresh_disabled_strategies() -> None:
 def _preset_allows(active_preset: str | None, strategy_name: str) -> bool:
     """Return True if user's active_preset permits signals from strategy_name.
 
-    A globally-disabled strategy (operator Admin toggle) is never allowed,
-    regardless of preset.
+    Deny-by-default: any ``active_preset`` not explicitly mapped in
+    ``_PRESET_ALLOWED`` (unknown, removed, legacy, or NULL) permits NO strategy.
+    This is the single runtime guarantee that only the 3 canonical candle
+    presets can trade. The fallback MUST stay ``frozenset()`` and must NEVER
+    widen to ``_LIB_STRATEGY_NAMES`` — a legacy row such as
+    ``active_preset='contrarian'`` would otherwise immediately start firing lib
+    strategies the moment any are re-registered (ref WARP/ROOT/prelaunch-
+    system-audit F2). A globally-disabled strategy (operator Admin toggle) is
+    never allowed, regardless of preset.
     """
     if strategy_name in _GLOBALLY_DISABLED_STRATEGIES:
         return False
-    return strategy_name in _PRESET_ALLOWED.get(active_preset, _LIB_STRATEGY_NAMES)
+    return strategy_name in _PRESET_ALLOWED.get(active_preset, frozenset())
 
 
 def _coerce_jsonb(val: object, fallback: dict | list | None = None) -> dict | list:
@@ -2438,8 +2445,9 @@ async def run_once() -> None:
     for row in users:
         active_preset = row.get("active_preset")
         # Safety guard: skip users who have not yet configured a strategy preset.
-        # Without this, _preset_allows(None, lib_name) falls back to _LIB_STRATEGY_NAMES
-        # and fires signal_following for every unconfigured user.
+        # _preset_allows is deny-by-default for unknown/NULL presets (returns
+        # False), so this is defense-in-depth — it also avoids wasted scan work
+        # and emits an actionable warning for an unconfigured user.
         if active_preset is None:
             logger.warning(
                 "scan_skipped_no_preset",
