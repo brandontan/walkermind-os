@@ -29,7 +29,7 @@ Five findings dominate everything below, ranked by expected-value impact:
 |---|---|---|---|
 | F-1 | **No backtest / walk-forward / Monte-Carlo framework exists at all.** Every strategy parameter is tuned by imitating a reference bot ("Kreo") + short prod observation. There is no out-of-sample proof any candle strategy is +EV. | CRITICAL | exhaustive search: no `*backtest*`/`*replay*`/`*walkforward*` module; `late_entry_v3.py:1-7` cites `polybot_4coin`/Kreo as the edge source |
 | F-2 | **The candle strategies have no probability model.** `confidence = ask_diff` — the *price gap*, not a calibrated win-probability. The system rides the CLOB's implied favorite on faith. | CRITICAL | `late_entry_v3.py:649` |
-| F-3 | **The one genuine structural edge — complete-set mispricing (`1 − (yes_ask+no_ask)`) — is computed but never gated on.** It is stamped into metadata as an observational metric only. | HIGH | `late_entry_v3.py:606`, `signal_scan_job.py:1798-1855` (soft edge gate, default 0.005) |
+| F-3 | **The complete-set mispricing edge (`1 − (yes_ask+no_ask)`) is wired only as a config-disabled *defensive* filter, and is never harvested as a positive arbitrage.** `_gate_complete_set_edge` exists and is wired into `_process_candidate`, but is currently inert (`MIN_COMPLETE_SET_EDGE = 0.0` → early-return); and even when enabled it only *rejects* overpriced directional entries — no path *buys* the set when cost < $1.00. | HIGH | `late_entry_v3.py:606`, `signal_scan_job.py:1798-1856`, `config.py:559` |
 | F-4 | **Execution edge is being destroyed at fill.** Prod 24h: only ~5.5% of `safe_close` and ~17% of `close_sweep` fills landed inside the intended price band (a TOB-freshness + fill-band guard was added in response). Candle books are thin in the final 35s. | HIGH | WORKTODO "late-entry fill-drift guard"; `late_entry_v3.py:704-708`; gate 3c |
 | F-5 | **The richest intelligence is unharvested.** Wallet-360 metrics (Sharpe, win-rate, sybil flag — Falcon agent 581) are *fetched* but copy-trade uses a hardcoded `0.75` confidence and does not gate on leader quality. | HIGH | `copy_trade.py:40`; `services/copy_trade/wallet_360.py:96-174` |
 
@@ -130,7 +130,7 @@ Operator feed (scanner+Heisenberg) ──► signal_following ──► (indepen
 | Strategy | Claimed edge | Defensible? | Why |
 |---|---|---|---|
 | weather | informational (forecast > crowd near expiry) | **YES** | real model + calibration + +EV gate |
-| complete-set arb (latent) | structural (cost < $1.00) | **YES, if fillable** | computed but unused (`:606`) |
+| complete-set arb (latent) | structural (cost < $1.00) | **YES, if fillable** | computed; only feeds a disabled rejection filter, never bought (`:606`) |
 | copy_trade | behavioral (follow smart money) | **CONDITIONAL** | only if leader-quality gated; currently not |
 | signal_following | informational (operator + Heisenberg) | **UNVALIDATED** | publisher-claimed confidence, uncalibrated |
 | late_entry_v3 | momentum/persistence of late favorite | **UNPROVEN** | no probability model, no backtest, fill-drift |
@@ -141,10 +141,10 @@ Operator feed (scanner+Heisenberg) ──► signal_following ──► (indepen
 |---|---|---|
 | Overfit to one reference bot | all candle presets | thesis = "mirror Kreo" (`late_entry_v3.py:1-7`); no OOS test |
 | No probability calibration | candle confidence | `confidence = ask_diff` (`:649`) |
-| Correlated bets treated as independent | exposure gate | `MAX_CORRELATED_EXPOSURE` keys on market_id; two BTC candles = same bet, scored uncorrelated |
+| Exposure cap is correlation-blind (global sum) | exposure gate | step 8 sums ALL open positions globally (`_open_exposure`, `gate.py:106-113,363`) vs a single cap — conservative for concentration, but cannot credit genuinely independent sleeves (weather vs candle) |
 | Execution-edge destruction | thin final-35s books | fill-drift 5.5%/17% in-band (WORKTODO) |
 | Latency | scan→fill drift | TOB-freshness gate `TOB_STALE_MS=2000` (`signal_scan_job.py:1749-1795`) |
-| Unharvested structural edge | complete-set | `:606` observational only |
+| Structural edge not harvested | complete-set | `:606` feeds only a config-disabled rejection filter (`MIN_COMPLETE_SET_EDGE=0.0`); never bought as arb |
 | Regime blindness | momentum in chop | no regime detector anywhere |
 
 ---
@@ -161,8 +161,11 @@ has** (no new infra invented).
   behavioral edge lives in *over-reaction* to recent candle moves near expiry —
   exploitable only with a calibrated model (which does not exist yet → F-2).
 - **Market structure.** Complete-set mispricing: UP+DOWN settle to exactly $1.00, so
-  `yes_ask + no_ask < 1.00` is a riskless taker edge when depth allows. **Computed and
-  ignored** (`late_entry_v3.py:606`). This is the cleanest unharvested edge in the repo.
+  `yes_ask + no_ask < 1.00` is a riskless taker edge when depth allows. The metric is
+  **computed** (`late_entry_v3.py:606`) and feeds a *defensive* rejection filter
+  (`_gate_complete_set_edge`) that is currently config-disabled (`MIN_COMPLETE_SET_EDGE
+  = 0.0`); it is **never harvested as a positive arbitrage**. That harvest is the
+  cleanest unexploited edge in the repo.
 - **Resolution.** Weather buckets resolve on objective NWS data; an ensemble forecast
   (4 sources) genuinely beats the crowd as expiry approaches and the forecast
   converges. This is the system's strongest *informational* edge and it is already
@@ -179,7 +182,7 @@ has** (no new infra invented).
 | # | Concept | Why edge exists | Why others miss it | Harvest | Risk | Scalability |
 |---|---|---|---|---|---|---|
 | A1 | **Weather ensemble convergence** (scale the existing model) | NWS-objective resolution + 4-source forecast skill the retail crowd lacks | retail can't run ECMWF+HRRR+METAR ensembles or calibrate σ from realized error | extend city coverage; tighten σ-calibration; size on EV | model risk (bad forecast), low liquidity per market | **wide** (many cities × days), but per-market size-capped |
-| A2 | **Complete-set liquidity arb** | $1.00 settlement bound makes `cost<1` riskless | books are shallow at the quote; needs depth-aware sizing most bots skip | promote `complete_set_edge` from metric to hard gate + depth-aware sizing | execution risk (partial fill of one leg) | thin (rare, size-bound) but **pure** |
+| A2 | **Complete-set liquidity arb** | $1.00 settlement bound makes `cost<1` riskless | books are shallow at the quote; needs depth-aware sizing most bots skip | add a *harvest* path that buys the set when `cost<1` (the existing `_gate_complete_set_edge` only rejects; it never buys) + depth-aware sizing | execution risk (partial fill of one leg) | thin (rare, size-bound) but **pure** |
 | A3 | **Wallet-360-gated copy** | smart-money persistence; sybil/over-fit leaders filtered out | the data (Sharpe, win-rate, sybil flag) is expensive to compute; this system already pays for it (agent 581) and then ignores it | replace fixed 0.75 with a quality-weighted confidence + hard sybil/Sharpe gate | leader regime change, crowding | **medium** (leader-bound) |
 | A4 | **Calibrated late-favorite** | IF the late favorite wins more than its price implies, ride it; IF not, fade it — *empirically decided* | everyone guesses; nobody calibrates P(win\|price,secs,asset) from their own outcomes | build calibration table from the bot's own resolved trades → replace `ask_diff` | regime drift; needs continuous recalibration | **high** (every candle) |
 | A5 | **Social-pulse / candlestick confluence** (Heisenberg 585+568) | sentiment + momentum confluence on event markets | data is wired (`market_signal_scanner.py`) but confidence is uncalibrated to realized hit-rate | calibrate feed confidence to outcomes; require confluence not single-agent | sentiment noise, reflexivity | **medium** |
@@ -278,8 +281,10 @@ identified in Phase 2 and is implementable on existing data.
 ### 5.2 Complete-Set Liquidity Arb (new, from latent metric)
 - **Logic:** when `yes_ask + no_ask < 1.00 − costs` AND both legs have depth, buy the
   set for a locked payout of $1.00.
-- **Entry:** promote `complete_set_edge` (`:606`) from metadata to a **hard gate** with
-  depth-aware max size (use `_book_depth_usdc` per leg) and cost/fee subtraction.
+- **Entry:** add a **harvest path** that buys the set when `cost < 1.00 − costs` with
+  depth-aware max size (use `_book_depth_usdc` per leg). (The existing
+  `_gate_complete_set_edge` is a *rejection* filter only — re-enable it for defense, but
+  it does not place the arb.)
 - **Exit:** hold to resolution (riskless).
 - **Risk:** single-leg partial-fill (mitigate with FOK/atomic two-leg or post-only).
 - **Edge source:** structural ($1.00 settlement bound).
@@ -344,9 +349,12 @@ Grounded in actual constants (`domain/risk/constants.py`), not estimates.
 
 - **Risk per trade:** bounded by `final = min(proposed, balance × max_pos_pct × 0.25)`
   and `max_position_pct ≤ 0.10` (`gate.py:418-427`). Per-trade risk is well-capped.
-- **Portfolio risk:** `MAX_CORRELATED_EXPOSURE = 0.40` (`constants.py:6`) — **but keyed
-  on market_id, so same-asset candles escape it** (F-3-adjacent). True portfolio risk is
-  *understated* whenever multiple candle presets run.
+- **Portfolio risk:** capped by a **global** total-exposure limit — step 8 sums ALL open
+  positions (`_open_exposure`, `gate.py:106-113,363`) against `effective_exposure_cap`
+  (system 0.40, `constants.py:6`). This is *conservative* — it treats every position as
+  fully correlated, so concentration is contained, not understated. The mild inefficiency
+  is the inverse: it is correlation-blind and cannot credit genuinely independent sleeves
+  (weather vs candle).
 - **Drawdown:** `MAX_DRAWDOWN_HALT = 0.08` auto-halt (`gate.py:332-340`); daily loss
   hard stop −$2,000 + per-profile caps.
 - **Tail risk:** the asymmetric payoff of late-favorite (buy ~0.50–0.70 to win $1.00 ≈
@@ -354,11 +362,14 @@ Grounded in actual constants (`domain/risk/constants.py`), not estimates.
   is UNMEASURED (F-2). This is the dominant tail exposure.
 
 ### 7.1 Three ways to reduce risk WITHOUT reducing edge
-1. **Fix the correlation key** — treat all candles on one underlying (BTC) within a
-   timeframe as one correlated bucket in the exposure gate. Removes hidden concentration
-   without touching any winning trade's sizing.
-2. **Promote the complete-set gate** — rejecting `cost > 1.00` markets removes
-   structurally-unwinnable taker entries (pure loss-avoidance, no edge given up).
+1. **Add a per-underlying concentration sub-limit** — the global exposure cap is
+   correlation-blind, so a book can sit entirely in one underlying (e.g. BTC candles)
+   within the 40% cap. An optional per-asset sub-cap trims correlated-cluster variance
+   without shrinking any single winning trade.
+2. **Re-enable the complete-set rejection filter** — set `MIN_COMPLETE_SET_EDGE > 0`
+   (it is `0.0` today, so the wired filter is inert): rejecting `cost > 1.00` markets
+   removes structurally-unwinnable taker entries (pure loss-avoidance, config-only, no
+   edge given up).
 3. **Liquidity-aware sizing on thin books** — cap size to `_book_depth_usdc` (already
    computed) so the final-35s slippage tax shrinks; this *recovers* edge lost to F-4.
 
@@ -475,7 +486,7 @@ common false-edge trap (importing macro context into markets it cannot move).
 
 | Strategy | Current | Improved | Trade-off |
 |---|---|---|---|
-| late_entry_v3 | `confidence = ask_diff`; correlation by market_id; complete-set unused | calibrated `P(win)` (A4); same-asset correlation bucket; complete-set hard gate | needs F-1 harness first; more compute per scan |
+| late_entry_v3 | `confidence = ask_diff`; complete-set filter config-disabled + not harvested; no per-asset concentration sub-limit | calibrated `P(win)` (A4); per-asset concentration sub-limit; re-enable filter + add arb-harvest path | needs F-1 harness first; more compute per scan |
 | copy_trade | fixed 0.75; no leader gate | Wallet-360 quality-weighted confidence + sybil/Sharpe hard gate (A3) | fewer leaders pass → lower frequency, higher quality |
 | signal_following | publisher-claimed confidence | calibrate confidence to realized feed hit-rate; require Heisenberg confluence | needs outcome history; slower feed activation |
 | weather | already model-driven | scale cities; tighten σ; size on EV percentile | more API calls; per-market liquidity cap |
@@ -512,8 +523,8 @@ late-favorite · A5 social/candlestick confluence.
 Late-Favorite (full logic/entry/exit/risk/edge/failure/scalability in Phase 5).
 
 ### 6. Risk analysis
-Per-trade risk well-capped; **portfolio risk understated** by the market_id correlation
-key; asymmetric late-favorite tail is the dominant exposure. 3 risk-reductions + 2
+Per-trade risk well-capped; portfolio exposure capped **globally** (conservative,
+correlation-blind); asymmetric late-favorite tail is the dominant exposure. 3 risk-reductions + 2
 edge-increases that don't trade off (Phase 7).
 
 ### 7. Monte Carlo framework
@@ -531,7 +542,7 @@ Per-strategy current→improved table (Phase 12), all gated behind the harness.
 
 ### 10. Highest-EV implementation roadmap
 **Build the backtest/calibration harness first** (data substrate already in DB) →
-validate weather → fix correlation key + promote complete-set gate (pure risk wins) →
+validate weather → re-enable + extend the complete-set gate to harvest arb + add a per-asset concentration sub-limit (pure risk wins) →
 calibrate candle confidence (A4) → wallet-360 copy gate (A3) → regime layer → portfolio
 weighting. Capital scales LIVE only behind OOS-validated edge.
 
@@ -542,10 +553,14 @@ weighting. Capital scales LIVE only behind OOS-validated edge.
 ### HIGH PRIORITY (do first — unblocks everything / pure risk wins)
 - **H1. Backtest + calibration harness** (F-1). Replay existing trade history; produce
   OOS metrics. Unblocks F-2, all validation, Monte Carlo, portfolio weights.
-- **H2. Promote `complete_set_edge` to a hard reject gate** (F-3). Removes structurally
-  unwinnable entries; no edge given up. (Becomes A2 when paired with depth-aware sizing.)
-- **H3. Fix the correlation key** — same-asset/timeframe candles as one exposure bucket.
-  Closes hidden concentration (Phase 7.1).
+- **H2. Re-enable + extend the complete-set gate** (F-3). The `_gate_complete_set_edge`
+  rejection filter is wired but inert (`MIN_COMPLETE_SET_EDGE = 0.0`); set it > 0 to
+  resume blocking overpriced directional entries (config-only), then add a *harvest* path
+  that buys the set when `cost < $1.00` with depth-aware sizing (A2).
+- **H3. Per-asset concentration sub-limit** — the global exposure cap is correlation-
+  blind, so a book can sit entirely in one underlying within the 40% cap; an optional
+  per-asset sub-cap trims correlated-cluster variance without cutting winning trades
+  (Phase 7.1).
 - **H4. Liquidity-aware sizing on thin candle books** — recovers edge lost to fill-drift
   (F-4); `_book_depth_usdc` already computed.
 - **H5. Validate + scale weather** — the only defensible existing edge.
@@ -580,7 +595,7 @@ No runtime code changed (task: "do not write code").
 **4. What is working:** risk gate (15-step), kill switch, paper-default, weather model,
 data ingestion + caching, monitoring/alerts — all verified in code.
 **5. Known issues / gaps surfaced:** F-1 no backtest · F-2 no candle probability model ·
-F-3 unharvested complete-set edge + market_id correlation key · F-4 fill-drift /
+F-3 complete-set edge gate config-disabled + not harvested as arb · F-4 fill-drift /
 execution-edge loss · F-5 unharvested Wallet-360 intelligence.
 **6. What is next:** HIGH-priority H1–H5 above; all LIVE scaling gated behind OOS
 validation.
@@ -599,7 +614,7 @@ validation.
 |---|---|---|---|---|---|---|
 | F-1 | No backtest/validation framework | built by imitating a reference bot; never invested in validation infra | CRITICAL | no OOS support for any parameter; cannot size LIVE responsibly | build replay harness on existing trade history | (new harness) |
 | F-2 | Candle "confidence" is a price gap, not a probability | no model; `confidence=ask_diff` | CRITICAL | EV unknown; asymmetric tail uncontrolled | calibrated `P(win)` from own outcomes | `late_entry_v3.py:649` |
-| F-3 | Structural edge computed but unused; correlation mis-keyed | metric added observationally; exposure keys on market_id | HIGH | leaves riskless edge on the table; hides concentration | hard complete-set gate + same-asset correlation bucket | `late_entry_v3.py:606`, `gate.py` (exposure step) |
+| F-3 | Complete-set edge gate is config-disabled + never harvested as arb | `MIN_COMPLETE_SET_EDGE=0.0` makes the wired filter inert; no path buys the set when cost<$1.00 | HIGH | a riskless edge sits unharvested; defensive filter currently off | re-enable filter (>0) + add depth-aware harvest path (A2) | `signal_scan_job.py:1798-1856`, `config.py:559`, `late_entry_v3.py:606` |
 | F-4 | Execution edge destroyed at fill | thin final-35s books + latency | HIGH | fills land outside intended band (5.5%/17%) | liquidity-aware sizing; keep TOB/fill-band guards | `signal_scan_job.py:1749-1929` |
 | F-5 | Premium intelligence unharvested | data fetched, then ignored | HIGH | pays for Wallet-360 (agent 581) but uses fixed 0.75 | quality-weighted, sybil-gated copy confidence | `copy_trade.py:40`, `wallet_360.py:96-174` |
 
