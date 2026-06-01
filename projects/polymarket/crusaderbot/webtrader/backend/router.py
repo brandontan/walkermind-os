@@ -1030,6 +1030,10 @@ async def customize_strategy(body: CustomizeRequest, user: _CurrentUser):
             params.append(val)
             updates.append(f"{col}=${len(params)}")
 
+    def _clear(col: str):
+        params.append(None)
+        updates.append(f"{col}=${len(params)}")
+
     # Bounds: these feed trade sizing / exit thresholds. Without guards a user
     # could submit capital_alloc_pct=99999, negative tp/sl, etc. (stored raw,
     # used at execution time). Reject out-of-range values up front.
@@ -1077,10 +1081,15 @@ async def customize_strategy(body: CustomizeRequest, user: _CurrentUser):
 
     # Max concurrent trades override: integer in [1, 20]. Gate step 7 picks the
     # min of this and the profile default — user can only tighten, never loosen.
-    if body.max_concurrent_override is not None:
-        if not (1 <= int(body.max_concurrent_override) <= 20):
-            raise HTTPException(status_code=400, detail="max_concurrent_override must be in [1, 20]")
-        _add("max_concurrent_override", int(body.max_concurrent_override))
+    # Explicit null (field present in request but null) clears the override so the
+    # user falls back to their profile default.
+    if "max_concurrent_override" in body.model_fields_set:
+        if body.max_concurrent_override is None:
+            _clear("max_concurrent_override")
+        else:
+            if not (1 <= int(body.max_concurrent_override) <= 20):
+                raise HTTPException(status_code=400, detail="max_concurrent_override must be in [1, 20]")
+            _add("max_concurrent_override", int(body.max_concurrent_override))
 
     if not updates:
         return {"updated": False}
