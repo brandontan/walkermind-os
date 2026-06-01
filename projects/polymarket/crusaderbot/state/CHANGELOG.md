@@ -1,4 +1,5 @@
 <!-- gate-notify-verify-v3 -->
+2026-06-01 23:55 | WARP/ROOT/decompose-process-candidate | C-4 closed — #1547 decompose _process_candidate (866→604 lines, 8 gate helpers, 34 hermetic tests) + #1548 Gemini review fixes (UTC-safe naive datetime, liquidity/price float guards); STANDARD, NARROW INTEGRATION
 2026-06-01 03:35 | WARP/tab-style-reset-fix | admin paper reset 500 fixed (FK order: fees+positions before orders; redeem_queue cascades); PageTabs clip-btn style (green AUTO / gold COPY); a11y fix nested interactive elements; MINOR, NARROW INTEGRATION
 2026-06-01 16:30 | WARP/weather-filter-relax | weather_config.json entry thresholds relaxed: min_ev 0.10→0.04, min_volume 500→200, max_spread 0.03→0.05, max_price 0.45→0.65; config-only, no code change; MINOR, NARROW INTEGRATION
 2026-06-01 11:00 | WARP/ROOT/paper-reset-fk-fix | admin paper reset 500 fix — DELETE copy_trade_events before positions in admin_paper_reset transaction (migration 032 position_id FK has no ON DELETE CASCADE → FK violation on positions delete); MINOR, NARROW INTEGRATION
