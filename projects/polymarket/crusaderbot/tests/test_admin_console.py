@@ -788,8 +788,9 @@ def test_admin_paper_reset_happy_path():
     conn = MagicMock()
     # fetchrow: user+trading_mode check
     conn.fetchrow = AsyncMock(return_value={"id": target_id, "trading_mode": "paper"})
-    # fetchval sequence: orders_count, positions_count, ledger_count
-    conn.fetchval = AsyncMock(side_effect=[3, 5, 12])
+    # fetchval sequence: positions_count, orders_count, ledger_count
+    # (positions deleted before orders — correct FK-safe order)
+    conn.fetchval = AsyncMock(side_effect=[5, 3, 12])
     conn.execute = AsyncMock(return_value=None)
     conn.transaction = MagicMock(return_value=_ctx(None))
     audit_calls: list = []
