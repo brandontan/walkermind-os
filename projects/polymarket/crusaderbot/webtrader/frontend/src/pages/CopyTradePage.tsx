@@ -38,21 +38,29 @@ export function PageTabs({
   const tabs = (showCopy ? ["auto", "copy"] : ["auto"]) as ("auto" | "copy")[];
   return (
     <div
-      className="flex border-b border-border-1 px-3.5"
+      className="flex gap-2 px-3.5 py-2.5 border-b border-border-1"
       style={{ background: "rgba(6,11,22,0.85)" }}
     >
       {tabs.map((t) => {
         const isActive = active === t;
+        const isAuto = t === "auto";
         return (
           <button
             key={t}
             onClick={() => onSwitch(t)}
-            className={[
-              "py-3 px-4 font-hud text-[10px] font-bold tracking-[2px] uppercase transition-all border-b-2 -mb-px",
-              isActive
-                ? "text-gold border-gold"
-                : "text-ink-1 border-transparent hover:text-gold/70 opacity-50 hover:opacity-80",
-            ].join(" ")}
+            className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors"
+            style={isAuto
+              ? {
+                  background: isActive ? "rgba(0,255,156,0.10)" : "rgba(0,255,156,0.02)",
+                  border: `1px solid rgba(0,255,156,${isActive ? "0.40" : "0.12"})`,
+                  color: isActive ? "#00FF9C" : "rgba(0,255,156,0.30)",
+                }
+              : {
+                  background: isActive ? "rgba(245,200,66,0.10)" : "rgba(245,200,66,0.02)",
+                  border: `1px solid rgba(245,200,66,${isActive ? "0.40" : "0.12"})`,
+                  color: isActive ? "rgba(245,200,66,1)" : "rgba(245,200,66,0.30)",
+                }
+            }
           >
             {t === "auto" ? "Auto Trade" : "Copy Trade"}
           </button>
