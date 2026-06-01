@@ -135,9 +135,11 @@ class WeatherDomainStrategy(BaseStrategy):
                     return []
             async def _do_fetch_all() -> list[Any]:
                 result = await fetch_weather_markets(city=None, limit=500)
-                _DAILY_MARKETS_CACHE[today_utc] = (
-                    time.monotonic() + _CACHE_TTL_S, result
-                )
+                now = time.monotonic()
+                expired_dm = [k for k, v in _DAILY_MARKETS_CACHE.items() if now > v[0]]
+                for k in expired_dm:
+                    _DAILY_MARKETS_CACHE.pop(k, None)
+                _DAILY_MARKETS_CACHE[today_utc] = (now + _CACHE_TTL_S, result)
                 return result
             task_all: asyncio.Task[list[Any]] = asyncio.ensure_future(_do_fetch_all())
             _DAILY_MARKETS_IN_FLIGHT[today_utc] = task_all
@@ -164,7 +166,11 @@ class WeatherDomainStrategy(BaseStrategy):
                     return []
             async def _do_fetch_fc() -> list[Any]:
                 result = await fetch_all(loc, today_utc)
-                _FORECAST_CACHE[key] = (time.monotonic() + _CACHE_TTL_S, result)
+                now = time.monotonic()
+                expired_fc = [k for k, v in _FORECAST_CACHE.items() if now > v[0]]
+                for k in expired_fc:
+                    _FORECAST_CACHE.pop(k, None)
+                _FORECAST_CACHE[key] = (now + _CACHE_TTL_S, result)
                 return result
             task_fc: asyncio.Task[list[Any]] = asyncio.ensure_future(_do_fetch_fc())
             _FORECAST_IN_FLIGHT[key] = task_fc
@@ -185,10 +191,11 @@ class WeatherDomainStrategy(BaseStrategy):
                 _get_forecasts(loc_name, loc),
                 return_exceptions=False,
             )
-            city_markets = [
-                m for m in (all_markets or [])
-                if loc_name.lower() in (m.question or "").lower()
-            ]
+            city_markets = []
+            for m in (all_markets or []):
+                if loc_name.lower() in (m.question or "").lower():
+                    m.city = loc_name
+                    city_markets.append(m)
             return city_markets, forecasts or []
 
         async def _scan_city(loc_name: str) -> list[SignalCandidate]:
