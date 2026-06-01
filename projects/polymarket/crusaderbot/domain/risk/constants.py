@@ -70,6 +70,13 @@ STRATEGY_AVAILABILITY: dict[str, list[str]] = {
     "expiration_timing":  ["conservative", "balanced", "aggressive", "custom"],
     "confluence_scalper": ["balanced", "aggressive", "custom"],
     "late_entry_v3":      ["conservative", "balanced", "aggressive", "custom"],
+    # Weather domain strategy (weather_monitor preset). Emits candidates with
+    # strategy_name="weather"; without this entry gate step 4 rejects every
+    # weather candidate as unknown_strategy — the weather pipeline (mig 075/076,
+    # all 5 exits) would silently convert zero trades. All profiles allowed:
+    # ensemble forecast edge is not leverage-sensitive and sizing is still
+    # bounded by Kelly + max-position caps downstream.
+    "weather":            ["conservative", "balanced", "aggressive", "custom"],
 }
 
 

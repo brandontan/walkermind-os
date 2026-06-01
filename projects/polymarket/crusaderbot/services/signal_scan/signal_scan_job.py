@@ -60,6 +60,7 @@ from ...database import get_pool
 from ...domain.execution.router import execute as router_execute
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
 from ...domain.risk.constants import PROFILES
+from ...domain.risk.gate import resume_safety_check as _resume_safety_check
 from ...domain.strategy.registry import StrategyRegistry
 from ...domain.strategy.types import MarketFilters, SignalCandidate, UserContext
 from ...integrations import polymarket as _polymarket
@@ -1677,6 +1678,51 @@ async def _process_candidate(
             _stale_size = Decimal(str(stale["final_size_usdc"]))
             _tp = float(row["tp_pct"]) if row.get("tp_pct") is not None else None
             _sl = float(row["sl_pct"]) if row.get("sl_pct") is not None else None
+            _stale_mode = str(stale["chosen_mode"])
+            _stale_trading_mode = str(row.get("trading_mode") or "paper")
+            # Capital-circuit-breaker re-check BEFORE resuming. The full gate is
+            # skipped on resume (staleness/idempotency would self-reject), but the
+            # account circuit breakers must still hold: a user who breached their
+            # daily-loss cap, drawdown halt, concurrent limit, exposure cap, or
+            # live capital cap between the crash and recovery must NOT have a
+            # pending entry resumed. On breach the row is marked failed (abandoned)
+            # — a halted account does not resume queued entries. (Kill switch is
+            # handled above and intentionally leaves the row queued for retry.)
+            _resume_check = await _resume_safety_check(
+                user_id=user_id,
+                market_id=str(stale["market_id"]),
+                risk_profile=str(row.get("resolved_profile") or "balanced"),
+                proposed_size_usdc=_stale_size,
+                trading_mode=_stale_trading_mode,
+                chosen_mode=_stale_mode,
+                daily_loss_override=(
+                    float(row["daily_loss_override"])
+                    if row.get("daily_loss_override") is not None else None
+                ),
+                max_drawdown_pct=(
+                    float(row["max_drawdown_pct"])
+                    if row.get("max_drawdown_pct") is not None else None
+                ),
+                live_capital_cap_usdc=float(row.get("live_capital_cap_usdc") or 0.0),
+            )
+            if not _resume_check.approved:
+                log.info(
+                    "scan_outcome",
+                    outcome="skipped_resume_circuit_breaker",
+                    reason=_resume_check.reason,
+                    failed_step=_resume_check.failed_step,
+                    mode=_stale_mode,
+                )
+                if telemetry is not None:
+                    telemetry.record_skip("skipped_resume_circuit_breaker")
+                try:
+                    await _mark_failed(
+                        user_id, pub_uuid, _stale_idem,
+                        f"resume_circuit_breaker:{_resume_check.reason}",
+                    )
+                except Exception as mark_exc:
+                    log.warning("exec_queue_mark_failed_error", error=str(mark_exc))
+                return
             try:
                 await router_execute(
                     chosen_mode=str(stale["chosen_mode"]),

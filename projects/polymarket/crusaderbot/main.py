@@ -101,6 +101,18 @@ async def lifespan(_: FastAPI):
             "bootstrap_default_strategies() returned an empty registry. "
             "Check domain/strategy/strategies/ imports and lib/ vendoring."
         )
+    # Fail-closed consistency gate: every registered domain strategy MUST have a
+    # STRATEGY_AVAILABILITY entry, otherwise risk gate step 4 rejects every one
+    # of its candidates as unknown_strategy and the strategy silently converts
+    # zero trades (the weather-strategy regression). Caught at boot, not in prod.
+    from .domain.risk.constants import STRATEGY_AVAILABILITY as _STRATEGY_AVAILABILITY
+    _unroutable = [n for n in _domain_names if n not in _STRATEGY_AVAILABILITY]
+    if _unroutable:
+        raise RuntimeError(
+            "FATAL: registered strategies missing from STRATEGY_AVAILABILITY "
+            f"(risk gate step 4 would reject all their candidates): {_unroutable}. "
+            "Add each to domain/risk/constants.py:STRATEGY_AVAILABILITY."
+        )
     # Auto-derive Polymarket API credentials from private key when USE_REAL_CLOB=True
     # but POLYMARKET_API_KEY is not set in the environment. No-op in paper mode.
     if settings.USE_REAL_CLOB:
