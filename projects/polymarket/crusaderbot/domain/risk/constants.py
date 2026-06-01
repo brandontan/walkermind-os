@@ -142,7 +142,13 @@ def effective_max_concurrent(
     ``cur >= 0``). The DB CHECK constraint (1..20) prevents this at write
     time; this defence handles legacy rows / direct DB writes.
     """
-    base = profile if profile in PROFILES else "balanced"
+    # Normalise: profile may arrive with mixed case (e.g. 'Conservative' from
+    # a UI form) or as None — match the lowercase-default behaviour of
+    # ``profile_or_default`` so an upper/title-cased name resolves correctly
+    # instead of silently falling back to 'balanced'.
+    base = (profile or "balanced").lower()
+    if base not in PROFILES:
+        base = "balanced"
     profile_cap = int(PROFILES[base]["max_concurrent"])
     caps: list[int] = [profile_cap]
     if user_override is not None:

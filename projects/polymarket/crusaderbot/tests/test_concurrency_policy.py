@@ -149,6 +149,19 @@ def test_effective_max_concurrent_unknown_profile_falls_back_to_balanced():
     assert effective_max_concurrent("garbage", user_override=4) == 4
 
 
+def test_effective_max_concurrent_is_case_insensitive():
+    # Profile names from UI forms may arrive title- or upper-cased. They must
+    # resolve to the correct profile cap — NOT silently fall through to the
+    # 'balanced' default, which would loosen a 'Conservative' user's 5-cap to 12.
+    assert effective_max_concurrent("Conservative") == 5
+    assert effective_max_concurrent("BALANCED", user_override=3) == 3
+    assert effective_max_concurrent("Aggressive", user_override=50) == 20
+
+
+def test_effective_max_concurrent_none_profile_uses_balanced():
+    assert effective_max_concurrent(None) == 12  # type: ignore[arg-type]
+
+
 def test_effective_max_concurrent_defensive_coercion_of_invalid_values():
     # Zero / negative override = ignored (DB CHECK enforces 1..20 at write time;
     # this defends against legacy rows / direct DB writes).
