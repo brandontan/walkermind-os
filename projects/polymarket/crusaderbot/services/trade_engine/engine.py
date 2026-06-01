@@ -102,6 +102,8 @@ class TradeSignal:
     # opted in to live mode; gate step 15 rejects any live trade. Set via
     # /api/web/live/enable typed-confirm flow.
     live_capital_cap_usdc: float = 0.0
+    # Per-user concurrent-trades override (1..20). None = use profile default.
+    max_concurrent_override: Optional[int] = None
     # Opaque per-strategy snapshot (e.g. weather city/bucket bounds, entry
     # forecast mean, high-water price). Persisted to positions.strategy_metadata
     # and replayed into the strategy exit hook so exits like the weather
@@ -305,4 +307,5 @@ class TradeEngine:
             user_min_liquidity=signal.user_min_liquidity,
             max_drawdown_pct=signal.max_drawdown_pct,
             live_capital_cap_usdc=signal.live_capital_cap_usdc,
+            max_concurrent_override=signal.max_concurrent_override,
         )

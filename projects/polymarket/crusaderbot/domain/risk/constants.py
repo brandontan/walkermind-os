@@ -4,7 +4,6 @@ from __future__ import annotations
 KELLY_FRACTION = 0.25
 MAX_POSITION_PCT = 0.10
 MAX_CORRELATED_EXPOSURE = 0.40
-MAX_CONCURRENT_TRADES = 5
 DAILY_LOSS_HARD_STOP = -2_000.0
 MAX_DRAWDOWN_HALT = 0.08
 MIN_LIQUIDITY = 10_000.0
@@ -121,6 +120,38 @@ def effective_exposure_cap(system_cap: float | None = None) -> float:
     caps: list[float] = [float(MAX_CORRELATED_EXPOSURE)]
     if system_cap is not None:
         caps.append(float(system_cap))
+    return min(caps)
+
+
+def effective_max_concurrent(
+    profile: str,
+    user_override: int | None = None,
+) -> int:
+    """Most-restrictive concurrent-trades cap for a user.
+
+    Selects ``min(profile["max_concurrent"], user_override)`` so a user can
+    only tighten — never loosen — the profile cap. Mirrors the semantics of
+    ``effective_daily_loss`` and ``max_drawdown_pct``: the bot is multi-user;
+    each user controls their own risk/reward but cannot exceed the cap their
+    chosen profile permits.
+
+    ``user_override`` is None when the user hasn't set ``max_concurrent_override``
+    in ``user_settings`` — the profile default governs alone. Negative / zero
+    / accidentally non-positive overrides are defensively coerced to None so
+    a typo cannot brick a user (gate step 7 would reject every trade with
+    ``cur >= 0``). The DB CHECK constraint (1..20) prevents this at write
+    time; this defence handles legacy rows / direct DB writes.
+    """
+    base = profile if profile in PROFILES else "balanced"
+    profile_cap = int(PROFILES[base]["max_concurrent"])
+    caps: list[int] = [profile_cap]
+    if user_override is not None:
+        try:
+            ov = int(user_override)
+        except (TypeError, ValueError):
+            ov = 0
+        if ov >= 1:
+            caps.append(ov)
     return min(caps)
 
 

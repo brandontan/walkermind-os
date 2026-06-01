@@ -180,6 +180,7 @@ def _autotrade_settings_row(preset):
         "selected_assets": None, "max_per_trade_mode": "auto",
         "max_per_trade_usdc": None, "max_per_trade_pct": None,
         "daily_loss_override": None, "max_drawdown_pct": None,
+        "max_concurrent_override": None,
     }
 
 

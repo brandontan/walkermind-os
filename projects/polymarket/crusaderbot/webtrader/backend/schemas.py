@@ -178,6 +178,10 @@ class AutoTradeState(BaseModel):
     # max_drawdown_pct: 0–8%, e.g. 0.05 = halt at 5% drawdown (stricter than 8% system).
     daily_loss_override: Optional[float] = None
     max_drawdown_pct: Optional[float] = None
+    # Max concurrent open positions override (1..20). Stricter-only — gate step 7
+    # picks min(profile_default, this). NULL/None = use profile default
+    # (conservative=5 / balanced=12 / aggressive=20 / custom=12).
+    max_concurrent_override: Optional[int] = None
     # False when the active preset's strategy is globally disabled by the
     # operator (Ops Console on/off). The UI shows "PAUSED (Admin)" instead of
     # "ACTIVE" — no new trades fire, though the preset selection is unchanged.
@@ -206,6 +210,7 @@ class CustomizeRequest(BaseModel):
     max_per_trade_pct: Optional[float] = None
     daily_loss_override: Optional[float] = None   # negative $ cap, e.g. -300
     max_drawdown_pct: Optional[float] = None      # 0 < x <= 0.08
+    max_concurrent_override: Optional[int] = None  # 1..20 — stricter-only
 
 
 class RiskProfileRequest(BaseModel):
