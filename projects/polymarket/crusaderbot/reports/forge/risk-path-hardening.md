@@ -14,7 +14,7 @@
 Three changes to close two real capital-safety gaps surfaced by the pre-public audit, plus a recurrence guard:
 
 - **C-1 — crash-recovery resume now re-runs the account circuit breakers.**
-  The `_process_candidate` stale-queued resume branch (`services/signal_scan/signal_scan_job.py`) previously called `router_execute()` directly, skipping 14 of the 15 risk-gate steps (only the kill switch was re-checked). A user who breached their daily-loss cap, drawdown halt, concurrent-trade limit, exposure cap, or per-user LIVE capital cap *between* the crash and the recovery would have the pending entry executed regardless. A new `domain/risk/gate.py:resume_safety_check()` re-evaluates exactly the capital-circuit-breaker subset (gate steps 5/6/7/8/15) before the direct router call. On breach the queued row is marked `failed` (abandoned), never executed.
+  The `_process_candidate` stale-queued resume branch (`services/signal_scan/signal_scan_job.py`) previously called `router_execute()` directly, skipping 14 of the 15 risk-gate steps (only the kill switch was re-checked). A user who breached their daily-loss cap, drawdown halt, concurrent-trade limit, exposure cap, or per-user LIVE capital cap *between* the crash and the recovery would have the pending entry executed regardless. A new `domain/risk/gate.py:resume_safety_check()` re-evaluates exactly the capital-circuit-breaker subset (gate steps 0/5/6/7/8/15) before the direct router call. On breach the queued row is marked `failed` (abandoned), never executed.
 
 - **C-2 — weather strategy is now routable at the gate.**
   `domain/risk/constants.py:STRATEGY_AVAILABILITY` had no `"weather"` key. The weather domain strategy emits candidates with `strategy_name="weather"`, so gate step 4 rejected every one as `unknown_strategy` — the entire weather pipeline (migrations 075/076, all 5 exits) converted zero trades. Added the key for all four risk profiles. Weather is in the public LIVE launch scope.
@@ -33,7 +33,7 @@ DATA → STRATEGY (signal_scan_job.run_once)
      → _process_candidate
          ├─ stale-queued crash recovery
          │    ├─ kill_switch (unchanged — leaves row queued for retry)
-         │    └─ resume_safety_check  ← NEW: steps 5,6,7,8,15
+         │    └─ resume_safety_check  ← NEW: steps 0,5,6,7,8,15
          │         approved → router_execute
          │         blocked  → mark_failed (abandon)
          └─ normal path → TradeEngine.execute → gate.evaluate (15 steps) → router
@@ -53,12 +53,12 @@ Modified:
 - `projects/polymarket/crusaderbot/tests/test_signal_scan_job.py` — update resume test for the new gate; add breaker-blocks-resume test.
 
 Created:
-- `projects/polymarket/crusaderbot/tests/test_resume_safety_check.py` — 11 hermetic tests.
+- `projects/polymarket/crusaderbot/tests/test_resume_safety_check.py` — 13 hermetic tests.
 - `projects/polymarket/crusaderbot/reports/forge/risk-path-hardening.md` — this report.
 
 ## 4. What is working
 
-- `pytest tests/test_resume_safety_check.py` — 11/11 pass (all five breaker rejections + paper/live cap branches + C-2 + MED-2 invariants).
+- `pytest tests/test_resume_safety_check.py` — 13/13 pass (balance floor + all five breaker rejections + paper/live cap branches + C-2 + MED-2 invariants).
 - `pytest tests/test_signal_scan_job.py` — 85/85 pass (resume happy-path + new breaker-blocks-resume test).
 - Full project suite: **2206 passed**. The only non-passes are missing-SDK collection errors in this sandbox (`web3`, `poly_eip712_structs`, `fastapi` were installed where possible; `poly_eip712_structs` is unavailable) — none touch the changed files.
 - `py_compile` clean on all changed modules; `ruff check` clean.

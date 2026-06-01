@@ -60,6 +60,23 @@ def test_resume_all_clear_approves(monkeypatch):
     assert res.reason == "resume_safety_ok"
 
 
+def test_resume_zero_balance_blocks(monkeypatch):
+    # Mirrors gate step 0 cap 0: a zero/negative balance must never resume a
+    # new position, and must fail before the exposure division.
+    _patch_clear(monkeypatch, balance=0.0)
+    res = _run()
+    assert res.approved is False
+    assert res.failed_step == 0
+    assert res.reason == "balance_zero_or_negative"
+
+
+def test_resume_negative_balance_blocks(monkeypatch):
+    _patch_clear(monkeypatch, balance=-5.0)
+    res = _run()
+    assert res.approved is False
+    assert res.failed_step == 0
+
+
 def test_resume_daily_loss_blocks(monkeypatch):
     # balanced cap = -500; pnl -600 breaches.
     _patch_clear(monkeypatch, pnl=-600.0)

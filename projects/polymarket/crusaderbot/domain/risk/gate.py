@@ -523,6 +523,15 @@ async def resume_safety_check(
     """
     profile = K.profile_or_default(risk_profile)
 
+    # 0. Available balance must be positive — mirrors gate step 0 cap 0. A resume
+    #    must never open a new position on a zero/negative-balance account. The
+    #    balance is fetched once here and reused by the exposure check (step 8)
+    #    so the resume path issues a single get_balance query.
+    balance = await get_balance(user_id)
+    if balance <= 0:
+        await _log(user_id, market_id, 0, False, "resume_balance_zero_or_negative")
+        return GateResult(False, "balance_zero_or_negative", 0)
+
     # 5. Daily loss limit
     pnl = await daily_pnl(user_id)
     cap = K.effective_daily_loss(risk_profile, daily_loss_override)
@@ -542,10 +551,10 @@ async def resume_safety_check(
                    f"resume_max_concurrent {cur}/{profile['max_concurrent']}")
         return GateResult(False, "max_concurrent_trades", 7)
 
-    # 8. Correlated exposure
-    balance = await get_balance(user_id)
+    # 8. Correlated exposure — reuses the balance fetched at step 0 (guaranteed
+    #    > 0 there, so the division is always safe).
     open_exp = await _open_exposure(user_id)
-    if balance > 0 and (open_exp + proposed_size_usdc) / balance > Decimal(
+    if (open_exp + proposed_size_usdc) / balance > Decimal(
         str(K.MAX_CORRELATED_EXPOSURE)
     ):
         await _log(user_id, market_id, 8, False, "resume_correlated_exposure")
