@@ -1,6 +1,6 @@
 {
   "min_ev": 0.10,
-  "min_volume": 50.0,
+  "min_volume": 0.0,
   "max_spread": 0.05,
   "max_price": 0.45,
   "kelly_alpha": 0.25,
