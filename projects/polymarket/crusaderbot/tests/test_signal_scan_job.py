@@ -34,6 +34,7 @@ from projects.polymarket.crusaderbot.domain.strategy.types import (
     SignalCandidate,
     UserContext,
 )
+from projects.polymarket.crusaderbot.domain.risk.gate import GateResult
 from projects.polymarket.crusaderbot.services.signal_scan import signal_scan_job as job
 from projects.polymarket.crusaderbot.services.trade_engine import TradeResult
 
@@ -715,9 +716,12 @@ def test_process_candidate_resumes_stale_queued_row():
     async def _fake_mark_executed(*a, **kw):
         marked["called"] = True
 
+    # Capital circuit breakers clear → resume proceeds.
+    _approved = GateResult(True, "resume_safety_ok")
     with patch.object(job, "_load_stale_queued_row", return_value=stale), \
             patch.object(job, "kill_switch_is_active", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "_resume_safety_check", new=AsyncMock(return_value=_approved)), \
             patch.object(job, "router_execute", side_effect=_fake_router), \
             patch.object(job, "_mark_executed", side_effect=_fake_mark_executed), \
             patch.object(job._engine, "execute", new=AsyncMock()) as mock_engine:
@@ -727,6 +731,43 @@ def test_process_candidate_resumes_stale_queued_row():
     assert marked["called"]
     # TradeEngine must NOT be called — crash recovery bypasses engine entirely.
     mock_engine.assert_not_called()
+
+
+def test_process_candidate_resume_blocked_by_circuit_breaker():
+    """A breached account circuit breaker must abort the resume (no router call)
+    and mark the queued row failed (abandoned), never re-execute it."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    cand = _candidate()
+
+    stale = {
+        "market_id": _MARKET_ID,
+        "side": "yes",
+        "final_size_usdc": Decimal("10"),
+        "suggested_size_usdc": Decimal("10"),
+        "idempotency_key": "sf:abc123",
+        "chosen_mode": "paper",
+    }
+    executed = {"called": False}
+    failed = {"called": False}
+
+    async def _fake_router(**kwargs):
+        executed["called"] = True
+
+    async def _fake_mark_failed(*a, **kw):
+        failed["called"] = True
+
+    _blocked = GateResult(False, "max_drawdown_halt", 6)
+    with patch.object(job, "_load_stale_queued_row", return_value=stale), \
+            patch.object(job, "kill_switch_is_active", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "_resume_safety_check", new=AsyncMock(return_value=_blocked)), \
+            patch.object(job, "router_execute", side_effect=_fake_router), \
+            patch.object(job, "_mark_failed", side_effect=_fake_mark_failed):
+        asyncio.run(job._process_candidate(row, cand))
+
+    assert not executed["called"]   # breached account never resumes the trade
+    assert failed["called"]         # row abandoned, not left to retry forever
 
 
 def test_process_candidate_skips_resume_when_kill_switch_active():

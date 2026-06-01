@@ -485,6 +485,100 @@ async def _open_live_exposure(user_id: UUID) -> Decimal:
         return Decimal("0")
 
 
+async def resume_safety_check(
+    *,
+    user_id: UUID,
+    market_id: str,
+    risk_profile: str,
+    proposed_size_usdc: Decimal,
+    trading_mode: str,
+    chosen_mode: str,
+    daily_loss_override: float | None = None,
+    max_drawdown_pct: float | None = None,
+    live_capital_cap_usdc: float = 0.0,
+) -> GateResult:
+    """Capital-circuit-breaker re-check for crash-recovery resume.
+
+    A 'queued' execution_queue row is resumed by routing it straight to the
+    execution router WITHOUT re-running the full 15-step gate, because gate
+    step 9 (staleness) and step 10 (idempotency/dedup) would self-reject a
+    legitimately-recovered trade (the idempotency key is already recorded and
+    the original signal is >4h old by the time a crash is recovered). That
+    bypass must NOT extend to the account circuit breakers: a user who has
+    since breached their daily-loss cap, drawdown halt, concurrent limit,
+    exposure cap, or live capital cap must NOT have a pending entry resumed.
+    This helper re-evaluates exactly that subset (gate steps 5, 6, 7, 8, 15)
+    and nothing else.
+
+    Intentionally skipped (documented): staleness (9), dedup/idempotency (10),
+    liquidity (11), edge (12), market status (13), market impact (14). These
+    are entry-quality gates, not capital circuit breakers, and several require
+    live market data not persisted on the queue row. Kill-switch is handled by
+    the caller so a halted-then-released switch leaves the row queued for retry
+    rather than abandoning it.
+
+    Returns GateResult(approved=True, "resume_safety_ok") when the account is
+    clear, or GateResult(approved=False, reason, failed_step) on the first
+    breached circuit breaker. Never records idempotency.
+    """
+    profile = K.profile_or_default(risk_profile)
+
+    # 0. Available balance must be positive — mirrors gate step 0 cap 0. A resume
+    #    must never open a new position on a zero/negative-balance account. The
+    #    balance is fetched once here and reused by the exposure check (step 8)
+    #    so the resume path issues a single get_balance query.
+    balance = await get_balance(user_id)
+    if balance <= 0:
+        await _log(user_id, market_id, 0, False, "resume_balance_zero_or_negative")
+        return GateResult(False, "balance_zero_or_negative", 0)
+
+    # 5. Daily loss limit
+    pnl = await daily_pnl(user_id)
+    cap = K.effective_daily_loss(risk_profile, daily_loss_override)
+    if float(pnl) <= cap:
+        await _log(user_id, market_id, 5, False, f"resume_daily_loss {pnl} <= {cap}")
+        return GateResult(False, "daily_loss_cap_hit", 5)
+
+    # 6. Max drawdown halt
+    if await _max_drawdown_breached(user_id, max_drawdown_pct):
+        await _log(user_id, market_id, 6, False, "resume_max_drawdown_halt")
+        return GateResult(False, "max_drawdown_halt", 6)
+
+    # 7. Concurrent trades
+    cur = await _open_position_count(user_id)
+    if cur >= profile["max_concurrent"]:
+        await _log(user_id, market_id, 7, False,
+                   f"resume_max_concurrent {cur}/{profile['max_concurrent']}")
+        return GateResult(False, "max_concurrent_trades", 7)
+
+    # 8. Correlated exposure — reuses the balance fetched at step 0 (guaranteed
+    #    > 0 there, so the division is always safe).
+    open_exp = await _open_exposure(user_id)
+    if (open_exp + proposed_size_usdc) / balance > Decimal(
+        str(K.MAX_CORRELATED_EXPOSURE)
+    ):
+        await _log(user_id, market_id, 8, False, "resume_correlated_exposure")
+        return GateResult(False, "correlated_exposure_cap", 8)
+
+    # 15. Per-user LIVE capital cap — only when resuming a live-mode trade.
+    if chosen_mode == "live":
+        cap_live = max(0.0, float(live_capital_cap_usdc or 0.0))
+        if cap_live <= 0.0:
+            await _log(user_id, market_id, 15, False, "resume_live_not_opted_in")
+            return GateResult(False, "live_not_opted_in", 15)
+        open_live = await _open_live_exposure(user_id)
+        if (float(open_live) + float(proposed_size_usdc)) > cap_live:
+            await _log(
+                user_id, market_id, 15, False,
+                f"resume_live_capital_cap_exceeded open={open_live:.2f} "
+                f"proposed={float(proposed_size_usdc):.2f} cap={cap_live:.2f}",
+            )
+            return GateResult(False, "live_capital_cap_exceeded", 15)
+
+    await _log(user_id, market_id, 0, True, "resume_safety_ok")
+    return GateResult(True, "resume_safety_ok")
+
+
 
 
 
