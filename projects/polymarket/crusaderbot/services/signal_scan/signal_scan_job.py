@@ -2838,8 +2838,7 @@ async def run_once() -> None:
 
         # Phase B2: run weather domain strategy when the active preset permits.
         if weather_strat is not None and _preset_allows(active_preset, _WEATHER_STRATEGY_NAME):
-            from ...config import get_settings as _get_settings_wx
-            _wx_disabled = not getattr(_get_settings_wx(), "WEATHER_STRATEGY_ENABLED", False)
+            _wx_disabled = not getattr(_get_settings(), "WEATHER_STRATEGY_ENABLED", False)
             if _wx_disabled:
                 weather_cands = []
             else:
