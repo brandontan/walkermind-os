@@ -29,6 +29,7 @@ kill_timeout = '30s'
   SECURITY_HARDENING_VALIDATED = 'false'
   TELEGRAM_BOT_USERNAME = 'CrusaderPolybot'
   TIMEZONE = 'Asia/Jakarta'
+  WEATHER_STRATEGY_ENABLED = 'true'
 
 [http_service]
   internal_port = 8080
