@@ -158,21 +158,35 @@ class WeatherDomainStrategy(BaseStrategy):
                 markets, forecasts = await _fetch_city(loc_name, loc)
 
                 if not markets or not forecasts:
+                    log.debug(
+                        "weather_city_no_data",
+                        extra={
+                            "city": loc_name,
+                            "markets": len(markets) if markets else 0,
+                            "forecasts": len(forecasts) if forecasts else 0,
+                        },
+                    )
                     return []
 
                 mean_tmax = ensemble_tmax(forecasts)
                 if mean_tmax is None:
+                    log.debug("weather_city_no_ensemble", extra={"city": loc_name})
                     return []
 
                 city_cands: list[SignalCandidate] = []
+                skip_vol = skip_spread = skip_price = skip_bucket = skip_hours = skip_ev = skip_size = 0
                 for wm in markets:
                     if wm.volume_24h < min_volume:
+                        skip_vol += 1
                         continue
                     if wm.spread > max_spread:
+                        skip_spread += 1
                         continue
                     if wm.yes_price > max_price:
+                        skip_price += 1
                         continue
                     if wm.bucket_low is None or wm.bucket_high is None:
+                        skip_bucket += 1
                         continue
                     if market_filters.blacklisted_market_ids and wm.market_id in market_filters.blacklisted_market_ids:
                         continue
@@ -180,11 +194,13 @@ class WeatherDomainStrategy(BaseStrategy):
                     # Entry time-to-expiry gate (WARP-49: MIN_HOURS=2, MAX_HOURS=72)
                     hours = _hours_to_expiry(wm.end_date_iso)
                     if hours is None or hours < min_hours or hours > max_hours:
+                        skip_hours += 1
                         continue
 
                     p_true = bucket_prob(mean_tmax, sigma, wm.bucket_low, wm.bucket_high)
                     ev = expected_value(p_true, wm.yes_price)
                     if ev < min_ev:
+                        skip_ev += 1
                         continue
 
                     size = kelly_size(
@@ -197,6 +213,7 @@ class WeatherDomainStrategy(BaseStrategy):
                     )
                     # Minimum order size gate (WARP-49: MIN_SIZE≥$0.50)
                     if size < min_size:
+                        skip_size += 1
                         continue
 
                     confidence = min(p_true, 0.99)
@@ -228,6 +245,22 @@ class WeatherDomainStrategy(BaseStrategy):
                             ),
                         )
                     )
+                log.debug(
+                    "weather_city_scan_result",
+                    extra={
+                        "city": loc_name,
+                        "markets_found": len(markets),
+                        "candidates": len(city_cands),
+                        "skip_vol": skip_vol,
+                        "skip_spread": skip_spread,
+                        "skip_price": skip_price,
+                        "skip_bucket": skip_bucket,
+                        "skip_hours": skip_hours,
+                        "skip_ev": skip_ev,
+                        "skip_size": skip_size,
+                        "mean_tmax_f": round(mean_tmax, 1),
+                    },
+                )
                 return city_cands
 
         loc_names = [loc.city for loc in LOCATIONS]
