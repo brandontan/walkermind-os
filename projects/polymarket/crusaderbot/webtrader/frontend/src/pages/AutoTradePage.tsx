@@ -1166,6 +1166,10 @@ function DailyLossControl({ state, api, onSaved }: {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  useEffect(() => {
+    setVal(current != null ? String(Math.abs(current)) : "");
+  }, [current]);
+
   async function save() {
     const raw = Number(val);
     if (!val || isNaN(raw) || raw <= 0) return;
@@ -1250,6 +1254,10 @@ function MaxDrawdownControl({ state, api, onSaved }: {
   const [val, setVal] = useState(current != null ? String(Math.round(current * 100)) : "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setVal(current != null ? String(Math.round(current * 100)) : "");
+  }, [current]);
 
   async function save() {
     const raw = Number(val);
