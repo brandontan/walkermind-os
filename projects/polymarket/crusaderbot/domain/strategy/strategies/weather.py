@@ -12,6 +12,7 @@ import logging
 import time
 from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from ..base import BaseStrategy
 from ..types import ExitDecision, MarketFilters, SignalCandidate, UserContext
@@ -153,11 +154,21 @@ class WeatherDomainStrategy(BaseStrategy):
             return all_markets
 
         async def _get_forecasts(loc_name: str, loc: Any) -> list[Any]:
-            """Per-city forecast fetch with single-flight dedup, cached 5 min."""
-            cached_fc = _forecast_cache_get(loc_name, today_utc)
+            """Per-city forecast fetch with single-flight dedup, cached 5 min.
+
+            target_date is the city-local date (not UTC) because Polymarket
+            daily weather markets resolve at the market's local-city midnight.
+            At Asia scan time, UTC date often lags local US dates by a day,
+            which silently fetches the wrong day's forecast.
+            """
+            try:
+                target_date = datetime.now(ZoneInfo(loc.timezone)).strftime("%Y-%m-%d")
+            except Exception:
+                target_date = today_utc
+            cached_fc = _forecast_cache_get(loc_name, target_date)
             if cached_fc is not None:
                 return cached_fc
-            key = (loc_name, today_utc)
+            key = (loc_name, target_date)
             existing_task = _FORECAST_IN_FLIGHT.get(key)
             if existing_task is not None:
                 try:
@@ -165,7 +176,7 @@ class WeatherDomainStrategy(BaseStrategy):
                 except Exception:
                     return []
             async def _do_fetch_fc() -> list[Any]:
-                result = await fetch_all(loc, today_utc)
+                result = await fetch_all(loc, target_date)
                 now = time.monotonic()
                 expired_fc = [k for k, v in _FORECAST_CACHE.items() if now > v[0]]
                 for k in expired_fc:
@@ -191,9 +202,14 @@ class WeatherDomainStrategy(BaseStrategy):
                 _get_forecasts(loc_name, loc),
                 return_exceptions=False,
             )
+            # Polymarket questions use varied city forms ("New York", "NYC",
+            # "Manhattan") while LOCATIONS.city carries the canonical long
+            # form ("New York City"). Match against canonical + every alias.
+            aliases = (loc_name.lower(), *(a.lower() for a in (getattr(loc, "match_aliases", ()) or ())))
             city_markets = []
             for m in (all_markets or []):
-                if loc_name.lower() in (m.question or "").lower():
+                question_lower = (m.question or "").lower()
+                if any(a in question_lower for a in aliases):
                     m.city = loc_name
                     city_markets.append(m)
             return city_markets, forecasts or []

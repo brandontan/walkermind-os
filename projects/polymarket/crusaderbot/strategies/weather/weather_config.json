@@ -6,6 +6,8 @@
   "kelly_alpha": 0.25,
   "max_bet_usdc": 20.0,
   "min_size_usdc": 0.10,
+  "min_hours_to_expiry": 0.5,
+  "max_hours_to_expiry": 72.0,
   "stop_loss_pct": 0.20,
   "trailing_stop_activation_pct": 0.20,
   "tp_24h": null,
