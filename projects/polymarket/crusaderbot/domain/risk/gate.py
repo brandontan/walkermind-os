@@ -56,6 +56,12 @@ class GateContext:
     # Per-user concurrent-trades override (1..20). None = use profile default.
     # Gate step 7 picks min(profile_default, this) — user can only tighten.
     max_concurrent_override: int | None = None
+    # Copy-trade and similar per-task opt-in flows have their own explicit
+    # "start" gate (e.g. copy_trade_tasks.status='active'). When True, step 2
+    # skips the global auto_trade_on requirement but STILL honours ctx.paused
+    # so /pause halts everything. All other risk caps (size, daily loss,
+    # drawdown, concurrency, liquidity, kill switch, live guards) still apply.
+    bypass_auto_trade_check: bool = False
 
 
 @dataclass
@@ -264,8 +270,14 @@ async def evaluate(ctx: GateContext) -> GateResult:
     await _log(ctx.user_id, ctx.market_id, 1, True, "ok")
 
     # 2. User pause / auto-trade off
-    if ctx.paused or not ctx.auto_trade_on:
-        await _log(ctx.user_id, ctx.market_id, 2, False, "auto_trade_off_or_paused")
+    #    Paused is always honoured. auto_trade_on can be bypassed by per-task
+    #    opt-in flows (copy-trade tasks with status='active') — see
+    #    GateContext.bypass_auto_trade_check.
+    if ctx.paused:
+        await _log(ctx.user_id, ctx.market_id, 2, False, "paused")
+        return GateResult(False, "auto_trade_off_or_paused", 2)
+    if not ctx.auto_trade_on and not ctx.bypass_auto_trade_check:
+        await _log(ctx.user_id, ctx.market_id, 2, False, "auto_trade_off")
         return GateResult(False, "auto_trade_off_or_paused", 2)
     await _log(ctx.user_id, ctx.market_id, 2, True, "ok")
 

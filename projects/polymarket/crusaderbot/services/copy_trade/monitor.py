@@ -341,6 +341,10 @@ async def _process_one(
         # signal_ts; a naive utcnow() raised TypeError that the caller caught
         # and returned on — silently killing every copy-trade at the gate.
         signal_ts=datetime.now(timezone.utc),
+        # copy_trade_tasks.status='active' is the per-task opt-in; bypass
+        # global auto_trade_on so users don't need /live_checklist arming
+        # to run copy-trade in paper mode. ctx.paused still halts everything.
+        bypass_auto_trade_check=True,
     )
 
     # --- route through TradeEngine (risk gate mandatory) ---
