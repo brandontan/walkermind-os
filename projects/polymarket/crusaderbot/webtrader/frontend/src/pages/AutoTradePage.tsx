@@ -1342,6 +1342,10 @@ function MaxConcurrentControl({ state, api, onSaved }: {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  useEffect(() => {
+    setVal(current != null ? String(current) : "");
+  }, [current]);
+
   async function save() {
     const raw = Number(val);
     if (!val || !Number.isFinite(raw) || raw < 1 || raw > 20) return;
