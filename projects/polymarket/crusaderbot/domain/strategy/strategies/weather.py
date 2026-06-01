@@ -160,7 +160,11 @@ class WeatherDomainStrategy(BaseStrategy):
                 if not markets or not forecasts:
                     log.debug(
                         "weather_city_no_data",
-                        extra={"city": loc_name, "markets": len(markets), "forecasts": len(forecasts)},
+                        extra={
+                            "city": loc_name,
+                            "markets": len(markets) if markets else 0,
+                            "forecasts": len(forecasts) if forecasts else 0,
+                        },
                     )
                     return []
 
