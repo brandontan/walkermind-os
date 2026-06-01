@@ -3018,15 +3018,21 @@ async def admin_paper_reset(
             )
 
         async with conn.transaction():
-            # Delete fills first (FK references orders)
+            # 1. fills: FK fills.order_id → orders (CASCADE, but be explicit)
             await conn.execute(
                 "DELETE FROM fills WHERE order_id IN "
                 "(SELECT id FROM orders WHERE user_id=$1::uuid)",
                 target_uuid,
             )
 
-            # Delete copy_trade_events before orders+positions.
-            # user_id is nullable so also cover orphaned rows via position_id subquery.
+            # 2. fees: FK fees.order_id → orders (NO ACTION — must clear before orders)
+            await conn.execute(
+                "DELETE FROM fees WHERE order_id IN "
+                "(SELECT id FROM orders WHERE user_id=$1::uuid)",
+                target_uuid,
+            )
+
+            # 3. copy_trade_events: FK position_id → positions (NO ACTION)
             await conn.execute(
                 "DELETE FROM copy_trade_events "
                 "WHERE user_id=$1::uuid "
@@ -3034,20 +3040,21 @@ async def admin_paper_reset(
                 target_uuid,
             )
 
-            # Count + delete orders
-            orders_deleted: int = await conn.fetchval(
-                "SELECT COUNT(*) FROM orders WHERE user_id=$1::uuid", target_uuid,
-            ) or 0
-            await conn.execute(
-                "DELETE FROM orders WHERE user_id=$1::uuid", target_uuid,
-            )
-
-            # Count + delete positions (includes open + closed)
+            # 4. positions BEFORE orders: FK positions.order_id → orders (NO ACTION)
+            #    redeem_queue.position_id → positions is CASCADE — auto-deleted here
             positions_deleted: int = await conn.fetchval(
                 "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid", target_uuid,
             ) or 0
             await conn.execute(
                 "DELETE FROM positions WHERE user_id=$1::uuid", target_uuid,
+            )
+
+            # 5. orders: now safe — no NO ACTION FKs pointing to orders remain
+            orders_deleted: int = await conn.fetchval(
+                "SELECT COUNT(*) FROM orders WHERE user_id=$1::uuid", target_uuid,
+            ) or 0
+            await conn.execute(
+                "DELETE FROM orders WHERE user_id=$1::uuid", target_uuid,
             )
 
             # Count + delete portfolio snapshots

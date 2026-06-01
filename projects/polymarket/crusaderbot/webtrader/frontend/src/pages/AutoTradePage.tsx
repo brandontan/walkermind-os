@@ -608,73 +608,76 @@ export function AutoTradePage() {
             const isDetailOpen = expandedDetail === p.key;
             return (
               <Fragment key={p.key}>
+                {/* Card container — non-interactive, visual wrapper only */}
                 <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => void handleActivatePreset(p.key)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      void handleActivatePreset(p.key);
-                    }
-                  }}
                   className={[
-                    "w-full text-left p-3 rounded-lg border transition-all cursor-pointer",
+                    "w-full rounded-lg border transition-all",
                     showConfig || isDetailOpen ? "rounded-b-none" : "",
                     isActive
                       ? "border-gold bg-surface-2 shadow-[0_0_8px_rgba(191,155,48,0.25)]"
                       : "border-surface-3 bg-surface-1 hover:border-ink-3",
                   ].join(" ")}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-lg">{p.emoji}</span>
-                      <div className="min-w-0">
-                        <div className="font-hud text-sm font-bold text-ink-1 flex items-center gap-2">
-                          {p.name}
-                          {isActive && (
-                            <span
-                              className={[
-                                "text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded border",
-                                isGloballyPaused
-                                  ? "text-ink-4 border-ink-3 bg-surface-2"
-                                  : "text-gold border-gold/40 bg-gold/10",
-                              ].join(" ")}
-                            >
-                              {isGloballyPaused ? "PAUSED (ADMIN)" : "ACTIVE"}
-                            </span>
-                          )}
+                  {/* Activation area — no interactive descendants */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => void handleActivatePreset(p.key)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        void handleActivatePreset(p.key);
+                      }
+                    }}
+                    className="w-full text-left p-3 pb-2 cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-lg">{p.emoji}</span>
+                        <div className="min-w-0">
+                          <div className="font-hud text-sm font-bold text-ink-1 flex items-center gap-2">
+                            {p.name}
+                            {isActive && (
+                              <span
+                                className={[
+                                  "text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded border",
+                                  isGloballyPaused
+                                    ? "text-ink-4 border-ink-3 bg-surface-2"
+                                    : "text-gold border-gold/40 bg-gold/10",
+                                ].join(" ")}
+                              >
+                                {isGloballyPaused ? "PAUSED (ADMIN)" : "ACTIVE"}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-ink-3 truncate mt-0.5">{p.signal}</div>
                         </div>
-                        <div className="text-xs text-ink-3 truncate mt-0.5">{p.signal}</div>
+                      </div>
+                      <div className="text-right shrink-0 text-xs text-ink-3">
+                        <div className={`font-bold ${riskColor[p.risk]} uppercase`}>{p.risk}</div>
+                        <div className="text-ink-4">{p.freq} freq</div>
                       </div>
                     </div>
-                    <div className="text-right shrink-0 text-xs text-ink-3">
-                      <div className={`font-bold ${riskColor[p.risk]} uppercase`}>{p.risk}</div>
-                      <div className="text-ink-4">{p.freq} freq</div>
+                    {/* Feature chips */}
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {p.features.map((f) => (
+                        <span
+                          key={f}
+                          className="text-[9px] font-mono font-bold tracking-wide text-ink-2 px-1.5 py-0.5 rounded border border-surface-3 bg-surface-1"
+                        >
+                          {f}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                  {/* Feature chips — what this strategy actually does. Honest
-                      capability descriptions, not runtime on/off state. */}
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    {p.features.map((f) => (
-                      <span
-                        key={f}
-                        className="text-[9px] font-mono font-bold tracking-wide text-ink-2 px-1.5 py-0.5 rounded border border-surface-3 bg-surface-1"
-                      >
-                        {f}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-2">
+
+                  {/* Footer row — sibling to activation area, never nested inside it */}
+                  <div className="px-3 pb-3 flex items-center justify-between gap-2">
                     <span className="text-[10px] text-ink-4 font-mono">
                       Engine: {p.engine}
                     </span>
-                    {/* Inline toggle — span (not button) to avoid nesting inside
-                        the activate <button>; stopPropagation keeps a tap on
-                        "details" from also flipping the active preset. */}
-                    <span
-                      role="button"
-                      tabIndex={0}
+                    <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         setExpandedDetail(isDetailOpen ? null : p.key);
@@ -688,7 +691,7 @@ export function AutoTradePage() {
                       className="text-[10px] font-mono font-bold text-gold/80 hover:text-gold cursor-pointer select-none"
                     >
                       {isDetailOpen ? "Hide details ▲" : "ⓘ How it works ▾"}
-                    </span>
+                    </button>
                   </div>
                 </div>
 
