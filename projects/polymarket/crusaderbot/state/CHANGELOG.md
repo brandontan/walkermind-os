@@ -1,5 +1,5 @@
 <!-- gate-notify-verify-v3 -->
-2026-06-01 03:35 | WARP/tab-style-reset-fix | admin paper reset 500 fixed (FK order: fees+positions before orders; redeem_queue cascades); PageTabs restyled as DEPOSIT/WITHDRAW-style clip-btn pair (green AUTO / gold COPY); MINOR, NARROW INTEGRATION
+2026-06-01 03:35 | WARP/tab-style-reset-fix | admin paper reset 500 fixed (FK order: fees+positions before orders; redeem_queue cascades); PageTabs clip-btn style (green AUTO / gold COPY); a11y fix nested interactive elements; MINOR, NARROW INTEGRATION
 2026-06-01 16:30 | WARP/weather-filter-relax | weather_config.json entry thresholds relaxed: min_ev 0.10→0.04, min_volume 500→200, max_spread 0.03→0.05, max_price 0.45→0.65; config-only, no code change; MINOR, NARROW INTEGRATION
 2026-06-01 11:00 | WARP/ROOT/paper-reset-fk-fix | admin paper reset 500 fix — DELETE copy_trade_events before positions in admin_paper_reset transaction (migration 032 position_id FK has no ON DELETE CASCADE → FK violation on positions delete); MINOR, NARROW INTEGRATION
 2026-06-01 10:30 | WARP/ROOT/ux-fixes | WebTrader/weather UX bug fixes: reset error inline in DANGER ZONE (AdminUserDrawer), OPS CONSOLE button moved above two-column grid (SettingsPage), _extract_bucket synonym expansion for exceed/at-least/or-more/at-most/no-more-than/or-lower (weather/market.py); MINOR, NARROW INTEGRATION
