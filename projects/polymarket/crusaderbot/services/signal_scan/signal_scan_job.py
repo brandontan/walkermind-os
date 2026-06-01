@@ -1645,7 +1645,7 @@ def _gate_signal_freshness(
     """Reject publication-backed signals older than _MAX_SIGNAL_AGE_SECONDS."""
     if pub_uuid is None:
         return None
-    now = datetime.now(timezone.utc) if signal_ts.tzinfo else datetime.now()
+    now = datetime.now(timezone.utc) if signal_ts.tzinfo else datetime.now(timezone.utc).replace(tzinfo=None)
     age = (now - signal_ts).total_seconds()
     if age <= _MAX_SIGNAL_AGE_SECONDS:
         return None
@@ -1714,7 +1714,10 @@ def _gate_liquidity_filter(
     """Skip markets below the user's configured liquidity threshold."""
     if min_liquidity_threshold <= 0:
         return None
-    market_liquidity = float(market.get("liquidity_usdc") or 0.0)
+    try:
+        market_liquidity = float(market.get("liquidity_usdc") or 0.0)
+    except (TypeError, ValueError):
+        return None
     if market_liquidity >= min_liquidity_threshold:
         return None
     log.info(
