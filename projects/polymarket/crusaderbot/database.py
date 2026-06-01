@@ -1,6 +1,7 @@
 """asyncpg pool + migration runner + kill-switch helper."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Optional
@@ -97,7 +98,7 @@ async def init_pool() -> asyncpg.Pool:
         min_size=1,
         max_size=settings.DB_POOL_MAX,
         max_inactive_connection_lifetime=60.0,
-        command_timeout=30,
+        command_timeout=10,
         statement_cache_size=0,
         timeout=10,
         init=_init_connection,
@@ -147,20 +148,33 @@ async def run_migrations() -> None:
 
 
 async def ping() -> bool:
-    """Probe the asyncpg pool with ``SELECT 1``.
+    """Probe PostgreSQL reachability with a dedicated direct connection.
 
-    On failure the exception class name is captured in
-    ``_last_ping_error`` so ``last_ping_error()`` callers (notably the
-    health endpoint) can surface it in the operator alert string. The
-    full exception is also forwarded to Sentry via ``exc_info=True``
-    so triage sees the structured exception rather than just the
-    formatted message.
+    Uses asyncpg.connect() rather than the shared pool so health checks
+    never compete for pool slots and are immune to pool exhaustion caused
+    by concurrent background jobs. A 4-second asyncio.wait_for envelope
+    caps total budget (connect + SELECT 1) well within the /health
+    CHECK_TIMEOUT_SECONDS (5 s).
+
+    On failure the exception class name is captured in _last_ping_error
+    so last_ping_error() callers (notably the health endpoint) can surface
+    it in the operator alert string. The full exception is forwarded to
+    Sentry via exc_info=True so triage sees the structured exception.
     """
     global _last_ping_error
+    settings = get_settings()
+    conn: Optional[asyncpg.Connection] = None
     try:
-        pool = await init_pool()
-        async with pool.acquire(timeout=4.5) as conn:
-            ok = await conn.fetchval("SELECT 1") == 1
+        conn = await asyncio.wait_for(
+            asyncpg.connect(
+                dsn=settings.DATABASE_URL,
+                statement_cache_size=0,
+                command_timeout=3.0,
+                server_settings={"application_name": "crusaderbot-health"},
+            ),
+            timeout=4.0,
+        )
+        ok = await conn.fetchval("SELECT 1") == 1
         if ok:
             _last_ping_error = None
         return ok
@@ -168,6 +182,12 @@ async def ping() -> bool:
         _last_ping_error = type(exc).__name__
         logger.error("DB ping failed: %s", exc, exc_info=True)
         return False
+    finally:
+        if conn is not None:
+            try:
+                await conn.close()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def last_ping_error() -> Optional[str]:
