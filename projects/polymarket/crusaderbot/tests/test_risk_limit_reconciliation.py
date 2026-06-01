@@ -162,6 +162,15 @@ def test_effective_daily_loss_user_override_can_only_tighten():
                                 system_floor=-2000.0) == -500.0
 
 
+def test_effective_daily_loss_coerces_accidental_positive_values():
+    # An operator env typo `MAX_DAILY_LOSS_USD=50` (positive) would otherwise
+    # poison max(of negatives) → cap=50 → every user halted on any non-positive
+    # pnl. Defensive -abs() flips it to -50 = the intended magnitude.
+    assert effective_daily_loss("balanced", system_floor=50.0) == -50.0
+    assert effective_daily_loss("balanced", user_override=100.0,
+                                system_floor=-2000.0) == -100.0
+
+
 def test_effective_daily_loss_overly_permissive_override_yields_profile_cap():
     # An override looser than the profile cap (more negative) MUST NOT loosen the
     # cap — most-restrictive semantics keep the profile cap. Hard-stop only wins

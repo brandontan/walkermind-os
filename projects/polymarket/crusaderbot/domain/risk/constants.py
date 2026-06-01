@@ -98,10 +98,15 @@ def effective_daily_loss(
     """
     base = profile if profile in PROFILES else "balanced"
     caps = [DAILY_LOSS_HARD_STOP, PROFILES[base]["daily_loss"]]
+    # Defensive: an accidentally-positive override or system_floor (env typo
+    # "50" instead of "-50") would poison max(of negatives) and halt every
+    # user on any non-positive pnl. Coerce to its negative magnitude so the
+    # operator's intent ("halt at $X loss") cannot be silently flipped into a
+    # bot-wide DoS.
     if user_override is not None:
-        caps.append(float(user_override))
+        caps.append(-abs(float(user_override)))
     if system_floor is not None:
-        caps.append(float(system_floor))
+        caps.append(-abs(float(system_floor)))
     return max(caps)  # max of negatives = least negative = most restrictive
 
 
