@@ -60,6 +60,7 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
   const [resetConfirm, setResetConfirm] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetResult, setResetResult] = useState<AdminPaperResetResult | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
   // Editable draft — mirrors AdminUserPatch but with all fields tracked as
   // local strings so the user can clear / edit without us mid-eating an empty
   // input. Empty string === "leave unchanged" (NOT "clear to null").
@@ -213,7 +214,7 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
 
   async function handlePaperReset() {
     setResetting(true);
-    setError(null);
+    setResetError(null);
     setResetResult(null);
     try {
       const result = await api.paperResetUser(userId);
@@ -224,7 +225,7 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
       onSaved?.(next);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(msg.replace(/^\d+:\s*/, ""));
+      setResetError(msg.replace(/^\d+:\s*/, ""));
     } finally {
       setResetting(false);
     }
@@ -529,7 +530,7 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
             {!resetConfirm ? (
               <button
                 type="button"
-                onClick={() => { setResetConfirm(true); setResetResult(null); }}
+                onClick={() => { setResetConfirm(true); setResetResult(null); setResetError(null); }}
                 disabled={resetting || detail.trading_mode === "live"}
                 title={detail.trading_mode === "live" ? "Switch user to paper mode first" : ""}
                 className="w-full font-mono text-[11px] text-red border border-red/40 hover:bg-red/10 px-3 py-2 rounded-sm disabled:opacity-40"
@@ -541,10 +542,13 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
                 <p className="font-mono text-[11px] text-ink-1">
                   This will permanently delete <span className="text-red font-bold">all positions, orders, and ledger entries</span> for this user and reset their wallet to <span className="text-gold font-bold">$1,000</span>. This cannot be undone.
                 </p>
+                {resetError && (
+                  <p className="font-mono text-[11px] text-red">{resetError}</p>
+                )}
                 <div className="flex gap-2 mt-2">
                   <button
                     type="button"
-                    onClick={() => setResetConfirm(false)}
+                    onClick={() => { setResetConfirm(false); setResetError(null); }}
                     disabled={resetting}
                     className="flex-1 font-mono text-[11px] text-ink-3 hover:text-ink-1 border border-surface-3 px-3 py-1.5 rounded-sm disabled:opacity-50"
                   >

@@ -2007,6 +2007,8 @@ class CopyTradeTaskCreate(_BaseModel):
     execution_mode: _ExecutionMode = "auto"
     slippage_pct: float = 0.05
     allow_topups: bool = True
+    max_daily_spend: float = 100.0
+    min_trade_size: float = 1.0
 
 
 class CopyTradeTaskPatch(_BaseModel):
@@ -2049,13 +2051,21 @@ async def create_copy_trade_task(body: CopyTradeTaskCreate, user: _CurrentUser):
     )
     copy_amount = body.amount if body.copy_type == "fixed" else 10.0
     copy_pct = body.amount / 100.0 if body.copy_type != "fixed" else None
+    max_daily = max(body.max_daily_spend, 1.0)
+    min_trade = max(body.min_trade_size, 1.0)
+    if max_daily < min_trade:
+        raise HTTPException(
+            status_code=400,
+            detail="max_daily_spend cannot be less than min_trade_size",
+        )
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """INSERT INTO copy_trade_tasks
                (user_id, wallet_address, task_name, copy_mode, copy_amount, copy_pct,
-                slippage_pct, status, nickname, copy_direction, execution_mode, allow_topups)
-               VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11)
+                slippage_pct, status, nickname, copy_direction, execution_mode, allow_topups,
+                max_daily_spend, min_trade_size)
+               VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11, $12, $13)
                RETURNING id::text""",
             user["user_id"],
             body.wallet_address.lower(),
@@ -2068,6 +2078,8 @@ async def create_copy_trade_task(body: CopyTradeTaskCreate, user: _CurrentUser):
             body.copy_direction,
             body.execution_mode,
             body.allow_topups,
+            max_daily,
+            min_trade,
         )
     return {"id": row["id"], "status": "active"}
 
@@ -3010,6 +3022,15 @@ async def admin_paper_reset(
             await conn.execute(
                 "DELETE FROM fills WHERE order_id IN "
                 "(SELECT id FROM orders WHERE user_id=$1::uuid)",
+                target_uuid,
+            )
+
+            # Delete copy_trade_events before orders+positions.
+            # user_id is nullable so also cover orphaned rows via position_id subquery.
+            await conn.execute(
+                "DELETE FROM copy_trade_events "
+                "WHERE user_id=$1::uuid "
+                "OR position_id IN (SELECT id FROM positions WHERE user_id=$1::uuid)",
                 target_uuid,
             )
 

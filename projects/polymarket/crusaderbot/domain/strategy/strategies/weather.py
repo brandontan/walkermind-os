@@ -20,36 +20,40 @@ log = logging.getLogger(__name__)
 
 _WEATHER_STRATEGY_NAME = "weather"
 
-# Module-level TTL cache: (city, date) → (expires_monotonic, markets, forecasts)
-# Shared across all WeatherDomainStrategy instances so the forecast + market
-# API calls happen once per city per scan tick regardless of user count.
-#
-# _IN_FLIGHT tracks in-progress fetch Tasks per (city, date).  A second
-# coroutine that hits the cache during a live fetch awaits the same Task
-# instead of launching a duplicate API call (single-flight pattern).
-_FORECAST_CACHE: dict[tuple[str, str], tuple[float, list[Any], list[Any]]] = {}
-_IN_FLIGHT: dict[tuple[str, str], "asyncio.Task[tuple[list[Any], list[Any]]]"] = {}
 _CACHE_TTL_S: float = 300.0  # 5 minutes
 
+# Global markets cache: one API call per scan window covers all cities.
+# Polymarket weather markets carry no tags and rotate cities daily, so we
+# fetch all active markets sorted by startDate and filter by city in Python.
+# date_str → (expires_monotonic, list[WeatherMarket])
+_DAILY_MARKETS_CACHE: dict[str, tuple[float, list[Any]]] = {}
+_DAILY_MARKETS_IN_FLIGHT: "dict[str, asyncio.Task[list[Any]]]" = {}
 
-def _cache_get(city: str, date: str) -> tuple[list[Any], list[Any]] | None:
+# Per-(city, date) forecast cache.
+_FORECAST_CACHE: dict[tuple[str, str], tuple[float, list[Any]]] = {}
+_FORECAST_IN_FLIGHT: "dict[tuple[str, str], asyncio.Task[list[Any]]]" = {}
+
+
+def _daily_markets_get(date: str) -> list[Any] | None:
+    entry = _DAILY_MARKETS_CACHE.get(date)
+    if entry is None:
+        return None
+    expires, markets = entry
+    if time.monotonic() > expires:
+        del _DAILY_MARKETS_CACHE[date]
+        return None
+    return markets
+
+
+def _forecast_cache_get(city: str, date: str) -> list[Any] | None:
     entry = _FORECAST_CACHE.get((city, date))
     if entry is None:
         return None
-    expires, markets, forecasts = entry
+    expires, forecasts = entry
     if time.monotonic() > expires:
         del _FORECAST_CACHE[(city, date)]
         return None
-    return markets, forecasts
-
-
-def _cache_set(city: str, date: str, markets: list[Any], forecasts: list[Any]) -> None:
-    now = time.monotonic()
-    # Evict all stale entries to prevent memory accumulation as dates roll over.
-    expired = [k for k, v in _FORECAST_CACHE.items() if now > v[0]]
-    for k in expired:
-        _FORECAST_CACHE.pop(k, None)
-    _FORECAST_CACHE[(city, date)] = (now + _CACHE_TTL_S, markets, forecasts)
+    return forecasts
 
 
 class WeatherDomainStrategy(BaseStrategy):
@@ -69,11 +73,12 @@ class WeatherDomainStrategy(BaseStrategy):
         market_filters: MarketFilters,
         user_context: UserContext,
     ) -> list[SignalCandidate]:
-        """Scan all 20 weather cities and emit YES-side SignalCandidates.
+        """Scan Polymarket weather cities and emit YES-side SignalCandidates.
 
-        Position sizing uses user equity as bankroll so each candidate
-        reflects real per-user capital limits. Empty list when the strategy
-        is disabled, no forecasts available, or no edge clears the EV floor.
+        One global markets fetch per 5-min window covers all cities; city
+        filtering happens in Python. Forecasts are fetched per-city and
+        cached independently. Cities are sourced from LOCATIONS, aligned to
+        Polymarket's actual daily weather market roster.
         """
         from ....config import get_settings
         try:
@@ -112,42 +117,86 @@ class WeatherDomainStrategy(BaseStrategy):
         today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         sem = asyncio.Semaphore(5)
 
-        async def _fetch_city(loc_name: str, loc: Any) -> tuple[list[Any], list[Any]]:
-            """Fetch markets + forecasts, deduplicated via _IN_FLIGHT single-flight."""
-            key = (loc_name, today_utc)
-            # Check cache first — fast path, no Task allocation.
-            cached = _cache_get(loc_name, today_utc)
-            if cached is not None:
-                return cached
-            # If a fetch is already in-flight for this city+date, await it
-            # instead of launching a duplicate API call.
-            existing = _IN_FLIGHT.get(key)
-            if existing is not None:
+        async def _get_all_markets() -> list[Any]:
+            """One global fetch of all active weather markets, cached 5 min.
+
+            Polymarket weather markets carry no tags and the city roster
+            rotates daily — we fetch everything sorted by startDate and
+            filter by city name in Python, avoiding per-city API calls.
+            """
+            cached_all = _daily_markets_get(today_utc)
+            if cached_all is not None:
+                return cached_all
+            existing_task = _DAILY_MARKETS_IN_FLIGHT.get(today_utc)
+            if existing_task is not None:
                 try:
-                    return await existing
+                    return await existing_task
                 except Exception:
-                    return [], []
-            # We're first — create the Task and register it.
-            async def _do_fetch() -> tuple[list[Any], list[Any]]:
-                result = await asyncio.gather(
-                    fetch_weather_markets(city=loc_name, limit=20),
-                    fetch_all(loc, today_utc),
-                    return_exceptions=False,
-                )
-                m, f = result  # type: ignore[misc]
-                _cache_set(loc_name, today_utc, m, f)
-                return m, f
-            task: asyncio.Task[tuple[list[Any], list[Any]]] = asyncio.ensure_future(_do_fetch())
-            _IN_FLIGHT[key] = task
+                    return []
+            async def _do_fetch_all() -> list[Any]:
+                result = await fetch_weather_markets(city=None, limit=500)
+                now = time.monotonic()
+                expired_dm = [k for k, v in _DAILY_MARKETS_CACHE.items() if now > v[0]]
+                for k in expired_dm:
+                    _DAILY_MARKETS_CACHE.pop(k, None)
+                _DAILY_MARKETS_CACHE[today_utc] = (now + _CACHE_TTL_S, result)
+                return result
+            task_all: asyncio.Task[list[Any]] = asyncio.ensure_future(_do_fetch_all())
+            _DAILY_MARKETS_IN_FLIGHT[today_utc] = task_all
             try:
-                result2 = await task
+                all_markets = await task_all
             except Exception as exc:
-                log.warning("weather_domain_city_scan_failed",
-                            extra={"city": loc_name, "err": str(exc)})
-                result2 = ([], [])
+                log.warning("weather_domain_all_markets_failed", extra={"err": str(exc)})
+                all_markets = []
             finally:
-                _IN_FLIGHT.pop(key, None)
-            return result2
+                _DAILY_MARKETS_IN_FLIGHT.pop(today_utc, None)
+            return all_markets
+
+        async def _get_forecasts(loc_name: str, loc: Any) -> list[Any]:
+            """Per-city forecast fetch with single-flight dedup, cached 5 min."""
+            cached_fc = _forecast_cache_get(loc_name, today_utc)
+            if cached_fc is not None:
+                return cached_fc
+            key = (loc_name, today_utc)
+            existing_task = _FORECAST_IN_FLIGHT.get(key)
+            if existing_task is not None:
+                try:
+                    return await existing_task
+                except Exception:
+                    return []
+            async def _do_fetch_fc() -> list[Any]:
+                result = await fetch_all(loc, today_utc)
+                now = time.monotonic()
+                expired_fc = [k for k, v in _FORECAST_CACHE.items() if now > v[0]]
+                for k in expired_fc:
+                    _FORECAST_CACHE.pop(k, None)
+                _FORECAST_CACHE[key] = (now + _CACHE_TTL_S, result)
+                return result
+            task_fc: asyncio.Task[list[Any]] = asyncio.ensure_future(_do_fetch_fc())
+            _FORECAST_IN_FLIGHT[key] = task_fc
+            try:
+                forecasts = await task_fc
+            except Exception as exc:
+                log.warning("weather_domain_forecast_failed",
+                            extra={"city": loc_name, "err": str(exc)})
+                forecasts = []
+            finally:
+                _FORECAST_IN_FLIGHT.pop(key, None)
+            return forecasts
+
+        async def _fetch_city(loc_name: str, loc: Any) -> tuple[list[Any], list[Any]]:
+            """Return (city_markets, forecasts) using shared global caches."""
+            all_markets, forecasts = await asyncio.gather(
+                _get_all_markets(),
+                _get_forecasts(loc_name, loc),
+                return_exceptions=False,
+            )
+            city_markets = []
+            for m in (all_markets or []):
+                if loc_name.lower() in (m.question or "").lower():
+                    m.city = loc_name
+                    city_markets.append(m)
+            return city_markets, forecasts or []
 
         async def _scan_city(loc_name: str) -> list[SignalCandidate]:
             async with sem:
@@ -158,21 +207,35 @@ class WeatherDomainStrategy(BaseStrategy):
                 markets, forecasts = await _fetch_city(loc_name, loc)
 
                 if not markets or not forecasts:
+                    log.debug(
+                        "weather_city_no_data",
+                        extra={
+                            "city": loc_name,
+                            "markets": len(markets) if markets else 0,
+                            "forecasts": len(forecasts) if forecasts else 0,
+                        },
+                    )
                     return []
 
                 mean_tmax = ensemble_tmax(forecasts)
                 if mean_tmax is None:
+                    log.debug("weather_city_no_ensemble", extra={"city": loc_name})
                     return []
 
                 city_cands: list[SignalCandidate] = []
+                skip_vol = skip_spread = skip_price = skip_bucket = skip_hours = skip_ev = skip_size = 0
                 for wm in markets:
                     if wm.volume_24h < min_volume:
+                        skip_vol += 1
                         continue
                     if wm.spread > max_spread:
+                        skip_spread += 1
                         continue
                     if wm.yes_price > max_price:
+                        skip_price += 1
                         continue
                     if wm.bucket_low is None or wm.bucket_high is None:
+                        skip_bucket += 1
                         continue
                     if market_filters.blacklisted_market_ids and wm.market_id in market_filters.blacklisted_market_ids:
                         continue
@@ -180,11 +243,13 @@ class WeatherDomainStrategy(BaseStrategy):
                     # Entry time-to-expiry gate (WARP-49: MIN_HOURS=2, MAX_HOURS=72)
                     hours = _hours_to_expiry(wm.end_date_iso)
                     if hours is None or hours < min_hours or hours > max_hours:
+                        skip_hours += 1
                         continue
 
                     p_true = bucket_prob(mean_tmax, sigma, wm.bucket_low, wm.bucket_high)
                     ev = expected_value(p_true, wm.yes_price)
                     if ev < min_ev:
+                        skip_ev += 1
                         continue
 
                     size = kelly_size(
@@ -197,6 +262,7 @@ class WeatherDomainStrategy(BaseStrategy):
                     )
                     # Minimum order size gate (WARP-49: MIN_SIZE≥$0.50)
                     if size < min_size:
+                        skip_size += 1
                         continue
 
                     confidence = min(p_true, 0.99)
@@ -228,6 +294,22 @@ class WeatherDomainStrategy(BaseStrategy):
                             ),
                         )
                     )
+                log.debug(
+                    "weather_city_scan_result",
+                    extra={
+                        "city": loc_name,
+                        "markets_found": len(markets),
+                        "candidates": len(city_cands),
+                        "skip_vol": skip_vol,
+                        "skip_spread": skip_spread,
+                        "skip_price": skip_price,
+                        "skip_bucket": skip_bucket,
+                        "skip_hours": skip_hours,
+                        "skip_ev": skip_ev,
+                        "skip_size": skip_size,
+                        "mean_tmax_f": round(mean_tmax, 1),
+                    },
+                )
                 return city_cands
 
         loc_names = [loc.city for loc in LOCATIONS]
