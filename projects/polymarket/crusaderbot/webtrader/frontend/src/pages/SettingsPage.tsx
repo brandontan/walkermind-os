@@ -195,6 +195,18 @@ export function SettingsPage() {
           subtitle="DISPLAY · NOTIFICATIONS · TRADING · ACCOUNT"
         />
 
+        {/* Ops Console — admins only, shown prominently at top */}
+        {account?.is_admin && (
+          <button
+            type="button"
+            onClick={() => navigate("/admin")}
+            className="clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-3 px-2.5 transition-colors w-full text-gold border cursor-pointer mb-3"
+            style={{ background: "rgba(245,200,66,0.08)", borderColor: "rgba(245,200,66,0.3)" }}
+          >
+            🛡 Open Ops Console
+          </button>
+        )}
+
         <div className="md:grid md:grid-cols-2 md:gap-4 md:items-start">
           {/* Left column — trading safety first */}
           <div>
@@ -482,18 +494,6 @@ export function SettingsPage() {
             </SettingsGroup>
           </div>
         </div>
-
-        {/* Ops Console — admins only */}
-        {account?.is_admin && (
-          <button
-            type="button"
-            onClick={() => navigate("/admin")}
-            className="clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-3 px-2.5 transition-colors w-full text-gold border cursor-pointer mt-2"
-            style={{ background: "rgba(245,200,66,0.08)", borderColor: "rgba(245,200,66,0.3)" }}
-          >
-            🛡 Open Ops Console
-          </button>
-        )}
 
         {/* Disconnect */}
         <button
