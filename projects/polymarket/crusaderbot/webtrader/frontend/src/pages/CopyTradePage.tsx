@@ -90,6 +90,8 @@ export function CopyTradePage() {
   const [execMode, setExecMode] = useState<"auto" | "manual">("auto");
   const [slippage, setSlippage] = useState<"5" | "10">("5");
   const [allowTopups, setAllowTopups] = useState(true);
+  const [maxDailySpend, setMaxDailySpend] = useState("100");
+  const [minTradeSize, setMinTradeSize] = useState("1");
   const [formErr, setFormErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -201,6 +203,20 @@ export function CopyTradePage() {
       setFormErr("Amount must be a positive number.");
       return;
     }
+    const maxDaily = parseFloat(maxDailySpend);
+    const minTrade = parseFloat(minTradeSize);
+    if (isNaN(maxDaily) || maxDaily < 1) {
+      setFormErr("Max daily spend must be at least $1.");
+      return;
+    }
+    if (isNaN(minTrade) || minTrade < 1) {
+      setFormErr("Min trade size must be at least $1.");
+      return;
+    }
+    if (maxDaily < minTrade) {
+      setFormErr("Max daily spend cannot be less than the minimum trade size.");
+      return;
+    }
     setSaving(true);
     try {
       await api.createCopyTask({
@@ -212,8 +228,11 @@ export function CopyTradePage() {
         execution_mode: execMode,
         slippage_pct: parseFloat(slippage) / 100,
         allow_topups: allowTopups,
+        max_daily_spend: maxDaily,
+        min_trade_size: minTrade,
       });
       setWallet(""); setNickname(""); setAmount("10");
+      setMaxDailySpend("100"); setMinTradeSize("1");
       setShowForm(false);
       await load();
     } catch (e: unknown) {
@@ -492,7 +511,65 @@ export function CopyTradePage() {
                 </select>
                 <FieldHelper text="Follow if the trader buys MORE of the same market later." />
               </div>
+
+              <div>
+                <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Max Daily Spend ($)</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={maxDailySpend}
+                  onChange={e => setMaxDailySpend(e.target.value)}
+                  className={INPUT_CLS}
+                />
+                <FieldHelper text="Hard cap on total USDC spent copying this wallet per day." />
+              </div>
+
+              <div>
+                <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Min Leader Trade ($)</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={0.5}
+                  value={minTradeSize}
+                  onChange={e => setMinTradeSize(e.target.value)}
+                  className={INPUT_CLS}
+                />
+                <FieldHelper text="Skip leader trades smaller than this — avoids noise from micro-positions." />
+              </div>
             </div>
+
+            {/* Live copy preview */}
+            {(() => {
+              const amt = parseFloat(amount);
+              const maxD = parseFloat(maxDailySpend);
+              const minT = parseFloat(minTradeSize);
+              const effectiveMin = isNaN(minT) || minT < 1 ? 1.0 : minT;
+              if (copyType === "fixed" && !isNaN(amt) && amt > 0) {
+                return (
+                  <div className="rounded border border-gold/20 bg-gold/5 px-3 py-2 text-[9px] font-mono text-gold/80">
+                    Each copied trade will use <span className="text-gold font-bold">${amt.toFixed(2)}</span> · max{" "}
+                    <span className="text-gold font-bold">${isNaN(maxD) ? "—" : maxD.toFixed(0)}</span>/day
+                    {amt < effectiveMin && (
+                      <span className="ml-2 text-red-400">⚠ below ${effectiveMin.toFixed(2)} floor — increase amount</span>
+                    )}
+                  </div>
+                );
+              }
+              if (copyType === "percentage" && !isNaN(amt) && !isNaN(maxD) && amt > 0 && maxD > 0) {
+                const perTrade = Math.min((maxD * 0.10 * amt) / 100, maxD);
+                return (
+                  <div className="rounded border border-gold/20 bg-gold/5 px-3 py-2 text-[9px] font-mono text-gold/80">
+                    ~<span className="text-gold font-bold">${perTrade.toFixed(2)}</span> per trade · max{" "}
+                    <span className="text-gold font-bold">${maxD.toFixed(0)}</span>/day
+                    {perTrade < effectiveMin && (
+                      <span className="ml-2 text-red-400">⚠ below ${effectiveMin.toFixed(2)} floor — increase % or daily budget</span>
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {formErr && <p className="text-xs text-red-400">{formErr}</p>}
 

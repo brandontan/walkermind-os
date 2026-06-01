@@ -571,6 +571,8 @@ export interface CopyTaskCreate {
   execution_mode?: string;
   slippage_pct?: number;
   allow_topups?: boolean;
+  max_daily_spend?: number;
+  min_trade_size?: number;
 }
 
 export interface CopyTaskPatch {
