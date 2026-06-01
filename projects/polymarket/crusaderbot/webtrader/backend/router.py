@@ -3033,6 +3033,11 @@ async def admin_paper_reset(
                 "DELETE FROM orders WHERE user_id=$1::uuid", target_uuid,
             )
 
+            # Delete copy_trade_events before positions (FK position_id has no ON DELETE CASCADE)
+            await conn.execute(
+                "DELETE FROM copy_trade_events WHERE user_id=$1::uuid", target_uuid,
+            )
+
             # Count + delete positions (includes open + closed)
             positions_deleted: int = await conn.fetchval(
                 "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid", target_uuid,
