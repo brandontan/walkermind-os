@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -204,12 +205,15 @@ class WeatherDomainStrategy(BaseStrategy):
             )
             # Polymarket questions use varied city forms ("New York", "NYC",
             # "Manhattan") while LOCATIONS.city carries the canonical long
-            # form ("New York City"). Match against canonical + every alias.
+            # form ("New York City"). Match against canonical + every alias
+            # with word boundaries — naive substring would let "la" match
+            # "Kuala"/"Dallas" and "kl" match "tackle"/"ankle".
             aliases = (loc_name.lower(), *(a.lower() for a in (getattr(loc, "match_aliases", ()) or ())))
+            patterns = [re.compile(rf"(?:^|\W){re.escape(a)}(?:$|\W)") for a in aliases]
             city_markets = []
             for m in (all_markets or []):
                 question_lower = (m.question or "").lower()
-                if any(a in question_lower for a in aliases):
+                if any(p.search(question_lower) for p in patterns):
                     m.city = loc_name
                     city_markets.append(m)
             return city_markets, forecasts or []
