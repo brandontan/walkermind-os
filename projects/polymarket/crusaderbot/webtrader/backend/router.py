@@ -2053,6 +2053,11 @@ async def create_copy_trade_task(body: CopyTradeTaskCreate, user: _CurrentUser):
     copy_pct = body.amount / 100.0 if body.copy_type != "fixed" else None
     max_daily = max(body.max_daily_spend, 1.0)
     min_trade = max(body.min_trade_size, 1.0)
+    if max_daily < min_trade:
+        raise HTTPException(
+            status_code=400,
+            detail="max_daily_spend cannot be less than min_trade_size",
+        )
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(

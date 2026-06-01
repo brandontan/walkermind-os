@@ -213,6 +213,10 @@ export function CopyTradePage() {
       setFormErr("Min trade size must be at least $1.");
       return;
     }
+    if (maxDaily < minTrade) {
+      setFormErr("Max daily spend cannot be less than the minimum trade size.");
+      return;
+    }
     setSaving(true);
     try {
       await api.createCopyTask({
@@ -539,11 +543,16 @@ export function CopyTradePage() {
             {(() => {
               const amt = parseFloat(amount);
               const maxD = parseFloat(maxDailySpend);
+              const minT = parseFloat(minTradeSize);
+              const effectiveMin = isNaN(minT) || minT < 1 ? 1.0 : minT;
               if (copyType === "fixed" && !isNaN(amt) && amt > 0) {
                 return (
                   <div className="rounded border border-gold/20 bg-gold/5 px-3 py-2 text-[9px] font-mono text-gold/80">
                     Each copied trade will use <span className="text-gold font-bold">${amt.toFixed(2)}</span> · max{" "}
                     <span className="text-gold font-bold">${isNaN(maxD) ? "—" : maxD.toFixed(0)}</span>/day
+                    {amt < effectiveMin && (
+                      <span className="ml-2 text-red-400">⚠ below ${effectiveMin.toFixed(2)} floor — increase amount</span>
+                    )}
                   </div>
                 );
               }
@@ -553,8 +562,8 @@ export function CopyTradePage() {
                   <div className="rounded border border-gold/20 bg-gold/5 px-3 py-2 text-[9px] font-mono text-gold/80">
                     ~<span className="text-gold font-bold">${perTrade.toFixed(2)}</span> per trade · max{" "}
                     <span className="text-gold font-bold">${maxD.toFixed(0)}</span>/day
-                    {perTrade < 1 && (
-                      <span className="ml-2 text-red-400">⚠ below $1 floor — increase % or daily budget</span>
+                    {perTrade < effectiveMin && (
+                      <span className="ml-2 text-red-400">⚠ below ${effectiveMin.toFixed(2)} floor — increase % or daily budget</span>
                     )}
                   </div>
                 );
