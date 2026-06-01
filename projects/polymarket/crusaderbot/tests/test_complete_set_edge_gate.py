@@ -88,13 +88,18 @@ def _set_required_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_process_candidate_has_complete_set_edge_gate():
-    """`_process_candidate` must contain the `skipped_negative_arb` outcome
-    path; if removed, late_entry_v3 candidates will fire even when the
-    complete-set cost has reached or exceeded the $1.00 settlement bound.
+    """`_process_candidate` (via `_gate_complete_set_edge`) must contain the
+    `skipped_negative_arb` outcome path; if removed, late_entry_v3 candidates
+    will fire even when the complete-set cost has reached or exceeded the
+    $1.00 settlement bound. Also verifies the orchestrator wires the helper.
     """
-    src = inspect.getsource(ssj._process_candidate)
-    assert "skipped_negative_arb" in src, (
-        "Regression: _process_candidate lost its complete-set edge gate."
+    helper_src = inspect.getsource(ssj._gate_complete_set_edge)
+    assert "skipped_negative_arb" in helper_src, (
+        "Regression: _gate_complete_set_edge lost its skipped_negative_arb outcome."
+    )
+    orchestrator_src = inspect.getsource(ssj._process_candidate)
+    assert "_gate_complete_set_edge" in orchestrator_src, (
+        "Regression: _process_candidate no longer calls _gate_complete_set_edge."
     )
 
 
@@ -103,7 +108,7 @@ def test_process_candidate_reads_config_knob():
     hard-coded literal) so the operator can disable / retune without
     redeploy.
     """
-    src = inspect.getsource(ssj._process_candidate)
+    src = inspect.getsource(ssj._gate_complete_set_edge)
     assert "MIN_COMPLETE_SET_EDGE" in src, (
         "Regression: complete-set edge gate must read "
         "config.MIN_COMPLETE_SET_EDGE."
@@ -116,8 +121,8 @@ def test_process_candidate_gate_scoped_to_stamped_candidates():
     copy_trade) bypass it cleanly. A global gate would block every
     non-late_entry_v3 strategy.
     """
-    src = inspect.getsource(ssj._process_candidate)
-    assert 'cand.metadata.get("complete_set_edge")' in src, (
+    src = inspect.getsource(ssj._gate_complete_set_edge)
+    assert 'metadata.get("complete_set_edge")' in src, (
         "Regression: complete-set edge gate must be scoped to candidates "
         "carrying metadata['complete_set_edge']; a global gate breaks "
         "signal_following / momentum / copy_trade."
@@ -143,8 +148,8 @@ def test_disable_sentinel_is_zero():
     behaviour) via MIN_COMPLETE_SET_EDGE=0 without redeploy. The gate
     code branches on `> 0` so 0 is the disable sentinel.
     """
-    src = inspect.getsource(ssj._process_candidate)
-    assert "_min_edge > 0" in src, (
+    src = inspect.getsource(ssj._gate_complete_set_edge)
+    assert "min_edge <= 0" in src or "min_edge > 0" in src, (
         "Regression: complete-set edge gate must short-circuit when "
         "MIN_COMPLETE_SET_EDGE=0 (operator escape hatch)."
     )

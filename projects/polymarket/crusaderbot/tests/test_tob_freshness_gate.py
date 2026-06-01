@@ -87,13 +87,18 @@ def _set_required_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_process_candidate_has_tob_freshness_gate():
-    """`_process_candidate` must contain the `skipped_stale_tob` outcome
-    path; if removed, late_entry_v3 candidates will fire on stale CLOB
-    snapshots when the scheduler back-pressures.
+    """`_process_candidate` (via `_gate_tob_freshness`) must contain the
+    `skipped_stale_tob` outcome path; if removed, late_entry_v3 candidates
+    will fire on stale CLOB snapshots when the scheduler back-pressures.
+    Also verifies the orchestrator still calls the helper.
     """
-    src = inspect.getsource(ssj._process_candidate)
-    assert "skipped_stale_tob" in src, (
-        "Regression: _process_candidate lost its TOB freshness gate."
+    helper_src = inspect.getsource(ssj._gate_tob_freshness)
+    assert "skipped_stale_tob" in helper_src, (
+        "Regression: _gate_tob_freshness lost its skipped_stale_tob outcome."
+    )
+    orchestrator_src = inspect.getsource(ssj._process_candidate)
+    assert "_gate_tob_freshness" in orchestrator_src, (
+        "Regression: _process_candidate no longer calls _gate_tob_freshness."
     )
 
 
@@ -101,7 +106,7 @@ def test_process_candidate_reads_config_knob():
     """The gate must read the `TOB_STALE_MS` config knob (not a hard-coded
     literal) so the operator can disable / retune without redeploy.
     """
-    src = inspect.getsource(ssj._process_candidate)
+    src = inspect.getsource(ssj._gate_tob_freshness)
     assert "TOB_STALE_MS" in src, (
         "Regression: TOB freshness gate must read config.TOB_STALE_MS."
     )
@@ -113,8 +118,8 @@ def test_process_candidate_gate_scoped_to_stamped_candidates():
     copy_trade) bypass it cleanly. A global gate would block every
     non-late_entry_v3 strategy.
     """
-    src = inspect.getsource(ssj._process_candidate)
-    assert 'cand.metadata.get("entry_price_ts")' in src, (
+    src = inspect.getsource(ssj._gate_tob_freshness)
+    assert 'metadata.get("entry_price_ts")' in src, (
         "Regression: TOB freshness gate must be scoped to candidates "
         "carrying metadata['entry_price_ts']; a global gate breaks "
         "signal_following / momentum / copy_trade."
@@ -174,8 +179,8 @@ def test_tob_stale_ms_disable_sentinel_is_zero():
     """Operator must be able to disable the gate (revert to pre-lane
     behaviour) via TOB_STALE_MS=0 without redeploy. The gate code
     branches on `> 0` so 0 is the disable sentinel."""
-    src = inspect.getsource(ssj._process_candidate)
-    assert "_tob_stale_ms > 0" in src, (
+    src = inspect.getsource(ssj._gate_tob_freshness)
+    assert "tob_stale_ms <= 0" in src or "tob_stale_ms > 0" in src, (
         "Regression: TOB freshness gate must short-circuit when "
         "TOB_STALE_MS=0 (operator escape hatch)."
     )

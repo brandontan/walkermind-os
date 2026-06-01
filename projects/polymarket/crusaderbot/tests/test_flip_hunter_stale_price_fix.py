@@ -28,17 +28,21 @@ from projects.polymarket.crusaderbot.services.signal_scan import (
 
 
 def test_signal_scan_job_has_sub_cent_guard():
-    """Source-level pin: ``_process_candidate`` must contain the
-    ``skipped_sub_cent_price`` outcome path so a future edit that drops
-    the guard fails this test.
+    """Source-level pin: the candle tick-alignment gate
+    (`_gate_candle_tick_alignment`) must contain the `skipped_sub_cent_price`
+    outcome path, and `_process_candidate` must call it.
     """
-    src = inspect.getsource(ssj._process_candidate)
-    assert "skipped_sub_cent_price" in src, (
-        "Regression: _process_candidate lost its sub-cent guard — "
+    helper_src = inspect.getsource(ssj._gate_candle_tick_alignment)
+    assert "skipped_sub_cent_price" in helper_src, (
+        "Regression: _gate_candle_tick_alignment lost its sub-cent guard — "
         "flip_hunter would re-fire on stale Gamma seed prices."
     )
+    orchestrator_src = inspect.getsource(ssj._process_candidate)
+    assert "_gate_candle_tick_alignment" in orchestrator_src, (
+        "Regression: _process_candidate no longer calls _gate_candle_tick_alignment."
+    )
     # The check must compare against the 0.01 tick.
-    assert "100" in src and ("round" in src or "abs(" in src), (
+    assert "100" in helper_src and ("round" in helper_src or "abs(" in helper_src), (
         "Regression: sub-cent guard logic is missing the tick comparison."
     )
 
@@ -49,7 +53,7 @@ def test_signal_scan_job_guard_scoped_to_candle_markets():
     legitimate Gamma last-trade values (WARP-38) that other strategies
     must continue to trade.
     """
-    src = inspect.getsource(ssj._process_candidate)
+    src = inspect.getsource(ssj._gate_candle_tick_alignment)
     assert "updown" in src, (
         "Regression: sub-cent guard must be scoped to candle markets "
         "(slug contains 'updown'); a global guard breaks longshot trading."

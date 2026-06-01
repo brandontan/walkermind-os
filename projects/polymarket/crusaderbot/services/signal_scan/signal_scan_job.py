@@ -1630,6 +1630,331 @@ def _build_trade_signal(
 # ---------------------------------------------------------------------------
 
 
+# C-4 decomposition (WARP/ROOT/decompose-process-candidate): each gate below
+# returns None to continue or a skip-reason string to short-circuit. Pure
+# helpers, no side effects beyond their documented logging. _process_candidate
+# remains the orchestrator and owns telemetry + early-return wiring.
+
+
+def _gate_signal_freshness(
+    *,
+    pub_uuid: UUID | None,
+    signal_ts: datetime,
+    log: Any,
+) -> str | None:
+    """Reject publication-backed signals older than _MAX_SIGNAL_AGE_SECONDS."""
+    if pub_uuid is None:
+        return None
+    age = (datetime.now(timezone.utc) - signal_ts).total_seconds()
+    if age <= _MAX_SIGNAL_AGE_SECONDS:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_signal_stale",
+        age_seconds=round(age),
+        threshold=_MAX_SIGNAL_AGE_SECONDS,
+        message=f"Signal too old ({round(age)}s > {_MAX_SIGNAL_AGE_SECONDS}s threshold)",
+    )
+    return "skipped_signal_stale"
+
+
+def _gate_target_price_drift(
+    *,
+    pub_uuid: UUID | None,
+    side: str,
+    market: dict[str, Any],
+    metadata: dict[str, Any],
+    log: Any,
+) -> str | None:
+    """Reject when cached DB price has drifted > _MAX_TARGET_DRIFT_PCT from signal target."""
+    if pub_uuid is None:
+        return None
+    try:
+        target = float(metadata.get("target_price") or 0.0)
+    except (TypeError, ValueError):
+        return None
+    if target <= 0:
+        return None
+    price_primary = market.get(f"{side}_price")
+    price_fallback = market.get("no_price" if side == "yes" else "yes_price")
+    current = float(
+        price_primary if price_primary is not None
+        else (price_fallback if price_fallback is not None else 0.5)
+    )
+    drift = abs(current - target) / target
+    if drift <= _MAX_TARGET_DRIFT_PCT:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_price_drifted",
+        side=side,
+        target_price=target,
+        current_price=current,
+        drift_pct=round(drift * 100, 1),
+        threshold_pct=round(_MAX_TARGET_DRIFT_PCT * 100, 1),
+        message=(
+            f"Price drifted {round(drift * 100, 1)}% "
+            f"(target={target:.4f} current={current:.4f}) "
+            f"> {round(_MAX_TARGET_DRIFT_PCT * 100)}% threshold"
+        ),
+    )
+    return "skipped_price_drifted"
+
+
+def _gate_liquidity_filter(
+    *,
+    market: dict[str, Any],
+    min_liquidity_threshold: float,
+    log: Any,
+) -> str | None:
+    """Skip markets below the user's configured liquidity threshold."""
+    if min_liquidity_threshold <= 0:
+        return None
+    market_liquidity = float(market.get("liquidity_usdc") or 0.0)
+    if market_liquidity >= min_liquidity_threshold:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_liquidity",
+        market_liquidity=market_liquidity,
+        threshold=min_liquidity_threshold,
+        message=(
+            f"Skipped: liquidity ${market_liquidity:.0f} below threshold "
+            f"${min_liquidity_threshold:.0f}"
+        ),
+    )
+    return "skipped_liquidity"
+
+
+def _gate_tob_freshness(
+    *,
+    metadata: dict[str, Any],
+    side: str,
+    market_id: str,
+    strategy_name: str,
+    log: Any,
+) -> str | None:
+    """Reject when the orderbook snapshot age exceeds TOB_STALE_MS."""
+    meta_ts = metadata.get("entry_price_ts")
+    if meta_ts is None:
+        return None
+    try:
+        from ...config import get_settings as _get_settings_tob
+        tob_stale_ms = int(_get_settings_tob().TOB_STALE_MS)
+    except Exception as exc:
+        log.warning(
+            "tob_stale_ms_config_read_failed",
+            error=str(exc),
+            fallback_ms=2000,
+        )
+        tob_stale_ms = 2000
+    if tob_stale_ms <= 0:
+        return None
+    try:
+        tob_age_ms = (
+            datetime.now(timezone.utc).timestamp() - float(meta_ts)
+        ) * 1000.0
+    except (TypeError, ValueError):
+        return None
+    if tob_age_ms <= tob_stale_ms:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_stale_tob",
+        side=side,
+        market_id=market_id,
+        strategy=strategy_name,
+        age_ms=round(tob_age_ms, 1),
+        threshold_ms=tob_stale_ms,
+        message=(
+            f"Orderbook snapshot age {tob_age_ms:.0f}ms exceeds "
+            f"TOB_STALE_MS={tob_stale_ms}; rejecting to avoid "
+            f"firing on stale CLOB data."
+        ),
+    )
+    return "skipped_stale_tob"
+
+
+def _gate_complete_set_edge(
+    *,
+    metadata: dict[str, Any],
+    side: str,
+    market_id: str,
+    strategy_name: str,
+    log: Any,
+) -> str | None:
+    """Reject when complete-set edge < MIN_COMPLETE_SET_EDGE."""
+    meta_edge = metadata.get("complete_set_edge")
+    if meta_edge is None:
+        return None
+    try:
+        from ...config import get_settings as _get_settings_edge
+        min_edge = float(_get_settings_edge().MIN_COMPLETE_SET_EDGE)
+    except Exception as exc:
+        log.warning(
+            "min_complete_set_edge_config_read_failed",
+            error=str(exc),
+            fallback=0.005,
+        )
+        min_edge = 0.005
+    if min_edge <= 0:
+        return None
+    try:
+        candidate_edge = float(meta_edge)
+    except (TypeError, ValueError) as exc:
+        log.warning(
+            "complete_set_edge_parse_failed",
+            market_id=market_id,
+            strategy=strategy_name,
+            raw=repr(meta_edge),
+            error=str(exc),
+            message=(
+                "Candidate carried a non-numeric complete_set_edge "
+                "stamp; bypassing the gate for this candidate but "
+                "the producer should be fixed."
+            ),
+        )
+        return None
+    if candidate_edge >= min_edge:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_negative_arb",
+        side=side,
+        market_id=market_id,
+        strategy=strategy_name,
+        complete_set_edge=round(candidate_edge, 4),
+        threshold=min_edge,
+        message=(
+            f"Complete-set edge {candidate_edge:.4f} below "
+            f"MIN_COMPLETE_SET_EDGE={min_edge}; rejecting "
+            f"to avoid directional entry into market priced at or "
+            f"above the $1.00 settlement bound."
+        ),
+    )
+    return "skipped_negative_arb"
+
+
+def _gate_candle_tick_alignment(
+    *,
+    live_fill_price: float | None,
+    market: dict[str, Any],
+    side: str,
+    strategy_name: str,
+    market_id: str,
+    log: Any,
+) -> str | None:
+    """Reject candle-market live prices not aligned to the 0.01 CLOB tick."""
+    if live_fill_price is None:
+        return None
+    slug = str(market.get("slug") or "")
+    if "updown" not in slug:
+        return None
+    cents = live_fill_price * 100.0
+    if abs(cents - round(cents)) <= 1e-6:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_sub_cent_price",
+        side=side,
+        live_fill_price=live_fill_price,
+        market_id=market_id,
+        slug=slug,
+        strategy=strategy_name,
+        message=(
+            f"Candle market live price {live_fill_price} not on "
+            f"0.01 tick — Gamma seed/midpoint fallback, not real "
+            f"CLOB activity"
+        ),
+    )
+    return "skipped_sub_cent_price"
+
+
+def _gate_fill_band(
+    *,
+    live_fill_price: float | None,
+    metadata: dict[str, Any],
+    side: str,
+    strategy_name: str,
+    log: Any,
+) -> str | None:
+    """Reject fill prices outside the strategy's [fav_price_min, fav_price_max) band."""
+    if live_fill_price is None:
+        return None
+    raw_min = metadata.get("fav_price_min")
+    raw_max = metadata.get("fav_price_max")
+    if raw_min is None or raw_max is None:
+        return None
+    try:
+        f_min = float(raw_min)
+        f_max = float(raw_max)
+    except (TypeError, ValueError):
+        return None
+    if f_min <= live_fill_price < f_max:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_fill_drifted",
+        side=side,
+        candidate_entry_price=metadata.get("entry_price"),
+        live_fill_price=live_fill_price,
+        fav_price_min=f_min,
+        fav_price_max=f_max,
+        strategy=strategy_name,
+        message=(
+            f"Fill price {live_fill_price:.4f} drifted outside band "
+            f"[{f_min:.2f}, {f_max:.2f}) — candle moved between scan and fill"
+        ),
+    )
+    return "skipped_fill_drifted"
+
+
+def _gate_safe_close_direction(
+    *,
+    user_id: UUID,
+    side: str,
+    market_id: str,
+    active_preset: str | None,
+    log: Any,
+) -> str | None:
+    """Cap safe_close per-(user,side) entries within the rolling 1h window."""
+    if (active_preset or "").lower() != "safe_close":
+        return None
+    try:
+        from ...config import get_settings as _gs_safe_close
+        limit = int(_gs_safe_close().SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR)
+    except Exception as exc:
+        log.warning(
+            "safe_close_direction_limit_config_read_failed",
+            error=str(exc),
+            fallback=8,
+        )
+        limit = 8
+    if limit <= 0:
+        return None
+    now_ts = datetime.now(timezone.utc).timestamp()
+    recent = _safe_close_recent_count(str(user_id), side, now_ts)
+    if recent < limit:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_safe_close_direction_concentration",
+        side=side,
+        user_id=str(user_id),
+        market_id=market_id,
+        recent_count=recent,
+        limit=limit,
+        window_sec=_SAFE_CLOSE_DIRECTION_WINDOW_SEC,
+        message=(
+            f"User has {recent} safe_close {side.upper()} "
+            f"entries in the last hour (limit "
+            f"{limit}); skipping to avoid "
+            f"directional concentration in trending markets."
+        ),
+    )
+    return "skipped_safe_close_direction_concentration"
+
+
 async def _process_candidate(
     row: dict[str, Any],
     cand: SignalCandidate,
@@ -2008,26 +2333,12 @@ async def _process_candidate(
         log.warning("open_position_market_check_failed", error=str(exc))
         # On DB error fall through — gate step 10 remains the safety net.
 
-    # 1c. Signal freshness gate — reject publication-backed signals older than
-    #     _MAX_SIGNAL_AGE_SECONDS. signal_publications.expires_at allows 4h for
-    #     feed UI history; the execution engine enforces a tighter window so it
-    #     never fills at a 3-hour-old market price that has already moved past
-    #     the TP target. Gate is skipped for lib-strategy candidates (pub_uuid
-    #     is None) because those always carry signal_ts=now (see
-    #     lib_strategy_runner.py) and must not be affected by user processing order.
-    if pub_uuid is not None:
-        _signal_age = (datetime.now(timezone.utc) - cand.signal_ts).total_seconds()
-        if _signal_age > _MAX_SIGNAL_AGE_SECONDS:
-            log.info(
-                "scan_outcome",
-                outcome="skipped_signal_stale",
-                age_seconds=round(_signal_age),
-                threshold=_MAX_SIGNAL_AGE_SECONDS,
-                message=f"Signal too old ({round(_signal_age)}s > {_MAX_SIGNAL_AGE_SECONDS}s threshold)",
-            )
-            if telemetry is not None:
-                telemetry.record_skip("skipped_signal_stale")
-            return
+    # 1c. Signal freshness gate (see _gate_signal_freshness).
+    _skip = _gate_signal_freshness(pub_uuid=pub_uuid, signal_ts=cand.signal_ts, log=log)
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
 
     # 2. Market lookup.
     market = await _load_market(cand.market_id)
@@ -2037,58 +2348,26 @@ async def _process_candidate(
             telemetry.record_skip("skipped_market_not_synced")
         return
 
-    # 2b. Target price drift guard — compare signal's target_price against
-    #     current cached DB price for this side. If drift exceeds
-    #     _MAX_TARGET_DRIFT_PCT the market has moved too far since the
-    #     signal was published; executing would produce an unrealistic fill.
-    #     Guard only applies to feed signals (pub_uuid is not None) because
-    #     lib-strategy candidates always carry fresh prices (signal_ts=now).
-    #     Uses same primary→fallback→0.5 resolution as _build_trade_signal so
-    #     the guard evaluates the identical price the trade engine will use.
-    if pub_uuid is not None:
-        _target = float(cand.metadata.get("target_price") or 0.0)
-        _price_primary = market.get(f"{side}_price")
-        _price_fallback = market.get("no_price" if side == "yes" else "yes_price")
-        _current = float(
-            _price_primary if _price_primary is not None
-            else (_price_fallback if _price_fallback is not None else 0.5)
-        )
-        if _target > 0:
-            _drift = abs(_current - _target) / _target
-            if _drift > _MAX_TARGET_DRIFT_PCT:
-                log.info(
-                    "scan_outcome",
-                    outcome="skipped_price_drifted",
-                    side=side,
-                    target_price=_target,
-                    current_price=_current,
-                    drift_pct=round(_drift * 100, 1),
-                    threshold_pct=round(_MAX_TARGET_DRIFT_PCT * 100, 1),
-                    message=(
-                        f"Price drifted {round(_drift * 100, 1)}% "
-                        f"(target={_target:.4f} current={_current:.4f}) "
-                        f"> {round(_MAX_TARGET_DRIFT_PCT * 100)}% threshold"
-                    ),
-                )
-                if telemetry is not None:
-                    telemetry.record_skip("skipped_price_drifted")
-                return
+    # 2b. Target price drift guard (see _gate_target_price_drift).
+    _skip = _gate_target_price_drift(
+        pub_uuid=pub_uuid, side=side, market=market,
+        metadata=cand.metadata, log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
 
-    # 2c. Liquidity filter — skip markets below the user's configured threshold.
-    min_liquidity = float(row.get("min_liquidity_threshold") or 0.0)
-    if min_liquidity > 0:
-        market_liquidity = float(market.get("liquidity_usdc") or 0.0)
-        if market_liquidity < min_liquidity:
-            log.info(
-                "scan_outcome",
-                outcome="skipped_liquidity",
-                market_liquidity=market_liquidity,
-                threshold=min_liquidity,
-                message=f"Skipped: liquidity ${market_liquidity:.0f} below threshold ${min_liquidity:.0f}",
-            )
-            if telemetry is not None:
-                telemetry.record_skip("skipped_liquidity")
-            return
+    # 2c. Liquidity filter (see _gate_liquidity_filter).
+    _skip = _gate_liquidity_filter(
+        market=market,
+        min_liquidity_threshold=float(row.get("min_liquidity_threshold") or 0.0),
+        log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
 
     # 3. Build TradeSignal — typed contract for TradeEngine (gate + paper fill).
     idem_key = _build_idempotency_key(user_id, cand.market_id, side, pub_uuid)
@@ -2118,135 +2397,25 @@ async def _process_candidate(
         except (TypeError, ValueError):
             _live_fill_price = None
 
-    # 3b-0. TOB freshness gate (WARP/R00T/tob-freshness-gate, ref Directive 7).
-    #       Reject the candidate when the orderbook snapshot used to compute
-    #       metadata["entry_price"] is older than TOB_STALE_MS. Scope: only
-    #       candidates that carry metadata["entry_price_ts"] (late_entry_v3 —
-    #       close_sweep / safe_close / flip_hunter); candidates without the
-    #       stamp (signal_following / momentum / copy_trade) bypass cleanly.
-    #       Disable by setting TOB_STALE_MS=0 in config / env.
-    #
-    #       Why: scan -> _process_candidate -> gate -> CLOB submission can take
-    #       multiple seconds when scheduler back-pressures or the executor is
-    #       busy; firing a trade on an orderbook snapshot that is several
-    #       seconds old is the directional analogue of the sub-cent stale-
-    #       Gamma bug (PR #1413) — the live mark has already moved by the time
-    #       the order leaves the router, so the strategy's intended setup is
-    #       no longer the setup we're actually buying.
-    _meta_ts = cand.metadata.get("entry_price_ts")
-    if _meta_ts is not None:
-        try:
-            from ...config import get_settings as _get_settings_tob
-            _tob_stale_ms = int(_get_settings_tob().TOB_STALE_MS)
-        except Exception as exc:
-            # AGENTS.md hard rule: zero silent failures. Log the diagnostic
-            # context, then fall back to the documented default so the gate
-            # remains operative even on a config-read failure.
-            log.warning(
-                "tob_stale_ms_config_read_failed",
-                error=str(exc),
-                fallback_ms=2000,
-            )
-            _tob_stale_ms = 2000
-        if _tob_stale_ms > 0:
-            try:
-                _tob_age_ms = (
-                    datetime.now(timezone.utc).timestamp() - float(_meta_ts)
-                ) * 1000.0
-            except (TypeError, ValueError):
-                _tob_age_ms = None
-            if _tob_age_ms is not None and _tob_age_ms > _tob_stale_ms:
-                log.info(
-                    "scan_outcome",
-                    outcome="skipped_stale_tob",
-                    side=side,
-                    market_id=cand.market_id,
-                    strategy=cand.strategy_name,
-                    age_ms=round(_tob_age_ms, 1),
-                    threshold_ms=_tob_stale_ms,
-                    message=(
-                        f"Orderbook snapshot age {_tob_age_ms:.0f}ms exceeds "
-                        f"TOB_STALE_MS={_tob_stale_ms}; rejecting to avoid "
-                        f"firing on stale CLOB data."
-                    ),
-                )
-                if telemetry is not None:
-                    telemetry.record_skip("skipped_stale_tob")
-                return
+    # 3b-0. TOB freshness gate (see _gate_tob_freshness).
+    _skip = _gate_tob_freshness(
+        metadata=cand.metadata, side=side, market_id=cand.market_id,
+        strategy_name=cand.strategy_name, log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
 
-    # 3b-0a. Complete-set edge gate (WARP/R00T/complete-set-edge-gate, ref
-    #        directive 1.1). Polymarket binary UP/DOWN settles to $1.00 at
-    #        expiry → `cost = ask_UP + ask_DOWN` is the spot arb bound; the
-    #        complementary `edge = 1 - cost` is the per-tick profit a taker
-    #        could lock in by buying both legs. When edge < MIN_COMPLETE_SET_EDGE
-    #        the market is too efficiently priced for the per-side entry to
-    #        carry a real edge: the strategy's directional thesis is paying
-    #        full price for a coin flip after fees, with no arb safety net.
-    #
-    #        The metric was stamped observationally by Lane 3
-    #        (late_entry_v3._evaluate_market → metadata["complete_set_edge"]);
-    #        this gate promotes it to a hard reject. Scoped to candidates that
-    #        carry the stamp (late_entry_v3 — close_sweep / safe_close /
-    #        flip_hunter); signal_following / momentum / copy_trade bypass.
-    #
-    #        Operator escape hatch: MIN_COMPLETE_SET_EDGE=0 disables the gate
-    #        without redeploy (runtime branches on `> 0`).
-    _meta_edge = cand.metadata.get("complete_set_edge")
-    if _meta_edge is not None:
-        try:
-            from ...config import get_settings as _get_settings_edge
-            _min_edge = float(_get_settings_edge().MIN_COMPLETE_SET_EDGE)
-        except Exception as exc:
-            # AGENTS.md hard rule: zero silent failures. Log the diagnostic
-            # context, then fall back to the documented default so the gate
-            # remains operative even on a config-read failure.
-            log.warning(
-                "min_complete_set_edge_config_read_failed",
-                error=str(exc),
-                fallback=0.005,
-            )
-            _min_edge = 0.005
-        if _min_edge > 0:
-            try:
-                _candidate_edge = float(_meta_edge)
-            except (TypeError, ValueError) as exc:
-                # AGENTS.md hard rule: zero silent failures. A malformed
-                # complete_set_edge stamp would bypass the gate silently —
-                # log it loud so the operator can fix the producer
-                # (late_entry_v3._evaluate_market) and we don't ship
-                # negative-arb entries on a broken stamp.
-                log.warning(
-                    "complete_set_edge_parse_failed",
-                    market_id=cand.market_id,
-                    strategy=cand.strategy_name,
-                    raw=repr(_meta_edge),
-                    error=str(exc),
-                    message=(
-                        "Candidate carried a non-numeric complete_set_edge "
-                        "stamp; bypassing the gate for this candidate but "
-                        "the producer should be fixed."
-                    ),
-                )
-                _candidate_edge = None
-            if _candidate_edge is not None and _candidate_edge < _min_edge:
-                log.info(
-                    "scan_outcome",
-                    outcome="skipped_negative_arb",
-                    side=side,
-                    market_id=cand.market_id,
-                    strategy=cand.strategy_name,
-                    complete_set_edge=round(_candidate_edge, 4),
-                    threshold=_min_edge,
-                    message=(
-                        f"Complete-set edge {_candidate_edge:.4f} below "
-                        f"MIN_COMPLETE_SET_EDGE={_min_edge}; rejecting "
-                        f"to avoid directional entry into market priced at or "
-                        f"above the $1.00 settlement bound."
-                    ),
-                )
-                if telemetry is not None:
-                    telemetry.record_skip("skipped_negative_arb")
-                return
+    # 3b-0a. Complete-set edge gate (see _gate_complete_set_edge).
+    _skip = _gate_complete_set_edge(
+        metadata=cand.metadata, side=side, market_id=cand.market_id,
+        strategy_name=cand.strategy_name, log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
 
     if _live_fill_price is None:
         try:
@@ -2254,136 +2423,35 @@ async def _process_candidate(
         except Exception as exc:
             log.warning("live_price_fetch_failed", market_id=cand.market_id, error=str(exc))
 
-    # 3b-i. Candle-market tick-alignment gate (flip-hunter-stale-price-fix).
-    #       Polymarket 5m crypto candle markets (slug ``{coin}-updown-5m-...``)
-    #       use a 0.01 (1¢) CLOB tick. A live price that is not on the tick
-    #       (e.g. 0.505) for one of these markets comes from the Gamma
-    #       ``outcomePrices`` seed/midpoint (the initial MM quote written
-    #       before any real CLOB activity), not a real fill price.
-    #
-    #       Returning that as a tradable mark caused 80/86 flip_hunter
-    #       positions over one session to enter at exactly 0.505 across
-    #       BTC/ETH/SOL/XRP/DOGE/BNB simultaneously; combined with the
-    #       synthetic TP fill (exit_watcher._tp_exit_price = entry*(1+tp%))
-    #       every TP-hit landed at the identical 0.58075 across coins for
-    #       indistinguishable +$0.50 paper P&L.
-    #
-    #       Scoped to candle markets only — thin longshot markets on other
-    #       slugs DO legitimately surface sub-cent Gamma last-trade prices
-    #       (e.g. 0.055 for a 5.5c longshot) and signal_following etc.
-    #       must continue to trade them.
-    if _live_fill_price is not None:
-        _slug = str(market.get("slug") or "")
-        _is_candle = "updown" in _slug
-        if _is_candle:
-            _cents = _live_fill_price * 100.0
-            if abs(_cents - round(_cents)) > 1e-6:
-                log.info(
-                    "scan_outcome",
-                    outcome="skipped_sub_cent_price",
-                    side=side,
-                    live_fill_price=_live_fill_price,
-                    market_id=cand.market_id,
-                    slug=_slug,
-                    strategy=cand.strategy_name,
-                    message=(
-                        f"Candle market live price {_live_fill_price} not on "
-                        f"0.01 tick — Gamma seed/midpoint fallback, not real "
-                        f"CLOB activity"
-                    ),
-                )
-                if telemetry is not None:
-                    telemetry.record_skip("skipped_sub_cent_price")
-                return
+    # 3b-i. Candle-market tick-alignment gate (see _gate_candle_tick_alignment).
+    _skip = _gate_candle_tick_alignment(
+        live_fill_price=_live_fill_price, market=market, side=side,
+        strategy_name=cand.strategy_name, market_id=cand.market_id, log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
 
-    # 3c. Fill-time price-band re-check. Candle markets (late_entry_v3) can drift
-    #     0.10+ between scan and fill — without this gate, trades fired at prices
-    #     unrelated to the preset's intended band (e.g. safe_close 5.5% of trades
-    #     in [0.60, 0.70), 47% in coin-flip [0.45, 0.55] over 24h on prod).
-    #     The candidate's metadata declares the band that was satisfied at scan
-    #     time (fav_price_min/max); a live fill outside that band means the
-    #     market moved past the strategy's intended setup and we must NOT fill.
-    #     Safe for any strategy that omits the band metadata — gate no-ops.
-    if (
-        _live_fill_price is not None
-        and cand.metadata.get("fav_price_min") is not None
-        and cand.metadata.get("fav_price_max") is not None
-    ):
-        try:
-            _f_min = float(cand.metadata["fav_price_min"])
-            _f_max = float(cand.metadata["fav_price_max"])
-        except (TypeError, ValueError):
-            _f_min = _f_max = None  # type: ignore[assignment]
-        if _f_min is not None and _f_max is not None and (
-            _live_fill_price < _f_min or _live_fill_price >= _f_max
-        ):
-            log.info(
-                "scan_outcome",
-                outcome="skipped_fill_drifted",
-                side=side,
-                candidate_entry_price=cand.metadata.get("entry_price"),
-                live_fill_price=_live_fill_price,
-                fav_price_min=_f_min,
-                fav_price_max=_f_max,
-                strategy=cand.strategy_name,
-                message=(
-                    f"Fill price {_live_fill_price:.4f} drifted outside band "
-                    f"[{_f_min:.2f}, {_f_max:.2f}) — candle moved between scan and fill"
-                ),
-            )
-            if telemetry is not None:
-                telemetry.record_skip("skipped_fill_drifted")
-            return
+    # 3c. Fill-time price-band re-check (see _gate_fill_band).
+    _skip = _gate_fill_band(
+        live_fill_price=_live_fill_price, metadata=cand.metadata,
+        side=side, strategy_name=cand.strategy_name, log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
 
-    # 3d. Safe-close direction concentration gate
-    #     (WARP/R00T/safe-close-direction-limit, Lane 4/5).
-    #     Only fires when the user's active_preset == "safe_close".
-    #     Other presets (close_sweep / flip_hunter / signal_following) bypass.
-    #
-    #     Rationale: late_entry_v3 chooses side dynamically per scan
-    #     (`fav_side = "YES" if yes_ask > no_ask else "NO"`), so there is
-    #     no per-candle bias. But in a trending market the same side
-    #     ends up favoured candle after candle — the bot then aggregates
-    #     directional risk that the per-candle filter never sees. This
-    #     gate caps that aggregate at SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR
-    #     per (user, side) within a rolling 1h window.
-    #
-    #     Set SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR=0 to disable; runtime
-    #     branches on `> 0`. Negative values rejected at config load.
-    if (row.get("active_preset") or "").lower() == "safe_close":
-        try:
-            from ...config import get_settings as _gs_safe_close
-            _safe_close_limit = int(_gs_safe_close().SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR)
-        except Exception as exc:
-            log.warning(
-                "safe_close_direction_limit_config_read_failed",
-                error=str(exc),
-                fallback=8,
-            )
-            _safe_close_limit = 8
-        if _safe_close_limit > 0:
-            _now_ts = datetime.now(timezone.utc).timestamp()
-            _recent = _safe_close_recent_count(str(user_id), side, _now_ts)
-            if _recent >= _safe_close_limit:
-                log.info(
-                    "scan_outcome",
-                    outcome="skipped_safe_close_direction_concentration",
-                    side=side,
-                    user_id=str(user_id),
-                    market_id=cand.market_id,
-                    recent_count=_recent,
-                    limit=_safe_close_limit,
-                    window_sec=_SAFE_CLOSE_DIRECTION_WINDOW_SEC,
-                    message=(
-                        f"User has {_recent} safe_close {side.upper()} "
-                        f"entries in the last hour (limit "
-                        f"{_safe_close_limit}); skipping to avoid "
-                        f"directional concentration in trending markets."
-                    ),
-                )
-                if telemetry is not None:
-                    telemetry.record_skip("skipped_safe_close_direction_concentration")
-                return
+    # 3d. Safe-close direction concentration gate (see _gate_safe_close_direction).
+    _skip = _gate_safe_close_direction(
+        user_id=user_id, side=side, market_id=cand.market_id,
+        active_preset=row.get("active_preset"), log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
 
     if _cb_enabled:
         _base_before_build = _bankroll_ema_baseline.get(_uid_str)
