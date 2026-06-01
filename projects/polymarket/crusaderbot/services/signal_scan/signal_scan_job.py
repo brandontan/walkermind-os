@@ -1645,7 +1645,8 @@ def _gate_signal_freshness(
     """Reject publication-backed signals older than _MAX_SIGNAL_AGE_SECONDS."""
     if pub_uuid is None:
         return None
-    age = (datetime.now(timezone.utc) - signal_ts).total_seconds()
+    now = datetime.now(timezone.utc) if signal_ts.tzinfo else datetime.now(timezone.utc).replace(tzinfo=None)
+    age = (now - signal_ts).total_seconds()
     if age <= _MAX_SIGNAL_AGE_SECONDS:
         return None
     log.info(
@@ -1677,10 +1678,13 @@ def _gate_target_price_drift(
         return None
     price_primary = market.get(f"{side}_price")
     price_fallback = market.get("no_price" if side == "yes" else "yes_price")
-    current = float(
-        price_primary if price_primary is not None
-        else (price_fallback if price_fallback is not None else 0.5)
-    )
+    try:
+        current = float(
+            price_primary if price_primary is not None
+            else (price_fallback if price_fallback is not None else 0.5)
+        )
+    except (TypeError, ValueError):
+        return None
     drift = abs(current - target) / target
     if drift <= _MAX_TARGET_DRIFT_PCT:
         return None
@@ -1710,7 +1714,10 @@ def _gate_liquidity_filter(
     """Skip markets below the user's configured liquidity threshold."""
     if min_liquidity_threshold <= 0:
         return None
-    market_liquidity = float(market.get("liquidity_usdc") or 0.0)
+    try:
+        market_liquidity = float(market.get("liquidity_usdc") or 0.0)
+    except (TypeError, ValueError):
+        return None
     if market_liquidity >= min_liquidity_threshold:
         return None
     log.info(
