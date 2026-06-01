@@ -3025,17 +3025,21 @@ async def admin_paper_reset(
                 target_uuid,
             )
 
+            # Delete copy_trade_events before orders+positions.
+            # user_id is nullable so also cover orphaned rows via position_id subquery.
+            await conn.execute(
+                "DELETE FROM copy_trade_events "
+                "WHERE user_id=$1::uuid "
+                "OR position_id IN (SELECT id FROM positions WHERE user_id=$1::uuid)",
+                target_uuid,
+            )
+
             # Count + delete orders
             orders_deleted: int = await conn.fetchval(
                 "SELECT COUNT(*) FROM orders WHERE user_id=$1::uuid", target_uuid,
             ) or 0
             await conn.execute(
                 "DELETE FROM orders WHERE user_id=$1::uuid", target_uuid,
-            )
-
-            # Delete copy_trade_events before positions (FK position_id has no ON DELETE CASCADE)
-            await conn.execute(
-                "DELETE FROM copy_trade_events WHERE user_id=$1::uuid", target_uuid,
             )
 
             # Count + delete positions (includes open + closed)
