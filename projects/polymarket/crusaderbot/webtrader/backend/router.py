@@ -1066,18 +1066,26 @@ async def customize_strategy(body: CustomizeRequest, user: _CurrentUser):
     _add("max_per_trade_pct", body.max_per_trade_pct)
 
     # Daily loss override: must be negative and no looser than -$2000 system floor.
-    if body.daily_loss_override is not None:
-        if body.daily_loss_override >= 0:
-            raise HTTPException(status_code=400, detail="daily_loss_override must be negative (e.g. -300)")
-        if body.daily_loss_override < -2000:
-            raise HTTPException(status_code=400, detail="daily_loss_override cannot exceed system floor of -$2000")
-        _add("daily_loss_override", body.daily_loss_override)
+    # Explicit null clears the override so the user falls back to the system floor.
+    if "daily_loss_override" in body.model_fields_set:
+        if body.daily_loss_override is None:
+            _clear("daily_loss_override")
+        else:
+            if body.daily_loss_override >= 0:
+                raise HTTPException(status_code=400, detail="daily_loss_override must be negative (e.g. -300)")
+            if body.daily_loss_override < -2000:
+                raise HTTPException(status_code=400, detail="daily_loss_override cannot exceed system floor of -$2000")
+            _add("daily_loss_override", body.daily_loss_override)
 
     # Max drawdown %: must be in (0, 8%]. Users can only make it stricter than 8%.
-    if body.max_drawdown_pct is not None:
-        if not (0 < body.max_drawdown_pct <= 0.08):
-            raise HTTPException(status_code=400, detail="max_drawdown_pct must be in (0, 0.08] (0%–8%)")
-        _add("max_drawdown_pct", body.max_drawdown_pct)
+    # Explicit null clears the override so the user falls back to the profile default.
+    if "max_drawdown_pct" in body.model_fields_set:
+        if body.max_drawdown_pct is None:
+            _clear("max_drawdown_pct")
+        else:
+            if not (0 < body.max_drawdown_pct <= 0.08):
+                raise HTTPException(status_code=400, detail="max_drawdown_pct must be in (0, 0.08] (0%–8%)")
+            _add("max_drawdown_pct", body.max_drawdown_pct)
 
     # Max concurrent trades override: integer in [1, 20]. Gate step 7 picks the
     # min of this and the profile default — user can only tighten, never loosen.
