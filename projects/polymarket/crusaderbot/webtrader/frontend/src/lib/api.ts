@@ -403,6 +403,7 @@ export interface AutoTradeState {
   max_per_trade_pct?: number | null;
   daily_loss_override?: number | null;   // negative $, e.g. -300
   max_drawdown_pct?: number | null;      // 0–0.08
+  max_concurrent_override?: number | null;  // 1–20, user can only tighten profile cap
   // False when the active preset's strategy is globally disabled by the operator.
   active_preset_globally_enabled?: boolean;
 }
@@ -419,6 +420,7 @@ export interface CustomizeParams {
   max_per_trade_pct?: number | null;
   daily_loss_override?: number | null;   // negative $ value
   max_drawdown_pct?: number | null;      // 0 < x <= 0.08
+  max_concurrent_override?: number | null;  // integer 1..20
 }
 
 export interface RiskProfileParams {
