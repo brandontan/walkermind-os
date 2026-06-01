@@ -923,6 +923,7 @@ export function AutoTradePage() {
           <MaxPerTradeControl state={state} api={api} onSaved={() => void load()} />
           <DailyLossControl state={state} api={api} onSaved={() => void load()} />
           <MaxDrawdownControl state={state} api={api} onSaved={() => void load()} />
+          <MaxConcurrentControl state={state} api={api} onSaved={() => void load()} />
         </CollapsibleSection>
 
         {/* ── SECTION C: Market Filter ── */}
@@ -1304,6 +1305,99 @@ function MaxDrawdownControl({ state, api, onSaved }: {
           className="flex-1 py-1.5 rounded-md border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
         >
           {saved ? "Saved ✓" : saving ? "Saving…" : "Set Drawdown Halt"}
+        </button>
+        {current != null && (
+          <button
+            onClick={() => void clear()}
+            disabled={saving}
+            className="px-3 py-1.5 rounded-md border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"
+          >
+            Reset
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── MaxConcurrentControl ──────────────────────────────────────────────────────
+// Exposes user_settings.max_concurrent_override (1..20). Gate step 7 takes
+// min(profile_cap, override) — users can only tighten the profile default.
+// Profile defaults: conservative=5, balanced/custom=12, aggressive=20.
+const PROFILE_MAX_CONCURRENT: Record<string, number> = {
+  conservative: 5,
+  balanced: 12,
+  custom: 12,
+  aggressive: 20,
+};
+
+function MaxConcurrentControl({ state, api, onSaved }: {
+  state: AutoTradeState;
+  api: ReturnType<typeof makeApi>;
+  onSaved: () => void;
+}) {
+  const current = state.max_concurrent_override ?? null;
+  const profileCap = PROFILE_MAX_CONCURRENT[state.risk_profile] ?? 12;
+  const [val, setVal] = useState(current != null ? String(current) : "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    const raw = Number(val);
+    if (!val || !Number.isFinite(raw) || raw < 1 || raw > 20) return;
+    const n = Math.max(1, Math.min(20, Math.round(raw)));
+    setSaving(true);
+    try {
+      await api.customizeStrategy({ max_concurrent_override: n });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clear() {
+    setSaving(true);
+    try {
+      await api.customizeStrategy({ max_concurrent_override: null });
+      setVal("");
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const effective = current != null ? Math.min(current, profileCap) : profileCap;
+
+  return (
+    <div className="mb-3 mx-0.5 p-2.5 rounded-lg border border-surface-3 bg-surface-1">
+      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-1">Max Concurrent Trades</p>
+      <p className="text-[10px] text-ink-3 font-mono mb-2">
+        Cap on open positions at once. Profile cap: <span className="text-ink-1">{profileCap}</span>.
+        Effective: <span className="text-grn font-bold">{effective}</span>
+        {current != null && current < profileCap && (
+          <span className="text-ink-4"> (your override)</span>
+        )}
+        {current != null && current >= profileCap && (
+          <span className="text-ink-4"> (profile cap wins — override looser)</span>
+        )}
+      </p>
+      <div className="flex gap-2 mb-2">
+        <input
+          type="number" inputMode="numeric" min={1} max={20} step={1} value={val}
+          onChange={(e) => setVal(e.target.value)}
+          placeholder={`1–20 (profile ${profileCap})`}
+          className="flex-1 px-2 py-1.5 rounded-md bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono"
+        />
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={() => void save()}
+          disabled={saving || !val}
+          className="flex-1 py-1.5 rounded-md border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
+        >
+          {saved ? "Saved ✓" : saving ? "Saving…" : "Set Concurrent Cap"}
         </button>
         {current != null && (
           <button
