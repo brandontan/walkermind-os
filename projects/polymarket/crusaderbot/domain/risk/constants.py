@@ -80,13 +80,43 @@ STRATEGY_AVAILABILITY: dict[str, list[str]] = {
 }
 
 
-def effective_daily_loss(profile: str, user_override: float | None = None) -> float:
-    """Most restrictive of: system cap, profile cap, user lower override."""
+def effective_daily_loss(
+    profile: str,
+    user_override: float | None = None,
+    system_floor: float | None = None,
+) -> float:
+    """Most restrictive of: system hard cap, profile cap, user lower override, system floor.
+
+    All values are negative dollar amounts (e.g. -200.0 = "halt at -$200").
+    ``max()`` of negatives = least negative = most restrictive.
+
+    ``system_floor`` is an operator-tunable env-side cap (``settings.MAX_DAILY_LOSS_USD``)
+    that, when supplied, participates in the most-restrictive selection. This is
+    the single point that reconciles the historical Track-D cap (step 0 cap 3)
+    with the profile-aware gate (step 5) so the UI's stated profile limit is the
+    actual enforced limit unless the operator explicitly tightens it further.
+    """
     base = profile if profile in PROFILES else "balanced"
     caps = [DAILY_LOSS_HARD_STOP, PROFILES[base]["daily_loss"]]
     if user_override is not None:
         caps.append(float(user_override))
+    if system_floor is not None:
+        caps.append(float(system_floor))
     return max(caps)  # max of negatives = least negative = most restrictive
+
+
+def effective_exposure_cap(system_cap: float | None = None) -> float:
+    """Most restrictive correlated-exposure cap.
+
+    Reconciles the historical Track-D cap (step 0 cap 2 = ``settings.MAX_TOTAL_EXPOSURE_PCT``)
+    with the system constant (gate step 8 = ``MAX_CORRELATED_EXPOSURE``) so a
+    single value is evaluated, in one place, against ``(open_exp + proposed) / balance``.
+    Fractions in (0, 1]; the smaller value is more restrictive and wins.
+    """
+    caps: list[float] = [float(MAX_CORRELATED_EXPOSURE)]
+    if system_cap is not None:
+        caps.append(float(system_cap))
+    return min(caps)
 
 
 def profile_or_default(name: str | None) -> dict:

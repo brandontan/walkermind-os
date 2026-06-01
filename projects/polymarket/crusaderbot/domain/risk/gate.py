@@ -179,11 +179,22 @@ def _passes_live_guards(ctx: GateContext, settings) -> bool:
 
 
 async def validate_risk_caps(user_id: UUID, proposed_size: Decimal) -> GateResult:
-    """Hard caps applied before any order — Track D additions.
+    """Hard per-user ceilings independent of risk profile.
 
-    These are absolute per-user ceilings independent of risk profile.
-    Returns GateResult(approved=False, ...) on the first cap violation,
-    GateResult(approved=True, "caps_ok") when all four pass.
+    Three checks remain after the C-5/C-6 reconciliation:
+      Cap 0 — balance must be positive (no zero-balance trading).
+      Cap 1 — single position size (``MAX_SINGLE_POSITION_PCT`` of balance).
+      Cap 4 — total open position count (``MAX_OPEN_POSITIONS``).
+
+    The historical Cap 2 (total exposure %) and Cap 3 (per-user daily-loss USD
+    floor) were profile-shadowing duplicates of gate steps 8 and 5 respectively
+    — step 8 was always tighter (0.40 < 0.60) and step 5's profile cap was
+    always shadowed by the −$50 settings floor. Both ``MAX_TOTAL_EXPOSURE_PCT``
+    and ``MAX_DAILY_LOSS_USD`` now participate in the most-restrictive
+    selection inside ``effective_exposure_cap`` / ``effective_daily_loss``
+    (evaluated at gate steps 8 / 5), so the operator can still tighten via
+    env without two gates fighting and the UI's profile limit becomes the
+    true enforced limit when the operator does not.
     """
     from ...config import get_settings
     settings = get_settings()
@@ -209,29 +220,7 @@ async def validate_risk_caps(user_id: UUID, proposed_size: Decimal) -> GateResul
             0,
         )
 
-    # Cap 2: Total exposure (MAX_TOTAL_EXPOSURE_PCT of balance)
-    open_exp = await _open_exposure(user_id)
-    max_exp = balance * Decimal(str(settings.MAX_TOTAL_EXPOSURE_PCT))
-    if open_exp + proposed_size > max_exp:
-        return GateResult(
-            False,
-            f"total_exposure ${float(open_exp + proposed_size):.2f} exceeds "
-            f"{settings.MAX_TOTAL_EXPOSURE_PCT*100:.0f}% cap "
-            f"(${float(max_exp):.2f})",
-            0,
-        )
-
-    # Cap 3: Daily loss floor (default -$50, env-configurable)
-    today_pnl = await daily_pnl(user_id)
-    if today_pnl <= Decimal(str(settings.MAX_DAILY_LOSS_USD)):
-        return GateResult(
-            False,
-            f"daily_loss_cap_usd ${float(today_pnl):.2f} <= "
-            f"${settings.MAX_DAILY_LOSS_USD:.2f}",
-            0,
-        )
-
-    # Cap 4: Open positions count (hard cap 20)
+    # Cap 4: Open positions count (hard cap from settings.MAX_OPEN_POSITIONS)
     open_count = await _open_position_count(user_id)
     if open_count >= settings.MAX_OPEN_POSITIONS:
         return GateResult(
@@ -307,9 +296,17 @@ async def evaluate(ctx: GateContext) -> GateResult:
             return GateResult(False, "custom_risk_not_configured", 4)
     await _log(ctx.user_id, ctx.market_id, 4, True, "ok")
 
-    # 5. Daily loss limit
+    # 5. Daily loss limit — most restrictive of system hard stop, profile cap,
+    #    user override, and operator env floor (MAX_DAILY_LOSS_USD). Step 0 cap 3
+    #    used to enforce MAX_DAILY_LOSS_USD separately and always shadowed the
+    #    profile cap; routing it through effective_daily_loss removes the
+    #    duplicate evaluation while preserving the most-restrictive semantics.
     pnl = await daily_pnl(ctx.user_id)
-    cap = K.effective_daily_loss(ctx.risk_profile, ctx.daily_loss_override)
+    cap = K.effective_daily_loss(
+        ctx.risk_profile,
+        ctx.daily_loss_override,
+        system_floor=float(settings.MAX_DAILY_LOSS_USD),
+    )
     if float(pnl) <= cap:
         await _log(ctx.user_id, ctx.market_id, 5, False,
                    f"daily_loss {pnl} <= {cap}")
@@ -335,13 +332,22 @@ async def evaluate(ctx: GateContext) -> GateResult:
         return GateResult(False, "max_concurrent_trades", 7)
     await _log(ctx.user_id, ctx.market_id, 7, True, "ok")
 
-    # 8. Correlated exposure
+    # 8. Correlated exposure — most restrictive of the system constant
+    #    (MAX_CORRELATED_EXPOSURE) and the operator env cap
+    #    (MAX_TOTAL_EXPOSURE_PCT). Step 0 cap 2 used to enforce the env value
+    #    separately but it was always shadowed by the tighter 0.40 system cap
+    #    here; routing it through effective_exposure_cap removes the duplicate
+    #    evaluation. ``balance > 0`` is asserted at validate_risk_caps step 0.
     balance = await get_balance(ctx.user_id)
+    exposure_cap = K.effective_exposure_cap(
+        system_cap=float(settings.MAX_TOTAL_EXPOSURE_PCT),
+    )
     open_exp = await _open_exposure(ctx.user_id)
     if balance > 0 and (open_exp + ctx.proposed_size_usdc) / balance > Decimal(
-        str(K.MAX_CORRELATED_EXPOSURE)
+        str(exposure_cap)
     ):
-        await _log(ctx.user_id, ctx.market_id, 8, False, "correlated_exposure")
+        await _log(ctx.user_id, ctx.market_id, 8, False,
+                   f"correlated_exposure cap={exposure_cap:.4f}")
         return GateResult(False, "correlated_exposure_cap", 8)
     await _log(ctx.user_id, ctx.market_id, 8, True, "ok")
 
