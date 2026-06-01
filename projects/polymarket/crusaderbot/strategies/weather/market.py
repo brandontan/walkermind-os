@@ -51,23 +51,23 @@ def _extract_bucket(question: str) -> tuple[float | None, float | None]:
     low: float | None = None
     high: float | None = None
 
-    # Pattern: "above X" / "over X" / "exceed(s) X" / "at least X"
+    # Pattern: "above X" / "over X" / "exceed(s/ing) X" / "at least X"
     #           "X or above" / "X° or above" / "X or more" / "X° or higher"
     m = re.search(
-        r"(?:above|over|exceed[s]?|at\s+least)\s+([\d.]+)"
-        r"|([\d.]+)\s*(?:°[fc]|°|f|degrees)?\s*(?:or\s+)?(?:above|over|more|higher)",
+        r"(?:above|over|exceed(?:s|ing)?|at\s+least)\s+([-+]?\d+(?:\.\d+)?)"
+        r"|([-+]?\d+(?:\.\d+)?)\s*(?:°[fc]|°|f|degrees)?\s*(?:or\s+)?(?:above|over|more|higher)",
         q,
     )
     if m:
         val = float(m.group(1) or m.group(2))
         low, high = val, float("inf")
 
-    # Pattern: "below X" / "under X" / "at most X" / "no more than X"
+    # Pattern: "below X" / "under X" / "at most X" / "no/not more than X"
     #           "X or below" / "X° or lower" / "X or less"
     if low is None:
         m = re.search(
-            r"(?:below|under|at\s+most|no\s+more\s+than)\s+([\d.]+)"
-            r"|([\d.]+)\s*(?:°[fc]|°|f|degrees)?\s*(?:or\s+)?(?:below|under|lower|less)",
+            r"(?:below|under|at\s+most|not?\s+more\s+than)\s+([-+]?\d+(?:\.\d+)?)"
+            r"|([-+]?\d+(?:\.\d+)?)\s*(?:°[fc]|°|f|degrees)?\s*(?:or\s+)?(?:below|under|lower|less)",
             q,
         )
         if m:
@@ -77,7 +77,7 @@ def _extract_bucket(question: str) -> tuple[float | None, float | None]:
     # Pattern: "between X and Y" / "X-Y" / "X to Y"
     if low is None:
         m = re.search(
-            r"between\s+([\d.]+)\s+and\s+([\d.]+)|([\d.]+)\s*(?:-|to)\s*([\d.]+)", q
+            r"between\s+(\d+(?:\.\d+)?)\s+and\s+(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:-|to)\s*(\d+(?:\.\d+)?)", q
         )
         if m:
             val_low = float(m.group(1) or m.group(3))
