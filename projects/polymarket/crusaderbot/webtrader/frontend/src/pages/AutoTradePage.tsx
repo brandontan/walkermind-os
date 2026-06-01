@@ -608,10 +608,18 @@ export function AutoTradePage() {
             const isDetailOpen = expandedDetail === p.key;
             return (
               <Fragment key={p.key}>
-                <button
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => void handleActivatePreset(p.key)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      void handleActivatePreset(p.key);
+                    }
+                  }}
                   className={[
-                    "w-full text-left p-3 rounded-lg border transition-all",
+                    "w-full text-left p-3 rounded-lg border transition-all cursor-pointer",
                     showConfig || isDetailOpen ? "rounded-b-none" : "",
                     isActive
                       ? "border-gold bg-surface-2 shadow-[0_0_8px_rgba(191,155,48,0.25)]"
@@ -682,7 +690,7 @@ export function AutoTradePage() {
                       {isDetailOpen ? "Hide details ▲" : "ⓘ How it works ▾"}
                     </span>
                   </div>
-                </button>
+                </div>
 
                 {/* "How it works" detail — joined directly under the card.
                     Square bottom when the asset/timeframe config follows. */}

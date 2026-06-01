@@ -1,8 +1,8 @@
 {
-  "min_ev": 0.10,
-  "min_volume": 0.0,
+  "min_ev": 0.04,
+  "min_volume": 200.0,
   "max_spread": 0.05,
-  "max_price": 0.45,
+  "max_price": 0.65,
   "kelly_alpha": 0.25,
   "max_bet_usdc": 20.0,
   "stop_loss_pct": 0.20,
