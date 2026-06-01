@@ -106,11 +106,10 @@ async def fetch_weather_markets(
         "active": "true",
         "closed": "false",
         "limit": limit,
-        "order": "volume24hr",
+        "order": "startDate",
         "ascending": "false",
     }
-    if city:
-        params["tag_slug"] = "weather"
+    # Do NOT use tag_slug=weather — Polymarket weather markets carry no tags.
 
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
