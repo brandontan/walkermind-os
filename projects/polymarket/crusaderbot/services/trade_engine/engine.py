@@ -104,6 +104,10 @@ class TradeSignal:
     live_capital_cap_usdc: float = 0.0
     # Per-user concurrent-trades override (1..20). None = use profile default.
     max_concurrent_override: Optional[int] = None
+    # Per-task opt-in bypass for global auto_trade_on (gate step 2). Copy-trade
+    # tasks set this True because copy_trade_tasks.status='active' is the
+    # explicit per-task opt-in. ctx.paused is still honoured.
+    bypass_auto_trade_check: bool = False
     # Opaque per-strategy snapshot (e.g. weather city/bucket bounds, entry
     # forecast mean, high-water price). Persisted to positions.strategy_metadata
     # and replayed into the strategy exit hook so exits like the weather
@@ -308,4 +312,5 @@ class TradeEngine:
             max_drawdown_pct=signal.max_drawdown_pct,
             live_capital_cap_usdc=signal.live_capital_cap_usdc,
             max_concurrent_override=signal.max_concurrent_override,
+            bypass_auto_trade_check=signal.bypass_auto_trade_check,
         )

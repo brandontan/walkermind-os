@@ -999,9 +999,22 @@ async def _maybe_fire_fast_topup(
         _topup_price = None
     if _topup_price is None or not (0.0 < _topup_price < 1.0):
         # Binary settlement invariant: YES + NO = 1. Use the
-        # market_row's stored prices as a defensive fallback.
-        _yes_p = float(market.get("yes_price") or 0.5)
-        _no_p = float(market.get("no_price") or (1.0 - _yes_p))
+        # market_row's stored prices as a defensive fallback. Skip
+        # entirely when prices are absent — a fabricated 0.50 would
+        # execute at a fake midpoint and distort paper P&L.
+        _yes_raw = market.get("yes_price")
+        _no_raw = market.get("no_price")
+        if _yes_raw is None and _no_raw is None:
+            log.info(
+                "scan_outcome",
+                outcome="fast_topup_skipped",
+                reason="no_market_price",
+                market_id=market_id,
+                side=lagging_side_lower,
+            )
+            return
+        _yes_p = float(_yes_raw) if _yes_raw is not None else (1.0 - float(_no_raw))
+        _no_p = float(_no_raw) if _no_raw is not None else (1.0 - _yes_p)
         _topup_price = _no_p if lagging_side_lower == "no" else _yes_p
         # Candle markets use a 0.01 CLOB tick; a Gamma-seed price that
         # is not on the tick (e.g. 0.505) means no real CLOB activity
@@ -2825,23 +2838,31 @@ async def run_once() -> None:
 
         # Phase B2: run weather domain strategy when the active preset permits.
         if weather_strat is not None and _preset_allows(active_preset, _WEATHER_STRATEGY_NAME):
-            try:
-                user_ctx = _build_user_context(row)
-                market_filters = _build_market_filters(user_ctx.risk_profile, row)
-                weather_cands = await weather_strat.scan(market_filters, user_ctx)
-            except Exception as exc:
-                user_log.warning("weather_strategy_run_failed", error=str(exc))
+            _wx_disabled = not getattr(_get_settings(), "WEATHER_STRATEGY_ENABLED", False)
+            if _wx_disabled:
                 weather_cands = []
+            else:
+                try:
+                    user_ctx = _build_user_context(row)
+                    market_filters = _build_market_filters(user_ctx.risk_profile, row)
+                    weather_cands = await weather_strat.scan(market_filters, user_ctx)
+                except Exception as exc:
+                    user_log.warning("weather_strategy_run_failed", error=str(exc))
+                    weather_cands = []
 
             weather_signals += len(weather_cands)
+            _zero_reason = (
+                "strategy_disabled" if _wx_disabled
+                else ("filter_or_no_match" if not weather_cands else None)
+            )
             user_log.info(
                 "strategy_run",
                 strategy=_WEATHER_STRATEGY_NAME,
                 candidates_emitted=len(weather_cands),
-                zero_reason="filter_or_no_match" if not weather_cands else None,
+                zero_reason=_zero_reason,
             )
             if not weather_cands:
-                tel.record_zero_reason(_WEATHER_STRATEGY_NAME, "filter_or_no_match")
+                tel.record_zero_reason(_WEATHER_STRATEGY_NAME, _zero_reason or "filter_or_no_match")
             tel.candidates_emitted += len(weather_cands)
             for cand in weather_cands:
                 try:
