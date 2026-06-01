@@ -665,6 +665,7 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 s.sl_pct,
                 s.daily_loss_override,
                 s.max_drawdown_pct,
+                s.max_concurrent_override,
                 us.weight                AS capital_allocation_pct,
                 COALESCE(urp.profile_name, s.risk_profile, 'balanced') AS resolved_profile,
                 s.active_preset,
@@ -1138,6 +1139,11 @@ async def _maybe_fire_fast_topup(
             ),
             active_preset=preset,
             live_capital_cap_usdc=float(row.get("live_capital_cap_usdc") or 0.0),
+            max_concurrent_override=(
+                int(row["max_concurrent_override"])
+                if row.get("max_concurrent_override") is not None
+                else None
+            ),
         )
     except Exception as exc:
         log.warning("fast_topup_signal_build_failed", error=str(exc))
@@ -1607,6 +1613,11 @@ def _build_trade_signal(
         # on a stale schema → defaults to 0 → gate step 15 rejects live mode
         # (safe-by-default).
         live_capital_cap_usdc=float(row.get("live_capital_cap_usdc") or 0.0),
+        max_concurrent_override=(
+            int(row["max_concurrent_override"])
+            if row.get("max_concurrent_override") is not None
+            else None
+        ),
         # Forward the strategy's opaque signal metadata (weather: city/bucket/
         # entry-forecast) so it persists on the position for the exit hook.
         # None when the candidate carries no metadata (keeps the column NULL).
@@ -1704,6 +1715,10 @@ async def _process_candidate(
                     if row.get("max_drawdown_pct") is not None else None
                 ),
                 live_capital_cap_usdc=float(row.get("live_capital_cap_usdc") or 0.0),
+                max_concurrent_override=(
+                    int(row["max_concurrent_override"])
+                    if row.get("max_concurrent_override") is not None else None
+                ),
             )
             if not _resume_check.approved:
                 log.info(

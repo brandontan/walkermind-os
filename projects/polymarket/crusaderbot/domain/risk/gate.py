@@ -53,6 +53,9 @@ class GateContext:
     # Paper trades are unaffected — the cap only fires when the gate is
     # about to approve a chosen_mode='live' trade.
     live_capital_cap_usdc: float = 0.0
+    # Per-user concurrent-trades override (1..20). None = use profile default.
+    # Gate step 7 picks min(profile_default, this) — user can only tighten.
+    max_concurrent_override: int | None = None
 
 
 @dataclass
@@ -324,11 +327,14 @@ async def evaluate(ctx: GateContext) -> GateResult:
         return GateResult(False, "max_drawdown_halt", 6)
     await _log(ctx.user_id, ctx.market_id, 6, True, "ok")
 
-    # 7. Concurrent trades
+    # 7. Concurrent trades — most-restrictive of profile cap and user override.
     cur = await _open_position_count(ctx.user_id)
-    if cur >= profile["max_concurrent"]:
+    max_concurrent = K.effective_max_concurrent(
+        ctx.risk_profile, ctx.max_concurrent_override,
+    )
+    if cur >= max_concurrent:
         await _log(ctx.user_id, ctx.market_id, 7, False,
-                   f"max_concurrent {cur}/{profile['max_concurrent']}")
+                   f"max_concurrent {cur}/{max_concurrent}")
         return GateResult(False, "max_concurrent_trades", 7)
     await _log(ctx.user_id, ctx.market_id, 7, True, "ok")
 
@@ -502,6 +508,7 @@ async def resume_safety_check(
     daily_loss_override: float | None = None,
     max_drawdown_pct: float | None = None,
     live_capital_cap_usdc: float = 0.0,
+    max_concurrent_override: int | None = None,
 ) -> GateResult:
     """Capital-circuit-breaker re-check for crash-recovery resume.
 
@@ -550,11 +557,12 @@ async def resume_safety_check(
         await _log(user_id, market_id, 6, False, "resume_max_drawdown_halt")
         return GateResult(False, "max_drawdown_halt", 6)
 
-    # 7. Concurrent trades
+    # 7. Concurrent trades — most-restrictive of profile cap and user override.
     cur = await _open_position_count(user_id)
-    if cur >= profile["max_concurrent"]:
+    max_concurrent = K.effective_max_concurrent(risk_profile, max_concurrent_override)
+    if cur >= max_concurrent:
         await _log(user_id, market_id, 7, False,
-                   f"resume_max_concurrent {cur}/{profile['max_concurrent']}")
+                   f"resume_max_concurrent {cur}/{max_concurrent}")
         return GateResult(False, "max_concurrent_trades", 7)
 
     # 8. Correlated exposure — reuses the balance fetched at step 0 (guaranteed

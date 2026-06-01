@@ -100,6 +100,12 @@ def audit_risk_constants() -> RiskAuditReport:
                        f"DAILY_LOSS_HARD_STOP <= v < 0",
                        str(daily_loss))
 
+        max_concurrent = profile.get("max_concurrent", 0)
+        if not (1 <= max_concurrent <= 50):
+            report.add(f"{prefix}.max_concurrent",
+                       "1 <= v <= 50",
+                       str(max_concurrent))
+
         min_liq = profile.get("min_liquidity", 0)
         if min_liq < K.MIN_LIQUIDITY:
             report.add(f"{prefix}.min_liquidity",

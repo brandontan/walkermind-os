@@ -661,7 +661,7 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
                       category_filters, min_liquidity, max_resolution_days, min_volume_24h,
                       slippage_tolerance_pct, selected_timeframe, selected_assets,
                       max_per_trade_mode, max_per_trade_usdc, max_per_trade_pct,
-                      daily_loss_override, max_drawdown_pct
+                      daily_loss_override, max_drawdown_pct, max_concurrent_override
                FROM user_settings WHERE user_id=$1::uuid""",
             user_id,
         )
@@ -723,6 +723,11 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         max_drawdown_pct=(
             float(s_row["max_drawdown_pct"])
             if s_row and s_row["max_drawdown_pct"] is not None
+            else None
+        ),
+        max_concurrent_override=(
+            int(s_row["max_concurrent_override"])
+            if s_row and s_row["max_concurrent_override"] is not None
             else None
         ),
         active_preset_globally_enabled=preset_globally_enabled,
@@ -1069,6 +1074,13 @@ async def customize_strategy(body: CustomizeRequest, user: _CurrentUser):
         if not (0 < body.max_drawdown_pct <= 0.08):
             raise HTTPException(status_code=400, detail="max_drawdown_pct must be in (0, 0.08] (0%–8%)")
         _add("max_drawdown_pct", body.max_drawdown_pct)
+
+    # Max concurrent trades override: integer in [1, 20]. Gate step 7 picks the
+    # min of this and the profile default — user can only tighten, never loosen.
+    if body.max_concurrent_override is not None:
+        if not (1 <= int(body.max_concurrent_override) <= 20):
+            raise HTTPException(status_code=400, detail="max_concurrent_override must be in [1, 20]")
+        _add("max_concurrent_override", int(body.max_concurrent_override))
 
     if not updates:
         return {"updated": False}
