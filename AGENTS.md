@@ -1,8 +1,8 @@
 # AGENTS.md — WalkerMind OS
-# WARP🔸CORE — Unified DevOps Multi-Agent System
-# Roles: WARP•FORGE | WARP•SENTINEL | WARP•ECHO
-# Single source of truth for all agent execution environments
+## WARP🔸CORE — Unified DevOps Multi-Agent System
+### Roles: WARP•FORGE | WARP•SENTINEL | WARP•ECHO
 
+# Single source of truth for all agent execution environments
 
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walkermind-os
@@ -11,6 +11,13 @@ Last Updated: 2026-05-07 12:00 Asia/Jakarta
 Authority: This file is the single source of truth for all team rules,
            workflow, and operational boundaries. All other files are
            supporting documents. When conflict exists, AGENTS.md wins.
+
+---
+
+## Knowledge Graph
+All agents MUST read GRAPH_REPORT.md before performing 
+any task involving code traversal, impact analysis, or 
+cross-file operations.
 
 ---
 
