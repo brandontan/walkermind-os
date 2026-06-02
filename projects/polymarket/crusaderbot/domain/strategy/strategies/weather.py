@@ -83,9 +83,16 @@ class WeatherDomainStrategy(BaseStrategy):
         Polymarket's actual daily weather market roster.
         """
         from ....config import get_settings
+        from ...ops import runtime_config
         try:
             cfg = get_settings()
-            if not getattr(cfg, "WEATHER_STRATEGY_ENABLED", False):
+            # Runtime overlay (web admin) wins over the Fly/env default so an
+            # operator can enable weather without a redeploy. Must match the
+            # outer gate in signal_scan_job.run_once or the override is a no-op.
+            if not await runtime_config.resolve_bool(
+                "WEATHER_STRATEGY_ENABLED",
+                bool(getattr(cfg, "WEATHER_STRATEGY_ENABLED", False)),
+            ):
                 return []
         except Exception:
             return []
@@ -347,6 +354,11 @@ class WeatherDomainStrategy(BaseStrategy):
 
     async def evaluate_exit(self, position: dict[str, Any]) -> ExitDecision:
         """Evaluate stop-loss, trailing-stop, take-profit, and forecast-shift exits."""
+        # NOTE: exits are deliberately NOT gated on the runtime overlay. The
+        # entry flag (scan) is runtime-toggleable, but an admin turning weather
+        # OFF must NEVER suppress protective exits on already-open positions —
+        # that would strand them past their stop-loss/TP. This static gate only
+        # reflects a deploy-level disable and is left at pre-overlay behaviour.
         from ....config import get_settings
         try:
             cfg = get_settings()

@@ -90,6 +90,17 @@ class WeatherStrategy:
         compute bucket probability → evaluate EV → emit entry candidates.
         Returns summary metrics dict.
         """
+        # Runtime overlay (web admin) governs the standalone scheduler cycle too,
+        # so toggling the flag OFF stops it without a redeploy. The job is
+        # registered at startup per the Fly/env flag; this guard makes the live
+        # override authoritative for execution.
+        from ...config import get_settings as _gs
+        from ...domain.ops import runtime_config as _rc
+        if not await _rc.resolve_bool(
+            "WEATHER_STRATEGY_ENABLED",
+            bool(getattr(_gs(), "WEATHER_STRATEGY_ENABLED", False)),
+        ):
+            return {"disabled": True, "candidates": 0, "errors": 0}
         self._cfg = _load_config()
         self._last_scan = datetime.now(timezone.utc)
         self._scan_count += 1
@@ -235,6 +246,9 @@ class WeatherStrategy:
 
         Returns summary dict with closed/held counts.
         """
+        # Exits are NOT gated on the runtime flag: an admin turning weather OFF
+        # must not strand already-open positions past their protective exits.
+        # (Entry via scan_cycle IS overlay-gated; this monitor cycle is not.)
         self._last_monitor = datetime.now(timezone.utc)
         positions = list(self._positions.values())
         closed = 0

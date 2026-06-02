@@ -8,6 +8,7 @@ import {
   type AdminOverview,
   type AdminStrategy,
   type AdminUser,
+  type RuntimeSetting,
 } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
@@ -26,6 +27,8 @@ export function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [savingStrat, setSavingStrat] = useState<string | null>(null);
+  const [settings, setSettings] = useState<RuntimeSetting[]>([]);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
   const [drawerUserId, setDrawerUserId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -33,14 +36,16 @@ export function AdminPage() {
       const me = await api.getMe();
       if (!me.is_admin) { setAllowed(false); return; }
       setAllowed(true);
-      const [ov, st, us] = await Promise.all([
+      const [ov, st, us, cfg] = await Promise.all([
         api.getAdminOverview(),
         api.getAdminStrategies(),
         api.getAdminUsers(100, 0),
+        api.getAdminSettings(),
       ]);
       setOverview(ov);
       setStrategies(st.strategies);
       setUsers(us.users);
+      setSettings(cfg.settings);
       setError(null);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -66,6 +71,28 @@ export function AdminPage() {
       console.error("toggle strategy failed", e);
     } finally {
       setSavingStrat(null);
+    }
+  }
+
+  async function handleSettingToggle(key: string, next: boolean) {
+    const original = settings.find((s) => s.key === key);
+    setSavingKey(key);
+    setSettings((prev) => prev.map((s) =>
+      s.key === key ? { ...s, effective: next, overridden: true } : s));
+    try {
+      await api.updateAdminSetting(key, next);
+    } catch (e) {
+      // Full rollback: restore BOTH effective and the override marker, else a
+      // failed write would leave a stale "● override" badge on an unchanged value.
+      if (original) {
+        setSettings((prev) => prev.map((s) =>
+          s.key === key
+            ? { ...s, effective: original.effective, overridden: original.overridden }
+            : s));
+      }
+      console.error("update setting failed", e);
+    } finally {
+      setSavingKey(null);
     }
   }
 
@@ -213,6 +240,39 @@ export function AdminPage() {
             OFF stops new signals/trades from that strategy for everyone (takes effect next scan tick). It does NOT change a user's selected preset — their dashboard may still show the preset as active, but no new trades fire while OFF. Open positions are unaffected.
           </p>
         </Section>
+
+        {/* ── Bot settings (runtime config — no redeploy) ── */}
+        {settings.length > 0 && (
+          <Section title="Bot Settings (runtime — no redeploy)">
+            <div className="space-y-1">
+              {settings.filter((s) => s.kind === "bool").map((s) => (
+                <div key={s.key} className="flex items-center justify-between py-1.5 border-b border-surface-3 last:border-0">
+                  <div className="pr-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[12px] text-ink-1">{s.label}</span>
+                      <span className="font-mono text-[9px]" style={{ color: s.effective ? "#00FF9C" : "#888" }}>
+                        {s.effective ? "ON" : "OFF"}
+                      </span>
+                      {s.overridden && (
+                        <span className="font-mono text-[8px] text-gold" title="Overridden in DB (vs Fly/env default)">● override</span>
+                      )}
+                    </div>
+                    <p className="text-[9px] font-mono text-ink-4 mt-0.5">{s.description}</p>
+                  </div>
+                  <Toggle
+                    checked={Boolean(s.effective)}
+                    onChange={(next) => void handleSettingToggle(s.key, next)}
+                    ariaLabel={`Toggle ${s.key}`}
+                    disabled={savingKey === s.key}
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="text-[9px] font-mono text-ink-4 mt-2">
+              Live operator toggles stored in the DB (applies within ~30s, no redeploy). LIVE-trading guards are intentionally NOT here — those stay deploy-gated in Fly secrets.
+            </p>
+          </Section>
+        )}
 
         {/* ── Users ── */}
         <Section title={`Users (${overview?.counts.users ?? users.length})`}>

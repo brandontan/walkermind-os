@@ -423,6 +423,15 @@ class StrategyToggleRequest(BaseModel):
     enabled: bool
 
 
+class RuntimeSettingUpdate(BaseModel):
+    """PATCH /api/web/admin/settings/{key} — set a runtime-config override.
+
+    ``value`` is bool | float | str; the runtime_config whitelist validates the
+    type + bounds for the target key (unknown key → 404, bad value → 400).
+    """
+    value: object
+
+
 class AdminRecentTrade(BaseModel):
     """One row in the per-user recent-trades slice on the admin drawer."""
     id: str
