@@ -25,6 +25,21 @@ It never closes on mid-trade TP/SL, a strategy hook, or the resolution-horizon
 guard — any of which would close one leg and strand the opposite leg as a naked
 directional bet, destroying the hedge that makes the arb riskless.
 
+`run_once()` has two expiry paths that bypass `evaluate()` entirely; both now
+skip complete-set legs:
+- **Phase A (None-price → MARKET_EXPIRED):** after `_EXPIRED_TICK_THRESHOLD`
+  consecutive None-price ticks on an actually-expired market, a directional
+  position is closed as expired. A complete_set leg instead pins its fail
+  counter and holds (no `close_as_expired`).
+- **Phase B (resolved-market sweep):** the losing leg of a resolved market is
+  normally closed as expired. A complete_set leg is counted as held and left
+  for the redemption pipeline.
+
+Both expiry paths call `registry.close_as_expired`, which **refunds `size_usdc`
+to the wallet** — correct for a directional bet, but for a set it would refund
+the stake instead of letting the hedge settle (winning leg → $1, losing leg →
+$0 via redemption), silently inflating PnL. The skip closes that gap.
+
 ## 2. Why this ordering
 
 A complete set's locked margin is only realised at settlement (one leg → $1, the
@@ -43,10 +58,11 @@ booked set could be wrongly TP/SL-closed.
 
 ## 4. What is working
 
-54 exit-watcher tests pass (51 existing + 3 new): a set holds through a crossed TP
-threshold, holds through a crossed SL threshold, and STILL force-closes on
-`force_close_intent`. ruff + py_compile clean. The skip keys on
-`OpenPositionForExit.strategy_type` (populated at `registry.py:230`).
+56 exit-watcher tests pass (51 existing + 5 new): a set holds through a crossed TP
+threshold, holds through a crossed SL threshold, STILL force-closes on
+`force_close_intent`, is NOT expired on a 3-tick None price (Phase A), and is NOT
+expired on a resolved-market sweep (Phase B). ruff + py_compile clean. The skip
+keys on `OpenPositionForExit.strategy_type` (populated at `registry.py:230`).
 
 ## 5. Known issues / scope boundaries
 

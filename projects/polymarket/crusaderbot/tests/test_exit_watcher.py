@@ -1255,6 +1255,71 @@ def test_run_once_market_expired_on_resolved_market():
     assert len(captured_expired) == 0
 
 
+def test_run_once_complete_set_not_expired_on_none_price():
+    """Phase A bypass: a complete_set_arb leg with 3-tick None price + actually-
+    expired market must NOT close as MARKET_EXPIRED (would refund the stake)."""
+    pos = dataclasses.replace(_make_position(yes_price=0.40),
+                              strategy_type="complete_set_arb")
+    close_expired = AsyncMock(return_value=True)
+    list_open = AsyncMock(return_value=[pos])
+    list_open_resolved = AsyncMock(return_value=[])
+    fetch_none = AsyncMock(return_value=None)
+
+    patches = [
+        patch.object(registry, "list_open_for_exit", list_open),
+        patch.object(registry, "list_open_on_resolved_markets", list_open_resolved),
+        patch.object(registry, "close_as_expired", close_expired),
+        patch.object(exit_watcher, "_fetch_live_price", fetch_none),
+        patch.dict(exit_watcher._price_fail_counts,
+                   {pos.id: exit_watcher._EXPIRED_TICK_THRESHOLD - 1}),
+        # Even when the market genuinely expired, a set must not be expire-closed.
+        patch.object(exit_watcher, "_market_actually_expired", AsyncMock(return_value=True)),
+        _patch_audit_noop(),
+    ]
+    for p_ in patches:
+        p_.start()
+    try:
+        result = _run(exit_watcher.run_once())
+        # Capture before stop(): patch.dict restores _price_fail_counts on stop.
+        pinned = exit_watcher._price_fail_counts.get(pos.id)
+    finally:
+        for p_ in patches:
+            p_.stop()
+
+    assert result.expired == 0
+    close_expired.assert_not_awaited()
+    # Counter pinned at threshold so the set is re-checked each tick, not unbounded.
+    assert pinned == exit_watcher._EXPIRED_TICK_THRESHOLD
+
+
+def test_run_once_complete_set_not_expired_on_resolved_market():
+    """Phase B bypass: a complete_set_arb leg on a resolved market must NOT close
+    as MARKET_EXPIRED — it settles via the redemption pipeline. Counted as held."""
+    pos = dataclasses.replace(_make_position(market_resolved=True),
+                              strategy_type="complete_set_arb")
+    close_expired = AsyncMock(return_value=True)
+    list_open = AsyncMock(return_value=[])
+    list_open_resolved = AsyncMock(return_value=[pos])
+
+    patches = [
+        patch.object(registry, "list_open_for_exit", list_open),
+        patch.object(registry, "list_open_on_resolved_markets", list_open_resolved),
+        patch.object(registry, "close_as_expired", close_expired),
+        _patch_audit_noop(),
+    ]
+    for p_ in patches:
+        p_.start()
+    try:
+        result = _run(exit_watcher.run_once())
+    finally:
+        for p_ in patches:
+            p_.stop()
+
+    assert result.expired == 0
+    assert result.held == 1
+    close_expired.assert_not_awaited()
+
+
 # ---------------------------------------------------------------------------
 # _market_actually_expired guard tests (runtime-autotrade-fix)
 # ---------------------------------------------------------------------------
