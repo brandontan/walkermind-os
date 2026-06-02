@@ -26,6 +26,7 @@ Coverage targets (from R12c task header):
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import inspect
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -260,6 +261,48 @@ def test_registry_evaluator_holds_unattributed_position():
     decision = _run(exit_watcher.evaluate(p, live_price=0.40))
     assert not decision.should_exit
     assert decision.reason is None
+
+
+# ---------------------------------------------------------------------------
+# Complete-set arbitrage: paired legs are held to resolution. Mid-trade TP/SL
+# (and strategy/horizon) must NOT close a leg — that would strand the opposite
+# leg as a naked directional bet. Only force_close + market resolution apply.
+# ---------------------------------------------------------------------------
+
+def test_complete_set_holds_through_tp_threshold():
+    # cur 0.99 vs entry 0.40 would normally trip TP, but a set holds.
+    p = dataclasses.replace(
+        _make_position(side="yes", entry_price=0.40, yes_price=0.99,
+                       applied_tp_pct=0.10, applied_sl_pct=0.10),
+        strategy_type="complete_set_arb",
+    )
+    decision = _run(exit_watcher.evaluate(p, live_price=0.99))
+    assert not decision.should_exit
+    assert decision.reason is None
+
+
+def test_complete_set_holds_through_sl_threshold():
+    # cur 0.05 vs entry 0.40 would normally trip SL, but a set holds.
+    p = dataclasses.replace(
+        _make_position(side="yes", entry_price=0.40, yes_price=0.05,
+                       applied_tp_pct=0.10, applied_sl_pct=0.10),
+        strategy_type="complete_set_arb",
+    )
+    decision = _run(exit_watcher.evaluate(p, live_price=0.05))
+    assert not decision.should_exit
+    assert decision.reason is None
+
+
+def test_complete_set_force_close_still_exits():
+    # Emergency Pause+Close-All must still unwind a set (checked before the skip).
+    p = dataclasses.replace(
+        _make_position(side="yes", entry_price=0.40, yes_price=0.50,
+                       force_close_intent=True),
+        strategy_type="complete_set_arb",
+    )
+    decision = _run(exit_watcher.evaluate(p, live_price=0.50))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.FORCE_CLOSE.value
 
 
 # ---------------------------------------------------------------------------

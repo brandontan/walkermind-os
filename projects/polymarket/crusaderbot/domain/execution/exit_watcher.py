@@ -412,6 +412,16 @@ async def evaluate(
                             reason=ExitReason.FORCE_CLOSE.value,
                             current_price=cur)
 
+    # 1b. Complete-set arbitrage legs are held to RESOLUTION. The pair only pays
+    #     out its locked margin when the market settles (one leg -> $1, the other
+    #     -> $0), so a leg must NEVER exit mid-trade on TP/SL, a strategy hook, or
+    #     the horizon guard — any of those would close one leg and strand the
+    #     other as a naked directional bet, destroying the hedge. Only
+    #     force_close_intent (emergency, handled above) and market_resolved
+    #     (handled at the top — settles via the redemption pipeline) close a set.
+    if position.strategy_type == "complete_set_arb":
+        return ExitDecision(should_exit=False, reason=None, current_price=cur)
+
     ret = _return_pct(side=position.side,
                       entry_price=position.entry_price,
                       current_price=cur)
