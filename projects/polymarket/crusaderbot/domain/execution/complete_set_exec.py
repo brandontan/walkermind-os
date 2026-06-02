@@ -166,24 +166,35 @@ def _fill_plan(
     return None, 0.0
 
 
-def _sell_fill_limit(
+def _sell_plan(
     book: dict[str, Any] | None, target_shares: float, tick: float,
-) -> float | None:
-    """Highest limit price whose bid depth fully absorbs ``target_shares``, - 1 tick.
+) -> tuple[float | None, float]:
+    """Plan a FOK SELL of ``target_shares`` against the current bids.
 
-    Mirror of ``_fill_plan`` for the unwind SELL: the worst (lowest) bid level
-    needed to flatten the naked leg, minus one tick, crosses down aggressively so
-    the FOK fills in full. ``None`` means the bid side cannot absorb the size — the
-    unwind is not attemptable and the caller must HALT.
+    Mirror of ``_fill_plan`` for the unwind SELL. Walks the bids best (highest)
+    first, capping the last level, and returns ``(limit_price, weighted_proceeds)``:
+      * ``limit_price`` = worst (lowest) bid level needed to absorb the size, minus
+        one tick — crosses down aggressively so the FOK fills in full (>= 0.01).
+      * ``weighted_proceeds`` = sum(price * filled_size) over the consumed bids — the
+        USDC the SELL actually returns. An FOK fills at the limit OR BETTER, so the
+        weighted proceeds (>= limit * shares) is the accurate credit; using the bare
+        limit would permanently understate the wallet on every unwind.
+    ``(None, 0.0)`` means the bid side cannot absorb the size — the unwind is not
+    attemptable and the caller must HALT.
     """
     acc = 0.0
+    proceeds = 0.0
     worst = 0.0
     for price, size in _bids_descending(book):
+        take = min(size, target_shares - acc)
+        if take <= 0.0:
+            break
+        proceeds += price * take
+        acc += take
         worst = price
-        acc += size
         if acc + 1e-9 >= target_shares:
-            return max(0.01, round(worst - tick, 4))
-    return None
+            return max(0.01, round(worst - tick, 4)), round(proceeds, 6)
+    return None, 0.0
 
 
 async def _insert_order(
@@ -506,6 +517,20 @@ async def book_complete_set_live(
             f"complete-set limit sum {yes_limit + no_limit:.4f} >= "
             f"payout {COMPLETE_SET_PAYOUT} — not riskless"
         )
+    # Budget ceiling: the risk gate approved spending up to ``quote.total_cost_usdc``
+    # (it sized the quote within the per-position + live-capital caps). If the books
+    # drifted UP between scan and submit, the recomputed cost can exceed that
+    # approved budget — submitting anyway would overspend the user's approved risk
+    # (e.g. a $95 approval repriced to $97). Reject pre-submit (no exposure): a
+    # riskless arb we decline is free money skipped, never a loss. Lane 3C re-runs
+    # the full gate; this is the primitive's own caller-agnostic floor.
+    approved_budget = quote.total_cost_usdc
+    actual_total = float(yes_cost + no_cost)
+    if actual_total > approved_budget + 1e-6:
+        raise LivePreSubmitError(
+            f"complete-set submit-time cost {actual_total:.6f} exceeds gate-approved "
+            f"budget {approved_budget:.6f} (book drifted up) — reject (no overspend)"
+        )
 
     try:
         client = clob_client or get_clob_client(s)
@@ -780,7 +805,7 @@ async def _unwind_naked_leg(
     entry_price = round(float(naked_cost) / shares, 6) if shares > 0 else naked_limit
     naked_meta = {**meta, "naked_leg": naked_side, "unwind": True}
 
-    sell_limit = _sell_fill_limit(naked_book, shares, tick_f)
+    sell_limit, sell_proceeds = _sell_plan(naked_book, shares, tick_f)
     if sell_limit is None:
         return await _persist_naked_halt(
             pool=pool, user_id=user_id, market_id=market_id, naked_order=naked_order,
@@ -856,9 +881,11 @@ async def _unwind_naked_leg(
             naked_meta=naked_meta, reason="unwind_fok_killed",
         )
 
-    # Unwind filled -> flat. Realised proceeds at the (conservative) sell limit;
-    # FOK fills at limit-or-better so this never overstates the credited balance.
-    proceeds = Decimal(str(round(sell_limit * shares, 6)))
+    # Unwind filled -> flat. Credit the WEIGHTED bid proceeds (the FOK fills at the
+    # limit or better, so the weighted value over the consumed bids is what the SELL
+    # actually returns; crediting the bare limit would permanently understate the
+    # wallet on every unwind).
+    proceeds = Decimal(str(sell_proceeds))
     realised = proceeds - naked_cost
     unwind_broker_id = _extract_order_id(sell_res)
     try:

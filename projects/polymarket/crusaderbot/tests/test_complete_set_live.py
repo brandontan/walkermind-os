@@ -230,17 +230,46 @@ async def test_persisted_cost_recomputed_from_submit_time_book(monkeypatch) -> N
     clob = FakeClob([FILL, FILL])
     # quote implies YES avg 0.45 ($45/100sh) but the book drifted up to 0.46 ask.
     # The persisted size_usdc + entry price must reflect the SUBMIT-TIME fill cost
-    # ($46), not the stale quote ($45) — else exposure is under-recorded.
+    # ($46), not the stale quote ($45). NO drifts down to 0.48 so the combined cost
+    # ($94) stays within the gate-approved $95 budget and the set still books.
     await _book_live(
         conn, clob,
         quote=_quote(shares=100.0, yes_cost=45.0, no_cost=50.0),
         yes_book=_book(ask=0.46, bid=0.45),
-        no_book=_book(ask=0.50, bid=0.49),
+        no_book=_book(ask=0.48, bid=0.47),
     )
     by_side = {args[3]: args for args in conn.position_inserts}
     assert float(by_side["yes"][4]) == 46.0  # size_usdc = recomputed fill cost
     assert by_side["yes"][5] == 0.46  # entry price = recomputed cost / shares
-    assert float(by_side["no"][4]) == 50.0  # NO unchanged
+    assert float(by_side["no"][4]) == 48.0  # NO recomputed too
+
+
+async def test_submit_cost_over_approved_budget_rejects(monkeypatch) -> None:
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    clob = FakeClob([])
+    # quote approved at $95; books drift up so the recomputed cost is $96 (> budget).
+    # Must reject PRE-SUBMIT (no overspend of the gate-approved risk) — no orders.
+    with pytest.raises(LivePreSubmitError, match="exceeds gate-approved budget"):
+        await _book_live(
+            conn, clob,
+            quote=_quote(shares=100.0, yes_cost=45.0, no_cost=50.0),
+            yes_book=_book(ask=0.46, bid=0.45),
+            no_book=_book(ask=0.50, bid=0.49),
+        )
+    assert clob.calls == []
+    assert conn.order_inserts == []
+
+
+async def test_unwind_credits_weighted_bid_proceeds(monkeypatch) -> None:
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    clob = FakeClob([FILL, KILL, FILL])  # yes fill, no kill, unwind sell fill
+    # yes naked cost $45; yes bid 0.44 -> weighted proceeds $44 (NOT the bare sell
+    # limit 0.43 * 100 = $43). The ledger credit must be the weighted $44.
+    await _book_live(conn, clob, yes_book=_book(ask=0.45, bid=0.44))
+    credits = [float(a[2]) for a in conn.ledger_inserts if float(a[2]) > 0]
+    assert credits == [44.0]
 
 
 async def test_fok_buy_limits_respect_arb_budget(monkeypatch) -> None:
