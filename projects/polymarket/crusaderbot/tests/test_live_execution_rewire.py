@@ -389,6 +389,44 @@ class TestOrderTypeDispatch:
         assert orders[0]["orderType"] == "GTC"
 
 
+class TestStrategyMetadataPersisted:
+    """Lane 3A: the live position INSERT now carries strategy_metadata (the
+    pre-LIVE blocker — live positions previously had no quote/pairing snapshot)."""
+
+    class _CapConn(FakeConn):
+        def __init__(self, **kw: Any) -> None:
+            super().__init__(**kw)
+            self.pos_insert: tuple[str, tuple] | None = None
+
+        async def fetchrow(self, query: str, *args: Any) -> dict | None:
+            if "INSERT INTO positions" in query:
+                self.pos_insert = (query, args)
+            return await super().fetchrow(query, *args)
+
+    def test_metadata_and_preset_passed_to_position_insert(self) -> None:
+        import json
+        meta = {"complete_set": True, "condition_id": "0xabc", "net_margin_usdc": 1.5}
+        conn = self._CapConn()
+        _run_execute(conn, _settings(), MockClobClient(),
+                     strategy_metadata=meta, active_preset="close_sweep")
+        assert conn.pos_insert is not None
+        query, args = conn.pos_insert
+        assert "active_preset" in query
+        assert "strategy_metadata" in query
+        assert "$12::jsonb" in query
+        # ...active_preset, strategy_metadata) — preset is second-to-last, json last.
+        assert args[-2] == "close_sweep"
+        assert args[-1] == json.dumps(meta)
+
+    def test_none_metadata_and_preset_insert_null(self) -> None:
+        conn = self._CapConn()
+        _run_execute(conn, _settings(), MockClobClient())  # neither supplied
+        assert conn.pos_insert is not None
+        _query, args = conn.pos_insert
+        assert args[-2] is None  # active_preset
+        assert args[-1] is None  # strategy_metadata
+
+
 # ---------------------------------------------------------------------------
 # Idempotency key
 # ---------------------------------------------------------------------------
