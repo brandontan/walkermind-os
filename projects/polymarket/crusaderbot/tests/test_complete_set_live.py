@@ -49,6 +49,9 @@ def _book(ask: float | None = None, bid: float | None = None, size: float = 1000
 
 FILL = {"orderID": "ord-fill", "status": "matched"}
 KILL = {"orderID": "", "status": "unmatched"}
+# Accepted-but-not-terminal (Polymarket marketable-order delay window): MUST be
+# treated as ambiguous (halt + reconcile), never as a clean kill.
+DELAYED = {"orderID": "ord-delayed", "status": "delayed"}
 
 
 class FakeConn:
@@ -312,6 +315,43 @@ async def test_unwind_killed_halts_and_persists_naked(monkeypatch, halts, alerts
     # trading halted + operator paged
     assert halts and halts[0]["action"] == "pause"
     assert alerts and "NAKED LEG" in alerts[-1]
+
+
+async def test_yes_delayed_status_halts_not_clean_kill(monkeypatch, halts) -> None:
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    # YES returns a non-terminal `delayed` status -> may still match -> must NOT be
+    # read as a clean no_fill kill; halt + raise, NO leg never sent.
+    clob = FakeClob([DELAYED])
+    with pytest.raises(LivePostSubmitError):
+        await _book_live(conn, clob)
+    assert len(clob.calls) == 1  # NO leg not submitted
+    assert conn.position_inserts == []
+    assert halts and halts[0]["action"] == "pause"
+
+
+async def test_no_delayed_status_after_yes_fill_tracks_yes_and_halts(monkeypatch, halts) -> None:
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    clob = FakeClob([FILL, DELAYED])  # YES filled, NO non-terminal
+    with pytest.raises(LivePostSubmitError):
+        await _book_live(conn, clob)
+    assert len(clob.calls) == 2  # no auto-unwind (NO may still match)
+    # confirmed YES persisted + tracked, halt fired
+    assert len(conn.position_inserts) == 1
+    assert conn.position_inserts[0][6] == cse.COMPLETE_SET_NAKED_STRATEGY
+    assert halts and halts[0]["action"] == "pause"
+
+
+async def test_unwind_delayed_status_halts_no_persist(monkeypatch, halts) -> None:
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    clob = FakeClob([FILL, KILL, DELAYED])  # unwind SELL non-terminal
+    with pytest.raises(LivePostSubmitError):
+        await _book_live(conn, clob)
+    assert len(clob.calls) == 3
+    assert conn.position_inserts == []  # no guessed naked/flat persist
+    assert halts and halts[0]["action"] == "pause"
 
 
 async def test_unwind_submit_ambiguous_halts_raises_no_persist(monkeypatch, halts) -> None:

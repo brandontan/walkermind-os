@@ -61,25 +61,49 @@ COMPLETE_SET_STRATEGY = "complete_set_arb"
 # sweeps — never silently parked until settlement.
 COMPLETE_SET_NAKED_STRATEGY = "complete_set_arb_naked"
 
-# FOK is atomic: a leg fully fills (status "matched") or is killed (no fill). We
-# normalise the broker's fill status against the same vocabulary the WS handler
-# uses so a wire-shape drift never reads a kill as a fill (which would strand a
-# naked leg untracked).
+# A FOK leg resolves to exactly one of three states. We normalise the broker's
+# status against the same vocabulary the WS handler uses so a wire-shape drift
+# never reads a kill as a fill (which would strand a naked leg untracked).
+#
+# FILLED   — definitively matched in full.
+# KILLED   — definitively rejected / not matched (clean, no exposure).
+# AMBIGUOUS — accepted but NOT yet terminal (e.g. Polymarket's `delayed` marketable
+#             window) OR an unrecognised/empty status. The order MAY still match,
+#             so this is treated as a post-submit ambiguity (halt + operator
+#             reconcile) — never as a clean kill, which could hide a later fill.
 _FILLED_STATUSES = frozenset(
     {"matched", "filled", "complete", "completed", "success"}
 )
+_KILLED_STATUSES = frozenset(
+    {"unmatched", "killed", "kill", "cancelled", "canceled", "expired",
+     "rejected", "failed"}
+)
+
+FILL_FILLED = "filled"
+FILL_KILLED = "killed"
+FILL_AMBIGUOUS = "ambiguous"
 
 
-def _order_filled(result: dict[str, Any] | None) -> bool:
-    """True iff a FOK order fully filled. Any ambiguity reads as NOT filled."""
+def _fill_status(result: dict[str, Any] | None) -> str:
+    """Classify a FOK post_order result as filled / killed / ambiguous.
+
+    Only an explicit terminal status maps to filled or killed; ANYTHING uncertain
+    (accepted-not-matched, unknown, empty, malformed) maps to ambiguous so the
+    caller halts and reconciles rather than silently treating it as a clean kill.
+    """
     if not isinstance(result, dict):
-        return False
-    if result.get("success") is False:
-        return False
+        return FILL_AMBIGUOUS
     status = str(result.get("status") or "").strip().lower()
     if status.startswith("order_status_"):
         status = status[len("order_status_"):]
-    return status in _FILLED_STATUSES
+    if status in _FILLED_STATUSES:
+        return FILL_FILLED
+    if status in _KILLED_STATUSES:
+        return FILL_KILLED
+    # An explicit success=False with no terminal status is a clean rejection.
+    if result.get("success") is False and not status:
+        return FILL_KILLED
+    return FILL_AMBIGUOUS
 
 
 def _extract_order_id(result: dict[str, Any]) -> str:
@@ -533,12 +557,31 @@ async def book_complete_set_live(
             f"complete-set YES ambiguous submit (order={yes_order}): {exc}"
         ) from exc
 
-    if not _order_filled(yes_res):
+    yes_fill = _fill_status(yes_res)
+    if yes_fill == FILL_KILLED:
         # FOK killed: nothing filled, NO leg never sent -> zero exposure.
         await _mark_order(yes_order, "cancelled")
         await _mark_order(no_order, "cancelled")
         log.info("complete_set_live_yes_no_fill", market_id=market_id)
         return {"status": "no_fill", "mode": "live", "leg": "yes"}
+    if yes_fill == FILL_AMBIGUOUS:
+        # Accepted but NOT terminal (e.g. `delayed`) -> the YES order MAY still
+        # match. Treat exactly like a transport-error ambiguity: do NOT send NO,
+        # do NOT report a clean kill (which could hide a later fill) -> halt +
+        # reconcile so the operator confirms the true YES state on Polymarket.
+        await _mark_order(yes_order, "unknown",
+                          error=f"non-terminal status: {yes_res.get('status')}")
+        await _mark_order(no_order, "cancelled")
+        await _halt_and_alert(
+            reason="complete_set_yes_ambiguous_status",
+            detail=(f"YES leg status AMBIGUOUS ({yes_res.get('status')!r}) "
+                    f"market=<code>{market_id}</code> order=<code>{yes_order}</code> "
+                    f"— may still match; reconcile on Polymarket."),
+        )
+        raise LivePostSubmitError(
+            f"complete-set YES non-terminal status "
+            f"({yes_res.get('status')!r}, order={yes_order})"
+        )
 
     yes_broker_id = _extract_order_id(yes_res)
 
@@ -583,7 +626,8 @@ async def book_complete_set_live(
             f"tracked as naked): {exc}"
         ) from exc
 
-    if not _order_filled(no_res):
+    no_fill = _fill_status(no_res)
+    if no_fill == FILL_KILLED:
         # NO killed, YES filled -> YES is naked -> auto-unwind.
         await _mark_order(no_order, "cancelled")
         log.warning("complete_set_live_no_killed_unwinding", market_id=market_id)
@@ -594,6 +638,25 @@ async def book_complete_set_live(
             naked_cost=yes_cost, naked_limit=yes_limit, shares=shares,
             tick=yes_tick, tick_f=yes_tick_f, neg_risk=yes_neg,
             market_question=market_question, active_preset=active_preset, meta=meta,
+        )
+    if no_fill == FILL_AMBIGUOUS:
+        # NO accepted but NOT terminal (e.g. `delayed`) AND YES filled. Same posture
+        # as the NO transport-error ambiguity: do NOT auto-unwind (NO may still
+        # match -> over-sell risk); persist the CONFIRMED YES leg as tracked +
+        # force-exitable, halt, and raise for operator reconciliation of NO.
+        await _mark_order(no_order, "unknown",
+                          error=f"non-terminal status: {no_res.get('status')}")
+        await _persist_naked_halt(
+            pool=pool, user_id=user_id, market_id=market_id, naked_order=yes_order,
+            naked_side="yes", naked_cost=yes_cost,
+            entry_price=round(yes_fill_cost / shares, 6),
+            market_question=market_question, active_preset=active_preset,
+            naked_meta={**meta, "naked_leg": "yes", "no_leg_ambiguous": True},
+            reason=f"no_ambiguous_status_yes_filled:{no_res.get('status')}",
+        )
+        raise LivePostSubmitError(
+            f"complete-set NO non-terminal status after YES fill "
+            f"({no_res.get('status')!r}, yes={yes_order}, tracked as naked)"
         )
 
     no_broker_id = _extract_order_id(no_res)
@@ -764,7 +827,28 @@ async def _unwind_naked_leg(
             f"complete-set unwind ambiguous ({market_id}, {naked_side}): {exc}"
         ) from exc
 
-    if not _order_filled(sell_res):
+    sell_fill = _fill_status(sell_res)
+    if sell_fill == FILL_AMBIGUOUS:
+        # SELL accepted but NOT terminal (e.g. `delayed`) -> it may still match and
+        # flatten the leg. We cannot assert it is still naked, so (as with the
+        # transport-error ambiguity above) do NOT persist a re-sellable position —
+        # mark unknown, halt, and raise for operator reconciliation.
+        log.error("complete_set_unwind_ambiguous_status", market_id=market_id,
+                  status=sell_res.get("status"))
+        await _mark_order(naked_order, "unknown",
+                          error=f"unwind non-terminal status: {sell_res.get('status')}")
+        await _halt_and_alert(
+            reason="complete_set_unwind_ambiguous",
+            detail=(f"Naked {naked_side} leg unwind SELL non-terminal "
+                    f"({sell_res.get('status')!r}) market=<code>{market_id}</code> "
+                    f"order=<code>{naked_order}</code> — account may be FLAT or NAKED; "
+                    f"reconcile on Polymarket before resuming."),
+        )
+        raise LivePostSubmitError(
+            f"complete-set unwind non-terminal status "
+            f"({sell_res.get('status')!r}, {market_id}, {naked_side})"
+        )
+    if sell_fill == FILL_KILLED:
         return await _persist_naked_halt(
             pool=pool, user_id=user_id, market_id=market_id, naked_order=naked_order,
             naked_side=naked_side, naked_cost=naked_cost, entry_price=entry_price,
