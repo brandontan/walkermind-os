@@ -32,6 +32,7 @@ const STRATEGY_PRESETS = [
       "Per market it picks the rule that fits the candle's stage: Flip Hunter early (underdog, 60–180s out), Safe Close mid (favorite, 30–60s), Close Sweep final (favorite, last 35s).",
       "Each entry keeps its own exit — Flip holds to settlement, Safe exits before the noisy final 30s, Close force-exits ~8s out.",
       "A market is only ever taken by one rule per candle, so the rules never fight each other.",
+      "Prefer one rule? Use the Rule selector to pin Close Sweep, Safe Close, or Flip Hunter instead of Auto.",
     ],
   },
   {
@@ -113,6 +114,22 @@ const COMING_SOON_PRESETS: readonly {
 // All candle presets route to W.A.R.P_STRIKE engine on short-duration crypto markets.
 // Selecting one locks the market category to Crypto and surfaces the 5m/15m toggle.
 const CRYPTO_SHORT_PRESETS: readonly string[] = ["candle_auto", "close_sweep", "safe_close", "flip_hunter"];
+
+// Top-level picker only shows the two strategy *families*: Smart Strike (the
+// candle auto-router) and Weather. The three single candle rules
+// (close_sweep / safe_close / flip_hunter) are no longer standalone cards —
+// they live inside Smart Strike as a manual "Rule" sub-picker, so the main page
+// stays uncluttered while power users can still pin one rule.
+const TOP_LEVEL_PRESET_KEYS: readonly string[] = ["candle_auto", "weather_monitor"];
+
+// Manual rules nested under Smart Strike. "Auto" (candle_auto) is the default —
+// the router picks per candle stage; the three below pin a single rule.
+const SMART_STRIKE_RULES: readonly { key: string; emoji: string; name: string }[] = [
+  { key: "candle_auto", emoji: "🔥", name: "Auto" },
+  { key: "close_sweep", emoji: "🧹", name: "Close Sweep" },
+  { key: "safe_close",  emoji: "🔒", name: "Safe Close" },
+  { key: "flip_hunter", emoji: "🎯", name: "Flip Hunter" },
+];
 
 // Preset → market category that activation auto-locks. Mirrors the backend
 // router _PRESET_LOCKED_CATEGORY. Crypto-short presets lock to Crypto;
@@ -607,23 +624,35 @@ export function AutoTradePage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           {STRATEGY_PRESETS.filter((p) => {
-            // FAIL-SAFE: hide ONLY presets explicitly marked disabled by the
-            // operator. Unknown keys (no row yet, or fetch failed) stay visible
-            // so a transient API blip never wipes the picker.
+            // Only the two strategy families render at top level — the single
+            // candle rules are folded into Smart Strike's Rule sub-picker below.
+            if (!TOP_LEVEL_PRESET_KEYS.includes(p.key)) return false;
+            // FAIL-SAFE: hide a family ONLY if the operator explicitly disabled
+            // it. Unknown keys (no row yet, or fetch failed) stay visible so a
+            // transient API blip never wipes the picker.
             //
-            // Exception: the user's currently active preset stays visible even
-            // when its backing strategy is admin-OFF, so the "PAUSED (ADMIN)"
-            // badge below has somewhere to render. Hiding it would leave the
-            // user with no visible feedback that the hero is misleading them.
+            // Exception: the active family stays visible even when admin-OFF, so
+            // the "PAUSED (ADMIN)" badge has somewhere to render. Smart Strike
+            // also stays visible whenever ANY single candle rule is pinned.
             if (state.active_preset === p.key) return true;
+            if (p.key === "candle_auto" && CRYPTO_SHORT_PRESETS.includes(state.active_preset ?? "")) return true;
             return presetEnabled[p.key] !== false;
           }).map((p) => {
-            const isActive = state.active_preset === p.key;
+            const isCandleAuto = p.key === "candle_auto";
+            // Smart Strike is "active" for ANY candle rule — the Auto router or a
+            // pinned single rule (close_sweep / safe_close / flip_hunter).
+            const isActive = isCandleAuto
+              ? CRYPTO_SHORT_PRESETS.includes(state.active_preset ?? "")
+              : state.active_preset === p.key;
             // When the operator has globally disabled this strategy, the preset
             // is still "selected" but fires no new trades → show PAUSED (Admin).
             const isGloballyPaused = isActive && state.active_preset_globally_enabled === false;
             const showConfig = isActive && CRYPTO_SHORT_PRESETS.includes(p.key);
             const isDetailOpen = expandedDetail === p.key;
+            // If a single candle rule is pinned, surface which one in the card.
+            const pinnedRule = isCandleAuto
+              ? SMART_STRIKE_RULES.find((r) => r.key !== "candle_auto" && r.key === state.active_preset)
+              : undefined;
             return (
               <Fragment key={p.key}>
                 {/* Card container — non-interactive, visual wrapper only */}
@@ -640,10 +669,17 @@ export function AutoTradePage() {
                   <div
                     role="button"
                     tabIndex={0}
-                    onClick={() => void handleActivatePreset(p.key)}
+                    onClick={() => {
+                      // For Smart Strike, the body click selects the family with
+                      // its Auto default — but only when no candle rule is active
+                      // yet, so it never clobbers a rule the user pinned below.
+                      if (isCandleAuto && isActive) return;
+                      void handleActivatePreset(p.key);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
+                        if (isCandleAuto && isActive) return;
                         void handleActivatePreset(p.key);
                       }
                     }}
@@ -668,7 +704,13 @@ export function AutoTradePage() {
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-ink-3 truncate mt-0.5">{p.signal}</div>
+                          <div className="text-xs text-ink-3 truncate mt-0.5">
+                            {isCandleAuto && isActive
+                              ? (pinnedRule
+                                  ? `Manual rule: ${pinnedRule.emoji} ${pinnedRule.name}`
+                                  : "Auto — picks the rule per candle stage")
+                              : p.signal}
+                          </div>
                         </div>
                       </div>
                       <div className="text-right shrink-0 text-xs text-ink-3">
@@ -688,6 +730,48 @@ export function AutoTradePage() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Smart Strike Rule sub-picker — Auto (router) or pin a single
+                      rule. Sibling to the activation area (has its own buttons),
+                      so its clicks never bubble into card activation. */}
+                  {isCandleAuto && (
+                    <div className="px-3 pb-2.5">
+                      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-1.5">
+                        Rule — Auto routes for you, or pin one
+                      </p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {SMART_STRIKE_RULES.map((r) => {
+                          const on = state.active_preset === r.key;
+                          const ruleDisabled = presetEnabled[r.key] === false;
+                          const busy = presetSaving === r.key;
+                          return (
+                            <button
+                              key={r.key}
+                              type="button"
+                              disabled={ruleDisabled || presetSaving !== null}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!ruleDisabled) void handleActivatePreset(r.key);
+                              }}
+                              className={[
+                                "flex items-center justify-center gap-1 py-1.5 rounded-md border text-[11px] font-hud font-bold transition-all",
+                                on
+                                  ? "border-gold bg-gold/10 text-gold shadow-[0_0_6px_rgba(191,155,48,0.2)]"
+                                  : "border-surface-3 bg-surface-1 text-ink-3 hover:border-ink-3",
+                                ruleDisabled || presetSaving !== null ? "cursor-not-allowed" : "cursor-pointer",
+                                ruleDisabled ? "opacity-40" : "",
+                              ].join(" ")}
+                              title={ruleDisabled ? "Disabled by operator" : undefined}
+                            >
+                              <span aria-hidden>{r.emoji}</span>
+                              <span>{busy ? "…" : r.name}</span>
+                              {ruleDisabled && <span className="text-[8px] uppercase tracking-wide">off</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Footer row — sibling to activation area, never nested inside it */}
                   <div className="px-3 pb-3 flex items-center justify-between gap-2">
