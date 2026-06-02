@@ -23,7 +23,6 @@ Pipeline boundary (target, Lane 2C+):
 from __future__ import annotations
 
 import json
-import logging
 from decimal import Decimal
 from uuid import UUID
 
@@ -34,7 +33,6 @@ from ...database import get_pool
 from ...wallet import ledger
 from ..strategy.complete_set_arb import CompleteSetQuote
 
-logger = logging.getLogger(__name__)
 log = structlog.get_logger(__name__)
 
 # strategy_type stamped on both legs so the rest of the system can recognise a
@@ -166,7 +164,7 @@ async def book_complete_set_paper(
                 idempotency_key=f"{idempotency_key}:no",
             )
             if yes_order is None and no_order is None:
-                logger.info("complete_set idempotent skip key=%s", idempotency_key)
+                log.info("complete_set_idempotent_skip", idempotency_key=idempotency_key)
                 return {"status": "duplicate", "mode": "paper"}
             if yes_order is None or no_order is None:
                 # One leg fresh, one already booked → the pair is inconsistent.
