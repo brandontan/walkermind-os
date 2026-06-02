@@ -112,24 +112,34 @@ def _bids_descending(book: dict[str, Any] | None) -> list[tuple[float, float]]:
     return out
 
 
-def _buy_fill_limit(
+def _fill_plan(
     book: dict[str, Any] | None, target_shares: float, tick: float,
-) -> float | None:
-    """Lowest limit price whose ask depth fully fills ``target_shares``, + 1 tick.
+) -> tuple[float | None, float]:
+    """Plan a FOK BUY of ``target_shares`` against the current asks.
 
-    Walks the ascending asks accumulating size; the worst (highest) level touched
-    plus one tick is the FOK BUY limit that fills the whole quoted size in one
-    shot. Returns ``None`` when the book no longer holds enough depth — the caller
+    Walks the ascending asks, capping the last level to the shares still needed,
+    and returns ``(limit_price, weighted_cost)``:
+      * ``limit_price`` = worst (highest) level touched + 1 tick — the FOK BUY limit
+        that fills the whole size in one shot (clamped to < 1.0).
+      * ``weighted_cost`` = sum(price * filled_size) over the consumed depth — the
+        USDC the order actually spends at the CURRENT book, used for the persisted
+        size_usdc + ledger debit so accounting never drifts from the scan-time quote.
+    Returns ``(None, 0.0)`` when the book lacks depth for the full size — the caller
     aborts pre-submit rather than risk a partial.
     """
     acc = 0.0
+    cost = 0.0
     worst = 0.0
     for price, size in _asks_ascending(book):
+        take = min(size, target_shares - acc)
+        if take <= 0.0:
+            break
+        cost += price * take
+        acc += take
         worst = price
-        acc += size
         if acc + 1e-9 >= target_shares:
-            return min(0.99, round(worst + tick, 4))
-    return None
+            return min(0.99, round(worst + tick, 4)), round(cost, 6)
+    return None, 0.0
 
 
 def _sell_fill_limit(
@@ -137,7 +147,7 @@ def _sell_fill_limit(
 ) -> float | None:
     """Highest limit price whose bid depth fully absorbs ``target_shares``, - 1 tick.
 
-    Mirror of ``_buy_fill_limit`` for the unwind SELL: the worst (lowest) bid level
+    Mirror of ``_fill_plan`` for the unwind SELL: the worst (lowest) bid level
     needed to flatten the naked leg, minus one tick, crosses down aggressively so
     the FOK fills in full. ``None`` means the bid side cannot absorb the size — the
     unwind is not attemptable and the caller must HALT.
@@ -401,10 +411,11 @@ async def book_complete_set_live(
         return {"status": "skipped", "reason": "non_positive_shares"}
 
     market_id = quote.market_id
-    yes_cost = Decimal(str(quote.yes_cost_usdc))
-    no_cost = Decimal(str(quote.no_cost_usdc))
     yes_key = f"{idempotency_key}:yes"
     no_key = f"{idempotency_key}:no"
+    # NOTE: leg costs are NOT taken from the (scan-time) quote — they are recomputed
+    # from the submit-time books below, so the persisted size_usdc / ledger debit
+    # match what the broker actually fills against the CURRENT book.
 
     meta = {
         "complete_set": True,
@@ -449,17 +460,23 @@ async def book_complete_set_live(
     yes_tick_f = float(yes_tick)
     no_tick_f = float(no_tick)
 
-    # FOK BUY limits that fully fill ``shares`` against the CURRENT book. None ->
-    # depth evaporated since the quote; abort before any submit (no exposure).
-    yes_limit = _buy_fill_limit(yes_book, shares, yes_tick_f)
-    no_limit = _buy_fill_limit(no_book, shares, no_tick_f)
+    # FOK BUY plan from the CURRENT books: limit price (full-fill-or-kill) AND the
+    # weighted fill cost. Recomputing the cost here (not reusing the scan-time
+    # quote) keeps the persisted size_usdc / ledger debit aligned with what the
+    # broker actually spends — a book that drifted up between scan and submit no
+    # longer under-records exposure. None -> depth evaporated; abort (no exposure).
+    yes_limit, yes_fill_cost = _fill_plan(yes_book, shares, yes_tick_f)
+    no_limit, no_fill_cost = _fill_plan(no_book, shares, no_tick_f)
     if yes_limit is None or no_limit is None:
         raise LivePreSubmitError(
             "complete-set book depth insufficient at submit time "
             f"(yes={yes_limit} no={no_limit})"
         )
+    yes_cost = Decimal(str(yes_fill_cost))
+    no_cost = Decimal(str(no_fill_cost))
     # Arb invariant: the combined PAY price must stay strictly under the $1 payout,
-    # else the set is not riskless. Never submit a non-arb complete set.
+    # else the set is not riskless. Never submit a non-arb complete set. (Limits are
+    # >= the actual fill prices, so this is the conservative riskless guarantee.)
     if yes_limit + no_limit >= COMPLETE_SET_PAYOUT:
         raise LivePreSubmitError(
             f"complete-set limit sum {yes_limit + no_limit:.4f} >= "
@@ -556,7 +573,7 @@ async def book_complete_set_live(
         await _persist_naked_halt(
             pool=pool, user_id=user_id, market_id=market_id, naked_order=yes_order,
             naked_side="yes", naked_cost=yes_cost,
-            entry_price=round(quote.yes_cost_usdc / shares, 6),
+            entry_price=round(yes_fill_cost / shares, 6),
             market_question=market_question, active_preset=active_preset,
             naked_meta={**meta, "naked_leg": "yes", "no_leg_ambiguous": True},
             reason=f"no_ambiguous_yes_filled:{exc}",
@@ -582,8 +599,10 @@ async def book_complete_set_live(
     no_broker_id = _extract_order_id(no_res)
 
     # --- Both legs filled: persist the linked pair atomically ----------------
-    yes_price = round(quote.yes_cost_usdc / shares, 6)
-    no_price = round(quote.no_cost_usdc / shares, 6)
+    # Per-share entry prices from the SUBMIT-TIME recomputed costs (not the stale
+    # quote), so entry_price * shares == the persisted size_usdc == what was spent.
+    yes_price = round(yes_fill_cost / shares, 6)
+    no_price = round(no_fill_cost / shares, 6)
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():

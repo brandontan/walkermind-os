@@ -221,6 +221,25 @@ async def test_both_legs_fill_books_linked_pair(monkeypatch) -> None:
     assert all(args[6] == cse.COMPLETE_SET_STRATEGY for args in conn.position_inserts)
 
 
+async def test_persisted_cost_recomputed_from_submit_time_book(monkeypatch) -> None:
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    clob = FakeClob([FILL, FILL])
+    # quote implies YES avg 0.45 ($45/100sh) but the book drifted up to 0.46 ask.
+    # The persisted size_usdc + entry price must reflect the SUBMIT-TIME fill cost
+    # ($46), not the stale quote ($45) — else exposure is under-recorded.
+    await _book_live(
+        conn, clob,
+        quote=_quote(shares=100.0, yes_cost=45.0, no_cost=50.0),
+        yes_book=_book(ask=0.46, bid=0.45),
+        no_book=_book(ask=0.50, bid=0.49),
+    )
+    by_side = {args[3]: args for args in conn.position_inserts}
+    assert float(by_side["yes"][4]) == 46.0  # size_usdc = recomputed fill cost
+    assert by_side["yes"][5] == 0.46  # entry price = recomputed cost / shares
+    assert float(by_side["no"][4]) == 50.0  # NO unchanged
+
+
 async def test_fok_buy_limits_respect_arb_budget(monkeypatch) -> None:
     conn = FakeConn()
     _use_conn(monkeypatch, conn)
