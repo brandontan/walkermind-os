@@ -1,59 +1,61 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 type Props = {
   /** One slide per child. With <= 1 child the carousel renders the child as-is. */
   children: ReactNode[];
-  /** Auto-advance interval in ms. */
-  intervalMs?: number;
 };
 
 /**
- * Horizontal auto-advancing carousel for open-position cards. Shows one slide
- * at a time so a long position list stays compact on the Home view. Auto-play
- * pauses while the user is interacting (pointer down / hover) and resumes after.
+ * Horizontal, swipe-native carousel for open-position cards — one card per view.
+ *
+ * Built on CSS scroll-snap: users swipe on touch (with native momentum) or use
+ * the dots on desktop, and the view always rests cleanly on a card. There is no
+ * passive auto-advance, so the layout can never be caught mid-transition (the
+ * old translateX auto-slider showed two half-cards while animating, which read
+ * as broken on mobile). Responsive by construction — the track is the viewport
+ * width and every slide snaps to full width on any screen size.
  */
-export function PositionCarousel({ children, intervalMs = 5000 }: Props) {
+export function PositionCarousel({ children }: Props) {
   const slides = children;
-  const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
   const count = slides.length;
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [index, setIndex] = useState(0);
+
+  // Derive the active slide from the scroll position so the dots stay in sync
+  // with native swipe / momentum scrolling.
+  const onScroll = useCallback(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const w = el.clientWidth || 1;
+    const i = Math.min(Math.max(Math.round(el.scrollLeft / w), 0), count - 1);
+    setIndex((prev) => (prev === i ? prev : i));
+  }, [count]);
+
+  const goTo = useCallback((i: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+  }, []);
 
   // Keep the active index valid when the slide count shrinks (position closed).
   useEffect(() => {
     if (index > count - 1) setIndex(Math.max(0, count - 1));
   }, [count, index]);
 
-  const pausedRef = useRef(paused);
-  pausedRef.current = paused;
-
-  useEffect(() => {
-    if (count <= 1) return;
-    const id = setInterval(() => {
-      if (!pausedRef.current) setIndex((i) => (i + 1) % count);
-    }, intervalMs);
-    return () => clearInterval(id);
-  }, [count, intervalMs]);
-
   if (count <= 1) return <>{slides}</>;
 
   return (
-    <div
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onPointerDown={() => setPaused(true)}
-      onPointerUp={() => setPaused(false)}
-    >
-      <div className="overflow-hidden">
-        <div
-          className="flex transition-transform duration-500 ease-out"
-          style={{ transform: `translateX(-${index * 100}%)` }}
-        >
-          {slides.map((slide, i) => (
-            <div key={i} className="min-w-full shrink-0 px-0.5">
-              {slide}
-            </div>
-          ))}
-        </div>
+    <div>
+      <div
+        ref={trackRef}
+        onScroll={onScroll}
+        className="flex items-start overflow-x-auto snap-x snap-mandatory no-scrollbar scroll-smooth"
+      >
+        {slides.map((slide, i) => (
+          <div key={i} className="min-w-full shrink-0 snap-center px-0.5">
+            {slide}
+          </div>
+        ))}
       </div>
       <div className="flex items-center justify-center gap-1.5 mt-1.5">
         {slides.map((_, i) => (
@@ -61,7 +63,8 @@ export function PositionCarousel({ children, intervalMs = 5000 }: Props) {
             key={i}
             type="button"
             aria-label={`Go to position ${i + 1}`}
-            onClick={() => setIndex(i)}
+            aria-current={i === index}
+            onClick={() => goTo(i)}
             className="h-1.5 rounded-full transition-all"
             style={{
               width: i === index ? "14px" : "6px",

@@ -868,7 +868,7 @@ export function PositionRow({ p, onCashOut, onForceRedeem, defaultExpanded }: {
   // Expandable trade detail. Exit time/price stay blank ("—") while the
   // position is open; they fill in once the close is confirmed.
   const detail = (
-    <div>
+    <div className="md:grid md:grid-cols-2 md:gap-x-5">
       {strategyLabel ? <DetailRow label="Strategy" value={strategyLabel} tone="text-cyan" /> : null}
       <DetailRow label="Entry Time" value={fmtDateTime(p.opened_at)} />
       <DetailRow label="Entry Price" value={`${p.side.toUpperCase()} @ ${fmtCents(p.entry_price)}`} />

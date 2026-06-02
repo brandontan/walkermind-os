@@ -140,3 +140,9 @@ body::after {
 .clip-tab      { clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%); }
 .clip-pos      { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%); }
 .clip-term     { clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px)); }
+
+/* ─── SCROLL UTILITIES ───────────────────────────────────────────────── */
+/* Hide the native scrollbar on swipe/scroll-snap carousels (touch-native on
+   mobile, dot/keyboard nav on desktop) while keeping the element scrollable. */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
