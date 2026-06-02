@@ -87,13 +87,11 @@ A DB overlay over static (Fly/env) config, editable from the web admin:
 - **Tuning thresholds** (`MIN_COMPLETE_SET_EDGE`, sizing caps) are a later lane —
   the float spec + bounds-enforced overlay are already built and tested.
 - Propagation is per-process and TTL-bounded (~30s) — same model as kill switch.
-- **Weather scheduler registration caveat**: the standalone weather jobs in
-  `scheduler.py` are *registered* at startup based on the Fly/env flag. Their
-  execution now honours the overlay (cycle guards), so OFF works at runtime and
-  ON works when already registered (current prod has the Fly flag ON). The only
-  edge needing a restart is ON-from-a-Fly-OFF-baseline for the standalone cycle;
-  the primary per-user weather trade path (Phase B2 domain strategy) activates
-  from the override immediately regardless.
+- **Weather scheduler**: the standalone weather jobs in `scheduler.py` are now
+  ALWAYS registered (was: only when the Fly flag was ON at startup) and each cycle
+  self-guards on the overlay, so both ON and OFF take full effect at runtime with
+  no redeploy. When disabled the cycle is a cheap no-op (cached flag check + early
+  return). This closes the earlier registration caveat.
 
 ## 6. What is next
 
