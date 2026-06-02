@@ -61,7 +61,8 @@ async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,
                 yes_token_id=yes_token_id, no_token_id=no_token_id,
                 side=side, size_usdc=size_usdc, price=price,
                 idempotency_key=idempotency_key, strategy_type=strategy_type,
-                tp_pct=tp_pct, sl_pct=sl_pct, strategy_metadata=strategy_metadata,
+                tp_pct=tp_pct, sl_pct=sl_pct, active_preset=active_preset,
+                strategy_metadata=strategy_metadata,
             )
         except LivePostSubmitError:
             # CLOB order is live on-chain — DO NOT paper-duplicate. Re-raise.

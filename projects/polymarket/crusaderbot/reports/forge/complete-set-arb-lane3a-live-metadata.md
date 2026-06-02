@@ -2,8 +2,8 @@
 
 **Branch:** `WARP/ROOT/complete-set-arb-lane3a-live-metadata`
 **Role:** WARP•R00T (owner-directed: "Lane 3 complete" — phased 3A → 3B → 3C)
-**Validation Tier:** STANDARD (additive metadata write on the live path; no change to
-order submission, guards, risk, or capital flow)
+**Validation Tier:** MAJOR (modifies the live execution / order path — AGENTS.md
+tier rule; WARP•SENTINEL required before merge, even though the change is additive)
 **Claim Level:** FOUNDATION (pre-LIVE blocker; the live execution primitive is Lane 3B)
 
 > Lane 3 (LIVE two-leg) is built in phases, each behind the default-OFF activation
@@ -15,17 +15,24 @@ order submission, guards, risk, or capital flow)
 ## 1. What was built
 
 `domain/execution/live.py` `execute()`:
-- New keyword param `strategy_metadata: dict | None = None`.
-- The `INSERT INTO positions` now includes the `strategy_metadata` column
-  (`$11::jsonb`), written as `json.dumps(strategy_metadata)` or `NULL` — mirroring
-  the paper path (`paper.py:62-70`). The column has existed since migration 076;
-  only the live writer was missing it.
+- New keyword params `active_preset: str | None = None` and
+  `strategy_metadata: dict | None = None`.
+- The `INSERT INTO positions` now includes `active_preset` (`$11`) and
+  `strategy_metadata` (`$12::jsonb`) — exactly mirroring the paper path
+  (`paper.py:58-70`). Both columns already exist (active_preset mig 062,
+  strategy_metadata mig 076); only the live writer was missing them.
 - Added `import json`.
 
 `domain/execution/router.py`:
-- The `live_engine.execute(...)` call now forwards `strategy_metadata=strategy_metadata`
-  (the router already received it and passed it to the paper path; only the live
-  branch dropped it).
+- The `live_engine.execute(...)` call now forwards `active_preset` AND
+  `strategy_metadata` (the router already received both and passed them to the
+  paper path; only the live branch dropped them).
+
+Both omissions are the SAME class of pre-existing bug: live positions lacked the
+per-position context paper positions carry. `active_preset` matters for safety —
+`OpenPositionForExit.active_preset` (registry.py:233) drives the
+close_sweep/safe_close/flip_hunter force-exits; a NULL on a live candle position
+would silently skip its forced exit (flagged in review).
 
 ## 2. Why this is safe / in scope
 
@@ -46,10 +53,10 @@ order submission, guards, risk, or capital flow)
 
 ## 4. What is working
 
-38 tests pass in `test_live_execution_rewire.py` (36 existing + 2 new:
-`test_metadata_passed_to_position_insert` pins the column + `$11::jsonb` + the
-json-encoded value reaching the INSERT; `test_none_metadata_inserts_null` pins the
-NULL path). ruff + py_compile clean. All other live tests unaffected.
+44 tests pass (`test_live_execution_rewire.py` + `test_candle_auto_router.py`):
+2 new pin `active_preset` (`$11`) + `strategy_metadata` (`$12::jsonb`) reaching the
+INSERT in order, and the NULL path for both. ruff + py_compile clean. All other
+live + router tests unaffected.
 
 ## 5. Known issues / scope boundaries
 
@@ -69,8 +76,14 @@ NULL path). ruff + py_compile clean. All other live tests unaffected.
 
 ---
 
-- **Validation Tier:** STANDARD
+- **Validation Tier:** MAJOR (live execution/order path)
 - **Claim Level:** FOUNDATION
-- **Validation Target:** live position INSERT persists strategy_metadata (single-leg + future complete-set)
+- **Validation Target:** live position INSERT persists active_preset + strategy_metadata (single-leg + future complete-set)
 - **Not in Scope:** live order submission, two-leg execution, naked-leg unwind — Lane 3B/3C
-- **Suggested Next Step:** WARP🔹CMD review → merge; then Lane 3B (live primitive, SENTINEL).
+- **Suggested Next Step:** WARP•SENTINEL validation (MAJOR, live path) → owner merge; then Lane 3B.
+
+### Validation Handoff (NEXT PRIORITY)
+
+WARP•SENTINEL validation required for Lane 3A (live-path metadata persistence) before merge.
+Source: projects/polymarket/crusaderbot/reports/forge/complete-set-arb-lane3a-live-metadata.md
+Tier: MAJOR

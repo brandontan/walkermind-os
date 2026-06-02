@@ -99,6 +99,7 @@ async def execute(
     strategy_type: str,
     tp_pct: float | None,
     sl_pct: float | None,
+    active_preset: str | None = None,
     strategy_metadata: dict | None = None,
     order_type: str = "GTC",
     best_ask: float | None = None,
@@ -333,13 +334,15 @@ async def execute(
                     INSERT INTO positions (user_id, market_id, order_id, side,
                                            size_usdc, entry_price, current_price,
                                            tp_pct, sl_pct, mode, status, strategy_type,
-                                           market_question, strategy_metadata)
-                    VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,'live','open',$9,$10,$11::jsonb)
+                                           market_question, active_preset,
+                                           strategy_metadata)
+                    VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,'live','open',$9,$10,$11,
+                            $12::jsonb)
                     RETURNING id
                     """,
                     user_id, market_id, order_id, side,
                     size_usdc, limit_price, tp_pct, sl_pct, strategy_type,
-                    market_question,
+                    market_question, active_preset,
                     json.dumps(strategy_metadata) if strategy_metadata else None,
                 )
                 position_id = pos_row["id"]

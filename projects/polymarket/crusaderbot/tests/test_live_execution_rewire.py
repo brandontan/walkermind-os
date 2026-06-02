@@ -403,23 +403,28 @@ class TestStrategyMetadataPersisted:
                 self.pos_insert = (query, args)
             return await super().fetchrow(query, *args)
 
-    def test_metadata_passed_to_position_insert(self) -> None:
+    def test_metadata_and_preset_passed_to_position_insert(self) -> None:
         import json
         meta = {"complete_set": True, "condition_id": "0xabc", "net_margin_usdc": 1.5}
         conn = self._CapConn()
-        _run_execute(conn, _settings(), MockClobClient(), strategy_metadata=meta)
+        _run_execute(conn, _settings(), MockClobClient(),
+                     strategy_metadata=meta, active_preset="close_sweep")
         assert conn.pos_insert is not None
         query, args = conn.pos_insert
+        assert "active_preset" in query
         assert "strategy_metadata" in query
-        assert "$11::jsonb" in query
+        assert "$12::jsonb" in query
+        # ...active_preset, strategy_metadata) — preset is second-to-last, json last.
+        assert args[-2] == "close_sweep"
         assert args[-1] == json.dumps(meta)
 
-    def test_none_metadata_inserts_null(self) -> None:
+    def test_none_metadata_and_preset_insert_null(self) -> None:
         conn = self._CapConn()
-        _run_execute(conn, _settings(), MockClobClient())  # no strategy_metadata
+        _run_execute(conn, _settings(), MockClobClient())  # neither supplied
         assert conn.pos_insert is not None
         _query, args = conn.pos_insert
-        assert args[-1] is None
+        assert args[-2] is None  # active_preset
+        assert args[-1] is None  # strategy_metadata
 
 
 # ---------------------------------------------------------------------------
