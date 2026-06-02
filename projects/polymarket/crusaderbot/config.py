@@ -131,6 +131,15 @@ class Settings(BaseSettings):
     # inside strategies/weather/forecast.py; it is never stored here.
     WEATHER_STRATEGY_ENABLED: bool = False
 
+    # --- Complete-set arbitrage (WARP/ROOT/complete-set-arb epic) ---
+    # Master kill switch for the complete-set arb scan + booking path. Default
+    # OFF — even with the code wired (Lane 2C), nothing scans or books a set
+    # until the operator sets COMPLETE_SET_ARB_ENABLED=true. The edge is rare
+    # (MM vig) + UNMEASURED, so the path ships dormant: Lane 2C only LOGS live
+    # fillable quotes; PAPER booking and any LIVE capital are gated behind this
+    # flag (LIVE additionally behind the existing activation guards, Lane 3).
+    COMPLETE_SET_ARB_ENABLED: bool = False
+
     # --- Polymarket (only required for LIVE trading) ---
     POLYMARKET_API_KEY: Optional[str] = None
     POLYMARKET_API_SECRET: Optional[str] = None

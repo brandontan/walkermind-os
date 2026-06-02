@@ -94,10 +94,22 @@ async def _log(user_id: UUID, market_id: str, step: int,
 
 
 async def _open_position_count(user_id: UUID) -> int:
+    """Open-position count for the step-7 concurrency cap, counting a complete-set
+    arb (two `paired_position_id`-linked legs) as ONE unit, not two.
+
+    A complete set is one economic decision booked as two rows; without this it
+    would burn the concurrency budget at 2x. `LEAST(id, COALESCE(paired, id))`
+    collapses both legs of a set to a single group key (they share the same
+    minimum), counts a directional row as itself, and is robust to the transient
+    state where one leg has closed (the lone open leg still counts as 1). With no
+    paired rows present the expression reduces to `COUNT(DISTINCT id)` =
+    `COUNT(*)`, so the count is unchanged until complete sets exist.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         return int(await conn.fetchval(
-            "SELECT COUNT(*) FROM positions WHERE user_id=$1 "
+            "SELECT COUNT(DISTINCT LEAST(id, COALESCE(paired_position_id, id))) "
+            "FROM positions WHERE user_id=$1 "
             "AND status IN ('open','pending_settlement')",
             user_id,
         ))
