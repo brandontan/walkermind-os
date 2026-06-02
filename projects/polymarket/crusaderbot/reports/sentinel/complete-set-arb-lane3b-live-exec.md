@@ -5,7 +5,7 @@
 **Environment:** `dev` (infra + Telegram = warn-only; risk rules ENFORCED)
 **Auditor:** WARP•R00T acting as WARP•SENTINEL (owner-authorised, per prior lanes)
 **Source report:** reports/forge/complete-set-arb-lane3b-live-exec.md
-**Reviewed commit:** `1441420` (post Gemini + Codex P1 ×6 + P2 ×1 fixes)
+**Reviewed commit:** `f8d25a6` (post Gemini + Codex P1 ×7 + P2 ×1 fixes)
 
 ---
 
@@ -80,6 +80,11 @@ kill (Codex P1). Each submit site handles all three + the exception classes:
   `test_unwind_credits_weighted_bid_proceeds`.
 - Kill switch on every naked/ambiguous halt; 5 guards re-asserted (:429);
   LIVE guards never bypassed. PASS.
+- **Halt is HARD (Codex P1, resolved in-PR):** `_halt_and_alert` retries
+  `kill_switch.set_active`, and if it cannot engage it pages an URGENT "HALT DID NOT
+  ENGAGE" alert and raises `LivePostSubmitError` — a failed halt is never swallowed
+  (the gate halts only on the DB flag, so a swallowed failure would keep trading).
+  `test_halt_killswitch_failure_raises_hard_not_swallowed`.
 - Kelly/per-position + live-capital caps enforced UPSTREAM by the gate (Lane 2C);
   the budget ceiling above keeps the live spend inside that approved envelope.
 
@@ -114,6 +119,11 @@ rather than a silent guess.
 
 ## NON-BLOCKING FINDINGS (resolve in Lane 3C, before the path is reachable)
 
+- **M-2 (MED, Codex P2) — reprice unwind from a fresh book.** The unwind sizes its
+  SELL limit + proceeds from the `yes_book` captured at call time; if bids move
+  during the YES/NO submits the credited proceeds is an estimate. A fresh fetch
+  still races the fill — the authoritative fix is parsing the broker's actual fill,
+  which is the same fill-reconciliation work as H-2. Deferred to Lane 3C with it.
 - **H-2 (HIGH) — crash-recovery reconciliation.** A crash between a confirmed fill
   and the persist txn leaves 'pending'/'unknown' order rows; a retry hits the
   idempotency precheck and skips, so the on-chain fill is operator-reconciled via
@@ -128,12 +138,12 @@ rather than a silent guess.
 | Dimension | Weight | Score | Notes |
 |---|---|---|---|
 | Architecture | 20 | 19 | clean state machine; mirrors paper booker + live.execute patterns |
-| Functional | 20 | 19 | 25 hermetic tests, every branch pinned |
-| Failure modes | 20 | 19 | 3-way status + exception classes + persist-fail escalation |
+| Functional | 20 | 19 | 26 hermetic tests, every branch pinned |
+| Failure modes | 20 | 20 | 3-way status + exception classes + persist-fail + hard-halt escalation |
 | Risk rules | 20 | 20 | arb invariant + cost recompute + budget ceiling + guards (H-1 resolved) |
 | Infra + Telegram | 10 | 9 | operator pages wired; infra N/A in dev |
 | Latency | 10 | 10 | N/A; sequential-by-design correct |
-| **Total** | **100** | **96** | zero critical |
+| **Total** | **100** | **97** | zero critical |
 
 No-evidence = 0 applied to none (all claims have file:line + a passing test).
 
@@ -141,7 +151,7 @@ No-evidence = 0 applied to none (all claims have file:line + a passing test).
 
 ## GO-LIVE STATUS
 
-**VERDICT: APPROVED (96/100, 0 critical) — as of `1441420`.**
+**VERDICT: APPROVED (97/100, 0 critical) — as of `f8d25a6`.**
 
 Rationale: a MAJOR live-execution primitive whose every uncertain outcome halts and
 reconciles instead of guessing; cost/accounting aligned to on-chain spend on both
