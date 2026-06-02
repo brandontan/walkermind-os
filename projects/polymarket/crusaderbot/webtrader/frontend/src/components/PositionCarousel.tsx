@@ -37,9 +37,16 @@ export function PositionCarousel({ children }: Props) {
     el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
   }, []);
 
-  // Keep the active index valid when the slide count shrinks (position closed).
+  // Keep the active index valid AND the scroll position synced when the slide
+  // count shrinks (a position closed) — otherwise the track stays scrolled to a
+  // now-missing slide while the dots point elsewhere.
   useEffect(() => {
-    if (index > count - 1) setIndex(Math.max(0, count - 1));
+    if (index > count - 1) {
+      const next = Math.max(0, count - 1);
+      setIndex(next);
+      const el = trackRef.current;
+      if (el) el.scrollTo({ left: next * el.clientWidth });
+    }
   }, [count, index]);
 
   if (count <= 1) return <>{slides}</>;
