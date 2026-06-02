@@ -100,6 +100,19 @@ PRESET_CONFIG: dict[str, PresetConfig] = {
         "max_pos_pct": 5,
         "has_copy_trade": False,
     },
+    "playbook": {
+        "emoji": "🏟",
+        "name": "Playbook",
+        "strategy_label": "playbook",
+        "strategies": ["playbook"],
+        "risk_label": "Balanced",
+        "risk_emoji": "🟡",
+        "capital_pct": 40,
+        "tp_pct": 25,
+        "sl_pct": 12,
+        "max_pos_pct": 6,
+        "has_copy_trade": False,
+    },
 }
 
 
@@ -113,4 +126,5 @@ PRESET_ORDER: list[str] = [
     "safe_close",
     "flip_hunter",
     "weather_monitor",
+    "playbook",
 ]

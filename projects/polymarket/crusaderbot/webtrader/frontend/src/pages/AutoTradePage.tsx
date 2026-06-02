@@ -100,6 +100,22 @@ const STRATEGY_PRESETS = [
       "Protects gains with a trailing stop and re-checks the position on forecast shifts.",
     ],
   },
+  {
+    key: "playbook",
+    name: "Playbook",
+    emoji: "🏟",
+    engine: "W.A.R.P_PLAYBOOK",
+    signal: "Autonomous sports orchestration. Auto-routes to the highest-EV module.",
+    risk: "balanced" as const,
+    freq: "Adaptive",
+    visible: true,
+    features: ["⚡ Auto rule-switch", "📰 News-aware", "🦈 Sharp-money aware", "🎯 Market adaptive"],
+    detail: [
+      "Evaluates each sports market and auto-routes it to the highest expected-value module.",
+      "Current modules: Closing Edge (live). Sharp Money, Public Fade, and Injury Alpha activate as their data feeds come online.",
+      "Set-and-forget — you don't manage internal routing; the engine shows the current active module and its confidence.",
+    ],
+  },
 ] as const;
 
 // No presets currently locked — all candle presets are active.
@@ -120,7 +136,7 @@ const CRYPTO_SHORT_PRESETS: readonly string[] = ["candle_auto", "close_sweep", "
 // (close_sweep / safe_close / flip_hunter) are no longer standalone cards —
 // they live inside Smart Strike as a manual "Rule" sub-picker, so the main page
 // stays uncluttered while power users can still pin one rule.
-const TOP_LEVEL_PRESET_KEYS: readonly string[] = ["candle_auto", "weather_monitor"];
+const TOP_LEVEL_PRESET_KEYS: readonly string[] = ["candle_auto", "weather_monitor", "playbook"];
 
 // Manual rules nested under Smart Strike. "Auto" (candle_auto) is the default —
 // the router picks per candle stage; the three below pin a single rule.
@@ -140,6 +156,7 @@ const PRESET_LOCKED_CATEGORY: Record<string, string> = {
   safe_close:      "Crypto",
   flip_hunter:     "Crypto",
   weather_monitor: "Weather",
+  playbook:        "Sports",
 };
 const TIMEFRAMES = ["5m", "15m"] as const;
 type Timeframe = (typeof TIMEFRAMES)[number];

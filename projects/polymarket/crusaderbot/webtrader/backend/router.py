@@ -769,6 +769,7 @@ _PRESET_TO_STRATEGY: dict[str, str] = {
     "safe_close":      "late_entry_v3",
     "flip_hunter":     "late_entry_v3",
     "weather_monitor": "weather",
+    "playbook":        "playbook",
 }
 
 
@@ -828,6 +829,9 @@ _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
     "safe_close":      {"risk_profile": "balanced", "capital_alloc_pct": 0.25, "tp_pct": 0.12, "sl_pct": 0.06},
     "flip_hunter":     {"risk_profile": "balanced", "capital_alloc_pct": 0.30, "tp_pct": 0.25, "sl_pct": 0.12},
     "weather_monitor": {"risk_profile": "balanced", "capital_alloc_pct": 0.20, "tp_pct": 0.25, "sl_pct": 0.20},
+    # playbook: sports strategy router. The router overrides TP/SL per matched
+    # module at scan time (modules.ModuleDecision); these are activation defaults.
+    "playbook":        {"risk_profile": "balanced", "capital_alloc_pct": 0.40, "tp_pct": 0.25, "sl_pct": 0.12},
 }
 
 # Presets restricted to short-duration crypto markets. Activating one auto-locks
@@ -844,6 +848,7 @@ _PRESET_LOCKED_CATEGORY: dict[str, str] = {
     "safe_close":      "Crypto",
     "flip_hunter":     "Crypto",
     "weather_monitor": "Weather",
+    "playbook":        "Sports",
 }
 _VALID_TIMEFRAMES: frozenset[str] = frozenset({"5m", "15m"})
 # Assets offered for crypto-short presets. BTC/ETH are default-active;
@@ -2441,6 +2446,7 @@ _ADMIN_STRATEGIES: tuple[str, ...] = (
     "signal_following",
     "copy_trade",
     "weather",
+    "playbook",
 )
 
 

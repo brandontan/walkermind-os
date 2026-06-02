@@ -76,6 +76,11 @@ STRATEGY_AVAILABILITY: dict[str, list[str]] = {
     # ensemble forecast edge is not leverage-sensitive and sizing is still
     # bounded by Kelly + max-position caps downstream.
     "weather":            ["conservative", "balanced", "aggressive", "custom"],
+    # PLAYBOOK sports strategy router (playbook preset). Emits candidates with
+    # strategy_name="playbook"; without this entry gate step 4 rejects every
+    # sports candidate as unknown_strategy. All profiles allowed — module sizing
+    # is still bounded by Kelly + max-position + exposure caps downstream.
+    "playbook":           ["conservative", "balanced", "aggressive", "custom"],
     # Complete-set arbitrage (WARP/ROOT/complete-set-arb epic, Lane 2C). Books a
     # hedged YES+NO pair held to resolution — riskless by construction, so all
     # profiles are allowed; sizing is still bounded by Kelly + max-position caps
