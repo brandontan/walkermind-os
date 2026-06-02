@@ -35,6 +35,19 @@ class PresetConfig(TypedDict):
 
 
 PRESET_CONFIG: dict[str, PresetConfig] = {
+    "candle_auto": {
+        "emoji": "🔥",
+        "name": "Smart Strike",
+        "strategy_label": "late_entry_v3",
+        "strategies": ["late_entry_v3"],
+        "risk_label": "Balanced",
+        "risk_emoji": "🟡",
+        "capital_pct": 40,
+        "tp_pct": 90,
+        "sl_pct": 40,
+        "max_pos_pct": 5,
+        "has_copy_trade": False,
+    },
     "close_sweep": {
         "emoji": "🧹",
         "name": "Close Sweep",
@@ -95,6 +108,7 @@ def get_preset(key: str) -> PresetConfig | None:
 
 
 PRESET_ORDER: list[str] = [
+    "candle_auto",
     "close_sweep",
     "safe_close",
     "flip_hunter",

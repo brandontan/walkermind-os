@@ -18,6 +18,23 @@ const ALL_CATEGORIES = ["Politics","Sports","Crypto","Finance","Science","Entert
 
 const STRATEGY_PRESETS = [
   {
+    key: "candle_auto",
+    name: "Smart Strike",
+    emoji: "🔥",
+    engine: "W.A.R.P_STRIKE_AUTO",
+    signal: "Auto-router: picks Flip / Safe / Close per candle stage. Set-and-forget.",
+    risk: "balanced" as const,
+    freq: "Medium",
+    visible: true,
+    features: ["🤖 Auto rule-switch", "🎯 Flip→Safe→Close", "⏱ Picks per candle stage"],
+    detail: [
+      "One preset that runs all three candle rules on the same BTC/ETH/SOL engine — you don't have to choose.",
+      "Per market it picks the rule that fits the candle's stage: Flip Hunter early (underdog, 60–180s out), Safe Close mid (favorite, 30–60s), Close Sweep final (favorite, last 35s).",
+      "Each entry keeps its own exit — Flip holds to settlement, Safe exits before the noisy final 30s, Close force-exits ~8s out.",
+      "A market is only ever taken by one rule per candle, so the rules never fight each other.",
+    ],
+  },
+  {
     key: "close_sweep",
     name: "Close Sweep",
     emoji: "🧹",
@@ -95,12 +112,13 @@ const COMING_SOON_PRESETS: readonly {
 
 // All candle presets route to W.A.R.P_STRIKE engine on short-duration crypto markets.
 // Selecting one locks the market category to Crypto and surfaces the 5m/15m toggle.
-const CRYPTO_SHORT_PRESETS: readonly string[] = ["close_sweep", "safe_close", "flip_hunter"];
+const CRYPTO_SHORT_PRESETS: readonly string[] = ["candle_auto", "close_sweep", "safe_close", "flip_hunter"];
 
 // Preset → market category that activation auto-locks. Mirrors the backend
 // router _PRESET_LOCKED_CATEGORY. Crypto-short presets lock to Crypto;
 // weather_monitor locks to Weather. Presets absent here leave the filter free.
 const PRESET_LOCKED_CATEGORY: Record<string, string> = {
+  candle_auto:     "Crypto",
   close_sweep:     "Crypto",
   safe_close:      "Crypto",
   flip_hunter:     "Crypto",

@@ -106,6 +106,7 @@ CRUSADERBOT is considered **DONE** only when:
 
 ## Active — In Progress
 
+- [ ] WARP/ROOT/candle-auto-router [MAJOR → SENTINEL] PR open — candle_auto preset (🔥 Smart Strike): additive lifecycle-router over close_sweep/safe_close/flip_hunter on the same late_entry_v3 engine. Per-market stage routing (flip early underdog → safe mid → close final favorite), per-rule force-exit + TP/SL threaded via candidate metadata → strategy_metadata, dedup close>safe>flip. 3 single presets untouched; new RECOMMENDED preset. 8 new tests + 2286 suite pass; ruff clean. Pre-LIVE gap: live.py strategy_metadata not persisted (force-exit fallback PAPER-only; TP/SL works in LIVE). Report: projects/polymarket/crusaderbot/reports/forge/candle-auto-router.md.
 - [ ] WARP•R00T full-system pre-public audit fix campaign — verdict CONDITIONAL (safety/money core APPROVED + fail-closed; user-facing correctness + API hardening + pre-LIVE money-path lanes opened). Lanes:
   - [x] Lane 1/5 WARP/ROOT/mode-status-display [STANDARD/NARROW] MERGED #1453 — Theme #1 phantom-key mode/status display. Report: reports/forge/mode-status-display.md.
   - [x] Lane 2/5 WARP/ROOT/silent-broken-features [MAJOR] MERGED #1454 + deployed — copy-trade monitor tz-aware ts, withdrawal-notify parse_mode, frontend error-vs-empty states. Report: reports/forge/silent-broken-features.md.

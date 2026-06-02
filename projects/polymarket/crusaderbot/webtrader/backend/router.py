@@ -763,6 +763,7 @@ async def toggle_autotrade(body: AutoTradeToggleRequest, user: _CurrentUser):
 # can show "PAUSED (Admin)" when the active preset's strategy is globally off.
 # Only contains presets that point to a real, reachable strategy.
 _PRESET_TO_STRATEGY: dict[str, str] = {
+    "candle_auto":     "late_entry_v3",
     "close_sweep":     "late_entry_v3",
     "safe_close":      "late_entry_v3",
     "flip_hunter":     "late_entry_v3",
@@ -818,6 +819,10 @@ async def get_preset_availability(user: _CurrentUser) -> dict:
 # the key is absent from _PRESET_TO_STRATEGY. activate_preset() rejects 400
 # anything not in this map.
 _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
+    # candle_auto: the lifecycle router overrides TP/SL per matched rule at scan
+    # time (see signal_scan_job._candle_auto_rule_tpsl); these are the activation
+    # defaults stored on user_settings as a fallback only.
+    "candle_auto":     {"risk_profile": "balanced", "capital_alloc_pct": 0.30, "tp_pct": 0.15, "sl_pct": 0.08},
     "close_sweep":     {"risk_profile": "balanced", "capital_alloc_pct": 0.30, "tp_pct": 0.15, "sl_pct": 0.08},
     "safe_close":      {"risk_profile": "balanced", "capital_alloc_pct": 0.25, "tp_pct": 0.12, "sl_pct": 0.06},
     "flip_hunter":     {"risk_profile": "balanced", "capital_alloc_pct": 0.30, "tp_pct": 0.25, "sl_pct": 0.12},
@@ -826,13 +831,14 @@ _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
 
 # Presets restricted to short-duration crypto markets. Activating one auto-locks
 # the market category filter to Crypto only and requires a timeframe (5m/15m).
-_CRYPTO_SHORT_PRESETS: frozenset[str] = frozenset({"close_sweep", "safe_close", "flip_hunter"})
+_CRYPTO_SHORT_PRESETS: frozenset[str] = frozenset({"candle_auto", "close_sweep", "safe_close", "flip_hunter"})
 
 # Preset → market category that activation auto-locks. Crypto-short presets lock
 # to Crypto; weather_monitor locks to Weather. A preset absent from this map
 # leaves the user's existing category_filters untouched (COALESCE NULL below).
 # Mirrored in the frontend AutoTradePage PRESET_LOCKED_CATEGORY map.
 _PRESET_LOCKED_CATEGORY: dict[str, str] = {
+    "candle_auto":     "Crypto",
     "close_sweep":     "Crypto",
     "safe_close":      "Crypto",
     "flip_hunter":     "Crypto",

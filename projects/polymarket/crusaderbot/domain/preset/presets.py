@@ -105,6 +105,18 @@ PRESETS: Dict[str, Preset] = {
     # value_hunter, full_auto) were removed in WARP/R00T/strategy-system-
     # cleanup along with the lib/strategies/* modules that backed them — none
     # of those strategies had a real trigger path.
+    "candle_auto": Preset(
+        key="candle_auto",
+        emoji="🔥",
+        name="Smart Strike",
+        strategies=("late_entry_v3",),
+        capital_pct=0.40,
+        tp_pct=0.90,
+        sl_pct=0.40,
+        max_position_pct=0.05,
+        badge=PresetBadge.BALANCED,
+        description="Auto-router: picks Flip/Safe/Close per candle stage. Set-and-forget.",
+    ),
     "close_sweep": Preset(
         key="close_sweep",
         emoji="🧹",
@@ -157,6 +169,7 @@ PRESETS: Dict[str, Preset] = {
 
 # Display order — picker renders top-to-bottom.
 PRESET_ORDER: Tuple[str, ...] = (
+    "candle_auto",
     "close_sweep",
     "safe_close",
     "flip_hunter",
@@ -164,17 +177,22 @@ PRESET_ORDER: Tuple[str, ...] = (
 )
 
 # Candle preset keys — used by the picker to render a section divider.
-CANDLE_PRESET_KEYS: frozenset[str] = frozenset({"close_sweep", "safe_close", "flip_hunter"})
+# candle_auto is the lifecycle-router over the three single-rule candle presets;
+# it routes to the same late_entry_v3 engine, so it belongs to the candle group.
+CANDLE_PRESET_KEYS: frozenset[str] = frozenset(
+    {"candle_auto", "close_sweep", "safe_close", "flip_hunter"}
+)
 
 # Presets visible in the Telegram picker.
 VISIBLE_PRESET_ORDER: Tuple[str, ...] = (
+    "candle_auto",
     "close_sweep",
     "safe_close",
     "flip_hunter",
     "weather_monitor",
 )
 
-RECOMMENDED_PRESET: str = "close_sweep"
+RECOMMENDED_PRESET: str = "candle_auto"
 
 
 def get_preset(key: str) -> Preset | None:
