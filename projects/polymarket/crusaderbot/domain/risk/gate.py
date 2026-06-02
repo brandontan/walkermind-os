@@ -62,6 +62,15 @@ class GateContext:
     # so /pause halts everything. All other risk caps (size, daily loss,
     # drawdown, concurrency, liquidity, kill switch, live guards) still apply.
     bypass_auto_trade_check: bool = False
+    # Complete-set arbitrage (Lane 2C). When True the gate is being run ONCE for a
+    # hedged YES+NO pair, with proposed_size_usdc = the COMBINED fillable cost of
+    # the set (not a single leg). The booking primitive (book_complete_set_paper)
+    # consumes a fixed-share quote, so step 13 must NOT silently Kelly-shrink the
+    # size (that would desync the approved size from the booked legs): instead it
+    # hard-rejects when the combined cost exceeds the per-position cap and passes
+    # the size through unchanged otherwise. The scan sizes the quote within the
+    # cap up front (max_shares), so a reject here means a real misconfiguration.
+    complete_set: bool = False
 
 
 @dataclass
@@ -437,10 +446,24 @@ async def evaluate(ctx: GateContext) -> GateResult:
     assert 0 < max_pos_pct < 1.0, \
         f"max_pos_pct {max_pos_pct} must be < 1.0"
     max_pos_size = balance * Decimal(str(max_pos_pct)) * Decimal(str(kelly))
-    final_size = min(ctx.proposed_size_usdc, max_pos_size)
-    if final_size <= 0:
-        await _log(ctx.user_id, ctx.market_id, 13, False, "size_zero_after_cap")
-        return GateResult(False, "size_zero_after_cap", 13)
+    if ctx.complete_set:
+        # A complete-set quote is a fixed YES+NO share count; Kelly-shrinking the
+        # combined cost would desync the approved size from the legs the booker
+        # will buy. Enforce the cap as a hard reject (the scan already sized the
+        # quote within it) and pass the combined cost through unchanged.
+        final_size = ctx.proposed_size_usdc
+        if final_size <= 0:
+            await _log(ctx.user_id, ctx.market_id, 13, False, "size_zero_after_cap")
+            return GateResult(False, "size_zero_after_cap", 13)
+        if final_size > max_pos_size:
+            await _log(ctx.user_id, ctx.market_id, 13, False,
+                       f"complete_set_size_over_cap {final_size}>{max_pos_size}")
+            return GateResult(False, "complete_set_size_over_cap", 13)
+    else:
+        final_size = min(ctx.proposed_size_usdc, max_pos_size)
+        if final_size <= 0:
+            await _log(ctx.user_id, ctx.market_id, 13, False, "size_zero_after_cap")
+            return GateResult(False, "size_zero_after_cap", 13)
 
     chosen_mode = "live" if _passes_live_guards(ctx, settings) else "paper"
     if ctx.trading_mode == "live" and chosen_mode == "paper":

@@ -76,6 +76,13 @@ STRATEGY_AVAILABILITY: dict[str, list[str]] = {
     # ensemble forecast edge is not leverage-sensitive and sizing is still
     # bounded by Kelly + max-position caps downstream.
     "weather":            ["conservative", "balanced", "aggressive", "custom"],
+    # Complete-set arbitrage (WARP/ROOT/complete-set-arb epic, Lane 2C). Books a
+    # hedged YES+NO pair held to resolution — riskless by construction, so all
+    # profiles are allowed; sizing is still bounded by Kelly + max-position caps
+    # in gate step 13 (complete_set hard-cap path). Without this entry gate step 4
+    # rejects every set as unknown_strategy. Scan + booking remain gated behind
+    # COMPLETE_SET_ARB_ENABLED (default OFF).
+    "complete_set_arb":   ["conservative", "balanced", "aggressive", "custom"],
 }
 
 
