@@ -223,6 +223,7 @@ def test_preset_availability_returns_one_entry_per_mapped_preset():
     conn.fetch = AsyncMock(return_value=[
         {"name": "late_entry_v3", "enabled": False},
         {"name": "weather", "enabled": False},
+        {"name": "playbook", "enabled": False},
     ])
     with patch.object(r, "get_pool", return_value=_pool(conn)):
         out = asyncio.run(r.get_preset_availability({"user_id": "x"}))
@@ -275,9 +276,12 @@ def test_preset_params_roster_matches_admin_presets_after_cleanup():
 
     weather_monitor added by WARP-49 (weather strategy pipeline).
     candle_auto added by WARP/ROOT/candle-auto-router (Smart Strike lifecycle
-    router — additive 4th candle preset, routes to late_entry_v3)."""
+    router — additive 4th candle preset, routes to late_entry_v3).
+    playbook added by WARP/ROOT/playbook-sports-engine (PLAYBOOK sports
+    strategy router — additive sports preset, routes to the playbook engine)."""
     assert set(r._PRESET_PARAMS.keys()) == {
         "candle_auto", "close_sweep", "safe_close", "flip_hunter", "weather_monitor",
+        "playbook",
     }
     assert set(r._PRESET_TO_STRATEGY.keys()) == set(r._PRESET_PARAMS.keys())
 

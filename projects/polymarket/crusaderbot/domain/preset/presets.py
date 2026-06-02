@@ -165,6 +165,22 @@ PRESETS: Dict[str, Preset] = {
         badge=PresetBadge.BALANCED,
         description="Daily temperature markets across 20 cities. Ensemble forecast edge.",
     ),
+    # PLAYBOOK — sports strategy router (the sports equivalent of Smart Strike).
+    # Auto-routes each sports market to the highest-EV module (Closing Edge wired
+    # in Phase-1; Sharp Money / Public Fade / Injury Alpha sequenced V2). Routes
+    # to the single `playbook` strategy engine, mirroring candle_auto/late_entry_v3.
+    "playbook": Preset(
+        key="playbook",
+        emoji="🏟",
+        name="Playbook",
+        strategies=("playbook",),
+        capital_pct=0.40,
+        tp_pct=0.25,
+        sl_pct=0.12,
+        max_position_pct=0.06,
+        badge=PresetBadge.BALANCED,
+        description="Autonomous sports orchestration. Auto-routes to the highest-EV module.",
+    ),
 }
 
 # Display order — picker renders top-to-bottom.
@@ -174,6 +190,7 @@ PRESET_ORDER: Tuple[str, ...] = (
     "safe_close",
     "flip_hunter",
     "weather_monitor",
+    "playbook",
 )
 
 # Candle preset keys — used by the picker to render a section divider.
@@ -190,6 +207,7 @@ VISIBLE_PRESET_ORDER: Tuple[str, ...] = (
     "safe_close",
     "flip_hunter",
     "weather_monitor",
+    "playbook",
 )
 
 RECOMMENDED_PRESET: str = "candle_auto"

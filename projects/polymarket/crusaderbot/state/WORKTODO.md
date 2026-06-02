@@ -178,3 +178,19 @@ CRUSADERBOT is considered **DONE** only when:
 - [x] SENTINEL system audit pre-handoff — F-CRIT-1 RESOLVED, bot/ui/__init__.py fix — MERGED fa1bd2537650
 - [x] WARP-1296 — RLS enable 42 tables anon-key lockout [MAJOR] SENTINEL 98/100 — MERGED 82f08af2a27b
 - [x] F-HIGH-2 — vendor lib/ into crusaderbot package, fix prod strategy load [MAJOR] SENTINEL 99/100 — MERGED e235fa294823
+
+---
+
+## PLAYBOOK — Sports Strategy Router (epic, additive)
+
+Sports equivalent of SMART STRIKE. Autonomous router → highest-EV sports module.
+Blueprint: docs/blueprint/playbook.md. Linear: WARP-53.
+
+- [x] Phase 1 FOUNDATION (WARP/ROOT/playbook-sports-engine) — domain/playbook/ package (market quality + native signals + precedence router + Closing Edge module + stubs), PlaybookStrategy wired through registry + STRATEGY_AVAILABILITY + presets + backend + Telegram + WebTrader card; paper-only, deny-by-default dispatch; 24 tests + full suite 2371 pass. MAJOR → SENTINEL.
+- [ ] WARP•SENTINEL MAJOR validation of Phase 1
+- [ ] Phase 2a — live scan-loop dispatch (WARP/ROOT/playbook-live-dispatch; _PRESET_ALLOWED + scheduler job + sports-market snapshot fetch; weather precedent)
+- [ ] Phase 2b — Sharp Money module live on-chain source (copy-trade chain monitor)
+- [ ] Phase 2c — backtest framework (walk-forward + leakage/overfit detection; shared blocker)
+- [ ] Phase 2d — Injury Alpha module + injury/news feed adapter
+- [ ] Phase 2e — Public Fade module + public-flow feed adapter
+- [ ] Phase 3 — Line Momentum + Liquidity Hunt + CLOB WebSocket + Monte-Carlo robustness classifier

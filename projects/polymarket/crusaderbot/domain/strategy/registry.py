@@ -155,6 +155,7 @@ def bootstrap_default_strategies(
     from .strategies import (
         CopyTradeStrategy,
         LateEntryV3Strategy,
+        PlaybookStrategy,
         SignalFollowingStrategy,
         WeatherDomainStrategy,
     )
@@ -164,6 +165,7 @@ def bootstrap_default_strategies(
         SignalFollowingStrategy,
         LateEntryV3Strategy,
         WeatherDomainStrategy,
+        PlaybookStrategy,
     ):
         try:
             reg.get(cls.name)
