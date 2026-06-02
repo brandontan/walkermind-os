@@ -81,6 +81,7 @@ _MVP_LABELS: dict[str, tuple[str, str]] = {
     "hybrid":        ("🐋📡",  "Hybrid"),
     "value_hunter":  ("🎯",    "Value Hunter"),
     "full_auto":     ("🚀",    "Full Auto"),
+    "candle_auto":   ("🔥",    "Smart Strike"),
     "close_sweep":   ("🧹",    "Close Sweep"),
     "safe_close":    ("🔒",    "Safe Close"),
     "flip_hunter":   ("🎯",    "Flip Hunter"),
@@ -116,6 +117,13 @@ _MVP_DESCRIPTIONS: dict[str, str] = {
         "Risk: Aggressive\n"
         "Capital: from risk profile\n"
         "All strategies active. Max exposure. For experienced traders."
+    ),
+    "candle_auto": (
+        "🔥 Smart Strike\n"
+        "Risk: 🟡 Balanced\n"
+        "One auto-router for BTC/ETH/SOL candles — picks the rule per candle stage:\n"
+        "Flip Hunter early (cheap side) → Safe Close mid → Close Sweep final.\n"
+        "Each entry keeps its own exit. Set-and-forget — recommended."
     ),
     "close_sweep": (
         "🧹 Close Sweep\n"

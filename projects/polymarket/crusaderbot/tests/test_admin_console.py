@@ -273,9 +273,11 @@ def test_preset_params_roster_matches_admin_presets_after_cleanup():
     (scanner emits nothing, dashboard can't mark it PAUSED). Pinned here so a
     future map widening is intentional.
 
-    weather_monitor added by WARP-49 (weather strategy pipeline)."""
+    weather_monitor added by WARP-49 (weather strategy pipeline).
+    candle_auto added by WARP/ROOT/candle-auto-router (Smart Strike lifecycle
+    router — additive 4th candle preset, routes to late_entry_v3)."""
     assert set(r._PRESET_PARAMS.keys()) == {
-        "close_sweep", "safe_close", "flip_hunter", "weather_monitor",
+        "candle_auto", "close_sweep", "safe_close", "flip_hunter", "weather_monitor",
     }
     assert set(r._PRESET_TO_STRATEGY.keys()) == set(r._PRESET_PARAMS.keys())
 

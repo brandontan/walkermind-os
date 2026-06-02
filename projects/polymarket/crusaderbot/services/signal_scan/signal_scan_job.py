@@ -111,6 +111,7 @@ _DOMAIN_STRATEGY_NAMES: frozenset[str] = frozenset({_LATE_ENTRY_V3_NAME, _WEATHE
 # Preset → strategies it may fire. Deny-by-default: unknown/NULL presets
 # return frozenset() and fire nothing.
 _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
+    "candle_auto":     frozenset({_LATE_ENTRY_V3_NAME}),
     "close_sweep":     frozenset({_LATE_ENTRY_V3_NAME}),
     "safe_close":      frozenset({_LATE_ENTRY_V3_NAME}),
     "flip_hunter":     frozenset({_LATE_ENTRY_V3_NAME}),
@@ -1608,8 +1609,20 @@ def _build_trade_signal(
         trading_mode=str(row.get("trading_mode") or "paper"),
         signal_ts=cand.signal_ts,
         edge_bps=None,
-        tp_pct=float(row["tp_pct"]) if row.get("tp_pct") is not None else None,
-        sl_pct=float(row["sl_pct"]) if row.get("sl_pct") is not None else None,
+        # Per-rule TP/SL override: the candle_auto router stamps applied_tp_pct /
+        # applied_sl_pct into candidate metadata so each lifecycle rule keeps its
+        # own exit (flip holds longer than close). Any other strategy leaves these
+        # keys unset → falls through to the user-level tp/sl unchanged.
+        tp_pct=(
+            float(cand.metadata["applied_tp_pct"])
+            if isinstance(cand.metadata, dict) and cand.metadata.get("applied_tp_pct") is not None
+            else (float(row["tp_pct"]) if row.get("tp_pct") is not None else None)
+        ),
+        sl_pct=(
+            float(cand.metadata["applied_sl_pct"])
+            if isinstance(cand.metadata, dict) and cand.metadata.get("applied_sl_pct") is not None
+            else (float(row["sl_pct"]) if row.get("sl_pct") is not None else None)
+        ),
         daily_loss_override=(
             float(row["daily_loss_override"])
             if row.get("daily_loss_override") is not None
@@ -2759,7 +2772,7 @@ async def run_once() -> None:
         # (by deterministic slug), so they see the in-window markets with real
         # liquidity instead of the far-future batch a broad list fetch returns.
         crypto_window_markets: list[dict] = []
-        if active_preset in _CANDLE_PRESETS:
+        if active_preset in _ALL_CANDLE_PRESETS:
             try:
                 crypto_window_markets = await _polymarket.get_crypto_window_markets(
                     selected_timeframe or "5m", selected_assets or None
@@ -2784,30 +2797,13 @@ async def run_once() -> None:
             try:
                 user_ctx = _build_user_context(row)
                 market_filters = _build_market_filters(user_ctx.risk_profile, row)
-                # Pass preset-specific params when the user is on a candle preset;
-                # full_auto/default passes None so scan() falls back to global config.
-                # Uses live config (env-tunable) + timeframe-aware flip_hunter via
-                # _resolve_preset_params — same resolver as run_close_sweep_fast.
-                _le_pp = (
-                    _resolve_preset_params(active_preset, row.get("selected_timeframe"))
-                    if active_preset in _CANDLE_PRESETS else None
-                )
-                _le_force = _le_pp.get("force_exit_at_rem_sec") if _le_pp else None
-                late_entry_cands = await late_entry_strat.scan(
+                # Pass preset-specific params when the user is on a candle preset
+                # (candle_auto runs the lifecycle router internally). Non-candle
+                # presets pass None so scan() falls back to global config. Same
+                # resolver path as run_close_sweep_fast via _scan_late_entry_for_preset.
+                late_entry_cands = await _scan_late_entry_for_preset(
+                    late_entry_strat, active_preset, row.get("selected_timeframe"),
                     market_filters, user_ctx,
-                    min_ask_diff=float(_le_pp["min_ask_diff"]) if _le_pp else None,
-                    entry_window_sec=float(_le_pp["entry_window_sec"]) if _le_pp else None,
-                    fav_price_min=float(_le_pp["fav_price_min"]) if _le_pp else None,
-                    fav_price_max=float(_le_pp["fav_price_max"]) if _le_pp else None,
-                    min_entry_sec=float(_le_pp["min_entry_sec"]) if _le_pp and "min_entry_sec" in _le_pp else None,
-                    underdog_mode=bool(_le_pp.get("underdog_mode", False)) if _le_pp else False,
-                    force_exit_at_rem_sec=float(_le_force) if _le_force is not None else None,
-                    max_leg_spread=(
-                        float(_le_pp["max_leg_spread"])
-                        if _le_pp and "max_leg_spread" in _le_pp
-                        else None
-                    ),
-                    size_time_decay=bool(_le_pp.get("size_time_decay", False)) if _le_pp else False,
                 )
             except Exception as exc:
                 user_log.warning("late_entry_v3_run_failed", error=str(exc))
@@ -3094,6 +3090,110 @@ def _resolve_preset_params(
     }
 
 
+# candle_auto — lifecycle router preset. Routes to the SAME late_entry_v3 engine
+# as the three single-rule candle presets, but per market picks whichever rule
+# matches the candle's current stage (flip_hunter early underdog → safe_close mid
+# favorite → close_sweep final favorite). It is NOT a member of _CANDLE_PRESETS
+# (that set drives _resolve_preset_params' single-rule dispatch); use
+# _ALL_CANDLE_PRESETS for window-fetch + fast-loop gating.
+_CANDLE_AUTO_PRESET: str = "candle_auto"
+_ALL_CANDLE_PRESETS: frozenset[str] = _CANDLE_PRESETS | {_CANDLE_AUTO_PRESET}
+
+# Dedup precedence for the router: process the LATEST-stage rule first so it
+# claims a market when windows overlap. The only real overlap is close_sweep
+# (final 35s) vs safe_close (~30-60s) at ~30-35s, where close_sweep (force-exit
+# 8s) is the correct match. flip_hunter is the opposite (underdog) side and is
+# time-disjoint from the two favorite rules, so it never conflicts on side.
+_CANDLE_AUTO_RULE_ORDER: tuple[str, ...] = ("close_sweep", "safe_close", "flip_hunter")
+
+
+def _candle_auto_rule_tpsl(rule: str) -> tuple[float | None, float | None]:
+    """Per-rule TP/SL for the candle_auto router, sourced from the canonical
+    domain ``PRESETS`` so there is a single source of truth (no new magic
+    numbers). Returns ``(None, None)`` when the rule or its TP/SL is unavailable,
+    in which case the user-level default tp/sl applies unchanged.
+    """
+    try:
+        # Relative import kept deliberately: this file imports domain via
+        # `from ...domain...` throughout, and production runs the package as
+        # `crusaderbot.*` (Dockerfile `uvicorn crusaderbot.main:app`) — an
+        # absolute `projects.polymarket.crusaderbot.*` import would ModuleNotFound
+        # at runtime. Per-field None guard so a future schema change can't raise.
+        from ...domain.preset.presets import PRESETS as _P
+        p = _P.get(rule)
+        if p is None:
+            return (None, None)
+        tp = float(p.tp_pct) if p.tp_pct is not None else None
+        sl = float(p.sl_pct) if p.sl_pct is not None else None
+        return (tp, sl)
+    except Exception:
+        return (None, None)
+
+
+async def _scan_one_late_entry(strat, pp, market_filters, user_ctx):
+    """Call ``late_entry_v3.scan()`` with a resolved preset-param dict.
+
+    ``pp`` may be ``None`` → scan() falls back to global config (legacy default).
+    Centralises the kwarg unpacking that run_once and run_close_sweep_fast share.
+    """
+    _force = pp.get("force_exit_at_rem_sec") if pp else None
+    return await strat.scan(
+        market_filters, user_ctx,
+        min_ask_diff=float(pp["min_ask_diff"]) if pp else None,
+        entry_window_sec=float(pp["entry_window_sec"]) if pp else None,
+        fav_price_min=float(pp["fav_price_min"]) if pp else None,
+        fav_price_max=float(pp["fav_price_max"]) if pp else None,
+        min_entry_sec=float(pp["min_entry_sec"]) if pp and "min_entry_sec" in pp else None,
+        underdog_mode=bool(pp.get("underdog_mode", False)) if pp else False,
+        force_exit_at_rem_sec=float(_force) if _force is not None else None,
+        max_leg_spread=float(pp["max_leg_spread"]) if pp and "max_leg_spread" in pp else None,
+        size_time_decay=bool(pp.get("size_time_decay", False)) if pp else False,
+    )
+
+
+async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_filters, user_ctx):
+    """Resolve preset params and scan late_entry_v3 for a user's active preset.
+
+    Single candle preset (close_sweep/safe_close/flip_hunter) or non-candle:
+    one scan() call with that preset's params (or global-config fallback).
+
+    ``candle_auto`` (lifecycle router): scan EACH single rule, stamp the matched
+    rule's tag + per-rule TP/SL into each candidate's metadata so the per-rule
+    exit survives to the position via ``strategy_metadata`` (the scan() call
+    already stamps ``force_exit_at_rem_sec`` + ``fav_price_min/max`` per rule).
+    Dedup by market_id with close_sweep > safe_close > flip_hunter precedence.
+    One sub-rule's scan failure never kills the others.
+    """
+    if active_preset == _CANDLE_AUTO_PRESET:
+        merged: list = []
+        seen: set[str] = set()
+        for rule in _CANDLE_AUTO_RULE_ORDER:
+            try:
+                pp = _resolve_preset_params(rule, timeframe)
+                cands = await _scan_one_late_entry(strat, pp, market_filters, user_ctx)
+            except Exception as exc:
+                logger.warning("candle_auto_subrule_scan_failed", rule=rule, error=str(exc))
+                continue
+            tp, sl = _candle_auto_rule_tpsl(rule)
+            for c in cands:
+                if c.market_id in seen:
+                    continue
+                seen.add(c.market_id)
+                # SignalCandidate is frozen, but .metadata is a mutable dict —
+                # these keys ride to positions.strategy_metadata and are read
+                # back at exit (TP/SL via _build_trade_signal override below;
+                # force_exit via exit_watcher's strategy_metadata fallback).
+                c.metadata["candle_rule"] = rule
+                if tp is not None:
+                    c.metadata["applied_tp_pct"] = tp
+                if sl is not None:
+                    c.metadata["applied_sl_pct"] = sl
+                merged.append(c)
+        return merged
+    pp = _resolve_preset_params(active_preset, timeframe) if active_preset in _CANDLE_PRESETS else None
+    return await _scan_one_late_entry(strat, pp, market_filters, user_ctx)
+
+
 async def run_close_sweep_fast() -> None:
     """High-frequency scan for all candle-preset users (close_sweep, safe_close, flip_hunter).
 
@@ -3138,7 +3238,7 @@ async def run_close_sweep_fast() -> None:
     _candle_markets_seen: int = 0  # max candle markets available across users in this tick
     for row in users:
         active_preset = row.get("active_preset")
-        if active_preset not in _CANDLE_PRESETS:
+        if active_preset not in _ALL_CANDLE_PRESETS:
             continue
         candle_users_evaluated += 1
 
@@ -3146,10 +3246,6 @@ async def run_close_sweep_fast() -> None:
         selected_timeframe: str | None = str(_tf) if _tf else None
         selected_assets: list[str] = _filter_monitor_only_assets(row.get("selected_assets"))
         user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
-
-        # Per-user param resolution — flip_hunter is timeframe-aware so we cannot
-        # share a single dict across users (mixed 5m/15m settings would clobber).
-        pp = _resolve_preset_params(active_preset, selected_timeframe)
 
         # Upsert the live candle window so _process_candidate's _load_market
         # gate resolves the markets (market_sync never pulls these micro candles).
@@ -3165,19 +3261,12 @@ async def run_close_sweep_fast() -> None:
         try:
             user_ctx = _build_user_context(row)
             market_filters = _build_market_filters(user_ctx.risk_profile, row)
-            _force_exit = pp.get("force_exit_at_rem_sec")
-            cands = await late_entry_strat.scan(
-                market_filters,
-                user_ctx,
-                min_ask_diff=float(pp["min_ask_diff"]),
-                entry_window_sec=float(pp["entry_window_sec"]),
-                fav_price_min=float(pp["fav_price_min"]),
-                fav_price_max=float(pp["fav_price_max"]),
-                min_entry_sec=float(pp["min_entry_sec"]) if "min_entry_sec" in pp else None,
-                underdog_mode=bool(pp.get("underdog_mode", False)),
-                force_exit_at_rem_sec=float(_force_exit) if _force_exit is not None else None,
-                max_leg_spread=float(pp["max_leg_spread"]) if "max_leg_spread" in pp else None,
-                size_time_decay=bool(pp.get("size_time_decay", False)),
+            # candle_auto runs the lifecycle router internally (scans all three
+            # single rules + stamps per-rule exit/TP-SL); single candle presets
+            # resolve one param set. Shared with run_once via this helper.
+            cands = await _scan_late_entry_for_preset(
+                late_entry_strat, active_preset, selected_timeframe,
+                market_filters, user_ctx,
             )
         except Exception as exc:
             user_log.warning("close_sweep_fast_run_failed", error=str(exc))

@@ -194,6 +194,18 @@ async def registry_strategy_evaluator(
     # back to flip-stop-only (existing behaviour, unchanged).
     if name == "late_entry_v3":
         force_at = _late_entry_force_exit_for(position)
+        # candle_auto router: active_preset is "candle_auto", which has no entry
+        # in the (preset, tf) force-exit map, so _late_entry_force_exit_for returns
+        # None. The matched sub-rule's threshold was stamped into the candidate
+        # metadata at scan time and persisted to positions.strategy_metadata —
+        # fall back to it so each lifecycle rule keeps its fixed-time exit.
+        if force_at is None and isinstance(position.strategy_metadata, dict):
+            _stored = position.strategy_metadata.get("force_exit_at_rem_sec")
+            if _stored is not None:
+                try:
+                    force_at = float(_stored)
+                except (TypeError, ValueError):
+                    force_at = None
         secs_left = _seconds_to_close_from(position)
         if force_at is not None:
             payload["force_exit_at_rem_sec"] = force_at

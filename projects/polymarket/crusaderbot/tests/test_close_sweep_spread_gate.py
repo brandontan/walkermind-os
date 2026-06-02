@@ -125,19 +125,27 @@ def test_close_sweep_preset_injects_max_leg_spread():
 
 
 def test_scan_call_sites_forward_max_leg_spread():
-    """Both scan call sites (run_close_sweep_fast + run_once Phase B2)
-    must forward `max_leg_spread` from preset params to scan(), otherwise
-    the gate is invisible to actual production traffic."""
-    src_fast = inspect.getsource(ssj.run_close_sweep_fast)
-    assert "max_leg_spread" in src_fast, (
-        "Regression: run_close_sweep_fast lost the max_leg_spread "
-        "forward — close_sweep candle trades bypass the gate."
+    """Both scan call sites (run_close_sweep_fast + run_once Phase B2) reach
+    scan() through the shared `_scan_one_late_entry` helper, which must forward
+    `max_leg_spread` from preset params — otherwise the gate is invisible to
+    actual production traffic.
+
+    The kwarg forwarding was centralised in `_scan_one_late_entry` (candle_auto
+    router refactor); the two loops delegate via `_scan_late_entry_for_preset`,
+    so the regression guard now pins (a) the helper forwards the kwarg and
+    (b) both loops route through the helper."""
+    src_helper = inspect.getsource(ssj._scan_one_late_entry)
+    assert "max_leg_spread" in src_helper, (
+        "Regression: _scan_one_late_entry lost the max_leg_spread forward — "
+        "candle trades bypass the per-leg spread gate."
     )
-    src_run = inspect.getsource(ssj.run_once)
-    assert "max_leg_spread" in src_run, (
-        "Regression: run_once (Phase B2 late_entry_v3 scan) lost the "
-        "max_leg_spread forward — main-loop close_sweep bypasses the gate."
-    )
+    for fn_name in ("run_close_sweep_fast", "run_once"):
+        src = inspect.getsource(getattr(ssj, fn_name))
+        assert "_scan_late_entry_for_preset" in src, (
+            f"Regression: {fn_name} no longer routes late_entry scans through "
+            "_scan_late_entry_for_preset — the max_leg_spread forward (and the "
+            "candle_auto router) would be bypassed."
+        )
 
 
 # ---------------------------------------------------------------------
