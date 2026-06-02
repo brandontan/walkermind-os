@@ -5,7 +5,7 @@
 **Environment:** `dev` (infra + Telegram = warn-only; risk rules ENFORCED)
 **Auditor:** WARP•R00T acting as WARP•SENTINEL (owner-authorised, per prior lanes)
 **Source report:** reports/forge/complete-set-arb-lane3b-live-exec.md
-**Reviewed commit:** `becfed2` (post Gemini + Codex P1 ×5 fixes)
+**Reviewed commit:** `1441420` (post Gemini + Codex P1 ×6 + P2 ×1 fixes)
 
 ---
 
@@ -72,9 +72,16 @@ kill (Codex P1). Each submit site handles all three + the exception classes:
   fill prices ⇒ conservatively guarantees `avg_pair_cost < $1`. `test_arb_invariant_*`.
 - Cost integrity: legs recomputed from submit-time book (`_fill_plan`) so
   size_usdc/ledger/entry == actual spend (Codex P1). `test_persisted_cost_recomputed_*`.
-- Kill switch on every naked/ambiguous halt (:1078); 5 guards re-asserted (:429);
+- **Budget ceiling (Codex P1, resolved in-PR):** after the recompute, a combined
+  cost exceeding the gate-approved `quote.total_cost_usdc` is rejected pre-submit —
+  no LIVE overspend when books drift up (:~500). `test_submit_cost_over_approved_budget_rejects`.
+- **Unwind proceeds (Codex P2, resolved in-PR):** unwind now credits the WEIGHTED
+  bid proceeds (`_sell_plan`), not the bare limit — no wallet understatement.
+  `test_unwind_credits_weighted_bid_proceeds`.
+- Kill switch on every naked/ambiguous halt; 5 guards re-asserted (:429);
   LIVE guards never bypassed. PASS.
-- Kelly/per-position sizing enforced UPSTREAM (gate Lane 2C step-13), not here — see H-1.
+- Kelly/per-position + live-capital caps enforced UPSTREAM by the gate (Lane 2C);
+  the budget ceiling above keeps the live spend inside that approved envelope.
 
 ### Phase 6 — Latency
 - N/A. Sequential FOK trades one round-trip for deterministic naked handling —
@@ -96,22 +103,23 @@ behind 5 default-OFF guards, and every uncertain broker outcome (kill, ambiguous
 status, ambiguous exception, DB-failure) routes to halt + operator reconciliation
 rather than a silent guess.
 
+## RESOLVED IN-PR (were flagged, now fixed on this branch)
+
+- **H-1 (HIGH) — re-gate on recomputed cost → RESOLVED.** `book_complete_set_live`
+  now rejects pre-submit when the recomputed combined cost exceeds the gate-approved
+  `quote.total_cost_usdc`, so a book that drifts up cannot overspend the approved
+  risk budget (Codex P1, commit `1441420`).
+- **M-1 (MED) — unwind proceeds at limit → RESOLVED.** Unwind credits the weighted
+  bid proceeds via `_sell_plan` (Codex P2, commit `1441420`).
+
 ## NON-BLOCKING FINDINGS (resolve in Lane 3C, before the path is reachable)
 
-- **H-1 (HIGH) — re-gate on recomputed cost.** Sizing/Kelly/per-position caps are
-  enforced by the risk gate on the *quote* cost upstream; `book_complete_set_live`
-  recomputes the true submit-time cost (correct for accounting) but does not itself
-  re-check it against the per-position cap. Lane 3C must pass the recomputed cost
-  through the gate (or re-assert the cap) before wiring `chosen_mode=='live'`.
 - **H-2 (HIGH) — crash-recovery reconciliation.** A crash between a confirmed fill
   and the persist txn leaves 'pending'/'unknown' order rows; a retry hits the
   idempotency precheck and skips, so the on-chain fill is operator-reconciled via
   those rows (matches the existing `live.execute` posture). An automatic reconciler
-  is out of scope here; Lane 3C should add one (or a `delayed`→terminal poll) before
-  the path goes live.
-- **M-1 (MED) — unwind proceeds at limit.** Unwind credits proceeds at the (lower)
-  sell *limit*, not the weighted bid fill — conservative (never overstates balance),
-  acceptable; tighten with a weighted-bid recompute when convenient.
+  (and/or a `delayed`→terminal poll instead of halt) is out of scope here; Lane 3C
+  should add it before the path goes live.
 
 ---
 
@@ -120,12 +128,12 @@ rather than a silent guess.
 | Dimension | Weight | Score | Notes |
 |---|---|---|---|
 | Architecture | 20 | 19 | clean state machine; mirrors paper booker + live.execute patterns |
-| Functional | 20 | 19 | 22 hermetic tests, every branch pinned |
+| Functional | 20 | 19 | 25 hermetic tests, every branch pinned |
 | Failure modes | 20 | 19 | 3-way status + exception classes + persist-fail escalation |
-| Risk rules | 20 | 18 | arb invariant + cost recompute + guards; sizing re-gate = H-1 (3C) |
+| Risk rules | 20 | 20 | arb invariant + cost recompute + budget ceiling + guards (H-1 resolved) |
 | Infra + Telegram | 10 | 9 | operator pages wired; infra N/A in dev |
 | Latency | 10 | 10 | N/A; sequential-by-design correct |
-| **Total** | **100** | **94** | zero critical |
+| **Total** | **100** | **96** | zero critical |
 
 No-evidence = 0 applied to none (all claims have file:line + a passing test).
 
@@ -133,13 +141,15 @@ No-evidence = 0 applied to none (all claims have file:line + a passing test).
 
 ## GO-LIVE STATUS
 
-**VERDICT: APPROVED (94/100, 0 critical) — as of `becfed2`.**
+**VERDICT: APPROVED (96/100, 0 critical) — as of `1441420`.**
 
 Rationale: a MAJOR live-execution primitive whose every uncertain outcome halts and
-reconciles instead of guessing; cost/accounting aligned to on-chain spend; fully
-unit-tested; and runtime-unreachable (unwired + default-OFF guards) so even the
-HIGH findings cannot affect capital until Lane 3C. H-1 and H-2 are MANDATORY
-pre-conditions for Lane 3C (which is itself MAJOR + SENTINEL), not blockers for 3B.
+reconciles instead of guessing; cost/accounting aligned to on-chain spend on both
+legs and the unwind; an approved-budget ceiling that blocks LIVE overspend on book
+drift; fully unit-tested; and runtime-unreachable (unwired + default-OFF guards) so
+no defect can affect capital until Lane 3C. The sole remaining HIGH item (H-2,
+crash reconciliation) is a MANDATORY Lane 3C pre-condition (3C is itself
+MAJOR + SENTINEL), not a 3B blocker.
 
 Conditions on merge (per CLAUDE.md, LIVE-touching):
 1. Owner gives explicit merge nod.
@@ -149,9 +159,10 @@ Conditions on merge (per CLAUDE.md, LIVE-touching):
 
 ## FIX RECOMMENDATIONS (priority)
 
-1. (Lane 3C) Re-gate the recomputed combined cost against the per-position cap — H-1.
-2. (Lane 3C) Add crash-recovery reconciliation / `delayed`→terminal poll — H-2.
-3. (later) Recompute unwind proceeds from weighted bid depth — M-1.
+1. (Lane 3C) Add crash-recovery reconciliation / `delayed`→terminal poll — H-2.
+2. (Lane 3C) Re-run the FULL risk gate (live-capital cap, drawdown, concurrency) on
+   the recomputed cost when wiring `chosen_mode=='live'` — the 3B budget ceiling
+   covers the per-trade approved amount; the broader live caps belong to the gate.
 
 ## TELEGRAM PREVIEW (operator alerts emitted)
 
