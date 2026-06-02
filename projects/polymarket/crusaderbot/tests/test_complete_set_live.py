@@ -22,6 +22,7 @@ from projects.polymarket.crusaderbot.domain.execution.live import (
 from projects.polymarket.crusaderbot.domain.strategy.complete_set_arb import (
     CompleteSetQuote,
 )
+from projects.polymarket.crusaderbot.integrations.clob import ClobAuthError
 
 pytestmark = pytest.mark.asyncio
 
@@ -51,8 +52,9 @@ KILL = {"orderID": "", "status": "unmatched"}
 
 
 class FakeConn:
-    def __init__(self, *, existing: int = 0) -> None:
+    def __init__(self, *, existing: int = 0, fail_position_insert: bool = False) -> None:
         self.existing = existing
+        self.fail_position_insert = fail_position_insert
         self.order_inserts: list[tuple] = []
         self.position_inserts: list[tuple] = []
         self.order_updates: list[tuple] = []
@@ -70,6 +72,8 @@ class FakeConn:
             self.order_inserts.append(args)
             return {"id": uuid4()}
         if "INSERT INTO positions" in query:
+            if self.fail_position_insert:
+                raise RuntimeError("simulated position insert failure")
             self.position_inserts.append(args)
             return {"id": uuid4()}
         return None
@@ -289,6 +293,47 @@ async def test_unwind_killed_halts_and_persists_naked(monkeypatch, halts, alerts
     # trading halted + operator paged
     assert halts and halts[0]["action"] == "pause"
     assert alerts and "NAKED LEG" in alerts[-1]
+
+
+async def test_unwind_submit_ambiguous_halts_raises_no_persist(monkeypatch, halts) -> None:
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    # unwind SELL post_order raises a transport-class error AFTER POST /order ->
+    # ambiguous: account may already be flat. Must NOT auto-persist a re-sellable
+    # position (would over-sell); halt + LivePostSubmitError for reconciliation.
+    clob = FakeClob([FILL, KILL, RuntimeError("timeout after POST /order")])
+    with pytest.raises(LivePostSubmitError):
+        await _book_live(conn, clob)
+    assert len(clob.calls) == 3  # unwind SELL was attempted
+    assert conn.position_inserts == []  # NO guessed naked/flat position persisted
+    assert halts and halts[0]["action"] == "pause"
+
+
+async def test_unwind_presubmit_clobauth_persists_naked(monkeypatch, halts) -> None:
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    # ClobAuthError = signing failed before the wire -> SELL never sent -> the leg
+    # is DEFINITELY still naked -> persist (force-exitable) + halt.
+    clob = FakeClob([FILL, KILL, ClobAuthError("signing failed")])
+    res = await _book_live(conn, clob)
+    assert res["status"] == "naked_halt" and res["persisted"] is True
+    assert len(conn.position_inserts) == 1
+    assert conn.position_inserts[0][6] == cse.COMPLETE_SET_NAKED_STRATEGY
+    assert halts and halts[0]["action"] == "pause"
+
+
+async def test_naked_persist_failure_escalates_not_swallowed(monkeypatch, halts, alerts) -> None:
+    conn = FakeConn(fail_position_insert=True)
+    _use_conn(monkeypatch, conn)
+    clob = FakeClob([FILL, KILL, KILL])  # unwind FOK killed -> persist naked -> DB fails
+    res = await _book_live(conn, clob)
+    # persist failed -> status reflects it, persisted False, NOT a clean naked_halt
+    assert res["status"] == "naked_halt_persist_failed"
+    assert res["persisted"] is False
+    assert conn.position_inserts == []  # nothing actually persisted
+    # still halts + pages, and the alert says the exposure is UNTRACKED
+    assert halts and halts[0]["action"] == "pause"
+    assert alerts and "PERSIST FAILED" in alerts[-1]
 
 
 async def test_unwind_no_bid_depth_halts_without_extra_submit(monkeypatch, halts) -> None:

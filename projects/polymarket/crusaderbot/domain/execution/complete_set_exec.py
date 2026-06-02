@@ -712,15 +712,38 @@ async def _unwind_naked_leg(
             token_id=token_id, side="SELL", price=sell_limit, size=shares,
             order_type="FOK", tick_size=tick, neg_risk=neg_risk,
         )
-    except Exception as exc:  # noqa: BLE001 — any error means the leg stays naked
-        log.error("complete_set_unwind_submit_failed", market_id=market_id,
+    except ClobAuthError as exc:
+        # Signing failed before any network call -> the SELL never reached the
+        # broker -> the leg is DEFINITELY still naked -> persist + halt.
+        log.error("complete_set_unwind_presubmit_failed", market_id=market_id,
                   error=str(exc))
         return await _persist_naked_halt(
             pool=pool, user_id=user_id, market_id=market_id, naked_order=naked_order,
             naked_side=naked_side, naked_cost=naked_cost, entry_price=entry_price,
             market_question=market_question, active_preset=active_preset,
-            naked_meta=naked_meta, reason=f"unwind_error:{exc}",
+            naked_meta=naked_meta, reason=f"unwind_presubmit_error:{exc}",
         )
+    except Exception as exc:  # noqa: BLE001
+        # AMBIGUOUS post-submit: a timeout / transport error after POST /order means
+        # the SELL MAY already be accepted on-chain (account flat) — we cannot assert
+        # the leg is still naked. Persisting an open, force-exitable position here
+        # would let the exit watcher re-sell a position the broker may already have
+        # flattened (a double-close / over-sell). So mark the order 'unknown', HALT,
+        # page, and raise LivePostSubmitError for operator reconciliation — never
+        # auto-persist a guessed flat/naked state.
+        log.error("complete_set_unwind_ambiguous", market_id=market_id,
+                  error=str(exc))
+        await _mark_order(naked_order, "unknown", error=f"unwind ambiguous: {exc}")
+        await _halt_and_alert(
+            reason="complete_set_unwind_ambiguous",
+            detail=(f"Naked {naked_side} leg unwind SELL AMBIGUOUS "
+                    f"market=<code>{market_id}</code> order=<code>{naked_order}</code> "
+                    f"— account may be FLAT or NAKED; reconcile on Polymarket before "
+                    f"resuming (do not assume). err: {exc}"),
+        )
+        raise LivePostSubmitError(
+            f"complete-set unwind ambiguous ({market_id}, {naked_side}): {exc}"
+        ) from exc
 
     if not _order_filled(sell_res):
         return await _persist_naked_halt(
@@ -813,6 +836,7 @@ async def _persist_naked_halt(
     out. Capital really left on the buy, so the ledger is debited for the cost.
     """
     position_id: UUID | None = None
+    persisted = False
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():
@@ -830,6 +854,7 @@ async def _persist_naked_halt(
                     conn, user_id, naked_cost, ledger.T_TRADE_OPEN,
                     ref_id=position_id, note=f"live naked {naked_side} {market_id}",
                 )
+        persisted = True
     except Exception:  # noqa: BLE001 — never let persistence failure swallow the halt
         log.exception("complete_set_naked_persist_failed", market_id=market_id,
                       naked_side=naked_side)
@@ -838,19 +863,29 @@ async def _persist_naked_halt(
             actor_role="bot", action="live_complete_set_naked_halt", user_id=user_id,
             payload={"market_id": market_id, "naked_side": naked_side,
                      "reason": reason, "position_id": str(position_id),
-                     "size_usdc": str(naked_cost)},
+                     "persisted": persisted, "size_usdc": str(naked_cost)},
         )
     except Exception:  # noqa: BLE001
         log.exception("complete_set_naked_halt_audit_failed", market_id=market_id)
-    await _halt_and_alert(
-        reason="complete_set_naked_leg",
-        detail=(f"market=<code>{market_id}</code> side={naked_side} "
-                f"cost=${naked_cost} reason={reason}\n"
-                f"Naked leg persisted as <code>{position_id}</code> "
-                f"(force-exitable). Reconcile + resume manually."),
-    )
-    return {"status": "naked_halt", "mode": "live", "naked_leg": naked_side,
-            "position_id": position_id, "reason": reason}
+    # If persistence FAILED, the live exposure is NOT tracked in positions/ledger.
+    # The alert + return MUST say so loudly — never report a clean "persisted"
+    # halt the operator would trust while an untracked live leg sits on-chain.
+    if persisted:
+        detail = (f"market=<code>{market_id}</code> side={naked_side} "
+                  f"cost=${naked_cost} reason={reason}\n"
+                  f"Naked leg persisted as <code>{position_id}</code> "
+                  f"(force-exitable). Reconcile + resume manually.")
+        status = "naked_halt"
+    else:
+        detail = (f"market=<code>{market_id}</code> side={naked_side} "
+                  f"cost=${naked_cost} reason={reason}\n"
+                  f"⚠️ PERSIST FAILED — naked leg is NOT tracked in positions/ledger "
+                  f"(order=<code>{naked_order}</code>). UNTRACKED live exposure — "
+                  f"manual DB repair required before resuming.")
+        status = "naked_halt_persist_failed"
+    await _halt_and_alert(reason="complete_set_naked_leg", detail=detail)
+    return {"status": status, "mode": "live", "naked_leg": naked_side,
+            "position_id": position_id, "reason": reason, "persisted": persisted}
 
 
 async def _insert_live_order(
