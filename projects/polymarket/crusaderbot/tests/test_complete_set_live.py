@@ -22,7 +22,10 @@ from projects.polymarket.crusaderbot.domain.execution.live import (
 from projects.polymarket.crusaderbot.domain.strategy.complete_set_arb import (
     CompleteSetQuote,
 )
-from projects.polymarket.crusaderbot.integrations.clob import ClobAuthError
+from projects.polymarket.crusaderbot.integrations.clob import (
+    ClobAuthError,
+    ClobCircuitOpenError,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -408,6 +411,32 @@ async def test_unwind_presubmit_clobauth_persists_naked(monkeypatch, halts) -> N
     assert len(conn.position_inserts) == 1
     assert conn.position_inserts[0][6] == cse.COMPLETE_SET_NAKED_STRATEGY
     assert halts and halts[0]["action"] == "pause"
+
+
+async def test_unwind_breaker_open_persists_naked_not_ambiguous(monkeypatch, halts) -> None:
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    # Breaker OPEN -> the unwind SELL is rejected with NO broker call -> definitely
+    # still naked. Must persist + halt (like the auth case), NOT be mis-read as an
+    # ambiguous post-submit (which would leave the YES exposure untracked).
+    clob = FakeClob([FILL, KILL, ClobCircuitOpenError("breaker open")])
+    res = await _book_live(conn, clob)
+    assert res["status"] == "naked_halt" and res["persisted"] is True
+    assert len(conn.position_inserts) == 1
+    assert conn.position_inserts[0][6] == cse.COMPLETE_SET_NAKED_STRATEGY
+    assert halts and halts[0]["action"] == "pause"
+
+
+async def test_yes_breaker_open_clean_abort_no_exposure(monkeypatch) -> None:
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    # Breaker OPEN on the YES leg -> never sent -> clean pre-submit abort, NO leg
+    # never submitted, zero exposure.
+    clob = FakeClob([ClobCircuitOpenError("breaker open")])
+    with pytest.raises(LivePreSubmitError):
+        await _book_live(conn, clob)
+    assert len(clob.calls) == 1
+    assert conn.position_inserts == []
 
 
 async def test_naked_persist_failure_escalates_not_swallowed(monkeypatch, halts, alerts) -> None:

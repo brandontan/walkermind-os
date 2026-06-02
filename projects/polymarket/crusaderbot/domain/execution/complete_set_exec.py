@@ -34,6 +34,7 @@ from ...config import get_settings
 from ...database import get_pool
 from ...integrations.clob import (
     ClobAuthError,
+    ClobCircuitOpenError,
     ClobClientProtocol,
     ClobConfigError,
     MarketDataClient,
@@ -49,6 +50,13 @@ from ..strategy.complete_set_arb import (
 from .live import LivePostSubmitError, LivePreSubmitError, assert_live_guards
 
 log = structlog.get_logger(__name__)
+
+# Errors that GUARANTEE the order never reached the broker (no network call), so
+# the leg is in a definitively known state — safe to abort/unwind/persist rather
+# than treat as an ambiguous post-submit. ClobAuthError = signing/4xx before send;
+# ClobCircuitOpenError = breaker OPEN, rejected with NO broker call. Every OTHER
+# exception is ambiguous (the order MAY be live) and must halt + reconcile.
+_PRE_SUBMIT_ERRORS = (ClobAuthError, ClobCircuitOpenError)
 
 # strategy_type stamped on both legs so the rest of the system can recognise a
 # complete-set position (exit watcher skips mid-trade TP/SL; UI groups the pair).
@@ -564,8 +572,9 @@ async def book_complete_set_live(
             token_id=quote.yes_token_id, side="BUY", price=yes_limit, size=shares,
             order_type="FOK", tick_size=yes_tick, neg_risk=yes_neg,
         )
-    except ClobAuthError as exc:
-        # Signing failed before any network call -> no order on-chain -> safe abort.
+    except _PRE_SUBMIT_ERRORS as exc:
+        # Auth/breaker-open: the order never reached the broker -> no order on-chain
+        # -> safe abort (NO leg never sent, zero exposure).
         await _mark_order(yes_order, "failed", error=str(exc))
         await _mark_order(no_order, "cancelled")
         raise LivePreSubmitError(f"complete-set YES prepare failed: {exc}") from exc
@@ -616,8 +625,10 @@ async def book_complete_set_live(
             token_id=quote.no_token_id, side="BUY", price=no_limit, size=shares,
             order_type="FOK", tick_size=no_tick, neg_risk=no_neg,
         )
-    except ClobAuthError as exc:
-        # YES is filled (naked); NO never reached the wire -> unwind the YES leg.
+    except _PRE_SUBMIT_ERRORS as exc:
+        # Auth/breaker-open: NO never reached the broker; YES is filled (naked) ->
+        # unwind the YES leg. (If the breaker is open the unwind SELL will also fail
+        # pre-submit and route to _persist_naked_halt — see _unwind_naked_leg.)
         log.warning("complete_set_live_no_prepare_failed_unwinding", error=str(exc))
         await _mark_order(no_order, "failed", error=str(exc))
         return await _unwind_naked_leg(
@@ -819,9 +830,10 @@ async def _unwind_naked_leg(
             token_id=token_id, side="SELL", price=sell_limit, size=shares,
             order_type="FOK", tick_size=tick, neg_risk=neg_risk,
         )
-    except ClobAuthError as exc:
-        # Signing failed before any network call -> the SELL never reached the
-        # broker -> the leg is DEFINITELY still naked -> persist + halt.
+    except _PRE_SUBMIT_ERRORS as exc:
+        # Auth/breaker-open: the SELL never reached the broker -> the leg is
+        # DEFINITELY still naked -> persist (force-exitable) + halt. This is the
+        # branch a breaker-OPEN unwind lands in (ClobCircuitOpenError, no call).
         log.error("complete_set_unwind_presubmit_failed", market_id=market_id,
                   error=str(exc))
         return await _persist_naked_halt(
