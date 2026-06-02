@@ -3114,11 +3114,18 @@ def _candle_auto_rule_tpsl(rule: str) -> tuple[float | None, float | None]:
     in which case the user-level default tp/sl applies unchanged.
     """
     try:
+        # Relative import kept deliberately: this file imports domain via
+        # `from ...domain...` throughout, and production runs the package as
+        # `crusaderbot.*` (Dockerfile `uvicorn crusaderbot.main:app`) — an
+        # absolute `projects.polymarket.crusaderbot.*` import would ModuleNotFound
+        # at runtime. Per-field None guard so a future schema change can't raise.
         from ...domain.preset.presets import PRESETS as _P
         p = _P.get(rule)
         if p is None:
             return (None, None)
-        return (float(p.tp_pct), float(p.sl_pct))
+        tp = float(p.tp_pct) if p.tp_pct is not None else None
+        sl = float(p.sl_pct) if p.sl_pct is not None else None
+        return (tp, sl)
     except Exception:
         return (None, None)
 
@@ -3161,8 +3168,8 @@ async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_fi
         merged: list = []
         seen: set[str] = set()
         for rule in _CANDLE_AUTO_RULE_ORDER:
-            pp = _resolve_preset_params(rule, timeframe)
             try:
+                pp = _resolve_preset_params(rule, timeframe)
                 cands = await _scan_one_late_entry(strat, pp, market_filters, user_ctx)
             except Exception as exc:
                 logger.warning("candle_auto_subrule_scan_failed", rule=rule, error=str(exc))
