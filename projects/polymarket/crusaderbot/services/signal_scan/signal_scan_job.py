@@ -2744,6 +2744,7 @@ async def run_once() -> None:
     candidates_errored = 0
     late_entry_signals = 0
     weather_signals = 0
+    complete_set_signals = 0
 
     for row in users:
         active_preset = row.get("active_preset")
@@ -2873,6 +2874,57 @@ async def run_once() -> None:
                         error=str(exc),
                     )
 
+        # Phase B3: complete-set arbitrage scan (WARP/ROOT/complete-set-arb,
+        # Lane 2C-2b). Gated behind COMPLETE_SET_ARB_ENABLED (default OFF) — the
+        # whole branch is dark until the operator flips the flag. Scoped to candle
+        # presets because the crypto-window markets (binary YES/NO candle markets
+        # where the MM-vig dislocation appears) are only fetched + upserted for
+        # those presets above; the normalized rows are reloaded here so the scan
+        # sees real token ids + liquidity. PAPER-only; books a hedged pair via
+        # book_complete_set_paper. Fail-soft: any error is logged and never blocks
+        # the rest of the user loop.
+        # Cheap preconditions first (candle preset + markets present), then the
+        # settings read last and fail-safe — a config-read error must default to
+        # disabled, never raise out of the user loop.
+        if active_preset in _ALL_CANDLE_PRESETS and crypto_window_markets:
+            try:
+                _cset_enabled = bool(
+                    getattr(_get_settings(), "COMPLETE_SET_ARB_ENABLED", False)
+                )
+            except Exception:
+                _cset_enabled = False
+        else:
+            _cset_enabled = False
+        if _cset_enabled:
+            from .complete_set_scan import scan_complete_set_for_user
+            try:
+                _mids = [
+                    _mid for _mid in (
+                        str(_m.get("id") or _m.get("conditionId") or "")
+                        for _m in crypto_window_markets
+                    ) if _mid
+                ]
+                # Normalized rows are independent PK lookups — load concurrently.
+                _loaded = await asyncio.gather(*(_load_market(_mid) for _mid in _mids))
+                _cset_rows = [_norm for _norm in _loaded if _norm is not None]
+                _cset_res = await scan_complete_set_for_user(
+                    row, _cset_rows, settings=_get_settings(),
+                )
+                complete_set_signals += _cset_res.quotes_found
+                tel.candidates_emitted += _cset_res.booked
+                user_log.info(
+                    "strategy_run",
+                    strategy="complete_set_arb",
+                    markets_scanned=_cset_res.markets_scanned,
+                    quotes_found=_cset_res.quotes_found,
+                    booked=_cset_res.booked,
+                    rejected=_cset_res.rejected,
+                    errors=_cset_res.errors,
+                    zero_reason=("no_fillable_arb" if _cset_res.quotes_found == 0 else None),
+                )
+            except Exception as exc:
+                user_log.warning("complete_set_scan_failed", error=str(exc))
+
         # Phase C: evaluate signal_publications feed for this user.
         # Uses signal_evaluator which reads user's subscribed feeds and
         # returns SignalCandidates with metadata["publication_id"] set.
@@ -2933,9 +2985,10 @@ async def run_once() -> None:
     logger.info(
         "lib_strategy_scan_done",
         scan_run_id=run_id,
-        strategies=2,  # late_entry_v3 + weather
+        strategies=3,  # late_entry_v3 + weather + complete_set_arb
         late_entry_signals=late_entry_signals,
         weather_signals=weather_signals,
+        complete_set_signals=complete_set_signals,
         candidates_emitted=tel.candidates_emitted,
         risk_approved=tel.risk_approved,
         risk_rejected=tel.risk_rejected,
