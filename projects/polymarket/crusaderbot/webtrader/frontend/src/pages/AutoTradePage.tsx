@@ -819,54 +819,64 @@ export function AutoTradePage() {
 
                 {/* Inline config for crypto-short presets: assets + timeframe */}
                 {showConfig && (
-                  <div className="md:col-span-3 p-3 rounded-lg rounded-t-none border border-t-0 border-gold/40 bg-surface-2">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono">Assets</p>
-                      <span className="text-[9px] font-bold tracking-widest text-gold uppercase px-1.5 py-0.5 rounded border border-gold/40 bg-gold/10">
-                        Crypto only
+                  <div className="md:col-span-3 p-3 rounded-lg rounded-t-none border border-t-0 border-gold/40 bg-surface-2 space-y-2.5">
+                    {/* Assets — compact 3-up chips (BTC/ETH/SOL), dot marks active */}
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono">Markets</p>
+                      <span className="text-[8px] font-bold tracking-widest text-gold/80 uppercase">
+                        Crypto · short-duration
                       </span>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 mb-3">
+                    <div className="grid grid-cols-3 gap-1.5">
                       {CRYPTO_ASSETS.map((asset) => {
                         const on = selectedAssets.includes(asset);
                         return (
                           <button
                             key={asset}
+                            type="button"
+                            aria-pressed={on}
                             onClick={() => void handleToggleAsset(asset)}
                             className={[
-                              "py-2 rounded-lg border text-xs font-hud font-bold transition-all",
+                              "flex items-center justify-center gap-1 py-1.5 rounded-md border text-[11px] font-hud font-bold tracking-wide transition-all",
                               on
                                 ? "border-gold bg-gold/10 text-gold"
                                 : "border-surface-3 bg-surface-1 text-ink-3 hover:border-ink-3",
                             ].join(" ")}
                           >
+                            {on && <span className="text-[7px]" aria-hidden>●</span>}
                             {asset}
                           </button>
                         );
                       })}
                     </div>
-                    <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-2">Timeframe</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {TIMEFRAMES.map((tf) => {
-                        const tfActive = activeTimeframe === tf;
-                        return (
-                          <button
-                            key={tf}
-                            onClick={() => void handleSelectTimeframe(tf)}
-                            className={[
-                              "py-2 rounded-lg border text-sm font-hud font-bold transition-all",
-                              tfActive
-                                ? "border-gold bg-gold/10 text-gold shadow-[0_0_8px_rgba(191,155,48,0.25)]"
-                                : "border-surface-3 bg-surface-1 text-ink-2 hover:border-ink-3",
-                            ].join(" ")}
-                          >
-                            {tf}
-                          </button>
-                        );
-                      })}
+                    {/* Timeframe — inset segmented control */}
+                    <div className="flex items-center gap-2">
+                      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono shrink-0">Candle</p>
+                      <div className="flex-1 grid grid-cols-2 gap-1 p-0.5 rounded-md border border-surface-3 bg-surface-1">
+                        {TIMEFRAMES.map((tf) => {
+                          const tfActive = activeTimeframe === tf;
+                          return (
+                            <button
+                              key={tf}
+                              type="button"
+                              aria-pressed={tfActive}
+                              onClick={() => void handleSelectTimeframe(tf)}
+                              className={[
+                                "py-1.5 rounded text-[12px] font-hud font-bold transition-all",
+                                tfActive
+                                  ? "bg-gold/15 text-gold"
+                                  : "text-ink-3 hover:text-ink-1",
+                              ].join(" ")}
+                            >
+                              {tf}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <p className="text-[10px] text-ink-4 font-mono mt-2">
-                      Trades only {selectedAssets.join("/")} short-duration markets ({activeTimeframe}). Category locked to Crypto.
+                    {/* One-line summary */}
+                    <p className="text-[9px] text-ink-4 font-mono leading-snug">
+                      {selectedAssets.length > 0 ? selectedAssets.join(" · ") : "No assets selected"} — {activeTimeframe} candles only · category locked to Crypto.
                     </p>
                   </div>
                 )}
