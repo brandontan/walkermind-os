@@ -27,11 +27,12 @@
   `1.0 - marginal_cost >= min_pair_margin`, stop at the first that isn't. Bounds to
   the thinner leg, honours a `max_shares` cap, rejects sub-`min_shares` dust, and
   never reports a non-profitable quote.
-- `tests/test_complete_set_arb.py` — 13 hermetic tests: empty/None books, single-
+- `tests/test_complete_set_arb.py` — 16 hermetic tests: empty/None books, single-
   level profit, unprofitable rejection, marginal crossover, Polymarket
   descending-ask ordering, string prices, degenerate-level skipping (price≤0 / ≥1 /
   size≤0), max_shares partial fill, min_shares floor, unequal-leg-depth bounding,
-  non-positive-margin guard, multi-level accumulation.
+  non-positive-margin guard, multi-level accumulation, plus non-finite hardening:
+  non-list `asks` (no TypeError), inf/NaN size skipped, NaN margin rejected.
 
 The core models the real edge constraint: it measures **fillable** size from book
 depth, not the top-of-quote — because the arb is bounded by the thin depth at
@@ -54,7 +55,7 @@ trade.
 
 ## 4. What is working
 
-Detection + sizing math, fully unit-tested (13/13 pass, ruff clean). Given any pair
+Detection + sizing math, fully unit-tested (16/16 pass, ruff clean). Given any pair
 of order books it returns the correct fillable shares, per-leg cost, and net margin,
 or `None` when no profitable/large-enough set exists.
 

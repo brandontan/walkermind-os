@@ -72,14 +72,22 @@ def _asks_ascending(book: dict[str, Any] | None) -> list[tuple[float, float]]:
     """
     if not isinstance(book, dict):
         return []
+    asks = book.get("asks")
+    if not isinstance(asks, list):
+        # Malformed book (asks missing or not a list) — never raise, just yield no
+        # takeable liquidity so the caller returns None.
+        return []
     out: list[tuple[float, float]] = []
-    for a in (book.get("asks") or []):
+    for a in asks:
         try:
             price = float(a["price"])
             size = float(a["size"])
         except (KeyError, TypeError, ValueError):
             continue
-        if 0.0 < price < 1.0 and size > 0.0:
+        # Strict finite bounds: price in (0,1) excludes NaN/inf; size must be a
+        # positive finite number so an "Infinity"/NaN size can never propagate
+        # into the cost/margin math (and on to a DB numeric overflow downstream).
+        if 0.0 < price < 1.0 and 0.0 < size < float("inf"):
             out.append((price, size))
     out.sort(key=lambda lvl: lvl[0])
     return out
@@ -118,9 +126,10 @@ def fillable_complete_set(
     Returns a ``CompleteSetQuote`` when a profitable, large-enough set is fillable,
     else ``None``. Never raises — a malformed book yields ``None``.
     """
-    if min_pair_margin <= 0.0:
-        # Defensive: a non-positive margin floor would book break-even/noise as
-        # "arb". Treat as misconfiguration → no opportunity rather than raise.
+    if not (min_pair_margin > 0.0):
+        # Defensive: a non-positive (or NaN) margin floor would book break-even /
+        # noise as "arb". `not (x > 0)` also catches NaN, which `x <= 0` would not.
+        # Treat as misconfiguration → no opportunity rather than raise.
         log.warning("complete_set: non-positive min_pair_margin", value=min_pair_margin)
         return None
 

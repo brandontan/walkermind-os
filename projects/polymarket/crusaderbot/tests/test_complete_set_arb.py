@@ -149,3 +149,32 @@ def test_multi_level_both_sides_accumulates() -> None:
     assert abs(q.yes_cost_usdc - expected_yes) < 1e-6
     assert abs(q.no_cost_usdc - expected_no) < 1e-6
     assert q.net_margin_usdc > 0.0
+
+
+def test_malformed_asks_type_returns_none() -> None:
+    # Non-list asks (e.g. a malformed API payload) must not raise — contract is
+    # "never raises, returns None on a bad book".
+    book_y = {"bids": [], "asks": 123}
+    book_n = _book([(0.50, 100)])
+    assert fillable_complete_set(book_y, book_n, min_pair_margin=0.02, **_IDS) is None
+
+
+def test_infinite_and_nan_size_skipped() -> None:
+    # inf / NaN sizes must be skipped so they never reach the cost/margin math.
+    book_n = _book([(0.50, 100)])
+    assert fillable_complete_set(
+        {"bids": [], "asks": [{"price": 0.45, "size": float("inf")}]},
+        book_n, min_pair_margin=0.02, **_IDS,
+    ) is None
+    assert fillable_complete_set(
+        {"bids": [], "asks": [{"price": 0.45, "size": float("nan")}]},
+        book_n, min_pair_margin=0.02, **_IDS,
+    ) is None
+
+
+def test_nan_margin_returns_none() -> None:
+    # NaN floor must be rejected (not (NaN > 0) is True), not silently accepted.
+    assert fillable_complete_set(
+        _book([(0.45, 100)]), _book([(0.50, 100)]),
+        min_pair_margin=float("nan"), **_IDS,
+    ) is None
