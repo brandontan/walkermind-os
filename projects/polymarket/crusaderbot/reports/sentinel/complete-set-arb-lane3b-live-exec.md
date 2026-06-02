@@ -5,7 +5,7 @@
 **Environment:** `dev` (infra + Telegram = warn-only; risk rules ENFORCED)
 **Auditor:** WARP•R00T acting as WARP•SENTINEL (owner-authorised, per prior lanes)
 **Source report:** reports/forge/complete-set-arb-lane3b-live-exec.md
-**Reviewed commit:** `f8d25a6` (post Gemini + Codex P1 ×7 + P2 ×1 fixes)
+**Reviewed commit:** `4dae758` (post Gemini + Codex P1 ×8 + P2 ×1 fixes)
 
 ---
 
@@ -52,8 +52,11 @@ kill (Codex P1). Each submit site handles all three + the exception classes:
 - NO ambiguous (status OR exception) → persist CONFIRMED YES as tracked
   force-exitable + halt + raise; **no** auto-unwind (over-sell risk) (:606-654).
   `test_no_ambiguous_*`, `test_no_delayed_status_*`.
-- Unwind pre-submit `ClobAuthError` → definitely naked → persist + halt (:797).
-  `test_unwind_presubmit_clobauth_*`.
+- Unwind pre-submit (`ClobAuthError` OR `ClobCircuitOpenError` — breaker open,
+  no broker call) → definitely naked → persist + halt. `_PRE_SUBMIT_ERRORS`
+  groups both at all 3 submit sites so a breaker-open leg is never mis-read as
+  ambiguous (Codex P1). `test_unwind_presubmit_clobauth_*`,
+  `test_unwind_breaker_open_persists_naked_*`, `test_yes_breaker_open_clean_abort_*`.
 - Unwind ambiguous (status OR exception) → halt + raise, **no** re-sellable persist
   (may be flat → avoids double-close) (:808-855). `test_unwind_submit_ambiguous_*`,
   `test_unwind_delayed_status_*`.
@@ -138,7 +141,7 @@ rather than a silent guess.
 | Dimension | Weight | Score | Notes |
 |---|---|---|---|
 | Architecture | 20 | 19 | clean state machine; mirrors paper booker + live.execute patterns |
-| Functional | 20 | 19 | 26 hermetic tests, every branch pinned |
+| Functional | 20 | 19 | 28 hermetic tests, every branch pinned |
 | Failure modes | 20 | 20 | 3-way status + exception classes + persist-fail + hard-halt escalation |
 | Risk rules | 20 | 20 | arb invariant + cost recompute + budget ceiling + guards (H-1 resolved) |
 | Infra + Telegram | 10 | 9 | operator pages wired; infra N/A in dev |
@@ -151,7 +154,7 @@ No-evidence = 0 applied to none (all claims have file:line + a passing test).
 
 ## GO-LIVE STATUS
 
-**VERDICT: APPROVED (97/100, 0 critical) — as of `f8d25a6`.**
+**VERDICT: APPROVED (97/100, 0 critical) — as of `4dae758`.**
 
 Rationale: a MAJOR live-execution primitive whose every uncertain outcome halts and
 reconciles instead of guessing; cost/accounting aligned to on-chain spend on both
