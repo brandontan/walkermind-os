@@ -104,7 +104,7 @@ def test_happy_path_detects_logs_gates_books():
     assert res.quotes_found == 1
     assert res.booked == 1
     assert res.rejected == 0
-    assert fetched == ["TYES", "TNO"]
+    assert set(fetched) == {"TYES", "TNO"}  # concurrent fetch — order not guaranteed
     assert len(booker.calls) == 1
     call = booker.calls[0]
     assert call["idempotency_key"].startswith("complete_set:")

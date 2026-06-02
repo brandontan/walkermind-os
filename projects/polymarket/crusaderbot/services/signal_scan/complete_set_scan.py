@@ -34,6 +34,7 @@ Safety posture:
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Awaitable, Callable
@@ -154,8 +155,12 @@ async def scan_complete_set_for_user(
             )
             question = _market_field(m, "question")
 
-            yes_book = await book_fetcher(str(yes_token))
-            no_book = await book_fetcher(str(no_token))
+            # Arb is time-sensitive: fetch both legs' books concurrently so a
+            # market's scan latency is one round-trip, not two.
+            yes_book, no_book = await asyncio.gather(
+                book_fetcher(str(yes_token)),
+                book_fetcher(str(no_token)),
+            )
             quote = fillable_complete_set(
                 yes_book,
                 no_book,

@@ -2898,14 +2898,15 @@ async def run_once() -> None:
         if _cset_enabled:
             from .complete_set_scan import scan_complete_set_for_user
             try:
-                _cset_rows: list[dict] = []
-                for _m in crypto_window_markets:
-                    _mid = str(_m.get("id") or _m.get("conditionId") or "")
-                    if not _mid:
-                        continue
-                    _norm = await _load_market(_mid)
-                    if _norm is not None:
-                        _cset_rows.append(_norm)
+                _mids = [
+                    _mid for _mid in (
+                        str(_m.get("id") or _m.get("conditionId") or "")
+                        for _m in crypto_window_markets
+                    ) if _mid
+                ]
+                # Normalized rows are independent PK lookups — load concurrently.
+                _loaded = await asyncio.gather(*(_load_market(_mid) for _mid in _mids))
+                _cset_rows = [_norm for _norm in _loaded if _norm is not None]
                 _cset_res = await scan_complete_set_for_user(
                     row, _cset_rows, settings=_get_settings(),
                 )
