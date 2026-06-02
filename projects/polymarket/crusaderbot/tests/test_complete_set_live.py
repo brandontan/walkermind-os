@@ -424,6 +424,24 @@ async def test_naked_persist_failure_escalates_not_swallowed(monkeypatch, halts,
     assert alerts and "PERSIST FAILED" in alerts[-1]
 
 
+async def test_halt_killswitch_failure_raises_hard_not_swallowed(monkeypatch, alerts) -> None:
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+
+    async def _failing_set_active(**_kwargs: Any) -> dict:
+        raise RuntimeError("kill switch DB write failed")
+
+    monkeypatch.setattr(cse.kill_switch, "set_active", _failing_set_active)
+    # NO kill -> unwind FOK kill -> naked-halt path tries to engage the kill switch.
+    # The activation fails -> must NOT return a clean naked_halt; raise hard so the
+    # caller never believes trading is halted when it is not.
+    clob = FakeClob([FILL, KILL, KILL])
+    with pytest.raises(LivePostSubmitError, match="kill switch activation FAILED"):
+        await _book_live(conn, clob)
+    # operator was paged with the urgent did-not-engage alert
+    assert alerts and "HALT DID NOT ENGAGE" in alerts[-1]
+
+
 async def test_unwind_no_bid_depth_halts_without_extra_submit(monkeypatch, halts) -> None:
     conn = FakeConn()
     _use_conn(monkeypatch, conn)

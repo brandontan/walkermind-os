@@ -1094,23 +1094,43 @@ async def _mark_order(
 
 
 async def _halt_and_alert(*, reason: str, detail: str) -> None:
-    """Engage the operator kill switch and page the operator. Both best-effort.
+    """Engage the operator kill switch (HARD) and page the operator.
 
-    A naked leg we could not unwind is a real, unhedged on-chain exposure: stop the
-    bot from opening anything new and put a human in the loop immediately. Neither
-    the halt nor the alert may raise — the caller still has to persist the naked
-    position so it is tracked even if paging fails.
+    A naked leg we could not unwind is a real, unhedged on-chain exposure. The kill
+    switch is the ONLY mechanism the risk gate reads to stop opening new trades, so
+    a failed activation must NOT be swallowed — otherwise the bot keeps trading
+    after a confirmed naked leg while believing it halted. We retry the activation,
+    and if it still fails we page the operator with an URGENT "halt did NOT engage"
+    alert and raise ``LivePostSubmitError`` so the caller propagates a hard failure
+    rather than returning/continuing as if halted. The operator page is always
+    attempted (best-effort) before we raise.
     """
+    halted = False
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            await kill_switch.set_active(action="pause", reason=reason)
+            halted = True
+            break
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            log.exception("complete_set_halt_killswitch_attempt_failed",
+                          reason=reason, attempt=attempt)
+    header = (
+        "🛑 <b>COMPLETE-SET NAKED LEG — TRADING HALTED</b>" if halted else
+        "🚨🚨 <b>HALT DID NOT ENGAGE — STOP THE BOT MANUALLY</b> 🚨🚨"
+    )
     try:
-        await kill_switch.set_active(action="pause", reason=reason)
-    except Exception:  # noqa: BLE001
-        log.exception("complete_set_naked_halt_killswitch_failed", reason=reason)
-    try:
-        await notifications.notify_operator(
-            f"🛑 <b>COMPLETE-SET NAKED LEG — TRADING HALTED</b>\n{detail}"
-        )
+        await notifications.notify_operator(f"{header}\n{detail}")
     except Exception:  # noqa: BLE001
         log.exception("complete_set_naked_halt_notify_failed")
+    if not halted:
+        # Trading is NOT actually halted (gate reads kill_switch_active from the DB).
+        # Surface as a hard post-submit failure so the caller never reports a clean
+        # halt while the bot can keep opening trades against a naked leg.
+        raise LivePostSubmitError(
+            f"kill switch activation FAILED ({reason}) — trading NOT halted: {last_exc}"
+        )
 
 
 __all__ = [
