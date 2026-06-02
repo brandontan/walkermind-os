@@ -13,13 +13,21 @@
 -- 2B). NULL for every existing row and every single-leg (directional) position,
 -- so this column is additive and changes no current behaviour.
 --
+-- DEFERRABLE INITIALLY DEFERRED: the two legs reference each OTHER, so a booking
+-- transaction that inserts both rows already carrying the cross-link would trip
+-- an immediate FK check (the sibling isn't committed yet). Deferring validation
+-- to COMMIT lets Lane 2B write the mutual links atomically in any order with no
+-- insert-then-update dance. Directional inserts set NULL (no FK check fires), so
+-- deferral only ever affects the paired-booking path — zero cost elsewhere.
+--
 -- ON DELETE SET NULL (not CASCADE): deleting/cleaning one leg must never cascade
 -- into silently deleting its sibling — the surviving leg is unlinked, not
 -- destroyed. The partial index supports the sibling lookup the exit/UI paths do.
 
 ALTER TABLE positions
   ADD COLUMN IF NOT EXISTS paired_position_id UUID
-    REFERENCES positions(id) ON DELETE SET NULL DEFAULT NULL;
+    REFERENCES positions(id) ON DELETE SET NULL
+    DEFERRABLE INITIALLY DEFERRED;
 
 CREATE INDEX IF NOT EXISTS idx_positions_paired
   ON positions(paired_position_id)

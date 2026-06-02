@@ -16,10 +16,14 @@
 ## 1. What was built
 
 - **Migration 078** — `positions.paired_position_id UUID REFERENCES positions(id)
-  ON DELETE SET NULL`, nullable, + partial index `idx_positions_paired`. Links the
-  two legs of a complete set so the engine/gate/exit/UI treat them as one unit.
-  Additive: NULL for every existing row and every directional position → zero
-  behaviour change until Lane 2B writes it.
+  ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED`, nullable, + partial index
+  `idx_positions_paired`. Links the two legs of a complete set so the
+  engine/gate/exit/UI treat them as one unit. Additive: NULL for every existing
+  row and every directional position → zero behaviour change until Lane 2B writes
+  it. The FK is **deferrable** because the legs reference each other — deferring
+  validation to COMMIT lets Lane 2B insert both rows already cross-linked in one
+  transaction (no insert-then-update dance, no ordering footgun); directional
+  inserts set NULL so the deferral never affects them.
 - This design document (the Lane 2 architecture + sub-lane plan below).
 
 ## 2. Lane 2 architecture (the full design — implemented across 2A→2C)
@@ -36,9 +40,9 @@ DATA -> [SIGNAL: fillable_complete_set (Lane 1)] -> RISK (set-aware) -> EXECUTIO
 
 **Booking (Lane 2B).** A new `domain/execution/complete_set_exec.py`
 `book_complete_set_paper(...)` mirrors `paper.execute` (`paper.py:22`) but inside
-ONE `conn.transaction()` inserts: 2 orders (filled), 2 `positions` rows, sets each
-row's `paired_position_id` to the other, and debits the ledger for each leg's
-cost. `strategy_type="complete_set_arb"`; `strategy_metadata` carries the quote
+ONE `conn.transaction()` inserts: 2 orders (filled), 2 `positions` rows
+cross-linked via `paired_position_id` (the mig-078 deferrable FK validates the
+mutual links at commit), and debits the ledger for each leg's cost. `strategy_type="complete_set_arb"`; `strategy_metadata` carries the quote
 snapshot (avg_pair_cost, net_margin, sibling token ids). No mid-trade TP/SL — the
 exit is settlement (Exit via the existing redeem path), so `tp_pct`/`sl_pct` stay
 NULL and the exit watcher treats a paired position as hold-to-resolution. Kept in
