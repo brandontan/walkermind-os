@@ -23,10 +23,17 @@ A DB overlay over static (Fly/env) config, editable from the web admin:
   `KeyError`, bad value → `ValueError`), and `list_effective` for the admin UI.
   Whitelist (`RUNTIME_SETTINGS`) is the ONLY surface: an unknown key can't be
   written or read, so the overlay can never shadow a secret or a LIVE guard.
-- **`services/signal_scan/signal_scan_job.py`** — the two strategy master-switch
-  read-sites now consult the overlay: `WEATHER_STRATEGY_ENABLED` (Phase B2) and
-  `COMPLETE_SET_ARB_ENABLED` (Phase B3). Each falls back to the Fly/env value, so
-  with no override behaviour is unchanged.
+- **Read-site conversion** — every *runtime* gate of the two flags now consults
+  the overlay (falling back to the Fly/env value, so no override = unchanged):
+  - `signal_scan_job.py` Phase B2 (`WEATHER_STRATEGY_ENABLED`) + Phase B3
+    (`COMPLETE_SET_ARB_ENABLED`).
+  - `domain/strategy/strategies/weather.py` — `scan()` and `evaluate_exit()` each
+    had a SECOND static read that would otherwise short-circuit before the
+    overlay took effect (caught in review); both now use the overlay so an admin
+    can actually enable/disable weather without a redeploy.
+  - `strategies/weather/strategy.py` — the standalone scheduler `scan_cycle()` +
+    `monitor_cycle()` now guard on the overlay too, so toggling OFF stops that
+    path at runtime as well.
 - **`webtrader/backend/router.py`** + **`schemas.py`** — admin API:
   `GET /admin/settings` (effective values), `PATCH /admin/settings/{key}` (set),
   `DELETE /admin/settings/{key}` (revert to default). Admin-only (`_AdminUser`),
@@ -80,6 +87,13 @@ A DB overlay over static (Fly/env) config, editable from the web admin:
 - **Tuning thresholds** (`MIN_COMPLETE_SET_EDGE`, sizing caps) are a later lane —
   the float spec + bounds-enforced overlay are already built and tested.
 - Propagation is per-process and TTL-bounded (~30s) — same model as kill switch.
+- **Weather scheduler registration caveat**: the standalone weather jobs in
+  `scheduler.py` are *registered* at startup based on the Fly/env flag. Their
+  execution now honours the overlay (cycle guards), so OFF works at runtime and
+  ON works when already registered (current prod has the Fly flag ON). The only
+  edge needing a restart is ON-from-a-Fly-OFF-baseline for the standalone cycle;
+  the primary per-user weather trade path (Phase B2 domain strategy) activates
+  from the override immediately regardless.
 
 ## 6. What is next
 

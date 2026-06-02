@@ -75,14 +75,21 @@ export function AdminPage() {
   }
 
   async function handleSettingToggle(key: string, next: boolean) {
+    const original = settings.find((s) => s.key === key);
     setSavingKey(key);
     setSettings((prev) => prev.map((s) =>
       s.key === key ? { ...s, effective: next, overridden: true } : s));
     try {
       await api.updateAdminSetting(key, next);
     } catch (e) {
-      setSettings((prev) => prev.map((s) =>
-        s.key === key ? { ...s, effective: !next } : s));
+      // Full rollback: restore BOTH effective and the override marker, else a
+      // failed write would leave a stale "● override" badge on an unchanged value.
+      if (original) {
+        setSettings((prev) => prev.map((s) =>
+          s.key === key
+            ? { ...s, effective: original.effective, overridden: original.overridden }
+            : s));
+      }
       console.error("update setting failed", e);
     } finally {
       setSavingKey(null);
