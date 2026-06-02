@@ -34,6 +34,12 @@ If role not specified -> ask:
 
 ---
 
+## Session Start
+Read GRAPH_REPORT.md before answering any questions 
+about codebase structure or architecture.
+
+---
+
 ## STRICT PROHIBITIONS
 
 You MUST NOT:
