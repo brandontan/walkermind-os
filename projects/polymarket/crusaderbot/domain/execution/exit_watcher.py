@@ -412,6 +412,16 @@ async def evaluate(
                             reason=ExitReason.FORCE_CLOSE.value,
                             current_price=cur)
 
+    # 1b. Complete-set arbitrage legs are held to RESOLUTION. The pair only pays
+    #     out its locked margin when the market settles (one leg -> $1, the other
+    #     -> $0), so a leg must NEVER exit mid-trade on TP/SL, a strategy hook, or
+    #     the horizon guard — any of those would close one leg and strand the
+    #     other as a naked directional bet, destroying the hedge. Only
+    #     force_close_intent (emergency, handled above) and market_resolved
+    #     (handled at the top — settles via the redemption pipeline) close a set.
+    if position.strategy_type == "complete_set_arb":
+        return ExitDecision(should_exit=False, reason=None, current_price=cur)
+
     ret = _return_pct(side=position.side,
                       entry_price=position.entry_price,
                       current_price=cur)
@@ -777,7 +787,15 @@ async def run_once(
                     fail_count = _price_fail_counts.get(p.id, 0) + 1
                     _price_fail_counts[p.id] = fail_count
                     if fail_count >= _EXPIRED_TICK_THRESHOLD:
-                        if await _market_actually_expired(p.market_id):
+                        if p.strategy_type == "complete_set_arb":
+                            # Complete-set legs are held to resolution and settle via
+                            # the redemption pipeline (winning leg -> $1, losing leg
+                            # -> $0). They must NEVER close as MARKET_EXPIRED: that
+                            # path refunds size_usdc, which destroys the hedge. A None
+                            # price on a delisting/resolving set is expected near
+                            # resolution; pin the counter and hold without expiring.
+                            _price_fail_counts[p.id] = _EXPIRED_TICK_THRESHOLD
+                        elif await _market_actually_expired(p.market_id):
                             if await _close_expired_position(p):
                                 expired += 1
                                 _price_fail_counts.pop(p.id, None)
@@ -821,6 +839,13 @@ async def run_once(
     )
     for p in resolved_positions:
         try:
+            if p.strategy_type == "complete_set_arb":
+                # Held to resolution: both legs settle via the redemption pipeline
+                # (winning leg -> $1, losing leg -> $0), never via close_as_expired
+                # (which refunds the stake and breaks the arb settlement). Counted
+                # as held for observability rather than expired.
+                held += 1
+                continue
             if await _close_expired_position(p):
                 expired += 1
         except Exception as exc:

@@ -26,6 +26,7 @@ Coverage targets (from R12c task header):
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import inspect
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -260,6 +261,48 @@ def test_registry_evaluator_holds_unattributed_position():
     decision = _run(exit_watcher.evaluate(p, live_price=0.40))
     assert not decision.should_exit
     assert decision.reason is None
+
+
+# ---------------------------------------------------------------------------
+# Complete-set arbitrage: paired legs are held to resolution. Mid-trade TP/SL
+# (and strategy/horizon) must NOT close a leg — that would strand the opposite
+# leg as a naked directional bet. Only force_close + market resolution apply.
+# ---------------------------------------------------------------------------
+
+def test_complete_set_holds_through_tp_threshold():
+    # cur 0.99 vs entry 0.40 would normally trip TP, but a set holds.
+    p = dataclasses.replace(
+        _make_position(side="yes", entry_price=0.40, yes_price=0.99,
+                       applied_tp_pct=0.10, applied_sl_pct=0.10),
+        strategy_type="complete_set_arb",
+    )
+    decision = _run(exit_watcher.evaluate(p, live_price=0.99))
+    assert not decision.should_exit
+    assert decision.reason is None
+
+
+def test_complete_set_holds_through_sl_threshold():
+    # cur 0.05 vs entry 0.40 would normally trip SL, but a set holds.
+    p = dataclasses.replace(
+        _make_position(side="yes", entry_price=0.40, yes_price=0.05,
+                       applied_tp_pct=0.10, applied_sl_pct=0.10),
+        strategy_type="complete_set_arb",
+    )
+    decision = _run(exit_watcher.evaluate(p, live_price=0.05))
+    assert not decision.should_exit
+    assert decision.reason is None
+
+
+def test_complete_set_force_close_still_exits():
+    # Emergency Pause+Close-All must still unwind a set (checked before the skip).
+    p = dataclasses.replace(
+        _make_position(side="yes", entry_price=0.40, yes_price=0.50,
+                       force_close_intent=True),
+        strategy_type="complete_set_arb",
+    )
+    decision = _run(exit_watcher.evaluate(p, live_price=0.50))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.FORCE_CLOSE.value
 
 
 # ---------------------------------------------------------------------------
@@ -1210,6 +1253,71 @@ def test_run_once_market_expired_on_resolved_market():
     close_expired.assert_awaited_once_with(pos.id, pos.user_id, pos.size_usdc)
     # User alert suppressed — exit_watcher logs to logger.info instead.
     assert len(captured_expired) == 0
+
+
+def test_run_once_complete_set_not_expired_on_none_price():
+    """Phase A bypass: a complete_set_arb leg with 3-tick None price + actually-
+    expired market must NOT close as MARKET_EXPIRED (would refund the stake)."""
+    pos = dataclasses.replace(_make_position(yes_price=0.40),
+                              strategy_type="complete_set_arb")
+    close_expired = AsyncMock(return_value=True)
+    list_open = AsyncMock(return_value=[pos])
+    list_open_resolved = AsyncMock(return_value=[])
+    fetch_none = AsyncMock(return_value=None)
+
+    patches = [
+        patch.object(registry, "list_open_for_exit", list_open),
+        patch.object(registry, "list_open_on_resolved_markets", list_open_resolved),
+        patch.object(registry, "close_as_expired", close_expired),
+        patch.object(exit_watcher, "_fetch_live_price", fetch_none),
+        patch.dict(exit_watcher._price_fail_counts,
+                   {pos.id: exit_watcher._EXPIRED_TICK_THRESHOLD - 1}),
+        # Even when the market genuinely expired, a set must not be expire-closed.
+        patch.object(exit_watcher, "_market_actually_expired", AsyncMock(return_value=True)),
+        _patch_audit_noop(),
+    ]
+    for p_ in patches:
+        p_.start()
+    try:
+        result = _run(exit_watcher.run_once())
+        # Capture before stop(): patch.dict restores _price_fail_counts on stop.
+        pinned = exit_watcher._price_fail_counts.get(pos.id)
+    finally:
+        for p_ in patches:
+            p_.stop()
+
+    assert result.expired == 0
+    close_expired.assert_not_awaited()
+    # Counter pinned at threshold so the set is re-checked each tick, not unbounded.
+    assert pinned == exit_watcher._EXPIRED_TICK_THRESHOLD
+
+
+def test_run_once_complete_set_not_expired_on_resolved_market():
+    """Phase B bypass: a complete_set_arb leg on a resolved market must NOT close
+    as MARKET_EXPIRED — it settles via the redemption pipeline. Counted as held."""
+    pos = dataclasses.replace(_make_position(market_resolved=True),
+                              strategy_type="complete_set_arb")
+    close_expired = AsyncMock(return_value=True)
+    list_open = AsyncMock(return_value=[])
+    list_open_resolved = AsyncMock(return_value=[pos])
+
+    patches = [
+        patch.object(registry, "list_open_for_exit", list_open),
+        patch.object(registry, "list_open_on_resolved_markets", list_open_resolved),
+        patch.object(registry, "close_as_expired", close_expired),
+        _patch_audit_noop(),
+    ]
+    for p_ in patches:
+        p_.start()
+    try:
+        result = _run(exit_watcher.run_once())
+    finally:
+        for p_ in patches:
+            p_.stop()
+
+    assert result.expired == 0
+    assert result.held == 1
+    close_expired.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
