@@ -23,17 +23,18 @@ A DB overlay over static (Fly/env) config, editable from the web admin:
   `KeyError`, bad value → `ValueError`), and `list_effective` for the admin UI.
   Whitelist (`RUNTIME_SETTINGS`) is the ONLY surface: an unknown key can't be
   written or read, so the overlay can never shadow a secret or a LIVE guard.
-- **Read-site conversion** — every *runtime* gate of the two flags now consults
-  the overlay (falling back to the Fly/env value, so no override = unchanged):
+- **Read-site conversion** — the runtime *entry* gates of the two flags now
+  consult the overlay (falling back to the Fly/env value, so no override =
+  unchanged); *exit* paths are deliberately NOT gated so a toggle never strands
+  open positions:
   - `signal_scan_job.py` Phase B2 (`WEATHER_STRATEGY_ENABLED`) + Phase B3
     (`COMPLETE_SET_ARB_ENABLED`).
-  - `domain/strategy/strategies/weather.py` — `scan()` and `evaluate_exit()` each
-    had a SECOND static read that would otherwise short-circuit before the
-    overlay took effect (caught in review); both now use the overlay so an admin
-    can actually enable/disable weather without a redeploy.
-  - `strategies/weather/strategy.py` — the standalone scheduler `scan_cycle()` +
-    `monitor_cycle()` now guard on the overlay too, so toggling OFF stops that
-    path at runtime as well.
+  - `domain/strategy/strategies/weather.py` `scan()` — entry path, overlay-gated.
+    `evaluate_exit()` intentionally stays on the static (deploy-level) flag so an
+    admin turning weather OFF can never suppress protective exits (SL/TP/trailing)
+    on already-open positions.
+  - `strategies/weather/strategy.py` — `scan_cycle()` (entry) is overlay-gated;
+    `monitor_cycle()` (exit management) is NOT gated, for the same reason.
 - **`webtrader/backend/router.py`** + **`schemas.py`** — admin API:
   `GET /admin/settings` (effective values), `PATCH /admin/settings/{key}` (set),
   `DELETE /admin/settings/{key}` (revert to default). Admin-only (`_AdminUser`),

@@ -246,13 +246,9 @@ class WeatherStrategy:
 
         Returns summary dict with closed/held counts.
         """
-        from ...config import get_settings as _gs
-        from ...domain.ops import runtime_config as _rc
-        if not await _rc.resolve_bool(
-            "WEATHER_STRATEGY_ENABLED",
-            bool(getattr(_gs(), "WEATHER_STRATEGY_ENABLED", False)),
-        ):
-            return {"disabled": True, "closed": 0, "held": 0}
+        # Exits are NOT gated on the runtime flag: an admin turning weather OFF
+        # must not strand already-open positions past their protective exits.
+        # (Entry via scan_cycle IS overlay-gated; this monitor cycle is not.)
         self._last_monitor = datetime.now(timezone.utc)
         positions = list(self._positions.values())
         closed = 0
