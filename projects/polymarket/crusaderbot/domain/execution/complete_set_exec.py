@@ -544,17 +544,26 @@ async def book_complete_set_live(
             market_question=market_question, active_preset=active_preset, meta=meta,
         )
     except Exception as exc:
-        # NO leg ambiguous AND YES filled -> both uncertain. Auto-unwind here could
-        # over-sell if NO actually filled; halt + operator reconciliation instead.
+        # NO leg ambiguous AND YES filled. We do NOT auto-unwind (an unwind SELL
+        # could over-sell if NO actually filled). But the YES fill is CONFIRMED, so
+        # it must be persisted + tracked BEFORE halting — otherwise the known live
+        # exposure is invisible (no position row, no ledger debit) and a retry hits
+        # the idempotency precheck and skips, hiding it until manual DB repair
+        # (Codex P1). _persist_naked_halt marks yes_order filled, inserts the YES
+        # leg as a force-exitable complete_set_arb_naked position, debits the
+        # ledger, and halts + pages. NO stays 'unknown' for operator reconciliation.
         await _mark_order(no_order, "unknown", error=f"submit ambiguous: {exc}")
-        await _halt_and_alert(
-            reason="complete_set_no_ambiguous",
-            detail=(f"YES filled but NO leg AMBIGUOUS market=<code>{market_id}</code> "
-                    f"yes_order=<code>{yes_order}</code> no_order=<code>{no_order}</code>"
-                    f" — reconcile both legs on Polymarket."),
+        await _persist_naked_halt(
+            pool=pool, user_id=user_id, market_id=market_id, naked_order=yes_order,
+            naked_side="yes", naked_cost=yes_cost,
+            entry_price=round(quote.yes_cost_usdc / shares, 6),
+            market_question=market_question, active_preset=active_preset,
+            naked_meta={**meta, "naked_leg": "yes", "no_leg_ambiguous": True},
+            reason=f"no_ambiguous_yes_filled:{exc}",
         )
         raise LivePostSubmitError(
-            f"complete-set NO ambiguous after YES fill (yes={yes_order}): {exc}"
+            f"complete-set NO ambiguous after YES fill (yes={yes_order}, "
+            f"tracked as naked): {exc}"
         ) from exc
 
     if not _order_filled(no_res):
@@ -735,7 +744,7 @@ async def _unwind_naked_leg(
                 )
                 unwind_order = await _insert_live_order(
                     conn, user_id=user_id, market_id=market_id, side=naked_side,
-                    size_usdc=naked_cost, price=sell_limit,
+                    size_usdc=proceeds, price=sell_limit,
                     idempotency_key=f"{naked_broker_id or naked_order}:unwind",
                     status="filled",
                 )

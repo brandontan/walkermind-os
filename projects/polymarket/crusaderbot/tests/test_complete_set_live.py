@@ -325,6 +325,11 @@ async def test_no_ambiguous_after_yes_fill_no_unwind(monkeypatch, halts) -> None
     # NO leg ambiguous -> do NOT auto-unwind (could over-sell); halt instead
     assert len(clob.calls) == 2
     assert halts and halts[0]["action"] == "pause"
+    # the CONFIRMED YES fill is persisted + tracked (force-exitable), not invisible
+    assert len(conn.position_inserts) == 1
+    assert conn.position_inserts[0][3] == "yes"
+    assert conn.position_inserts[0][6] == cse.COMPLETE_SET_NAKED_STRATEGY
+    assert len(conn.ledger_inserts) == 1  # YES cost debited
 
 
 # --------------------------------------------------------------------------- #
