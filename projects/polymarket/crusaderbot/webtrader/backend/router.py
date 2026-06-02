@@ -59,6 +59,7 @@ from .schemas import (
     PositionItem,
     PresetActivateRequest,
     RiskProfileRequest,
+    RuntimeSettingUpdate,
     RuntimeStatus,
     StrategyPnl,
     StrategyToggleRequest,
@@ -2648,6 +2649,64 @@ async def admin_toggle_strategy(body: StrategyToggleRequest, user: _AdminUser) -
         payload={"strategy": body.name, "enabled": bool(body.enabled)},
     )
     return {"name": body.name, "enabled": bool(body.enabled)}
+
+
+# ── Admin runtime config (system_settings overlay) ───────────────────────────
+# Frequently-tuned operator knobs editable from the web admin without a redeploy.
+# Only whitelisted keys (runtime_config.RUNTIME_SETTINGS) are exposed; secrets and
+# the LIVE-trading guards stay Fly-secret-only and are NOT reachable here.
+
+
+@router.get("/admin/settings")
+async def admin_get_settings(user: _AdminUser) -> dict:
+    """Effective runtime config: env/Fly default vs DB override per key."""
+    from ...config import get_settings
+    from ...domain.ops import runtime_config
+    return {"settings": await runtime_config.list_effective(get_settings())}
+
+
+@router.patch(
+    "/admin/settings/{key}",
+    dependencies=[Depends(per_user_rate_limit("admin_settings", limit=30))],
+)
+async def admin_update_setting(
+    key: str, body: RuntimeSettingUpdate, user: _AdminUser,
+) -> dict:
+    """Set a runtime-config override (whitelisted keys only). Audited."""
+    from ...domain.ops import runtime_config
+    try:
+        canonical = await runtime_config.set_override(key, body.value)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="unknown setting")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    await audit.write(
+        actor_role="admin",
+        action="admin_runtime_setting_update",
+        user_id=UUID(str(user["user_id"])),
+        payload={"key": key, "value": canonical},
+    )
+    return {"key": key, "value": canonical, "overridden": True}
+
+
+@router.delete(
+    "/admin/settings/{key}",
+    dependencies=[Depends(per_user_rate_limit("admin_settings", limit=30))],
+)
+async def admin_clear_setting(key: str, user: _AdminUser) -> dict:
+    """Clear an override so the key reverts to its env/Fly default. Audited."""
+    from ...domain.ops import runtime_config
+    try:
+        await runtime_config.clear_override(key)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="unknown setting")
+    await audit.write(
+        actor_role="admin",
+        action="admin_runtime_setting_clear",
+        user_id=UUID(str(user["user_id"])),
+        payload={"key": key},
+    )
+    return {"key": key, "overridden": False}
 
 
 # ── Admin user detail + edit ──────────────────────────────────────────────────

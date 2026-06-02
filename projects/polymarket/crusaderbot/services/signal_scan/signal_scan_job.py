@@ -58,6 +58,7 @@ import structlog
 from ...core import event_bus as _event_bus
 from ...database import get_pool
 from ...domain.execution.router import execute as router_execute
+from ...domain.ops import runtime_config as _runtime_config
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
 from ...domain.risk.constants import PROFILES
 from ...domain.risk.gate import resume_safety_check as _resume_safety_check
@@ -2835,7 +2836,11 @@ async def run_once() -> None:
 
         # Phase B2: run weather domain strategy when the active preset permits.
         if weather_strat is not None and _preset_allows(active_preset, _WEATHER_STRATEGY_NAME):
-            _wx_disabled = not getattr(_get_settings(), "WEATHER_STRATEGY_ENABLED", False)
+            # Runtime overlay: DB override (web admin) wins over the Fly/env default.
+            _wx_disabled = not await _runtime_config.resolve_bool(
+                "WEATHER_STRATEGY_ENABLED",
+                bool(getattr(_get_settings(), "WEATHER_STRATEGY_ENABLED", False)),
+            )
             if _wx_disabled:
                 weather_cands = []
             else:
@@ -2888,8 +2893,10 @@ async def run_once() -> None:
         # disabled, never raise out of the user loop.
         if active_preset in _ALL_CANDLE_PRESETS and crypto_window_markets:
             try:
-                _cset_enabled = bool(
-                    getattr(_get_settings(), "COMPLETE_SET_ARB_ENABLED", False)
+                # Runtime overlay: DB override (web admin) wins over Fly/env default.
+                _cset_enabled = await _runtime_config.resolve_bool(
+                    "COMPLETE_SET_ARB_ENABLED",
+                    bool(getattr(_get_settings(), "COMPLETE_SET_ARB_ENABLED", False)),
                 )
             except Exception:
                 _cset_enabled = False

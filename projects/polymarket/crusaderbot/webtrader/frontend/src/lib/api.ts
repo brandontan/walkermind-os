@@ -162,7 +162,33 @@ export function makeApi(token: string | null) {
       patch<AdminUserDetail>(`/admin/users/${encodeURIComponent(userId)}`, body),
     paperResetUser: (userId: string) =>
       post<AdminPaperResetResult>(`/admin/users/${encodeURIComponent(userId)}/paper-reset`, {}),
+    // ── Runtime config (system_settings overlay) ───────────────────────────
+    getAdminSettings: () => get<{ settings: RuntimeSetting[] }>("/admin/settings"),
+    updateAdminSetting: (key: string, value: boolean | number | string) =>
+      patch<{ key: string; value: string; overridden: boolean }>(
+        `/admin/settings/${encodeURIComponent(key)}`,
+        { value },
+      ),
+    clearAdminSetting: (key: string) =>
+      request<{ key: string; overridden: boolean }>(
+        `/admin/settings/${encodeURIComponent(key)}`,
+        token,
+        { method: "DELETE" },
+      ),
   };
+}
+
+// ── Runtime config types ──────────────────────────────────────────────────
+export interface RuntimeSetting {
+  key: string;
+  kind: "bool" | "float";
+  label: string;
+  description: string;
+  min_value: number | null;
+  max_value: number | null;
+  env_default: boolean | number | null;
+  overridden: boolean;
+  effective: boolean | number;
 }
 
 // ── Admin console types ───────────────────────────────────────────────────
