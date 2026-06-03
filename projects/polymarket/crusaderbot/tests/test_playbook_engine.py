@@ -282,7 +282,11 @@ def test_registry_registers_playbook():
     assert "balanced" in s.risk_profile_compatibility
 
 
-def test_preset_registered_and_visible():
+def test_preset_registered_but_hidden_until_phase2():
+    # FOUNDATION posture: playbook is registered + routable (PRESET_ORDER) but
+    # intentionally NOT user-selectable yet — its live scan dispatch is Phase-2,
+    # so it stays out of the visible picker to avoid a no-op activation trap
+    # (Codex P2, PR #1567).
     from projects.polymarket.crusaderbot.domain.preset.presets import (
         PRESET_ORDER,
         VISIBLE_PRESET_ORDER,
@@ -291,7 +295,7 @@ def test_preset_registered_and_visible():
     p = get_preset("playbook")
     assert p is not None and p.strategies == ("playbook",)
     assert "playbook" in PRESET_ORDER
-    assert "playbook" in VISIBLE_PRESET_ORDER
+    assert "playbook" not in VISIBLE_PRESET_ORDER
 
 
 def test_backend_and_bot_roster_in_sync():
@@ -302,4 +306,5 @@ def test_backend_and_bot_roster_in_sync():
     assert r._PRESET_LOCKED_CATEGORY["playbook"] == "Sports"
     from projects.polymarket.crusaderbot.bot.presets import PRESET_CONFIG, PRESET_ORDER
     assert "playbook" in PRESET_CONFIG
-    assert "playbook" in PRESET_ORDER
+    # Registered in config but hidden from the Telegram picker until Phase-2.
+    assert "playbook" not in PRESET_ORDER

@@ -201,13 +201,17 @@ CANDLE_PRESET_KEYS: frozenset[str] = frozenset(
 )
 
 # Presets visible in the Telegram picker.
+# NOTE: `playbook` is intentionally NOT visible yet — it is registered + routable
+# (PRESET_ORDER / registry / STRATEGY_AVAILABILITY) but its live scan-loop dispatch
+# is Phase-2 (deny-by-default in signal_scan_job._PRESET_ALLOWED). Exposing it as a
+# selectable preset now would let a user activate a no-op that emits zero candidates
+# (Codex P2, PR #1567). Re-add here when WARP/ROOT/playbook-live-dispatch lands.
 VISIBLE_PRESET_ORDER: Tuple[str, ...] = (
     "candle_auto",
     "close_sweep",
     "safe_close",
     "flip_hunter",
     "weather_monitor",
-    "playbook",
 )
 
 RECOMMENDED_PRESET: str = "candle_auto"

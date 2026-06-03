@@ -108,7 +108,10 @@ const STRATEGY_PRESETS = [
     signal: "Autonomous sports orchestration. Auto-routes to the highest-EV module.",
     risk: "balanced" as const,
     freq: "Adaptive",
-    visible: true,
+    // Hidden until Phase-2 wires live scan dispatch (Codex P2, PR #1567): the
+    // preset is registered + routable but deny-by-default in the scanner, so
+    // exposing it now would let a user activate a no-op that emits nothing.
+    visible: false,
     features: ["⚡ Auto rule-switch", "📰 News-aware", "🦈 Sharp-money aware", "🎯 Market adaptive"],
     detail: [
       "Evaluates each sports market and auto-routes it to the highest expected-value module.",
@@ -136,7 +139,9 @@ const CRYPTO_SHORT_PRESETS: readonly string[] = ["candle_auto", "close_sweep", "
 // (close_sweep / safe_close / flip_hunter) are no longer standalone cards —
 // they live inside Smart Strike as a manual "Rule" sub-picker, so the main page
 // stays uncluttered while power users can still pin one rule.
-const TOP_LEVEL_PRESET_KEYS: readonly string[] = ["candle_auto", "weather_monitor", "playbook"];
+// `playbook` intentionally omitted — its card is visible:false and live scan
+// dispatch is Phase-2 (Codex P2, PR #1567). Re-add when playbook-live-dispatch lands.
+const TOP_LEVEL_PRESET_KEYS: readonly string[] = ["candle_auto", "weather_monitor"];
 
 // Manual rules nested under Smart Strike. "Auto" (candle_auto) is the default —
 // the router picks per candle stage; the three below pin a single rule.
