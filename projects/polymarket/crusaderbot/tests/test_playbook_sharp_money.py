@@ -12,6 +12,8 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+import pytest
+
 from projects.polymarket.crusaderbot.domain.playbook import sharp_flow as SF
 from projects.polymarket.crusaderbot.domain.playbook.modules import (
     ClosingEdgeModule,
@@ -207,15 +209,31 @@ def _patch(conn: _Conn):
     return patch.object(SF, "get_pool", return_value=_Pool(conn))
 
 
-def test_fetch_sharp_flows_aggregates_and_scopes():
-    conn = _Conn(rows=[{"condition_id": "c1", "signed_usdc": 8_000.0, "total_usdc": 10_000.0}])
+def _trade(outcome: str, action: str, size: float, side_col: str = "", cid: str = "c1") -> dict:
+    return {
+        "condition_id": cid, "outcome": outcome, "action": action,
+        "side_col": side_col, "size_usdc": size,
+    }
+
+
+def test_fetch_sharp_flows_aggregates_signed_outcome_action():
+    # BUY YES +8000, BUY NO −2000 → signed 6000, total 10000.
+    conn = _Conn(rows=[_trade("yes", "buy", 8_000.0), _trade("no", "buy", 2_000.0)])
     with _patch(conn):
         out = asyncio.run(SF.fetch_sharp_flows(["c1"]))
-    assert out == {"c1": (8_000.0, 10_000.0)}
+    assert out == {"c1": (6_000.0, 10_000.0)}
     q = conn.queries[0]
     assert "leaderboard_stats" in q and "win_rate" in q  # top-tier scoping pinned
-    assert "heisenberg_realtime_trades" in q
+    assert "heisenberg_realtime_trades" in q and "raw->>'outcome'" in q
     assert conn.args[0][0] == ["c1"]  # batched ANY($1)
+
+
+def test_fetch_sharp_flows_ambiguous_counts_total_not_signed():
+    # Action-only (no outcome) → can't sign → 0 signed but counts toward total.
+    conn = _Conn(rows=[_trade("", "buy", 5_000.0), _trade("yes", "buy", 1_000.0)])
+    with _patch(conn):
+        out = asyncio.run(SF.fetch_sharp_flows(["c1"]))
+    assert out == {"c1": (1_000.0, 6_000.0)}
 
 
 def test_fetch_sharp_flows_empty_ids_skips_query():
@@ -232,8 +250,23 @@ def test_fetch_sharp_flows_failsoft_on_error():
     assert out == {}
 
 
-def test_fetch_sharp_flows_skips_zero_total():
-    conn = _Conn(rows=[{"condition_id": "c1", "signed_usdc": 0.0, "total_usdc": 0.0}])
+def test_fetch_sharp_flows_skips_zero_size():
+    conn = _Conn(rows=[_trade("yes", "buy", 0.0)])
     with _patch(conn):
         out = asyncio.run(SF.fetch_sharp_flows(["c1"]))
     assert out == {}
+
+
+# ── signed-flow direction (Codex P1 #1577: outcome × action, never flipped) ─
+@pytest.mark.parametrize("outcome,action,side_col,size,expected", [
+    ("yes", "buy", "", 100.0, 100.0),    # buy YES  → +
+    ("yes", "sell", "", 100.0, -100.0),  # sell YES → −
+    ("no", "buy", "", 100.0, -100.0),    # buy NO   → − (would be +100 under the old bug)
+    ("no", "sell", "", 100.0, 100.0),    # sell NO  → +
+    ("yes", "", "sell", 100.0, -100.0),  # action via side_col fallback
+    ("", "buy", "yes", 100.0, 100.0),    # outcome via side_col fallback
+    ("", "buy", "", 100.0, 0.0),         # action only, no outcome → ambiguous
+    ("", "", "yes", 100.0, 0.0),         # outcome only, no action → ambiguous
+])
+def test_yes_accumulation_signed(outcome, action, side_col, size, expected):
+    assert SF.yes_accumulation_signed(outcome, action, side_col, size) == expected

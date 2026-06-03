@@ -85,12 +85,20 @@ execution, Kelly, and the live-trading guard are untouched.
   replaced by generic TP/SL. `evaluate_snapshot` now stamps those keys from the winning
   module (mirrors the candle_auto router); also repairs the latent Closing Edge gap.
   +2 tests (sharp 30/15, closing 25/12).
+- **Codex P1 (signed-flow direction) fixed:** the stored `side` column is
+  `side or direction or outcome` upstream — ambiguous — so classifying a `BUY` (of the
+  NO token) as YES-accumulation could **flip the emitted trade direction**. Replaced the
+  in-SQL sign with a unit-tested Python `yes_accumulation_signed(outcome, action, …)` =
+  outcome_sign × action_sign (outcome from `raw->>'outcome'`, as the copy-trade path
+  relies on); ambiguous rows count toward *total* magnitude only, never the signed sum,
+  so a directionally-unknown book can never flip the side. +9 direction/aggregation tests.
 
 ## 5. Known issues
 
-- `heisenberg_realtime_trades.side` values are normalised heuristically (yes/buy/long → YES,
-  no/sell/short → NO); anything unrecognised contributes magnitude only. Matches the
-  copy-trade parser's conventions; the V2 backtester can recalibrate.
+- Signed flow derives direction from `raw->>'outcome'` × buy/sell action (Codex P1 fix),
+  the same `outcome` field the copy-trade path relies on. Rows missing a determinable
+  outcome+action count toward total magnitude only, so the signal is conservatively
+  dampened rather than mis-signed; the V2 backtester can recalibrate the tunables.
 - Tunables (`win_rate ≥ 0.65`, 24h lookback, $500 floor, 0.20 confidence) are first-pass,
   blueprint-aligned, and flagged for backtest calibration (Phase-2c).
 - Live efficacy depends on `leaderboard_stats` + `heisenberg_realtime_trades` being populated

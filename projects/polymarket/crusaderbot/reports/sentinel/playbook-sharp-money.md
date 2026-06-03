@@ -68,31 +68,42 @@ None remaining.
   `test_evaluate_snapshot_stamps_sharp_module_tpsl` (30/15) +
   `..._closing_edge_tpsl` (25/12). This also repaired the pre-existing latent gap for
   Closing Edge.
+- Codex P1 / SENTINEL M-1 (signed-flow direction) — the stored `side` column is
+  `side or direction or outcome` upstream, so classifying a `BUY` of the NO token as
+  YES-accumulation could FLIP the emitted trade side. This audit's M-1 caveat was
+  **escalated and fixed in-lane** (`c…`): sign now = outcome_sign × action_sign via a
+  unit-tested `yes_accumulation_signed` (`sharp_flow.py`), outcome from `raw->>'outcome'`
+  (the field the copy-trade path already trusts); ambiguous rows contribute magnitude-only
+  and can never flip the side. Verified by an 8-case direction matrix +
+  `test_fetch_sharp_flows_ambiguous_counts_total_not_signed`.
 
 ## STABILITY SCORE
 
 - Architecture (20): 20 — additive, reuses copy-trade infra, no new authority.
-- Functional (20): 20 — claim logic + source fully covered (16 tests).
-- Failure modes (20): 19 — fail-soft throughout; −1 side-classification fidelity (M-1).
+- Functional (20): 20 — claim logic, signed-flow direction, and source fully covered.
+- Failure modes (20): 20 — fail-soft throughout; the M-1 direction risk is fixed +
+  unit-tested (ambiguous rows never flip the side).
 - Risk integrity (20): 20 — gate/execution/Kelly/live-guard untouched, no bypass.
 - Infra (10): 10 — DB-backed, zero new scan-loop external calls.
-- Latency/cost (10): 10 — flow-gated + capped far band, batched query.
-- **TOTAL: 99/100** → adjusted **96/100** for the disclosed M-1 data-fidelity caveat.
+- Latency/cost (10): 9 — per-trade fetch + Python aggregation (bounded: ≤50 sharp
+  wallets × ≤20 far markets × 24h); −1 vs in-SQL aggregation, traded for testable sign
+  logic — a sound call.
+- **TOTAL: 99/100** → **APPROVED at 98/100** (−1 latency/cost only).
+
+Evidence: 27 sharp-money + 31 engine + 82 scan = **140 pass**, ruff + py_compile clean.
 
 ## GO-LIVE STATUS
 
-**APPROVED — 96/100, 0 critical.** Paper-only, `PLAYBOOK_STRATEGY_ENABLED`-gated; no LIVE
-capital path touched. Safe to merge at WARP🔹CMD's discretion + Fly redeploy.
+**APPROVED — 98/100, 0 critical.** Paper-only, `PLAYBOOK_STRATEGY_ENABLED`-gated; no LIVE
+capital path touched. Three bot-review findings (Codex P1 window, Codex P2 TP/SL, Codex P1
+flow direction) all caught/fixed in-lane with tests. Safe to merge at WARP🔹CMD's
+discretion + Fly redeploy.
 
 ## FIX RECOMMENDATIONS (non-blocking)
 
-- M-1 (MEDIUM, disclosed): `heisenberg_realtime_trades.side` is normalised yes/buy/long →
-  YES, no/sell/short → NO. If a row stores a BUY/SELL *direction* of the NO token, this
-  conflates direction with outcome. Affects signal fidelity, not capital safety (paper).
-  Recommend confirming the stored `side` domain and refining classification in Phase-2c
-  alongside backtest calibration of the tunables (win_rate≥0.65, 24h, $500, 0.20).
 - L-1 (LOW): tunables are first-pass — validate OOS in the Phase-2c backtest before any
-  LIVE scaling.
+  LIVE scaling; confirm the upstream `outcome` field coverage in `raw` against live data
+  so the signed/total ratio is not over-dampened by ambiguous rows.
 
 ## TELEGRAM PREVIEW
 
