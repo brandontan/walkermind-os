@@ -185,6 +185,9 @@ def test_effective_max_concurrent_defensive_coercion_of_invalid_values():
     assert effective_max_concurrent("balanced", user_override=0) == 12
     assert effective_max_concurrent("balanced", user_override=-5) == 12
     assert effective_max_concurrent("balanced", user_override="not-a-number") == 12
+    # A numeric string / float (legacy row, API payload) is honoured, not dropped.
+    assert effective_max_concurrent("balanced", user_override="12.0") == 12
+    assert effective_max_concurrent("conservative", user_override=7.9) == 7
 
 
 # --------------------------------------------------------------------------- gate (evaluate) integration

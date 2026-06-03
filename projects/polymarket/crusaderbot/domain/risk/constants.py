@@ -189,7 +189,10 @@ def effective_max_concurrent(
     # override falls back to the profile default (never bricks the user).
     if user_override is not None:
         try:
-            ov = int(user_override)
+            # Parse via float first so a numeric string like "12.0" (legacy row /
+            # direct DB write / API payload) is honoured instead of raising and
+            # silently falling back to the profile default.
+            ov = int(float(user_override))
         except (TypeError, ValueError):
             ov = 0
         if ov >= 1:
