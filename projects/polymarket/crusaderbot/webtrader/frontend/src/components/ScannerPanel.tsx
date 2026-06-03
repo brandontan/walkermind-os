@@ -260,6 +260,17 @@ function MarketRow({ it, expanded, onToggle }: { it: MarketFeedItem; expanded: b
 /* Static (≤ MARKET_PAGE_SIZE) markets block — tracks which row is expanded. */
 function MarketStaticList({ feed }: { feed: MarketFeedItem[] }) {
   const [expanded, setExpanded] = useState<number | null>(null);
+  // Collapse the open row when the market set actually changes (preset switch),
+  // but NOT on every background poll where only prices/liquidity refresh — key
+  // off the serialized asset list so a stable set keeps the row open.
+  const feedKeys = feed.map((it) => it.asset).join(",");
+  const prevKeys = useRef(feedKeys);
+  useEffect(() => {
+    if (prevKeys.current !== feedKeys) {
+      prevKeys.current = feedKeys;
+      setExpanded(null);
+    }
+  }, [feedKeys]);
   return (
     <div className="border-b border-border-1">
       <div className="flex items-center justify-between px-3.5 pt-1.5 pb-1">

@@ -108,6 +108,7 @@ def test_lean_from_prob(prob, lean):
     ("will-the-lakers-beat-the-celtics-2026", "Will the Lakers beat the Celtics?", "LAKERS"),
     ("will-trump-win-2024", "Will Trump win?", "TRUMP"),
     ("", "Will the Chiefs win the game?", "CHIEFS"),  # slug empty → from question
+    ("", "Will, the Lakers, again?", "LAKERS"),       # punctuation stripped from tokens
     ("", "", "MKT"),                                  # nothing usable → fallback
 ])
 def test_short_market_code(slug, question, code):

@@ -500,7 +500,7 @@ def _short_market_code(slug: str, question: str) -> str:
     column of identical ``WILL`` labels for sports/other markets."""
     def _first_meaningful(text: str, sep: str) -> str:
         for tok in str(text or "").lower().split(sep):
-            tok = tok.strip()
+            tok = tok.strip(".,?!;:()\"'[]{}*- ")
             if tok and not tok.isdigit() and tok not in _SLUG_FILLER:
                 return tok
         return ""
