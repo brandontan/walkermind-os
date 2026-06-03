@@ -104,13 +104,21 @@ def compute_metrics(returns: list[float], durations: list[float] | None = None) 
     downside = mean([min(0.0, r) ** 2 for r in returns]) ** 0.5
     gross_win = sum(wins)
     gross_loss = abs(sum(losses))
+    # Profit factor: gross_win/gross_loss; an all-wins run (no losses) is unbounded
+    # (best case), NOT 0.0 — reporting 0 would rank a perfect run as the worst.
+    if gross_loss > 0:
+        profit_factor = gross_win / gross_loss
+    elif gross_win > 0:
+        profit_factor = float("inf")
+    else:
+        profit_factor = 0.0  # all-flat: no wins, no losses
     return ReplayMetrics(
         n_trades=n,
         win_rate=len(wins) / n,
         ev_per_trade=ev,
         sharpe=(ev / sd) if sd > 0 else 0.0,
         sortino=(ev / downside) if downside > 0 else 0.0,
-        profit_factor=(gross_win / gross_loss) if gross_loss > 0 else 0.0,
+        profit_factor=profit_factor,
         max_drawdown=_max_drawdown(returns),
         avg_holding_sec=mean(durations) if durations else 0.0,
     )

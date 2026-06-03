@@ -81,6 +81,17 @@ def test_metrics_all_losses_profit_factor_zero():
     assert m.win_rate == 0.0 and m.profit_factor == 0.0 and m.ev_per_trade < 0
 
 
+def test_metrics_all_wins_profit_factor_unbounded():
+    # No losses + real wins → unbounded (best case), NOT 0.0.
+    m = compute_metrics([0.2, 0.3])
+    assert m.profit_factor == float("inf") and m.win_rate == 1.0
+
+
+def test_metrics_all_flat_profit_factor_zero():
+    m = compute_metrics([0.0, 0.0])
+    assert m.profit_factor == 0.0 and m.win_rate == 0.0
+
+
 # ── walk-forward ──────────────────────────────────────────────────────────
 def test_walk_forward_expanding_windows():
     trades = [_trade(mins=i, res_mins=i + 1) for i in range(10)]
