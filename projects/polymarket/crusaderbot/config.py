@@ -131,6 +131,14 @@ class Settings(BaseSettings):
     # inside strategies/weather/forecast.py; it is never stored here.
     WEATHER_STRATEGY_ENABLED: bool = False
 
+    # --- PLAYBOOK sports strategy router (WARP/ROOT/playbook-live-dispatch) ---
+    # Operator switch for the PLAYBOOK sports scan dispatch (Phase 2a). Default
+    # OFF — even with the code wired, the scan loop emits nothing for the
+    # `playbook` preset until the operator sets PLAYBOOK_STRATEGY_ENABLED=true
+    # (mirrors WEATHER_STRATEGY_ENABLED). PAPER-only; LIVE stays behind the
+    # existing activation guards. Runtime-overridable via the admin overlay.
+    PLAYBOOK_STRATEGY_ENABLED: bool = False
+
     # --- Complete-set arbitrage (WARP/ROOT/complete-set-arb epic) ---
     # Master kill switch for the complete-set arb scan + booking path. Default
     # OFF — even with the code wired (Lane 2C), nothing scans or books a set

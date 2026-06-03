@@ -188,7 +188,7 @@ Blueprint: docs/blueprint/playbook.md. Linear: WARP-53.
 
 - [x] Phase 1 FOUNDATION (WARP/ROOT/playbook-sports-engine) — domain/playbook/ package (market quality + native signals + precedence router + Closing Edge module + stubs), PlaybookStrategy wired through registry + STRATEGY_AVAILABILITY + presets + backend + Telegram + WebTrader card; paper-only, deny-by-default dispatch; 24 tests + full suite 2371 pass. MAJOR → SENTINEL.
 - [ ] WARP•SENTINEL MAJOR validation of Phase 1
-- [ ] Phase 2a — live scan-loop dispatch (WARP/ROOT/playbook-live-dispatch; _PRESET_ALLOWED + scheduler job + sports-market snapshot fetch; weather precedent)
+- [x] Phase 2a — live scan-loop dispatch (WARP/ROOT/playbook-live-dispatch) — _PRESET_ALLOWED + _DOMAIN_STRATEGY_NAMES + Phase-B4 dispatch gated by PLAYBOOK_STRATEGY_ENABLED, sports-market snapshot fetch (Gamma sports markets ≤2h + CLOB books), Gamma-consensus fair_price, preset re-enabled. PAPER; full suite 2410 pass. MAJOR → SENTINEL.
 - [ ] Phase 2b — Sharp Money module live on-chain source (copy-trade chain monitor)
 - [ ] Phase 2c — backtest framework (walk-forward + leakage/overfit detection; shared blocker)
 - [ ] Phase 2d — Injury Alpha module + injury/news feed adapter

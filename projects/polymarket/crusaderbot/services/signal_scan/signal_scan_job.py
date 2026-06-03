@@ -103,11 +103,14 @@ _LIB_STRATEGY_NAMES: frozenset[str] = frozenset(ENABLED_STRATEGIES) | frozenset(
 
 _LATE_ENTRY_V3_NAME = "late_entry_v3"
 _WEATHER_STRATEGY_NAME = "weather"
+_PLAYBOOK_STRATEGY_NAME = "playbook"
 
 # Domain strategies the scan loop invokes explicitly (registered via
 # bootstrap_default_strategies()). Each runs its own eligibility gate inside
 # scan(), so emitted candidates already satisfy their universe constraints.
-_DOMAIN_STRATEGY_NAMES: frozenset[str] = frozenset({_LATE_ENTRY_V3_NAME, _WEATHER_STRATEGY_NAME})
+_DOMAIN_STRATEGY_NAMES: frozenset[str] = frozenset(
+    {_LATE_ENTRY_V3_NAME, _WEATHER_STRATEGY_NAME, _PLAYBOOK_STRATEGY_NAME}
+)
 
 # Preset → strategies it may fire. Deny-by-default: unknown/NULL presets
 # return frozenset() and fire nothing.
@@ -117,6 +120,7 @@ _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
     "safe_close":      frozenset({_LATE_ENTRY_V3_NAME}),
     "flip_hunter":     frozenset({_LATE_ENTRY_V3_NAME}),
     "weather_monitor": frozenset({_WEATHER_STRATEGY_NAME}),
+    "playbook":        frozenset({_PLAYBOOK_STRATEGY_NAME}),
 }
 
 
@@ -792,6 +796,98 @@ async def _upsert_crypto_window_markets(markets: list[dict[str, Any]]) -> None:
             except Exception as exc:
                 logger.warning("crypto_window_upsert_failed", error=str(exc))
 
+
+async def _upsert_sports_markets(markets: list[dict[str, Any]]) -> None:
+    """Upsert near-event sports markets (keyed by condition_id) so PLAYBOOK
+    candidates resolve in _load_market.
+
+    market_sync (Heisenberg, min_volume>=50k) misses lower-liquidity near-event
+    sports markets that PLAYBOOK trades, so without this their candidates skip as
+    ``skipped_market_not_synced``. Mirrors _upsert_crypto_window_markets but keeps
+    each market's real category. Idempotent ON CONFLICT; fail-soft per market.
+    (Codex P1, PR #1572.)
+    """
+    if not markets:
+        return
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        for m in markets:
+            try:
+                condition_id = str(m.get("conditionId") or m.get("condition_id") or "")
+                if not condition_id:
+                    continue
+                slug = str(m.get("slug") or "")[:80]
+                question = str(m.get("question") or m.get("title") or "")[:500]
+                category = (str(m.get("category") or "sports")[:50]) or "sports"
+                prices = _coerce_str_list(m.get("outcomePrices"))
+                tokens = _coerce_str_list(m.get("clobTokenIds"))
+
+                def _f(v: Any, d: float) -> float:
+                    try:
+                        return float(v)
+                    except (TypeError, ValueError):
+                        return d
+                yes_price = _f(prices[0] if prices else None, 0.5)
+                no_price = _f(prices[1] if len(prices) > 1 else None, 0.5)
+                yes_token = tokens[0] if tokens else None
+                no_token = tokens[1] if len(tokens) > 1 else None
+                liquidity = _f(m.get("liquidity"), 0.0)
+                end_iso = (
+                    m.get("gameStartTime") or m.get("game_start_time")
+                    or m.get("endDate") or m.get("end_date_iso")
+                )
+                resolution_at = None
+                if end_iso:
+                    try:
+                        resolution_at = datetime.fromisoformat(
+                            str(end_iso).replace("Z", "+00:00")
+                        )
+                    except (ValueError, TypeError):
+                        resolution_at = None
+                await conn.execute(
+                    """
+                    INSERT INTO markets
+                        (id, slug, question, category, status,
+                         yes_price, no_price, yes_token_id, no_token_id,
+                         liquidity_usdc, resolution_at, condition_id, is_demo, synced_at)
+                    VALUES ($1,$2,$3,$4,'active',$5,$6,$7,$8,$9,$10,$1,FALSE,NOW())
+                    ON CONFLICT (id) DO UPDATE SET
+                        slug           = EXCLUDED.slug,
+                        question       = EXCLUDED.question,
+                        category       = EXCLUDED.category,
+                        status         = 'active',
+                        yes_price      = EXCLUDED.yes_price,
+                        no_price       = EXCLUDED.no_price,
+                        yes_token_id   = EXCLUDED.yes_token_id,
+                        no_token_id    = EXCLUDED.no_token_id,
+                        liquidity_usdc = EXCLUDED.liquidity_usdc,
+                        resolution_at  = EXCLUDED.resolution_at,
+                        synced_at      = NOW()
+                    """,
+                    condition_id, slug, question, category,
+                    yes_price, no_price, yes_token, no_token,
+                    liquidity, resolution_at,
+                )
+            except Exception as exc:
+                logger.warning("sports_market_upsert_failed", error=str(exc))
+
+
+async def _sync_playbook_sports_markets() -> int:
+    """Fetch Gamma sports markets in the pre-event window and upsert them.
+
+    Run once per scan (before the user loop) when PLAYBOOK is enabled, so every
+    user on the playbook preset sees resolvable markets. Cached Gamma fetch +
+    shared window selector keep this cheap. Returns the count upserted.
+    """
+    from ...domain.strategy.strategies.playbook import select_sports_markets_in_window
+    try:
+        markets = await _polymarket.get_events_with_markets(limit=200)
+    except Exception as exc:
+        logger.warning("playbook_sports_fetch_failed", error=str(exc))
+        return 0
+    rows = [t[0] for t in select_sports_markets_in_window(markets)]
+    await _upsert_sports_markets(rows)
+    return len(rows)
 
 
 async def _publication_already_queued(user_id: UUID, publication_id: UUID) -> bool:
@@ -2741,10 +2837,33 @@ async def run_once() -> None:
         weather_strat = None
         logger.debug("weather_not_registered")
 
+    try:
+        playbook_strat = StrategyRegistry.instance().get(_PLAYBOOK_STRATEGY_NAME)
+    except KeyError:
+        playbook_strat = None
+        logger.debug("playbook_not_registered")
+
+    # PLAYBOOK: upsert near-event sports markets ONCE per scan (user-independent)
+    # so candidates resolve in _load_market. Gated by the operator flag; fail-soft.
+    if playbook_strat is not None:
+        try:
+            _pb_enabled_global = await _runtime_config.resolve_bool(
+                "PLAYBOOK_STRATEGY_ENABLED",
+                bool(getattr(_get_settings(), "PLAYBOOK_STRATEGY_ENABLED", False)),
+            )
+        except Exception:
+            _pb_enabled_global = False
+        if _pb_enabled_global:
+            try:
+                await _sync_playbook_sports_markets()
+            except Exception as exc:
+                logger.warning("playbook_sports_sync_failed", error=str(exc))
+
     candidates_processed = 0
     candidates_errored = 0
     late_entry_signals = 0
     weather_signals = 0
+    playbook_signals = 0
     complete_set_signals = 0
 
     for row in users:
@@ -2879,6 +2998,55 @@ async def run_once() -> None:
                         error=str(exc),
                     )
 
+        # Phase B4: PLAYBOOK sports strategy router (WARP/ROOT/playbook-live-dispatch).
+        # Gated behind the `playbook` preset AND the PLAYBOOK_STRATEGY_ENABLED operator
+        # flag (runtime overlay wins over the Fly/env default) — mirrors weather B2.
+        # PAPER-only; emitted candidates flow through the same _process_candidate +
+        # risk-gate path as every other strategy. Fail-soft: a scan error logs and
+        # the user loop continues.
+        if playbook_strat is not None and _preset_allows(active_preset, _PLAYBOOK_STRATEGY_NAME):
+            _pb_disabled = not await _runtime_config.resolve_bool(
+                "PLAYBOOK_STRATEGY_ENABLED",
+                bool(getattr(_get_settings(), "PLAYBOOK_STRATEGY_ENABLED", False)),
+            )
+            if _pb_disabled:
+                playbook_cands = []
+            else:
+                try:
+                    user_ctx = _build_user_context(row)
+                    market_filters = _build_market_filters(user_ctx.risk_profile, row)
+                    playbook_cands = await playbook_strat.scan(market_filters, user_ctx)
+                except Exception as exc:
+                    user_log.warning("playbook_strategy_run_failed", error=str(exc))
+                    playbook_cands = []
+
+            playbook_signals += len(playbook_cands)
+            _pb_zero_reason = (
+                "strategy_disabled" if _pb_disabled
+                else ("filter_or_no_match" if not playbook_cands else None)
+            )
+            user_log.info(
+                "strategy_run",
+                strategy=_PLAYBOOK_STRATEGY_NAME,
+                candidates_emitted=len(playbook_cands),
+                zero_reason=_pb_zero_reason,
+            )
+            if not playbook_cands:
+                tel.record_zero_reason(_PLAYBOOK_STRATEGY_NAME, _pb_zero_reason or "filter_or_no_match")
+            tel.candidates_emitted += len(playbook_cands)
+            for cand in playbook_cands:
+                try:
+                    await _process_candidate(row, cand, tel)
+                    candidates_processed += 1
+                except Exception as exc:
+                    candidates_errored += 1
+                    user_log.error(
+                        "signal_scan_candidate_unhandled",
+                        market_id=cand.market_id,
+                        strategy=_PLAYBOOK_STRATEGY_NAME,
+                        error=str(exc),
+                    )
+
         # Phase B3: complete-set arbitrage scan (WARP/ROOT/complete-set-arb,
         # Lane 2C-2b). Gated behind COMPLETE_SET_ARB_ENABLED (default OFF) — the
         # whole branch is dark until the operator flips the flag. Scoped to candle
@@ -2992,9 +3160,10 @@ async def run_once() -> None:
     logger.info(
         "lib_strategy_scan_done",
         scan_run_id=run_id,
-        strategies=3,  # late_entry_v3 + weather + complete_set_arb
+        strategies=4,  # late_entry_v3 + weather + playbook + complete_set_arb
         late_entry_signals=late_entry_signals,
         weather_signals=weather_signals,
+        playbook_signals=playbook_signals,
         complete_set_signals=complete_set_signals,
         candidates_emitted=tel.candidates_emitted,
         risk_approved=tel.risk_approved,

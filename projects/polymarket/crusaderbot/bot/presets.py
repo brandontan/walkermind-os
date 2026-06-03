@@ -120,12 +120,11 @@ def get_preset(key: str) -> PresetConfig | None:
     return PRESET_CONFIG.get(key)
 
 
-# `playbook` is intentionally absent — registered in PRESET_CONFIG but hidden from
-# the Telegram picker until Phase-2 wires its live scan dispatch (Codex P2, PR #1567).
 PRESET_ORDER: list[str] = [
     "candle_auto",
     "close_sweep",
     "safe_close",
     "flip_hunter",
     "weather_monitor",
+    "playbook",
 ]

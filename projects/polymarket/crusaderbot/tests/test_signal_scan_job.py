@@ -1465,3 +1465,42 @@ def test_run_once_mode_label_uses_three_guard_check(monkeypatch):
     # Must check all 3 guards, not just ENABLE_LIVE_TRADING alone
     assert "EXECUTION_PATH_VALIDATED" in src
     assert "CAPITAL_MODE_CONFIRMED" in src
+
+
+def test_upsert_sports_markets_executes_insert():
+    conn = _FakeConn()
+    m = {
+        "conditionId": "cond1", "slug": "nfl-kc-buf", "question": "KC win?",
+        "category": "nfl football", "outcomePrices": '["0.6","0.4"]',
+        "clobTokenIds": '["y","n"]', "liquidity": 20000,
+        "gameStartTime": "2026-06-03T01:00:00Z",
+    }
+    with _patch_pool(conn):
+        asyncio.run(job._upsert_sports_markets([m]))
+    assert any("INSERT INTO markets" in s for s in conn.executes)
+
+
+def test_upsert_sports_markets_skips_without_condition_id():
+    conn = _FakeConn()
+    with _patch_pool(conn):
+        asyncio.run(job._upsert_sports_markets([{"slug": "no-cond"}]))
+    assert conn.executes == []
+
+
+def test_sync_playbook_sports_markets_fetches_filters_upserts():
+    from datetime import datetime, timedelta, timezone
+    near = (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
+    far = (datetime.now(timezone.utc) + timedelta(hours=12)).isoformat()
+    markets = [
+        {"conditionId": "s1", "category": "nba", "gameStartTime": near,
+         "outcomePrices": '["0.6","0.4"]', "clobTokenIds": '["y","n"]', "liquidity": 9000},
+        {"conditionId": "s2", "category": "nhl", "gameStartTime": far},  # out of window
+        {"conditionId": "x", "category": "crypto", "gameStartTime": near},  # not sports
+    ]
+    conn = _FakeConn()
+    with _patch_pool(conn), patch.object(
+        job._polymarket, "get_events_with_markets", AsyncMock(return_value=markets)
+    ):
+        n = asyncio.run(job._sync_playbook_sports_markets())
+    assert n == 1  # only the in-window sports market
+    assert any("INSERT INTO markets" in s for s in conn.executes)

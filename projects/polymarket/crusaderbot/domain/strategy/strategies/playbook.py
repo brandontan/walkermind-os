@@ -16,6 +16,7 @@ introduced — all caps remain enforced by ``domain/risk/gate.py``.
 """
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -50,6 +51,172 @@ SPORTS_CATEGORIES: tuple[str, ...] = (
     "tennis",
 )
 
+# Only assemble snapshots for markets whose event is within this pre-event
+# window. Closing Edge (the only live module) acts inside 30 min, so a 2h cap
+# bounds the per-scan orderbook fetches while still covering the entry window.
+_SNAPSHOT_TTL_CAP_SEC: float = 7_200.0
+# Hard cap on orderbook fetches per scan (2 books per market).
+_MAX_SPORTS_MARKETS_PER_SCAN: int = 40
+# Per-trade sizing fraction applied to deployable equity before the risk gate
+# re-sizes via fractional Kelly + caps. Conservative base; gate is authoritative.
+_SIZE_EQUITY_FRACTION: float = 0.04
+_DEFAULT_SIZE_CEILING_USDC: float = 25.0
+
+
+def _parse_iso(ts: object) -> datetime | None:
+    """Parse an ISO-8601 timestamp (tolerating a trailing Z); None on failure."""
+    if not ts:
+        return None
+    try:
+        d = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+    return d if d.tzinfo is not None else d.replace(tzinfo=timezone.utc)
+
+
+def _is_sports_category(category: object) -> bool:
+    """True if the event's category tags name any tracked sport."""
+    c = str(category or "").lower()
+    return any(tok in c for tok in SPORTS_CATEGORIES)
+
+
+def _extract_token_ids(market: dict) -> list[str]:
+    """Return [yes_token_id, no_token_id] from a Gamma market dict, or []."""
+    raw = market.get("clobTokenIds") or market.get("clob_token_ids")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (ValueError, TypeError):
+            raw = None
+    if isinstance(raw, list) and len(raw) >= 2 and raw[0] and raw[1]:
+        return [str(raw[0]), str(raw[1])]
+    toks = market.get("tokens")
+    if (
+        isinstance(toks, list)
+        and len(toks) >= 2
+        and isinstance(toks[0], dict)
+        and isinstance(toks[1], dict)
+    ):
+        a, b = toks[0].get("token_id"), toks[1].get("token_id")
+        if a and b:
+            return [str(a), str(b)]
+    return []
+
+
+def _best_ask(book: dict) -> float | None:
+    """Lowest ask price in a CLOB book, or None when there is no ask."""
+    if not isinstance(book, dict):
+        return None
+    asks = book.get("asks") or []
+    prices = []
+    for lvl in asks:
+        try:
+            prices.append(float(lvl["price"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return min(prices) if prices else None
+
+
+def _best_bid(book: dict) -> float | None:
+    """Highest bid price in a CLOB book, or None when there is no bid."""
+    if not isinstance(book, dict):
+        return None
+    bids = book.get("bids") or []
+    prices = []
+    for lvl in bids:
+        try:
+            prices.append(float(lvl["price"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return max(prices) if prices else None
+
+
+def _fair_price(yes_bid: float | None, yes_ask: float | None, market: dict) -> float:
+    """Estimate P(YES) as the consensus fair value.
+
+    Prefers the Gamma consensus (AMM/last) price — it is INDEPENDENT of the live
+    CLOB ask, so a CLOB resting order priced below it surfaces as a positive
+    Closing-Edge edge (stale book vs consensus). Using the book's own mid would
+    make ``fair - ask`` structurally ≤ 0, so the book mid is only a last resort
+    when Gamma carries no usable price (edge ≈ 0 → no claim, which is correct).
+    """
+    op = market.get("outcomePrices") or market.get("yes_price")
+    if isinstance(op, str):
+        try:
+            op = json.loads(op)
+        except (ValueError, TypeError):
+            op = None
+    try:
+        v = float(op[0]) if isinstance(op, (list, tuple)) and op else (
+            float(op) if op is not None else None
+        )
+        if v is not None and 0.0 < v < 1.0:
+            return v
+    except (TypeError, ValueError):
+        pass
+    if yes_bid is not None and yes_ask is not None and 0.0 < yes_bid <= yes_ask < 1.0:
+        return (yes_bid + yes_ask) / 2.0
+    return 0.5
+
+
+def _suggested_size_usdc(user_context: UserContext) -> float:
+    """Bounded base size before the risk gate's Kelly + position caps apply."""
+    base = user_context.equity_usdc or user_context.available_balance_usdc
+    size = max(0.0, base * user_context.capital_allocation_pct * _SIZE_EQUITY_FRACTION)
+    ceiling = (
+        user_context.max_per_trade_usdc
+        if user_context.max_per_trade_usdc is not None
+        else _DEFAULT_SIZE_CEILING_USDC
+    )
+    return round(min(size, ceiling), 2) if ceiling else round(size, 2)
+
+
+def sports_market_id(market: dict) -> str:
+    """The condition_id used as the markets.id PK (what _load_market looks up).
+
+    market_sync stores ``condition_id`` AS ``markets.id``, so a Playbook
+    candidate's ``market_id`` MUST be the conditionId or it skips as not-synced.
+    """
+    return str(market.get("conditionId") or market.get("condition_id") or market.get("id") or "")
+
+
+def select_sports_markets_in_window(
+    markets: object, now: datetime | None = None
+) -> list[tuple[dict, str, str, float]]:
+    """Return ``(market, market_id, category, seconds_to_event)`` for sports
+    markets inside the pre-event snapshot window, nearest-event first.
+
+    Shared by the strategy (snapshot assembly) and the scan job (market upsert)
+    so both agree on exactly which markets are tradeable this scan. Tolerant of
+    malformed payloads (non-list / non-dict entries are skipped).
+    """
+    if not markets or not isinstance(markets, list):
+        return []
+    _now = now or datetime.now(timezone.utc)
+    out: list[tuple[dict, str, str, float]] = []
+    for m in markets:
+        if not isinstance(m, dict):
+            continue
+        category = str(m.get("category") or "")
+        if not _is_sports_category(category):
+            continue
+        market_id = sports_market_id(m)
+        if not market_id:
+            continue
+        start = _parse_iso(
+            m.get("gameStartTime")
+            or m.get("game_start_time")
+            or m.get("endDate")
+            or m.get("end_date_iso")
+        )
+        if start is None:
+            continue
+        ttl = (start - _now).total_seconds()
+        if 0.0 < ttl <= _SNAPSHOT_TTL_CAP_SEC:
+            out.append((m, market_id, category, ttl))
+    out.sort(key=lambda t: t[3])
+    return out
+
 
 class PlaybookStrategy(BaseStrategy):
     """Autonomous sports-market orchestration router.
@@ -80,11 +247,11 @@ class PlaybookStrategy(BaseStrategy):
     ) -> list[SignalCandidate]:
         """Emit sports SignalCandidates for the user.
 
-        Phase-1 FOUNDATION: there is no sports-market data source wired into the
-        scan loop yet, so this returns an empty list (never raises). The full
-        decision path is implemented and exercised via ``evaluate_snapshot``;
-        Phase-2 wires ``_fetch_sports_snapshots`` to the live market feed
-        following the ``weather`` dispatch precedent.
+        Fetches sports market snapshots (``_fetch_sports_snapshots``), runs each
+        through quality → signals → router (``evaluate_snapshot``), and returns
+        the emitted candidates highest-confidence first. Never raises — a fetch
+        failure yields an empty list. The scan loop gates invocation behind the
+        ``playbook`` preset + the ``PLAYBOOK_STRATEGY_ENABLED`` operator flag.
         """
         snapshots = await self._fetch_sports_snapshots(market_filters, user_context)
         candidates: list[SignalCandidate] = []
@@ -101,14 +268,70 @@ class PlaybookStrategy(BaseStrategy):
         market_filters: MarketFilters,
         user_context: UserContext,
     ) -> list[MarketSnapshot]:
-        """Return sports MarketSnapshots for routing.
+        """Fetch sports markets + orderbooks and assemble MarketSnapshots.
 
-        Phase-1 returns ``[]`` — the sports-market fetch + orderbook snapshot
-        assembly is a Phase-2 integration (mirrors the weather global-markets
-        fetch). Isolated here so wiring it later does not touch the router.
+        Mirrors the weather global-markets pattern: one cached Gamma fetch
+        (``get_events_with_markets``), pre-filtered to sports categories within
+        the pre-event window so only a bounded set needs orderbook reads, then a
+        cached CLOB ``get_book`` per leg. Every external call is fail-soft — a
+        fetch error logs and skips, never raises into the scan loop.
         """
-        log.debug("playbook._fetch_sports_snapshots: no sports source wired (phase-1)")
-        return []
+        from ....integrations import polymarket as pm
+
+        try:
+            markets = await pm.get_events_with_markets(limit=200)
+        except Exception as exc:  # noqa: BLE001 — fail-soft, never break scan loop
+            log.warning("playbook: sports market fetch failed: %s", exc)
+            return []
+
+        # Sports markets inside the pre-event window, nearest-first (shared with
+        # the scan-job upsert so candidate market_ids resolve in _load_market).
+        # market_id is the conditionId (== markets.id PK). (Codex P1, PR #1572.)
+        blacklist = set(market_filters.blacklisted_market_ids or [])
+        prelim = [
+            t for t in select_sports_markets_in_window(markets)
+            if t[1] not in blacklist
+        ][:_MAX_SPORTS_MARKETS_PER_SCAN]
+
+        size = _suggested_size_usdc(user_context)
+        snapshots: list[MarketSnapshot] = []
+        for m, market_id, category, ttl in prelim:
+            token_ids = _extract_token_ids(m)
+            if len(token_ids) < 2:
+                continue
+            try:
+                yes_book = await pm.get_book(token_ids[0])
+                no_book = await pm.get_book(token_ids[1])
+            except Exception as exc:  # noqa: BLE001 — fail-soft per market
+                log.warning("playbook: book fetch failed for %s: %s", market_id, exc)
+                continue
+
+            yes_bid = _best_bid(yes_book)
+            yes_ask = _best_ask(yes_book)
+            no_ask = _best_ask(no_book)
+            if yes_ask is None or no_ask is None:
+                continue
+
+            liquidity = float(m.get("liquidity_usdc") or m.get("liquidity") or 0.0)
+            condition_id = str(m.get("conditionId") or m.get("condition_id") or market_id)
+            snapshots.append(
+                MarketSnapshot(
+                    market_id=market_id,
+                    condition_id=condition_id,
+                    sport=category,
+                    fair_price=_fair_price(yes_bid, yes_ask, m),
+                    yes_ask=yes_ask,
+                    no_ask=no_ask,
+                    seconds_to_event=ttl,
+                    liquidity_usdc=liquidity,
+                    suggested_size_usdc=size,
+                    cluster_key=cluster_key(
+                        sport=category,
+                        event_id=str(m.get("conditionId") or m.get("slug") or market_id),
+                    ),
+                )
+            )
+        return snapshots
 
     def evaluate_snapshot(
         self,
