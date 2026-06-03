@@ -18,6 +18,7 @@ trade outcome). Pure function — no DB, no I/O, seedable for deterministic test
 """
 from __future__ import annotations
 
+import math
 import random
 from dataclasses import dataclass
 from statistics import mean
@@ -44,7 +45,9 @@ def _percentile(values: list[float], pct: float) -> float:
     ordered = sorted(values)
     if len(ordered) == 1:
         return ordered[0]
-    rank = max(1, min(len(ordered), round(pct / 100.0 * len(ordered))))
+    # Nearest-rank: ceil(P/100 · N). ceil (not round) avoids banker's-rounding
+    # downward bias on exact-half ranks.
+    rank = max(1, min(len(ordered), math.ceil(pct / 100.0 * len(ordered))))
     return ordered[rank - 1]
 
 

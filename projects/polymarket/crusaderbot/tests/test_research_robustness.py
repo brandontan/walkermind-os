@@ -98,12 +98,15 @@ class _Conn:
         self.raise_on = raise_on or set()
         self.executemany_rows = None
 
+        self.fetchrow_args: tuple = ()
+
     async def fetch(self, sql, *a):
         if "fetch" in self.raise_on:
             raise RuntimeError("db down")
         return self.fetch_rows
 
     async def fetchrow(self, sql, *a):
+        self.fetchrow_args = a
         if "fetchrow" in self.raise_on:
             raise RuntimeError("db down")
         return self.fetchrow_val
@@ -162,6 +165,21 @@ def test_live_eligible_untradeable_blocks():
     with _patch(conn):
         ok, reason = asyncio.run(live_eligible("sharp_money"))
     assert ok is False and reason == "untradeable_paper_only"
+
+
+def test_live_eligible_filters_by_mode():
+    conn = _Conn(fetchrow_val={"classification": "ROBUST"})
+    with _patch(conn):
+        asyncio.run(live_eligible("sharp_money", mode="live"))
+    assert conn.fetchrow_args == ("sharp_money", "balanced", "live")  # mode pinned
+
+
+def test_classify_modules_persists_all_label_when_mode_none():
+    rows = [{"module": "m", "pnl_usdc": 6.0, "size_usdc": 20.0}] * 40
+    conn = _Conn(fetch_rows=rows)
+    with _patch(conn):
+        asyncio.run(classify_modules(mode=None, seed=1))
+    assert conn.executemany_rows[0][-1] == "all"  # NOT NULL satisfied for mode=None
 
 
 @pytest.mark.parametrize("cls", ["ROBUST", "FRAGILE", "INSUFFICIENT_DATA"])

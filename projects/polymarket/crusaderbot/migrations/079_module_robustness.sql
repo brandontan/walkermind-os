@@ -19,8 +19,7 @@ CREATE TABLE IF NOT EXISTS module_robustness (
     p95_losing_streak  INTEGER,
     mode               VARCHAR(10)  NOT NULL DEFAULT 'paper',  -- which positions fed the sample
     computed_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    -- UNIQUE auto-creates the (module, risk_profile, mode) index that the
+    -- live-eligibility lookup uses — no separate index needed.
     UNIQUE (module, risk_profile, mode)
 );
-
-CREATE INDEX IF NOT EXISTS idx_module_robustness_lookup
-    ON module_robustness (module, risk_profile, mode);

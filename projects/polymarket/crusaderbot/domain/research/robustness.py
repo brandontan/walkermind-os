@@ -165,7 +165,7 @@ async def _persist(pool: object, results: list[ModuleRobustness]) -> None:
                     (
                         r.module, r.risk_profile, r.classification.value, r.sample_size,
                         r.ev_per_trade, r.ruin_probability, r.p95_max_drawdown,
-                        r.p95_losing_streak, r.mode,
+                        r.p95_losing_streak, r.mode or "all",  # mode NOT NULL; None = all modes
                     )
                     for r in results
                 ],
@@ -178,6 +178,7 @@ async def live_eligible(
     module: str,
     *,
     risk_profile: str = "balanced",
+    mode: str = "paper",
     pool: object | None = None,
 ) -> tuple[bool, str]:
     """LIVE-eligibility gate for a module.
@@ -186,6 +187,11 @@ async def live_eligible(
     capital; ROBUST / FRAGILE / INSUFFICIENT_DATA / unclassified all return
     eligible (so the gate can never silently disable an existing live flow — it
     only blocks a module proven unsafe). Fail-soft: a read error allows.
+
+    ``mode`` selects which sample's classification to honour (default ``paper`` —
+    paper history is the meaningful sample for a not-yet-live module). The table
+    is unique per (module, risk_profile, mode), so the filter keeps the verdict
+    deterministic rather than depending on which job ran last.
     """
     try:
         pool = pool or get_pool()
@@ -193,11 +199,11 @@ async def live_eligible(
             row = await conn.fetchrow(
                 """
                 SELECT classification FROM module_robustness
-                 WHERE module = $1 AND risk_profile = $2
+                 WHERE module = $1 AND risk_profile = $2 AND mode = $3
                  ORDER BY computed_at DESC
                  LIMIT 1
                 """,
-                module, risk_profile,
+                module, risk_profile, mode,
             )
     except Exception as exc:  # noqa: BLE001 — never block live on a read error
         logger.warning("robustness_gate_read_failed", module=module, error=str(exc))
