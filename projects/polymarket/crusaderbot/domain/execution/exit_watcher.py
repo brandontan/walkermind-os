@@ -488,9 +488,15 @@ async def evaluate(
             position.side, position.entry_price, position.applied_sl_pct,
         )
         if resolved:
-            exit_fill = cur if cur is not None else sl_threshold_price
+            # `resolved` is defined as `cur is not None and (...)` above, so cur
+            # is guaranteed non-None here — use the real terminal mark directly.
+            exit_fill = cur
             reason = ExitReason.RESOLUTION_LOSS.value
         else:
+            # Defensive parity with the TP branch (cur never None at runtime —
+            # current_price() falls back to entry — but the fallback is pinned
+            # by test_evaluate_synthetic_fallback so a future refactor can't
+            # surface None into the close path uncaught).
             if cur is None:
                 exit_fill = sl_threshold_price
             elif position.mode == "live":
