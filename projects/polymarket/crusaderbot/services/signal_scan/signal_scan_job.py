@@ -881,11 +881,20 @@ async def _sync_playbook_sports_markets() -> int:
     """
     from ...domain.strategy.strategies.playbook import select_sports_markets_in_window
     try:
-        markets = await _polymarket.get_events_with_markets(limit=200)
+        events_markets = await _polymarket.get_events_with_markets(limit=200)
+        game_markets = await _polymarket.get_sports_game_markets(limit=500)
     except Exception as exc:
         logger.warning("playbook_sports_fetch_failed", error=str(exc))
         return 0
-    rows = [t[0] for t in select_sports_markets_in_window(markets)]
+    # Game markets (today's individual games) first, then season futures.
+    markets = (game_markets or []) + (events_markets or [])
+    seen_ids: set[str] = set()
+    rows = []
+    for mkt, mid, _cat, _ttl in select_sports_markets_in_window(markets):
+        if mid in seen_ids:
+            continue
+        seen_ids.add(mid)
+        rows.append(mkt)
     await _upsert_sports_markets(rows)
     return len(rows)
 

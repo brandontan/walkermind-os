@@ -43,15 +43,14 @@ _CLOSE_WINDOW_SEC: float = 1_800.0
 # scan-loop fetch to narrow the universe (the crypto-candle path uses
 # is_short_crypto_market; PLAYBOOK uses sports categories instead).
 SPORTS_CATEGORIES: tuple[str, ...] = (
-    "sports",
-    "nfl",
-    "nba",
-    "mlb",
-    "nhl",
-    "soccer",
-    "ufc",
-    "mma",
-    "tennis",
+    "sports", "nfl", "nba", "mlb", "nhl", "soccer", "ufc", "mma", "tennis",
+    # Esports + competition/event-slug tokens Polymarket uses (game markets on
+    # /markets often have category=None -> _is_sports_market also keys off the
+    # authoritative sportsMarketType field).
+    "esports", "league-of-legends", "counter-strike", "valorant", "dota",
+    "cricket", "golf", "boxing", "hockey", "basketball", "baseball", "football",
+    "atp", "wta", "roland-garros", "wimbledon", "world-cup", "champions-league",
+    "premier-league", "la-liga", "serie-a", "bundesliga", "formula",
 )
 
 # Closing Edge (acts inside 30 min) near-event band: a 2h cap bounds the per-scan
@@ -87,6 +86,29 @@ def _is_sports_category(category: object) -> bool:
     """True if the event's category tags name any tracked sport."""
     c = str(category or "").lower()
     return any(tok in c for tok in SPORTS_CATEGORIES)
+
+
+def _is_sports_market(market: object) -> bool:
+    """True if a market dict is an individual sports/game market.
+
+    Recognises sports via, in order: the authoritative ``sportsMarketType``
+    field (set on /markets game markets — moneyline/spreads/...), the
+    tag-derived ``category`` (set by get_events_with_markets), or the parent
+    event slug. Game markets fetched from /markets carry ``category=None`` but a
+    real ``sportsMarketType``, so the old category-only check excluded every one.
+    """
+    if not isinstance(market, dict):
+        return False
+    if str(market.get("sportsMarketType") or "").strip():
+        return True
+    if _is_sports_category(market.get("category")):
+        return True
+    events = market.get("events")
+    slug = ""
+    if isinstance(events, (list, tuple)) and events and isinstance(events[0], dict):
+        slug = events[0].get("slug") or ""
+    slug = slug or market.get("slug") or ""
+    return any(tok in str(slug).lower() for tok in SPORTS_CATEGORIES)
 
 
 def _extract_token_ids(market: dict) -> list[str]:
@@ -220,7 +242,7 @@ def select_sports_markets_in_window(
         if not isinstance(m, dict):
             continue
         category = str(m.get("category") or "")
-        if not _is_sports_category(category):
+        if not _is_sports_market(m):
             continue
         market_id = sports_market_id(m)
         if not market_id:
@@ -234,9 +256,11 @@ def select_sports_markets_in_window(
         if start is None:
             continue
         ttl = (start - _now).total_seconds()
-        in_near = 0.0 < ttl <= _SNAPSHOT_TTL_CAP_SEC
-        in_far = _SHARP_TTL_MIN_SEC < ttl <= _SHARP_TTL_MAX_SEC
-        if in_near or in_far:
+        # Single (0, 72h] window (owner directive 2026-06-04): closes the old
+        # 2h-24h blind-spot so same-day games are ingested. Module routing still
+        # splits near (Closing-Edge, <=2h) vs far (Sharp-Money, flow-gated)
+        # downstream in _fetch_sports_snapshots.
+        if 0.0 < ttl <= _SHARP_TTL_MAX_SEC:
             out.append((m, market_id, category, ttl))
     out.sort(key=lambda t: t[3])
     return out
@@ -312,10 +336,24 @@ class PlaybookStrategy(BaseStrategy):
         from ....integrations import polymarket as pm
 
         try:
-            markets = await pm.get_events_with_markets(limit=200)
+            # Season futures (Sharp-Money far band) come from /events; today's
+            # individual GAME markets (Closing-Edge near band) come from /markets
+            # (they carry sportsMarketType + gameStartTime, category=None). Merge
+            # both, game markets first, de-duped by market id.
+            events_markets = await pm.get_events_with_markets(limit=200)
+            game_markets = await pm.get_sports_game_markets(limit=500)
         except Exception as exc:  # noqa: BLE001 — fail-soft, never break scan loop
             log.warning("playbook: sports market fetch failed: %s", exc)
             return []
+        seen_ids: set[str] = set()
+        markets: list[dict] = []
+        for mk in ((game_markets or []) + (events_markets or [])):
+            if not isinstance(mk, dict):
+                continue
+            mid = sports_market_id(mk)
+            if mid and mid not in seen_ids:
+                seen_ids.add(mid)
+                markets.append(mk)
 
         # Sports markets in-window, nearest-first (shared with the scan-job upsert
         # so candidate market_ids resolve in _load_market). market_id is the
