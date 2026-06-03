@@ -2691,7 +2691,8 @@ async def _process_candidate(
     # eligible. Fail-soft: any error → eligible (never blocks trading on its own fault).
     _module_live_eligible = True
     try:
-        if bool(getattr(_get_settings(), "ROBUSTNESS_GATE_ENABLED", False)):
+        from ...config import get_settings as _gs_rg
+        if bool(getattr(_gs_rg(), "ROBUSTNESS_GATE_ENABLED", False)):
             from ...domain.research.robustness import untradeable_set
             _mod = str((cand.metadata or {}).get("selected_module") or cand.strategy_name)
             _prof = str(row.get("resolved_profile") or "balanced")
