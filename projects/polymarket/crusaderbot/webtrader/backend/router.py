@@ -385,12 +385,19 @@ def _lean_from_prob(up_prob: float) -> str:
 def _weather_asset_code(question: str) -> str:
     """Derive a compact city code from a weather market question by matching the
     LOCATIONS roster (canonical name or alias substring). Falls back to ``WX``."""
+    import re
     from ...strategies.weather.locations import LOCATIONS
     q = (question or "").lower()
     for loc in LOCATIONS:
-        for name in (loc.city, *loc.match_aliases):
-            if name and name.lower() in q:
-                return _WX_CITY_CODE.get(loc.city, loc.city[:3].upper())
+        city = getattr(loc, "city", "") or ""
+        aliases = getattr(loc, "match_aliases", None) or ()
+        for name in (city, *aliases):
+            n = (name or "").lower().strip()
+            # Word-boundary match so short aliases ("la", "sf", "kl", "hk")
+            # don't match INSIDE another city (e.g. "la" inside "dallas") and
+            # mislabel/dedupe it — mirrors the strategy's boundary-aware match.
+            if n and re.search(rf"\b{re.escape(n)}\b", q):
+                return _WX_CITY_CODE.get(city, (city[:3].upper() or "WX"))
     return "WX"
 
 

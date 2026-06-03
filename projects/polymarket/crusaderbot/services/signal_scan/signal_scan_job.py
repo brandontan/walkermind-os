@@ -891,7 +891,7 @@ async def _sync_playbook_sports_markets() -> int:
 
 
 async def _upsert_weather_markets(markets: list[Any]) -> None:
-    """Upsert live weather markets (keyed by condition_id, category='Weather')
+    """Upsert live weather markets (keyed by market_id, category='Weather')
     so the WebTrader market-feed can surface them on the weather preset.
 
     Weather markets are fetched live from Gamma during the scan but — unlike
@@ -899,6 +899,12 @@ async def _upsert_weather_markets(markets: list[Any]) -> None:
     /market-feed had no weather rows to show (it fell back to crypto). Mirrors
     _upsert_sports_markets; reads token ids / liquidity from each market's raw
     Gamma payload. Idempotent ON CONFLICT; fail-soft per market.
+
+    The row PK is ``wm.market_id`` (Gamma id) — NOT condition_id — because
+    WeatherDomainStrategy emits SignalCandidate.market_id=wm.market_id and
+    _process_candidate resolves it via _load_market(... WHERE id = $1); keying
+    by condition_id would leave weather candidates skipped as not-synced.
+    condition_id is still stored in its own column. (Codex P1, PR #1575.)
     """
     if not markets:
         return
@@ -913,8 +919,10 @@ async def _upsert_weather_markets(markets: list[Any]) -> None:
     async with pool.acquire() as conn:
         for wm in markets:
             try:
+                market_id = str(getattr(wm, "market_id", "") or "")
                 condition_id = str(getattr(wm, "condition_id", "") or "")
-                if not condition_id:
+                row_id = market_id or condition_id
+                if not row_id:
                     continue
                 raw = getattr(wm, "raw", {}) or {}
                 slug = str(raw.get("slug") or "")[:80]
@@ -938,7 +946,7 @@ async def _upsert_weather_markets(markets: list[Any]) -> None:
                         (id, slug, question, category, status,
                          yes_price, no_price, yes_token_id, no_token_id,
                          liquidity_usdc, resolution_at, condition_id, is_demo, synced_at)
-                    VALUES ($1,$2,$3,'Weather','active',$4,$5,$6,$7,$8,$9,$1,FALSE,NOW())
+                    VALUES ($1,$2,$3,'Weather','active',$4,$5,$6,$7,$8,$9,$10,FALSE,NOW())
                     ON CONFLICT (id) DO UPDATE SET
                         slug           = EXCLUDED.slug,
                         question       = EXCLUDED.question,
@@ -952,10 +960,11 @@ async def _upsert_weather_markets(markets: list[Any]) -> None:
                         resolution_at  = EXCLUDED.resolution_at,
                         synced_at      = NOW()
                     """,
-                    condition_id, slug, question,
+                    row_id, slug, question,
                     _f(getattr(wm, "yes_price", 0.5), 0.5),
                     _f(getattr(wm, "no_price", 0.5), 0.5),
                     yes_token, no_token, liquidity, resolution_at,
+                    condition_id or row_id,
                 )
             except Exception as exc:
                 logger.warning("weather_market_upsert_failed", error=str(exc))
@@ -973,6 +982,8 @@ async def _sync_weather_markets() -> int:
         markets = await fetch_weather_markets(limit=200)
     except Exception as exc:
         logger.warning("weather_markets_fetch_failed", error=str(exc))
+        return 0
+    if not markets:
         return 0
     await _upsert_weather_markets(markets)
     return len(markets)

@@ -86,6 +86,15 @@ them).
 - Fail-soft preserved: a Gamma fetch failure logs + returns 0 (no scan disruption);
   per-market upsert errors are caught; the feed default is Crypto (FAIL-SAFE) when
   the preset is unknown.
+- **Review fixes folded in (Codex + Gemini):** (P1) the weather row is keyed by
+  ``wm.market_id`` — what ``WeatherDomainStrategy`` emits and ``_load_market`` resolves
+  (``WHERE id = $1``) — with ``condition_id`` kept in its own column, so weather
+  candidates actually resolve against the synced row (keying by condition_id would
+  have left them skipped as not-synced). (P2) ``_weather_asset_code`` now matches on
+  word boundaries (regex ``\b…\b``) so short aliases like ``la``/``sf``/``kl``/``hk``
+  don't match inside other cities (``Dallas``→DAL, not LA). (MED) defensive guards:
+  ``_sync_weather_markets`` returns 0 on a falsy fetch (no ``len(None)``);
+  ``_weather_asset_code`` uses ``getattr`` for ``city``/``match_aliases``.
 
 ## 5. Known issues
 

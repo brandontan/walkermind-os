@@ -82,6 +82,16 @@ def test_weather_asset_code(question, code):
     assert r._weather_asset_code(question) == code
 
 
+@pytest.mark.parametrize("question,code", [
+    # Codex P2: short aliases ("la", "kl") must NOT match inside other city
+    # names — word-boundary matching keeps Dallas=DAL, Kuala Lumpur=KUL.
+    ("Will the high temperature in Dallas exceed 100F?", "DAL"),
+    ("Highest temperature in Kuala Lumpur tomorrow", "KUL"),
+])
+def test_weather_asset_code_word_boundary(question, code):
+    assert r._weather_asset_code(question) == code
+
+
 @pytest.mark.parametrize("prob,lean", [(0.7, "UP"), (0.3, "DOWN"), (0.5, "EVEN")])
 def test_lean_from_prob(prob, lean):
     assert r._lean_from_prob(prob) == lean
