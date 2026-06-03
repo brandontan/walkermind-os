@@ -2933,7 +2933,9 @@ async def run_once() -> None:
         _snap_enabled = False
     if _snap_enabled:
         from ...domain.research.snapshots import record_market_snapshots
-        await record_market_snapshots(run_id, markets)
+        # Feed the count into telemetry so scan_runs.snapshots_written reflects
+        # reality for the observability paths (recorder is fail-soft → 0 on error).
+        tel.snapshots_written += await record_market_snapshots(run_id, markets)
 
     try:
         late_entry_strat = StrategyRegistry.instance().get(_LATE_ENTRY_V3_NAME)
