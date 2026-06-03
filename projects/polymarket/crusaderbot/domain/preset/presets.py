@@ -216,10 +216,30 @@ VISIBLE_PRESET_ORDER: Tuple[str, ...] = (
 
 RECOMMENDED_PRESET: str = "candle_auto"
 
+# Presets that are REGISTERED + routable but NOT yet user-activatable — their live
+# scan-loop dispatch is not wired (deny-by-default in signal_scan_job._PRESET_ALLOWED).
+# Activating one would persist active_preset=<key> while the scanner emits zero
+# candidates (a no-op trap). Hiding from the pickers alone is insufficient: stale
+# Telegram inline buttons and cached WebTrader clients can still hit the activation
+# path, and the backend roster still accepts the key. So activation is gated on this
+# set in EVERY entry point (WebTrader /autotrade/preset + Telegram _on_pick/_on_activate)
+# via is_activatable(). Empty this set per preset as its Phase-2 dispatch lands.
+# (Codex P2 + Gemini, PR #1570; follow-up to PR #1567.)
+HIDDEN_PRESETS: frozenset[str] = frozenset({"playbook"})
+
 
 def get_preset(key: str) -> Preset | None:
     """Return preset by key, or None if the key is not recognised."""
     return PRESETS.get(key)
+
+
+def is_activatable(key: str) -> bool:
+    """True if ``key`` is a registered preset a user may activate right now.
+
+    A preset in ``HIDDEN_PRESETS`` is registered + routable but its live dispatch
+    is not yet wired, so it must not be activated (would be a silent no-op).
+    """
+    return key in PRESETS and key not in HIDDEN_PRESETS
 
 
 def list_presets() -> List[Preset]:

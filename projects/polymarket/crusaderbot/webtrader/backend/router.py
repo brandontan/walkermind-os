@@ -934,6 +934,15 @@ _RISK_PROFILE_DEFAULTS: dict[str, dict[str, float]] = {
 async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
     if body.preset_key not in _PRESET_PARAMS:
         raise HTTPException(status_code=400, detail=f"invalid preset key: {body.preset_key}")
+    # Reject presets that are registered but not yet user-activatable (live scan
+    # dispatch not wired — would persist a no-op active_preset). Guards stale/cached
+    # clients that still know the key. (Codex P2 / Gemini, PR #1570.)
+    from ...domain.preset import is_activatable as _preset_is_activatable
+    if not _preset_is_activatable(body.preset_key):
+        raise HTTPException(
+            status_code=400,
+            detail=f"preset not available yet: {body.preset_key}",
+        )
     pool = get_pool()
     user_id = user["user_id"]
     # TP/SL follow the RISK PROFILE, not the preset (Kreo parity). The preset

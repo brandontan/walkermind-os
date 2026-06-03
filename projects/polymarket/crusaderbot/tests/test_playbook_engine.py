@@ -298,6 +298,43 @@ def test_preset_registered_but_hidden_until_phase2():
     assert "playbook" not in VISIBLE_PRESET_ORDER
 
 
+def test_playbook_registered_but_not_activatable():
+    # Gated against activation everywhere (Codex P2 / Gemini, PR #1570) until
+    # Phase-2 dispatch lands — but still registered + routable.
+    from projects.polymarket.crusaderbot.domain.preset.presets import (
+        HIDDEN_PRESETS,
+        PRESETS,
+        is_activatable,
+    )
+    assert "playbook" in PRESETS
+    assert "playbook" in HIDDEN_PRESETS
+    assert is_activatable("playbook") is False
+    assert is_activatable("candle_auto") is True
+    assert is_activatable("weather_monitor") is True
+    assert is_activatable("nonexistent") is False
+
+
+def test_backend_activate_preset_rejects_hidden_playbook():
+    import asyncio
+
+    from fastapi import HTTPException
+
+    from projects.polymarket.crusaderbot.webtrader.backend import router as r
+    from projects.polymarket.crusaderbot.webtrader.backend.schemas import (
+        PresetActivateRequest,
+    )
+    # Rejection happens before any DB access (right after the roster check), so
+    # no pool mock is needed.
+    with pytest.raises(HTTPException) as ei:
+        asyncio.run(
+            r.activate_preset(
+                PresetActivateRequest(preset_key="playbook"), {"user_id": "x"}
+            )
+        )
+    assert ei.value.status_code == 400
+    assert "playbook" in str(ei.value.detail)
+
+
 def test_backend_and_bot_roster_in_sync():
     from projects.polymarket.crusaderbot.webtrader.backend import router as r
     assert r._PRESET_TO_STRATEGY["playbook"] == "playbook"

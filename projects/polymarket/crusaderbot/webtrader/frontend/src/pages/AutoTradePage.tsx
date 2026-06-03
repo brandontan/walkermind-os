@@ -25,7 +25,6 @@ const STRATEGY_PRESETS = [
     signal: "Auto-router: picks Flip / Safe / Close per candle stage. Set-and-forget.",
     risk: "balanced" as const,
     freq: "Medium",
-    visible: true,
     features: ["🤖 Auto rule-switch", "🎯 Flip→Safe→Close", "⏱ Picks per candle stage"],
     detail: [
       "One preset that runs all three candle rules on the same BTC/ETH/SOL engine — you don't have to choose.",
@@ -43,7 +42,6 @@ const STRATEGY_PRESETS = [
     signal: "Final 35s entry on BTC/ETH/SOL candles. Strong lean required.",
     risk: "safe" as const,
     freq: "Medium",
-    visible: true,
     features: ["⚡ Time-decay sizing", "🛡 Spread-guarded", "↔ Dual-leg arb"],
     detail: [
       "Enters in the last 35s before candle close when one side shows a strong lean.",
@@ -60,7 +58,6 @@ const STRATEGY_PRESETS = [
     signal: "Entry 30–60s before close. Tighter lean filter, fewer but cleaner entries.",
     risk: "safe" as const,
     freq: "Low",
-    visible: true,
     features: ["🎯 Tighter lean filter", "🔒 Fewer, cleaner entries"],
     detail: [
       "Enters 30–60s before close — earlier than Close Sweep, with a stricter lean threshold.",
@@ -76,7 +73,6 @@ const STRATEGY_PRESETS = [
     signal: "Arb: buy the cheap side 0.10–0.36, 60–180s out. Holds to settlement.",
     risk: "advanced" as const,
     freq: "Low",
-    visible: true,
     features: ["🎯 Arbitrage mode", "💎 Cheap-side entry", "⏳ Holds to $1"],
     detail: [
       "Targets the underdog side priced 0.10–0.36, entering 60–180s before close.",
@@ -92,7 +88,6 @@ const STRATEGY_PRESETS = [
     signal: "Daily temperature markets across 20 cities. Ensemble forecast edge.",
     risk: "balanced" as const,
     freq: "Low",
-    visible: true,
     features: ["🌡 Ensemble forecast", "📉 Trailing-stop exit"],
     detail: [
       "Scans daily high-temperature markets across 20 cities.",
@@ -108,10 +103,6 @@ const STRATEGY_PRESETS = [
     signal: "Autonomous sports orchestration. Auto-routes to the highest-EV module.",
     risk: "balanced" as const,
     freq: "Adaptive",
-    // Hidden until Phase-2 wires live scan dispatch (Codex P2, PR #1567): the
-    // preset is registered + routable but deny-by-default in the scanner, so
-    // exposing it now would let a user activate a no-op that emits nothing.
-    visible: false,
     features: ["⚡ Auto rule-switch", "📰 News-aware", "🦈 Sharp-money aware", "🎯 Market adaptive"],
     detail: [
       "Evaluates each sports market and auto-routes it to the highest expected-value module.",
@@ -139,8 +130,10 @@ const CRYPTO_SHORT_PRESETS: readonly string[] = ["candle_auto", "close_sweep", "
 // (close_sweep / safe_close / flip_hunter) are no longer standalone cards —
 // they live inside Smart Strike as a manual "Rule" sub-picker, so the main page
 // stays uncluttered while power users can still pin one rule.
-// `playbook` intentionally omitted — its card is visible:false and live scan
-// dispatch is Phase-2 (Codex P2, PR #1567). Re-add when playbook-live-dispatch lands.
+// `playbook` intentionally omitted — it's registered + routable but its live scan
+// dispatch is Phase-2 (Codex P2, PR #1567), and backend activation is gated, so it
+// must not render as a selectable card. An ALREADY-active playbook still renders via
+// the activeNonCandle exception in the filter. Re-add when playbook-live-dispatch lands.
 const TOP_LEVEL_PRESET_KEYS: readonly string[] = ["candle_auto", "weather_monitor"];
 
 // Manual rules nested under Smart Strike. "Auto" (candle_auto) is the default —
@@ -648,7 +641,14 @@ export function AutoTradePage() {
           {STRATEGY_PRESETS.filter((p) => {
             // Only the two strategy families render at top level — the single
             // candle rules are folded into Smart Strike's Rule sub-picker below.
-            if (!TOP_LEVEL_PRESET_KEYS.includes(p.key)) return false;
+            // EXCEPTION: a preset that is the user's *currently active* one still
+            // renders so they can see it + switch away — even if it's no longer in
+            // the top-level set (e.g. `playbook`, hidden pending Phase-2 dispatch).
+            // Candle single-rules are NOT exempted: an active pinned rule shows on
+            // the Smart Strike card, not as a standalone card. (Gemini, PR #1570.)
+            const activeNonCandle =
+              state.active_preset === p.key && !CRYPTO_SHORT_PRESETS.includes(p.key);
+            if (!TOP_LEVEL_PRESET_KEYS.includes(p.key) && !activeNonCandle) return false;
             // FAIL-SAFE: hide a family ONLY if the operator explicitly disabled
             // it. Unknown keys (no row yet, or fetch failed) stay visible so a
             // transient API blip never wipes the picker.
