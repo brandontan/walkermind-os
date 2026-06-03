@@ -7,6 +7,12 @@
       "skillPath": "skills/grimoire-polymarket/SKILL.md",
       "computedHash": "fac17b7cfaf4522b75f4f7e7ed6b8decca1ff9af986d9ad3d18b1e394fd20963"
     },
+    "polymarket": {
+      "source": "machina-sports/sports-skills",
+      "sourceType": "github",
+      "skillPath": "skills/polymarket/SKILL.md",
+      "computedHash": "dab1876808778a13fc197df3635e50323dec67d324946eaad9b73c6b8fb8738f"
+    },
     "web3-polymarket": {
       "source": "polymarket/agent-skills",
       "sourceType": "github",
