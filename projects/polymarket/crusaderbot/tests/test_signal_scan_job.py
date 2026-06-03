@@ -1500,9 +1500,13 @@ def test_sync_playbook_sports_markets_fetches_filters_upserts():
     conn = _FakeConn()
     with _patch_pool(conn), patch.object(
         job._polymarket, "get_events_with_markets", AsyncMock(return_value=markets)
+    ), patch.object(
+        job._polymarket, "get_sports_game_markets", AsyncMock(return_value=[])
     ):
         n = asyncio.run(job._sync_playbook_sports_markets())
-    assert n == 1  # only the in-window sports market
+    # single (0,72h] window: s1 (15m) + s2 (12h, now in-window) are sports;
+    # x (crypto) excluded. (12h was excluded under the old 2h-24h gap.)
+    assert n == 2
     assert any("INSERT INTO markets" in s for s in conn.executes)
 
 

@@ -455,7 +455,11 @@ def test_playbook_scan_tolerates_malformed_markets(monkeypatch):
     async def none_events(limit=200):
         return None
 
+    async def none_games(limit=500):
+        return None
+
     monkeypatch.setattr(pm, "get_events_with_markets", none_events)
+    monkeypatch.setattr(pm, "get_sports_game_markets", none_games)
     s = PlaybookStrategy()
     mf = MarketFilters(categories=[], min_liquidity=0.0, max_time_to_resolution_days=7, blacklisted_market_ids=[])
     assert asyncio.run(s.scan(mf, _user())) == []
@@ -463,7 +467,11 @@ def test_playbook_scan_tolerates_malformed_markets(monkeypatch):
     async def junk_events(limit=200):
         return ["not-a-dict", 42, None]
 
+    async def junk_games(limit=500):
+        return ["not-a-dict", 42, None]
+
     monkeypatch.setattr(pm, "get_events_with_markets", junk_events)
+    monkeypatch.setattr(pm, "get_sports_game_markets", junk_games)
     assert asyncio.run(s.scan(mf, _user())) == []
 
 
@@ -476,12 +484,16 @@ def test_select_sports_markets_in_window():
     markets = [
         {"conditionId": "a", "category": "nfl", "gameStartTime": (now + timedelta(minutes=20)).isoformat()},
         {"conditionId": "b", "category": "nba", "gameStartTime": (now + timedelta(minutes=5)).isoformat()},
-        {"conditionId": "c", "category": "nhl", "gameStartTime": (now + timedelta(hours=12)).isoformat()},  # out of window
+        {"conditionId": "c", "category": "nhl", "gameStartTime": (now + timedelta(hours=12)).isoformat()},  # mid-band — now IN window
         {"conditionId": "d", "category": "crypto", "gameStartTime": (now + timedelta(minutes=10)).isoformat()},  # not sports
+        # game market with category=None but a real sportsMarketType -> recognised
+        {"conditionId": "e", "category": None, "sportsMarketType": "moneyline", "gameStartTime": (now + timedelta(hours=6)).isoformat()},
+        {"conditionId": "f", "category": "nba", "gameStartTime": (now + timedelta(hours=96)).isoformat()},  # >72h — excluded
         "junk",
         None,
     ]
     out = pbs.select_sports_markets_in_window(markets, now=now)
-    assert [t[1] for t in out] == ["b", "a"]  # nearest-event first, sports + in-window only
+    # single (0,72h] window, nearest-first: b(5m) a(20m) e(6h) c(12h); d(non-sport) + f(>72h) excluded
+    assert [t[1] for t in out] == ["b", "a", "e", "c"]
     assert pbs.select_sports_markets_in_window(None) == []
     assert pbs.sports_market_id({"conditionId": "x", "id": "y"}) == "x"

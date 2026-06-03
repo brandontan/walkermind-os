@@ -153,17 +153,17 @@ def _market(hours_to_event: float, cid: str = "c1") -> dict:
     return {"category": "MLB", "conditionId": cid, "gameStartTime": start.isoformat()}
 
 
-def test_window_includes_far_band_and_excludes_gap():
+def test_window_single_0_72h_includes_midband():
+    # Owner directive 2026-06-04: single (0,72h] window — the old 2h-24h gap is
+    # now INCLUDED so same-day games are ingested (module routing splits
+    # near/far downstream).
     markets = [
         _market(0.25, "near"),  # 15m — Closing Edge near band
-        _market(12.0, "gap"),   # 12h — between bands → excluded
+        _market(12.0, "gap"),   # 12h — mid-band, now IN window
         _market(48.0, "far"),   # 48h — Sharp Money far band (>24h)
     ]
-    cids = {t[1] for t in select_sports_markets_in_window(markets)}
-    # market_id resolves to the conditionId, so check by cid via the dicts.
     got = {t[0]["conditionId"] for t in select_sports_markets_in_window(markets)}
-    assert "near" in got and "far" in got and "gap" not in got
-    assert cids  # sanity: non-empty
+    assert got == {"near", "gap", "far"}
 
 
 def test_window_excludes_beyond_far_max():

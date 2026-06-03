@@ -154,6 +154,54 @@ async def get_events_with_markets(limit: int = 200) -> list[dict]:
         return []
 
 
+async def get_sports_game_markets(limit: int = 500) -> list[dict]:
+    """Fetch near-term individual SPORTS GAME markets from Gamma ``/markets``.
+
+    ``get_events_with_markets`` (the ``/events`` endpoint) only surfaces season
+    FUTURES (NBA Champion, World Cup winner — their event ``startDate`` is the
+    season start, in the past), so today's individual games never enter the
+    playbook window. Individual game markets live on ``/markets`` with a
+    ``sportsMarketType`` (``moneyline``/``spreads``/...) and a per-game
+    ``gameStartTime``. This fetches the volume-ranked universe and keeps only
+    those game markets, annotating ``category`` from the parent event slug
+    (e.g. ``nba-nyk-sas-2026-06-03``) so the markets-table upsert + downstream
+    resolution work. Cached 120s. Fail-soft -> [].
+    """
+    key = f"sports_game_markets:{limit}"
+    if hit := await get_cache(key):
+        return hit
+    params: dict[str, Any] = {
+        "active": "true",
+        "closed": "false",
+        "limit": limit,
+        "order": "volume24hr",
+        "ascending": "false",
+    }
+    try:
+        data = await _get_json(f"{GAMMA}/markets", params=params)
+        if isinstance(data, dict):
+            data = data.get("markets") or data.get("data") or []
+        out: list[dict] = []
+        for m in (data or []):
+            if not isinstance(m, dict):
+                continue
+            if not str(m.get("sportsMarketType") or "").strip():
+                continue  # not an individual game market
+            if not (m.get("gameStartTime") or m.get("game_start_time")):
+                continue
+            events = m.get("events") or []
+            ev_slug = (
+                events[0].get("slug") if events and isinstance(events[0], dict) else ""
+            ) or m.get("slug") or ""
+            category = str(m.get("category") or ev_slug or "").strip().lower()
+            out.append({**m, "category": category})
+        await set_cache(key, out, ttl=120)
+        return out
+    except Exception as exc:
+        log.warning("get_sports_game_markets failed", err=str(exc))
+        return []
+
+
 async def get_crypto_short_markets(limit: int = 500) -> list[dict]:
     """Fetch the freshest active markets, ordered newest-created first.
 
