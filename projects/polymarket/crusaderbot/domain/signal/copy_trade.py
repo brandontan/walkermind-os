@@ -75,9 +75,17 @@ class CopyTradeStrategy(BaseStrategy):
                 side = (trade.get("outcome") or trade.get("side") or "yes").lower()
                 if side not in ("yes", "no"):
                     side = "yes" if side in ("buy", "long") else "no"
-                price = float(trade.get("price") or 0.5)
+                _raw_price = trade.get("price")
+                try:
+                    price = float(_raw_price) if _raw_price is not None else None
+                except (TypeError, ValueError):
+                    price = None
                 size_raw = float(trade.get("size") or trade.get("usdcSize") or 0)
-                if not market_id or size_raw <= 0:
+                # No fabricated 0.50: skip a leader trade with no real, interior
+                # price. A priceless fill must never seed a fake 0.50 entry; the
+                # scan path re-derives the live mark for the candidates we keep.
+                if (not market_id or size_raw <= 0
+                        or price is None or not (0.0 < price < 1.0)):
                     continue
                 size_usdc = min(Decimal(str(t["copy_amount"])), budget)
                 if size_usdc <= 0:

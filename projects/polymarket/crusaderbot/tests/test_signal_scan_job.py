@@ -417,6 +417,7 @@ def test_process_candidate_happy_path_inserts_queue_and_executes():
     with patch.object(job, "_load_stale_queued_row", return_value=None), \
             patch.object(job, "_publication_already_queued", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price", new=AsyncMock(return_value=0.55)), \
             patch.object(job._engine, "execute", new=AsyncMock(return_value=approved)), \
             patch.object(job, "_insert_execution_queue", return_value=True), \
             patch.object(job, "_mark_executed", side_effect=_fake_mark_executed):
@@ -428,6 +429,35 @@ def test_process_candidate_happy_path_inserts_queue_and_executes():
 # ---------------------------------------------------------------------------
 # _process_candidate — router raises (failed outcome)
 # ---------------------------------------------------------------------------
+
+
+def test_process_candidate_skips_when_no_live_price_no_fabricated_fill():
+    """WARP•R00T no-fake-data: a candidate with no metadata entry AND no live
+    mark (get_live_market_price -> None) must be SKIPPED, never filled off the
+    cached DB seed price or a fabricated 0.50. The engine must not be reached."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    cand = _candidate()  # signal_following, no metadata["entry_price"]
+    execute_mock = AsyncMock()
+    with patch.object(job, "_load_stale_queued_row", return_value=None), \
+            patch.object(job, "_publication_already_queued", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price", new=AsyncMock(return_value=None)), \
+            patch.object(job._engine, "execute", new=execute_mock):
+        asyncio.run(job._process_candidate(row, cand))
+    execute_mock.assert_not_awaited()
+
+
+def test_build_trade_signal_raises_without_live_price():
+    """_build_trade_signal must refuse to fabricate a fill when no live override
+    is supplied — no cached-DB / 0.50 fallback. The scan caller catches + skips."""
+    cand = _candidate()
+    market = {**_market_row(), "yes_price": None, "no_price": None}
+    with pytest.raises(ValueError):
+        job._build_trade_signal(
+            row=_user_row(), cand=cand, market=market,
+            idempotency_key="k", live_price_override=None,
+        )
 
 
 def test_process_candidate_handles_engine_exception_gracefully():
@@ -989,6 +1019,7 @@ def test_process_candidate_allows_fresh_publication_signal():
     with patch.object(job, "_load_stale_queued_row", return_value=None), \
             patch.object(job, "_publication_already_queued", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price", new=AsyncMock(return_value=0.55)), \
             patch.object(job._engine, "execute", new=execute_mock), \
             patch.object(job, "_insert_execution_queue", new=AsyncMock(return_value=True)), \
             patch.object(job, "_mark_executed", new=AsyncMock()):
@@ -1020,6 +1051,7 @@ def test_process_candidate_freshness_gate_skips_exact_boundary():
     with patch.object(job, "_load_stale_queued_row", return_value=None), \
             patch.object(job, "_publication_already_queued", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price", new=AsyncMock(return_value=0.55)), \
             patch.object(job._engine, "execute", new=AsyncMock(side_effect=_fake_execute)), \
             patch.object(job, "_insert_execution_queue", new=AsyncMock(return_value=True)), \
             patch.object(job, "_mark_executed", new=AsyncMock()):
@@ -1126,6 +1158,7 @@ def test_process_candidate_freshness_gate_bypassed_for_lib_strategy():
         return approved
 
     with patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price", new=AsyncMock(return_value=0.55)), \
             patch.object(job._engine, "execute", new=AsyncMock(side_effect=_track_execute)), \
             patch.object(job, "_insert_execution_queue", new=AsyncMock(return_value=True)), \
             patch.object(job, "_mark_executed", new=AsyncMock()):

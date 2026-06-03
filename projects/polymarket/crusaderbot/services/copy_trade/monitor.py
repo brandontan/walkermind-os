@@ -43,6 +43,7 @@ import structlog
 
 from ...core import event_bus
 from ...database import get_pool
+from ...integrations.polymarket import get_book
 from ...domain.copy_trade.models import CopyTradeTask
 from ...domain.copy_trade.repository import list_active_tasks
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
@@ -295,6 +296,27 @@ async def _process_one(
 
     market_question: str | None = leader_trade.get("market_question") or leader_trade.get("title")
     price = _extract_price(leader_trade, side)
+    liquidity = _extract_liquidity(leader_trade)
+    # No fabricated price/liquidity: when the leader payload omits them, source
+    # the real live CLOB book for the mirrored market+side. Skip the mirror
+    # entirely if there is no real, interior, two-sided mark — never enter at a
+    # fake 0.50 / on fabricated 50k liquidity.
+    if price is None or liquidity is None:
+        _side_token = (
+            leader_trade.get("yes_token_id") if side == "yes"
+            else leader_trade.get("no_token_id")
+        )
+        _mid, _depth = await _live_book_mark_and_depth(_side_token)
+        if price is None:
+            price = _mid
+        if liquidity is None:
+            liquidity = _depth if _depth is not None else 0.0
+    if price is None or not (0.0 < price < 1.0):
+        log.info(
+            "copy_trade_monitor: SKIPPED — no real price for mirrored market",
+            reason="no_real_price", market_id=market_id, side=side,
+        )
+        return
     idempotency_key = _make_idempotency_key(task.id, leader_trade_id)
 
     # --- execution_mode filter (migration 035) ---
@@ -329,7 +351,7 @@ async def _process_one(
         side=side,
         proposed_size_usdc=Decimal(str(round(copy_size, 6))),
         price=price,
-        market_liquidity=_extract_liquidity(leader_trade),
+        market_liquidity=liquidity,
         market_status=leader_trade.get("market_status", "active"),
         idempotency_key=idempotency_key,
         strategy_type=_STRATEGY_TYPE,
@@ -594,21 +616,33 @@ def _extract_size(trade: dict[str, Any]) -> float:
     return 0.0
 
 
-def _extract_price(trade: dict[str, Any], side: str) -> float:
-    """Return the trade price from a leader trade dict."""
+def _extract_price(trade: dict[str, Any], side: str) -> float | None:
+    """Return the leader-trade price, or None when the payload carries none.
+
+    No fabricated 0.50: when the leader trade has no real price the caller
+    resolves the live CLOB mark for the mirrored market instead (and skips the
+    mirror if even that is unavailable) — a priceless mirror must never enter
+    at a fake midpoint.
+    """
     for key in ("price", "avg_price", "avgPrice", "outcome_price"):
         v = trade.get(key)
         if v is not None:
             try:
-                return float(v)
+                p = float(v)
             except (TypeError, ValueError):
                 continue
-    # Fallback: mid-market approximation based on side
-    return 0.5
+            if 0.0 < p < 1.0:
+                return p
+    return None
 
 
-def _extract_liquidity(trade: dict[str, Any]) -> float:
-    """Return market liquidity (USDC) from a leader trade dict, or fallback."""
+def _extract_liquidity(trade: dict[str, Any]) -> float | None:
+    """Return market liquidity (USDC) from a leader trade dict, or None.
+
+    No fabricated 50k: a missing field returns None so the caller can source
+    real two-sided book depth — fabricating "adequate" liquidity would let a
+    thin market bypass the risk gate's liquidity floor.
+    """
     for key in ("liquidity", "market_liquidity", "volume24h", "volume"):
         v = trade.get(key)
         if v is not None:
@@ -616,9 +650,38 @@ def _extract_liquidity(trade: dict[str, Any]) -> float:
                 return float(v)
             except (TypeError, ValueError):
                 continue
-    # Fallback: assume adequate liquidity so the risk gate market-liquidity
-    # check does not spuriously reject copy trades when the field is absent
-    return 50_000.0
+    return None
+
+
+async def _live_book_mark_and_depth(
+    token_id: str | None,
+) -> tuple[float | None, float | None]:
+    """Real (midpoint, two-sided USDC depth) from the live CLOB book, or (None, None).
+
+    Returns (None, None) for a missing token, a one-sided/crossed/empty book, or
+    any fetch error — the caller then skips the mirror rather than fabricate.
+    """
+    if not token_id:
+        return (None, None)
+    try:
+        book = await get_book(token_id)
+    except Exception as exc:  # network/parse — fail soft, never fabricate
+        logger.warning("copy_trade_monitor: live book fetch failed",
+                       token_id=token_id, error=str(exc))
+        return (None, None)
+    bids = book.get("bids") or []
+    asks = book.get("asks") or []
+    if not bids or not asks:
+        return (None, None)
+    try:
+        best_bid = max(float(b["price"]) for b in bids)
+        best_ask = min(float(a["price"]) for a in asks)
+        depth = sum(float(l["price"]) * float(l["size"]) for l in (*bids, *asks))
+    except (TypeError, ValueError, KeyError):
+        return (None, None)
+    if not (0.0 < best_bid <= best_ask < 1.0):
+        return (None, None)  # crossed / degenerate
+    return ((best_bid + best_ask) / 2.0, depth)
 
 
 def _resolve_side(raw_side: str, reverse_copy: bool, outcome: str | None = None) -> str:
