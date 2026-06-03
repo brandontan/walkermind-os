@@ -419,7 +419,7 @@ def _first_float(d: dict[str, Any], keys: tuple[str, ...]) -> float | None:
         try:
             return float(v)
         except (TypeError, ValueError):
-            return None
+            continue  # garbage in this alias -> try the next key, don't give up
     return None
 
 

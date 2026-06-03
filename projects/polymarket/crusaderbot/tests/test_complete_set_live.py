@@ -272,6 +272,10 @@ async def test_fills_cost_aggregates_and_skips_garbage() -> None:
     assert cost == 7.0
     assert cse._fills_cost([]) == (0.0, 0.0)
     assert cse._fills_cost(None) == (0.0, 0.0)
+    # garbage in an earlier alias must NOT abort the fallback to a later valid alias
+    assert cse._first_float({"size": "garbage", "amount": "10"},
+                            cse._FILL_SIZE_KEYS) == 10.0
+    assert cse._first_float({"size": "garbage"}, cse._FILL_SIZE_KEYS) is None
 
 
 async def test_exact_fill_overrides_book_estimate(monkeypatch) -> None:
