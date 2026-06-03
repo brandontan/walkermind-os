@@ -275,7 +275,13 @@ async def close_confirm_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
                     mode=str(row.get("mode") or "paper"),
                 )
             except Exception:
-                pass
+                # Best-effort WebTrader/Telegram push — the close already
+                # committed — but logged (zero silent failures) so a dropped
+                # notification is debuggable rather than invisible.
+                logger.debug(
+                    "close_confirm_cb position.closed emit failed pos=%s",
+                    pos_id, exc_info=True,
+                )
         except Exception as exc:
             logger.error("close_confirm_cb paper close failed pos=%s err=%s", pos_id, exc)
             msg = "⚠️ Could not close position\\. Please try again\\."

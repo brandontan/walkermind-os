@@ -1,11 +1,16 @@
-"""Hermetic tests for WARP/ROOT/concurrency-policy (Lane 3C).
+"""Hermetic tests for WARP/ROOT/concurrency-policy (Lane 3C) + WARP-54 lane.
 
-Closes C-3 by making max_concurrent a per-user override (tighter-only) on top of
-the per-profile defaults (conservative=5 / balanced=12 / aggressive=20). The
-dead ``MAX_CONCURRENT_TRADES`` constant is removed; per-profile audit coverage
-is added in ``hardening.audit_risk_constants``; and the gate (step 7) +
-``resume_safety_check`` (step 7) consume the new
-``effective_max_concurrent(profile, user_override)`` helper.
+max_concurrent is a per-user override (tighter-only) on top of the per-profile
+intents (conservative=5 / balanced=12 / aggressive=20). WARP-54 follow-up lane
+reconciles the AGENTS.md RISK CONSTANTS hard rule ("Max concurrent trades = 5"):
+the ``MAX_CONCURRENT_TRADES = 5`` system ceiling folds into
+``effective_max_concurrent`` so every effective cap is min(5, profile, override)
+— no profile, override, or settings value can ever loosen a user past 5. The
+global open-position cap (gate Cap 4) is likewise clamped to
+min(MAX_OPEN_POSITIONS, 5), so for a no-tighter-override user Cap 4 enforces the
+ceiling before step 7 is reached. Per-profile audit coverage stays in
+``hardening.audit_risk_constants`` (1..50 range); the gate (step 7) +
+``resume_safety_check`` (step 7) consume ``effective_max_concurrent``.
 
 No DB, no broker, no Telegram. All DB helpers patched.
 """
@@ -124,63 +129,73 @@ def _ctx(
 # --------------------------------------------------------------------------- effective_max_concurrent unit
 
 
-def test_effective_max_concurrent_returns_profile_default_when_none():
+def test_effective_max_concurrent_ceilings_every_profile_at_hard_max():
+    # MAX_CONCURRENT_TRADES=5 is the non-overridable system ceiling, so the
+    # balanced(12)/aggressive(20) profile intents are clamped to 5 too
+    # (AGENTS.md RISK CONSTANTS = 5; WARP-54 reconciliation).
     assert effective_max_concurrent("conservative") == 5
-    assert effective_max_concurrent("balanced") == 12
-    assert effective_max_concurrent("aggressive") == 20
-    assert effective_max_concurrent("custom") == 12
+    assert effective_max_concurrent("balanced") == 5
+    assert effective_max_concurrent("aggressive") == 5
+    assert effective_max_concurrent("custom") == 5
 
 
 def test_effective_max_concurrent_user_override_tightens():
     assert effective_max_concurrent("balanced", user_override=3) == 3
-    assert effective_max_concurrent("aggressive", user_override=10) == 10
+    # Override above the hard ceiling cannot loosen — clamps to 5.
+    assert effective_max_concurrent("aggressive", user_override=10) == 5
     assert effective_max_concurrent("conservative", user_override=2) == 2
 
 
 def test_effective_max_concurrent_user_override_cannot_loosen():
-    # User override higher than profile cap → profile wins.
+    # Neither profile cap NOR hard ceiling can be loosened by a larger override.
     assert effective_max_concurrent("conservative", user_override=10) == 5
-    assert effective_max_concurrent("balanced", user_override=50) == 12
-    assert effective_max_concurrent("aggressive", user_override=999) == 20
+    assert effective_max_concurrent("balanced", user_override=50) == 5
+    assert effective_max_concurrent("aggressive", user_override=999) == 5
 
 
 def test_effective_max_concurrent_unknown_profile_falls_back_to_balanced():
-    assert effective_max_concurrent("garbage") == 12
+    # Unknown profile -> balanced intent (12), then clamped by the 5 ceiling.
+    assert effective_max_concurrent("garbage") == 5
     assert effective_max_concurrent("garbage", user_override=4) == 4
 
 
 def test_effective_max_concurrent_is_case_insensitive():
     # Profile names from UI forms may arrive title- or upper-cased. They must
-    # resolve to the correct profile cap — NOT silently fall through to the
-    # 'balanced' default, which would loosen a 'Conservative' user's 5-cap to 12.
+    # resolve to a real profile (not silently fall through to 'balanced'); the
+    # effective cap is then bounded by the hard ceiling of 5 regardless.
     assert effective_max_concurrent("Conservative") == 5
     assert effective_max_concurrent("BALANCED", user_override=3) == 3
-    assert effective_max_concurrent("Aggressive", user_override=50) == 20
+    assert effective_max_concurrent("Aggressive", user_override=50) == 5
 
 
 def test_effective_max_concurrent_none_profile_uses_balanced():
-    assert effective_max_concurrent(None) == 12  # type: ignore[arg-type]
+    # None -> balanced intent (12), clamped by the hard ceiling to 5.
+    assert effective_max_concurrent(None) == 5  # type: ignore[arg-type]
 
 
 def test_effective_max_concurrent_defensive_coercion_of_invalid_values():
     # Zero / negative override = ignored (DB CHECK enforces 1..20 at write time;
-    # this defends against legacy rows / direct DB writes).
-    assert effective_max_concurrent("balanced", user_override=0) == 12
-    assert effective_max_concurrent("balanced", user_override=-5) == 12
+    # this defends against legacy rows / direct DB writes). Falls back to the
+    # ceiling-clamped profile cap (balanced 12 -> 5).
+    assert effective_max_concurrent("balanced", user_override=0) == 5
+    assert effective_max_concurrent("balanced", user_override=-5) == 5
     # Non-int coerces; if conversion fails the helper treats it as 0 → ignored.
-    assert effective_max_concurrent("balanced", user_override="not-a-number") == 12
+    assert effective_max_concurrent("balanced", user_override="not-a-number") == 5
 
 
 # --------------------------------------------------------------------------- gate step 7 integration
 
 
-def test_gate_step_7_rejects_when_open_count_at_profile_cap_and_no_override(monkeypatch):
-    # balanced cap = 12; open_count = 12 → reject step 7.
-    _patch_clear(monkeypatch, open_count=12)
+def test_gate_cap4_rejects_at_hard_ceiling_when_no_tighter_override(monkeypatch):
+    # No tighter override: the global open-position hard ceiling
+    # (Cap 4 = min(MAX_OPEN_POSITIONS, 5)) fires first at open_count 5 >= 5,
+    # before step 7 is reached. This is the WARP-54 reconciliation enforcing
+    # the AGENTS.md hard rule of 5 even for balanced (profile intent 12).
+    _patch_clear(monkeypatch, open_count=5)
     res = asyncio.run(evaluate(_ctx(risk_profile="balanced")))
     assert res.approved is False
-    assert res.reason == "max_concurrent_trades"
-    assert res.failed_step == 7
+    assert res.reason == "max_open_positions_5_reached"
+    assert res.failed_step == 0
 
 
 def test_gate_step_7_rejects_when_user_override_tighter_than_profile(monkeypatch):
@@ -199,16 +214,17 @@ def test_gate_step_7_passes_when_open_below_effective_cap(monkeypatch):
     assert res.approved is True
 
 
-def test_gate_step_7_user_override_cannot_loosen_above_profile_cap(monkeypatch):
-    # conservative cap = 5; user_override = 999 — must NOT loosen.
-    # open_count = 5 → still reject at step 7 (effective cap is 5, not 999).
+def test_gate_user_override_cannot_loosen_above_hard_ceiling(monkeypatch):
+    # aggressive profile intent = 20, user_override = 999 — neither can loosen
+    # past the hard ceiling of 5. At open_count 5 the global Cap 4 rejects
+    # (max_open_positions_5_reached) before the loosened cap is ever consulted.
     _patch_clear(monkeypatch, open_count=5)
     res = asyncio.run(evaluate(
-        _ctx(risk_profile="conservative", max_concurrent_override=999)
+        _ctx(risk_profile="aggressive", max_concurrent_override=999)
     ))
     assert res.approved is False
-    assert res.reason == "max_concurrent_trades"
-    assert res.failed_step == 7
+    assert res.reason == "max_open_positions_5_reached"
+    assert res.failed_step == 0
 
 
 # --------------------------------------------------------------------------- resume_safety_check step 7 integration
@@ -280,10 +296,12 @@ def test_resume_step_7_user_override_cannot_loosen(monkeypatch):
 # --------------------------------------------------------------------------- dead-constant removal
 
 
-def test_max_concurrent_trades_constant_is_removed():
-    # The dead ``MAX_CONCURRENT_TRADES = 5`` constant is gone; gate step 7
-    # enforces per-profile caps (5/12/20) via ``effective_max_concurrent``.
-    assert not hasattr(K, "MAX_CONCURRENT_TRADES")
+def test_max_concurrent_trades_hard_ceiling_constant():
+    # WARP-54 reconciliation: the system hard ceiling constant exists and equals
+    # the AGENTS.md RISK CONSTANT (5). It folds into effective_max_concurrent so
+    # no profile/override/settings value can exceed it.
+    assert hasattr(K, "MAX_CONCURRENT_TRADES")
+    assert K.MAX_CONCURRENT_TRADES == 5
 
 
 def test_every_profile_has_max_concurrent_in_safe_range():

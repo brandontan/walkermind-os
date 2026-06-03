@@ -41,6 +41,18 @@ async def _write_audit_log(
             "VALUES ($1, $2, $3, NOW())",
             event, reason, triggered_by,
         )
+    # Mirror into the canonical forensic destination (`audit.log` schema table,
+    # the single source every other subsystem writes via `audit.write`). Without
+    # this, kill-switch events were siloed in the public `audit_log` table and
+    # invisible to a unified forensic query. `audit.write` never raises, so the
+    # mirror cannot break the kill path; the legacy `audit_log` row above is kept
+    # for backward compatibility with existing kill-switch dashboards/queries.
+    from ... import audit as _audit
+    await _audit.write(
+        actor_role="system",
+        action=event.lower(),
+        payload={"reason": reason, "triggered_by": triggered_by},
+    )
 
 
 async def _cancel_pending_orders() -> int:

@@ -252,7 +252,11 @@ async def _emit_settings_changed(user_id: UUID) -> None:
         from .core.event_bus import emit as _emit
         await _emit("user.settings_changed", user_id=str(user_id))
     except Exception:
-        pass
+        # Best-effort SSE refresh — never blocks the settings write — but logged
+        # (zero silent failures): a missing refresh is a real, debuggable signal.
+        log.debug(
+            "settings_changed emit failed", user_id=str(user_id), exc_info=True,
+        )
 
 
 async def set_locked(user_id: UUID, locked: bool) -> None:
