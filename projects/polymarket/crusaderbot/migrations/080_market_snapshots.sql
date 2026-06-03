@@ -31,3 +31,8 @@ CREATE INDEX IF NOT EXISTS idx_market_snapshots_market_time
     ON market_snapshots (market_id, scanned_at);
 CREATE INDEX IF NOT EXISTS idx_market_snapshots_run
     ON market_snapshots (scan_run_id);
+
+-- RLS deny-by-default (repo invariant — every public table; mirrors scan_runs in
+-- migration 055). Telemetry only, no user-identifiable data; the backend service
+-- role bypasses RLS to write, anon/authenticated clients get no direct access.
+ALTER TABLE market_snapshots ENABLE ROW LEVEL SECURITY;
