@@ -99,7 +99,9 @@ def compute_metrics(returns: list[float], durations: list[float] | None = None) 
     losses = [r for r in returns if r < 0]
     ev = mean(returns)
     sd = pstdev(returns) if n > 1 else 0.0
-    downside = pstdev([min(0.0, r) for r in returns]) if n > 1 else 0.0
+    # Sortino downside deviation = RMS of negative returns vs the 0.0 target
+    # (NOT pstdev, which subtracts the clipped mean and understates large losses).
+    downside = mean([min(0.0, r) ** 2 for r in returns]) ** 0.5
     gross_win = sum(wins)
     gross_loss = abs(sum(losses))
     return ReplayMetrics(
@@ -126,13 +128,13 @@ def walk_forward_split(
     if n_splits < 1 or len(trades) < n_splits + 1:
         return []
     ordered = sorted(trades, key=lambda t: t.entry_ts)
-    fold = len(ordered) // (n_splits + 1)
-    if fold == 0:
-        return []
+    # Float step so the remainder isn't dropped (integer division would discard up
+    # to n_splits of the most-recent trades when len isn't evenly divisible).
+    step = len(ordered) / (n_splits + 1)
     out: list[tuple[list[ReplayTrade], list[ReplayTrade]]] = []
     for i in range(1, n_splits + 1):
-        train = ordered[: i * fold]
-        validate = ordered[i * fold: (i + 1) * fold]
+        train = ordered[: int(i * step)]
+        validate = ordered[int(i * step): int((i + 1) * step)]
         if validate:
             out.append((train, validate))
     return out
@@ -176,7 +178,8 @@ async def replay(
         async with pool.acquire() as conn:  # type: ignore[attr-defined]
             rows = await conn.fetch(
                 """
-                SELECT market_id, category, mid_price, scanned_at
+                SELECT market_id, category, best_bid, best_ask, mid_price,
+                       liquidity_usdc, raw, scanned_at
                   FROM market_snapshots
                  WHERE scanned_at > NOW() - make_interval(hours => $1)
                    AND mid_price IS NOT NULL
@@ -193,11 +196,15 @@ async def replay(
         by_market[str(r["market_id"])].append(r)
 
     grouped: dict[str, list[float]] = defaultdict(list)
+    durations: dict[str, list[float]] = defaultdict(list)
     for market_id, snaps in by_market.items():
         if len(snaps) < 2:
             continue  # need an entry + a settlement observation
         entry, exit_ = snaps[0], snaps[-1]
         try:
+            # The full entry row is passed so a real decision wrapper has the
+            # book (best_bid/ask), liquidity, and the raw Gamma payload (event
+            # timing etc.) it needs to reconstruct a snapshot — not just mid.
             decision = decide(entry)
         except Exception as exc:  # noqa: BLE001 — one market's decision never aborts the run
             logger.warning("replay_decide_failed", market_id=market_id, error=str(exc))
@@ -217,8 +224,15 @@ async def replay(
         if has_leakage(trade):
             continue
         grouped[trade.module].append(trade_return(trade))
+        durations[trade.module].append(
+            (trade.resolution_ts - trade.entry_ts).total_seconds()
+            if trade.resolution_ts else 0.0
+        )
 
-    return {module: compute_metrics(rets) for module, rets in grouped.items()}
+    return {
+        module: compute_metrics(rets, durations[module])
+        for module, rets in grouped.items()
+    }
 
 
 __all__ = [

@@ -170,6 +170,7 @@ def test_replay_builds_trades_and_metrics():
     assert "sharp_money" in out
     assert out["sharp_money"].n_trades == 1
     assert out["sharp_money"].ev_per_trade == 1.0
+    assert out["sharp_money"].avg_holding_sec == 3600.0  # 0→60min, durations preserved
 
 
 def test_replay_skips_no_decision_and_single_snapshot():
