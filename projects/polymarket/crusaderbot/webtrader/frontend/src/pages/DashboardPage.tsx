@@ -7,13 +7,13 @@ import { HeroCard, type RiskLevel } from "../components/HeroCard";
 import { KillSwitchButton } from "../components/KillSwitchButton";
 import { StatCard } from "../components/StatCard";
 import { StatsGrid } from "../components/StatsGrid";
-import { Terminal, type TerminalLine } from "../components/Terminal";
+import { ScannerPanel } from "../components/ScannerPanel";
 import { Ticker } from "../components/Ticker";
 import { PositionCarousel } from "../components/PositionCarousel";
 import { MarketFeed } from "../components/MarketFeed";
 import { TopBar } from "../components/TopBar";
 import { useAlertCenter } from "../App";
-import { makeApi, type AlertItem, type DashboardSummary, type MarketFeedItem, type PositionItem } from "../lib/api";
+import { makeApi, type AlertItem, type DashboardSummary, type FeedSignal, type MarketFeedItem, type PositionItem, type RuntimeStatus } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 import { PositionRow } from "./PortfolioPage";
@@ -50,7 +50,8 @@ export function DashboardPage() {
   const [marketFeed, setMarketFeed] = useState<MarketFeedItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [lastTick, setLastTick] = useState<number | null>(null);
-  const [lastSignals, setLastSignals] = useState<number>(0);
+  const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
+  const [recentSignals, setRecentSignals] = useState<FeedSignal[]>([]);
   const [recentClosed, setRecentClosed] = useState<PositionItem[]>([]);
   const [pnlFlash, setPnlFlash] = useState<"up" | "down" | null>(null);
   // Alerts come from the global AlertCenterContext (fetched once at AppShell level)
@@ -107,12 +108,31 @@ export function DashboardPage() {
     }
   }, [api]);
 
+  const loadRuntimeStatus = useCallback(async () => {
+    try {
+      setRuntimeStatus(await api.getRuntimeStatus());
+    } catch (e) {
+      // Scanner stats are decorative — degrade to last-known / placeholders.
+      console.warn("dashboard: runtime status load failed (non-critical)", e);
+    }
+  }, [api]);
+
+  const loadRecentSignals = useCallback(async () => {
+    try {
+      setRecentSignals(await api.getRecentSignals(6));
+    } catch (e) {
+      console.warn("dashboard: recent signals load failed (non-critical)", e);
+    }
+  }, [api]);
+
   const refreshAll = useCallback(() => {
     void load();
     void loadOpenPositions();
     void loadMarketFeed();
     void loadRecentClosed();
-  }, [load, loadOpenPositions, loadMarketFeed, loadRecentClosed]);
+    void loadRuntimeStatus();
+    void loadRecentSignals();
+  }, [load, loadOpenPositions, loadMarketFeed, loadRecentClosed, loadRuntimeStatus, loadRecentSignals]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -121,6 +141,10 @@ export function DashboardPage() {
   useEffect(() => { void loadMarketFeed(); }, [loadMarketFeed]);
 
   useEffect(() => { void loadRecentClosed(); }, [loadRecentClosed]);
+
+  useEffect(() => { void loadRuntimeStatus(); }, [loadRuntimeStatus]);
+
+  useEffect(() => { void loadRecentSignals(); }, [loadRecentSignals]);
 
   const { connected: sseConnected } = useSSE(user?.token ?? null, {
     positions:        refreshAll,
@@ -137,9 +161,8 @@ export function DashboardPage() {
     portfolio_update: refreshAll,
     scanner_tick: (raw) => {
       refreshAll();
-      const payload = raw as { ts?: number; signals?: number };
+      const payload = raw as { ts?: number };
       if (payload.ts) setLastTick(payload.ts * 1000);
-      if (typeof payload.signals === "number") setLastSignals(payload.signals);
     },
   });
 
@@ -318,50 +341,21 @@ export function DashboardPage() {
 
           {/* RIGHT COLUMN: Scanner terminal + Recent Activity */}
           <div className="md:min-w-0 md:overflow-hidden">
-            <AdvancedOnly>
-              <Terminal
-                status={data.auto_trade_on ? "running" : "idle"}
-                lines={buildScannerLines(data, lastTick, lastSignals)}
-              />
-            </AdvancedOnly>
-
-            {/* Scanner status strip — visible to all users */}
-            <div className="mt-3 mb-2 mx-0.5 md:mt-0 px-2.5 py-1.5 clip-card-sm border border-border-1 bg-surface-1 flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={data.auto_trade_on ? "animate-status-pulse" : ""}
-                  style={{
-                    display: "inline-block", width: "6px", height: "6px", borderRadius: "50%",
-                    background: data.auto_trade_on ? "var(--grn,#00FF9C)" : "var(--ink-3,#455370)",
-                    boxShadow: data.auto_trade_on ? "0 0 5px var(--grn,#00FF9C)" : "none",
-                  }}
-                  aria-label={data.auto_trade_on ? "scanner active" : "scanner idle"}
-                />
-                <span className="font-hud text-[9px] uppercase tracking-[1.5px] text-ink-3">Scanner</span>
-              </div>
-              <div className="flex items-center gap-3 font-mono text-[9px]">
-                <span>
-                  <span className="text-ink-4">last </span>
-                  <span className="text-ink-1">
-                    {lastTick
-                      ? new Date(lastTick).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-                      : "—"}
-                  </span>
-                </span>
-                <span>
-                  <span className={(data.signals_today ?? 0) > 0 ? "text-grn font-bold" : "text-ink-3"}>
-                    {data.signals_today ?? 0}
-                  </span>
-                  <span className="text-ink-4"> today</span>
-                </span>
-                {lastSignals > 0 && (
-                  <span>
-                    <span className="text-ink-1">{lastSignals}</span>
-                    <span className="text-ink-4"> cands</span>
-                  </span>
-                )}
-              </div>
-            </div>
+            <ScannerPanel
+              runtime={runtimeStatus}
+              signals={recentSignals}
+              feed={marketFeed}
+              signalsToday={data.signals_today ?? 0}
+              active={
+                data.auto_trade_on
+                && !data.kill_switch_active
+                && !runtimeStatus?.user_paused
+                && data.active_preset_globally_enabled !== false
+              }
+              tradingMode={data.trading_mode}
+              activePreset={data.active_preset}
+              lastTickMs={lastTick}
+            />
 
             <div className="flex items-center justify-between mt-3.5 mb-2 mx-0.5 md:mt-0">
               <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2
@@ -544,75 +538,4 @@ function RecentActivityCarousel({ items }: { items: PositionItem[] }) {
       )}
     </div>
   );
-}
-
-
-function buildScannerLines(data: DashboardSummary, lastTick: number | null, lastSignals: number): TerminalLine[] {
-  // When the user's bot is OFF, the dashboard scanner widget must reflect
-  // that — the process-level scanner is still scanning markets globally,
-  // but no candidate is being routed to this user. Show an explicit OFF
-  // banner instead of the misleading "✓ ok / awaiting signal" sequence
-  // so the user isn't confused about whether their bot is trading.
-  if (!data.auto_trade_on) {
-    return [
-      {
-        parts: [
-          { type: "cmd",  text: "market_signal_scanner" },
-          { type: "dim",  text: " ◦ idle" },
-        ],
-      },
-      {
-        parts: [
-          { type: "out",  text: "bot " },
-          { type: "warn", text: "OFF" },
-          { type: "dim",  text: "  mode " },
-          { type: "dim",  text: data.trading_mode?.toUpperCase() ?? "PAPER" },
-        ],
-      },
-      {
-        parts: [
-          { type: "out", text: "status " },
-          { type: "dim", text: "auto-trade disabled — enable from Auto tab" },
-        ],
-        cursor: true,
-      },
-    ];
-  }
-
-  const tickLabel = lastTick
-    ? new Date(lastTick).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-    : "—";
-  const signalText = lastSignals > 0 ? `${lastSignals} candidates` : "scanning…";
-  return [
-    {
-      parts: [
-        { type: "cmd",  text: "market_signal_scanner" },
-        { type: "ok",   text: " ✓ ok" },
-      ],
-    },
-    {
-      parts: [
-        { type: "out",  text: "mode " },
-        { type: "warn", text: data.trading_mode?.toUpperCase() ?? "PAPER" },
-        { type: "dim",  text: "  preset " },
-        { type: "ok",   text: data.active_preset ?? "—" },
-      ],
-    },
-    {
-      parts: [
-        { type: "out",  text: "last_tick " },
-        { type: "ok",   text: tickLabel },
-        { type: "dim",  text: "  signals " },
-        { type: lastSignals > 0 ? "ok" : "dim", text: signalText },
-      ],
-    },
-    {
-      parts: [
-        { type: "out", text: data.kill_switch_active ? "kill_switch " : data.open_positions > 0 ? "managing " : "status " },
-        { type: data.kill_switch_active ? "warn" : data.open_positions > 0 ? "ok" : "dim",
-          text: data.kill_switch_active ? "ARMED" : data.open_positions > 0 ? `${data.open_positions} open` : "awaiting signal" },
-      ],
-      cursor: true,
-    },
-  ];
 }

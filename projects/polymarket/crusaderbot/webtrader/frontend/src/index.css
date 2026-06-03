@@ -114,10 +114,37 @@ body::after {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+/* ScannerPanel — green scan sweep across the SCANNING bar */
+@keyframes scanSweep {
+  0%   { left: -10%; opacity: 0; }
+  10%  { opacity: 1; }
+  80%  { opacity: 0.8; }
+  100% { left: 110%; opacity: 0; }
+}
+/* ScannerPanel — terminal line type-in */
+@keyframes signalIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+/* ScannerPanel — signal carousel slide (direction-aware via inline animation) */
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+/* ScannerPanel — carousel auto-advance progress bar */
+@keyframes barProgress {
+  from { width: 0; }
+  to   { width: 100%; }
+}
 
 /* ─── ANIM CLASSES ───────────────────────────────────────────────────── */
 .animate-status-pulse { animation: statusPulse 1.6s ease-in-out infinite; }
 .animate-blink        { animation: blink 1s step-end infinite; }
+.animate-scan-sweep   { animation: scanSweep 2.4s linear infinite; }
 .animate-sweep        { animation: sweepH 4s ease-in-out infinite; }
 .animate-ticker       { animation: tickerScroll 28s linear infinite; }
 
