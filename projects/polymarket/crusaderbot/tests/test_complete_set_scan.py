@@ -257,6 +257,40 @@ def test_live_naked_halt_counts_as_booked():
     assert len(live.calls) == 1
 
 
+def test_live_naked_halt_persist_failed_is_error():
+    # Worst case: naked leg could NOT be persisted -> UNTRACKED live exposure. The
+    # booker halts + pages, but the scan MUST surface it as an error, never a clean
+    # non-booked no-op (else signal_scan_job logs the run as successful).
+    live = _LiveBooker(status="naked_halt_persist_failed")
+
+    async def fetch(token_id: str) -> dict:
+        return _arb_book(0.45, 100.0)
+
+    res = _run(css.scan_complete_set_for_user(
+        _row(trading_mode="live"), [_market()], settings=_settings(),
+        book_fetcher=fetch, gate_evaluate=_approve_live,
+        live_booker=live, balance_reader=_balance,
+    ))
+    assert res.booked == 0
+    assert res.errors == 1  # masked-blocker guard
+    assert len(live.calls) == 1
+
+
+def test_live_unknown_status_is_error_safe_by_default():
+    live = _LiveBooker(status="something_new")  # unrecognised -> treat as unsafe
+
+    async def fetch(token_id: str) -> dict:
+        return _arb_book(0.45, 100.0)
+
+    res = _run(css.scan_complete_set_for_user(
+        _row(trading_mode="live"), [_market()], settings=_settings(),
+        book_fetcher=fetch, gate_evaluate=_approve_live,
+        live_booker=live, balance_reader=_balance,
+    ))
+    assert res.booked == 0
+    assert res.errors == 1
+
+
 def test_live_booker_raise_isolated_to_market():
     # An ambiguous post-submit raises LivePostSubmitError (booker already halted +
     # paged); the per-market handler isolates it as an error, not a crash.

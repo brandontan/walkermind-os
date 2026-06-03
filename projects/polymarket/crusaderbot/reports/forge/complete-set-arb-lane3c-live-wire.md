@@ -93,9 +93,17 @@ call site uses the defaulted `live_booker`).
   (`test_live_booker_raise_isolated_to_market`).
 - An unrecognised `chosen_mode` is skipped, never executed
   (`test_unknown_chosen_mode_skipped_not_executed`).
+- Live status is classified, not bucketed: `open`/`naked_halt` → booked
+  (`naked_halt` also emits a `complete_set_live_naked_halt` warning); known clean
+  no-ops (`no_fill`/`unwound`/`duplicate`/`skipped`) → silent; **persist-failure
+  (`naked_halt_persist_failed`) and any unrecognised status → `res.errors` + a
+  `complete_set_live_unreconciled` error log** (safe-by-default), so an untracked
+  live leg can never be masked as a clean run in `signal_scan_job` telemetry
+  (Codex P2, fixed in-lane: `test_live_naked_halt_persist_failed_is_error`,
+  `test_live_unknown_status_is_error_safe_by_default`).
 - Paper path + dormant-margin/capital/gate-reject behaviour unchanged (existing
   suite green).
-- 15 `test_complete_set_scan` + 51 related (scan/live/exec/gate_rescope) pass;
+- 18 `test_complete_set_scan` + 51 related (scan/live/exec/gate_rescope) pass;
   ruff + py_compile clean on both modified production files.
 
 ## 5. Known issues

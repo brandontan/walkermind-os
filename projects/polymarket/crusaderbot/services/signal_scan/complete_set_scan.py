@@ -279,11 +279,31 @@ async def scan_complete_set_for_user(
                     active_preset=row.get("active_preset"),
                 )
                 status = str((live_res or {}).get("status", "unknown"))
-                # Count only outcomes that persisted a position: "open" (both legs
-                # filled) and "naked_halt" (naked leg persisted force-exitable).
-                # "no_fill"/"unwound"/"duplicate"/"skipped" booked nothing.
                 if status in ("open", "naked_halt"):
+                    # Both persisted a position; "naked_halt" ALSO engaged the kill
+                    # switch (booker already paged) — surface it so the halt is
+                    # visible in this user's scan telemetry, not just booked.
                     res.booked += 1
+                    if status == "naked_halt":
+                        ulog.warning(
+                            "complete_set_live_naked_halt",
+                            market_id=market_id,
+                            note="naked leg persisted (force-exitable) + trading "
+                                 "halted — operator reconcile required",
+                        )
+                elif status in ("no_fill", "unwound", "duplicate", "skipped"):
+                    pass  # clean no-op — nothing persisted, nothing to flag
+                else:
+                    # "naked_halt_persist_failed" (UNTRACKED live exposure) or any
+                    # unrecognised status: classify as an error (safe-by-default) so
+                    # signal_scan_job never logs a clean run while a confirmed live
+                    # leg is unreconciled. The booker has already halted + paged.
+                    res.errors += 1
+                    ulog.error(
+                        "complete_set_live_unreconciled",
+                        market_id=market_id,
+                        status=status,
+                    )
                 ulog.info(
                     "complete_set_live_result",
                     market_id=market_id,
