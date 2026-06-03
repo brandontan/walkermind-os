@@ -46,7 +46,10 @@ from projects.polymarket.crusaderbot.domain.strategy.registry import (
 from projects.polymarket.crusaderbot.domain.strategy.strategies.playbook import (
     PlaybookStrategy,
 )
-from projects.polymarket.crusaderbot.domain.strategy.types import UserContext
+from projects.polymarket.crusaderbot.domain.strategy.types import (
+    MarketFilters,
+    UserContext,
+)
 
 
 def _snapshot(**over) -> MarketSnapshot:
@@ -243,11 +246,6 @@ def test_strategy_evaluate_snapshot_emits_candidate():
     assert cand.metadata["cluster_key"] == "nfl:kc@buf"
 
 
-def test_strategy_scan_returns_empty_phase1():
-    s = PlaybookStrategy()
-    assert asyncio.run(s.scan(None, _user())) == []
-
-
 def test_strategy_default_tp_sl():
     assert PlaybookStrategy().default_tp_sl() == (0.25, 0.12)
 
@@ -282,11 +280,9 @@ def test_registry_registers_playbook():
     assert "balanced" in s.risk_profile_compatibility
 
 
-def test_preset_registered_but_hidden_until_phase2():
-    # FOUNDATION posture: playbook is registered + routable (PRESET_ORDER) but
-    # intentionally NOT user-selectable yet — its live scan dispatch is Phase-2,
-    # so it stays out of the visible picker to avoid a no-op activation trap
-    # (Codex P2, PR #1567).
+def test_preset_registered_and_visible():
+    # Phase-2a: playbook is registered, routable, AND user-selectable again now
+    # that its scan dispatch (Phase B4) is wired.
     from projects.polymarket.crusaderbot.domain.preset.presets import (
         PRESET_ORDER,
         VISIBLE_PRESET_ORDER,
@@ -295,44 +291,31 @@ def test_preset_registered_but_hidden_until_phase2():
     p = get_preset("playbook")
     assert p is not None and p.strategies == ("playbook",)
     assert "playbook" in PRESET_ORDER
-    assert "playbook" not in VISIBLE_PRESET_ORDER
+    assert "playbook" in VISIBLE_PRESET_ORDER
 
 
-def test_playbook_registered_but_not_activatable():
-    # Gated against activation everywhere (Codex P2 / Gemini, PR #1570) until
-    # Phase-2 dispatch lands — but still registered + routable.
+def test_playbook_activatable_phase2():
+    # Dispatch is wired (Phase-2a) → playbook is activatable; HIDDEN_PRESETS empty.
     from projects.polymarket.crusaderbot.domain.preset.presets import (
         HIDDEN_PRESETS,
         PRESETS,
         is_activatable,
     )
     assert "playbook" in PRESETS
-    assert "playbook" in HIDDEN_PRESETS
-    assert is_activatable("playbook") is False
+    assert "playbook" not in HIDDEN_PRESETS
+    assert is_activatable("playbook") is True
     assert is_activatable("candle_auto") is True
-    assert is_activatable("weather_monitor") is True
     assert is_activatable("nonexistent") is False
 
 
-def test_backend_activate_preset_rejects_hidden_playbook():
-    import asyncio
-
-    from fastapi import HTTPException
-
-    from projects.polymarket.crusaderbot.webtrader.backend import router as r
-    from projects.polymarket.crusaderbot.webtrader.backend.schemas import (
-        PresetActivateRequest,
-    )
-    # Rejection happens before any DB access (right after the roster check), so
-    # no pool mock is needed.
-    with pytest.raises(HTTPException) as ei:
-        asyncio.run(
-            r.activate_preset(
-                PresetActivateRequest(preset_key="playbook"), {"user_id": "x"}
-            )
-        )
-    assert ei.value.status_code == 400
-    assert "playbook" in str(ei.value.detail)
+def test_playbook_dispatch_wired_in_scan_loop():
+    # The scan loop allows the playbook strategy under the playbook preset.
+    from projects.polymarket.crusaderbot.services.signal_scan import signal_scan_job as ssj
+    assert "playbook" in ssj._PRESET_ALLOWED
+    assert ssj._PLAYBOOK_STRATEGY_NAME in ssj._PRESET_ALLOWED["playbook"]
+    assert ssj._PLAYBOOK_STRATEGY_NAME in ssj._DOMAIN_STRATEGY_NAMES
+    assert ssj._preset_allows("playbook", ssj._PLAYBOOK_STRATEGY_NAME) is True
+    assert ssj._preset_allows("candle_auto", ssj._PLAYBOOK_STRATEGY_NAME) is False
 
 
 def test_backend_and_bot_roster_in_sync():
@@ -343,5 +326,106 @@ def test_backend_and_bot_roster_in_sync():
     assert r._PRESET_LOCKED_CATEGORY["playbook"] == "Sports"
     from projects.polymarket.crusaderbot.bot.presets import PRESET_CONFIG, PRESET_ORDER
     assert "playbook" in PRESET_CONFIG
-    # Registered in config but hidden from the Telegram picker until Phase-2.
-    assert "playbook" not in PRESET_ORDER
+    assert "playbook" in PRESET_ORDER
+
+
+# --------------------------------------------------------------------------- #
+# Phase-2a: sports snapshot fetch + helpers
+# --------------------------------------------------------------------------- #
+
+
+def test_playbook_snapshot_helpers():
+    from projects.polymarket.crusaderbot.domain.strategy.strategies import playbook as pbs
+    assert pbs._is_sports_category("nfl football") is True
+    assert pbs._is_sports_category("crypto finance") is False
+    assert pbs._parse_iso("2026-06-03T00:00:00Z") is not None
+    assert pbs._parse_iso(None) is None
+    assert pbs._extract_token_ids({"clobTokenIds": '["a","b"]'}) == ["a", "b"]
+    assert pbs._extract_token_ids({"tokens": [{"token_id": "x"}, {"token_id": "y"}]}) == ["x", "y"]
+    assert pbs._extract_token_ids({}) == []
+    assert pbs._best_ask({"asks": [{"price": "0.55"}, {"price": "0.57"}]}) == 0.55
+    assert pbs._best_bid({"bids": [{"price": "0.54"}, {"price": "0.50"}]}) == 0.54
+    assert pbs._best_ask({"asks": []}) is None
+    # fair prefers Gamma consensus over book mid
+    assert pbs._fair_price(0.54, 0.55, {"outcomePrices": '["0.60","0.40"]'}) == 0.60
+    assert pbs._fair_price(0.54, 0.56, {}) == pytest.approx(0.55)
+
+
+def test_playbook_scan_builds_candidates_from_mocked_feed(monkeypatch):
+    import asyncio
+    from datetime import datetime, timedelta, timezone
+
+    from projects.polymarket.crusaderbot.integrations import polymarket as pm
+
+    start = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+    market = {
+        "id": "m1",
+        "conditionId": "cond1",
+        "slug": "nfl-kc-buf",
+        "category": "nfl football",
+        "gameStartTime": start,
+        "clobTokenIds": '["yes_tok","no_tok"]',
+        "liquidity": 20000,
+        # Gamma consensus says YES fair 0.60; CLOB ask 0.55 below it → stale-book edge.
+        "outcomePrices": '["0.60","0.40"]',
+    }
+
+    async def fake_events(limit=200):
+        return [market]
+
+    async def fake_book(token_id):
+        if token_id == "yes_tok":
+            return {"bids": [{"price": "0.54", "size": "100"}], "asks": [{"price": "0.55", "size": "100"}]}
+        return {"bids": [{"price": "0.44", "size": "100"}], "asks": [{"price": "0.46", "size": "100"}]}
+
+    monkeypatch.setattr(pm, "get_events_with_markets", fake_events)
+    monkeypatch.setattr(pm, "get_book", fake_book)
+
+    s = PlaybookStrategy()
+    mf = MarketFilters(categories=[], min_liquidity=0.0, max_time_to_resolution_days=7, blacklisted_market_ids=[])
+    cands = asyncio.run(s.scan(mf, _user()))
+    assert len(cands) == 1
+    assert cands[0].market_id == "m1"
+    assert cands[0].side == "YES"
+    assert cands[0].metadata["selected_module"] == "closing_edge"
+    assert cands[0].suggested_size_usdc > 0
+
+
+def test_playbook_scan_empty_on_fetch_error(monkeypatch):
+    import asyncio
+
+    from projects.polymarket.crusaderbot.integrations import polymarket as pm
+
+    async def boom(limit=200):
+        raise RuntimeError("gamma down")
+
+    monkeypatch.setattr(pm, "get_events_with_markets", boom)
+    s = PlaybookStrategy()
+    mf = MarketFilters(categories=[], min_liquidity=0.0, max_time_to_resolution_days=7, blacklisted_market_ids=[])
+    assert asyncio.run(s.scan(mf, _user())) == []
+
+
+def test_playbook_skips_markets_outside_close_window(monkeypatch):
+    import asyncio
+    from datetime import datetime, timedelta, timezone
+
+    from projects.polymarket.crusaderbot.integrations import polymarket as pm
+
+    far = (datetime.now(timezone.utc) + timedelta(hours=12)).isoformat()
+    market = {
+        "id": "m2", "conditionId": "c2", "category": "nba basketball",
+        "gameStartTime": far, "clobTokenIds": '["y","n"]',
+        "liquidity": 20000, "outcomePrices": '["0.60","0.40"]',
+    }
+
+    async def fake_events(limit=200):
+        return [market]
+
+    async def fake_book(token_id):  # pragma: no cover - should never be called
+        raise AssertionError("book fetched for out-of-window market")
+
+    monkeypatch.setattr(pm, "get_events_with_markets", fake_events)
+    monkeypatch.setattr(pm, "get_book", fake_book)
+    s = PlaybookStrategy()
+    mf = MarketFilters(categories=[], min_liquidity=0.0, max_time_to_resolution_days=7, blacklisted_market_ids=[])
+    assert asyncio.run(s.scan(mf, _user())) == []

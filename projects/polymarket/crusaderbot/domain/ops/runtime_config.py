@@ -71,6 +71,12 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
         label="Complete-set arbitrage",
         description="Enable the complete-set arbitrage scan + PAPER booking (Phase B3).",
     ),
+    "PLAYBOOK_STRATEGY_ENABLED": SettingSpec(
+        key="PLAYBOOK_STRATEGY_ENABLED",
+        kind="bool",
+        label="Playbook sports router",
+        description="Enable the PLAYBOOK sports scan dispatch (Phase B4, PAPER).",
+    ),
 }
 
 

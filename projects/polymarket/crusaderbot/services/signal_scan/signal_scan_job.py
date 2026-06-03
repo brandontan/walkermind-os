@@ -103,11 +103,14 @@ _LIB_STRATEGY_NAMES: frozenset[str] = frozenset(ENABLED_STRATEGIES) | frozenset(
 
 _LATE_ENTRY_V3_NAME = "late_entry_v3"
 _WEATHER_STRATEGY_NAME = "weather"
+_PLAYBOOK_STRATEGY_NAME = "playbook"
 
 # Domain strategies the scan loop invokes explicitly (registered via
 # bootstrap_default_strategies()). Each runs its own eligibility gate inside
 # scan(), so emitted candidates already satisfy their universe constraints.
-_DOMAIN_STRATEGY_NAMES: frozenset[str] = frozenset({_LATE_ENTRY_V3_NAME, _WEATHER_STRATEGY_NAME})
+_DOMAIN_STRATEGY_NAMES: frozenset[str] = frozenset(
+    {_LATE_ENTRY_V3_NAME, _WEATHER_STRATEGY_NAME, _PLAYBOOK_STRATEGY_NAME}
+)
 
 # Preset → strategies it may fire. Deny-by-default: unknown/NULL presets
 # return frozenset() and fire nothing.
@@ -117,6 +120,7 @@ _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
     "safe_close":      frozenset({_LATE_ENTRY_V3_NAME}),
     "flip_hunter":     frozenset({_LATE_ENTRY_V3_NAME}),
     "weather_monitor": frozenset({_WEATHER_STRATEGY_NAME}),
+    "playbook":        frozenset({_PLAYBOOK_STRATEGY_NAME}),
 }
 
 
@@ -2741,10 +2745,17 @@ async def run_once() -> None:
         weather_strat = None
         logger.debug("weather_not_registered")
 
+    try:
+        playbook_strat = StrategyRegistry.instance().get(_PLAYBOOK_STRATEGY_NAME)
+    except KeyError:
+        playbook_strat = None
+        logger.debug("playbook_not_registered")
+
     candidates_processed = 0
     candidates_errored = 0
     late_entry_signals = 0
     weather_signals = 0
+    playbook_signals = 0
     complete_set_signals = 0
 
     for row in users:
@@ -2879,6 +2890,55 @@ async def run_once() -> None:
                         error=str(exc),
                     )
 
+        # Phase B4: PLAYBOOK sports strategy router (WARP/ROOT/playbook-live-dispatch).
+        # Gated behind the `playbook` preset AND the PLAYBOOK_STRATEGY_ENABLED operator
+        # flag (runtime overlay wins over the Fly/env default) — mirrors weather B2.
+        # PAPER-only; emitted candidates flow through the same _process_candidate +
+        # risk-gate path as every other strategy. Fail-soft: a scan error logs and
+        # the user loop continues.
+        if playbook_strat is not None and _preset_allows(active_preset, _PLAYBOOK_STRATEGY_NAME):
+            _pb_disabled = not await _runtime_config.resolve_bool(
+                "PLAYBOOK_STRATEGY_ENABLED",
+                bool(getattr(_get_settings(), "PLAYBOOK_STRATEGY_ENABLED", False)),
+            )
+            if _pb_disabled:
+                playbook_cands = []
+            else:
+                try:
+                    user_ctx = _build_user_context(row)
+                    market_filters = _build_market_filters(user_ctx.risk_profile, row)
+                    playbook_cands = await playbook_strat.scan(market_filters, user_ctx)
+                except Exception as exc:
+                    user_log.warning("playbook_strategy_run_failed", error=str(exc))
+                    playbook_cands = []
+
+            playbook_signals += len(playbook_cands)
+            _pb_zero_reason = (
+                "strategy_disabled" if _pb_disabled
+                else ("filter_or_no_match" if not playbook_cands else None)
+            )
+            user_log.info(
+                "strategy_run",
+                strategy=_PLAYBOOK_STRATEGY_NAME,
+                candidates_emitted=len(playbook_cands),
+                zero_reason=_pb_zero_reason,
+            )
+            if not playbook_cands:
+                tel.record_zero_reason(_PLAYBOOK_STRATEGY_NAME, _pb_zero_reason or "filter_or_no_match")
+            tel.candidates_emitted += len(playbook_cands)
+            for cand in playbook_cands:
+                try:
+                    await _process_candidate(row, cand, tel)
+                    candidates_processed += 1
+                except Exception as exc:
+                    candidates_errored += 1
+                    user_log.error(
+                        "signal_scan_candidate_unhandled",
+                        market_id=cand.market_id,
+                        strategy=_PLAYBOOK_STRATEGY_NAME,
+                        error=str(exc),
+                    )
+
         # Phase B3: complete-set arbitrage scan (WARP/ROOT/complete-set-arb,
         # Lane 2C-2b). Gated behind COMPLETE_SET_ARB_ENABLED (default OFF) — the
         # whole branch is dark until the operator flips the flag. Scoped to candle
@@ -2992,9 +3052,10 @@ async def run_once() -> None:
     logger.info(
         "lib_strategy_scan_done",
         scan_run_id=run_id,
-        strategies=3,  # late_entry_v3 + weather + complete_set_arb
+        strategies=4,  # late_entry_v3 + weather + playbook + complete_set_arb
         late_entry_signals=late_entry_signals,
         weather_signals=weather_signals,
+        playbook_signals=playbook_signals,
         complete_set_signals=complete_set_signals,
         candidates_emitted=tel.candidates_emitted,
         risk_approved=tel.risk_approved,

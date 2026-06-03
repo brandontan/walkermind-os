@@ -201,17 +201,13 @@ CANDLE_PRESET_KEYS: frozenset[str] = frozenset(
 )
 
 # Presets visible in the Telegram picker.
-# NOTE: `playbook` is intentionally NOT visible yet — it is registered + routable
-# (PRESET_ORDER / registry / STRATEGY_AVAILABILITY) but its live scan-loop dispatch
-# is Phase-2 (deny-by-default in signal_scan_job._PRESET_ALLOWED). Exposing it as a
-# selectable preset now would let a user activate a no-op that emits zero candidates
-# (Codex P2, PR #1567). Re-add here when WARP/ROOT/playbook-live-dispatch lands.
 VISIBLE_PRESET_ORDER: Tuple[str, ...] = (
     "candle_auto",
     "close_sweep",
     "safe_close",
     "flip_hunter",
     "weather_monitor",
+    "playbook",
 )
 
 RECOMMENDED_PRESET: str = "candle_auto"
@@ -219,13 +215,14 @@ RECOMMENDED_PRESET: str = "candle_auto"
 # Presets that are REGISTERED + routable but NOT yet user-activatable — their live
 # scan-loop dispatch is not wired (deny-by-default in signal_scan_job._PRESET_ALLOWED).
 # Activating one would persist active_preset=<key> while the scanner emits zero
-# candidates (a no-op trap). Hiding from the pickers alone is insufficient: stale
-# Telegram inline buttons and cached WebTrader clients can still hit the activation
-# path, and the backend roster still accepts the key. So activation is gated on this
-# set in EVERY entry point (WebTrader /autotrade/preset + Telegram _on_pick/_on_activate)
-# via is_activatable(). Empty this set per preset as its Phase-2 dispatch lands.
-# (Codex P2 + Gemini, PR #1570; follow-up to PR #1567.)
-HIDDEN_PRESETS: frozenset[str] = frozenset({"playbook"})
+# candidates (a no-op trap). Activation is gated on this set in EVERY entry point
+# (WebTrader /autotrade/preset + Telegram _on_pick/_on_activate) via is_activatable().
+# Add a preset here while its dispatch is unwired; remove it once Phase-2 dispatch lands.
+#
+# `playbook` was hidden in PR #1570 and re-enabled in WARP/ROOT/playbook-live-dispatch
+# once its scan dispatch (Phase B4) went live — so the set is now empty. The machinery
+# stays for the next deferred preset.
+HIDDEN_PRESETS: frozenset[str] = frozenset()
 
 
 def get_preset(key: str) -> Preset | None:

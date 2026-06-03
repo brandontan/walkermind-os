@@ -130,11 +130,10 @@ const CRYPTO_SHORT_PRESETS: readonly string[] = ["candle_auto", "close_sweep", "
 // (close_sweep / safe_close / flip_hunter) are no longer standalone cards —
 // they live inside Smart Strike as a manual "Rule" sub-picker, so the main page
 // stays uncluttered while power users can still pin one rule.
-// `playbook` intentionally omitted — it's registered + routable but its live scan
-// dispatch is Phase-2 (Codex P2, PR #1567), and backend activation is gated, so it
-// must not render as a selectable card. An ALREADY-active playbook still renders via
-// the activeNonCandle exception in the filter. Re-add when playbook-live-dispatch lands.
-const TOP_LEVEL_PRESET_KEYS: readonly string[] = ["candle_auto", "weather_monitor"];
+// `playbook` re-enabled in WARP/ROOT/playbook-live-dispatch once its scan dispatch
+// (Phase B4) went live — it renders as a top-level family card alongside Smart Strike
+// and Weather. (Dispatch itself is operator-gated by PLAYBOOK_STRATEGY_ENABLED.)
+const TOP_LEVEL_PRESET_KEYS: readonly string[] = ["candle_auto", "weather_monitor", "playbook"];
 
 // Manual rules nested under Smart Strike. "Auto" (candle_auto) is the default —
 // the router picks per candle stage; the three below pin a single rule.
