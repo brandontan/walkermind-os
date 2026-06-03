@@ -32,6 +32,13 @@ CLOSING_EDGE_FORCE_EXIT_SEC: float = 60.0  # exit window before event start
 CLOSING_EDGE_TP_PCT: float = 0.25
 CLOSING_EDGE_SL_PCT: float = 0.12
 
+# --- Sharp Money tunables (PLAYBOOK-local; calibratable by the V2 backtester) ---
+SHARP_MONEY_MIN_TTL_SEC: float = 86_400.0  # only far from event (TTL > 24h)
+SHARP_MONEY_MIN_CONFIDENCE: float = 0.20  # min sharp-imbalance confidence to claim
+SHARP_MONEY_MIN_FLOW_USDC: float = 500.0  # ignore thin sharp flow (noise floor)
+SHARP_MONEY_TP_PCT: float = 0.30
+SHARP_MONEY_SL_PCT: float = 0.15
+
 
 def _clamp01(x: float) -> float:
     return 0.0 if x < 0.0 else 1.0 if x > 1.0 else x
@@ -57,6 +64,11 @@ class MarketSnapshot:
     liquidity_usdc: float
     suggested_size_usdc: float
     cluster_key: str = "unclustered"
+    # Native sharp-money flow (Phase-2b) — top-tier wallet signed/total USDC over
+    # the lookback, sourced DB-backed in the async snapshot assembly. Default 0.0
+    # keeps evaluate_snapshot pure + Phase-1 callers/tests unchanged.
+    sharp_signed_usdc: float = 0.0
+    sharp_total_flow_usdc: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -170,7 +182,43 @@ class SharpMoneyModule(PlaybookModule):
     feed_weights = {S.SHARP_MONEY: 0.7, S.LINE_MOVEMENT: 0.3}
 
     def evaluate(self, snapshot: MarketSnapshot, bundle: SignalBundle) -> ModuleDecision:
-        return ModuleDecision.no_claim("sharp_source_not_wired_phase1")
+        # Sharp Money is an EARLY signal — only far from the event (the opposite
+        # window to Closing Edge), so the two never compete on one market.
+        if snapshot.seconds_to_event <= SHARP_MONEY_MIN_TTL_SEC:
+            return ModuleDecision.no_claim("ttl_inside_24h_window")
+
+        reading = bundle.get(S.SHARP_MONEY)
+        if reading is None or snapshot.sharp_total_flow_usdc < SHARP_MONEY_MIN_FLOW_USDC:
+            return ModuleDecision.no_claim("sharp_flow_below_floor")
+        if reading.confidence < SHARP_MONEY_MIN_CONFIDENCE:
+            return ModuleDecision.no_claim(
+                f"sharp_conf_{reading.confidence:.3f}_below_min"
+            )
+
+        # reading.value is the signed imbalance: >0 → sharps accumulating YES.
+        side = "YES" if reading.value > 0 else "NO"
+        bundle_conf = bundle.weighted_score(self.feed_weights)
+        confidence = _clamp01(0.5 * reading.confidence + 0.5 * bundle_conf)
+        return ModuleDecision(
+            claimed=True,
+            side=side,
+            confidence=confidence,
+            suggested_size_usdc=snapshot.suggested_size_usdc,
+            reasoning=(
+                f"sharp_money: {side} imbalance {reading.value:+.3f} "
+                f"(${snapshot.sharp_signed_usdc:+.0f}/${snapshot.sharp_total_flow_usdc:.0f} "
+                f"sharp flow), {snapshot.seconds_to_event / 3600:.1f}h to event"
+            ),
+            tp_pct=SHARP_MONEY_TP_PCT,
+            sl_pct=SHARP_MONEY_SL_PCT,
+            metadata={
+                "module": self.name,
+                "sharp_imbalance": round(reading.value, 4),
+                "sharp_signed_usdc": round(snapshot.sharp_signed_usdc, 2),
+                "sharp_total_flow_usdc": round(snapshot.sharp_total_flow_usdc, 2),
+                "seconds_to_event": snapshot.seconds_to_event,
+            },
+        )
 
 
 class PublicFadeModule(PlaybookModule):

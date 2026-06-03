@@ -18,12 +18,14 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from ...playbook.correlation import cluster_key
 from ...playbook.market_quality import evaluate_market_quality
 from ...playbook.modules import MarketSnapshot
 from ...playbook.router import PlaybookRouter
+from ...playbook.sharp_flow import fetch_sharp_flows
 from ...playbook.signals import compute_signal_bundle
 from ..base import BaseStrategy
 from ..types import ExitDecision, MarketFilters, SignalCandidate, UserContext
@@ -331,6 +333,21 @@ class PlaybookStrategy(BaseStrategy):
                     ),
                 )
             )
+
+        # Phase-2b: attach native sharp-money flow (top-tier wallets, DB-backed),
+        # batched once for the whole snapshot set. Fail-soft inside fetch_sharp_flows
+        # → markets with no flow keep their 0.0 defaults.
+        if snapshots:
+            flows = await fetch_sharp_flows([s.condition_id for s in snapshots])
+            if flows:
+                snapshots = [
+                    replace(
+                        s,
+                        sharp_signed_usdc=flows.get(s.condition_id, (0.0, 0.0))[0],
+                        sharp_total_flow_usdc=flows.get(s.condition_id, (0.0, 0.0))[1],
+                    )
+                    for s in snapshots
+                ]
         return snapshots
 
     def evaluate_snapshot(
@@ -372,8 +389,8 @@ class PlaybookStrategy(BaseStrategy):
             close_window_sec=_CLOSE_WINDOW_SEC,
             buy_flow_usdc=0.0,
             sell_flow_usdc=0.0,
-            sharp_signed_usdc=0.0,
-            total_flow_usdc=0.0,
+            sharp_signed_usdc=snapshot.sharp_signed_usdc,
+            total_flow_usdc=snapshot.sharp_total_flow_usdc,
         )
 
         result = self._router.route(snapshot, bundle)
