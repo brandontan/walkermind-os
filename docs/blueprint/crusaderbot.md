@@ -401,7 +401,9 @@ State-aware labels (`keyboards/__init__.py → main_menu_keyboard()`):
 KELLY_FRACTION = 0.25
 MAX_POSITION_PCT = 0.10
 MAX_CORRELATED_EXPOSURE = 0.40
-MAX_CONCURRENT_TRADES = 5
+# Max concurrent open positions is PER-USER (no global constant) — owner
+# directive 2026-06-03: effective_max_concurrent = user override, else profile
+# default (conservative 5 / balanced 12 / aggressive 20). No system ceiling.
 DAILY_LOSS_HARD_STOP = -2_000.0
 MAX_DRAWDOWN_HALT = 0.08
 MIN_LIQUIDITY = 10_000.0
@@ -424,7 +426,7 @@ PROFILE         | CONSERVATIVE   | BALANCED       | AGGRESSIVE     | CUSTOM
 ----------------|----------------|----------------|----------------|------------------
 Kelly fraction  | 0.10           | 0.20           | 0.25 (cap)     | 0.20 (floor)
 Max position %  | 3%             | 6%             | 10%            | 6% (floor)
-Max concurrent  | 3              | 5              | 5              | 5
+Max concurrent  | 5              | 12             | 20             | 12 (default; user-overridable, no global cap)
 Daily loss stop | -$200          | -$500          | -$1000         | -$500 (floor)
 Min edge req    | 4% (400bps)    | 3% (300bps)    | 2% (200bps)    | 3% (floor)
 Min liquidity   | $20k           | $15k           | $10k           | $15k (floor)
@@ -480,7 +482,7 @@ trade_intent
   ↓
 [11] dedup_check                 → idempotency key not seen in window
   ↓
-[12] concurrent_trade_check      → user has < 5 open
+[12] concurrent_trade_check      → user has < their per-user limit open (profile default or override; no global cap)
   ↓
 [13] cost_check                  → fees + slippage est ≤ expected_edge
   ↓
