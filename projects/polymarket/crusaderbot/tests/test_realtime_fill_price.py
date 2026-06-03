@@ -80,6 +80,7 @@ class _StubPosition:
         applied_sl_pct: float | None = None,
         live_mark: float = 0.0,
         force_close_intent: bool = False,
+        mode: str = "paper",
     ) -> None:
         self.side = side
         self.entry_price = entry_price
@@ -91,6 +92,7 @@ class _StubPosition:
         self.strategy_type = None
         self.resolution_at = None
         self.risk_profile = "balanced"
+        self.mode = mode
 
     def current_price(self) -> float:
         return self._mark
@@ -115,22 +117,31 @@ def test_evaluate_tp_hit_uses_live_mark_not_synthetic_yes():
     assert decision.current_price == pytest.approx(0.62)
 
 
-def test_evaluate_sl_hit_uses_live_mark_not_synthetic_yes():
-    """YES side: entry=0.50, applied_sl=0.20, live=0.35 (-30%). Synthetic
-    exit would be 0.40 (0.50 × 0.80). Live mark 0.35 must be returned.
+def test_evaluate_sl_hit_paper_caps_at_stop_live_keeps_mark():
+    """YES side: entry=0.50, applied_sl=0.20, live=0.35 (-30%, gapped past the
+    20% stop). The SL is a RISK PROMISE, so the realised loss must not exceed
+    the user's setting:
+      * PAPER -> fill capped at the stop price 0.40 (0.50 × 0.80) = -20%.
+      * LIVE  -> real mark 0.35 (honest slippage; a real SELL must be
+        marketable and we never fabricate real-money PnL).
     """
-    pos = _StubPosition(
-        side="yes",
-        entry_price=0.50,
-        applied_sl_pct=0.20,
-        applied_tp_pct=0.50,
-        live_mark=0.35,
+    paper = _StubPosition(
+        side="yes", entry_price=0.50, applied_sl_pct=0.20,
+        applied_tp_pct=0.50, live_mark=0.35, mode="paper",
     )
-    decision = asyncio.run(exit_watcher.evaluate(pos, strategy_evaluator=_noop_evaluator))
-    assert decision.should_exit
-    assert decision.reason == exit_watcher.ExitReason.SL_HIT.value
-    # Live mark, NOT synthetic 0.40
-    assert decision.current_price == pytest.approx(0.35)
+    pd = asyncio.run(exit_watcher.evaluate(paper, strategy_evaluator=_noop_evaluator))
+    assert pd.should_exit
+    assert pd.reason == exit_watcher.ExitReason.SL_HIT.value
+    assert pd.current_price == pytest.approx(0.40)  # capped at the stop, not 0.35
+
+    live = _StubPosition(
+        side="yes", entry_price=0.50, applied_sl_pct=0.20,
+        applied_tp_pct=0.50, live_mark=0.35, mode="live",
+    )
+    ld = asyncio.run(exit_watcher.evaluate(live, strategy_evaluator=_noop_evaluator))
+    assert ld.should_exit
+    assert ld.reason == exit_watcher.ExitReason.SL_HIT.value
+    assert ld.current_price == pytest.approx(0.35)  # real mark, uncapped
 
 
 def test_evaluate_distinct_markets_produce_distinct_exits():
@@ -169,6 +180,8 @@ def test_evaluate_synthetic_fallback_when_live_mark_unavailable():
     assert "_sl_exit_price" in src, (
         "Regression: _sl_exit_price fallback no longer wired in evaluate()."
     )
-    # Both branches use the new pattern: live mark first, synthetic fallback.
+    # TP branch: live mark first, synthetic fallback (unchanged).
     assert src.count("cur if cur is not None else _tp_exit_price") >= 1
-    assert src.count("cur if cur is not None else _sl_exit_price") >= 1
+    # SL branch: the stop threshold is computed up front and used as the paper
+    # cap / None-fallback (risk-promise lane — see evaluate()).
+    assert "sl_threshold_price = _sl_exit_price(" in src

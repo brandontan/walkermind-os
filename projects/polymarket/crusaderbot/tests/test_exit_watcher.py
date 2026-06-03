@@ -130,6 +130,44 @@ def test_evaluate_sl_hit_yes_side():
     assert decision.reason == ExitReason.SL_HIT.value
 
 
+def test_evaluate_sl_paper_caps_fill_at_stop_threshold():
+    """The screenshot bug: a 15-min crypto candle gaps far past the stop between
+    polls (entry 0.50 -> mark 0.1375 = -72.5%) on a 20% SL. In PAPER the exit
+    fill must be modelled at the stop price (0.50 * (1-0.20) = 0.40) so the
+    realised loss == the configured 20%, never the gapped -72.5%."""
+    p = _make_position(side="yes", entry_price=0.50, applied_sl_pct=0.20,
+                       applied_tp_pct=0.50, mode="paper")
+    decision = _run(exit_watcher.evaluate(p, live_price=0.1375))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.SL_HIT.value
+    assert decision.current_price == pytest.approx(0.40)  # stop price, not 0.1375
+    # realised loss at the capped fill == exactly the configured SL
+    realised = (decision.current_price - 0.50) / 0.50
+    assert realised == pytest.approx(-0.20)
+
+
+def test_evaluate_sl_live_keeps_real_mark_no_cap():
+    """LIVE must NOT cap: a real SELL has to be marketable and the recorded PnL
+    must reflect the real mark, not a fabricated capped fill. Honest slippage."""
+    p = _make_position(side="yes", entry_price=0.50, applied_sl_pct=0.20,
+                       applied_tp_pct=0.50, mode="live")
+    decision = _run(exit_watcher.evaluate(p, live_price=0.1375))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.SL_HIT.value
+    assert decision.current_price == pytest.approx(0.1375)  # real mark, uncapped
+
+
+def test_evaluate_sl_paper_no_side_caps_fill_at_stop_threshold():
+    """NO side, side-own frame: entry 0.50, NO token gaps to 0.20 (-60%) on a
+    20% SL. Paper caps the fill at 0.40 so realised loss == 20%."""
+    p = _make_position(side="no", entry_price=0.50, applied_sl_pct=0.20,
+                       applied_tp_pct=0.50, mode="paper")
+    decision = _run(exit_watcher.evaluate(p, live_price=0.20))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.SL_HIT.value
+    assert decision.current_price == pytest.approx(0.40)
+
+
 def test_evaluate_tp_hit_no_side():
     """NO side, side-own frame: ret = (cur - entry)/entry (the NO token's own
     price). entry=0.50 cur=0.62 -> +24% > 20% TP. (Prior YES-frame complement
@@ -898,10 +936,12 @@ def test_run_once_sl_hit_alerts_user():
         for p_ in patches:
             p_.stop()
     assert len(captured.sl_hit) == 1
-    # Realtime-fill-price lane: SL exit fill is the LIVE mark (0.32),
-    # not the synthetic threshold (`entry × (1-sl%) = 0.36`). See
-    # `domain/execution/exit_watcher.py:evaluate`.
-    assert captured.sl_hit[0]["exit_price"] == pytest.approx(0.32)
+    # Risk-promise lane: in PAPER the SL exit fill is CAPPED at the stop
+    # threshold (`entry × (1-sl%) = 0.40 × 0.90 = 0.36`), NOT the gapped live
+    # mark (0.32 = -20%). The configured 10% stop must bound the realised loss
+    # so a fast candle that gaps past the stop between polls cannot blow through
+    # the user's risk profile. See `domain/execution/exit_watcher.py:evaluate`.
+    assert captured.sl_hit[0]["exit_price"] == pytest.approx(0.36)
 
 
 def test_run_once_force_close_intent_executes_immediately():

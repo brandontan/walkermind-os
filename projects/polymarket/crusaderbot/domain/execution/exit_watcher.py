@@ -469,12 +469,42 @@ async def evaluate(
     # 3. SL — same snapshot rule. Note SL is stored as a positive magnitude;
     #    the trigger condition compares against -applied_sl_pct so a 0.10
     #    SL means "close once we are 10% in the red".
-    #    Same live-mark-over-synthetic choice as the TP branch above.
+    #
+    #    The configured SL is a RISK PROMISE: the realised loss must not exceed
+    #    applied_sl_pct. On a fast-moving candle the live mark can gap far past
+    #    the stop between polls (the 0.50 -> 0.14 "SL HIT -72.5% on a 20% stop"
+    #    symptom). So the exit fill is bounded by the stop-threshold price rather
+    #    than blindly taking the gapped live mark:
+    #      * PAPER -> fill at the stop price (standard backtest convention) so
+    #        the realised loss == the user's setting, never worse.
+    #      * LIVE  -> keep the real mark: a real SELL must fill at a marketable
+    #        price (a limit at the higher stop price would sit unfilled), and
+    #        fabricating a capped fill would misstate real-money PnL. Live
+    #        slippage is reported honestly.
+    #      * RESOLUTION (mark gapped to ~0/1) -> real terminal value, an honest
+    #        ~-100% RESOLUTION_LOSS ("you lost the bet"), never capped.
     if position.applied_sl_pct is not None and ret <= -position.applied_sl_pct:
-        exit_fill = cur if cur is not None else _sl_exit_price(
+        sl_threshold_price = _sl_exit_price(
             position.side, position.entry_price, position.applied_sl_pct,
         )
-        reason = ExitReason.RESOLUTION_LOSS.value if resolved else ExitReason.SL_HIT.value
+        if resolved:
+            # `resolved` is defined as `cur is not None and (...)` above, so cur
+            # is guaranteed non-None here — use the real terminal mark directly.
+            exit_fill = cur
+            reason = ExitReason.RESOLUTION_LOSS.value
+        else:
+            # Defensive parity with the TP branch (cur never None at runtime —
+            # current_price() falls back to entry — but the fallback is pinned
+            # by test_evaluate_synthetic_fallback so a future refactor can't
+            # surface None into the close path uncaught).
+            if cur is None:
+                exit_fill = sl_threshold_price
+            elif position.mode == "live":
+                exit_fill = cur
+            else:
+                # max(): never record a loss worse than the configured stop.
+                exit_fill = max(cur, sl_threshold_price)
+            reason = ExitReason.SL_HIT.value
         return ExitDecision(should_exit=True,
                             reason=reason,
                             current_price=exit_fill)
