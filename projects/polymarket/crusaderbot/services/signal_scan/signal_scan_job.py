@@ -1715,6 +1715,7 @@ def _build_trade_signal(
     market: dict[str, Any],
     idempotency_key: str,
     live_price_override: float | None = None,
+    module_live_eligible: bool = True,
 ) -> TradeSignal:
     """Build a typed TradeSignal from scan-loop data for TradeEngine.execute()."""
     _side = cand.side.lower()
@@ -1844,6 +1845,8 @@ def _build_trade_signal(
         # entry-forecast) so it persists on the position for the exit hook.
         # None when the candidate carries no metadata (keeps the column NULL).
         strategy_metadata=(cand.metadata or None),
+        # Robustness gate (Phase-2c-1b): False forces this trade to paper.
+        module_live_eligible=module_live_eligible,
     )
 
 
@@ -2682,12 +2685,28 @@ async def _process_candidate(
             telemetry.record_skip(_skip)
         return
 
+    # Phase-2c-1b: robustness gate. When enabled, force an UNTRADEABLE module
+    # (Monte Carlo OOS verdict) to PAPER — flows to GateContext.module_live_eligible,
+    # AND-ed into the live guards (downgrade-only, never enables live). Default OFF →
+    # eligible. Fail-soft: any error → eligible (never blocks trading on its own fault).
+    _module_live_eligible = True
+    try:
+        if bool(getattr(_get_settings(), "ROBUSTNESS_GATE_ENABLED", False)):
+            from ...domain.research.robustness import untradeable_set
+            _mod = str((cand.metadata or {}).get("selected_module") or cand.strategy_name)
+            _prof = str(row.get("resolved_profile") or "balanced")
+            _module_live_eligible = (_mod, _prof) not in await untradeable_set(mode="paper")
+    except Exception as exc:  # noqa: BLE001 — gate fault must never block trading
+        log.warning("robustness_gate_eval_failed", error=str(exc))
+        _module_live_eligible = True
+
     if _cb_enabled:
         _base_before_build = _bankroll_ema_baseline.get(_uid_str)
     try:
         signal = _build_trade_signal(
             row=row, cand=cand, market=market, idempotency_key=idem_key,
             live_price_override=_live_fill_price,
+            module_live_eligible=_module_live_eligible,
         )
     except Exception as exc:
         log.warning("trade_signal_build_failed", error=str(exc))

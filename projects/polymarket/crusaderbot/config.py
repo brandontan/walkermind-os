@@ -144,6 +144,11 @@ class Settings(BaseSettings):
     # append-only telemetry, fail-soft, no effect on trading. Apply migration 080.
     SCAN_SNAPSHOT_ENABLED: bool = False
 
+    # Phase-2c-1b: when true, an UNTRADEABLE module (Monte Carlo OOS verdict) is
+    # forced to PAPER even if all live guards otherwise pass — DOWNGRADE-ONLY, can
+    # never enable live. Default OFF → no effect. Reads module_robustness (mig 079).
+    ROBUSTNESS_GATE_ENABLED: bool = False
+
     # --- Complete-set arbitrage (WARP/ROOT/complete-set-arb epic) ---
     # Master kill switch for the complete-set arb scan + booking path. Default
     # OFF — even with the code wired (Lane 2C), nothing scans or books a set

@@ -71,6 +71,11 @@ class GateContext:
     # the size through unchanged otherwise. The scan sizes the quote within the
     # cap up front (max_shares), so a reject here means a real misconfiguration.
     complete_set: bool = False
+    # Robustness gate (Phase-2c-1b). False only when the module that produced this
+    # candidate is classified UNTRADEABLE (Monte Carlo OOS) and ROBUSTNESS_GATE_ENABLED
+    # is on. Default True → no effect. AND-ed into the live guards, so it can only
+    # DOWNGRADE a would-be live trade to paper — never enable live. Paper is unaffected.
+    module_live_eligible: bool = True
 
 
 @dataclass
@@ -205,6 +210,8 @@ def _passes_live_guards(ctx: GateContext, settings) -> bool:
         and settings.USE_REAL_CLOB
         and ctx.role == "admin"
         and ctx.trading_mode == "live"
+        # Robustness gate: an UNTRADEABLE module can only run paper (downgrade-only).
+        and ctx.module_live_eligible
     )
 
 

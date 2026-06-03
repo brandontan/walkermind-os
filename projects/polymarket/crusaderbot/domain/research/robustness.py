@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from time import monotonic
 
 import structlog
 
@@ -217,12 +218,54 @@ async def live_eligible(
     return True, cls.lower()
 
 
+# TTL-cached UNTRADEABLE set for the per-candidate live gate (Phase-2c-1b part 2).
+# The scan loop consults this once per candidate; the cache keeps it to one DB read
+# per TTL window instead of per candidate. Verdicts change at most hourly (the
+# classifier job cadence), so a short TTL is plenty fresh.
+_UNTRADEABLE_TTL_SEC: float = 300.0
+_untradeable_cache: dict[str, tuple[float, frozenset[tuple[str, str]]]] = {}
+
+
+async def untradeable_set(
+    mode: str = "paper",
+    *,
+    pool: object | None = None,
+) -> frozenset[tuple[str, str]]:
+    """Return the cached set of ``(module, risk_profile)`` classified UNTRADEABLE.
+
+    One indexed read per TTL window, shared across all candidates in a scan. The
+    live gate treats membership as "force paper". Fail-soft: on any error returns
+    an empty set (→ nothing is downgraded, i.e. no false-positive blocks).
+    """
+    now = monotonic()
+    cached = _untradeable_cache.get(mode)
+    if cached is not None and cached[0] > now:
+        return cached[1]
+    try:
+        pool = pool or get_pool()
+        async with pool.acquire() as conn:  # type: ignore[attr-defined]
+            rows = await conn.fetch(
+                """
+                SELECT module, risk_profile FROM module_robustness
+                 WHERE classification = $1 AND mode = $2
+                """,
+                Classification.UNTRADEABLE.value, mode,
+            )
+    except Exception as exc:  # noqa: BLE001 — fail-soft; empty set never over-blocks
+        logger.warning("robustness_untradeable_read_failed", error=str(exc))
+        return frozenset()
+    result = frozenset((str(r["module"]), str(r["risk_profile"])) for r in rows)
+    _untradeable_cache[mode] = (now + _UNTRADEABLE_TTL_SEC, result)
+    return result
+
+
 __all__ = [
     "Classification",
     "ModuleRobustness",
     "classify",
     "classify_modules",
     "live_eligible",
+    "untradeable_set",
     "MIN_SAMPLE_SIZE",
     "RUIN_PROB_MAX",
     "FRAGILE_STREAK",
