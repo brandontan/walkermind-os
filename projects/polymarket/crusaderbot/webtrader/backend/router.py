@@ -547,10 +547,12 @@ async def get_market_feed(user: _CurrentUser) -> list[MarketFeedItem]:
 
 
 def _tp_sl_price(entry: float, side: str, pct, *, is_tp: bool) -> Optional[float]:
-    """Derive the TP/SL trigger price (YES-price units, matching entry_price).
+    """Derive the TP/SL trigger price in the position's OWN-token price units.
 
-    Mirrors the PnL formula in domain/execution/paper.close_position: a YES
-    position profits as the price rises, a NO position as it falls. Returns None
+    Mirrors the PnL formula in domain/execution/paper.close_position: a position
+    profits when its OWN outcome token rises, so TP = entry*(1+p) and
+    SL = entry*(1-p) for BOTH sides (entry is the side's own token price).
+    YES unchanged; corrected NO frame — WARP/ROOT/no-side-pnl-frame. Returns None
     when no TP/SL fraction is set. Result clamped to (0, 1).
     """
     if pct is None:
@@ -558,12 +560,7 @@ def _tp_sl_price(entry: float, side: str, pct, *, is_tp: bool) -> Optional[float
     p = float(pct)
     if p <= 0:
         return None
-    if str(side).lower() == "no":
-        # NO profits when YES price falls; TP is below entry, SL above.
-        comp = 1.0 - entry
-        price = 1.0 - comp * (1.0 + p) if is_tp else 1.0 - comp * (1.0 - p)
-    else:
-        price = entry * (1.0 + p) if is_tp else entry * (1.0 - p)
+    price = entry * (1.0 + p) if is_tp else entry * (1.0 - p)
     return max(0.001, min(0.999, price))
 
 

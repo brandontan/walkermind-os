@@ -730,10 +730,10 @@ class TestClosePosition:
         )
         s = _settings()
         client = MockClobClient()
-        # No side: entry comp = 1-0.6 = 0.4, exit comp = 1-0.8 = 0.2
-        # ret = (0.2 - 0.4) / 0.4 = -0.5 → loss
+        # Side-own frame: the NO token is bought at entry 0.6 and the exit mark
+        # is 0.8, so ret = (0.8 - 0.6)/0.6 = +33% → profit.
         result = _run_close(conn, s, client, position=no_position)
-        assert result["pnl_usdc"] < Decimal("0")
+        assert result["pnl_usdc"] > Decimal("0")
 
     def test_close_clob_auth_error_during_construction_rolls_back_claim(self) -> None:
         """ClobAuthError from get_clob_client() during close → RuntimeError + rollback.

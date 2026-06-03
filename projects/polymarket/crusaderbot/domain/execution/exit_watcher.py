@@ -348,37 +348,41 @@ def _tp_exit_price(side: str, entry_price: float, applied_tp_pct: float) -> floa
     Prevents the polling gap from inflating P&L: a position whose market
     jumps far past TP between polls would otherwise record the full gap as
     profit. The TP target price is the fair paper-fill assumption.
+
+    Side-own price convention: ``entry_price`` and the live mark are the
+    position's OWN outcome-token price (YES token for a YES position, NO token
+    for a NO position — see ``_return_pct``). A position takes profit when its
+    own token rises, so TP is reached at ``entry * (1 + tp)`` for BOTH sides.
     """
-    if side == "yes":
-        return entry_price * (1.0 + applied_tp_pct)
-    # NO: ret = (entry - cur) / (1-entry) >= tp → cur = entry - tp*(1-entry)
-    return entry_price - applied_tp_pct * max(1.0 - entry_price, 1e-6)
+    return entry_price * (1.0 + applied_tp_pct)
 
 
 def _sl_exit_price(side: str, entry_price: float, applied_sl_pct: float) -> float:
-    """Exact price at which the SL threshold is crossed — used as fill price."""
-    if side == "yes":
-        return entry_price * (1.0 - applied_sl_pct)
-    # NO: ret = (entry - cur) / (1-entry) <= -sl → cur = entry + sl*(1-entry)
-    return entry_price + applied_sl_pct * max(1.0 - entry_price, 1e-6)
+    """Exact price at which the SL threshold is crossed — used as fill price.
+
+    Side-own convention (see ``_return_pct``): SL is reached when the position's
+    own token falls to ``entry * (1 - sl)`` for BOTH sides.
+    """
+    return entry_price * (1.0 - applied_sl_pct)
 
 
 def _return_pct(*, side: str, entry_price: float, current_price: float) -> float:
-    """Per-side P&L percentage at the current mark.
+    """P&L percentage at the current mark, in the position's OWN token frame.
 
-    YES side: (current - entry) / entry
-    NO side : ((1 - current) - (1 - entry)) / (1 - entry)
-            = (entry - current) / (1 - entry)
+    A position is "buy ``size`` USDC of the chosen outcome token at
+    ``entry_price``"; its return is simply how far that same token's price has
+    moved: ``(current - entry) / entry`` — identical for YES and NO, because
+    ``entry_price`` and ``current_price`` are always the position's OWN token
+    price (the data pipeline stores entry from the side's own price and the
+    watcher fetches the side's own ``token_id`` midpoint). YES behaviour is
+    unchanged; this is the corrected NO frame (previously a YES-denominated
+    complement that mis-signed NO P&L — WARP/ROOT/no-side-pnl-frame).
 
-    The denominators are floored so a degenerate entry at exactly 0 or 1
-    cannot produce a divide-by-zero — those are upstream-rejected by the
-    risk gate but the floor is cheap insurance.
+    ``side`` is retained for signature stability; the formula no longer
+    branches on it. ``entry_price`` is floored so a degenerate entry at exactly
+    0 cannot divide-by-zero — upstream-rejected by the risk gate, cheap insurance.
     """
-    if side == "yes":
-        return (current_price - entry_price) / max(entry_price, 1e-6)
-    comp_entry = 1.0 - entry_price
-    comp_exit = 1.0 - current_price
-    return (comp_exit - comp_entry) / max(comp_entry, 1e-6)
+    return (current_price - entry_price) / max(entry_price, 1e-6)
 
 
 async def evaluate(

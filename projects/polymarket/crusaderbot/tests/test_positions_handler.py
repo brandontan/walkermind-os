@@ -45,9 +45,9 @@ def test_unrealized_pnl_yes_at_loss():
 
 
 def test_unrealized_pnl_no_in_profit():
-    # NO position profits when mark < entry.
-    pnl, pct = positions_h._unrealized_pnl("no", entry=0.40, mark=0.30, size=80.0)
-    # 80 / 0.40 = 200 shares; (0.40 - 0.30) * 200 = 20.00
+    # Side-own frame: a NO position profits when its OWN token's mark rises.
+    pnl, pct = positions_h._unrealized_pnl("no", entry=0.40, mark=0.50, size=80.0)
+    # 80 / 0.40 = 200 shares; (0.50 - 0.40) * 200 = 20.00
     assert pnl == pytest.approx(20.0)
     assert pct == pytest.approx(25.0)
 

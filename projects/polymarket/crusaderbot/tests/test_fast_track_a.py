@@ -508,12 +508,11 @@ class TestExitWatcherTrackACloseReasons:
         assert decision.reason == ExitReason.SL_HIT.value
 
     def test_sl_hit_no_side(self):
-        """NO side: YES rising (bad for NO holder) triggers SL."""
+        """NO side, side-own frame: the NO token's own price falling triggers SL."""
         pos = _make_position(
             side="no", entry_price=0.40,
-            yes_price=0.53, no_price=0.47,
-            # comp_entry=1-0.40=0.60, comp_exit=1-0.47=0.53
-            # ret=(0.53-0.60)/0.60≈-11.7% <= -SL(10%) → SL_HIT
+            yes_price=0.65, no_price=0.35,
+            # side-own: ret=(0.35-0.40)/0.40=-12.5% <= -SL(10%) → SL_HIT
             applied_tp_pct=0.20, applied_sl_pct=0.10,
         )
         decision = asyncio.run(watcher_evaluate(pos))
@@ -590,13 +589,12 @@ class TestExitWatcherTrackACloseReasons:
         assert decision.should_exit is False
 
     def test_tp_hit_no_side(self):
-        """NO side: comp price rising (i.e. YES falls) triggers TP."""
+        """NO side, side-own frame: the NO token's own price rising triggers TP."""
         pos = _make_position(
             side="no", entry_price=0.60,
-            yes_price=0.44, no_price=0.56,
-            # comp_entry=0.40, comp_exit=0.44 → ret=(0.44-0.40)/0.40=+10% < 20% TP
+            yes_price=0.34, no_price=0.66,
+            # side-own: ret=(0.66-0.60)/0.60=+10% >= TP(5%) → TP_HIT
             applied_tp_pct=0.05, applied_sl_pct=0.20,
-            # with TP=5% and ret=10%, TP fires
         )
         decision = asyncio.run(watcher_evaluate(pos))
         assert decision.should_exit is True

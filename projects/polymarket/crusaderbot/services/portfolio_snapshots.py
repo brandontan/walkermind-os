@@ -50,10 +50,13 @@ open_agg AS (
         COUNT(*) AS open_count,
         COALESCE(SUM(
             size_usdc + CASE
-                WHEN side = 'yes' AND entry_price > 0
+                -- Side-own price frame: current_price/entry_price are the
+                -- position's OWN outcome-token price, so unrealised mark =
+                -- size * (current - entry)/entry for BOTH sides (matches
+                -- domain/execution/paper.close_position). Corrected NO frame —
+                -- WARP/ROOT/no-side-pnl-frame.
+                WHEN entry_price > 0
                     THEN size_usdc * (current_price - entry_price) / entry_price
-                WHEN side = 'no'  AND entry_price < 1
-                    THEN size_usdc * (entry_price - current_price) / (1 - entry_price)
                 ELSE 0
             END
         ), 0) AS open_mark_value
