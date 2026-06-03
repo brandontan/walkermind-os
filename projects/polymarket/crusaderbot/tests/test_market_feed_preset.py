@@ -20,19 +20,24 @@ from projects.polymarket.crusaderbot.webtrader.backend import router as r
 
 
 class _Conn:
-    """Single fake conn: fetchrow → active_preset, fetch → market rows."""
+    """Single fake conn: fetchrow → active_preset + selected_assets, fetch → rows."""
 
-    def __init__(self, preset: str | None, rows: list[dict]) -> None:
+    def __init__(
+        self, preset: str | None, rows: list[dict], assets: list[str] | None = None
+    ) -> None:
         self._preset = preset
         self._rows = rows
+        self._assets = assets
         self.queries: list[str] = []
+        self.fetch_args: list[tuple] = []
 
     async def fetchrow(self, sql, *a):
         self.queries.append(sql)
-        return {"active_preset": self._preset}
+        return {"active_preset": self._preset, "selected_assets": self._assets}
 
     async def fetch(self, sql, *a):
         self.queries.append(sql)
+        self.fetch_args.append(a)
         return self._rows
 
 
@@ -139,3 +144,41 @@ def test_sports_preset_uses_category_query():
     # generic in-category branch (ILIKE), not the crypto updown query
     assert any("category ILIKE" in q for q in conn.queries)
     assert not any("updown" in q for q in conn.queries)
+
+
+# ── crypto coin scoping (selected_assets) ─────────────────────────────────
+def _crypto_row(asset: str, price: float = 0.6) -> dict:
+    return {
+        "asset": asset,
+        "yes_price": price,
+        "liquidity_usdc": 100.0,
+        "resolution_at": datetime.now(timezone.utc) + timedelta(hours=1),
+    }
+
+
+def test_crypto_feed_scopes_to_selected_assets():
+    # User picked BTC/ETH/SOL → ANY($1) param is exactly their lowercased set.
+    conn = _Conn("candle_auto", [], assets=["BTC", "ETH", "SOL"])
+    with _patch(conn):
+        asyncio.run(r.get_market_feed(_user()))
+    assert any("ANY($1" in q for q in conn.queries)
+    assert conn.fetch_args[0][0] == ["btc", "eth", "sol"]
+
+
+def test_crypto_feed_defaults_to_btc_eth_without_selection():
+    conn = _Conn("candle_auto", [], assets=None)
+    with _patch(conn):
+        asyncio.run(r.get_market_feed(_user()))
+    assert conn.fetch_args[0][0] == ["btc", "eth"]  # _DEFAULT_CRYPTO_SHORT_ASSETS
+
+
+def test_crypto_feed_returns_selection_order():
+    # DB yields sol/btc/eth; the feed must come back in the selected order.
+    conn = _Conn(
+        "candle_auto",
+        [_crypto_row("sol"), _crypto_row("btc"), _crypto_row("eth")],
+        assets=["BTC", "ETH", "SOL"],
+    )
+    with _patch(conn):
+        feed = asyncio.run(r.get_market_feed(_user()))
+    assert [f.asset for f in feed] == ["BTC", "ETH", "SOL"]
