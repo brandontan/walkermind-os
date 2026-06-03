@@ -573,6 +573,12 @@ class Settings(BaseSettings):
     COMPLETE_SET_DELAYED_POLL_ATTEMPTS: int = 3
     COMPLETE_SET_DELAYED_POLL_INTERVAL_SEC: float = 1.0
 
+    # Lane 3C-2 crash-recovery reconciler: a complete-set order still 'pending'/
+    # 'unknown' older than STALE_SEC is a crash leftover (normal flow resolves in
+    # ms) -> reconcile it against broker truth (or halt+page on any uncertainty).
+    COMPLETE_SET_RECONCILE_STALE_SEC: int = 300
+    COMPLETE_SET_RECONCILE_INTERVAL_SEC: int = 300
+
     # --- TOB freshness gate (WARP/R00T/tob-freshness-gate) ---
     # Max age in milliseconds for the orderbook snapshot that produced
     # a candidate's metadata["entry_price"]. Read by

@@ -116,6 +116,8 @@ class OrderLifecycleManager:
                   FROM orders
                  WHERE mode = 'live'
                    AND status = ANY($1::text[])
+                   AND (strategy_type IS NULL
+                        OR strategy_type NOT LIKE 'complete_set_arb%')
                 """,
                 list(STATUS_OPEN),
             )

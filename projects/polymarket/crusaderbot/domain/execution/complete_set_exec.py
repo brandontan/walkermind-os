@@ -733,7 +733,7 @@ async def book_complete_set_live(
         # STILL non-terminal after polling -> the YES order MAY still match. Do NOT
         # send NO, do NOT report a clean kill (which could hide a later fill) ->
         # halt + reconcile so the operator confirms the true YES state.
-        await _mark_order(yes_order, "unknown",
+        await _mark_order(yes_order, "unknown", broker_id=yes_broker_id,
                           error=f"non-terminal status: {yes_res.get('status')}")
         await _mark_order(no_order, "cancelled")
         await _halt_and_alert(
@@ -815,7 +815,7 @@ async def book_complete_set_live(
         # as the NO transport-error ambiguity: do NOT auto-unwind (NO may still
         # match -> over-sell risk); persist the CONFIRMED YES leg as tracked +
         # force-exitable, halt, and raise for operator reconciliation of NO.
-        await _mark_order(no_order, "unknown",
+        await _mark_order(no_order, "unknown", broker_id=no_broker_id,
                           error=f"non-terminal status: {no_res.get('status')}")
         await _persist_naked_halt(
             pool=pool, user_id=user_id, market_id=market_id, naked_order=yes_order,
@@ -1033,7 +1033,7 @@ async def _unwind_naked_leg(
         # unknown, halt, and raise for operator reconciliation.
         log.error("complete_set_unwind_ambiguous_status", market_id=market_id,
                   status=sell_res.get("status"))
-        await _mark_order(naked_order, "unknown",
+        await _mark_order(naked_order, "unknown", broker_id=sell_broker_id,
                           error=f"unwind non-terminal status: {sell_res.get('status')}")
         await _halt_and_alert(
             reason="complete_set_unwind_ambiguous",
@@ -1311,9 +1311,150 @@ async def _halt_and_alert(*, reason: str, detail: str) -> None:
         )
 
 
+async def _reconcile_one_order(
+    order: dict, *, client: ClobClientProtocol | None, pool, settings: Any,
+) -> str:
+    """Reconcile one stale complete-set order against broker truth. Set-aware: never
+    refunds (directional logic), never silently deletes. Returns a resolution key."""
+    order_id = order["id"]
+    market_id = order["market_id"]
+    side = order["side"]
+    broker_id = str(order.get("polymarket_order_id") or "").strip()
+
+    if not broker_id or client is None:
+        # No broker id (or no client) -> cannot verify on-chain truth -> a stale
+        # complete-set order is POTENTIAL untracked exposure -> halt + page; leave
+        # the order untouched for manual reconciliation on Polymarket.
+        await _halt_and_alert(
+            reason="complete_set_reconcile_unverifiable",
+            detail=(f"Stale complete-set order <code>{order_id}</code> "
+                    f"market=<code>{market_id}</code> side={side} "
+                    f"status={order.get('status')} — no broker id to verify; "
+                    f"reconcile manually on Polymarket before resuming."),
+        )
+        return "halted"
+
+    try:
+        broker = await client.get_order(broker_id)
+        fills = await client.get_fills(broker_id)
+    except Exception as exc:  # noqa: BLE001 — cannot verify -> halt (never assume)
+        log.warning("complete_set_reconcile_query_failed",
+                    order_id=str(order_id), error=str(exc))
+        await _halt_and_alert(
+            reason="complete_set_reconcile_query_failed",
+            detail=(f"Stale complete-set order <code>{order_id}</code> "
+                    f"market=<code>{market_id}</code> — broker query FAILED; "
+                    f"reconcile manually before resuming."),
+        )
+        return "halted"
+
+    st = _fill_status(broker)
+    filled_size, fill_cost = _fills_cost(fills)
+    if st == FILL_KILLED and filled_size <= 0.0:
+        # Definitively NOT filled -> no on-chain exposure -> safe to mark terminal.
+        await _mark_order(order_id, "cancelled", broker_id=broker_id,
+                          error="reconcile: broker confirms not filled")
+        log.info("complete_set_reconcile_cancelled", order_id=str(order_id),
+                 market_id=market_id)
+        return "cancelled"
+    if st == FILL_FILLED or filled_size > 0.0:
+        # Untracked live fill -> persist as a tracked, force-exitable naked leg
+        # (exact fills) + halt + page. NEVER silently complete a set or refund.
+        size_usdc = order.get("size_usdc")
+        cost = Decimal(str(fill_cost)) if fill_cost > 0.0 else Decimal(str(size_usdc or 0))
+        entry = (round(float(cost) / filled_size, 6) if filled_size > 0.0
+                 else float(order.get("price") or 0.0))
+        await _persist_naked_halt(
+            pool=pool, user_id=order["user_id"], market_id=market_id,
+            naked_order=order_id, naked_side=side, naked_cost=cost, entry_price=entry,
+            market_question=None, active_preset=None,
+            naked_meta={"reconciled": True, "naked_leg": side, "broker_id": broker_id},
+            reason="reconcile_untracked_fill",
+        )
+        return "naked_halt"
+    # Still ambiguous (non-terminal) -> halt + page; leave for the next sweep / op.
+    await _halt_and_alert(
+        reason="complete_set_reconcile_ambiguous",
+        detail=(f"Stale complete-set order <code>{order_id}</code> "
+                f"market=<code>{market_id}</code> still non-terminal "
+                f"({broker.get('status')!r}); reconcile manually before resuming."),
+    )
+    return "halted"
+
+
+async def reconcile_complete_set_orders(
+    *, pool=None, clob_factory=None, settings: Any = None,
+) -> dict:
+    """Crash-recovery reconciler for complete-set LIVE orders (Lane 3C-2).
+
+    A complete-set order still 'pending'/'unknown' beyond the stale threshold with
+    no linked position is a crash leftover (the normal two-leg flow resolves order
+    rows in milliseconds). Each is reconciled against broker truth WITHOUT
+    directional refund logic: a confirmed non-fill is marked terminal; a confirmed
+    fill is persisted as a tracked force-exitable naked leg + halt + page; anything
+    unverifiable / ambiguous halts + pages. Paper / non-live is a no-op. Never
+    raises -> safe on a scheduler.
+    """
+    s = settings or get_settings()
+    if not bool(getattr(s, "USE_REAL_CLOB", False)):
+        return {"scanned": 0, "skipped_paper": True}
+    pool = pool or get_pool()
+    stale_sec = int(getattr(s, "COMPLETE_SET_RECONCILE_STALE_SEC", 300) or 0)
+    out = {"scanned": 0, "cancelled": 0, "naked_halt": 0, "halted": 0, "errors": 0}
+    try:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT o.id, o.user_id, o.market_id, o.side, o.size_usdc, o.price,
+                       o.polymarket_order_id, o.status, o.strategy_type
+                  FROM orders o
+                  LEFT JOIN positions p ON p.order_id = o.id
+                 WHERE o.mode = 'live'
+                   AND o.strategy_type LIKE 'complete_set_arb%'
+                   AND o.status IN ('pending', 'unknown')
+                   AND p.id IS NULL
+                   AND o.created_at < NOW() - ($1 || ' seconds')::interval
+                """,
+                str(max(0, stale_sec)),
+            )
+    except Exception as exc:  # noqa: BLE001 — scheduler job must never raise
+        log.exception("complete_set_reconcile_scan_failed", error=str(exc))
+        return {**out, "errors": 1}
+    if not rows:
+        return out
+
+    client: ClobClientProtocol | None = None
+    if clob_factory is not None:
+        try:
+            client = clob_factory(s)
+        except Exception as exc:  # noqa: BLE001 — proceed clientless -> halt+page path
+            log.error("complete_set_reconcile_client_unavailable", error=str(exc))
+            client = None
+    try:
+        for row in rows:
+            out["scanned"] += 1
+            try:
+                resolution = await _reconcile_one_order(
+                    dict(row), client=client, pool=pool, settings=s)
+                out[resolution] = out.get(resolution, 0) + 1
+            except Exception as exc:  # noqa: BLE001 — isolate one bad order
+                out["errors"] += 1
+                log.exception("complete_set_reconcile_order_failed",
+                              order_id=str(row["id"]), error=str(exc))
+    finally:
+        if client is not None:
+            try:
+                await client.aclose()
+            except Exception:  # noqa: BLE001
+                log.warning("complete_set_reconcile_client_close_failed")
+    log.info("complete_set_reconcile_sweep", **out)
+    return out
+
+
 __all__ = [
     "book_complete_set_paper",
     "book_complete_set_live",
+    "reconcile_complete_set_orders",
     "COMPLETE_SET_STRATEGY",
     "COMPLETE_SET_NAKED_STRATEGY",
 ]
