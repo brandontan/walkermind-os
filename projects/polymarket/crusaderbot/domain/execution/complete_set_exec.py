@@ -22,6 +22,7 @@ Pipeline boundary (target, Lane 2C+):
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from decimal import Decimal
 from typing import Any
@@ -481,6 +482,52 @@ async def _exact_fill_cost(
     return cost
 
 
+async def _poll_terminal_status(
+    client: ClobClientProtocol,
+    broker_id: str | None,
+    *,
+    market_id: str,
+    leg: str,
+) -> str:
+    """Resolve a non-terminal (`delayed`) accept to a terminal fill-status.
+
+    Polymarket can return ``delayed`` for a marketable order that has NOT yet
+    matched; rather than halt on the transient delay, poll ``get_order`` up to a
+    bounded budget. Returns ``FILL_FILLED`` / ``FILL_KILLED`` once terminal, or
+    ``FILL_AMBIGUOUS`` if still non-terminal / unqueryable after the budget — in
+    which case the caller takes its existing halt-and-reconcile path. A poll error
+    yields ambiguous (never a false terminal).
+    """
+    if not broker_id:
+        return FILL_AMBIGUOUS
+    s = get_settings()
+    try:
+        attempts = int(getattr(s, "COMPLETE_SET_DELAYED_POLL_ATTEMPTS", 3) or 0)
+    except (TypeError, ValueError):
+        attempts = 0
+    try:
+        interval = float(getattr(s, "COMPLETE_SET_DELAYED_POLL_INTERVAL_SEC", 1.0) or 0.0)
+    except (TypeError, ValueError):
+        interval = 0.0
+    for i in range(max(0, attempts)):
+        try:
+            order = await client.get_order(broker_id)
+        except Exception as exc:  # noqa: BLE001 — undeterminable -> ambiguous (caller halts)
+            log.warning("complete_set_delayed_poll_failed", leg=leg,
+                        market_id=market_id, attempt=i + 1, error=str(exc))
+            return FILL_AMBIGUOUS
+        st = _fill_status(order)
+        if st != FILL_AMBIGUOUS:
+            log.info("complete_set_delayed_poll_resolved", leg=leg,
+                     market_id=market_id, status=st, attempts=i + 1)
+            return st
+        if i + 1 < attempts and interval > 0:
+            await asyncio.sleep(interval)
+    log.warning("complete_set_delayed_poll_exhausted", leg=leg,
+                market_id=market_id, attempts=attempts)
+    return FILL_AMBIGUOUS
+
+
 async def book_complete_set_live(
     *,
     user_id: UUID,
@@ -669,7 +716,13 @@ async def book_complete_set_live(
             f"complete-set YES ambiguous submit (order={yes_order}): {exc}"
         ) from exc
 
+    yes_broker_id = _extract_order_id(yes_res)
     yes_fill = _fill_status(yes_res)
+    if yes_fill == FILL_AMBIGUOUS:
+        # Poll a non-terminal `delayed` YES accept to a terminal state before
+        # deciding, instead of halting on a transient delay (Lane 3C-2).
+        yes_fill = await _poll_terminal_status(
+            client, yes_broker_id, market_id=market_id, leg="yes")
     if yes_fill == FILL_KILLED:
         # FOK killed: nothing filled, NO leg never sent -> zero exposure.
         await _mark_order(yes_order, "cancelled")
@@ -677,10 +730,9 @@ async def book_complete_set_live(
         log.info("complete_set_live_yes_no_fill", market_id=market_id)
         return {"status": "no_fill", "mode": "live", "leg": "yes"}
     if yes_fill == FILL_AMBIGUOUS:
-        # Accepted but NOT terminal (e.g. `delayed`) -> the YES order MAY still
-        # match. Treat exactly like a transport-error ambiguity: do NOT send NO,
-        # do NOT report a clean kill (which could hide a later fill) -> halt +
-        # reconcile so the operator confirms the true YES state on Polymarket.
+        # STILL non-terminal after polling -> the YES order MAY still match. Do NOT
+        # send NO, do NOT report a clean kill (which could hide a later fill) ->
+        # halt + reconcile so the operator confirms the true YES state.
         await _mark_order(yes_order, "unknown",
                           error=f"non-terminal status: {yes_res.get('status')}")
         await _mark_order(no_order, "cancelled")
@@ -694,8 +746,6 @@ async def book_complete_set_live(
             f"complete-set YES non-terminal status "
             f"({yes_res.get('status')!r}, order={yes_order})"
         )
-
-    yes_broker_id = _extract_order_id(yes_res)
 
     # --- Leg 2: NO FOK -------------------------------------------------------
     try:
@@ -740,7 +790,14 @@ async def book_complete_set_live(
             f"tracked as naked): {exc}"
         ) from exc
 
+    no_broker_id = _extract_order_id(no_res)
     no_fill = _fill_status(no_res)
+    if no_fill == FILL_AMBIGUOUS:
+        # Poll a non-terminal `delayed` NO accept to terminal before deciding
+        # (Lane 3C-2); the NO leg is the last submission, so the poll adds no
+        # cross-leg latency. Still non-terminal -> persist naked YES + halt below.
+        no_fill = await _poll_terminal_status(
+            client, no_broker_id, market_id=market_id, leg="no")
     if no_fill == FILL_KILLED:
         # NO killed, YES filled -> YES is naked -> auto-unwind.
         await _mark_order(no_order, "cancelled")
@@ -773,7 +830,6 @@ async def book_complete_set_live(
             f"({no_res.get('status')!r}, yes={yes_order}, tracked as naked)"
         )
 
-    no_broker_id = _extract_order_id(no_res)
 
     # --- Both legs filled: persist the linked pair atomically ----------------
     # Exact-fill reconciliation (Lane 3C-2): book the broker's ACTUAL weighted fill
@@ -964,12 +1020,17 @@ async def _unwind_naked_leg(
             f"complete-set unwind ambiguous ({market_id}, {naked_side}): {exc}"
         ) from exc
 
+    sell_broker_id = _extract_order_id(sell_res)
     sell_fill = _fill_status(sell_res)
     if sell_fill == FILL_AMBIGUOUS:
-        # SELL accepted but NOT terminal (e.g. `delayed`) -> it may still match and
-        # flatten the leg. We cannot assert it is still naked, so (as with the
-        # transport-error ambiguity above) do NOT persist a re-sellable position —
-        # mark unknown, halt, and raise for operator reconciliation.
+        # Poll a non-terminal `delayed` unwind SELL to terminal before deciding
+        # (Lane 3C-2): a resolved fill -> flat, a resolved kill -> persist naked halt.
+        sell_fill = await _poll_terminal_status(
+            client, sell_broker_id, market_id=market_id, leg=f"{naked_side}-unwind")
+    if sell_fill == FILL_AMBIGUOUS:
+        # STILL non-terminal -> it may still match and flatten the leg. We cannot
+        # assert it is still naked, so do NOT persist a re-sellable position — mark
+        # unknown, halt, and raise for operator reconciliation.
         log.error("complete_set_unwind_ambiguous_status", market_id=market_id,
                   status=sell_res.get("status"))
         await _mark_order(naked_order, "unknown",
@@ -997,7 +1058,7 @@ async def _unwind_naked_leg(
     # limit or better, so the weighted value over the consumed bids is what the SELL
     # actually returns; crediting the bare limit would permanently understate the
     # wallet on every unwind).
-    unwind_broker_id = _extract_order_id(sell_res)
+    unwind_broker_id = sell_broker_id
     # Exact-fill (Lane 3C-2 / M-2): credit the broker's ACTUAL weighted SELL proceeds
     # rather than the pre-submit bid-walk estimate; fall back to the estimate when
     # fills are unavailable.

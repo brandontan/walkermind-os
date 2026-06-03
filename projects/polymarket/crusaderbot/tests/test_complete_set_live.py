@@ -135,11 +135,18 @@ class FakeClob:
     """
 
     def __init__(
-        self, results: list[Any], *, fills: dict[str, list[dict]] | None = None,
+        self,
+        results: list[Any],
+        *,
+        fills: dict[str, list[dict]] | None = None,
+        order_status: dict[str, list[dict]] | None = None,
     ) -> None:
         self._results = list(results)
         self.calls: list[dict] = []
         self._fills = dict(fills or {})
+        # order_id -> successive get_order() statuses; the LAST entry sticks so a
+        # 1-element list models "stays in this status across every poll".
+        self._order_status = {k: list(v) for k, v in (order_status or {}).items()}
 
     async def post_order(self, **kwargs: Any) -> dict:
         self.calls.append(kwargs)
@@ -150,6 +157,16 @@ class FakeClob:
 
     async def get_fills(self, order_id: str) -> list[dict]:
         return list(self._fills.get(order_id, []))
+
+    async def get_order(self, order_id: str) -> dict:
+        seq = self._order_status.get(order_id)
+        if not seq:
+            return {"orderID": order_id, "status": "not_found"}
+        return seq.pop(0) if len(seq) > 1 else seq[0]
+
+
+async def _noop_sleep(*_a: Any, **_k: Any) -> None:
+    return None
 
 
 class FakeMDC:
@@ -198,6 +215,9 @@ def _patch_io(monkeypatch, halts, alerts):
     monkeypatch.setattr(cse.notifications, "notify_operator", _notify_operator)
     monkeypatch.setattr(cse.kill_switch, "set_active", _set_active)
     monkeypatch.setattr(cse, "get_settings", lambda: object())
+    # delayed->terminal poll uses asyncio.sleep between attempts; no-op it so the
+    # poll resolves instantly in tests (interval falls back to 1.0s otherwise).
+    monkeypatch.setattr(cse.asyncio, "sleep", _noop_sleep)
 
 
 def _use_conn(monkeypatch, conn: FakeConn) -> None:
@@ -287,6 +307,67 @@ async def test_exact_fill_falls_back_to_estimate_on_incomplete_fills(monkeypatch
     by_side = {args[3]: args for args in conn.position_inserts}
     assert float(by_side["yes"][4]) == 45.0  # estimate kept (short fill ignored)
     assert float(by_side["no"][4]) == 50.0
+
+
+async def test_yes_delayed_polls_to_matched_then_both_fill(monkeypatch) -> None:
+    # YES returns non-terminal `delayed`; the poll resolves it to matched, so the
+    # NO leg proceeds and the pair books — instead of halting on a transient delay.
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    monkeypatch.setattr(cse.asyncio, "sleep", _noop_sleep)
+    clob = FakeClob(
+        [DELAYED, FILL],
+        order_status={"ord-delayed": [{"orderID": "ord-delayed", "status": "matched"}]},
+    )
+    res = await _book_live(conn, clob)
+    assert res["status"] == "open"
+    assert len(clob.calls) == 2  # NO leg WAS sent after the YES delay resolved
+    assert len(conn.position_inserts) == 2
+
+
+async def test_no_delayed_polls_to_killed_then_unwinds(monkeypatch) -> None:
+    # NO returns `delayed`; the poll resolves it to unmatched (killed) -> YES is
+    # naked -> auto-unwind (the SELL then fills) -> flat.
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    monkeypatch.setattr(cse.asyncio, "sleep", _noop_sleep)
+    clob = FakeClob(
+        [FILL, DELAYED, FILL],  # yes fill, no delayed, unwind sell fill
+        order_status={"ord-delayed": [{"orderID": "ord-delayed", "status": "unmatched"}]},
+    )
+    res = await _book_live(conn, clob)
+    assert res["status"] == "unwound"
+    assert len(clob.calls) == 3  # YES + NO + unwind SELL
+
+
+async def test_yes_delayed_stays_ambiguous_halts(monkeypatch, halts) -> None:
+    # YES stays `delayed` across the whole poll budget -> halt + reconcile, NO never
+    # sent (we must not send the NO leg while the YES state is unknown).
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    monkeypatch.setattr(cse.asyncio, "sleep", _noop_sleep)
+    clob = FakeClob(
+        [DELAYED],
+        order_status={"ord-delayed": [{"orderID": "ord-delayed", "status": "delayed"}]},
+    )
+    with pytest.raises(LivePostSubmitError, match="non-terminal status"):
+        await _book_live(conn, clob)
+    assert len(clob.calls) == 1  # NO leg never submitted
+    assert halts and halts[0]["action"] == "pause"
+
+
+async def test_unwind_delayed_polls_to_matched_then_flat(monkeypatch) -> None:
+    # Unwind SELL returns `delayed`; the poll resolves it to matched -> flat.
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    monkeypatch.setattr(cse.asyncio, "sleep", _noop_sleep)
+    clob = FakeClob(
+        [FILL, KILL, DELAYED],  # yes fill, no kill -> unwind SELL delayed
+        order_status={"ord-delayed": [{"orderID": "ord-delayed", "status": "matched"}]},
+    )
+    res = await _book_live(conn, clob)
+    assert res["status"] == "unwound"
+    assert conn.position_inserts == []  # flat — no naked position persisted
 
 
 async def test_unwind_exact_fill_proceeds(monkeypatch) -> None:

@@ -567,6 +567,12 @@ class Settings(BaseSettings):
     # safe_close, flip_hunter); signal_following / copy_trade bypass.
     MIN_COMPLETE_SET_EDGE: float = 0.0  # env: MIN_COMPLETE_SET_EDGE — 0 disables gate
 
+    # Lane 3C-2: bound the poll of a Polymarket `delayed` (non-terminal) complete-set
+    # FOK accept before halting, so a transient delay resolves to matched/unmatched
+    # instead of forcing an operator halt. 0 attempts -> halt immediately (legacy).
+    COMPLETE_SET_DELAYED_POLL_ATTEMPTS: int = 3
+    COMPLETE_SET_DELAYED_POLL_INTERVAL_SEC: float = 1.0
+
     # --- TOB freshness gate (WARP/R00T/tob-freshness-gate) ---
     # Max age in milliseconds for the orderbook snapshot that produced
     # a candidate's metadata["entry_price"]. Read by
