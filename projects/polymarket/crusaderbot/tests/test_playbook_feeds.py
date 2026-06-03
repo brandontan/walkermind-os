@@ -338,6 +338,30 @@ def test_parse_espn_injury_skips_stale_and_unknown():
     assert parse_espn_injury_payload(payload, "m1", yes_favored=True, now_epoch=now) is None
 
 
+def test_parse_espn_injury_skips_missing_timestamp():
+    # A record with a valid status but no/garbled date must NOT read as fresh.
+    now = time.time()
+    payload = {"injuries": [{"status": "Out"}, {"status": "Doubtful", "date": "not-a-date"}]}
+    assert parse_espn_injury_payload(payload, "m1", yes_favored=True, now_epoch=now) is None
+
+
+def test_parsers_tolerate_non_dict_payload():
+    # A list / string / None payload (API error shape) must never raise.
+    for bad in ([], ["x"], "error", None, 0):
+        assert parse_oddsapi_model_probability(bad, yes_outcome_name="Lakers", side="YES") is None
+        assert parse_oddsapi_public_flow(
+            bad, "m1", yes_outcome_name="Lakers",
+            public_book="draftkings", sharp_book="pinnacle",
+        ) is None
+        assert parse_espn_injury_payload(bad, "m1", yes_favored=True, now_epoch=time.time()) is None
+
+
+def test_oddsapi_parsers_tolerate_missing_book_key():
+    # A bookmaker dict without a "key" field must not raise (KeyError guard).
+    payload = {"bookmakers": [{"markets": [{"key": "h2h", "outcomes": []}]}]}
+    assert parse_oddsapi_model_probability(payload, yes_outcome_name="Lakers", side="YES") is None
+
+
 def _iso(epoch: float) -> str:
     from datetime import datetime, timezone
     return datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat().replace("+00:00", "Z")

@@ -114,7 +114,9 @@ def _book_outcome_price(
     payload: dict[str, Any], book_key: str, outcome_name: str
 ) -> float | None:
     """Decimal price for ``outcome_name`` in ``book_key``'s h2h market, or None."""
-    for bk in (payload or {}).get("bookmakers") or []:
+    if not isinstance(payload, dict):
+        return None
+    for bk in payload.get("bookmakers") or []:
         if not isinstance(bk, dict) or str(bk.get("key", "")).lower() != book_key.lower():
             continue
         for mkt in bk.get("markets") or []:
@@ -131,7 +133,9 @@ def _book_outcome_price(
 
 def _two_way_names(payload: dict[str, Any], book_key: str) -> list[str]:
     """Ordered outcome names of ``book_key``'s h2h market (for the other side)."""
-    for bk in (payload or {}).get("bookmakers") or []:
+    if not isinstance(payload, dict):
+        return []
+    for bk in payload.get("bookmakers") or []:
         if not isinstance(bk, dict) or str(bk.get("key", "")).lower() != book_key.lower():
             continue
         for mkt in bk.get("markets") or []:
@@ -150,18 +154,19 @@ def parse_oddsapi_model_probability(
     or NO (its complement). Returns None when no book quotes a clean two-way.
     """
     s = (side or "").strip().upper()
-    if s not in ("YES", "NO") or not yes_outcome_name:
+    if s not in ("YES", "NO") or not yes_outcome_name or not isinstance(payload, dict):
         return None
     fair_yes: list[float] = []
-    for bk in (payload or {}).get("bookmakers") or []:
+    for bk in payload.get("bookmakers") or []:
         if not isinstance(bk, dict):
             continue
-        names = _two_way_names(payload, str(bk.get("key", "")))
+        book_key = str(bk.get("key", ""))
+        names = _two_way_names(payload, book_key)
         if len(names) != 2:
             continue
         other = next((n for n in names if n.lower() != yes_outcome_name.lower()), "")
-        p_yes = decimal_to_implied(_book_outcome_price(payload, str(bk["key"]), yes_outcome_name))
-        p_oth = decimal_to_implied(_book_outcome_price(payload, str(bk["key"]), other))
+        p_yes = decimal_to_implied(_book_outcome_price(payload, book_key, yes_outcome_name))
+        p_oth = decimal_to_implied(_book_outcome_price(payload, book_key, other))
         if p_yes is None or p_oth is None:
             continue
         devig = devig_two_way(p_yes, p_oth)
@@ -223,15 +228,17 @@ def parse_espn_injury_payload(
     than ``max_age_sec`` or with an unknown status are ignored. Returns the single
     highest-severity in-window event, or None.
     """
+    if not isinstance(payload, dict):
+        return None
     records: list[dict[str, Any]] = []
-    raw = (payload or {}).get("injuries")
+    raw = payload.get("injuries")
     if isinstance(raw, list):
         for entry in raw:
             if isinstance(entry, dict) and isinstance(entry.get("injuries"), list):
                 records.extend(e for e in entry["injuries"] if isinstance(e, dict))
             elif isinstance(entry, dict):
                 records.append(entry)
-    if not records and isinstance((payload or {}).get("items"), list):
+    if not records and isinstance(payload.get("items"), list):
         records = [e for e in payload["items"] if isinstance(e, dict)]
 
     best: InjuryEvent | None = None
@@ -243,9 +250,10 @@ def parse_espn_injury_payload(
         severity = _ESPN_STATUS_SEVERITY.get(status, 0.0)
         if severity <= 0.0:
             continue
+        # Require a parseable, in-window timestamp — a missing/garbled date must
+        # not be treated as brand-new (that would let a stale injury read fresh).
         ts = _parse_epoch(rec.get("date") or rec.get("updated") or rec.get("lastModified"))
-        age = now_epoch - ts if ts is not None else 0.0
-        if ts is not None and age > max_age_sec:
+        if ts is None or now_epoch - ts > max_age_sec:
             continue
         if severity > best_sev:
             athlete = rec.get("athlete") or {}
@@ -255,7 +263,7 @@ def parse_espn_injury_payload(
                 market_id=market_id,
                 headline=headline[:200],
                 severity=severity,
-                detected_ts_epoch=ts if ts is not None else now_epoch,
+                detected_ts_epoch=ts,
                 yes_favored=yes_favored,
                 repriced_fraction=0.0,
             )
