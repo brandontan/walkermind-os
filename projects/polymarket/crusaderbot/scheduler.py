@@ -45,6 +45,7 @@ from .services.signal_scan import signal_scan_job as sf_scan_job
 from .services.copy_trade import monitor as copy_trade_monitor
 from .services.copy_trade import realtime_fast_track as copy_trade_fast_track
 from .services.copy_trade import leaderboard_sync
+from .domain.research import robustness as robustness_classifier
 from .services.redeem import hourly_worker as redeem_hourly_worker
 from .services.redeem import redeem_router
 from .services import portfolio_snapshots
@@ -1012,6 +1013,17 @@ def setup_scheduler() -> AsyncIOScheduler:
             copy_trade_fast_track.run_once, "interval",
             seconds=int(getattr(s, "HEISENBERG_FAST_TRACK_INTERVAL_SEC", 30)),
             id=copy_trade_fast_track.JOB_ID,
+            max_instances=1, coalesce=True,
+        )
+    # Phase-2c-1b: periodic Monte Carlo robustness classification (module_robustness).
+    # Registered only when the flag is on; pure read-side analytics over closed
+    # positions, fail-soft. No effect on trading — the live-eligibility gate it
+    # feeds is a separate, deliberately-scoped follow-up.
+    if getattr(s, "ROBUSTNESS_CLASSIFY_ENABLED", False):
+        sched.add_job(
+            robustness_classifier.run_job, "interval",
+            seconds=int(getattr(s, "ROBUSTNESS_CLASSIFY_INTERVAL_SEC", 3600)),
+            id=robustness_classifier.ROBUSTNESS_JOB_ID,
             max_instances=1, coalesce=True,
         )
     sched.add_job(check_exits, "interval", seconds=s.EXIT_WATCH_INTERVAL,
