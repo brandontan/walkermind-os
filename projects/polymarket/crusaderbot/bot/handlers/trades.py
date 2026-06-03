@@ -134,16 +134,17 @@ async def _fetch_mark_price(token_id: str | None) -> float | None:
     return bid if bid is not None else ask
 
 
-def _paper_pnl(side: str, entry: float, mark: float, size_usdc: float) -> tuple[float, float]:
+def _paper_pnl(side: str, entry: float, mark: float | None, size_usdc: float) -> tuple[float, float]:
     """Return (pnl_usdc, pnl_pct) matching paper.py formula."""
-    if entry <= 0:
+    # Callers gate on `mark is not None`; this guard keeps the helper crash-safe
+    # for any other caller (mark - entry would raise on a None mark).
+    if mark is None or entry <= 0:
         return 0.0, 0.0
-    if side == "yes":
-        ret_pct = (mark - entry) / max(entry, 1e-6)
-    else:
-        comp_entry = 1 - entry
-        comp_exit = 1 - mark
-        ret_pct = (comp_exit - comp_entry) / max(comp_entry, 1e-6)
+    # Side-own price frame: entry/mark are the position's OWN outcome-token
+    # price, so return = (mark - entry)/entry for BOTH sides (matches
+    # paper.close_position). YES unchanged; corrected NO frame —
+    # WARP/ROOT/no-side-pnl-frame.
+    ret_pct = (mark - entry) / max(entry, 1e-6)
     pnl = size_usdc * ret_pct
     pct = ret_pct * 100.0
     return pnl, pct

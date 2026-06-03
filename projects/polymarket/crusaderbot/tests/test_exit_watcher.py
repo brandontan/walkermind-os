@@ -131,11 +131,11 @@ def test_evaluate_sl_hit_yes_side():
 
 
 def test_evaluate_tp_hit_no_side():
-    """NO side P&L: (entry - cur)/(1-entry). entry=0.60 cur=0.50 -> +25%."""
-    p = _make_position(side="no", entry_price=0.60,
-                       yes_price=0.50, no_price=0.50,
-                       applied_tp_pct=0.20)
-    decision = _run(exit_watcher.evaluate(p))
+    """NO side, side-own frame: ret = (cur - entry)/entry (the NO token's own
+    price). entry=0.50 cur=0.62 -> +24% > 20% TP. (Prior YES-frame complement
+    mis-signed this — WARP/ROOT/no-side-pnl-frame.)"""
+    p = _make_position(side="no", entry_price=0.50, applied_tp_pct=0.20)
+    decision = _run(exit_watcher.evaluate(p, live_price=0.62))
     assert decision.should_exit
     assert decision.reason == ExitReason.TP_HIT.value
 
@@ -159,34 +159,40 @@ def test_evaluate_force_close_intent_overrides_sl():
 
 
 def test_evaluate_resolution_win_relabel_when_price_gapped_to_settlement():
-    """NO entry 0.69, TP +30%; live mark gapped to 0.015 (YES resolved → ~0).
+    """NO entry 0.69, TP +30%; NO token gapped to ~1.0 (NO won at resolution).
 
-    The +217% return crosses TP, but the mark is at a resolution extreme, so the
-    close must be labelled resolution_win — NOT tp_hit (which would falsely imply
-    a clean +30% take-profit).
+    Side-own frame: a NO position wins when its OWN token settles to ~$1. The
+    +43% return crosses TP, but the mark is at a resolution extreme, so the close
+    must be labelled resolution_win — NOT tp_hit (which would falsely imply a
+    clean +30% take-profit).
     """
     p = _make_position(side="no", entry_price=0.69, applied_tp_pct=0.30)
-    decision = _run(exit_watcher.evaluate(p, live_price=0.015))
+    decision = _run(exit_watcher.evaluate(p, live_price=0.985))
     assert decision.should_exit
     assert decision.reason == ExitReason.RESOLUTION_WIN.value
-    assert decision.current_price == pytest.approx(0.015)
+    assert decision.current_price == pytest.approx(0.985)
 
 
 def test_evaluate_tp_hit_not_relabeled_when_not_resolved():
-    """Same NO position, but mark 0.55 (still trading): genuine TP, stays tp_hit."""
-    p = _make_position(side="no", entry_price=0.69, applied_tp_pct=0.30)
-    decision = _run(exit_watcher.evaluate(p, live_price=0.55))
+    """NO position, mark mid-book (0.70, still trading): genuine TP, stays tp_hit.
+
+    Side-own frame: entry 0.50, mark 0.70 -> +40% TP; 0.70 is not a resolution
+    extreme (<=0.02 or >=0.98), so it stays tp_hit.
+    """
+    p = _make_position(side="no", entry_price=0.50, applied_tp_pct=0.20)
+    decision = _run(exit_watcher.evaluate(p, live_price=0.70))
     assert decision.should_exit
     assert decision.reason == ExitReason.TP_HIT.value
 
 
 def test_evaluate_resolution_loss_relabel_when_price_gapped_to_settlement():
-    """NO entry 0.69, SL -20%; mark gapped to 0.995 (YES resolved → ~1) → loss.
+    """NO entry 0.69, SL -20%; NO token gapped to ~0 (NO lost at resolution) → loss.
 
+    Side-own frame: a NO position loses when its OWN token settles to ~$0.
     Labelled resolution_loss, not sl_hit.
     """
     p = _make_position(side="no", entry_price=0.69, applied_sl_pct=0.20)
-    decision = _run(exit_watcher.evaluate(p, live_price=0.995))
+    decision = _run(exit_watcher.evaluate(p, live_price=0.015))
     assert decision.should_exit
     assert decision.reason == ExitReason.RESOLUTION_LOSS.value
 

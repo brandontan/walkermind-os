@@ -97,22 +97,22 @@ async def _fetch_mark_price(token_id: Optional[str]) -> Optional[float]:
     return best_bid if best_bid is not None else best_ask
 
 
-def _unrealized_pnl(side: str, entry: float, mark: float, size: float) -> tuple[float, float]:
+def _unrealized_pnl(side: str, entry: float, mark: float | None, size: float) -> tuple[float, float]:
     """Return (pnl_usdc, pnl_pct).
 
-    YES: pnl = (mark - entry) * size_in_shares
-    NO : pnl = (entry - mark) * size_in_shares
-
-    ``size`` is stored as USDC notional at entry, so size_in_shares = size / entry.
+    Side-own price frame: ``entry`` and ``mark`` are the position's OWN
+    outcome-token price (YES token for YES, NO token for NO), so a position
+    profits when its own token rises: pnl = (mark - entry) * size_in_shares for
+    BOTH sides. ``size`` is USDC notional at entry, so size_in_shares = size/entry.
+    YES unchanged; corrected NO frame — WARP/ROOT/no-side-pnl-frame.
     Pct uses ``size`` (USDC notional) as the denominator.
     """
-    if entry <= 0:
+    # The caller already shows "price unavailable" for a None mark; this guard
+    # keeps the helper crash-safe for any other caller (mark - entry would raise).
+    if mark is None or entry <= 0:
         return 0.0, 0.0
     shares = size / entry
-    if side == "yes":
-        pnl = (mark - entry) * shares
-    else:
-        pnl = (entry - mark) * shares
+    pnl = (mark - entry) * shares
     pct = (pnl / size) * 100.0 if size > 0 else 0.0
     return pnl, pct
 

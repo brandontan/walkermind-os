@@ -108,12 +108,11 @@ async def close_position(*, position: dict, exit_price: float,
     size = Decimal(str(position["size_usdc"]))
     entry = float(position["entry_price"])
     side = position["side"]
-    if side == "yes":
-        ret_pct = (exit_price - entry) / max(entry, 1e-6)
-    else:
-        comp_entry = 1 - entry
-        comp_exit = 1 - exit_price
-        ret_pct = (comp_exit - comp_entry) / max(comp_entry, 1e-6)
+    # Side-own price frame: entry_price and exit_price are the position's OWN
+    # outcome-token price, so the return on the bought token is (exit - entry)/entry
+    # for BOTH sides (matches exit_watcher._return_pct). YES unchanged; corrected
+    # NO frame — WARP/ROOT/no-side-pnl-frame.
+    ret_pct = (exit_price - entry) / max(entry, 1e-6)
     pnl = size * Decimal(str(ret_pct))
     proceeds = size + pnl
 
