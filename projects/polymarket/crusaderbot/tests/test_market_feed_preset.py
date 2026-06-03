@@ -137,13 +137,59 @@ def test_no_preset_defaults_to_crypto():
     assert any("updown" in q for q in conn.queries)
 
 
-def test_sports_preset_uses_category_query():
+def test_sports_preset_uses_live_gamma_feed():
+    # Playbook now sources the REAL upcoming sports board from Polymarket Gamma,
+    # decoupled from the narrow trade-window DB sync (WARP/ROOT/dashboard-ux). It
+    # must NOT fall back to the crypto updown query or the DB category query.
+    r._SPORTS_FEED_CACHE.update({"at": 0.0, "items": []})
+    r._SPORTS_FEED_IN_PROGRESS.clear()
+    gamma = [
+        {
+            "slug": "nfl-buf-kc-2026",
+            "question": "Will the Bills beat the Chiefs?",
+            "category": "Sports, NFL",
+            "outcomePrices": ["0.55", "0.45"],
+            "liquidity": 25000.0,
+            "gameStartTime": (datetime.now(timezone.utc) + timedelta(days=2)).isoformat(),
+        },
+        {
+            "slug": "nba-lal-bos-2026",
+            "question": "Will the Lakers beat the Celtics?",
+            "category": "Sports, NBA",
+            "outcomePrices": ["0.40", "0.60"],
+            "liquidity": 12000.0,
+            "endDate": (datetime.now(timezone.utc) + timedelta(hours=5)).isoformat(),
+        },
+        # Past event — excluded (already started/closed).
+        {
+            "slug": "mlb-nyy-bos-2025",
+            "question": "Old game",
+            "category": "Sports, MLB",
+            "outcomePrices": ["0.50", "0.50"],
+            "liquidity": 5000.0,
+            "endDate": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+        },
+        # Non-sports — excluded by category filter.
+        {
+            "slug": "scotus-ruling-2026",
+            "question": "SCOTUS ruling?",
+            "category": "Politics",
+            "outcomePrices": ["0.50", "0.50"],
+            "liquidity": 9000.0,
+            "endDate": (datetime.now(timezone.utc) + timedelta(days=10)).isoformat(),
+        },
+    ]
+
+    async def _fake_gamma(limit: int = 200):
+        return gamma
+
     conn = _Conn("playbook", [])
-    with _patch(conn):
-        asyncio.run(r.get_market_feed(_user()))
-    # generic in-category branch (ILIKE), not the crypto updown query
-    assert any("category ILIKE" in q for q in conn.queries)
-    assert not any("updown" in q for q in conn.queries)
+    with _patch(conn), patch.object(r._polymarket, "get_events_with_markets", _fake_gamma):
+        feed = asyncio.run(r.get_market_feed(_user()))
+    # Only upcoming sports markets, nearest-event first (NBA 5h before NFL 2d).
+    assert [f.asset for f in feed] == ["NBA", "NFL"]
+    assert not any("updown" in q for q in conn.queries)         # never the crypto query
+    assert not any("category ILIKE" in q for q in conn.queries)  # not the DB category feed
 
 
 # ── crypto coin scoping (selected_assets) ─────────────────────────────────

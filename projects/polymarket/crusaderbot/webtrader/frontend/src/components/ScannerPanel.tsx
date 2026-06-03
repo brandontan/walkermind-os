@@ -14,6 +14,18 @@ const TONE: Record<Tone, string> = {
 /* ── formatting helpers ───────────────────────────────────────────────── */
 function fmtSecs(s: number): string {
   if (s <= 0) return "closing";
+  // Sports markets resolve days out — show human "Nd Hh" / "Hh Mm" rather than a
+  // five-digit minute count (e.g. "82533m"). Crypto candles stay in "Mm Ss".
+  if (s >= 86_400) {
+    const d = Math.floor(s / 86_400);
+    const h = Math.floor((s % 86_400) / 3_600);
+    return h > 0 ? `${d}d ${h}h` : `${d}d`;
+  }
+  if (s >= 3_600) {
+    const h = Math.floor(s / 3_600);
+    const m = Math.floor((s % 3_600) / 60);
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
   const m = Math.floor(s / 60);
   return m > 0 ? `${m}m ${s % 60}s` : `${s % 60}s`;
 }
@@ -190,6 +202,123 @@ function SignalCarousel({ signals }: { signals: FeedSignal[] }) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════
+   MARKET ROW + CAROUSEL — feed of MarketFeedItem[]
+   A static list reads fine up to a handful of rows; past that it scrolls the
+   panel. Beyond MARKET_PAGE_SIZE we page the feed into an auto-advancing
+   carousel (mirrors SignalCarousel) so the panel height stays fixed.
+══════════════════════════════════════════════════════════════════════ */
+const MARKET_PAGE_SIZE = 5;
+const MARKET_ADVANCE_MS = 4200;
+
+function MarketRow({ it }: { it: MarketFeedItem }) {
+  const pct = Math.round(it.up_prob * 100);
+  const c = LEAN_VAR[it.lean];
+  return (
+    <div className="flex items-center gap-2 px-3.5 py-1" style={{ borderTop: "1px solid rgba(255,255,255,.03)" }}>
+      <span className="font-hud text-[8px] font-bold tracking-[1.5px] text-ink-3 w-[38px] flex-shrink-0">{it.asset}</span>
+      <span className="font-mono text-[11px] font-bold w-3.5 flex-shrink-0" style={{ color: c }}>{LEAN_ARROW[it.lean]}</span>
+      <div className="flex-1 relative h-[3px]" style={{ background: "rgba(255,255,255,.06)" }}>
+        <div className="absolute left-0 top-0 h-full transition-all duration-700" style={{ width: `${pct}%`, background: c, boxShadow: `0 0 4px ${c}` }} />
+      </div>
+      <span className="font-mono text-[10px] font-bold w-8 text-right flex-shrink-0" style={{ color: c }}>{pct}%</span>
+      <span className="font-mono text-[9px] text-ink-4 w-[46px] text-right flex-shrink-0">{fmtSecs(it.seconds_to_close)}</span>
+      <span className="font-mono text-[9px] text-ink-4 w-[38px] text-right flex-shrink-0">{fmtLiq(it.liquidity_usdc)}</span>
+    </div>
+  );
+}
+
+function MarketCarousel({ feed }: { feed: MarketFeedItem[] }) {
+  const pageCount = Math.ceil(feed.length / MARKET_PAGE_SIZE);
+  const [idx, setIdx] = useState(0);
+  const [dir, setDir] = useState(1);
+  const [animKey, setAnimKey] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const prevPages = useRef(pageCount);
+
+  // Reset to first page when the feed length (page count) changes — preset switch.
+  useEffect(() => {
+    if (prevPages.current !== pageCount) {
+      prevPages.current = pageCount;
+      setIdx(0);
+      setDir(1);
+      setAnimKey((k) => k + 1);
+    }
+  }, [pageCount]);
+
+  const advance = useCallback((step: number) => {
+    setDir(step);
+    setIdx((i) => (i + step + pageCount) % pageCount);
+    setAnimKey((k) => k + 1);
+  }, [pageCount]);
+
+  useEffect(() => {
+    if (paused || pageCount <= 1) return;
+    const t = setInterval(() => advance(1), MARKET_ADVANCE_MS);
+    return () => clearInterval(t);
+  }, [paused, advance, pageCount]);
+
+  const safeIdx = Math.min(idx, pageCount - 1);
+  const start = safeIdx * MARKET_PAGE_SIZE;
+  const pageItems = feed.slice(start, start + MARKET_PAGE_SIZE);
+
+  return (
+    <div
+      className="border-b border-border-1"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      <div className="flex items-center justify-between px-3.5 pt-1.5 pb-1">
+        <span className="font-hud text-[7px] font-bold tracking-[2px] uppercase text-ink-4">
+          Markets <span className="text-ink-3 font-normal normal-case tracking-normal">· {feed.length}</span>
+        </span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-[3px]">
+            {Array.from({ length: pageCount }).map((_, i) => (
+              <button
+                type="button"
+                key={i}
+                aria-label={`Go to markets page ${i + 1}`}
+                onClick={() => { setDir(i > safeIdx ? 1 : -1); setIdx(i); setAnimKey((k) => k + 1); }}
+                className="h-1 rounded-full border-0 p-0 cursor-pointer transition-all duration-300"
+                style={{ width: i === safeIdx ? 10 : 4, background: i === safeIdx ? "var(--gold,#F5C842)" : "var(--ink-4,#3D5278)" }}
+              />
+            ))}
+          </div>
+          <span className="font-mono text-[8px] text-gold">{safeIdx + 1}/{pageCount}</span>
+          {(["◂", "▸"] as const).map((arrow, i) => (
+            <button
+              type="button"
+              key={arrow}
+              aria-label={i === 0 ? "previous markets" : "next markets"}
+              onClick={() => advance(i === 0 ? -1 : 1)}
+              className="bg-transparent border-0 cursor-pointer text-ink-3 hover:text-gold text-[10px] leading-none px-px transition-colors"
+            >
+              {arrow}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="relative overflow-hidden">
+        {!paused && pageCount > 1 && (
+          <div
+            key={`mpb-${animKey}`}
+            className="absolute top-0 left-0 h-0.5 z-[1]"
+            style={{ background: "linear-gradient(90deg,var(--gold,#F5C842),rgba(245,200,66,.3))", animation: `barProgress ${MARKET_ADVANCE_MS}ms linear forwards` }}
+            aria-hidden
+          />
+        )}
+        <div
+          key={animKey}
+          style={{ animation: `${dir > 0 ? "slideInRight" : "slideInLeft"} .32s cubic-bezier(.22,1,.36,1) both` }}
+        >
+          {pageItems.map((it, i) => <MarketRow key={start + i} it={it} />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════════
    SCANNER PANEL — RuntimeStatus + FeedSignal[] + MarketFeedItem[]
 ══════════════════════════════════════════════════════════════════════ */
 const BASE_COUNT = 6;
@@ -201,6 +330,8 @@ export type ScannerPanelProps = {
   signals: FeedSignal[];
   feed: MarketFeedItem[];
   signalsToday: number;
+  /** Account win rate (e.g. "41%" or "—") — surfaced in the scanner stats row. */
+  winRate: string;
   /** Bot/scanner active for this user (auto_trade_on && not halted). */
   active: boolean;
   tradingMode: string;
@@ -210,7 +341,7 @@ export type ScannerPanelProps = {
 };
 
 export function ScannerPanel({
-  runtime, signals, feed, signalsToday, active, tradingMode, activePreset, lastTickMs,
+  runtime, signals, feed, signalsToday, winRate, active, tradingMode, activePreset, lastTickMs,
 }: ScannerPanelProps) {
   const [expanded, setExpanded] = useState(true);
   const [visLines, setVisLines] = useState(0);
@@ -309,15 +440,18 @@ export function ScannerPanel({
       {expanded && (
         <>
           {/* ── stats row ─────────────────────────────────── */}
-          <div className="grid grid-cols-3 border-b border-border-1">
+          {/* WIN RATE moved here from the Home stat grid — it is the one account
+              metric kept on Home (WARP/ROOT/dashboard-ux). */}
+          <div className="grid grid-cols-4 border-b border-border-1">
             {[
               { label: "SCANNED",   value: scanned,   cls: "text-gold" },
               { label: "PUBLISHED", value: published, cls: "text-gold" },
+              { label: "WIN RATE",  value: winRate,   cls: "text-gold" },
               { label: "LAST TICK", value: liveAgo != null ? `${liveAgo}s ago` : "—", cls: liveAgo != null && liveAgo < 10 ? "text-grn" : "text-gold" },
-            ].map((s, i) => (
-              <div key={s.label} className={`py-1.5 px-2.5 text-center ${i < 2 ? "border-r border-border-1" : ""}`}>
-                <div className="font-hud text-[7px] font-bold tracking-[2px] uppercase text-ink-4 mb-0.5">{s.label}</div>
-                <div className={`font-mono text-[13px] font-bold ${s.cls}`}>{s.value}</div>
+            ].map((s, i, arr) => (
+              <div key={s.label} className={`py-1.5 px-2 text-center ${i < arr.length - 1 ? "border-r border-border-1" : ""}`}>
+                <div className="font-hud text-[7px] font-bold tracking-[1.5px] uppercase text-ink-4 mb-0.5">{s.label}</div>
+                <div className={`font-mono text-[12px] font-bold ${s.cls}`}>{s.value}</div>
               </div>
             ))}
           </div>
@@ -361,29 +495,20 @@ export function ScannerPanel({
           </div>
 
           {/* ── market rows ───────────────────────────────── */}
+          {/* ≤ MARKET_PAGE_SIZE: static list. More than that (e.g. the live sports
+              board): an auto-advancing carousel so the panel height stays fixed. */}
           {feed.length > 0 && (
-            <div className="border-b border-border-1">
-              <div className="flex items-center justify-between px-3.5 pt-1.5 pb-1">
-                <span className="font-hud text-[7px] font-bold tracking-[2px] uppercase text-ink-4">Markets</span>
-                <span className="font-mono text-[8px] text-ink-4">prob · countdown · liquidity</span>
+            feed.length > MARKET_PAGE_SIZE ? (
+              <MarketCarousel feed={feed} />
+            ) : (
+              <div className="border-b border-border-1">
+                <div className="flex items-center justify-between px-3.5 pt-1.5 pb-1">
+                  <span className="font-hud text-[7px] font-bold tracking-[2px] uppercase text-ink-4">Markets</span>
+                  <span className="font-mono text-[8px] text-ink-4">prob · countdown · liquidity</span>
+                </div>
+                {feed.map((it, i) => <MarketRow key={i} it={it} />)}
               </div>
-              {feed.map((it) => {
-                const pct = Math.round(it.up_prob * 100);
-                const c = LEAN_VAR[it.lean];
-                return (
-                  <div key={it.asset} className="flex items-center gap-2 px-3.5 py-1" style={{ borderTop: "1px solid rgba(255,255,255,.03)" }}>
-                    <span className="font-hud text-[8px] font-bold tracking-[1.5px] text-ink-3 w-[38px] flex-shrink-0">{it.asset}</span>
-                    <span className="font-mono text-[11px] font-bold w-3.5 flex-shrink-0" style={{ color: c }}>{LEAN_ARROW[it.lean]}</span>
-                    <div className="flex-1 relative h-[3px]" style={{ background: "rgba(255,255,255,.06)" }}>
-                      <div className="absolute left-0 top-0 h-full transition-all duration-700" style={{ width: `${pct}%`, background: c, boxShadow: `0 0 4px ${c}` }} />
-                    </div>
-                    <span className="font-mono text-[10px] font-bold w-8 text-right flex-shrink-0" style={{ color: c }}>{pct}%</span>
-                    <span className="font-mono text-[9px] text-ink-4 w-[46px] text-right flex-shrink-0">{fmtSecs(it.seconds_to_close)}</span>
-                    <span className="font-mono text-[9px] text-ink-4 w-[38px] text-right flex-shrink-0">{fmtLiq(it.liquidity_usdc)}</span>
-                  </div>
-                );
-              })}
-            </div>
+            )
           )}
 
           {/* ── signal carousel ───────────────────────────── */}

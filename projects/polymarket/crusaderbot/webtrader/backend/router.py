@@ -515,6 +515,117 @@ async def _category_market_feed(pool: Any, category: str) -> list[MarketFeedItem
     return feed
 
 
+# Sports markets for the dashboard scanner are sourced LIVE from Polymarket Gamma
+# rather than the narrowly-synced ``markets`` table. The scan job only upserts
+# sports markets inside the (0,2h] / (24h,72h] *trade* windows, so the DB-backed
+# feed starved to 1-2 rows and the panel looked empty. This display feed shows the
+# real upcoming sports board (any future event), nearest-event first — decoupled
+# from the trade window, read-only, fail-soft, zero trading impact.
+# WARP/ROOT/dashboard-ux. Cached to spare Gamma on the dashboard's frequent polls.
+_SPORTS_FEED_TTL_SEC: float = 45.0
+_SPORTS_FEED_CACHE: dict[str, Any] = {"at": 0.0, "items": []}
+# Single-flight guard: holds the one in-flight Gamma fetch so concurrent
+# cold-cache requests await it instead of each firing a duplicate call.
+_SPORTS_FEED_IN_PROGRESS: dict[str, Any] = {}
+
+
+def _coerce_price_list(raw: Any) -> list[str]:
+    """Gamma ``outcomePrices`` arrives as a JSON string or a list — normalise to a
+    list of strings either way; ``[]`` when neither."""
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (ValueError, TypeError):
+            return []
+    return [str(x) for x in raw] if isinstance(raw, (list, tuple)) else []
+
+
+async def _sports_market_feed_live(limit: int = 12) -> list[MarketFeedItem]:
+    """Real upcoming Polymarket sports markets for the dashboard scanner panel.
+
+    Sourced from Gamma (events-with-markets), filtered to sports categories with a
+    future resolution, nearest-event first. Independent of the trade-window sync so
+    the panel reflects the live sports board. 45s in-process cache; fail-soft to the
+    last-known list (or empty) on any Gamma error — never raises into the request.
+    """
+    import asyncio
+    import time as _time
+    from ...domain.strategy.strategies.playbook import SPORTS_CATEGORIES
+
+    now_mono = _time.monotonic()
+    cached = _SPORTS_FEED_CACHE
+    if cached["items"] and (now_mono - float(cached["at"])) < _SPORTS_FEED_TTL_SEC:
+        return cached["items"]
+
+    # Single-flight: when several requests miss the cache at once, share ONE Gamma
+    # fetch rather than stampeding the API. Whoever finds no live task starts it;
+    # the rest await the same task. The task is dropped once settled so the next
+    # cold fetch (after TTL) starts fresh; fail-soft to cache on any error.
+    task = _SPORTS_FEED_IN_PROGRESS.get("fetch")
+    if task is None or task.done():
+        task = asyncio.ensure_future(_polymarket.get_events_with_markets(limit=200))
+        _SPORTS_FEED_IN_PROGRESS["fetch"] = task
+    try:
+        raw = await task
+    except Exception as exc:  # noqa: BLE001 — display feed, fail-soft to cache
+        log.warning("sports_market_feed_live fetch failed: %s", exc)
+        return cached["items"]
+    finally:
+        if _SPORTS_FEED_IN_PROGRESS.get("fetch") is task and task.done():
+            _SPORTS_FEED_IN_PROGRESS.pop("fetch", None)
+
+    now = datetime.now(timezone.utc)
+    feed: list[MarketFeedItem] = []
+    for m in raw:
+        cat = str(m.get("category") or "").lower()
+        if not any(tok in cat for tok in SPORTS_CATEGORIES):
+            continue
+        prices = _coerce_price_list(m.get("outcomePrices"))
+        if not prices:
+            continue
+        try:
+            up_prob = float(prices[0])
+        except (TypeError, ValueError):
+            continue
+        end_iso = (
+            m.get("gameStartTime") or m.get("game_start_time")
+            or m.get("endDate") or m.get("end_date_iso")
+        )
+        if not end_iso:
+            continue
+        try:
+            resolution_at = datetime.fromisoformat(str(end_iso).replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            continue
+        if resolution_at.tzinfo is None:
+            resolution_at = resolution_at.replace(tzinfo=timezone.utc)
+        secs = int((resolution_at - now).total_seconds())
+        if secs <= 0:
+            continue  # already started / closed — not "upcoming"
+        try:
+            liquidity = float(m.get("liquidity") or 0.0)
+        except (TypeError, ValueError):
+            liquidity = 0.0
+        slug = str(m.get("slug") or "")
+        asset = (slug.split("-")[0] or "MKT")[:8].upper() or "MKT"
+        feed.append(
+            MarketFeedItem(
+                asset=asset,
+                label=str(m.get("question") or m.get("title") or slug)[:48],
+                up_prob=up_prob,
+                lean=_lean_from_prob(up_prob),
+                seconds_to_close=secs,
+                liquidity_usdc=liquidity,
+            )
+        )
+    feed.sort(key=lambda it: it.seconds_to_close)
+    feed = feed[:limit]
+    if feed:
+        _SPORTS_FEED_CACHE["at"] = now_mono
+        _SPORTS_FEED_CACHE["items"] = feed
+    return feed
+
+
 @router.get("/market-feed")
 async def get_market_feed(user: _CurrentUser) -> list[MarketFeedItem]:
     """Live market feed — scoped to the user's active-preset category.
@@ -537,6 +648,9 @@ async def get_market_feed(user: _CurrentUser) -> list[MarketFeedItem]:
 
     if category == "Weather":
         return await _weather_market_feed(pool)
+    if category == "Sports":
+        # Live Gamma sports board (real upcoming markets), not the trade-window DB.
+        return await _sports_market_feed_live()
     if category and category != "Crypto":
         return await _category_market_feed(pool, category)
     assets = (
