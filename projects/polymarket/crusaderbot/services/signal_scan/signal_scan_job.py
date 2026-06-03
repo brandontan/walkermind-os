@@ -1708,6 +1708,45 @@ def _build_idempotency_key(
     return f"sf:{digest}"
 
 
+def _edge_bps_from_metadata(metadata: object) -> float | None:
+    """Extract a measured per-trade edge from a candidate's metadata, in bps.
+
+    Resolves the long-standing `edge_bps=None` hardcode that left risk gate
+    step 12 (the directional MIN_EDGE_BPS floor) structurally inert. Strategies
+    that compute a real edge stamp it into candidate metadata as either:
+
+      * ``"edge_bps"`` — already in basis points, or
+      * ``"edge"`` — a fraction vs fair price (e.g. playbook closing-edge module
+        stamps ``metadata["edge"] = fair - price``); converted ×10_000 to bps.
+
+    Returns ``None`` when no finite edge is present — heuristic strategies that
+    do NOT measure EV (e.g. late_entry_v3's book-imbalance `ask_diff`) therefore
+    stay honestly ungated by step 12 rather than having a fabricated edge
+    injected. This wires the floor for any strategy that supplies a real edge
+    without inventing one for those that do not (consistent with the WARP-58
+    OOS finding that late_entry_v3 edge is UNPROVEN).
+    """
+    if not isinstance(metadata, dict):
+        return None
+    raw_bps = metadata.get("edge_bps")
+    if raw_bps is not None:
+        try:
+            val = float(raw_bps)
+        except (TypeError, ValueError):
+            val = None
+        if val is not None and _math.isfinite(val):
+            return val
+    raw_edge = metadata.get("edge")
+    if raw_edge is not None:
+        try:
+            frac = float(raw_edge)
+        except (TypeError, ValueError):
+            return None
+        if _math.isfinite(frac):
+            return frac * 10_000.0
+    return None
+
+
 def _build_trade_signal(
     *,
     row: dict[str, Any],
@@ -1805,7 +1844,11 @@ def _build_trade_signal(
         risk_profile=str(row.get("resolved_profile") or "balanced"),
         trading_mode=str(row.get("trading_mode") or "paper"),
         signal_ts=cand.signal_ts,
-        edge_bps=None,
+        # Derive a measured edge from candidate metadata when the strategy
+        # supplies one (playbook closing-edge stamps metadata["edge"]); gate
+        # step 12's MIN_EDGE_BPS floor then actually fires. Heuristic strategies
+        # that do not measure EV return None and stay ungated by step 12.
+        edge_bps=_edge_bps_from_metadata(cand.metadata),
         # Per-rule TP/SL override: the candle_auto router stamps applied_tp_pct /
         # applied_sl_pct into candidate metadata so each lifecycle rule keeps its
         # own exit (flip holds longer than close). Any other strategy leaves these

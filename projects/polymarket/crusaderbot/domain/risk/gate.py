@@ -292,12 +292,15 @@ async def validate_risk_caps(user_id: UUID, proposed_size: Decimal) -> GateResul
             0,
         )
 
-    # Cap 4: Open positions count (hard cap from settings.MAX_OPEN_POSITIONS)
+    # Cap 4: Open positions count. The operator knob settings.MAX_OPEN_POSITIONS
+    # may only TIGHTEN below the system hard ceiling K.MAX_CONCURRENT_TRADES (5);
+    # it can never loosen past it (AGENTS.md RISK CONSTANTS + blueprint §6).
     open_count = await _open_position_count(user_id)
-    if open_count >= settings.MAX_OPEN_POSITIONS:
+    open_cap = min(int(settings.MAX_OPEN_POSITIONS), K.MAX_CONCURRENT_TRADES)
+    if open_count >= open_cap:
         return GateResult(
             False,
-            f"max_open_positions_{settings.MAX_OPEN_POSITIONS}_reached",
+            f"max_open_positions_{open_cap}_reached",
             0,
         )
 

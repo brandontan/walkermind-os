@@ -8,6 +8,14 @@ DAILY_LOSS_HARD_STOP = -2_000.0
 MAX_DRAWDOWN_HALT = 0.08
 MIN_LIQUIDITY = 10_000.0
 MIN_EDGE_BPS = 200
+# System-wide hard ceiling on concurrent open positions per user. AGENTS.md
+# RISK CONSTANTS + blueprint §6 fix this at 5. The per-profile `max_concurrent`
+# values below (5 / 12 / 20) are product-tier *intents*, but this constant is
+# the non-overridable cap: `effective_max_concurrent` folds it into the
+# most-restrictive selection (mirrors how DAILY_LOSS_HARD_STOP bounds
+# `effective_daily_loss`) so no profile, override, or settings value can ever
+# loosen a user past 5 simultaneous positions.
+MAX_CONCURRENT_TRADES = 5
 SIGNAL_STALE_SECONDS = 14400  # 4h: matches SIGNAL_EXPIRY_HOURS — gate uses expires_at as primary guard
 DEDUP_WINDOW_SECONDS = 300
 
@@ -23,6 +31,18 @@ MAX_SLIPPAGE_PCT = 0.03
 # must not exceed this value. Orders breaching this threshold are rejected with
 # SLIPPAGE_REJECTED and never reach the CLOB. Applies to live path only.
 SLIPPAGE_GUARD_PCT = 0.05
+
+# Complete-set arbitrage hard floor. AGENTS.md RISK CONSTANTS: "Arbitrage —
+# execute only if net_edge > fees + slippage AND > 2%". MIN_COMPLETE_SET_EDGE
+# (config, default 0.0) keeps the path dormant; the instant an operator
+# activates it with ANY positive value, the effective per-pair margin floor is
+# clamped UP to at least this 2% net edge plus the explicit fee/slippage
+# allowance below, so a sub-2% (or fee-uncovered) set can never book.
+COMPLETE_SET_MIN_NET_EDGE = 0.02
+# Explicit fee + slippage allowance folded into the complete-set margin floor.
+# Polymarket charges no maker/taker fee today (0.0); kept as a named, tunable
+# constant so the arb cost model is explicit in the threshold, not implicit.
+COMPLETE_SET_FEE_SLIPPAGE_ALLOWANCE = 0.0
 
 PROFILES: dict[str, dict] = {
     "conservative": {
@@ -162,7 +182,11 @@ def effective_max_concurrent(
     if base not in PROFILES:
         base = "balanced"
     profile_cap = int(PROFILES[base]["max_concurrent"])
-    caps: list[int] = [profile_cap]
+    # MAX_CONCURRENT_TRADES is the non-overridable system ceiling (AGENTS.md
+    # RISK CONSTANTS = 5). Seeding the caps list with it guarantees the result
+    # never exceeds 5 even when a profile (balanced=12 / aggressive=20) or a
+    # legacy user override permits more — a user may only tighten below it.
+    caps: list[int] = [MAX_CONCURRENT_TRADES, profile_cap]
     if user_override is not None:
         try:
             ov = int(user_override)

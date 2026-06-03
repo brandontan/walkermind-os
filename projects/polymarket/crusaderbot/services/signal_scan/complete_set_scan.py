@@ -124,6 +124,21 @@ async def scan_complete_set_for_user(
         ulog.info("complete_set_scan_dormant_margin", min_pair_margin=min_pair_margin)
         return res
 
+    # Hard-wire the AGENTS.md arbitrage invariant: a booked pair's locked net
+    # edge must clear BOTH the 2% floor AND the explicit fee/slippage allowance.
+    # The operator knob (MIN_COMPLETE_SET_EDGE) may only TIGHTEN above this hard
+    # floor — never relax below it — so once the path is activated no sub-2%
+    # (or fee-uncovered) set can ever book, even if the operator sets a small
+    # positive value such as 0.005.
+    _hard_floor = K.COMPLETE_SET_MIN_NET_EDGE + K.COMPLETE_SET_FEE_SLIPPAGE_ALLOWANCE
+    if min_pair_margin < _hard_floor:
+        ulog.info(
+            "complete_set_margin_floor_clamped",
+            operator_min=round(min_pair_margin, 6),
+            effective_min=round(_hard_floor, 6),
+        )
+        min_pair_margin = _hard_floor
+
     # Per-position capital cap = Kelly * max_pos_pct * balance, expressed in
     # shares. Each fillable pair costs < $1, so a share cap == USDC cap keeps the
     # combined cost strictly below the cap; the gate (complete_set step 13) hard
