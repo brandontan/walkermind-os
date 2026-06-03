@@ -40,6 +40,75 @@ about codebase structure or architecture.
 
 ---
 
+## Skill Registry
+
+When a task matches a skill trigger below, load the skill file from `.claude/skills/<name>/SKILL.md` before responding. Skills contain patterns, code templates, and validation rules that override default behavior.
+
+### Polymarket / Trading
+
+| Skill | Load when... |
+|---|---|
+| `web3-polymarket` | Polymarket API, auth L1/L2, order placement (GTC/GTD/FOK/FAK), CTF operations, bridge USDC.e, WebSocket streaming, gasless relayer |
+| `polymarket-api` | CLOB API, Gamma API, on-chain data, building trading clients |
+| `polymarket-sports` | Sports market data, live odds, prices, event lookup — read-only, no auth required |
+| `trading-strategies` | Creating new strategies, implementing signals, backtesting logic |
+
+### Database / Backend
+
+| Skill | Load when... |
+|---|---|
+| `supabase` | Any Supabase product: Database, Auth, Edge Functions, Realtime, Storage, Vectors, Cron, Queues; `supabase-js`, `@supabase/ssr`, RLS, migrations |
+| `supabase-postgres-best-practices` | Writing, reviewing, or optimizing Postgres queries, schema design, or DB config |
+
+### Monitoring / Debugging
+
+| Skill | Load when... |
+|---|---|
+| `sentry-fix-issues` | Fix Sentry errors, debug production issues, investigate exceptions |
+| `sentry-code-review` | Review/fix issues identified by Sentry in PR comments |
+| `sentry-pr-code-review` | PRs with Seer Bug Prediction feedback |
+| `sentry-python-sdk` | Add/configure Sentry in Python (Django, Flask, FastAPI, Celery) |
+| `sentry-node-sdk` | Add/configure Sentry in Node.js / Bun / Deno |
+| `sentry-nextjs-sdk` | Add/configure Sentry in Next.js |
+| `sentry-react-sdk` | Add/configure Sentry in React |
+| `sentry-sdk-setup` | Generic Sentry setup — auto-detects platform and loads correct SDK skill |
+| `sentry-sdk-upgrade` | Upgrade Sentry SDK across major versions, fix breaking changes |
+| `sentry-setup-ai-monitoring` | Monitor LLM/AI agent calls via Sentry (OpenAI, Anthropic, LangChain) |
+| `sentry-create-alert` | Create Sentry alerts, notifications, workflow automations |
+| `sentry-workflow` | General Sentry context for fixing issues + PR review |
+
+### Telegram
+
+| Skill | Load when... |
+|---|---|
+| `telegram-bot-builder` | Building Telegram bots — architecture, commands, handlers, deployment, monetization |
+| `telegram-keyboard-design` | Inline keyboards, reply keyboards, callback handlers, conversational flows |
+
+### Content & Writing
+
+| Skill | Load when... |
+|---|---|
+| `simplifier` | Simplify text, TL;DR, ELI5, plain English rewrite, executive summary |
+| `humanizer` | Detect and rewrite AI-sounding text; outputs 0-100 AI-tell score |
+| `hook-writer` | Opening hooks for threads, posts, emails, ads, video scripts |
+| `repurposer` | Transform one content piece into threads, LinkedIn posts, emails, video scripts, carousels |
+| `fact-checker` | Audit claims, flag unverified assertions, identify logical fallacies |
+| `brief-writer` | Write creative, project, campaign, or content briefs |
+| `grill-me` | Stress-test a plan or design via relentless interviewing |
+| `prompt-master` | Write, fix, or improve prompts for any AI tool |
+
+### Obsidian / Notes
+
+| Skill | Load when... |
+|---|---|
+| `obsidian-cli` | Interact with Obsidian vault via CLI — read, create, search notes |
+| `obsidian-markdown` | Obsidian-flavored Markdown: wikilinks, callouts, embeds, properties |
+| `obsidian-bases` | Obsidian Bases (.base files): table/card views, filters, formulas |
+| `json-canvas` | JSON Canvas (.canvas files): nodes, edges, connections |
+| `defuddle` | Extract clean Markdown from web URLs — use instead of WebFetch for articles/docs |
+
+---
+
 ## STRICT PROHIBITIONS
 
 You MUST NOT:
