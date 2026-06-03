@@ -21,7 +21,9 @@ function fmtLiq(v: number): string {
   return v >= 1000 ? `$${(v / 1000).toFixed(0)}K` : `$${v}`;
 }
 function fmtAgo(iso: string): string {
-  const d = (Date.now() - new Date(iso).getTime()) / 1000;
+  // Clamp at 0 — a client clock running behind the server would otherwise
+  // render a future published_at as a negative "−5s ago".
+  const d = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
   if (d < 60) return `${Math.round(d)}s ago`;
   if (d < 3600) return `${Math.round(d / 60)}m ago`;
   return `${Math.round(d / 3600)}h ago`;
@@ -199,14 +201,13 @@ export function ScannerPanel({
     }
   }, [activePreset]);
 
-  // stagger lines in at 160ms after mount / reset
+  // stagger lines in at 160ms after mount / reset — one timeout per line keeps
+  // the updater pure (no side effects inside setState) and the deps honest.
   useEffect(() => {
     if (visLines >= BASE_COUNT) return;
-    const t = setInterval(() => {
-      setVisLines((v) => { if (v >= BASE_COUNT) { clearInterval(t); return v; } return v + 1; });
-    }, 160);
-    return () => clearInterval(t);
-  }, [visLines === 0]); // eslint-disable-line react-hooks/exhaustive-deps
+    const t = setTimeout(() => setVisLines((v) => v + 1), 160);
+    return () => clearTimeout(t);
+  }, [visLines]);
 
   const lastTickSec = runtime?.scanner_last_tick ?? (lastTickMs != null ? lastTickMs / 1000 : null);
   const liveAgo = lastTickSec != null ? Math.max(0, Math.round(Date.now() / 1000 - lastTickSec)) : null;
