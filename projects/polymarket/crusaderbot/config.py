@@ -139,6 +139,11 @@ class Settings(BaseSettings):
     # existing activation guards. Runtime-overridable via the admin overlay.
     PLAYBOOK_STRATEGY_ENABLED: bool = False
 
+    # Phase-2c-2: when true, each scan tick persists the raw full-universe market
+    # state to market_snapshots (walk-forward replay substrate). Default OFF; pure
+    # append-only telemetry, fail-soft, no effect on trading. Apply migration 080.
+    SCAN_SNAPSHOT_ENABLED: bool = False
+
     # --- Complete-set arbitrage (WARP/ROOT/complete-set-arb epic) ---
     # Master kill switch for the complete-set arb scan + booking path. Default
     # OFF — even with the code wired (Lane 2C), nothing scans or books a set
