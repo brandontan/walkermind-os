@@ -369,7 +369,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-surface-2 border border-surface-3 rounded-sm px-2.5 py-1.5">
+    <div className="bg-surface-2 border border-surface-3 clip-card-sm px-2.5 py-1.5">
       <p className="font-hud text-[8px] tracking-[1px] uppercase text-ink-4">{label}</p>
       <p className="font-mono text-[13px] text-ink-1 mt-0.5">{value}</p>
     </div>

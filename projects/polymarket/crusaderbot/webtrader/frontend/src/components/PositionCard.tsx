@@ -70,7 +70,7 @@ export function PositionCard({ market, positionValue, side, meta, metaAdvanced, 
       onClick={interactive}
       onKeyDown={interactive ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); interactive(); } } : undefined}
       aria-expanded={expandable ? expanded : undefined}
-      className={`relative mb-1.5 bg-surface border border-border-1 py-3 px-3.5 clip-pos transition-colors hover:border-border-3 ${
+      className={`relative mb-1.5 bg-surface border border-border-1 py-3 px-3.5 clip-pos transition-colors hover:border-border-3 hover:bg-surface-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold ${
         interactive ? "cursor-pointer" : ""
       }`}
     >
@@ -96,11 +96,7 @@ export function PositionCard({ market, positionValue, side, meta, metaAdvanced, 
       </div>
       <div className="flex gap-3 items-center font-mono text-[10px] text-ink-3 tracking-[0.5px]">
         <span
-          className={`inline-flex items-center gap-1 py-0.5 px-[7px] text-[9px] font-bold tracking-[2px] rounded-sm ${
-            side === "exp" || side === "debit"
-              ? ""
-              : ""
-          } ${SIDE_CLASS[side]}`}
+          className={`inline-flex items-center clip-tab py-0.5 px-[7px] text-[9px] font-hud font-bold tracking-[2px] ${SIDE_CLASS[side]}`}
           style={
             side === "exp" || side === "debit"
               ? { background: "rgba(69,83,112,0.15)" }

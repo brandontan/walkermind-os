@@ -34,13 +34,13 @@ export function KillSwitchButton({ onKill, active }: KillSwitchButtonProps) {
         <p className="text-red font-semibold text-sm mb-1">⚠ Confirm Emergency Stop</p>
         <p className="text-muted text-xs mb-4">This will halt all trades immediately.</p>
         <div className="flex gap-3">
-          <button
+          <button type="button"
             onClick={() => setConfirming(false)}
             className="flex-1 py-2.5 rounded-button border border-border text-muted text-sm font-medium hover:border-primary hover:text-primary transition-colors"
           >
             Cancel
           </button>
-          <button
+          <button type="button"
             onClick={handleConfirm}
             disabled={loading}
             className="flex-1 py-2.5 rounded-button bg-red text-white text-sm font-semibold disabled:opacity-60 active:scale-95 transition-all"
@@ -53,7 +53,7 @@ export function KillSwitchButton({ onKill, active }: KillSwitchButtonProps) {
   }
 
   return (
-    <button
+    <button type="button"
       onClick={() => setConfirming(true)}
       className="w-full py-3.5 rounded-2xl bg-red/10 border border-red/30 text-red font-semibold text-sm hover:bg-red/15 active:scale-95 transition-all"
     >

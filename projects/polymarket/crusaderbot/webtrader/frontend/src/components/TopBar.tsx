@@ -100,7 +100,7 @@ export function TopBar({ tradingMode, notifCount: _notifCount, onBellClick: _onB
         {TOPNAV.filter(({ to }) => to !== "/copy-trade" || copyTradeEnabled).map(({ to, label }) => {
           const active = location.pathname === to || location.pathname.startsWith(to + "/");
           return (
-            <button
+            <button type="button"
               key={to}
               onClick={() => navigate(to)}
               className={[
@@ -147,14 +147,14 @@ export function TopBar({ tradingMode, notifCount: _notifCount, onBellClick: _onB
         ) : (
           <StatusPill kind="paper">PAPER</StatusPill>
         )}
-        <button
+        <button type="button"
           onClick={() => navigate("/discover")}
           className="w-8 h-8 rounded-[4px] bg-surface border border-border-2 flex items-center justify-center text-[13px] transition-colors hover:border-gold hover:bg-surface-2"
           aria-label="Discover Markets"
         >
           🔍
         </button>
-        <button
+        <button type="button"
           onClick={openAlertCenter}
           className="relative w-8 h-8 rounded-[4px] bg-surface border border-border-2 flex items-center justify-center text-[13px] transition-colors hover:border-gold hover:bg-surface-2"
           aria-label="Alert Center"

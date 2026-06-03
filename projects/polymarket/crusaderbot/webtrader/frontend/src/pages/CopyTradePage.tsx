@@ -45,7 +45,7 @@ export function PageTabs({
         const isActive = active === t;
         const isAuto = t === "auto";
         return (
-          <button
+          <button type="button"
             key={t}
             onClick={() => onSwitch(t)}
             className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors"
@@ -295,13 +295,13 @@ export function CopyTradePage() {
         <>
         {/* Active Targets */}
         {tasks.length === 0 && !showForm ? (
-          <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+          <div className="my-6 p-4 clip-card border border-surface-3 bg-surface-1 text-center">
             <div className="text-2xl mb-2">🐋</div>
             <p className="font-hud text-sm font-bold text-ink-2 mb-1">No copy targets yet.</p>
             <p className="text-ink-3 text-xs font-mono leading-relaxed">
               Add a Polymarket wallet address below<br />to start mirroring their trades.
             </p>
-            <button
+            <button type="button"
               onClick={() => setShowForm(true)}
               className="mt-3 font-hud text-[9px] font-bold tracking-widest text-gold uppercase px-3 py-1.5 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
             >
@@ -317,7 +317,7 @@ export function CopyTradePage() {
                 return (
                   <div
                     key={t.id}
-                    className="p-3 rounded-lg border border-surface-3 bg-surface-1"
+                    className="p-3 clip-card border border-surface-3 bg-surface-1"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
@@ -359,14 +359,14 @@ export function CopyTradePage() {
                         )}
                       </div>
                       <div className="shrink-0 flex flex-col gap-1">
-                        <button
+                        <button type="button"
                           disabled={loading}
                           onClick={() => void handleToggle(t.id, t.status)}
                           className="text-[9px] font-bold text-ink-2 px-2 py-0.5 rounded border border-surface-3 hover:border-ink-3 disabled:opacity-40"
                         >
                           {t.status === "active" ? "⏸ Pause" : "▶ Resume"}
                         </button>
-                        <button
+                        <button type="button"
                           disabled={loading}
                           onClick={() => void handleDelete(t.id)}
                           className="text-[9px] font-bold text-red-400 px-2 py-0.5 rounded border border-red-900/40 hover:border-red-400/60 disabled:opacity-40"
@@ -380,7 +380,7 @@ export function CopyTradePage() {
               })}
             </div>
             {!showForm && (
-              <button
+              <button type="button"
                 onClick={() => setShowForm(true)}
                 className="w-full py-2 rounded border border-gold/30 bg-gold/5 text-gold text-xs font-bold hover:bg-gold/10 font-hud tracking-widest uppercase"
               >
@@ -393,13 +393,13 @@ export function CopyTradePage() {
 
         {/* Add Form */}
         {showForm && (
-          <div className="mt-4 p-3 rounded-lg border border-surface-3 bg-surface-1 space-y-3">
+          <div className="mt-4 p-3 clip-card border border-surface-3 bg-surface-1 space-y-3">
             <div className="flex items-center justify-between">
               <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
                 <span className="w-3 h-px bg-gold" aria-hidden />
                 Add Copy Target
               </div>
-              <button
+              <button type="button"
                 onClick={() => setShowForm(false)}
                 className="text-[9px] font-bold text-ink-3 hover:text-ink-1"
               >
@@ -581,7 +581,7 @@ export function CopyTradePage() {
 
             {formErr && <p className="text-xs text-red-400">{formErr}</p>}
 
-            <button
+            <button type="button"
               onClick={() => void handleAdd()}
               disabled={saving}
               className="w-full py-2 rounded bg-gold/20 border border-gold/40 text-gold text-xs font-bold hover:bg-gold/30 disabled:opacity-50"
@@ -645,7 +645,7 @@ function Wallet360Panel({
     return (
       <div className="mt-2 p-2 rounded border border-surface-3 bg-surface text-[10px] font-mono text-ink-3">
         Profile data unavailable. You can still copy this wallet.
-        <button
+        <button type="button"
           onClick={onCopy}
           className="ml-2 text-[9px] font-bold text-gold px-2 py-0.5 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
         >
@@ -704,7 +704,7 @@ function Wallet360Panel({
           </div>
         )}
       </div>
-      <button
+      <button type="button"
         onClick={onCopy}
         className="w-full py-1 rounded border border-gold/40 bg-gold/10 text-gold text-[9px] font-bold hover:bg-gold/20"
       >
@@ -758,7 +758,7 @@ function LeaderboardPanel({
     return (
       <div className="space-y-2 mt-2">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-16 rounded-lg border border-surface-3 bg-surface-1 animate-pulse" />
+          <div key={i} className="h-16 clip-card border border-surface-3 bg-surface-1 animate-pulse" />
         ))}
       </div>
     );
@@ -766,7 +766,7 @@ function LeaderboardPanel({
 
   if (entries.length === 0) {
     return (
-      <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+      <div className="my-6 p-4 clip-card border border-surface-3 bg-surface-1 text-center">
         <div className="text-2xl mb-2">📊</div>
         <p className="font-hud text-sm font-bold text-ink-2 mb-1">No leaderboard data yet.</p>
         <p className="text-ink-3 text-xs font-mono">Trader rankings appear here as copy data accumulates.</p>
@@ -777,14 +777,14 @@ function LeaderboardPanel({
   return (
     <div className="space-y-2 mt-2">
       <div
-        className="px-2.5 py-1.5 text-[8.5px] font-mono text-ink-4 tracking-[1px] border rounded"
+        className="px-2.5 py-1.5 text-[8.5px] font-mono text-ink-4 tracking-[1px] border clip-card-sm"
         style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.02)" }}
       >
         Realtime Polymarket data · null fields shown as — · badges from backend only
       </div>
       {entries.map((e) => (
-        <div key={e.wallet} className="rounded-lg border border-surface-3 bg-surface-1 overflow-hidden">
-          <button
+        <div key={e.wallet} className="clip-card border border-surface-3 bg-surface-1 overflow-hidden">
+          <button type="button"
             className="w-full p-3 text-left"
             onClick={() => void handleExpand(e.wallet)}
           >
