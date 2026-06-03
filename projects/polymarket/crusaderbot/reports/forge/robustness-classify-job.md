@@ -45,7 +45,7 @@ and ready for it.
 - `projects/polymarket/crusaderbot/config.py` — `ROBUSTNESS_CLASSIFY_ENABLED` + interval
 - `projects/polymarket/crusaderbot/tests/test_research_robustness.py` — +2 run_job tests
 - `projects/polymarket/crusaderbot/reports/forge/robustness-classify-job.md` — this report
-- State: `state/PROJECT_STATE.md` · `state/WORKTODO.md` · `state/CHANGELOG.md`
+- State: `projects/polymarket/crusaderbot/state/PROJECT_STATE.md` · `projects/polymarket/crusaderbot/state/CHANGELOG.md` · `projects/polymarket/crusaderbot/state/WORKTODO.md`
 
 ## 4. What is working
 
