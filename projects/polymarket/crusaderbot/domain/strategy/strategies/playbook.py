@@ -74,9 +74,9 @@ def _parse_iso(ts: object) -> datetime | None:
     return d if d.tzinfo is not None else d.replace(tzinfo=timezone.utc)
 
 
-def _is_sports_category(category: str) -> bool:
+def _is_sports_category(category: object) -> bool:
     """True if the event's category tags name any tracked sport."""
-    c = (category or "").lower()
+    c = str(category or "").lower()
     return any(tok in c for tok in SPORTS_CATEGORIES)
 
 
@@ -91,7 +91,12 @@ def _extract_token_ids(market: dict) -> list[str]:
     if isinstance(raw, list) and len(raw) >= 2 and raw[0] and raw[1]:
         return [str(raw[0]), str(raw[1])]
     toks = market.get("tokens")
-    if isinstance(toks, list) and len(toks) >= 2:
+    if (
+        isinstance(toks, list)
+        and len(toks) >= 2
+        and isinstance(toks[0], dict)
+        and isinstance(toks[1], dict)
+    ):
         a, b = toks[0].get("token_id"), toks[1].get("token_id")
         if a and b:
             return [str(a), str(b)]
@@ -100,6 +105,8 @@ def _extract_token_ids(market: dict) -> list[str]:
 
 def _best_ask(book: dict) -> float | None:
     """Lowest ask price in a CLOB book, or None when there is no ask."""
+    if not isinstance(book, dict):
+        return None
     asks = book.get("asks") or []
     prices = []
     for lvl in asks:
@@ -112,6 +119,8 @@ def _best_ask(book: dict) -> float | None:
 
 def _best_bid(book: dict) -> float | None:
     """Highest bid price in a CLOB book, or None when there is no bid."""
+    if not isinstance(book, dict):
+        return None
     bids = book.get("bids") or []
     prices = []
     for lvl in bids:
@@ -228,12 +237,17 @@ class PlaybookStrategy(BaseStrategy):
             log.warning("playbook: sports market fetch failed: %s", exc)
             return []
 
+        if not markets or not isinstance(markets, list):
+            return []
+
         now = datetime.now(timezone.utc)
         blacklist = set(market_filters.blacklisted_market_ids or [])
         # Pre-filter to sports markets inside the close window, nearest-first, so
         # the orderbook-fetch budget covers the markets that can actually route.
         prelim: list[tuple[dict, str, str, float]] = []
         for m in markets:
+            if not isinstance(m, dict):
+                continue
             category = str(m.get("category") or "")
             if not _is_sports_category(category):
                 continue

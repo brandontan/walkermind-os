@@ -429,3 +429,34 @@ def test_playbook_skips_markets_outside_close_window(monkeypatch):
     s = PlaybookStrategy()
     mf = MarketFilters(categories=[], min_liquidity=0.0, max_time_to_resolution_days=7, blacklisted_market_ids=[])
     assert asyncio.run(s.scan(mf, _user())) == []
+
+
+def test_playbook_snapshot_helpers_defensive():
+    # Hardening (Gemini PR #1572): helpers tolerate malformed API payloads.
+    from projects.polymarket.crusaderbot.domain.strategy.strategies import playbook as pbs
+    assert pbs._is_sports_category(123) is False  # non-string category
+    assert pbs._best_ask(None) is None
+    assert pbs._best_bid("not-a-dict") is None
+    assert pbs._extract_token_ids({"tokens": [None, "x"]}) == []
+    assert pbs._extract_token_ids({"tokens": ["a", "b"]}) == []
+
+
+def test_playbook_scan_tolerates_malformed_markets(monkeypatch):
+    import asyncio
+
+    from projects.polymarket.crusaderbot.integrations import polymarket as pm
+
+    # None markets, then non-dict entries — must not raise, yields no candidates.
+    async def none_events(limit=200):
+        return None
+
+    monkeypatch.setattr(pm, "get_events_with_markets", none_events)
+    s = PlaybookStrategy()
+    mf = MarketFilters(categories=[], min_liquidity=0.0, max_time_to_resolution_days=7, blacklisted_market_ids=[])
+    assert asyncio.run(s.scan(mf, _user())) == []
+
+    async def junk_events(limit=200):
+        return ["not-a-dict", 42, None]
+
+    monkeypatch.setattr(pm, "get_events_with_markets", junk_events)
+    assert asyncio.run(s.scan(mf, _user())) == []
