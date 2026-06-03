@@ -5,8 +5,6 @@ import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { EmptyState } from "../components/EmptyState";
 import { HeroCard, type RiskLevel } from "../components/HeroCard";
 import { KillSwitchButton } from "../components/KillSwitchButton";
-import { StatCard } from "../components/StatCard";
-import { StatsGrid } from "../components/StatsGrid";
 import { ScannerPanel } from "../components/ScannerPanel";
 import { Ticker } from "../components/Ticker";
 import { PositionCarousel } from "../components/PositionCarousel";
@@ -277,66 +275,9 @@ export function DashboardPage() {
               ctaPrimary={{ label: "Configure", onClick: () => navigate("/autotrade") }}
               ctaSecondary={{ label: "Portfolio", onClick: () => navigate("/portfolio") }}
             />
-
-            <StatsGrid
-              essential={
-                <>
-                  <StatCard
-                    color="grn"
-                    icon="▰"
-                    label="Balance"
-                    value={(data.balance_usdc ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                    unit="USDC"
-                    sub={data.trading_mode === "live" ? "Live Mode" : "Paper Mode"}
-                    sparkline={[data.pnl_today, data.pnl_7d, data.pnl_alltime]}
-                  />
-                  <StatCard
-                    color="gold"
-                    icon="▱"
-                    label="Open"
-                    value={data.open_positions}
-                    sub={data.open_positions === 0 ? "No positions" : `${data.open_positions} active`}
-                  />
-                </>
-              }
-              advanced={
-                <>
-                  <StatCard
-                    color="grn"
-                    icon="▰"
-                    label="Balance"
-                    value={(data.balance_usdc ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                    unit="USDC"
-                    sub={`${data.trading_mode === "live" ? "Live" : "Paper"} · Polygon`}
-                    sparkline={[data.pnl_today, data.pnl_7d, data.pnl_alltime]}
-                  />
-                  <StatCard
-                    color="gold"
-                    icon="▱"
-                    label="Win Rate"
-                    value={winRate}
-                    sub={`${data.wins}/${data.total_trades} closed`}
-                  />
-                  <StatCard
-                    color={data.pnl_today >= 0 ? "grn" : "red"}
-                    icon={data.pnl_today >= 0 ? "▲" : "▼"}
-                    label="PnL Today"
-                    value={`${data.pnl_today >= 0 ? "+" : ""}${data.pnl_today.toFixed(2)}`}
-                    unit="USDC"
-                    sub={`${data.signals_today} signals today`}
-                    subTone={data.pnl_today >= 0 ? "up" : "dn"}
-                  />
-                  <StatCard
-                    color="cyan"
-                    icon="◈"
-                    label="Signals"
-                    value={alerts.length}
-                    sub="last fetch"
-                    subTone="up"
-                  />
-                </>
-              }
-            />
+            {/* Home stat grid removed (WARP/ROOT/dashboard-ux) — equity / balance /
+                PnL already live in the HeroCard above; Win Rate is the one metric
+                kept, relocated into the ScannerPanel stats row. */}
           </div>
 
           {/* RIGHT COLUMN: Scanner terminal + Recent Activity */}
@@ -346,6 +287,7 @@ export function DashboardPage() {
               signals={recentSignals}
               feed={marketFeed}
               signalsToday={data.signals_today ?? 0}
+              winRate={winRate}
               active={
                 data.auto_trade_on
                 && !data.kill_switch_active
