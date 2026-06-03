@@ -346,7 +346,12 @@ export function DashboardPage() {
               signals={recentSignals}
               feed={marketFeed}
               signalsToday={data.signals_today ?? 0}
-              active={data.auto_trade_on && !data.kill_switch_active}
+              active={
+                data.auto_trade_on
+                && !data.kill_switch_active
+                && !runtimeStatus?.user_paused
+                && data.active_preset_globally_enabled !== false
+              }
               tradingMode={data.trading_mode}
               activePreset={data.active_preset}
               lastTickMs={lastTick}
