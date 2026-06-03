@@ -171,7 +171,7 @@ export function SettingsPage() {
       {loadError ? (
         <div className="p-4 text-sm space-y-3">
           <div className="text-red font-mono">Couldn’t load settings: {loadError}</div>
-          <button
+          <button type="button"
             onClick={() => { setLoadError(null); void load(); }}
             className="px-3 py-1.5 clip-card-sm border border-border-1 text-ink-1 text-xs hover:bg-white/5"
           >

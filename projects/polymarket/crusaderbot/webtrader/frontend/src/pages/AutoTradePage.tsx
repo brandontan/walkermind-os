@@ -130,11 +130,10 @@ const CRYPTO_SHORT_PRESETS: readonly string[] = ["candle_auto", "close_sweep", "
 // (close_sweep / safe_close / flip_hunter) are no longer standalone cards —
 // they live inside Smart Strike as a manual "Rule" sub-picker, so the main page
 // stays uncluttered while power users can still pin one rule.
-// `playbook` intentionally omitted — it's registered + routable but its live scan
-// dispatch is Phase-2 (Codex P2, PR #1567), and backend activation is gated, so it
-// must not render as a selectable card. An ALREADY-active playbook still renders via
-// the activeNonCandle exception in the filter. Re-add when playbook-live-dispatch lands.
-const TOP_LEVEL_PRESET_KEYS: readonly string[] = ["candle_auto", "weather_monitor"];
+// `playbook` re-enabled in WARP/ROOT/playbook-live-dispatch once its scan dispatch
+// (Phase B4) went live — it renders as a top-level family card alongside Smart Strike
+// and Weather. (Dispatch itself is operator-gated by PLAYBOOK_STRATEGY_ENABLED.)
+const TOP_LEVEL_PRESET_KEYS: readonly string[] = ["candle_auto", "weather_monitor", "playbook"];
 
 // Manual rules nested under Smart Strike. "Auto" (candle_auto) is the default —
 // the router picks per candle stage; the three below pin a single rule.
@@ -942,7 +941,7 @@ export function AutoTradePage() {
           {RISK_PROFILES.filter(rp => rp.key !== "custom").map((rp) => {
             const isActive = state.risk_profile === rp.key;
             return (
-              <button
+              <button type="button"
                 key={rp.key}
                 onClick={() => void handleActivateRisk(rp.key)}
                 className={[
@@ -1024,7 +1023,7 @@ export function AutoTradePage() {
               </div>
               <p className="text-[8px] text-ink-4 font-mono mb-2">Leave TP or SL blank to use only one. At least one required.</p>
               {customErr && <p className="text-xs text-red mb-2">{customErr}</p>}
-              <button
+              <button type="button"
                 onClick={() => void handleSaveCustomRisk()}
                 disabled={savingRisk}
                 className="w-full py-2 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[10px] font-bold tracking-[1.5px] uppercase hover:bg-gold/20 disabled:opacity-50 transition-colors"
@@ -1171,7 +1170,7 @@ export function AutoTradePage() {
             </div>
           </div>
 
-          <button
+          <button type="button"
             onClick={() => void handleSaveFilters()}
             disabled={savingFilters}
             className="w-full py-1.5 rounded bg-gold/20 border border-gold/40 text-gold text-xs font-bold hover:bg-gold/30 disabled:opacity-50 transition-colors"
@@ -1239,7 +1238,7 @@ function MaxPerTradeControl({ state, api, onSaved }: {
       <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-2">Max per trade</p>
       <div className="grid grid-cols-3 gap-2 mb-2">
         {MODES.map((m) => (
-          <button
+          <button type="button"
             key={m.key}
             onClick={() => setMode(m.key)}
             className={[
@@ -1267,7 +1266,7 @@ function MaxPerTradeControl({ state, api, onSaved }: {
           className="w-full mb-2 px-2 py-1.5 bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono focus:border-gold focus:outline-none"
         />
       )}
-      <button
+      <button type="button"
         onClick={() => void save()}
         disabled={saving}
         className="w-full py-1.5 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
@@ -1350,7 +1349,7 @@ function DailyLossControl({ state, api, onSaved }: {
         />
       </div>
       <div className="flex gap-2">
-        <button
+        <button type="button"
           onClick={() => void save()}
           disabled={saving || !val}
           className="flex-1 py-1.5 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
@@ -1358,7 +1357,7 @@ function DailyLossControl({ state, api, onSaved }: {
           {saved ? "Saved ✓" : saving ? "Saving…" : "Set Limit"}
         </button>
         {current != null && (
-          <button
+          <button type="button"
             onClick={() => void clear()}
             disabled={saving}
             className="px-3 py-1.5 clip-card-sm border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"
@@ -1437,7 +1436,7 @@ function MaxDrawdownControl({ state, api, onSaved }: {
         <span className="flex items-center text-xs text-ink-3 font-mono">%</span>
       </div>
       <div className="flex gap-2">
-        <button
+        <button type="button"
           onClick={() => void save()}
           disabled={saving || !val}
           className="flex-1 py-1.5 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
@@ -1445,7 +1444,7 @@ function MaxDrawdownControl({ state, api, onSaved }: {
           {saved ? "Saved ✓" : saving ? "Saving…" : "Set Drawdown Halt"}
         </button>
         {current != null && (
-          <button
+          <button type="button"
             onClick={() => void clear()}
             disabled={saving}
             className="px-3 py-1.5 clip-card-sm border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"
@@ -1534,7 +1533,7 @@ function MaxConcurrentControl({ state, api, onSaved }: {
         />
       </div>
       <div className="flex gap-2">
-        <button
+        <button type="button"
           onClick={() => void save()}
           disabled={saving || !val}
           className="flex-1 py-1.5 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
@@ -1542,7 +1541,7 @@ function MaxConcurrentControl({ state, api, onSaved }: {
           {saved ? "Saved ✓" : saving ? "Saving…" : "Set Concurrent Cap"}
         </button>
         {current != null && (
-          <button
+          <button type="button"
             onClick={() => void clear()}
             disabled={saving}
             className="px-3 py-1.5 clip-card-sm border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"

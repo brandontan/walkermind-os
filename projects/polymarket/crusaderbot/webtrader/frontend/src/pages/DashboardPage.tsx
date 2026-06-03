@@ -25,16 +25,17 @@ const PRESET_CODE: Record<string, string> = {
 };
 
 /** Single P&L column rendered in the HeroCard meta grid. */
-function PnlCol({ label, value }: { label: string; value: number }) {
-  const pos = value > 0.005;
-  const neg = value < -0.005;
+function PnlCol({ label, value }: { label: string; value?: number | null }) {
+  const val = value ?? 0;
+  const pos = val > 0.005;
+  const neg = val < -0.005;
   return (
     <div>
       <span className="block font-mono text-[8px] tracking-[1.5px] uppercase text-ink-4 mb-0.5">
         {label}
       </span>
       <span className={`font-mono text-[11px] font-bold ${pos ? "text-grn" : neg ? "text-red" : "text-ink-2"}`}>
-        {pos ? "+" : neg ? "−" : ""}${Math.abs(value).toFixed(2)}
+        {pos ? "+" : neg ? "−" : ""}${Math.abs(val).toFixed(2)}
       </span>
     </div>
   );
@@ -244,7 +245,7 @@ export function DashboardPage() {
                   <div>
                     <span className="block font-mono text-[8px] tracking-[1.5px] uppercase text-ink-4 mb-0.5">Balance</span>
                     <span className="font-mono text-[11px] font-bold text-ink-2">
-                      ${data.balance_usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                      ${(data.balance_usdc ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                     </span>
                   </div>
                 </div>
@@ -261,7 +262,7 @@ export function DashboardPage() {
                     color="grn"
                     icon="▰"
                     label="Balance"
-                    value={data.balance_usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                    value={(data.balance_usdc ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                     unit="USDC"
                     sub={data.trading_mode === "live" ? "Live Mode" : "Paper Mode"}
                     sparkline={[data.pnl_today, data.pnl_7d, data.pnl_alltime]}
@@ -281,7 +282,7 @@ export function DashboardPage() {
                     color="grn"
                     icon="▰"
                     label="Balance"
-                    value={data.balance_usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                    value={(data.balance_usdc ?? 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                     unit="USDC"
                     sub={`${data.trading_mode === "live" ? "Live" : "Paper"} · Polygon`}
                     sparkline={[data.pnl_today, data.pnl_7d, data.pnl_alltime]}
@@ -488,7 +489,7 @@ function RecentActivityCarousel({ items }: { items: PositionItem[] }) {
           <span className="w-3.5 h-px bg-gold" aria-hidden />
           Recent Activity
         </div>
-        <button
+        <button type="button"
           onClick={() => navigate("/portfolio")}
           className="font-mono text-[10px] font-bold tracking-[1px] text-gold uppercase hover:opacity-80 transition-opacity"
         >
@@ -528,7 +529,7 @@ function RecentActivityCarousel({ items }: { items: PositionItem[] }) {
       {items.length > 1 && (
         <div className="flex justify-center gap-1 mt-2">
           {items.map((_, i) => (
-            <button
+            <button type="button"
               key={i}
               onClick={() => setIdx(i)}
               aria-label={`Go to item ${i + 1}`}

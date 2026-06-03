@@ -136,7 +136,7 @@ function MarketCardRow({ market, onDeploy }: { market: MarketCard; onDeploy: (m:
         </div>
       </div>
 
-      <button
+      <button type="button"
         onClick={() => onDeploy(market)}
         className="w-full py-1.5 rounded border border-gold/40 bg-gold/10 text-gold text-[10px] font-bold tracking-widest uppercase hover:bg-gold/20 transition-colors font-hud"
       >
@@ -256,7 +256,7 @@ export function DiscoverPage() {
         {/* Category filter tabs */}
         <div className="flex gap-1 mb-4 overflow-x-auto pb-1 scrollbar-none">
           {ALL_CATEGORIES.map((cat) => (
-            <button
+            <button type="button"
               key={cat}
               onClick={() => setCategory(cat)}
               className={[
@@ -289,14 +289,14 @@ export function DiscoverPage() {
                 : "Market data unavailable. Check your connection."}
             </p>
             {debouncedSearch ? (
-              <button
+              <button type="button"
                 onClick={() => setSearch("")}
                 className="font-hud text-[9px] font-bold tracking-widest text-gold uppercase px-3 py-1.5 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
               >
                 Clear search
               </button>
             ) : (
-              <button
+              <button type="button"
                 onClick={() => void load()}
                 className="font-hud text-[9px] font-bold tracking-widest text-gold uppercase px-3 py-1.5 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
               >
