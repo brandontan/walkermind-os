@@ -51,8 +51,10 @@ class _Conn:
     def __init__(self, *, raise_exc=False):
         self.raise_exc = raise_exc
         self.rows = None
+        self.sql = ""
 
     async def executemany(self, sql, rows):
+        self.sql = sql
         if self.raise_exc:
             raise RuntimeError("db down")
         self.rows = rows
@@ -98,6 +100,7 @@ def test_record_batches_with_run_id_and_skips_non_dict():
     assert n == 2
     assert all(r[0] == "run1" for r in conn.rows)        # run_id prepended
     assert {r[1] for r in conn.rows} == {"c1", "c2"}     # market_id at index 1
+    assert "$1::uuid" in conn.sql  # str run_id cast → no silent type-mismatch fail
 
 
 def test_record_failsoft_on_error():

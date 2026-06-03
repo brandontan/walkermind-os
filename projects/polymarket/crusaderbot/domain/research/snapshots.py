@@ -91,7 +91,7 @@ async def record_market_snapshots(
                 INSERT INTO market_snapshots
                     (scan_run_id, market_id, category, best_bid, best_ask,
                      mid_price, liquidity_usdc, raw, scanned_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW())
+                VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW())
                 """,
                 payload,
             )
