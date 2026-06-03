@@ -6,6 +6,7 @@ decider entry-window/price gating, and run_oos inertness on an empty substrate
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 
@@ -98,6 +99,21 @@ def test_decider_rejects_fav_price_out_of_band():
     assert decide(_row("mkt1", 0.80, now, rem_sec=20.0)) is None
 
 
+def test_decider_slug_fallback_and_naive_scanned_at():
+    # No endDate -> derive close from the {coin}-updown-{tf}-{slot} slug (slot is
+    # the candle-open epoch; 5m step = 300s). scanned_at is NAIVE (no tzinfo) to
+    # pin the tz-safety guard (must not raise a TypeError).
+    decide = build_decider("close_sweep")  # window 35s, fav 0.55-0.70
+    slot = 1_900_000_000  # candle open; close = slot + 300
+    scanned_naive = datetime.utcfromtimestamp(slot + 280)  # 20s before close, naive
+    row = {
+        "mid_price": 0.60,
+        "scanned_at": scanned_naive,
+        "raw": json.dumps({"slug": f"btc-updown-5m-{slot}"}),  # no endDate
+    }
+    assert decide(row) == ("late_entry_v3::close_sweep", "YES")
+
+
 def test_flip_hunter_takes_underdog_cheap_side():
     decide = build_decider("flip_hunter")  # underdog, fav band 0.10-0.36, window 180/min 60
     now = datetime(2026, 6, 1, tzinfo=timezone.utc)
@@ -107,12 +123,11 @@ def test_flip_hunter_takes_underdog_cheap_side():
 
 # ---- run_oos inertness ----------------------------------------------------
 
-@pytest.mark.asyncio
-async def test_run_oos_empty_substrate_all_unproven():
+def test_run_oos_empty_substrate_all_unproven():
     async def empty_fetch(_lookback: int) -> list:
         return []
 
-    results = await run_oos(fetch_rows=empty_fetch)
+    results = asyncio.run(run_oos(fetch_rows=empty_fetch))
     assert set(results) == set(PRESETS)
     for preset in PRESETS:
         r = results[preset]
@@ -122,8 +137,7 @@ async def test_run_oos_empty_substrate_all_unproven():
         assert r.status == "UNPROVEN_NO_DATA"
 
 
-@pytest.mark.asyncio
-async def test_run_oos_thin_sample_is_unproven():
+def test_run_oos_thin_sample_is_unproven():
     now = datetime(2026, 6, 1, tzinfo=timezone.utc)
     # 2 markets (well under MIN_OOS_TRADES) -> close_sweep measured but UNPROVEN_THIN
     rows = [
@@ -134,7 +148,7 @@ async def test_run_oos_thin_sample_is_unproven():
     async def fetch(_lookback: int) -> list:
         return rows
 
-    results = await run_oos(presets=("close_sweep",), fetch_rows=fetch)
+    results = asyncio.run(run_oos(presets=("close_sweep",), fetch_rows=fetch))
     r = results["close_sweep"]
     assert r.n_trades == 2
     assert r.status == "UNPROVEN_THIN"

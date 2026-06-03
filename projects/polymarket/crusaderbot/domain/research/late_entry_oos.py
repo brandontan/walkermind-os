@@ -152,9 +152,13 @@ def _preset_params(preset: str) -> dict[str, object]:
 def _seconds_to_close(raw: object, scanned_at: datetime) -> float | None:
     """Seconds from ``scanned_at`` to the candle close, from the stored Gamma raw.
 
-    Uses ``endDate`` when present, else derives the close from the
-    ``{coin}-updown-{tf}-{slot}`` slug timeframe step. Returns None when neither
-    is reconstructable (market then fails the window gate — never guessed).
+    Mirror of ``late_entry_v3._seconds_to_close``: primary parses the market end
+    timestamp (``endDate``/``endDateIso``/``end_date_iso``); fallback derives the
+    close from the recurring-candle slug ``{coin}-updown-{tf}-{slot}`` as
+    ``slot + step``. Returns None when neither source is reconstructable (the
+    market then fails the window gate — never guessed). A naive ``scanned_at``
+    (e.g. a DB column returned without tzinfo) is treated as UTC so the
+    subtraction never raises a tz-mismatch ``TypeError``.
     """
     if isinstance(raw, str):
         try:
@@ -163,7 +167,10 @@ def _seconds_to_close(raw: object, scanned_at: datetime) -> float | None:
             return None
     if not isinstance(raw, dict):
         return None
-    end_raw = raw.get("endDate") or raw.get("end_date") or raw.get("endDateIso")
+    if scanned_at.tzinfo is None:
+        scanned_at = scanned_at.replace(tzinfo=timezone.utc)
+
+    end_raw = raw.get("endDate") or raw.get("endDateIso") or raw.get("end_date_iso")
     if end_raw:
         try:
             end = datetime.fromisoformat(str(end_raw).replace("Z", "+00:00"))
@@ -172,6 +179,20 @@ def _seconds_to_close(raw: object, scanned_at: datetime) -> float | None:
             return (end - scanned_at).total_seconds()
         except (ValueError, TypeError):
             return None
+
+    # Fallback: derive close from the {coin}-updown-{tf}-{slot} slug (slot is the
+    # candle-open epoch; close = slot + timeframe step).
+    slug = str(raw.get("slug") or "")
+    parts = slug.rsplit("-", 2)
+    if len(parts) == 3:
+        tf, slot_str = parts[1], parts[2]
+        step = _TF_STEP_SECONDS.get(tf)
+        if step is not None:
+            try:
+                end = datetime.fromtimestamp(int(slot_str) + step, tz=timezone.utc)
+                return (end - scanned_at).total_seconds()
+            except (ValueError, TypeError, OSError):
+                return None
     return None
 
 
