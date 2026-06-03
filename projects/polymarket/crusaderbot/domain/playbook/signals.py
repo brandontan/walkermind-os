@@ -181,6 +181,69 @@ def sharp_money_reading(
     )
 
 
+def news_injury_reading(
+    *,
+    present: bool,
+    severity: float,
+    detected_age_sec: float,
+    repriced_fraction: float,
+    yes_favored: bool,
+    max_age_sec: float = 3_600.0,
+) -> SignalReading:
+    """Injury / news repricing-lag reading (feed-dependent, Phase-2d).
+
+    Blueprint §3 feed #4: ``recency × severity`` while the book has not yet
+    repriced. ``confidence = severity · recency · unrepriced`` where
+    ``recency = 1 - age/max_age`` (a stale event has decayed) and
+    ``unrepriced = 1 - repriced_fraction`` (an already-absorbed event has no
+    edge left). ``value`` is signed — positive when the event favors YES — so
+    ``InjuryAlphaModule`` reads the side to buy from the sign. ``native=False``:
+    the reading is only as good as the external feed that supplied it.
+
+    No event (``present=False``) or zero severity → neutral zero-confidence
+    reading, identical to the Phase-1 placeholder so a NullFeed market is inert.
+    """
+    if not present or severity <= 0.0:
+        return SignalReading(NEWS_INJURY, 0.0, 0.0, native=False, detail="no_event")
+    recency = _clamp01(1.0 - detected_age_sec / max_age_sec) if max_age_sec > 0 else 0.0
+    unrepriced = _clamp01(1.0 - repriced_fraction)
+    conf = _clamp01(_clamp01(severity) * recency * unrepriced)
+    sign = 1.0 if yes_favored else -1.0
+    return SignalReading(
+        NEWS_INJURY,
+        sign * conf,
+        conf,
+        native=False,
+        detail=f"sev={severity:.2f} age={detected_age_sec:.0f}s repriced={repriced_fraction:.2f}",
+    )
+
+
+def public_flow_reading(*, public_pct_on_side: float, side: str) -> SignalReading:
+    """Public-betting imbalance reading (feed-dependent, Phase-2e).
+
+    Blueprint §3 feed #3: divergence magnitude of the public lean. ``confidence``
+    scales the lopsidedness of public tickets, ``2·|pct − 0.5|`` clamped (an even
+    50/50 split is zero-confidence, a 100% pile is full). ``value`` is signed
+    toward the **public** side (positive = public on YES); ``PublicFadeModule``
+    trades the *opposite* side. ``native=False`` — external feed quality bound.
+
+    No flow (``side`` not YES/NO, or zero pct) → neutral, matching the Phase-1
+    placeholder so a NullFeed market stays inert.
+    """
+    s = (side or "").strip().upper()
+    if s not in ("YES", "NO") or public_pct_on_side <= 0.0:
+        return SignalReading(PUBLIC_FLOW, 0.0, 0.0, native=False, detail="no_flow")
+    conf = _clamp01(2.0 * abs(public_pct_on_side - 0.5))
+    sign = 1.0 if s == "YES" else -1.0
+    return SignalReading(
+        PUBLIC_FLOW,
+        sign * conf,
+        conf,
+        native=False,
+        detail=f"pub%={public_pct_on_side:.2f} on {s}",
+    )
+
+
 def neutral_reading(feed: str) -> SignalReading:
     """Zero-confidence reading for a feed-dependent signal with no adapter."""
     return SignalReading(feed, 0.0, 0.0, native=False, detail="no_feed")
@@ -200,12 +263,23 @@ def compute_signal_bundle(
     sell_flow_usdc: float,
     sharp_signed_usdc: float,
     total_flow_usdc: float,
+    # Feed-dependent inputs (Phase-2d/2e). Default-neutral so Phase-1/2b callers
+    # and a NullFeed market produce exactly the Phase-1 placeholder readings.
+    injury_present: bool = False,
+    injury_severity: float = 0.0,
+    injury_detected_age_sec: float = 0.0,
+    injury_repriced_fraction: float = 0.0,
+    injury_yes_favored: bool = False,
+    public_pct_on_side: float = 0.0,
+    public_side: str = "",
 ) -> SignalBundle:
-    """Assemble all native readings into a bundle for one market.
+    """Assemble all readings into a bundle for one market.
 
-    Feed-dependent signals (public flow, news/injury, team strength) are added
-    as neutral readings so the bundle always exposes the full feed set; V2
-    replaces them with live adapter-backed readings.
+    Native feeds are computed from the orderbook / on-chain inputs. Feed-dependent
+    signals (public flow, news/injury) are now adapter-backed: when the caller
+    supplies feed data they produce live readings, otherwise they fall back to a
+    neutral reading internally (so the bundle always exposes the full feed set and
+    a NullFeed market is inert). Team strength remains a neutral placeholder (V3).
     """
     readings: dict[str, SignalReading] = {}
     readings[LINE_MOVEMENT] = line_movement_reading(mid_now, mid_prev, noise_sigma)
@@ -213,9 +287,16 @@ def compute_signal_bundle(
     readings[EVENT_TTL] = event_ttl_reading(seconds_to_event, close_window_sec)
     readings[MARKET_SENTIMENT] = market_sentiment_reading(buy_flow_usdc, sell_flow_usdc)
     readings[SHARP_MONEY] = sharp_money_reading(sharp_signed_usdc, total_flow_usdc)
-    # Feed-dependent placeholders (neutral until adapters land in V2).
-    readings[PUBLIC_FLOW] = neutral_reading(PUBLIC_FLOW)
-    readings[NEWS_INJURY] = neutral_reading(NEWS_INJURY)
+    readings[NEWS_INJURY] = news_injury_reading(
+        present=injury_present,
+        severity=injury_severity,
+        detected_age_sec=injury_detected_age_sec,
+        repriced_fraction=injury_repriced_fraction,
+        yes_favored=injury_yes_favored,
+    )
+    readings[PUBLIC_FLOW] = public_flow_reading(
+        public_pct_on_side=public_pct_on_side, side=public_side
+    )
     readings[TEAM_STRENGTH] = neutral_reading(TEAM_STRENGTH)
     return SignalBundle(market_id=market_id, readings=readings)
 
@@ -229,6 +310,8 @@ __all__ = [
     "event_ttl_reading",
     "market_sentiment_reading",
     "sharp_money_reading",
+    "news_injury_reading",
+    "public_flow_reading",
     "neutral_reading",
     "NATIVE_FEEDS",
     "LINE_MOVEMENT",

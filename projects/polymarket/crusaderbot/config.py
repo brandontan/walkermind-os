@@ -139,6 +139,17 @@ class Settings(BaseSettings):
     # existing activation guards. Runtime-overridable via the admin overlay.
     PLAYBOOK_STRATEGY_ENABLED: bool = False
 
+    # PLAYBOOK external feed adapters (Phase-2d Injury Alpha / Phase-2e Public Fade,
+    # WARP/ROOT/playbook-feed-adapters). Both default OFF — even enabled, the feed
+    # only activates when a market→event resolver is supplied (domain.playbook.
+    # feeds_http.build_sports_feed returns NullFeed otherwise), so production stays
+    # network-free + paper-only. PLAYBOOK_INJURY_FEED_ENABLED arms the ESPN free
+    # injury feed (no key). PLAYBOOK_PUBLIC_FEED_ENABLED arms The Odds API
+    # consensus / public-lean feed and additionally requires ODDS_API_KEY in the
+    # env (read inside the adapter only, never stored here — VISUALCROSSING pattern).
+    PLAYBOOK_INJURY_FEED_ENABLED: bool = False
+    PLAYBOOK_PUBLIC_FEED_ENABLED: bool = False
+
     # Phase-2c-2: when true, each scan tick persists the raw full-universe market
     # state to market_snapshots (walk-forward replay substrate). Default OFF; pure
     # append-only telemetry, fail-soft, no effect on trading. Apply migration 080.

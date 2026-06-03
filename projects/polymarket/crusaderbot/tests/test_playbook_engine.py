@@ -195,7 +195,11 @@ def test_router_no_claim_when_no_edge():
     assert not res.routed
 
 
-def test_stub_modules_never_claim_in_phase1():
+def test_feed_modules_abstain_without_feed_data():
+    # A neutral snapshot carries no sharp flow and no injury/public feed inputs, so
+    # Sharp Money / Injury Alpha / Public Fade all abstain (Closing Edge is the only
+    # native edge). Injury Alpha + Public Fade claim logic is exercised in
+    # test_playbook_feeds.py with feed data attached.
     snap = _snapshot()
     b = _bundle(snap)
     for mod in (SharpMoneyModule(), PublicFadeModule(), InjuryAlphaModule()):

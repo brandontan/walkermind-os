@@ -133,8 +133,8 @@ in Phase-1; feed-dependent feeds return a neutral reading until their adapter is
 |---|---|---|---|---|
 | 1 | **Line Movement** | Δmid over lookback window vs noise band: `(mid_t − mid_{t−k}) / σ_window` | magnitude vs σ, clamped [0,1] | **native-now** |
 | 2 | **Sharp Money** | net signed size from profitable-wallet set / total flow | wallet-PNL weighting × imbalance | native-now (P1 stub→on-chain) |
-| 3 | **Public Flow** | small-order count imbalance vs large-order flow | divergence magnitude | feed-dependent (V2) |
-| 4 | **News / Injury** | event detected ∧ Δmid since event < expected repricing | recency × severity | feed-dependent (V2) |
+| 3 | **Public Flow** | small-order count imbalance vs large-order flow | divergence magnitude | **WIRED (Phase-2e)** — `public_flow_reading`, feed-gated |
+| 4 | **News / Injury** | event detected ∧ Δmid since event < expected repricing | recency × severity | **WIRED (Phase-2d)** — `news_injury_reading`, feed-gated |
 | 5 | **Liquidity** | top-of-book depth + spread tightness | depth vs floor, spread vs cap | **native-now** |
 | 6 | **Event TTL** | seconds to event start / resolution | bucketed (far / mid / near / closing) | **native-now** |
 | 7 | **Historical Team Strength** | prior win-rate / Elo proxy vs implied prob | edge = model_p − implied_p | feed-dependent (V2) |
@@ -160,10 +160,10 @@ module per scan, preventing duplicate exposure on the same event-side.
 
 | Order | Module | Route IF (all true) | Edge source | Best sports | Phase-1 |
 |---|---|---|---|---|---|
-| 1 | **Injury Alpha** | injury/news event detected ∧ market not yet repriced ∧ TTL > 1h ∧ quality OK | repricing lag | NBA, NFL, Soccer | stub (V2) |
+| 1 | **Injury Alpha** | injury/news event detected ∧ market not yet repriced ∧ TTL > 1h ∧ quality OK | repricing lag | NBA, NFL, Soccer | **WIRED (Phase-2d, feed-gated)** |
 | 2 | **Sharp Money** | sharp-wallet accumulation ≥ θ ∧ TTL > 24h ∧ spread acceptable ∧ quality OK | informed flow | MLB, NHL, Tennis | stub (native, P1.5) |
 | 3 | **Closing Edge** | TTL ≤ close-window ∧ book stale vs fair (mid-vs-resting gap) ∧ liquidity OK | closing-line value | NFL, NHL, NBA | **WIRED (MVP)** |
-| 4 | **Public Fade** | public imbalance ≥ θ ∧ historical-overreaction pattern ∧ quality OK | contrarian | UFC, Soccer | stub (V2) |
+| 4 | **Public Fade** | public imbalance ≥ θ ∧ historical-overreaction pattern ∧ quality OK | contrarian | UFC, Soccer | **WIRED (Phase-2e, feed-gated)** |
 
 Stubbed modules are present in the matrix and return no candidate (router falls through
 to the next). This makes the router complete-by-design: enabling a module is wiring its
@@ -325,9 +325,16 @@ Filter accept/reject; router precedence/dedup; Closing Edge entry/exit; candidat
   (`services/signal_scan/signal_scan_job.py`), following the `weather` dispatch path.
 - **Sharp Money module (full)** — promote the on-chain sharp-wallet accumulation signal
   from proxy to live, reusing the copy-trade chain monitor.
-- **External feed adapters** — implement `SportsFeed` for an odds provider + an
-  injury/news feed (requires network allowlist + API keys).
-- **Injury Alpha + Public Fade modules** — enable now that their feeds exist.
+- **External feed adapters** — ✅ shipped (Phase-2d/2e, `WARP/ROOT/playbook-feed-adapters`).
+  `feeds_http.py` carries two free reference providers behind the `SportsFeed` Protocol:
+  **ESPN** public endpoints (no key) → injury events, and **The Odds API** (free tier,
+  `ODDS_API_KEY` from env) → no-vig consensus model probability + a soft-vs-sharp book
+  *public-lean* proxy. `build_sports_feed()` returns `NullFeed` unless a feed flag is on
+  AND a `market_id → FeedTarget` resolver is supplied, so production stays network-free.
+  *Remaining operator/owner-side activation: the market→event resolver source, the
+  `ODDS_API_KEY` secret, and the provider hosts in the network allowlist.*
+- **Injury Alpha + Public Fade modules** — ✅ full claim logic shipped (Phase-2d/2e);
+  fire once a resolver-backed feed is injected. Paper-only, flag-gated.
 - **Underdog Value + News Shock** — additional modules in the matrix.
 - **Backtest framework** — walk-forward validation + leakage/overfit/selection-bias
   detection (shared blocker; also unblocks candle-preset validation).
@@ -356,8 +363,10 @@ Filter accept/reject; router precedence/dedup; Closing Edge entry/exit; candidat
    high persistence.
 4. **Phase-2c — Backtest framework** — unblocks +EV proof for PLAYBOOK *and* candle
    presets (flagged F-1 critical in strategic-alpha-research.md).
-5. **Phase-2d — Injury Alpha** (after injury feed) — highest discrete single-event EV.
-6. **Phase-2e — Public Fade** (after public-flow feed).
+5. **Phase-2d — Injury Alpha** ✅ — module + `news_injury_reading` + ESPN reference feed
+   shipped; highest discrete single-event EV. Fires once a resolver-backed feed is wired.
+6. **Phase-2e — Public Fade** ✅ — module + `public_flow_reading` + Odds API soft-vs-sharp
+   public-lean proxy shipped. Fires once a resolver-backed feed is wired.
 7. **Phase-3 — Line Momentum / Liquidity Hunt + WebSocket + Monte Carlo classifier.**
 
 Rationale: ship the native spine first (cheap, durable edge), prove it in paper, then

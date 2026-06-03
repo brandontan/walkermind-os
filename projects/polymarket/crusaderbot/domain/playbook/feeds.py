@@ -23,8 +23,10 @@ class InjuryEvent:
 
     market_id: str
     headline: str
-    severity: float  # [0, 1] — impact on the outcome probability
+    severity: float  # [0, 1] — magnitude of the impact on the outcome probability
     detected_ts_epoch: float  # unix seconds when the event was first observed
+    yes_favored: bool = True  # True if the event raises P(YES) for this market
+    repriced_fraction: float = 0.0  # [0, 1] — share of the expected move already absorbed
 
 
 @dataclass(frozen=True)

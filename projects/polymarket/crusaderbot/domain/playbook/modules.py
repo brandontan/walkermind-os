@@ -39,6 +39,22 @@ SHARP_MONEY_MIN_FLOW_USDC: float = 500.0  # ignore thin sharp flow (noise floor)
 SHARP_MONEY_TP_PCT: float = 0.30
 SHARP_MONEY_SL_PCT: float = 0.15
 
+# --- Injury Alpha tunables (Phase-2d; feed-dependent — calibratable by backtest) ---
+INJURY_MIN_TTL_SEC: float = 3_600.0  # blueprint: only act with TTL > 1h to repricing
+INJURY_MIN_CONFIDENCE: float = 0.20  # min injury-reading confidence to claim
+INJURY_MAX_REPRICED_FRACTION: float = 0.50  # book already absorbed ≥50% → no edge left
+INJURY_TP_PCT: float = 0.30
+INJURY_SL_PCT: float = 0.15
+
+# --- Public Fade tunables (Phase-2e; feed-dependent — calibratable by backtest) ---
+PUBLIC_FADE_MIN_TTL_SEC: float = 1_800.0  # stay outside Closing Edge's window (clean split)
+PUBLIC_FADE_MIN_PCT: float = 0.65  # public-imbalance threshold θ (share of public tickets)
+PUBLIC_FADE_MIN_OVERREACTION: float = 0.10  # public_pct − market-implied prob on that side
+PUBLIC_FADE_OVERREACTION_SCALE: float = 0.30  # overreaction mapping to full confidence
+PUBLIC_FADE_MIN_CONFIDENCE: float = 0.20
+PUBLIC_FADE_TP_PCT: float = 0.30
+PUBLIC_FADE_SL_PCT: float = 0.15
+
 
 def _clamp01(x: float) -> float:
     return 0.0 if x < 0.0 else 1.0 if x > 1.0 else x
@@ -69,6 +85,17 @@ class MarketSnapshot:
     # keeps evaluate_snapshot pure + Phase-1 callers/tests unchanged.
     sharp_signed_usdc: float = 0.0
     sharp_total_flow_usdc: float = 0.0
+    # Injury Alpha feed inputs (Phase-2d) — attached from a SportsFeed adapter in
+    # the strategy. Neutral defaults keep Phase-1/2b callers + tests unchanged and
+    # make a NullFeed market inert (injury_present=False → module abstains).
+    injury_present: bool = False
+    injury_severity: float = 0.0  # [0, 1] magnitude of the event's outcome impact
+    injury_detected_age_sec: float = 0.0  # seconds since the event was first observed
+    injury_repriced_fraction: float = 0.0  # [0, 1] share of the expected move already absorbed
+    injury_yes_favored: bool = False  # True if the event raises P(YES)
+    # Public Fade feed inputs (Phase-2e).
+    public_pct_on_side: float = 0.0  # [0, 1] share of public tickets on public_side
+    public_side: str = ""  # "YES" | "NO" | "" (no public-flow signal)
 
 
 @dataclass(frozen=True)
@@ -222,31 +249,132 @@ class SharpMoneyModule(PlaybookModule):
 
 
 class PublicFadeModule(PlaybookModule):
-    """Fade public overreaction (feed-dependent — V2).
+    """Fade public overreaction (feed-dependent — Phase-2e).
 
-    Edge source: public piles onto popular teams/names; fade when historical
-    overreaction patterns hold. Requires a public-flow feed. Best: UFC, Soccer.
+    Edge source: the public piles onto popular teams/names, pushing a side past
+    its fair value; fading the crowded side is contrarian alpha when the public
+    lean exceeds the market-implied probability (overreaction). Requires a
+    public-flow feed (``SportsFeed.get_public_flow``). Best: UFC, Soccer.
+
+    Entry (blueprint §4): public imbalance ≥ θ AND overreaction (public_pct beats
+    the implied prob on that side) AND TTL outside the Closing-Edge window (so the
+    two never compete) AND quality OK (enforced upstream). Side traded is the
+    OPPOSITE of the public side. Holding: to resolution.
     """
 
     name = "public_fade"
     feed_weights = {S.PUBLIC_FLOW: 0.6, S.MARKET_SENTIMENT: 0.4}
 
     def evaluate(self, snapshot: MarketSnapshot, bundle: SignalBundle) -> ModuleDecision:
-        return ModuleDecision.no_claim("public_feed_not_wired_phase1")
+        pub_side = (snapshot.public_side or "").strip().upper()
+        if pub_side not in ("YES", "NO"):
+            return ModuleDecision.no_claim("no_public_flow")
+        # Contrarian / slow edge — keep clear of Closing Edge's final-window book.
+        if snapshot.seconds_to_event <= PUBLIC_FADE_MIN_TTL_SEC:
+            return ModuleDecision.no_claim("ttl_inside_closing_window")
+        if snapshot.public_pct_on_side < PUBLIC_FADE_MIN_PCT:
+            return ModuleDecision.no_claim(
+                f"public_pct_{snapshot.public_pct_on_side:.3f}_below_theta"
+            )
+        if not (0.0 < snapshot.fair_price < 1.0):
+            return ModuleDecision.no_claim("fair_price_out_of_bounds")
+        # Overreaction: the public bets the side beyond its market-implied probability.
+        implied = snapshot.fair_price if pub_side == "YES" else (1.0 - snapshot.fair_price)
+        overreaction = snapshot.public_pct_on_side - implied
+        if overreaction < PUBLIC_FADE_MIN_OVERREACTION:
+            return ModuleDecision.no_claim(f"overreaction_{overreaction:.3f}_below_min")
+
+        reading = bundle.get(S.PUBLIC_FLOW)
+        if reading is None or reading.confidence < PUBLIC_FADE_MIN_CONFIDENCE:
+            conf = 0.0 if reading is None else reading.confidence
+            return ModuleDecision.no_claim(f"public_conf_{conf:.3f}_below_min")
+
+        side = "NO" if pub_side == "YES" else "YES"  # FADE the public
+        over_conf = _clamp01(overreaction / PUBLIC_FADE_OVERREACTION_SCALE)
+        bundle_conf = bundle.weighted_score(self.feed_weights)
+        confidence = _clamp01(0.4 * reading.confidence + 0.3 * over_conf + 0.3 * bundle_conf)
+        return ModuleDecision(
+            claimed=True,
+            side=side,
+            confidence=confidence,
+            suggested_size_usdc=snapshot.suggested_size_usdc,
+            reasoning=(
+                f"public_fade: fade {pub_side}→{side}, public {snapshot.public_pct_on_side:.0%} "
+                f"vs implied {implied:.0%} (overreaction {overreaction:+.3f}), "
+                f"{snapshot.seconds_to_event / 3600:.1f}h to event"
+            ),
+            tp_pct=PUBLIC_FADE_TP_PCT,
+            sl_pct=PUBLIC_FADE_SL_PCT,
+            metadata={
+                "module": self.name,
+                "public_side": pub_side,
+                "public_pct_on_side": round(snapshot.public_pct_on_side, 4),
+                "implied_prob_public_side": round(implied, 4),
+                "overreaction": round(overreaction, 4),
+                "seconds_to_event": snapshot.seconds_to_event,
+            },
+        )
 
 
 class InjuryAlphaModule(PlaybookModule):
-    """Trade the injury/news repricing lag (feed-dependent — V2).
+    """Trade the injury/news repricing lag (feed-dependent — Phase-2d).
 
-    Edge source: window between a confirmed injury/lineup/scratch and the book
-    repricing. Requires an injury/news feed. Best: NBA, NFL, Soccer.
+    Edge source: the window between a confirmed lineup/injury/scratch and the book
+    repricing is the highest discrete single-event EV. Requires an injury/news feed
+    (``SportsFeed.get_injury_event``). Best: NBA, NFL, Soccer.
+
+    Entry (blueprint §4): an injury/news event detected AND the book not yet
+    repriced (``repriced_fraction`` below the cap) AND TTL > 1h (room for the move
+    to play out before the event) AND quality OK (enforced upstream). Side is the
+    one the event favors (sign of the injury reading). Holding: until repricing or
+    the event. Highest precedence in the router — it claims before any native edge.
     """
 
     name = "injury_alpha"
     feed_weights = {S.NEWS_INJURY: 0.7, S.LINE_MOVEMENT: 0.3}
 
     def evaluate(self, snapshot: MarketSnapshot, bundle: SignalBundle) -> ModuleDecision:
-        return ModuleDecision.no_claim("injury_feed_not_wired_phase1")
+        if not snapshot.injury_present:
+            return ModuleDecision.no_claim("no_injury_event")
+        # Need room before the event for the repricing to play out (blueprint TTL>1h).
+        if snapshot.seconds_to_event <= INJURY_MIN_TTL_SEC:
+            return ModuleDecision.no_claim("ttl_inside_1h_window")
+        if snapshot.injury_repriced_fraction >= INJURY_MAX_REPRICED_FRACTION:
+            return ModuleDecision.no_claim(
+                f"repriced_{snapshot.injury_repriced_fraction:.3f}_edge_gone"
+            )
+
+        reading = bundle.get(S.NEWS_INJURY)
+        if reading is None or reading.confidence < INJURY_MIN_CONFIDENCE:
+            conf = 0.0 if reading is None else reading.confidence
+            return ModuleDecision.no_claim(f"injury_conf_{conf:.3f}_below_min")
+
+        # reading.value is signed: >0 → the event favors YES.
+        side = "YES" if reading.value > 0 else "NO"
+        bundle_conf = bundle.weighted_score(self.feed_weights)
+        confidence = _clamp01(0.6 * reading.confidence + 0.4 * bundle_conf)
+        return ModuleDecision(
+            claimed=True,
+            side=side,
+            confidence=confidence,
+            suggested_size_usdc=snapshot.suggested_size_usdc,
+            reasoning=(
+                f"injury_alpha: {side} (severity {snapshot.injury_severity:.2f}, "
+                f"repriced {snapshot.injury_repriced_fraction:.0%}, "
+                f"age {snapshot.injury_detected_age_sec:.0f}s), "
+                f"{snapshot.seconds_to_event / 3600:.1f}h to event"
+            ),
+            tp_pct=INJURY_TP_PCT,
+            sl_pct=INJURY_SL_PCT,
+            metadata={
+                "module": self.name,
+                "injury_severity": round(snapshot.injury_severity, 4),
+                "injury_repriced_fraction": round(snapshot.injury_repriced_fraction, 4),
+                "injury_detected_age_sec": round(snapshot.injury_detected_age_sec, 1),
+                "injury_yes_favored": snapshot.injury_yes_favored,
+                "seconds_to_event": snapshot.seconds_to_event,
+            },
+        )
 
 
 __all__ = [
