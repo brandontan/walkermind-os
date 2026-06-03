@@ -359,14 +359,43 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
     )
 
 
-@router.get("/market-feed")
-async def get_market_feed(user: _CurrentUser) -> list[MarketFeedItem]:
-    """Live crypto up/down candle markets — nearest close per asset.
+# Short display codes for the weather market feed, keyed by canonical city name
+# (LOCATIONS.city). The feed shows one row per city; the asset column is narrow,
+# so these are compact airport-style codes.
+_WX_CITY_CODE: dict[str, str] = {
+    "New York City": "NYC", "Chicago": "CHI", "San Francisco": "SF",
+    "Los Angeles": "LA", "Miami": "MIA", "Dallas": "DAL", "Toronto": "TOR",
+    "London": "LON", "Paris": "PAR", "Munich": "MUC", "Berlin": "BER",
+    "Madrid": "MAD", "Amsterdam": "AMS", "Dubai": "DXB", "Jeddah": "JED",
+    "Tokyo": "TYO", "Seoul": "SEL", "Beijing": "PEK", "Shanghai": "SHA",
+    "Shenzhen": "SZX", "Wuhan": "WUH", "Hong Kong": "HKG", "Singapore": "SIN",
+    "Kuala Lumpur": "KUL", "Bangkok": "BKK",
+}
 
-    Reads the already-synced ``markets`` table (Polymarket CLOB prices); no
-    external spot-price dependency. Powers the Home auto-slide market feed.
-    """
-    pool = get_pool()
+
+def _lean_from_prob(up_prob: float) -> str:
+    """UP/DOWN/EVEN lean from the YES probability (shared by all feeds)."""
+    if up_prob >= 0.52:
+        return "UP"
+    if up_prob <= 0.48:
+        return "DOWN"
+    return "EVEN"
+
+
+def _weather_asset_code(question: str) -> str:
+    """Derive a compact city code from a weather market question by matching the
+    LOCATIONS roster (canonical name or alias substring). Falls back to ``WX``."""
+    from ...strategies.weather.locations import LOCATIONS
+    q = (question or "").lower()
+    for loc in LOCATIONS:
+        for name in (loc.city, *loc.match_aliases):
+            if name and name.lower() in q:
+                return _WX_CITY_CODE.get(loc.city, loc.city[:3].upper())
+    return "WX"
+
+
+async def _crypto_market_feed(pool: Any) -> list[MarketFeedItem]:
+    """Nearest up/down candle market per crypto asset."""
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """SELECT DISTINCT ON (split_part(slug, '-updown-', 1))
@@ -381,7 +410,6 @@ async def get_market_feed(user: _CurrentUser) -> list[MarketFeedItem]:
                  AND liquidity_usdc > 0
                ORDER BY split_part(slug, '-updown-', 1), resolution_at ASC"""
         )
-
     now = datetime.now(timezone.utc)
     asset_labels = {"btc": "BTC", "eth": "ETH", "sol": "SOL", "bnb": "BNB",
                     "xrp": "XRP", "doge": "DOGE", "hype": "HYPE"}
@@ -389,25 +417,112 @@ async def get_market_feed(user: _CurrentUser) -> list[MarketFeedItem]:
     for r in rows:
         asset_key = str(r["asset"] or "").lower()
         up_prob = float(r["yes_price"] or 0.0)
-        if up_prob >= 0.52:
-            lean = "UP"
-        elif up_prob <= 0.48:
-            lean = "DOWN"
-        else:
-            lean = "EVEN"
         secs = int((r["resolution_at"] - now).total_seconds())
         label = asset_labels.get(asset_key, asset_key.upper())
         feed.append(
             MarketFeedItem(
-                asset=label,
-                label=label,
-                up_prob=up_prob,
-                lean=lean,
+                asset=label, label=label, up_prob=up_prob,
+                lean=_lean_from_prob(up_prob),
                 seconds_to_close=max(0, secs),
                 liquidity_usdc=float(r["liquidity_usdc"] or 0.0),
             )
         )
     return feed
+
+
+async def _weather_market_feed(pool: Any) -> list[MarketFeedItem]:
+    """Nearest-resolution weather markets, one row per city (synced by the scan's
+    _sync_weather_markets). No liquidity floor — Gamma weather books are thin."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT question, yes_price, liquidity_usdc, resolution_at
+               FROM markets
+               WHERE category = 'Weather'
+                 AND resolved = false
+                 AND resolution_at > now()
+                 AND yes_price IS NOT NULL
+               ORDER BY resolution_at ASC
+               LIMIT 40"""
+        )
+    now = datetime.now(timezone.utc)
+    feed: list[MarketFeedItem] = []
+    seen: set[str] = set()
+    for r in rows:
+        code = _weather_asset_code(r["question"])
+        if code in seen:
+            continue
+        seen.add(code)
+        up_prob = float(r["yes_price"] or 0.0)
+        secs = int((r["resolution_at"] - now).total_seconds())
+        feed.append(
+            MarketFeedItem(
+                asset=code, label=str(r["question"] or "")[:48],
+                up_prob=up_prob, lean=_lean_from_prob(up_prob),
+                seconds_to_close=max(0, secs),
+                liquidity_usdc=float(r["liquidity_usdc"] or 0.0),
+            )
+        )
+        if len(feed) >= 6:
+            break
+    return feed
+
+
+async def _category_market_feed(pool: Any, category: str) -> list[MarketFeedItem]:
+    """Generic nearest-resolution markets in a category (e.g. Sports)."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT slug, question, yes_price, liquidity_usdc, resolution_at
+               FROM markets
+               WHERE category ILIKE $1
+                 AND resolved = false
+                 AND resolution_at > now()
+                 AND yes_price IS NOT NULL
+               ORDER BY resolution_at ASC
+               LIMIT 6""",
+            f"%{category}%",
+        )
+    now = datetime.now(timezone.utc)
+    feed: list[MarketFeedItem] = []
+    for r in rows:
+        up_prob = float(r["yes_price"] or 0.0)
+        secs = int((r["resolution_at"] - now).total_seconds())
+        label = str(r["question"] or r["slug"] or "")[:48]
+        asset = (str(r["slug"] or "").split("-")[0] or "MKT")[:8].upper() or "MKT"
+        feed.append(
+            MarketFeedItem(
+                asset=asset, label=label, up_prob=up_prob,
+                lean=_lean_from_prob(up_prob),
+                seconds_to_close=max(0, secs),
+                liquidity_usdc=float(r["liquidity_usdc"] or 0.0),
+            )
+        )
+    return feed
+
+
+@router.get("/market-feed")
+async def get_market_feed(user: _CurrentUser) -> list[MarketFeedItem]:
+    """Live market feed — scoped to the user's active-preset category.
+
+    Crypto presets → nearest up/down candle per asset; Weather → nearest weather
+    market per city; other categories → nearest in-category markets. Reads the
+    already-synced ``markets`` table (no external dependency). Powers the Home
+    scanner panel so the feed reflects the strategy actually in use.
+    """
+    pool = get_pool()
+    user_id = user["user_id"]
+    async with pool.acquire() as conn:
+        preset_row = await conn.fetchrow(
+            "SELECT active_preset FROM user_settings WHERE user_id = $1::uuid",
+            user_id,
+        )
+    active_preset = (preset_row["active_preset"] if preset_row else None) or ""
+    category = _PRESET_LOCKED_CATEGORY.get(active_preset, "Crypto")
+
+    if category == "Weather":
+        return await _weather_market_feed(pool)
+    if category and category != "Crypto":
+        return await _category_market_feed(pool, category)
+    return await _crypto_market_feed(pool)
 
 
 def _tp_sl_price(entry: float, side: str, pct, *, is_tp: bool) -> Optional[float]:
