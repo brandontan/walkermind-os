@@ -79,6 +79,12 @@ execution, Kelly, and the live-trading guard are untouched.
   fetch** (one cheap batched DB query; only far markets with real sharp flow get book
   reads, capped at 20) so scan-loop cost stays bounded. Near band keeps its 2h cap / 40.
   +2 window tests (far band included, beyond-72h excluded).
+- **Codex P2 fixed:** `_build_trade_signal` only applies per-module TP/SL via
+  `applied_tp_pct` / `applied_sl_pct` (else the user's profile defaults), which PLAYBOOK
+  never stamped — so the module envelope (Sharp 30/15, Closing 25/12) was silently
+  replaced by generic TP/SL. `evaluate_snapshot` now stamps those keys from the winning
+  module (mirrors the candle_auto router); also repairs the latent Closing Edge gap.
+  +2 tests (sharp 30/15, closing 25/12).
 
 ## 5. Known issues
 

@@ -430,6 +430,16 @@ class PlaybookStrategy(BaseStrategy):
             "sl_pct": decision.sl_pct,
             "engine": "playbook",
         }
+        # Honour the winning module's exit envelope: signal_scan_job._build_trade_signal
+        # only applies per-strategy TP/SL via applied_tp_pct / applied_sl_pct (else it
+        # falls back to the user's profile defaults). PLAYBOOK is a per-module router —
+        # like the candle_auto router — so stamp the module's TP/SL into those keys, or
+        # the module envelope (Closing Edge 25/12, Sharp Money 30/15) is silently
+        # replaced by the generic profile TP/SL. (Codex P2, PR #1577.)
+        if decision.tp_pct > 0.0:
+            metadata["applied_tp_pct"] = decision.tp_pct
+        if decision.sl_pct > 0.0:
+            metadata["applied_sl_pct"] = decision.sl_pct
         return SignalCandidate(
             market_id=snapshot.market_id,
             condition_id=snapshot.condition_id,

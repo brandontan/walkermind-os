@@ -24,8 +24,18 @@ from projects.polymarket.crusaderbot.domain.playbook.signals import (
     compute_signal_bundle,
 )
 from projects.polymarket.crusaderbot.domain.strategy.strategies.playbook import (
+    PlaybookStrategy,
     select_sports_markets_in_window,
 )
+from projects.polymarket.crusaderbot.domain.strategy.types import UserContext
+
+
+def _user() -> UserContext:
+    return UserContext(
+        user_id="u1", sub_account_id="s1", risk_profile="balanced",
+        capital_allocation_pct=0.40, available_balance_usdc=1_000.0,
+        equity_usdc=1_000.0,
+    )
 
 _FAR_TTL = 172_800.0  # 48h — outside the 24h Sharp Money gate
 _NEAR_TTL = 600.0     # 10m — Closing Edge window
@@ -94,6 +104,25 @@ def test_sharp_money_no_claim_when_no_flow_default():
     snap = _snapshot(signed=0.0, total=0.0)
     d = SharpMoneyModule().evaluate(snap, _bundle(snap))
     assert not d.claimed
+
+
+# ── module exit envelope honoured at candidate level (Codex P2 #1577) ─────
+def test_evaluate_snapshot_stamps_sharp_module_tpsl():
+    # The winning module's TP/SL must ride as applied_tp_pct/applied_sl_pct, or
+    # _build_trade_signal falls back to the user's generic profile TP/SL.
+    snap = _snapshot(signed=8_000.0, total=10_000.0, ttl=_FAR_TTL)
+    cand = PlaybookStrategy().evaluate_snapshot(snap, _user())
+    assert cand is not None and cand.metadata["selected_module"] == "sharp_money"
+    assert cand.metadata["applied_tp_pct"] == 0.30
+    assert cand.metadata["applied_sl_pct"] == 0.15
+
+
+def test_evaluate_snapshot_stamps_closing_edge_tpsl():
+    snap = _snapshot(signed=0.0, total=0.0, ttl=_NEAR_TTL)
+    cand = PlaybookStrategy().evaluate_snapshot(snap, _user())
+    assert cand is not None and cand.metadata["selected_module"] == "closing_edge"
+    assert cand.metadata["applied_tp_pct"] == 0.25
+    assert cand.metadata["applied_sl_pct"] == 0.12
 
 
 # ── router precedence ─────────────────────────────────────────────────────
