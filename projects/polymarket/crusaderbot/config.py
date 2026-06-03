@@ -567,6 +567,24 @@ class Settings(BaseSettings):
     # safe_close, flip_hunter); signal_following / copy_trade bypass.
     MIN_COMPLETE_SET_EDGE: float = 0.0  # env: MIN_COMPLETE_SET_EDGE — 0 disables gate
 
+    # Lane 3C-2: bound the poll of a Polymarket `delayed` (non-terminal) complete-set
+    # FOK accept before halting, so a transient delay resolves to matched/unmatched
+    # instead of forcing an operator halt. 0 attempts -> halt immediately (legacy).
+    COMPLETE_SET_DELAYED_POLL_ATTEMPTS: int = 3
+    COMPLETE_SET_DELAYED_POLL_INTERVAL_SEC: float = 1.0
+
+    # Lane 3C-2 crash-recovery reconciler: a complete-set order still 'pending'/
+    # 'unknown' older than STALE_SEC is a crash leftover (normal flow resolves in
+    # ms) -> reconcile it against broker truth (or halt+page on any uncertainty).
+    COMPLETE_SET_RECONCILE_STALE_SEC: int = 300
+    COMPLETE_SET_RECONCILE_INTERVAL_SEC: int = 300
+
+    # Lane 3C-2: tolerance for an over-budget complete-set fill. A FOK can fill above
+    # the gate-approved budget when the book drifts up within the FOK limits; the set
+    # stays riskless, so we page+flag (not halt) only when actual exceeds budget by
+    # more than this fraction (avoids noise on expected tick-level overshoots).
+    COMPLETE_SET_BUDGET_BREACH_PCT: float = 0.01
+
     # --- TOB freshness gate (WARP/R00T/tob-freshness-gate) ---
     # Max age in milliseconds for the orderbook snapshot that produced
     # a candidate's metadata["entry_price"]. Read by

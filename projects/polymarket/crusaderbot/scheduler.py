@@ -670,6 +670,18 @@ async def poll_order_lifecycle() -> None:
     await order_lifecycle.poll_once()
 
 
+async def reconcile_complete_set() -> None:
+    """Drive one complete-set crash-recovery reconcile sweep (Lane 3C-2).
+
+    Resolves complete-set order rows left 'pending'/'unknown' by a crash against
+    broker truth (or halts + pages on uncertainty). No-op in paper / non-live; the
+    reconciler contains its own per-order errors so the sweep never raises.
+    """
+    from .domain.execution import complete_set_exec
+    from .integrations.clob import get_clob_client
+    await complete_set_exec.reconcile_complete_set_orders(clob_factory=get_clob_client)
+
+
 # ---------------- CLOB WebSocket (Phase 4D) ----------------
 # A single ``ClobWebSocketClient`` instance lives for the lifetime of the
 # scheduler. ``ws_connect`` spawns it on startup; ``ws_watchdog`` reconnects
@@ -1019,6 +1031,12 @@ def setup_scheduler() -> AsyncIOScheduler:
     sched.add_job(poll_order_lifecycle, "interval",
                   seconds=s.ORDER_POLL_INTERVAL_SECONDS,
                   id="order_lifecycle", max_instances=1, coalesce=True)
+    # Lane 3C-2 complete-set crash-recovery reconciler — only registered when the
+    # complete-set path is enabled; the reconciler itself no-ops in paper/non-live.
+    if bool(getattr(s, "COMPLETE_SET_ARB_ENABLED", False)):
+        sched.add_job(reconcile_complete_set, "interval",
+                      seconds=s.COMPLETE_SET_RECONCILE_INTERVAL_SEC,
+                      id="complete_set_reconcile", max_instances=1, coalesce=True)
     # WebSocket fill streaming (Phase 4D). The client itself enforces the
     # USE_REAL_CLOB=False guard; jobs are still registered so a runtime
     # toggle flip + watchdog tick brings the socket up without a redeploy.

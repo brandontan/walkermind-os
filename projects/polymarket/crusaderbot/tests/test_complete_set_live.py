@@ -127,11 +127,26 @@ class FakePool:
 
 
 class FakeClob:
-    """Returns (or raises) a scripted sequence of post_order results."""
+    """Returns (or raises) a scripted sequence of post_order results.
 
-    def __init__(self, results: list[Any]) -> None:
+    Optionally maps a broker ``order_id`` -> fills list so ``get_fills`` can model
+    real on-chain fills for exact-fill reconciliation; an unknown id returns ``[]``
+    (the booker then keeps its pre-submit book estimate).
+    """
+
+    def __init__(
+        self,
+        results: list[Any],
+        *,
+        fills: dict[str, list[dict]] | None = None,
+        order_status: dict[str, list[dict]] | None = None,
+    ) -> None:
         self._results = list(results)
         self.calls: list[dict] = []
+        self._fills = dict(fills or {})
+        # order_id -> successive get_order() statuses; the LAST entry sticks so a
+        # 1-element list models "stays in this status across every poll".
+        self._order_status = {k: list(v) for k, v in (order_status or {}).items()}
 
     async def post_order(self, **kwargs: Any) -> dict:
         self.calls.append(kwargs)
@@ -139,6 +154,19 @@ class FakeClob:
         if isinstance(r, Exception):
             raise r
         return r
+
+    async def get_fills(self, order_id: str) -> list[dict]:
+        return list(self._fills.get(order_id, []))
+
+    async def get_order(self, order_id: str) -> dict:
+        seq = self._order_status.get(order_id)
+        if not seq:
+            return {"orderID": order_id, "status": "not_found"}
+        return seq.pop(0) if len(seq) > 1 else seq[0]
+
+
+async def _noop_sleep(*_a: Any, **_k: Any) -> None:
+    return None
 
 
 class FakeMDC:
@@ -187,6 +215,9 @@ def _patch_io(monkeypatch, halts, alerts):
     monkeypatch.setattr(cse.notifications, "notify_operator", _notify_operator)
     monkeypatch.setattr(cse.kill_switch, "set_active", _set_active)
     monkeypatch.setattr(cse, "get_settings", lambda: object())
+    # delayed->terminal poll uses asyncio.sleep between attempts; no-op it so the
+    # poll resolves instantly in tests (interval falls back to 1.0s otherwise).
+    monkeypatch.setattr(cse.asyncio, "sleep", _noop_sleep)
 
 
 def _use_conn(monkeypatch, conn: FakeConn) -> None:
@@ -223,6 +254,177 @@ async def test_both_legs_fill_books_linked_pair(monkeypatch) -> None:
     a, b = conn.paired_updates
     assert a[0] == b[1] and b[0] == a[1]
     assert len(conn.ledger_inserts) == 2
+
+
+async def test_fills_cost_aggregates_and_skips_garbage() -> None:
+    # alias keys + a clean row, then degenerate rows that MUST be skipped so a junk
+    # payload can never corrupt the money aggregate.
+    fills = [
+        {"size": "10", "price": "0.40"},          # 4.0
+        {"matched_amount": "5", "avg_price": "0.60"},  # 3.0 (aliases)
+        {"size": "0", "price": "0.50"},           # skip: size <= 0
+        {"size": "3", "price": "1.5"},            # skip: price > 1
+        {"size": "2"},                            # skip: no price
+        "not-a-dict",                             # skip: malformed
+    ]
+    size, cost = cse._fills_cost(fills)
+    assert size == 15.0
+    assert cost == 7.0
+    assert cse._fills_cost([]) == (0.0, 0.0)
+    assert cse._fills_cost(None) == (0.0, 0.0)
+    # garbage in an earlier alias must NOT abort the fallback to a later valid alias
+    assert cse._first_float({"size": "garbage", "amount": "10"},
+                            cse._FILL_SIZE_KEYS) == 10.0
+    assert cse._first_float({"size": "garbage"}, cse._FILL_SIZE_KEYS) is None
+
+
+async def test_exact_fill_overrides_book_estimate(monkeypatch) -> None:
+    # Books estimate yes=45.0 (ask .45) / no=50.0 (ask .50), but the broker actually
+    # filled YES dearer (.46 -> 46.0). Exact-fill (get_fills) MUST book the ACTUAL
+    # cost, not the stale estimate (Codex P1: stale scan-time books understate spend).
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    fy = {"orderID": "ord-y", "status": "matched"}
+    fn = {"orderID": "ord-n", "status": "matched"}
+    clob = FakeClob([fy, fn], fills={
+        "ord-y": [{"size": "100", "price": "0.46"}],
+        "ord-n": [{"size": "60", "price": "0.50"}, {"size": "40", "price": "0.50"}],
+    })
+    res = await _book_live(conn, clob)
+    assert res["status"] == "open"
+    by_side = {args[3]: args for args in conn.position_inserts}
+    assert float(by_side["yes"][4]) == 46.0  # actual fill cost, not 45.0 estimate
+    assert float(by_side["no"][4]) == 50.0
+    assert float(by_side["yes"][5]) == 0.46   # entry_price = actual/shares
+
+
+async def test_over_budget_fill_pages_and_flags_but_books(monkeypatch, alerts) -> None:
+    # budget = quote.total_cost_usdc = 95.0; the broker fills BOTH legs dearer
+    # (0.50 each -> 100.0 > 95*1.01) within the FOK limits. The set is riskless, so
+    # we book it + flag the position metadata + page the operator (no kill switch).
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    fy = {"orderID": "ord-y", "status": "matched"}
+    fn = {"orderID": "ord-n", "status": "matched"}
+    clob = FakeClob([fy, fn], fills={
+        "ord-y": [{"size": "100", "price": "0.50"}],
+        "ord-n": [{"size": "100", "price": "0.50"}],
+    })
+    res = await _book_live(conn, clob)
+    assert res["status"] == "open"  # still booked — cannot un-fill a completed FOK
+    assert any("OVER-BUDGET" in a for a in alerts)
+    # position metadata carries the over_budget flag for audit
+    assert any("over_budget" in str(a) for args in conn.position_inserts for a in args)
+
+
+async def test_in_budget_fill_does_not_page(monkeypatch, alerts) -> None:
+    # actual fills at/under budget (0.45 / 0.50 -> 95.0) -> no over-budget page.
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    fy = {"orderID": "ord-y", "status": "matched"}
+    fn = {"orderID": "ord-n", "status": "matched"}
+    clob = FakeClob([fy, fn], fills={
+        "ord-y": [{"size": "100", "price": "0.45"}],
+        "ord-n": [{"size": "100", "price": "0.50"}],
+    })
+    res = await _book_live(conn, clob)
+    assert res["status"] == "open"
+    assert not any("OVER-BUDGET" in a for a in alerts)
+
+
+async def test_exact_fill_falls_back_to_estimate_on_incomplete_fills(monkeypatch) -> None:
+    # Broker returns a SHORT fill set (60 of 100 shares) -> incomplete view -> the
+    # booker keeps its pre-submit estimate rather than trusting partial data.
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    fy = {"orderID": "ord-y", "status": "matched"}
+    fn = {"orderID": "ord-n", "status": "matched"}
+    clob = FakeClob([fy, fn], fills={"ord-y": [{"size": "60", "price": "0.99"}]})
+    res = await _book_live(conn, clob)
+    assert res["status"] == "open"
+    by_side = {args[3]: args for args in conn.position_inserts}
+    assert float(by_side["yes"][4]) == 45.0  # estimate kept (short fill ignored)
+    assert float(by_side["no"][4]) == 50.0
+
+
+async def test_yes_delayed_polls_to_matched_then_both_fill(monkeypatch) -> None:
+    # YES returns non-terminal `delayed`; the poll resolves it to matched, so the
+    # NO leg proceeds and the pair books — instead of halting on a transient delay.
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    monkeypatch.setattr(cse.asyncio, "sleep", _noop_sleep)
+    clob = FakeClob(
+        [DELAYED, FILL],
+        order_status={"ord-delayed": [{"orderID": "ord-delayed", "status": "matched"}]},
+    )
+    res = await _book_live(conn, clob)
+    assert res["status"] == "open"
+    assert len(clob.calls) == 2  # NO leg WAS sent after the YES delay resolved
+    assert len(conn.position_inserts) == 2
+
+
+async def test_no_delayed_polls_to_killed_then_unwinds(monkeypatch) -> None:
+    # NO returns `delayed`; the poll resolves it to unmatched (killed) -> YES is
+    # naked -> auto-unwind (the SELL then fills) -> flat.
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    monkeypatch.setattr(cse.asyncio, "sleep", _noop_sleep)
+    clob = FakeClob(
+        [FILL, DELAYED, FILL],  # yes fill, no delayed, unwind sell fill
+        order_status={"ord-delayed": [{"orderID": "ord-delayed", "status": "unmatched"}]},
+    )
+    res = await _book_live(conn, clob)
+    assert res["status"] == "unwound"
+    assert len(clob.calls) == 3  # YES + NO + unwind SELL
+
+
+async def test_yes_delayed_stays_ambiguous_halts(monkeypatch, halts) -> None:
+    # YES stays `delayed` across the whole poll budget -> halt + reconcile, NO never
+    # sent (we must not send the NO leg while the YES state is unknown).
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    monkeypatch.setattr(cse.asyncio, "sleep", _noop_sleep)
+    clob = FakeClob(
+        [DELAYED],
+        order_status={"ord-delayed": [{"orderID": "ord-delayed", "status": "delayed"}]},
+    )
+    with pytest.raises(LivePostSubmitError, match="non-terminal status"):
+        await _book_live(conn, clob)
+    assert len(clob.calls) == 1  # NO leg never submitted
+    assert halts and halts[0]["action"] == "pause"
+
+
+async def test_unwind_delayed_polls_to_matched_then_flat(monkeypatch) -> None:
+    # Unwind SELL returns `delayed`; the poll resolves it to matched -> flat.
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    monkeypatch.setattr(cse.asyncio, "sleep", _noop_sleep)
+    clob = FakeClob(
+        [FILL, KILL, DELAYED],  # yes fill, no kill -> unwind SELL delayed
+        order_status={"ord-delayed": [{"orderID": "ord-delayed", "status": "matched"}]},
+    )
+    res = await _book_live(conn, clob)
+    assert res["status"] == "unwound"
+    assert conn.position_inserts == []  # flat — no naked position persisted
+
+
+async def test_unwind_exact_fill_proceeds(monkeypatch) -> None:
+    # NO kill -> YES naked -> unwind SELL. The bid-walk estimate is 44.0 (bid .44),
+    # but the broker actually returned 44.5 -> exact-fill must credit the ACTUAL.
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    fill_y = {"orderID": "ord-y", "status": "matched"}
+    sell = {"orderID": "ord-sell", "status": "matched"}
+    clob = FakeClob([fill_y, KILL, sell], fills={
+        "ord-y": [{"size": "100", "price": "0.45"}],      # naked cost actual 45.0
+        "ord-sell": [{"size": "100", "price": "0.445"}],  # proceeds actual 44.5
+    })
+    res = await _book_live(conn, clob)
+    assert res["status"] == "unwound"
+    # realised = proceeds(44.5) - naked_cost(45.0) = -0.5
+    assert float(res["realised_usdc"]) == -0.5
+    credits = [float(a[2]) for a in conn.ledger_inserts if float(a[2]) > 0]
+    assert credits == [44.5]  # actual weighted proceeds, not the 44.0 estimate
     # both legs persisted as the held-to-settlement strategy
     assert all(args[6] == cse.COMPLETE_SET_STRATEGY for args in conn.position_inserts)
 

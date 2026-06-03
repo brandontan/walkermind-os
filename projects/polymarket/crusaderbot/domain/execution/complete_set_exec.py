@@ -22,6 +22,7 @@ Pipeline boundary (target, Lane 2C+):
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from decimal import Decimal
 from typing import Any
@@ -403,6 +404,130 @@ async def book_complete_set_paper(
     }
 
 
+_FILL_SIZE_KEYS: tuple[str, ...] = (
+    "size", "matched_amount", "amount", "filled_size", "making_amount",
+)
+_FILL_PRICE_KEYS: tuple[str, ...] = ("price", "fill_price", "avg_price")
+
+
+def _first_float(d: dict[str, Any], keys: tuple[str, ...]) -> float | None:
+    """First parseable float among ``keys`` (tolerant of str/None/garbage)."""
+    for k in keys:
+        v = d.get(k)
+        if v is None:
+            continue
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            continue  # garbage in this alias -> try the next key, don't give up
+    return None
+
+
+def _fills_cost(fills: list[dict] | None) -> tuple[float, float]:
+    """``(total_filled_size, total_cost_usdc)`` summed across broker fills.
+
+    Robust to broker field-name aliases; skips malformed/degenerate rows (size <= 0
+    or price outside (0, 1]) so a junk row can never corrupt the aggregate.
+    """
+    total_size = 0.0
+    total_cost = 0.0
+    for f in (fills or []):
+        if not isinstance(f, dict):
+            continue
+        sz = _first_float(f, _FILL_SIZE_KEYS)
+        px = _first_float(f, _FILL_PRICE_KEYS)
+        if sz is None or px is None or sz <= 0.0 or not (0.0 < px <= 1.0):
+            continue
+        total_size += sz
+        total_cost += sz * px
+    return total_size, total_cost
+
+
+async def _exact_fill_cost(
+    client: ClobClientProtocol,
+    broker_id: str | None,
+    *,
+    shares: float,
+    estimate: float,
+    leg: str,
+    market_id: str,
+) -> float:
+    """Actual weighted USDC cost/proceeds of a FILLED order, from broker fills.
+
+    Closes the scan-snapshot understatement (Codex P1 / M-2): a book that drifted
+    between scan and fill makes the pre-submit ``estimate`` wrong, so the ledger +
+    position must reflect what the broker actually filled. Falls back to ``estimate``
+    when fills are unavailable, incomplete, or the query fails (paper/mock returns
+    no fills, so behaviour there is unchanged) — accounting refinement must NEVER
+    block or fail the persist.
+    """
+    if not broker_id:
+        return estimate
+    try:
+        fills = await client.get_fills(broker_id)
+    except Exception as exc:  # noqa: BLE001 — never block the persist on a fills hiccup
+        log.warning("complete_set_exact_fill_query_failed",
+                    leg=leg, market_id=market_id, error=str(exc))
+        return estimate
+    filled_size, cost = _fills_cost(fills)
+    # Trust the fills only if they cover the order size (within a tiny epsilon) and
+    # yield a positive cost; a short/empty set means the broker view is incomplete.
+    if filled_size + 1e-6 < shares or cost <= 0.0:
+        log.info("complete_set_exact_fill_incomplete", leg=leg, market_id=market_id,
+                 filled_size=round(filled_size, 6), shares=round(shares, 6))
+        return estimate
+    if abs(cost - estimate) > 1e-9:
+        log.info("complete_set_exact_fill", leg=leg, market_id=market_id,
+                 estimate=round(estimate, 6), actual=round(cost, 6))
+    return cost
+
+
+async def _poll_terminal_status(
+    client: ClobClientProtocol,
+    broker_id: str | None,
+    *,
+    market_id: str,
+    leg: str,
+) -> str:
+    """Resolve a non-terminal (`delayed`) accept to a terminal fill-status.
+
+    Polymarket can return ``delayed`` for a marketable order that has NOT yet
+    matched; rather than halt on the transient delay, poll ``get_order`` up to a
+    bounded budget. Returns ``FILL_FILLED`` / ``FILL_KILLED`` once terminal, or
+    ``FILL_AMBIGUOUS`` if still non-terminal / unqueryable after the budget — in
+    which case the caller takes its existing halt-and-reconcile path. A poll error
+    yields ambiguous (never a false terminal).
+    """
+    if not broker_id:
+        return FILL_AMBIGUOUS
+    s = get_settings()
+    try:
+        attempts = int(getattr(s, "COMPLETE_SET_DELAYED_POLL_ATTEMPTS", 3) or 0)
+    except (TypeError, ValueError):
+        attempts = 0
+    try:
+        interval = float(getattr(s, "COMPLETE_SET_DELAYED_POLL_INTERVAL_SEC", 1.0) or 0.0)
+    except (TypeError, ValueError):
+        interval = 0.0
+    for i in range(max(0, attempts)):
+        try:
+            order = await client.get_order(broker_id)
+        except Exception as exc:  # noqa: BLE001 — undeterminable -> ambiguous (caller halts)
+            log.warning("complete_set_delayed_poll_failed", leg=leg,
+                        market_id=market_id, attempt=i + 1, error=str(exc))
+            return FILL_AMBIGUOUS
+        st = _fill_status(order)
+        if st != FILL_AMBIGUOUS:
+            log.info("complete_set_delayed_poll_resolved", leg=leg,
+                     market_id=market_id, status=st, attempts=i + 1)
+            return st
+        if i + 1 < attempts and interval > 0:
+            await asyncio.sleep(interval)
+    log.warning("complete_set_delayed_poll_exhausted", leg=leg,
+                market_id=market_id, attempts=attempts)
+    return FILL_AMBIGUOUS
+
+
 async def book_complete_set_live(
     *,
     user_id: UUID,
@@ -591,7 +716,13 @@ async def book_complete_set_live(
             f"complete-set YES ambiguous submit (order={yes_order}): {exc}"
         ) from exc
 
+    yes_broker_id = _extract_order_id(yes_res)
     yes_fill = _fill_status(yes_res)
+    if yes_fill == FILL_AMBIGUOUS:
+        # Poll a non-terminal `delayed` YES accept to a terminal state before
+        # deciding, instead of halting on a transient delay (Lane 3C-2).
+        yes_fill = await _poll_terminal_status(
+            client, yes_broker_id, market_id=market_id, leg="yes")
     if yes_fill == FILL_KILLED:
         # FOK killed: nothing filled, NO leg never sent -> zero exposure.
         await _mark_order(yes_order, "cancelled")
@@ -599,11 +730,10 @@ async def book_complete_set_live(
         log.info("complete_set_live_yes_no_fill", market_id=market_id)
         return {"status": "no_fill", "mode": "live", "leg": "yes"}
     if yes_fill == FILL_AMBIGUOUS:
-        # Accepted but NOT terminal (e.g. `delayed`) -> the YES order MAY still
-        # match. Treat exactly like a transport-error ambiguity: do NOT send NO,
-        # do NOT report a clean kill (which could hide a later fill) -> halt +
-        # reconcile so the operator confirms the true YES state on Polymarket.
-        await _mark_order(yes_order, "unknown",
+        # STILL non-terminal after polling -> the YES order MAY still match. Do NOT
+        # send NO, do NOT report a clean kill (which could hide a later fill) ->
+        # halt + reconcile so the operator confirms the true YES state.
+        await _mark_order(yes_order, "unknown", broker_id=yes_broker_id,
                           error=f"non-terminal status: {yes_res.get('status')}")
         await _mark_order(no_order, "cancelled")
         await _halt_and_alert(
@@ -616,8 +746,6 @@ async def book_complete_set_live(
             f"complete-set YES non-terminal status "
             f"({yes_res.get('status')!r}, order={yes_order})"
         )
-
-    yes_broker_id = _extract_order_id(yes_res)
 
     # --- Leg 2: NO FOK -------------------------------------------------------
     try:
@@ -662,7 +790,14 @@ async def book_complete_set_live(
             f"tracked as naked): {exc}"
         ) from exc
 
+    no_broker_id = _extract_order_id(no_res)
     no_fill = _fill_status(no_res)
+    if no_fill == FILL_AMBIGUOUS:
+        # Poll a non-terminal `delayed` NO accept to terminal before deciding
+        # (Lane 3C-2); the NO leg is the last submission, so the poll adds no
+        # cross-leg latency. Still non-terminal -> persist naked YES + halt below.
+        no_fill = await _poll_terminal_status(
+            client, no_broker_id, market_id=market_id, leg="no")
     if no_fill == FILL_KILLED:
         # NO killed, YES filled -> YES is naked -> auto-unwind.
         await _mark_order(no_order, "cancelled")
@@ -680,7 +815,7 @@ async def book_complete_set_live(
         # as the NO transport-error ambiguity: do NOT auto-unwind (NO may still
         # match -> over-sell risk); persist the CONFIRMED YES leg as tracked +
         # force-exitable, halt, and raise for operator reconciliation of NO.
-        await _mark_order(no_order, "unknown",
+        await _mark_order(no_order, "unknown", broker_id=no_broker_id,
                           error=f"non-terminal status: {no_res.get('status')}")
         await _persist_naked_halt(
             pool=pool, user_id=user_id, market_id=market_id, naked_order=yes_order,
@@ -695,13 +830,54 @@ async def book_complete_set_live(
             f"({no_res.get('status')!r}, yes={yes_order}, tracked as naked)"
         )
 
-    no_broker_id = _extract_order_id(no_res)
 
     # --- Both legs filled: persist the linked pair atomically ----------------
-    # Per-share entry prices from the SUBMIT-TIME recomputed costs (not the stale
-    # quote), so entry_price * shares == the persisted size_usdc == what was spent.
-    yes_price = round(yes_fill_cost / shares, 6)
-    no_price = round(no_fill_cost / shares, 6)
+    # Exact-fill reconciliation (Lane 3C-2): book the broker's ACTUAL weighted fill
+    # cost (get_fills) rather than the pre-submit book estimate, so a book that
+    # drifted between scan and fill cannot understate live exposure (Codex P1).
+    # Computed only AFTER both legs are terminal — never between legs — so the
+    # latency-sensitive YES->NO window is unaffected. Falls back to the estimate
+    # when fills are unavailable.
+    yes_actual = await _exact_fill_cost(
+        client, yes_broker_id, shares=shares, estimate=yes_fill_cost,
+        leg="yes", market_id=market_id)
+    no_actual = await _exact_fill_cost(
+        client, no_broker_id, shares=shares, estimate=no_fill_cost,
+        leg="no", market_id=market_id)
+    yes_cost = Decimal(str(yes_actual))
+    no_cost = Decimal(str(no_actual))
+    # Per-share entry prices from the ACTUAL fill cost, so entry_price * shares ==
+    # the persisted size_usdc == what was really spent.
+    yes_price = round(yes_actual / shares, 6)
+    no_price = round(no_actual / shares, 6)
+    # Post-exact-fill budget re-check (Codex P1): a FOK can fill ABOVE the
+    # gate-approved budget when the book drifts up within the FOK limits between scan
+    # and fill. The set stays RISKLESS (yes_limit+no_limit < payout enforced
+    # pre-submit), so a kill-switch halt is disproportionate — but exceeding the
+    # approved capital allocation must never be silent. We cannot un-fill a completed
+    # FOK: flag the position metadata + page the operator, then book it. A small
+    # tolerance avoids paging on expected tick-level overshoots.
+    actual_filled_total = yes_actual + no_actual
+    try:
+        breach_pct = float(getattr(s, "COMPLETE_SET_BUDGET_BREACH_PCT", 0.01) or 0.0)
+    except (TypeError, ValueError):
+        breach_pct = 0.01
+    if actual_filled_total > approved_budget * (1.0 + max(0.0, breach_pct)):
+        meta = {**meta, "over_budget": True,
+                "approved_budget_usdc": round(approved_budget, 6),
+                "actual_cost_usdc": round(actual_filled_total, 6)}
+        log.warning("complete_set_live_over_budget", market_id=market_id,
+                    approved=round(approved_budget, 6),
+                    actual=round(actual_filled_total, 6))
+        try:
+            await notifications.notify_operator(
+                f"⚠️ <b>COMPLETE-SET OVER-BUDGET FILL</b>\n"
+                f"market=<code>{market_id}</code> actual=${actual_filled_total:.4f} "
+                f"&gt; approved=${approved_budget:.4f} (riskless arb; book drifted "
+                f"within FOK limits). Booked + flagged; trading continues."
+            )
+        except Exception:  # noqa: BLE001 — alert is best-effort, never blocks the book
+            log.exception("complete_set_over_budget_notify_failed", market_id=market_id)
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():
@@ -812,6 +988,14 @@ async def _unwind_naked_leg(
     position, engage the kill switch, and page the operator.
     """
     market_id = quote.market_id
+    # Exact-fill (Lane 3C-2 / Codex P1): the naked leg's BUY cost was the pre-submit
+    # book estimate — recompute it from the broker's actual fills so realised P&L and
+    # the force-exitable position size reflect what was really spent. Falls back to
+    # the estimate when fills are unavailable. The NO leg has already resolved here,
+    # so this query adds no latency to the YES->NO window.
+    naked_cost = Decimal(str(await _exact_fill_cost(
+        client, naked_broker_id, shares=shares, estimate=float(naked_cost),
+        leg=f"{naked_side}-naked", market_id=market_id)))
     token_id = quote.yes_token_id if naked_side == "yes" else quote.no_token_id
     entry_price = round(float(naked_cost) / shares, 6) if shares > 0 else naked_limit
     naked_meta = {**meta, "naked_leg": naked_side, "unwind": True}
@@ -864,15 +1048,20 @@ async def _unwind_naked_leg(
             f"complete-set unwind ambiguous ({market_id}, {naked_side}): {exc}"
         ) from exc
 
+    sell_broker_id = _extract_order_id(sell_res)
     sell_fill = _fill_status(sell_res)
     if sell_fill == FILL_AMBIGUOUS:
-        # SELL accepted but NOT terminal (e.g. `delayed`) -> it may still match and
-        # flatten the leg. We cannot assert it is still naked, so (as with the
-        # transport-error ambiguity above) do NOT persist a re-sellable position —
-        # mark unknown, halt, and raise for operator reconciliation.
+        # Poll a non-terminal `delayed` unwind SELL to terminal before deciding
+        # (Lane 3C-2): a resolved fill -> flat, a resolved kill -> persist naked halt.
+        sell_fill = await _poll_terminal_status(
+            client, sell_broker_id, market_id=market_id, leg=f"{naked_side}-unwind")
+    if sell_fill == FILL_AMBIGUOUS:
+        # STILL non-terminal -> it may still match and flatten the leg. We cannot
+        # assert it is still naked, so do NOT persist a re-sellable position — mark
+        # unknown, halt, and raise for operator reconciliation.
         log.error("complete_set_unwind_ambiguous_status", market_id=market_id,
                   status=sell_res.get("status"))
-        await _mark_order(naked_order, "unknown",
+        await _mark_order(naked_order, "unknown", broker_id=sell_broker_id,
                           error=f"unwind non-terminal status: {sell_res.get('status')}")
         await _halt_and_alert(
             reason="complete_set_unwind_ambiguous",
@@ -897,9 +1086,14 @@ async def _unwind_naked_leg(
     # limit or better, so the weighted value over the consumed bids is what the SELL
     # actually returns; crediting the bare limit would permanently understate the
     # wallet on every unwind).
-    proceeds = Decimal(str(sell_proceeds))
+    unwind_broker_id = sell_broker_id
+    # Exact-fill (Lane 3C-2 / M-2): credit the broker's ACTUAL weighted SELL proceeds
+    # rather than the pre-submit bid-walk estimate; fall back to the estimate when
+    # fills are unavailable.
+    proceeds = Decimal(str(await _exact_fill_cost(
+        client, unwind_broker_id, shares=shares, estimate=float(sell_proceeds),
+        leg=f"{naked_side}-unwind", market_id=market_id)))
     realised = proceeds - naked_cost
-    unwind_broker_id = _extract_order_id(sell_res)
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():
@@ -1145,9 +1339,150 @@ async def _halt_and_alert(*, reason: str, detail: str) -> None:
         )
 
 
+async def _reconcile_one_order(
+    order: dict, *, client: ClobClientProtocol | None, pool, settings: Any,
+) -> str:
+    """Reconcile one stale complete-set order against broker truth. Set-aware: never
+    refunds (directional logic), never silently deletes. Returns a resolution key."""
+    order_id = order["id"]
+    market_id = order["market_id"]
+    side = order["side"]
+    broker_id = str(order.get("polymarket_order_id") or "").strip()
+
+    if not broker_id or client is None:
+        # No broker id (or no client) -> cannot verify on-chain truth -> a stale
+        # complete-set order is POTENTIAL untracked exposure -> halt + page; leave
+        # the order untouched for manual reconciliation on Polymarket.
+        await _halt_and_alert(
+            reason="complete_set_reconcile_unverifiable",
+            detail=(f"Stale complete-set order <code>{order_id}</code> "
+                    f"market=<code>{market_id}</code> side={side} "
+                    f"status={order.get('status')} — no broker id to verify; "
+                    f"reconcile manually on Polymarket before resuming."),
+        )
+        return "halted"
+
+    try:
+        broker = await client.get_order(broker_id)
+        fills = await client.get_fills(broker_id)
+    except Exception as exc:  # noqa: BLE001 — cannot verify -> halt (never assume)
+        log.warning("complete_set_reconcile_query_failed",
+                    order_id=str(order_id), error=str(exc))
+        await _halt_and_alert(
+            reason="complete_set_reconcile_query_failed",
+            detail=(f"Stale complete-set order <code>{order_id}</code> "
+                    f"market=<code>{market_id}</code> — broker query FAILED; "
+                    f"reconcile manually before resuming."),
+        )
+        return "halted"
+
+    st = _fill_status(broker)
+    filled_size, fill_cost = _fills_cost(fills)
+    if st == FILL_KILLED and filled_size <= 0.0:
+        # Definitively NOT filled -> no on-chain exposure -> safe to mark terminal.
+        await _mark_order(order_id, "cancelled", broker_id=broker_id,
+                          error="reconcile: broker confirms not filled")
+        log.info("complete_set_reconcile_cancelled", order_id=str(order_id),
+                 market_id=market_id)
+        return "cancelled"
+    if st == FILL_FILLED or filled_size > 0.0:
+        # Untracked live fill -> persist as a tracked, force-exitable naked leg
+        # (exact fills) + halt + page. NEVER silently complete a set or refund.
+        size_usdc = order.get("size_usdc")
+        cost = Decimal(str(fill_cost)) if fill_cost > 0.0 else Decimal(str(size_usdc or 0))
+        entry = (round(float(cost) / filled_size, 6) if filled_size > 0.0
+                 else float(order.get("price") or 0.0))
+        await _persist_naked_halt(
+            pool=pool, user_id=order["user_id"], market_id=market_id,
+            naked_order=order_id, naked_side=side, naked_cost=cost, entry_price=entry,
+            market_question=None, active_preset=None,
+            naked_meta={"reconciled": True, "naked_leg": side, "broker_id": broker_id},
+            reason="reconcile_untracked_fill",
+        )
+        return "naked_halt"
+    # Still ambiguous (non-terminal) -> halt + page; leave for the next sweep / op.
+    await _halt_and_alert(
+        reason="complete_set_reconcile_ambiguous",
+        detail=(f"Stale complete-set order <code>{order_id}</code> "
+                f"market=<code>{market_id}</code> still non-terminal "
+                f"({broker.get('status')!r}); reconcile manually before resuming."),
+    )
+    return "halted"
+
+
+async def reconcile_complete_set_orders(
+    *, pool=None, clob_factory=None, settings: Any = None,
+) -> dict:
+    """Crash-recovery reconciler for complete-set LIVE orders (Lane 3C-2).
+
+    A complete-set order still 'pending'/'unknown' beyond the stale threshold with
+    no linked position is a crash leftover (the normal two-leg flow resolves order
+    rows in milliseconds). Each is reconciled against broker truth WITHOUT
+    directional refund logic: a confirmed non-fill is marked terminal; a confirmed
+    fill is persisted as a tracked force-exitable naked leg + halt + page; anything
+    unverifiable / ambiguous halts + pages. Paper / non-live is a no-op. Never
+    raises -> safe on a scheduler.
+    """
+    s = settings or get_settings()
+    if not bool(getattr(s, "USE_REAL_CLOB", False)):
+        return {"scanned": 0, "skipped_paper": True}
+    pool = pool or get_pool()
+    stale_sec = int(getattr(s, "COMPLETE_SET_RECONCILE_STALE_SEC", 300) or 0)
+    out = {"scanned": 0, "cancelled": 0, "naked_halt": 0, "halted": 0, "errors": 0}
+    try:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT o.id, o.user_id, o.market_id, o.side, o.size_usdc, o.price,
+                       o.polymarket_order_id, o.status, o.strategy_type
+                  FROM orders o
+                  LEFT JOIN positions p ON p.order_id = o.id
+                 WHERE o.mode = 'live'
+                   AND o.strategy_type LIKE 'complete_set_arb%'
+                   AND o.status IN ('pending', 'unknown')
+                   AND p.id IS NULL
+                   AND o.created_at < NOW() - ($1 || ' seconds')::interval
+                """,
+                str(max(0, stale_sec)),
+            )
+    except Exception as exc:  # noqa: BLE001 — scheduler job must never raise
+        log.exception("complete_set_reconcile_scan_failed", error=str(exc))
+        return {**out, "errors": 1}
+    if not rows:
+        return out
+
+    client: ClobClientProtocol | None = None
+    if clob_factory is not None:
+        try:
+            client = clob_factory(s)
+        except Exception as exc:  # noqa: BLE001 — proceed clientless -> halt+page path
+            log.error("complete_set_reconcile_client_unavailable", error=str(exc))
+            client = None
+    try:
+        for row in rows:
+            out["scanned"] += 1
+            try:
+                resolution = await _reconcile_one_order(
+                    dict(row), client=client, pool=pool, settings=s)
+                out[resolution] = out.get(resolution, 0) + 1
+            except Exception as exc:  # noqa: BLE001 — isolate one bad order
+                out["errors"] += 1
+                log.exception("complete_set_reconcile_order_failed",
+                              order_id=str(row["id"]), error=str(exc))
+    finally:
+        if client is not None:
+            try:
+                await client.aclose()
+            except Exception:  # noqa: BLE001
+                log.warning("complete_set_reconcile_client_close_failed")
+    log.info("complete_set_reconcile_sweep", **out)
+    return out
+
+
 __all__ = [
     "book_complete_set_paper",
     "book_complete_set_live",
+    "reconcile_complete_set_orders",
     "COMPLETE_SET_STRATEGY",
     "COMPLETE_SET_NAKED_STRATEGY",
 ]
