@@ -102,6 +102,18 @@ def test_lean_from_prob(prob, lean):
     assert r._lean_from_prob(prob) == lean
 
 
+@pytest.mark.parametrize("slug,question,code", [
+    # Regression: every Polymarket question slugs "will-the-…" — the raw first
+    # token "WILL" rendered for every row. Skip filler → first meaningful token.
+    ("will-the-lakers-beat-the-celtics-2026", "Will the Lakers beat the Celtics?", "LAKERS"),
+    ("will-trump-win-2024", "Will Trump win?", "TRUMP"),
+    ("", "Will the Chiefs win the game?", "CHIEFS"),  # slug empty → from question
+    ("", "", "MKT"),                                  # nothing usable → fallback
+])
+def test_short_market_code(slug, question, code):
+    assert r._short_market_code(slug, question) == code
+
+
 # ── dispatch ──────────────────────────────────────────────────────────────
 def test_weather_preset_returns_weather_rows():
     rows = [_wx_row("High temp in New York City?"), _wx_row("High temp in Chicago?")]

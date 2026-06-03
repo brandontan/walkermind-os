@@ -483,6 +483,31 @@ async def _weather_market_feed(pool: Any) -> list[MarketFeedItem]:
     return feed
 
 
+# Filler tokens dropped when deriving a short market code from a slug, so a
+# question slugged "will-the-lakers-beat-the-celtics-2026" reads "LAKERS" rather
+# than "WILL" (every Polymarket question starts "will-the-…", so the raw first
+# token is useless). Pure-digit tokens (years) are skipped too.
+_SLUG_FILLER: frozenset[str] = frozenset({
+    "will", "the", "a", "an", "is", "are", "be", "to", "of", "in", "on", "by",
+    "and", "or", "at", "for", "this", "that", "does", "do", "did", "can", "who",
+    "what", "when", "vs", "win", "wins", "beat", "have", "has", "than", "with",
+})
+
+
+def _short_market_code(slug: str, question: str) -> str:
+    """A meaningful short code for a market row — the first non-filler slug token
+    (falls back to the question, then ``MKT``). Keeps the scanner from rendering a
+    column of identical ``WILL`` labels for sports/other markets."""
+    def _first_meaningful(text: str, sep: str) -> str:
+        for tok in str(text or "").lower().split(sep):
+            tok = tok.strip()
+            if tok and not tok.isdigit() and tok not in _SLUG_FILLER:
+                return tok
+        return ""
+    tok = _first_meaningful(slug, "-") or _first_meaningful(question.replace("?", " "), " ")
+    return (tok[:8].upper() or "MKT") if tok else "MKT"
+
+
 async def _category_market_feed(pool: Any, category: str) -> list[MarketFeedItem]:
     """Generic nearest-resolution markets in a category (e.g. Sports)."""
     async with pool.acquire() as conn:
@@ -502,8 +527,8 @@ async def _category_market_feed(pool: Any, category: str) -> list[MarketFeedItem
     for r in rows:
         up_prob = float(r["yes_price"] or 0.0)
         secs = int((r["resolution_at"] - now).total_seconds())
-        label = str(r["question"] or r["slug"] or "")[:48]
-        asset = (str(r["slug"] or "").split("-")[0] or "MKT")[:8].upper() or "MKT"
+        label = str(r["question"] or r["slug"] or "")[:80]
+        asset = _short_market_code(str(r["slug"] or ""), str(r["question"] or ""))
         feed.append(
             MarketFeedItem(
                 asset=asset, label=label, up_prob=up_prob,
@@ -607,11 +632,12 @@ async def _sports_market_feed_live(limit: int = 12) -> list[MarketFeedItem]:
         except (TypeError, ValueError):
             liquidity = 0.0
         slug = str(m.get("slug") or "")
-        asset = (slug.split("-")[0] or "MKT")[:8].upper() or "MKT"
+        question = str(m.get("question") or m.get("title") or slug)
+        asset = _short_market_code(slug, question)
         feed.append(
             MarketFeedItem(
                 asset=asset,
-                label=str(m.get("question") or m.get("title") or slug)[:48],
+                label=question[:80],
                 up_prob=up_prob,
                 lean=_lean_from_prob(up_prob),
                 seconds_to_close=secs,

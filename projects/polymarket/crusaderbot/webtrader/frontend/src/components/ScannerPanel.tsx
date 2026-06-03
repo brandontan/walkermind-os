@@ -210,19 +210,65 @@ function SignalCarousel({ signals }: { signals: FeedSignal[] }) {
 const MARKET_PAGE_SIZE = 5;
 const MARKET_ADVANCE_MS = 4200;
 
-function MarketRow({ it }: { it: MarketFeedItem }) {
+function MarketRow({ it, expanded, onToggle }: { it: MarketFeedItem; expanded: boolean; onToggle: () => void }) {
   const pct = Math.round(it.up_prob * 100);
   const c = LEAN_VAR[it.lean];
   return (
-    <div className="flex items-center gap-2 px-3.5 py-1" style={{ borderTop: "1px solid rgba(255,255,255,.03)" }}>
-      <span className="font-hud text-[8px] font-bold tracking-[1.5px] text-ink-3 w-[38px] flex-shrink-0">{it.asset}</span>
-      <span className="font-mono text-[11px] font-bold w-3.5 flex-shrink-0" style={{ color: c }}>{LEAN_ARROW[it.lean]}</span>
-      <div className="flex-1 relative h-[3px]" style={{ background: "rgba(255,255,255,.06)" }}>
-        <div className="absolute left-0 top-0 h-full transition-all duration-700" style={{ width: `${pct}%`, background: c, boxShadow: `0 0 4px ${c}` }} />
+    <div style={{ borderTop: "1px solid rgba(255,255,255,.03)" }}>
+      {/* compact row — tap to expand for the full market question + detail */}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="w-full flex items-center gap-2 px-3.5 py-1 bg-transparent border-0 cursor-pointer text-left transition-colors hover:bg-[rgba(255,255,255,.02)]"
+      >
+        <span className="font-hud text-[8px] font-bold tracking-[1px] text-ink-3 w-[46px] flex-shrink-0 truncate">{it.asset}</span>
+        <span className="font-mono text-[11px] font-bold w-3.5 flex-shrink-0" style={{ color: c }}>{LEAN_ARROW[it.lean]}</span>
+        <div className="flex-1 relative h-[3px] min-w-[18px]" style={{ background: "rgba(255,255,255,.06)" }}>
+          <div className="absolute left-0 top-0 h-full transition-all duration-700" style={{ width: `${pct}%`, background: c, boxShadow: `0 0 4px ${c}` }} />
+        </div>
+        <span className="font-mono text-[10px] font-bold w-8 text-right flex-shrink-0" style={{ color: c }}>{pct}%</span>
+        <span className="font-mono text-[9px] text-ink-4 w-[44px] text-right flex-shrink-0">{fmtSecs(it.seconds_to_close)}</span>
+        <span className="font-mono text-[9px] text-ink-4 w-[34px] text-right flex-shrink-0">{fmtLiq(it.liquidity_usdc)}</span>
+        <span
+          className="font-hud text-[8px] text-ink-4 w-2 flex-shrink-0 text-center transition-transform duration-200"
+          style={{ transform: expanded ? "rotate(90deg)" : "none" }}
+          aria-hidden
+        >▸</span>
+      </button>
+      {expanded && (
+        <div className="px-3.5 pb-2.5 pt-0.5" style={{ animation: "signalIn .2s both" }}>
+          <div className="font-sans text-[12px] text-ink-1 leading-snug mb-2">{it.label || it.asset}</div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {[
+              { k: "Probability", v: `${pct}%`,                    isProb: true },
+              { k: "Closes in",   v: fmtSecs(it.seconds_to_close), isProb: false },
+              { k: "Liquidity",   v: fmtLiq(it.liquidity_usdc),    isProb: false },
+            ].map((f) => (
+              <div key={f.k} className="px-2 py-1.5 clip-card-sm" style={{ background: "rgba(255,255,255,.025)" }}>
+                <div className="font-hud text-[7px] font-bold tracking-[1.5px] uppercase text-ink-4 mb-0.5">{f.k}</div>
+                <div className="font-mono text-[10px]" style={{ color: f.isProb ? c : "var(--ink-2,#8A9BB8)" }}>{f.v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Static (≤ MARKET_PAGE_SIZE) markets block — tracks which row is expanded. */
+function MarketStaticList({ feed }: { feed: MarketFeedItem[] }) {
+  const [expanded, setExpanded] = useState<number | null>(null);
+  return (
+    <div className="border-b border-border-1">
+      <div className="flex items-center justify-between px-3.5 pt-1.5 pb-1">
+        <span className="font-hud text-[7px] font-bold tracking-[2px] uppercase text-ink-4">Markets</span>
+        <span className="font-mono text-[8px] text-ink-4">prob · countdown · liquidity</span>
       </div>
-      <span className="font-mono text-[10px] font-bold w-8 text-right flex-shrink-0" style={{ color: c }}>{pct}%</span>
-      <span className="font-mono text-[9px] text-ink-4 w-[46px] text-right flex-shrink-0">{fmtSecs(it.seconds_to_close)}</span>
-      <span className="font-mono text-[9px] text-ink-4 w-[38px] text-right flex-shrink-0">{fmtLiq(it.liquidity_usdc)}</span>
+      {feed.map((it, i) => (
+        <MarketRow key={i} it={it} expanded={expanded === i} onToggle={() => setExpanded(expanded === i ? null : i)} />
+      ))}
     </div>
   );
 }
@@ -233,6 +279,7 @@ function MarketCarousel({ feed }: { feed: MarketFeedItem[] }) {
   const [dir, setDir] = useState(1);
   const [animKey, setAnimKey] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [expanded, setExpanded] = useState<number | null>(null);
   const prevPages = useRef(pageCount);
 
   // Reset to first page when the feed length (page count) changes — preset switch.
@@ -241,6 +288,7 @@ function MarketCarousel({ feed }: { feed: MarketFeedItem[] }) {
       prevPages.current = pageCount;
       setIdx(0);
       setDir(1);
+      setExpanded(null);
       setAnimKey((k) => k + 1);
     }
   }, [pageCount]);
@@ -248,14 +296,16 @@ function MarketCarousel({ feed }: { feed: MarketFeedItem[] }) {
   const advance = useCallback((step: number) => {
     setDir(step);
     setIdx((i) => (i + step + pageCount) % pageCount);
+    setExpanded(null);
     setAnimKey((k) => k + 1);
   }, [pageCount]);
 
+  // Auto-advance — held while hovered OR while a row is expanded for reading.
   useEffect(() => {
-    if (paused || pageCount <= 1) return;
+    if (paused || expanded !== null || pageCount <= 1) return;
     const t = setInterval(() => advance(1), MARKET_ADVANCE_MS);
     return () => clearInterval(t);
-  }, [paused, advance, pageCount]);
+  }, [paused, expanded, advance, pageCount]);
 
   const safeIdx = Math.min(idx, pageCount - 1);
   const start = safeIdx * MARKET_PAGE_SIZE;
@@ -278,7 +328,7 @@ function MarketCarousel({ feed }: { feed: MarketFeedItem[] }) {
                 type="button"
                 key={i}
                 aria-label={`Go to markets page ${i + 1}`}
-                onClick={() => { setDir(i > safeIdx ? 1 : -1); setIdx(i); setAnimKey((k) => k + 1); }}
+                onClick={() => { setDir(i > safeIdx ? 1 : -1); setIdx(i); setExpanded(null); setAnimKey((k) => k + 1); }}
                 className="h-1 rounded-full border-0 p-0 cursor-pointer transition-all duration-300"
                 style={{ width: i === safeIdx ? 10 : 4, background: i === safeIdx ? "var(--gold,#F5C842)" : "var(--ink-4,#3D5278)" }}
               />
@@ -299,7 +349,7 @@ function MarketCarousel({ feed }: { feed: MarketFeedItem[] }) {
         </div>
       </div>
       <div className="relative overflow-hidden">
-        {!paused && pageCount > 1 && (
+        {!paused && expanded === null && pageCount > 1 && (
           <div
             key={`mpb-${animKey}`}
             className="absolute top-0 left-0 h-0.5 z-[1]"
@@ -311,7 +361,17 @@ function MarketCarousel({ feed }: { feed: MarketFeedItem[] }) {
           key={animKey}
           style={{ animation: `${dir > 0 ? "slideInRight" : "slideInLeft"} .32s cubic-bezier(.22,1,.36,1) both` }}
         >
-          {pageItems.map((it, i) => <MarketRow key={start + i} it={it} />)}
+          {pageItems.map((it, i) => {
+            const gi = start + i;
+            return (
+              <MarketRow
+                key={gi}
+                it={it}
+                expanded={expanded === gi}
+                onToggle={() => setExpanded(expanded === gi ? null : gi)}
+              />
+            );
+          })}
         </div>
       </div>
     </div>
@@ -498,17 +558,9 @@ export function ScannerPanel({
           {/* ≤ MARKET_PAGE_SIZE: static list. More than that (e.g. the live sports
               board): an auto-advancing carousel so the panel height stays fixed. */}
           {feed.length > 0 && (
-            feed.length > MARKET_PAGE_SIZE ? (
-              <MarketCarousel feed={feed} />
-            ) : (
-              <div className="border-b border-border-1">
-                <div className="flex items-center justify-between px-3.5 pt-1.5 pb-1">
-                  <span className="font-hud text-[7px] font-bold tracking-[2px] uppercase text-ink-4">Markets</span>
-                  <span className="font-mono text-[8px] text-ink-4">prob · countdown · liquidity</span>
-                </div>
-                {feed.map((it, i) => <MarketRow key={i} it={it} />)}
-              </div>
-            )
+            feed.length > MARKET_PAGE_SIZE
+              ? <MarketCarousel feed={feed} />
+              : <MarketStaticList feed={feed} />
           )}
 
           {/* ── signal carousel ───────────────────────────── */}
