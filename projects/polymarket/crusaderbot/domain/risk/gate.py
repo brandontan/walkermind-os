@@ -213,21 +213,41 @@ def _passes_live_guards(ctx: GateContext, settings) -> bool:
     )
 
 
-def _apply_robustness_downgrade(chosen_mode: str, ctx: GateContext) -> str:
+async def _robustness_downgrade(chosen_mode: str, ctx: GateContext) -> str:
     """Phase-2c-1b: force an UNTRADEABLE module to paper — WITHOUT tripping the
     user-level live fallback.
 
     Applied AFTER the live-guard fallback block in ``evaluate`` so it is a pure,
     per-candidate ``live → paper`` downgrade: it does NOT call
     ``live_fallback.trigger_for_live_guard_unset`` (which would persistently flip
-    the user's ``trading_mode`` to paper and disable live for their *other*,
-    eligible modules too — Codex P1, PR #1581). Only an UNTRADEABLE module with
-    ``ROBUSTNESS_GATE_ENABLED`` on sets ``module_live_eligible=False``; otherwise
-    this is a no-op. Never upgrades paper → live.
+    the user's ``trading_mode`` and disable live for their *other* eligible modules
+    too — Codex P1, PR #1581).
+
+    Two ways a module is held to paper, so EVERY live-routing caller is covered
+    (Codex P2 — there are several direct TradeSignal/GateContext constructors:
+    _process_candidate, fast_topup, copy_trade, complete_set):
+      1. Explicit ``ctx.module_live_eligible=False`` — the precise per-module value
+         the scan loop threads (it knows the playbook sub-module via selected_module,
+         which is finer-grained than ctx.strategy_type). Short-circuits, no DB read.
+      2. Gate-side lookup by ``(strategy_type, risk_profile)`` against the cached
+         UNTRADEABLE set — covers callers that don't thread the flag.
+    Gated by ``ROBUSTNESS_GATE_ENABLED`` + fail-soft (any error / flag off → no
+    downgrade). Never upgrades paper → live.
     """
-    if chosen_mode == "live" and not ctx.module_live_eligible:
+    if chosen_mode != "live":
+        return chosen_mode
+    if not ctx.module_live_eligible:
         return "paper"
-    return chosen_mode
+    try:
+        from ...config import get_settings
+        if not bool(getattr(get_settings(), "ROBUSTNESS_GATE_ENABLED", False)):
+            return "live"
+        from ..research.robustness import untradeable_set
+        if (ctx.strategy_type, ctx.risk_profile) in await untradeable_set(mode="paper"):
+            return "paper"
+    except Exception as exc:  # noqa: BLE001 — a gate-lookup fault must never block trading
+        logger.error("robustness_gate_lookup_failed: %s", exc)
+    return "live"
 
 
 async def validate_risk_caps(user_id: UUID, proposed_size: Decimal) -> GateResult:
@@ -503,7 +523,7 @@ async def evaluate(ctx: GateContext) -> GateResult:
     # user-level fallback (which would persistently disable the user's live mode
     # for their other eligible modules too — Codex P1, PR #1581).
     _pre_robust_mode = chosen_mode
-    chosen_mode = _apply_robustness_downgrade(chosen_mode, ctx)
+    chosen_mode = await _robustness_downgrade(chosen_mode, ctx)
     if chosen_mode != _pre_robust_mode:
         await _log(ctx.user_id, ctx.market_id, 13, True,
                    "robustness_downgrade_untradeable_to_paper")

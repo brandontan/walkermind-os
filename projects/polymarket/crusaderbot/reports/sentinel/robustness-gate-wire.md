@@ -62,10 +62,12 @@ None remaining (two caught + fixed in-lane):
   into a persistent user-level live shutdown): fixed by moving the downgrade to a standalone
   post-fallback step (`_apply_robustness_downgrade`). This was the substantive money-path
   finding; the corrected design is the one validated above.
-- **Codex P2 — gate coverage gap**: `complete_set_scan.py` builds `GateContext` directly
-  and can route live, but didn't pass `module_live_eligible` → an UNTRADEABLE
-  `complete_set_arb` would not be downgraded there. Fixed: threaded the same gated,
-  fail-soft eligibility lookup into that path so both live-routing callers are covered.
+- **Codex P2 — gate coverage gaps** (multiple direct TradeSignal/GateContext constructors
+  route live: complete_set, fast_topup, copy_trade, …): fixed **systemically** (owner-chosen)
+  by moving the check gate-side — `_robustness_downgrade` does a `(strategy_type,
+  risk_profile)` lookup against `untradeable_set`, so ALL callers are covered without
+  per-caller threading; the scan still threads the precise `module_live_eligible` for
+  playbook sub-module granularity. Verified by gate-lookup hit/miss/flag-off/fail-soft tests.
 - CI `ruff check .` F821 (`_get_settings` out of scope in `_process_candidate`, a
   `run_once`-local alias) — caught by CI, fixed in `b0fec4f` (local `get_settings` import).
 - Declined (non-issue): Gemini single-flight/cache-stampede on `untradeable_set` — the sole

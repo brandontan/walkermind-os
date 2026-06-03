@@ -17,27 +17,26 @@ The deferred half of Phase-2c-1b: wires the Monte Carlo robustness verdict into 
 decision so an **UNTRADEABLE** module can be held to paper. Strictly **downgrade-only** and
 default-OFF — it can make a would-be live trade paper, never enable live.
 
-- **`domain/risk/gate.py`** — `GateContext.module_live_eligible: bool = True` + a standalone
-  `_apply_robustness_downgrade(chosen_mode, ctx)` applied in `evaluate` **after** the
-  live-guard fallback block. It flips `live → paper` for an ineligible module WITHOUT
-  tripping `live_fallback.trigger_for_live_guard_unset` (which would persistently flip the
-  user's `trading_mode` and disable live for their *other* eligible modules — Codex P1).
-  The flag is deliberately NOT inside `_passes_live_guards` for exactly that reason. Default
-  True → identical behaviour to today.
+- **`domain/risk/gate.py`** — `GateContext.module_live_eligible: bool = True` + an async
+  `_robustness_downgrade(chosen_mode, ctx)` applied in `evaluate` **after** the live-guard
+  fallback block (so it never trips `live_fallback.trigger_for_live_guard_unset`, which would
+  persistently flip the user's `trading_mode` — Codex P1). It downgrades `live → paper` via
+  **two paths so EVERY live-routing caller is covered** (Codex P2): (1) an explicit
+  `module_live_eligible=False` (the precise per-module value the scan threads, finer than
+  `strategy_type` for playbook sub-modules) short-circuits; (2) a **gate-side lookup** by
+  `(strategy_type, risk_profile)` against `untradeable_set` covers callers that don't thread
+  the flag (fast_topup, copy_trade, complete_set, future). Gated + fail-soft; never upgrades
+  paper → live. Deliberately NOT inside `_passes_live_guards` (the P1 reason).
 - **`services/trade_engine/engine.py`** — `TradeSignal.module_live_eligible: bool = True`
-  threaded through the single `_build_gate_context` into the GateContext.
+  threaded through `_build_gate_context` (carries the scan's precise per-module value).
 - **`domain/research/robustness.py`** — `untradeable_set(mode)`: TTL-cached (300s) read of
-  the `(module, risk_profile)` pairs classified UNTRADEABLE, so the gate costs one DB read
-  per cache window, not per candidate. Fail-soft → empty set (never over-blocks).
-- **`services/signal_scan/signal_scan_job.py`** — in `_process_candidate`, when
-  `ROBUSTNESS_GATE_ENABLED` is on, looks up the candidate's module
-  (`metadata.selected_module` or `strategy_name`) + profile against `untradeable_set` and
-  passes `module_live_eligible` into `_build_trade_signal`. Gated + fail-soft: any error →
-  eligible (a gate fault never blocks trading).
-- **`services/signal_scan/complete_set_scan.py`** — the other direct `GateContext` money
-  path threads `module_live_eligible` too (module `complete_set_arb`), so the gate's
-  coverage is consistent across both live-routing callers (Codex P2). Same gated + fail-soft
-  pattern.
+  the `(module, risk_profile)` pairs classified UNTRADEABLE — the gate's lookup costs one DB
+  read per cache window, not per candidate. Fail-soft → empty set (never over-blocks).
+- **`services/signal_scan/signal_scan_job.py`** — `_process_candidate` threads the precise
+  `module_live_eligible` (module = `metadata.selected_module` or `strategy_name`) so playbook
+  sub-modules are gated at sub-module granularity. Gated + fail-soft → eligible on any error.
+- **`services/signal_scan/complete_set_scan.py`** — no per-caller threading needed; the
+  gate-side lookup covers `complete_set_arb` by `strategy_type` (Codex P2 → gate-central).
 - **`config.py`** — `ROBUSTNESS_GATE_ENABLED: bool = False`.
 
 ## 2. Why this is safe (the money-path argument)

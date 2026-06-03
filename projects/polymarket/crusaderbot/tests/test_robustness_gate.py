@@ -8,18 +8,21 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from projects.polymarket.crusaderbot.domain.research import robustness as RB
 from projects.polymarket.crusaderbot.domain.research.robustness import untradeable_set
 from projects.polymarket.crusaderbot.domain.risk.gate import (
-    _apply_robustness_downgrade,
     _passes_live_guards,
+    _robustness_downgrade,
 )
 from projects.polymarket.crusaderbot.services.trade_engine.engine import (
     TradeEngine,
     TradeSignal,
 )
+
+_CFG = "projects.polymarket.crusaderbot.config.get_settings"
+_UNTRADEABLE = "projects.polymarket.crusaderbot.domain.research.robustness.untradeable_set"
 
 
 def _all_pass_settings() -> SimpleNamespace:
@@ -34,9 +37,20 @@ def _all_pass_settings() -> SimpleNamespace:
 
 
 def _live_ctx(**over) -> SimpleNamespace:
-    base = dict(role="admin", trading_mode="live", module_live_eligible=True)
+    base = dict(
+        role="admin", trading_mode="live", module_live_eligible=True,
+        strategy_type="fast_topup", risk_profile="balanced",
+    )
     base.update(over)
     return SimpleNamespace(**base)
+
+
+def _flag(on: bool):
+    return patch(_CFG, return_value=SimpleNamespace(ROBUSTNESS_GATE_ENABLED=on))
+
+
+def _untradeable(pairs):
+    return patch(_UNTRADEABLE, AsyncMock(return_value=frozenset(pairs)))
 
 
 # ── robustness downgrade is SEPARATE from _passes_live_guards (Codex P1) ──
@@ -57,18 +71,41 @@ def test_passes_live_guards_still_blocks_on_real_guard_failure():
     assert _passes_live_guards(_live_ctx(), s) is False
 
 
-def test_robustness_downgrade_live_to_paper_when_untradeable():
-    assert _apply_robustness_downgrade("live", _live_ctx(module_live_eligible=False)) == "paper"
-
-
-def test_robustness_downgrade_noop_when_eligible():
-    assert _apply_robustness_downgrade("live", _live_ctx(module_live_eligible=True)) == "live"
+def test_robustness_downgrade_explicit_ineligible_to_paper():
+    # Explicit per-module flag (e.g. playbook sub-module) short-circuits, no lookup.
+    out = asyncio.run(_robustness_downgrade("live", _live_ctx(module_live_eligible=False)))
+    assert out == "paper"
 
 
 def test_robustness_downgrade_never_upgrades_paper():
-    # An ineligible module on a paper trade stays paper (never upgrades to live).
-    assert _apply_robustness_downgrade("paper", _live_ctx(module_live_eligible=False)) == "paper"
-    assert _apply_robustness_downgrade("paper", _live_ctx(module_live_eligible=True)) == "paper"
+    out = asyncio.run(_robustness_downgrade("paper", _live_ctx(module_live_eligible=False)))
+    assert out == "paper"
+
+
+def test_robustness_downgrade_gate_lookup_hits_untradeable():
+    # Caller didn't thread the flag (eligible=True); gate-side lookup by
+    # (strategy_type, risk_profile) downgrades fast_topup → paper.
+    with _flag(True), _untradeable({("fast_topup", "balanced")}):
+        out = asyncio.run(_robustness_downgrade("live", _live_ctx()))
+    assert out == "paper"
+
+
+def test_robustness_downgrade_gate_lookup_miss_stays_live():
+    with _flag(True), _untradeable({("some_other", "balanced")}):
+        out = asyncio.run(_robustness_downgrade("live", _live_ctx()))
+    assert out == "live"
+
+
+def test_robustness_downgrade_flag_off_no_lookup_stays_live():
+    with _flag(False), _untradeable({("fast_topup", "balanced")}):
+        out = asyncio.run(_robustness_downgrade("live", _live_ctx()))
+    assert out == "live"
+
+
+def test_robustness_downgrade_failsoft_stays_live():
+    with _flag(True), patch(_UNTRADEABLE, AsyncMock(side_effect=RuntimeError("db down"))):
+        out = asyncio.run(_robustness_downgrade("live", _live_ctx()))
+    assert out == "live"
 
 
 # ── TradeSignal → GateContext threading ───────────────────────────────────
