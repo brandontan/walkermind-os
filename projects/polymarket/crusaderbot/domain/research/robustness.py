@@ -218,10 +218,9 @@ async def live_eligible(
     return True, cls.lower()
 
 
-# TTL-cached UNTRADEABLE set for the per-candidate live gate (Phase-2c-1b part 2).
-# The scan loop consults this once per candidate; the cache keeps it to one DB read
-# per TTL window instead of per candidate. Verdicts change at most hourly (the
-# classifier job cadence), so a short TTL is plenty fresh.
+# TTL-cached UNTRADEABLE set for the gate-side live downgrade (Phase-2c-1b part 2).
+# The gate consults this per live-eligible candidate; the cache keeps it to one DB
+# read per TTL window. Verdicts change at most hourly (the classifier cadence).
 _UNTRADEABLE_TTL_SEC: float = 300.0
 _untradeable_cache: dict[str, tuple[float, frozenset[tuple[str, str]]]] = {}
 
@@ -259,6 +258,32 @@ async def untradeable_set(
     return result
 
 
+ROBUSTNESS_JOB_ID = "robustness_classify"
+_JOB_PROFILES: tuple[str, ...] = ("conservative", "balanced", "aggressive")
+
+
+async def run_job() -> None:
+    """Scheduled refresh — recompute + persist robustness verdicts for the
+    standard risk profiles from paper trade history. Fail-soft: ``classify_modules``
+    swallows its own DB errors (→ empty); the per-profile guard is belt-and-braces
+    so one profile's failure never aborts the rest. Registered in the scheduler
+    only when ``ROBUSTNESS_CLASSIFY_ENABLED`` is on.
+    """
+    for profile in _JOB_PROFILES:
+        try:
+            results = await classify_modules(risk_profile=profile, mode="paper")
+            logger.info(
+                "robustness_classified",
+                profile=profile,
+                modules=len(results),
+                untradeable=sum(
+                    1 for r in results if r.classification == Classification.UNTRADEABLE
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001 — never let one profile abort the job
+            logger.warning("robustness_job_failed", profile=profile, error=str(exc))
+
+
 __all__ = [
     "Classification",
     "ModuleRobustness",
@@ -266,6 +291,8 @@ __all__ = [
     "classify_modules",
     "live_eligible",
     "untradeable_set",
+    "run_job",
+    "ROBUSTNESS_JOB_ID",
     "MIN_SAMPLE_SIZE",
     "RUIN_PROB_MAX",
     "FRAGILE_STREAK",
