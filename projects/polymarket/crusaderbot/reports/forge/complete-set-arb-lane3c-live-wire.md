@@ -107,6 +107,17 @@ call site uses the defaulted `live_booker`).
   proceeds are a pre-submit-book estimate, not the broker's exact fill. These are
   the explicit Lane 3C-2 deliverables. The live path must not be flipped ON until
   3C-2 lands.
+- **Stale scan-time books on the live path (Codex P1 on this PR) — deferred to
+  3C-2.** The scan passes the books it fetched at scan time into
+  `book_complete_set_live`, which derives the FOK limits + recorded weighted cost
+  from them. If the book drifts adversely between scan and submission but the FOK
+  still fills, actual spend can exceed the recorded/gate-approved weighted cost
+  (bounded above by the FOK limit). The authoritative fix — persist from the
+  broker's actual fill details (and/or refetch+recompute immediately before submit)
+  — is the same exact-fill reconciliation as M-2 and is owned by Lane 3C-2. A bare
+  pre-submit refetch still races the real fill, so it is not a sufficient
+  wiring-lane fix. Unreachable until the operator flips the guards + flag, which is
+  gated on 3C-2.
 - The live branch is unreachable in practice until the operator flips
   `COMPLETE_SET_ARB_ENABLED` + the 5 activation guards; runtime risk today = zero.
 

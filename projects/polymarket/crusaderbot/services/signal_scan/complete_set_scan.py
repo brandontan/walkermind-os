@@ -243,7 +243,7 @@ async def scan_complete_set_for_user(
             # re-asserts all 5 LIVE activation guards internally, so this branch
             # is inert until the operator flips them ON; any other mode is skipped.
             if gate_res.chosen_mode == "paper":
-                await booker(
+                paper_res = await booker(
                     user_id=user_id,
                     telegram_user_id=int(row["telegram_user_id"]),
                     quote=quote,
@@ -251,7 +251,11 @@ async def scan_complete_set_for_user(
                     idempotency_key=idem,
                     active_preset=row.get("active_preset"),
                 )
-                res.booked += 1
+                # Mirror the live branch: count only a persisted pair ("open"),
+                # never a "duplicate"/"skipped" no-op (booker stamps the quote
+                # snapshot into strategy_metadata itself; nothing to thread here).
+                if str((paper_res or {}).get("status", "unknown")) == "open":
+                    res.booked += 1
                 ulog.info(
                     "complete_set_booked",
                     mode="paper",

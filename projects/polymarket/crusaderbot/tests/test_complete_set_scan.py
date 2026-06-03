@@ -67,12 +67,13 @@ def _settings(edge: float = 0.02) -> SimpleNamespace:
 
 
 class _Booker:
-    def __init__(self) -> None:
+    def __init__(self, status: str = "open") -> None:
         self.calls: list[dict] = []
+        self._status = status
 
     async def __call__(self, **kw: Any) -> dict:
         self.calls.append(kw)
-        return {"ok": True}
+        return {"status": self._status, "mode": "paper"}
 
 
 def _approve(_ctx: GateContext) -> Any:
@@ -111,6 +112,21 @@ def test_happy_path_detects_logs_gates_books():
     assert call["idempotency_key"].endswith(":MKT-1")
     assert call["quote"].market_id == "MKT-1"
     assert call["market_question"] == "Will X happen?"
+
+
+def test_paper_duplicate_books_nothing():
+    booker = _Booker(status="duplicate")  # idempotency hit — nothing persisted
+
+    async def fetch(token_id: str) -> dict:
+        return _arb_book(0.45, 100.0)
+
+    res = _run(css.scan_complete_set_for_user(
+        _row(), [_market()], settings=_settings(),
+        book_fetcher=fetch, gate_evaluate=_approve,
+        booker=booker, balance_reader=_balance,
+    ))
+    assert res.booked == 0  # mirrors the live branch — a no-op never inflates booked
+    assert len(booker.calls) == 1
 
 
 def test_dormant_when_margin_floor_zero():
