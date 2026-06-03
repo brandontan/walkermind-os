@@ -189,7 +189,7 @@ Blueprint: docs/blueprint/playbook.md. Linear: WARP-53.
 - [x] Phase 1 FOUNDATION (WARP/ROOT/playbook-sports-engine) — domain/playbook/ package (market quality + native signals + precedence router + Closing Edge module + stubs), PlaybookStrategy wired through registry + STRATEGY_AVAILABILITY + presets + backend + Telegram + WebTrader card; paper-only, deny-by-default dispatch; 24 tests + full suite 2371 pass. MAJOR → SENTINEL.
 - [ ] WARP•SENTINEL MAJOR validation of Phase 1
 - [x] Phase 2a — live scan-loop dispatch (WARP/ROOT/playbook-live-dispatch) — _PRESET_ALLOWED + _DOMAIN_STRATEGY_NAMES + Phase-B4 dispatch gated by PLAYBOOK_STRATEGY_ENABLED, sports-market snapshot fetch (Gamma sports markets ≤2h + CLOB books), Gamma-consensus fair_price, preset re-enabled. PAPER; full suite 2410 pass. MAJOR → SENTINEL.
-- [ ] Phase 2b — Sharp Money module live on-chain source (copy-trade chain monitor)
+- [x] Phase 2b — Sharp Money native source (WARP/ROOT/playbook-sharp-money) — domain/playbook/sharp_flow.py fetch_sharp_flows (batched DB read: leaderboard_stats top-tier wallets ⨝ heisenberg_realtime_trades 24h → signed/total USDC; fail-soft), SharpMoneyModule.evaluate live (TTL>24h ∧ flow>=$500 ∧ conf>=0.20), MarketSnapshot sharp fields, strategy batch-attach + bundle wiring; router precedence unchanged. Risk/execution/Kelly/live-guard untouched. PAPER; 127 tests pass (14 new). MAJOR → SENTINEL.
 - [ ] Phase 2c — backtest framework (walk-forward + leakage/overfit detection; shared blocker)
 - [ ] Phase 2d — Injury Alpha module + injury/news feed adapter
 - [ ] Phase 2e — Public Fade module + public-flow feed adapter

@@ -8,8 +8,10 @@ selected module emits a standard ``SignalCandidate`` consumed by the existing
 risk gate and execution router — PLAYBOOK adds no new risk or execution
 authority.
 
-Foundation-only package: no DB access, no execution, no risk evaluation here.
-See ``docs/blueprint/playbook.md`` for the full design.
+Pure decision core — no execution, no risk evaluation here. The one DB-backed
+read is ``sharp_flow.fetch_sharp_flows`` (Phase-2b native sharp-money source),
+imported directly by the strategy (kept out of this package ``__init__`` so the
+decision core stays import-light). See ``docs/blueprint/playbook.md``.
 """
 from __future__ import annotations
 
