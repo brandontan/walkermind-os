@@ -8,14 +8,14 @@ DAILY_LOSS_HARD_STOP = -2_000.0
 MAX_DRAWDOWN_HALT = 0.08
 MIN_LIQUIDITY = 10_000.0
 MIN_EDGE_BPS = 200
-# System-wide hard ceiling on concurrent open positions per user. AGENTS.md
-# RISK CONSTANTS + blueprint §6 fix this at 5. The per-profile `max_concurrent`
-# values below (5 / 12 / 20) are product-tier *intents*, but this constant is
-# the non-overridable cap: `effective_max_concurrent` folds it into the
-# most-restrictive selection (mirrors how DAILY_LOSS_HARD_STOP bounds
-# `effective_daily_loss`) so no profile, override, or settings value can ever
-# loosen a user past 5 simultaneous positions.
-MAX_CONCURRENT_TRADES = 5
+# Concurrent open positions are governed PER USER, not by a global ceiling
+# (WARP🔹CMD / owner directive 2026-06-03). The limit is each user's own
+# setting: their `max_concurrent_override` when set, otherwise their profile
+# default (conservative 5 / balanced 12 / aggressive 20 — see PROFILES below).
+# There is intentionally NO system-wide hard cap clamping the result down; the
+# other capital brakes (Kelly 0.25, max position ≤10%, daily-loss −$2k,
+# drawdown 8%, correlated-exposure 40% at gate step 8, kill switch) still apply.
+# An override is bounded only by the user_settings DB CHECK (1..20) at write time.
 SIGNAL_STALE_SECONDS = 14400  # 4h: matches SIGNAL_EXPIRY_HOURS — gate uses expires_at as primary guard
 DEDUP_WINDOW_SECONDS = 300
 
@@ -159,20 +159,22 @@ def effective_max_concurrent(
     profile: str,
     user_override: int | None = None,
 ) -> int:
-    """Most-restrictive concurrent-trades cap for a user.
+    """Per-user concurrent-trades limit — the user's own setting governs.
 
-    Selects ``min(profile["max_concurrent"], user_override)`` so a user can
-    only tighten — never loosen — the profile cap. Mirrors the semantics of
-    ``effective_daily_loss`` and ``max_drawdown_pct``: the bot is multi-user;
-    each user controls their own risk/reward but cannot exceed the cap their
-    chosen profile permits.
+    Per the owner directive (2026-06-03), open-position capacity is a PER-USER
+    setting, not a global ceiling: when the user has set ``max_concurrent_override``
+    it is authoritative and may raise OR lower the limit freely; otherwise the
+    user's profile default applies (conservative 5 / balanced 12 / aggressive 20).
+    There is no system-wide clamp — a user is no longer forced below their own
+    chosen value. (Other capital brakes — Kelly, position cap, daily-loss,
+    drawdown, correlated-exposure step 8, kill switch — remain in force.)
 
     ``user_override`` is None when the user hasn't set ``max_concurrent_override``
     in ``user_settings`` — the profile default governs alone. Negative / zero
-    / accidentally non-positive overrides are defensively coerced to None so
-    a typo cannot brick a user (gate step 7 would reject every trade with
-    ``cur >= 0``). The DB CHECK constraint (1..20) prevents this at write
-    time; this defence handles legacy rows / direct DB writes.
+    / accidentally non-positive overrides are defensively coerced to the profile
+    default so a typo cannot brick a user (gate step 7 would reject every trade
+    with ``cur >= 0``). The DB CHECK constraint (1..20) bounds the override at
+    write time; this defence handles legacy rows / direct DB writes.
     """
     # Normalise: profile may arrive with mixed case (e.g. 'Conservative' from
     # a UI form) or as None — match the lowercase-default behaviour of
@@ -182,19 +184,17 @@ def effective_max_concurrent(
     if base not in PROFILES:
         base = "balanced"
     profile_cap = int(PROFILES[base]["max_concurrent"])
-    # MAX_CONCURRENT_TRADES is the non-overridable system ceiling (AGENTS.md
-    # RISK CONSTANTS = 5). Seeding the caps list with it guarantees the result
-    # never exceeds 5 even when a profile (balanced=12 / aggressive=20) or a
-    # legacy user override permits more — a user may only tighten below it.
-    caps: list[int] = [MAX_CONCURRENT_TRADES, profile_cap]
+    # The user's override is authoritative when validly set (≥1) — it may be
+    # above or below the profile default. A missing / non-positive / unparseable
+    # override falls back to the profile default (never bricks the user).
     if user_override is not None:
         try:
             ov = int(user_override)
         except (TypeError, ValueError):
             ov = 0
         if ov >= 1:
-            caps.append(ov)
-    return min(caps)
+            return ov
+    return profile_cap
 
 
 def profile_or_default(name: str | None) -> dict:

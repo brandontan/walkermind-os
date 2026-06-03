@@ -945,7 +945,7 @@ Within the active `PROJECT_ROOT`, runtime / trading system code must live only w
 |---|---|
 | Kelly fraction α | `0.25` fractional only |
 | Max position size | `<= 10%` of total capital |
-| Max concurrent trades | `5` |
+| Max concurrent trades | per-user — profile default (`5`/`12`/`20`) or the user's own override; no global ceiling (owner directive 2026-06-03) |
 | Daily loss limit | `-$2,000` hard stop |
 | Max drawdown | `> 8%` -> system stop |
 | Liquidity minimum | `$10,000` orderbook depth |

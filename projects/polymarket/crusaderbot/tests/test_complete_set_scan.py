@@ -405,7 +405,7 @@ def _patch_gate_passthrough(monkeypatch: pytest.MonkeyPatch, *, balance: float) 
     async def _noop_log(*a: Any, **k: Any) -> None:
         return None
 
-    async def _caps_ok(_uid: Any, _sz: Any) -> GateResult:
+    async def _caps_ok(_uid: Any, _sz: Any, max_open_cap: Any = None) -> GateResult:
         return GateResult(True, "ok")
 
     async def _false(*a: Any, **k: Any) -> bool:

@@ -250,7 +250,11 @@ async def _robustness_downgrade(chosen_mode: str, ctx: GateContext) -> str:
     return "live"
 
 
-async def validate_risk_caps(user_id: UUID, proposed_size: Decimal) -> GateResult:
+async def validate_risk_caps(
+    user_id: UUID,
+    proposed_size: Decimal,
+    max_open_cap: int | None = None,
+) -> GateResult:
     """Hard per-user ceilings independent of risk profile.
 
     Three checks remain after the C-5/C-6 reconciliation:
@@ -292,11 +296,18 @@ async def validate_risk_caps(user_id: UUID, proposed_size: Decimal) -> GateResul
             0,
         )
 
-    # Cap 4: Open positions count. The operator knob settings.MAX_OPEN_POSITIONS
-    # may only TIGHTEN below the system hard ceiling K.MAX_CONCURRENT_TRADES (5);
-    # it can never loosen past it (AGENTS.md RISK CONSTANTS + blueprint §6).
+    # Cap 4: Open positions count — PER USER (owner directive 2026-06-03).
+    # ``max_open_cap`` is the caller's per-user effective limit (profile default
+    # or the user's own override, via K.effective_max_concurrent). When absent
+    # (direct callers / tests) it falls back to the operator backstop
+    # settings.MAX_OPEN_POSITIONS. There is no global ceiling clamping it down —
+    # the user's own setting governs; step 7 enforces the same value.
     open_count = await _open_position_count(user_id)
-    open_cap = min(int(settings.MAX_OPEN_POSITIONS), K.MAX_CONCURRENT_TRADES)
+    open_cap = (
+        int(max_open_cap)
+        if max_open_cap is not None
+        else int(settings.MAX_OPEN_POSITIONS)
+    )
     if open_count >= open_cap:
         return GateResult(
             False,
@@ -314,7 +325,13 @@ async def evaluate(ctx: GateContext) -> GateResult:
     profile = K.profile_or_default(ctx.risk_profile)
 
     # 0. Hard risk caps (Track D) — fail fast before any gate logging
-    caps_result = await validate_risk_caps(ctx.user_id, ctx.proposed_size_usdc)
+    caps_result = await validate_risk_caps(
+        ctx.user_id,
+        ctx.proposed_size_usdc,
+        max_open_cap=K.effective_max_concurrent(
+            ctx.risk_profile, ctx.max_concurrent_override,
+        ),
+    )
     if not caps_result.approved:
         await _log(ctx.user_id, ctx.market_id, 0, False, caps_result.reason)
         return caps_result
