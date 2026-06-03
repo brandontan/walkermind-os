@@ -880,6 +880,18 @@ class Settings(BaseSettings):
             )
         return v
 
+    @field_validator("ROBUSTNESS_CLASSIFY_INTERVAL_SEC")
+    @classmethod
+    def validate_robustness_classify_interval(cls, v: int) -> int:
+        # APScheduler raises ValueError at boot for a non-positive interval, so
+        # reject it here with a clear message instead of crashing the process.
+        if v <= 0:
+            raise ValueError(
+                f"ROBUSTNESS_CLASSIFY_INTERVAL_SEC must be > 0 (got {v}); "
+                f"a non-positive interval is invalid for the scheduler."
+            )
+        return v
+
     @field_validator("CLOSE_SWEEP_MAX_LEG_SPREAD")
     @classmethod
     def validate_close_sweep_max_leg_spread(cls, v: float) -> float:

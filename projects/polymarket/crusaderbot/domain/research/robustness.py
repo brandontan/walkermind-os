@@ -236,7 +236,7 @@ async def run_job() -> None:
                 profile=profile,
                 modules=len(results),
                 untradeable=sum(
-                    1 for r in results if r.classification is Classification.UNTRADEABLE
+                    1 for r in results if r.classification == Classification.UNTRADEABLE
                 ),
             )
         except Exception as exc:  # noqa: BLE001 — never let one profile abort the job
