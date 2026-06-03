@@ -55,7 +55,11 @@ open_agg AS (
                 -- size * (current - entry)/entry for BOTH sides (matches
                 -- domain/execution/paper.close_position). Corrected NO frame —
                 -- WARP/ROOT/no-side-pnl-frame.
-                WHEN entry_price > 0
+                -- current_price IS NOT NULL guard: a NULL mark would make the
+                -- whole `size_usdc + CASE` NULL and drop the position's cost
+                -- basis from SUM (understating equity); fall back to cost basis
+                -- (size_usdc + 0). Mirrors domain/copy_trade/repository.py.
+                WHEN entry_price > 0 AND current_price IS NOT NULL
                     THEN size_usdc * (current_price - entry_price) / entry_price
                 ELSE 0
             END
