@@ -127,11 +127,19 @@ class FakePool:
 
 
 class FakeClob:
-    """Returns (or raises) a scripted sequence of post_order results."""
+    """Returns (or raises) a scripted sequence of post_order results.
 
-    def __init__(self, results: list[Any]) -> None:
+    Optionally maps a broker ``order_id`` -> fills list so ``get_fills`` can model
+    real on-chain fills for exact-fill reconciliation; an unknown id returns ``[]``
+    (the booker then keeps its pre-submit book estimate).
+    """
+
+    def __init__(
+        self, results: list[Any], *, fills: dict[str, list[dict]] | None = None,
+    ) -> None:
         self._results = list(results)
         self.calls: list[dict] = []
+        self._fills = dict(fills or {})
 
     async def post_order(self, **kwargs: Any) -> dict:
         self.calls.append(kwargs)
@@ -139,6 +147,9 @@ class FakeClob:
         if isinstance(r, Exception):
             raise r
         return r
+
+    async def get_fills(self, order_id: str) -> list[dict]:
+        return list(self._fills.get(order_id, []))
 
 
 class FakeMDC:
@@ -223,6 +234,78 @@ async def test_both_legs_fill_books_linked_pair(monkeypatch) -> None:
     a, b = conn.paired_updates
     assert a[0] == b[1] and b[0] == a[1]
     assert len(conn.ledger_inserts) == 2
+
+
+async def test_fills_cost_aggregates_and_skips_garbage() -> None:
+    # alias keys + a clean row, then degenerate rows that MUST be skipped so a junk
+    # payload can never corrupt the money aggregate.
+    fills = [
+        {"size": "10", "price": "0.40"},          # 4.0
+        {"matched_amount": "5", "avg_price": "0.60"},  # 3.0 (aliases)
+        {"size": "0", "price": "0.50"},           # skip: size <= 0
+        {"size": "3", "price": "1.5"},            # skip: price > 1
+        {"size": "2"},                            # skip: no price
+        "not-a-dict",                             # skip: malformed
+    ]
+    size, cost = cse._fills_cost(fills)
+    assert size == 15.0
+    assert cost == 7.0
+    assert cse._fills_cost([]) == (0.0, 0.0)
+    assert cse._fills_cost(None) == (0.0, 0.0)
+
+
+async def test_exact_fill_overrides_book_estimate(monkeypatch) -> None:
+    # Books estimate yes=45.0 (ask .45) / no=50.0 (ask .50), but the broker actually
+    # filled YES dearer (.46 -> 46.0). Exact-fill (get_fills) MUST book the ACTUAL
+    # cost, not the stale estimate (Codex P1: stale scan-time books understate spend).
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    fy = {"orderID": "ord-y", "status": "matched"}
+    fn = {"orderID": "ord-n", "status": "matched"}
+    clob = FakeClob([fy, fn], fills={
+        "ord-y": [{"size": "100", "price": "0.46"}],
+        "ord-n": [{"size": "60", "price": "0.50"}, {"size": "40", "price": "0.50"}],
+    })
+    res = await _book_live(conn, clob)
+    assert res["status"] == "open"
+    by_side = {args[3]: args for args in conn.position_inserts}
+    assert float(by_side["yes"][4]) == 46.0  # actual fill cost, not 45.0 estimate
+    assert float(by_side["no"][4]) == 50.0
+    assert float(by_side["yes"][5]) == 0.46   # entry_price = actual/shares
+
+
+async def test_exact_fill_falls_back_to_estimate_on_incomplete_fills(monkeypatch) -> None:
+    # Broker returns a SHORT fill set (60 of 100 shares) -> incomplete view -> the
+    # booker keeps its pre-submit estimate rather than trusting partial data.
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    fy = {"orderID": "ord-y", "status": "matched"}
+    fn = {"orderID": "ord-n", "status": "matched"}
+    clob = FakeClob([fy, fn], fills={"ord-y": [{"size": "60", "price": "0.99"}]})
+    res = await _book_live(conn, clob)
+    assert res["status"] == "open"
+    by_side = {args[3]: args for args in conn.position_inserts}
+    assert float(by_side["yes"][4]) == 45.0  # estimate kept (short fill ignored)
+    assert float(by_side["no"][4]) == 50.0
+
+
+async def test_unwind_exact_fill_proceeds(monkeypatch) -> None:
+    # NO kill -> YES naked -> unwind SELL. The bid-walk estimate is 44.0 (bid .44),
+    # but the broker actually returned 44.5 -> exact-fill must credit the ACTUAL.
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    fill_y = {"orderID": "ord-y", "status": "matched"}
+    sell = {"orderID": "ord-sell", "status": "matched"}
+    clob = FakeClob([fill_y, KILL, sell], fills={
+        "ord-y": [{"size": "100", "price": "0.45"}],      # naked cost actual 45.0
+        "ord-sell": [{"size": "100", "price": "0.445"}],  # proceeds actual 44.5
+    })
+    res = await _book_live(conn, clob)
+    assert res["status"] == "unwound"
+    # realised = proceeds(44.5) - naked_cost(45.0) = -0.5
+    assert float(res["realised_usdc"]) == -0.5
+    credits = [float(a[2]) for a in conn.ledger_inserts if float(a[2]) > 0]
+    assert credits == [44.5]  # actual weighted proceeds, not the 44.0 estimate
     # both legs persisted as the held-to-settlement strategy
     assert all(args[6] == cse.COMPLETE_SET_STRATEGY for args in conn.position_inserts)
 

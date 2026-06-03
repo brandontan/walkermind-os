@@ -403,6 +403,84 @@ async def book_complete_set_paper(
     }
 
 
+_FILL_SIZE_KEYS: tuple[str, ...] = (
+    "size", "matched_amount", "amount", "filled_size", "making_amount",
+)
+_FILL_PRICE_KEYS: tuple[str, ...] = ("price", "fill_price", "avg_price")
+
+
+def _first_float(d: dict[str, Any], keys: tuple[str, ...]) -> float | None:
+    """First parseable float among ``keys`` (tolerant of str/None/garbage)."""
+    for k in keys:
+        v = d.get(k)
+        if v is None:
+            continue
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _fills_cost(fills: list[dict] | None) -> tuple[float, float]:
+    """``(total_filled_size, total_cost_usdc)`` summed across broker fills.
+
+    Robust to broker field-name aliases; skips malformed/degenerate rows (size <= 0
+    or price outside (0, 1]) so a junk row can never corrupt the aggregate.
+    """
+    total_size = 0.0
+    total_cost = 0.0
+    for f in (fills or []):
+        if not isinstance(f, dict):
+            continue
+        sz = _first_float(f, _FILL_SIZE_KEYS)
+        px = _first_float(f, _FILL_PRICE_KEYS)
+        if sz is None or px is None or sz <= 0.0 or not (0.0 < px <= 1.0):
+            continue
+        total_size += sz
+        total_cost += sz * px
+    return total_size, total_cost
+
+
+async def _exact_fill_cost(
+    client: ClobClientProtocol,
+    broker_id: str | None,
+    *,
+    shares: float,
+    estimate: float,
+    leg: str,
+    market_id: str,
+) -> float:
+    """Actual weighted USDC cost/proceeds of a FILLED order, from broker fills.
+
+    Closes the scan-snapshot understatement (Codex P1 / M-2): a book that drifted
+    between scan and fill makes the pre-submit ``estimate`` wrong, so the ledger +
+    position must reflect what the broker actually filled. Falls back to ``estimate``
+    when fills are unavailable, incomplete, or the query fails (paper/mock returns
+    no fills, so behaviour there is unchanged) — accounting refinement must NEVER
+    block or fail the persist.
+    """
+    if not broker_id:
+        return estimate
+    try:
+        fills = await client.get_fills(broker_id)
+    except Exception as exc:  # noqa: BLE001 — never block the persist on a fills hiccup
+        log.warning("complete_set_exact_fill_query_failed",
+                    leg=leg, market_id=market_id, error=str(exc))
+        return estimate
+    filled_size, cost = _fills_cost(fills)
+    # Trust the fills only if they cover the order size (within a tiny epsilon) and
+    # yield a positive cost; a short/empty set means the broker view is incomplete.
+    if filled_size + 1e-6 < shares or cost <= 0.0:
+        log.info("complete_set_exact_fill_incomplete", leg=leg, market_id=market_id,
+                 filled_size=round(filled_size, 6), shares=round(shares, 6))
+        return estimate
+    if abs(cost - estimate) > 1e-9:
+        log.info("complete_set_exact_fill", leg=leg, market_id=market_id,
+                 estimate=round(estimate, 6), actual=round(cost, 6))
+    return cost
+
+
 async def book_complete_set_live(
     *,
     user_id: UUID,
@@ -698,10 +776,24 @@ async def book_complete_set_live(
     no_broker_id = _extract_order_id(no_res)
 
     # --- Both legs filled: persist the linked pair atomically ----------------
-    # Per-share entry prices from the SUBMIT-TIME recomputed costs (not the stale
-    # quote), so entry_price * shares == the persisted size_usdc == what was spent.
-    yes_price = round(yes_fill_cost / shares, 6)
-    no_price = round(no_fill_cost / shares, 6)
+    # Exact-fill reconciliation (Lane 3C-2): book the broker's ACTUAL weighted fill
+    # cost (get_fills) rather than the pre-submit book estimate, so a book that
+    # drifted between scan and fill cannot understate live exposure (Codex P1).
+    # Computed only AFTER both legs are terminal — never between legs — so the
+    # latency-sensitive YES->NO window is unaffected. Falls back to the estimate
+    # when fills are unavailable.
+    yes_actual = await _exact_fill_cost(
+        client, yes_broker_id, shares=shares, estimate=yes_fill_cost,
+        leg="yes", market_id=market_id)
+    no_actual = await _exact_fill_cost(
+        client, no_broker_id, shares=shares, estimate=no_fill_cost,
+        leg="no", market_id=market_id)
+    yes_cost = Decimal(str(yes_actual))
+    no_cost = Decimal(str(no_actual))
+    # Per-share entry prices from the ACTUAL fill cost, so entry_price * shares ==
+    # the persisted size_usdc == what was really spent.
+    yes_price = round(yes_actual / shares, 6)
+    no_price = round(no_actual / shares, 6)
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():
@@ -812,6 +904,14 @@ async def _unwind_naked_leg(
     position, engage the kill switch, and page the operator.
     """
     market_id = quote.market_id
+    # Exact-fill (Lane 3C-2 / Codex P1): the naked leg's BUY cost was the pre-submit
+    # book estimate — recompute it from the broker's actual fills so realised P&L and
+    # the force-exitable position size reflect what was really spent. Falls back to
+    # the estimate when fills are unavailable. The NO leg has already resolved here,
+    # so this query adds no latency to the YES->NO window.
+    naked_cost = Decimal(str(await _exact_fill_cost(
+        client, naked_broker_id, shares=shares, estimate=float(naked_cost),
+        leg=f"{naked_side}-naked", market_id=market_id)))
     token_id = quote.yes_token_id if naked_side == "yes" else quote.no_token_id
     entry_price = round(float(naked_cost) / shares, 6) if shares > 0 else naked_limit
     naked_meta = {**meta, "naked_leg": naked_side, "unwind": True}
@@ -897,9 +997,14 @@ async def _unwind_naked_leg(
     # limit or better, so the weighted value over the consumed bids is what the SELL
     # actually returns; crediting the bare limit would permanently understate the
     # wallet on every unwind).
-    proceeds = Decimal(str(sell_proceeds))
-    realised = proceeds - naked_cost
     unwind_broker_id = _extract_order_id(sell_res)
+    # Exact-fill (Lane 3C-2 / M-2): credit the broker's ACTUAL weighted SELL proceeds
+    # rather than the pre-submit bid-walk estimate; fall back to the estimate when
+    # fills are unavailable.
+    proceeds = Decimal(str(await _exact_fill_cost(
+        client, unwind_broker_id, shares=shares, estimate=float(sell_proceeds),
+        leg=f"{naked_side}-unwind", market_id=market_id)))
+    realised = proceeds - naked_cost
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():
