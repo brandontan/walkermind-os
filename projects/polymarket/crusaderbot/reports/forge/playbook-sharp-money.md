@@ -85,13 +85,17 @@ execution, Kelly, and the live-trading guard are untouched.
   replaced by generic TP/SL. `evaluate_snapshot` now stamps those keys from the winning
   module (mirrors the candle_auto router); also repairs the latent Closing Edge gap.
   +2 tests (sharp 30/15, closing 25/12).
-- **Codex P1 (signed-flow direction) fixed:** the stored `side` column is
-  `side or direction or outcome` upstream — ambiguous — so classifying a `BUY` (of the
-  NO token) as YES-accumulation could **flip the emitted trade direction**. Replaced the
-  in-SQL sign with a unit-tested Python `yes_accumulation_signed(outcome, action, …)` =
-  outcome_sign × action_sign (outcome from `raw->>'outcome'`, as the copy-trade path
-  relies on); ambiguous rows count toward *total* magnitude only, never the signed sum,
-  so a directionally-unknown book can never flip the side. +9 direction/aggregation tests.
+- **Codex P1 + P2 (signed-flow direction) fixed:** the upstream trade fields are
+  inconsistent — the stored `side` is `side or direction or outcome`, and the raw payload
+  can carry the outcome in `side` while the action lives in `direction`. Classifying a
+  `BUY` (of the NO token) as YES-accumulation would **flip the emitted trade direction**
+  (P1), and positionally coalescing `side→direction` for the action would let an
+  outcome-valued `side` shadow a real action → neutralised flow (P2). Fix: a unit-tested
+  `yes_accumulation_signed(tokens, size)` classifies each candidate token (raw
+  outcome/side/direction + the `side` column) **by value** — first outcome token sets
+  outcome, first action token sets action — sign = outcome_sign × action_sign. Ambiguous
+  rows count toward *total* magnitude only, never the signed sum, so a directionally-unknown
+  book can never flip the side. +10 direction/aggregation tests (incl. the P2 shape).
 
 ## 5. Known issues
 

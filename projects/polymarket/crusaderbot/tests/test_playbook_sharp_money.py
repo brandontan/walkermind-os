@@ -209,16 +209,22 @@ def _patch(conn: _Conn):
     return patch.object(SF, "get_pool", return_value=_Pool(conn))
 
 
-def _trade(outcome: str, action: str, size: float, side_col: str = "", cid: str = "c1") -> dict:
+def _trade(
+    size: float, *, raw_outcome: str | None = None, raw_side: str | None = None,
+    raw_direction: str | None = None, side_col: str | None = None, cid: str = "c1",
+) -> dict:
     return {
-        "condition_id": cid, "outcome": outcome, "action": action,
-        "side_col": side_col, "size_usdc": size,
+        "condition_id": cid, "raw_outcome": raw_outcome, "raw_side": raw_side,
+        "raw_direction": raw_direction, "side_col": side_col, "size_usdc": size,
     }
 
 
 def test_fetch_sharp_flows_aggregates_signed_outcome_action():
     # BUY YES +8000, BUY NO −2000 → signed 6000, total 10000.
-    conn = _Conn(rows=[_trade("yes", "buy", 8_000.0), _trade("no", "buy", 2_000.0)])
+    conn = _Conn(rows=[
+        _trade(8_000.0, raw_outcome="yes", raw_side="buy"),
+        _trade(2_000.0, raw_outcome="no", raw_side="buy"),
+    ])
     with _patch(conn):
         out = asyncio.run(SF.fetch_sharp_flows(["c1"]))
     assert out == {"c1": (6_000.0, 10_000.0)}
@@ -228,9 +234,21 @@ def test_fetch_sharp_flows_aggregates_signed_outcome_action():
     assert conn.args[0][0] == ["c1"]  # batched ANY($1)
 
 
+def test_fetch_sharp_flows_outcome_in_side_action_in_direction():
+    # Codex P2: raw.side carries the OUTCOME, raw.direction the ACTION — both
+    # must be honoured (BUY YES → +5000), not neutralised.
+    conn = _Conn(rows=[_trade(5_000.0, raw_side="YES", raw_direction="BUY")])
+    with _patch(conn):
+        out = asyncio.run(SF.fetch_sharp_flows(["c1"]))
+    assert out == {"c1": (5_000.0, 5_000.0)}
+
+
 def test_fetch_sharp_flows_ambiguous_counts_total_not_signed():
-    # Action-only (no outcome) → can't sign → 0 signed but counts toward total.
-    conn = _Conn(rows=[_trade("", "buy", 5_000.0), _trade("yes", "buy", 1_000.0)])
+    # Action-only (no outcome anywhere) → can't sign → 0 signed but counts total.
+    conn = _Conn(rows=[
+        _trade(5_000.0, raw_side="buy"),
+        _trade(1_000.0, raw_outcome="yes", raw_direction="buy"),
+    ])
     with _patch(conn):
         out = asyncio.run(SF.fetch_sharp_flows(["c1"]))
     assert out == {"c1": (1_000.0, 6_000.0)}
@@ -251,22 +269,24 @@ def test_fetch_sharp_flows_failsoft_on_error():
 
 
 def test_fetch_sharp_flows_skips_zero_size():
-    conn = _Conn(rows=[_trade("yes", "buy", 0.0)])
+    conn = _Conn(rows=[_trade(0.0, raw_outcome="yes", raw_side="buy")])
     with _patch(conn):
         out = asyncio.run(SF.fetch_sharp_flows(["c1"]))
     assert out == {}
 
 
-# ── signed-flow direction (Codex P1 #1577: outcome × action, never flipped) ─
-@pytest.mark.parametrize("outcome,action,side_col,size,expected", [
-    ("yes", "buy", "", 100.0, 100.0),    # buy YES  → +
-    ("yes", "sell", "", 100.0, -100.0),  # sell YES → −
-    ("no", "buy", "", 100.0, -100.0),    # buy NO   → − (would be +100 under the old bug)
-    ("no", "sell", "", 100.0, 100.0),    # sell NO  → +
-    ("yes", "", "sell", 100.0, -100.0),  # action via side_col fallback
-    ("", "buy", "yes", 100.0, 100.0),    # outcome via side_col fallback
-    ("", "buy", "", 100.0, 0.0),         # action only, no outcome → ambiguous
-    ("", "", "yes", 100.0, 0.0),         # outcome only, no action → ambiguous
+# ── signed-flow direction (Codex P1/P2 #1577: classify tokens by value) ────
+@pytest.mark.parametrize("tokens,size,expected", [
+    (["yes", "buy"], 100.0, 100.0),          # buy YES  → +
+    (["yes", "sell"], 100.0, -100.0),        # sell YES → −
+    (["no", "buy"], 100.0, -100.0),          # buy NO   → − (old bug gave +100)
+    (["no", "sell"], 100.0, 100.0),          # sell NO  → +
+    (["", "yes", "buy"], 100.0, 100.0),      # P2: outcome in side, action in direction
+    (["", "no", "sell"], 100.0, 100.0),      # P2: sell NO via separate fields → +
+    (["yes", "buy", "sell"], 100.0, 100.0),  # first action wins
+    (["buy"], 100.0, 0.0),                   # action only → ambiguous
+    (["yes"], 100.0, 0.0),                   # outcome only → ambiguous
+    (["", "", "", ""], 100.0, 0.0),          # empty → ambiguous
 ])
-def test_yes_accumulation_signed(outcome, action, side_col, size, expected):
-    assert SF.yes_accumulation_signed(outcome, action, side_col, size) == expected
+def test_yes_accumulation_signed(tokens, size, expected):
+    assert SF.yes_accumulation_signed(tokens, size) == expected

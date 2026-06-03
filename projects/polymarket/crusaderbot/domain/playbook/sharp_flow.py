@@ -38,37 +38,35 @@ SHARP_LOOKBACK_HOURS: int = 24
 
 _BUY_ACTIONS: frozenset[str] = frozenset({"buy", "long", "bid"})
 _SELL_ACTIONS: frozenset[str] = frozenset({"sell", "short", "ask"})
+_OUTCOMES: frozenset[str] = frozenset({"yes", "no"})
 
 
-def yes_accumulation_signed(
-    outcome: str, action: str, side_col: str, size_usdc: float
-) -> float:
+def yes_accumulation_signed(tokens: list[str], size_usdc: float) -> float:
     """Signed YES-accumulation USDC for one trade.
 
     ``+size`` when the wallet BUYS YES or SELLS NO (bullish YES); ``-size`` when
     it BUYS NO or SELLS YES (bearish YES). Sign = outcome_sign × action_sign.
 
-    The stored ``side`` column is ambiguous — it is ``side or direction or
-    outcome`` upstream, so it can be an order action (BUY/SELL) OR an outcome
-    (YES/NO). Counting a BUY-of-NO as YES-accumulation would FLIP the emitted
-    trade direction (Codex P1, PR #1577). So the outcome is taken from the raw
-    payload (``raw->>'outcome'``, which the copy-trade path also relies on), the
-    action from ``raw->>'side'``/``direction`` (or the ``side`` column when it is
-    an action). A row whose outcome AND action cannot both be determined returns
-    ``0.0`` here — it still counts toward *total* flow (magnitude) but never
-    toward the signed sum, so a directionally-unknown book can never flip the
-    side.
+    The upstream trade fields are inconsistent — the stored ``side`` column is
+    ``side or direction or outcome``, and the raw payload can carry the outcome
+    in ``side`` while the action lives in ``direction`` (or vice-versa). So
+    rather than positionally trusting any one field, every candidate token is
+    classified **by value**: the first token that is an outcome (yes/no) sets the
+    outcome, the first that is an action (buy/sell/…) sets the action. This
+    prevents an outcome-valued ``side`` from shadowing a real ``direction``
+    action (Codex P2) and a BUY-of-NO from being counted as YES (Codex P1).
+
+    A trade whose outcome AND action cannot both be determined returns ``0.0`` —
+    it still counts toward *total* flow (magnitude) but never the signed sum, so
+    a directionally-unknown book can never flip the side.
     """
-    o = outcome if outcome in ("yes", "no") else ""
-    if not o and side_col in ("yes", "no"):
-        o = side_col
-    a = action if action in _BUY_ACTIONS or action in _SELL_ACTIONS else ""
-    if not a and side_col in _BUY_ACTIONS | _SELL_ACTIONS:
-        a = side_col
-    if not o or not a:
+    norm = [str(t or "").strip().lower() for t in tokens]
+    outcome = next((t for t in norm if t in _OUTCOMES), "")
+    action = next((t for t in norm if t in _BUY_ACTIONS or t in _SELL_ACTIONS), "")
+    if not outcome or not action:
         return 0.0
-    outcome_sign = 1.0 if o == "yes" else -1.0
-    action_sign = 1.0 if a in _BUY_ACTIONS else -1.0
+    outcome_sign = 1.0 if outcome == "yes" else -1.0
+    action_sign = 1.0 if action in _BUY_ACTIONS else -1.0
     return outcome_sign * action_sign * size_usdc
 
 
@@ -96,11 +94,12 @@ async def fetch_sharp_flows(
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 """
-                SELECT t.condition_id                                   AS condition_id,
-                       lower(coalesce(t.raw->>'outcome', ''))           AS outcome,
-                       lower(coalesce(t.raw->>'side', t.raw->>'direction', '')) AS action,
-                       lower(coalesce(t.side, ''))                      AS side_col,
-                       COALESCE(t.size_usdc, 0)                         AS size_usdc
+                SELECT t.condition_id          AS condition_id,
+                       t.raw->>'outcome'       AS raw_outcome,
+                       t.raw->>'side'          AS raw_side,
+                       t.raw->>'direction'     AS raw_direction,
+                       t.side                  AS side_col,
+                       COALESCE(t.size_usdc, 0) AS size_usdc
                   FROM heisenberg_realtime_trades t
                   JOIN leaderboard_stats l ON l.wallet = t.wallet
                  WHERE t.condition_id = ANY($1::text[])
@@ -120,9 +119,10 @@ async def fetch_sharp_flows(
         size = float(r["size_usdc"] or 0.0)
         if not cid or size <= 0.0:
             continue
+        # Classify by value — outcome and action may live in any of these fields.
         signed = yes_accumulation_signed(
-            str(r["outcome"] or ""), str(r["action"] or ""),
-            str(r["side_col"] or ""), size,
+            [r["raw_outcome"], r["raw_side"], r["raw_direction"], r["side_col"]],
+            size,
         )
         bucket = agg.setdefault(cid, [0.0, 0.0])
         bucket[0] += signed
