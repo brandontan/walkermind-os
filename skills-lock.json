@@ -1,17 +1,59 @@
 {
   "version": 1,
   "skills": {
+    "analyzing-financial-statements": {
+      "source": "anthropics/claude-cookbooks",
+      "sourceType": "github",
+      "skillPath": "skills/custom_skills/analyzing-financial-statements/SKILL.md",
+      "computedHash": "b14994fda6448e554f9b54e516196356b66b2d97a9de707cdda12ee64bb50b2d"
+    },
+    "applying-brand-guidelines": {
+      "source": "anthropics/claude-cookbooks",
+      "sourceType": "github",
+      "skillPath": "skills/custom_skills/applying-brand-guidelines/SKILL.md",
+      "computedHash": "e74925ac6b9d20e39a685c79847e6043c965f60e6af4dd814153e98155a4c681"
+    },
+    "cookbook-audit": {
+      "source": "anthropics/claude-cookbooks",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/cookbook-audit/SKILL.md",
+      "computedHash": "5d7d9dc913bd93fe03b8859b3df93cbc3519e0586413c421a9e176ba98cc5c22"
+    },
+    "creating-financial-models": {
+      "source": "anthropics/claude-cookbooks",
+      "sourceType": "github",
+      "skillPath": "skills/custom_skills/creating-financial-models/SKILL.md",
+      "computedHash": "10793f1c4d6d397d0aa61e70f13838461bcaaa6410d432fac024499d82a97d4a"
+    },
+    "frontend-design": {
+      "source": "anthropics/claude-code",
+      "sourceType": "github",
+      "skillPath": "plugins/frontend-design/skills/frontend-design/SKILL.md",
+      "computedHash": "e8118284a6365753790d44bb2758a6032b3af27fa84696428d9233f2be0f4e78"
+    },
     "grimoire-polymarket": {
       "source": "franalgaba/grimoire",
       "sourceType": "github",
       "skillPath": "skills/grimoire-polymarket/SKILL.md",
       "computedHash": "fac17b7cfaf4522b75f4f7e7ed6b8decca1ff9af986d9ad3d18b1e394fd20963"
     },
-    "polymarket": {
+    "polymarket-sports": {
       "source": "machina-sports/sports-skills",
       "sourceType": "github",
       "skillPath": "skills/polymarket/SKILL.md",
       "computedHash": "dab1876808778a13fc197df3635e50323dec67d324946eaad9b73c6b8fb8738f"
+    },
+    "telegram-bot-builder": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/telegram-bot-builder/SKILL.md",
+      "computedHash": "a57b1413132d277829e3e357270e993a5ae67a41fa757c9b201d46c30c6289fc"
+    },
+    "trading-strategies": {
+      "source": "agentmc15/polymarket-trader",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/trading-strategies/SKILL.md",
+      "computedHash": "229cd6130f41b9e6fe8085870cd1512cb3dc968893735ef1cfbdd01864659381"
     },
     "web3-polymarket": {
       "source": "polymarket/agent-skills",
