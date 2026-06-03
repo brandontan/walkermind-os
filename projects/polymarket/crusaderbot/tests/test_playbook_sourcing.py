@@ -52,3 +52,13 @@ def test_select_window_includes_game_market_with_null_category():
     ]
     got = {t[1] for t in pbs.select_sports_markets_in_window(markets, now=now)}
     assert got == {"g1"}
+
+
+
+def test_is_sports_market_tolerates_dict_shaped_events():
+    # Gemini HIGH: a dict-shaped `events` payload must not raise KeyError.
+    assert pbs._is_sports_market({"category": None, "events": {"weird": "shape"}}) is False
+    # dict events but a sportsMarketType still wins (no crash)
+    assert pbs._is_sports_market({"category": None, "events": {"x": 1}, "sportsMarketType": "moneyline"}) is True
+    # slug fallback still works when events is a non-list
+    assert pbs._is_sports_market({"category": None, "events": {}, "slug": "nba-nyk-sas-2026-06-03"}) is True

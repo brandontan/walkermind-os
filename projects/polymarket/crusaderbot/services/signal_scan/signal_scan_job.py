@@ -888,7 +888,13 @@ async def _sync_playbook_sports_markets() -> int:
         return 0
     # Game markets (today's individual games) first, then season futures.
     markets = (game_markets or []) + (events_markets or [])
-    rows = [t[0] for t in select_sports_markets_in_window(markets)]
+    seen_ids: set[str] = set()
+    rows = []
+    for mkt, mid, _cat, _ttl in select_sports_markets_in_window(markets):
+        if mid in seen_ids:
+            continue
+        seen_ids.add(mid)
+        rows.append(mkt)
     await _upsert_sports_markets(rows)
     return len(rows)
 

@@ -103,10 +103,11 @@ def _is_sports_market(market: object) -> bool:
         return True
     if _is_sports_category(market.get("category")):
         return True
-    events = market.get("events") or []
-    slug = (
-        events[0].get("slug") if events and isinstance(events[0], dict) else ""
-    ) or market.get("slug") or ""
+    events = market.get("events")
+    slug = ""
+    if isinstance(events, (list, tuple)) and events and isinstance(events[0], dict):
+        slug = events[0].get("slug") or ""
+    slug = slug or market.get("slug") or ""
     return any(tok in str(slug).lower() for tok in SPORTS_CATEGORIES)
 
 

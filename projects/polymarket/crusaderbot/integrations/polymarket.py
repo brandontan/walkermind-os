@@ -189,10 +189,11 @@ async def get_sports_game_markets(limit: int = 500) -> list[dict]:
                 continue  # not an individual game market
             if not (m.get("gameStartTime") or m.get("game_start_time")):
                 continue
-            events = m.get("events") or []
-            ev_slug = (
-                events[0].get("slug") if events and isinstance(events[0], dict) else ""
-            ) or m.get("slug") or ""
+            events = m.get("events")
+            ev_slug = ""
+            if isinstance(events, (list, tuple)) and events and isinstance(events[0], dict):
+                ev_slug = events[0].get("slug") or ""
+            ev_slug = ev_slug or m.get("slug") or ""
             category = str(m.get("category") or ev_slug or "").strip().lower()
             out.append({**m, "category": category})
         await set_cache(key, out, ttl=120)
