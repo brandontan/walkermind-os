@@ -890,6 +890,105 @@ async def _sync_playbook_sports_markets() -> int:
     return len(rows)
 
 
+async def _upsert_weather_markets(markets: list[Any]) -> None:
+    """Upsert live weather markets (keyed by market_id, category='Weather')
+    so the WebTrader market-feed can surface them on the weather preset.
+
+    Weather markets are fetched live from Gamma during the scan but — unlike
+    crypto/sports — were never persisted to the ``markets`` table, so
+    /market-feed had no weather rows to show (it fell back to crypto). Mirrors
+    _upsert_sports_markets; reads token ids / liquidity from each market's raw
+    Gamma payload. Idempotent ON CONFLICT; fail-soft per market.
+
+    The row PK is ``wm.market_id`` (Gamma id) — NOT condition_id — because
+    WeatherDomainStrategy emits SignalCandidate.market_id=wm.market_id and
+    _process_candidate resolves it via _load_market(... WHERE id = $1); keying
+    by condition_id would leave weather candidates skipped as not-synced.
+    condition_id is still stored in its own column. (Codex P1, PR #1575.)
+    """
+    if not markets:
+        return
+
+    def _f(v: Any, d: float) -> float:
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return d
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        for wm in markets:
+            try:
+                market_id = str(getattr(wm, "market_id", "") or "")
+                condition_id = str(getattr(wm, "condition_id", "") or "")
+                row_id = market_id or condition_id
+                if not row_id:
+                    continue
+                raw = getattr(wm, "raw", {}) or {}
+                slug = str(raw.get("slug") or "")[:80]
+                question = str(getattr(wm, "question", "") or "")[:500]
+                tokens = _coerce_str_list(raw.get("clobTokenIds"))
+                yes_token = tokens[0] if tokens else None
+                no_token = tokens[1] if len(tokens) > 1 else None
+                liquidity = _f(raw.get("liquidity") or raw.get("liquidityNum"), 0.0)
+                end_iso = getattr(wm, "end_date_iso", "") or ""
+                resolution_at = None
+                if end_iso:
+                    try:
+                        resolution_at = datetime.fromisoformat(
+                            str(end_iso).replace("Z", "+00:00")
+                        )
+                    except (ValueError, TypeError):
+                        resolution_at = None
+                await conn.execute(
+                    """
+                    INSERT INTO markets
+                        (id, slug, question, category, status,
+                         yes_price, no_price, yes_token_id, no_token_id,
+                         liquidity_usdc, resolution_at, condition_id, is_demo, synced_at)
+                    VALUES ($1,$2,$3,'Weather','active',$4,$5,$6,$7,$8,$9,$10,FALSE,NOW())
+                    ON CONFLICT (id) DO UPDATE SET
+                        slug           = EXCLUDED.slug,
+                        question       = EXCLUDED.question,
+                        category       = 'Weather',
+                        status         = 'active',
+                        yes_price      = EXCLUDED.yes_price,
+                        no_price       = EXCLUDED.no_price,
+                        yes_token_id   = EXCLUDED.yes_token_id,
+                        no_token_id    = EXCLUDED.no_token_id,
+                        liquidity_usdc = EXCLUDED.liquidity_usdc,
+                        resolution_at  = EXCLUDED.resolution_at,
+                        synced_at      = NOW()
+                    """,
+                    row_id, slug, question,
+                    _f(getattr(wm, "yes_price", 0.5), 0.5),
+                    _f(getattr(wm, "no_price", 0.5), 0.5),
+                    yes_token, no_token, liquidity, resolution_at,
+                    condition_id or row_id,
+                )
+            except Exception as exc:
+                logger.warning("weather_market_upsert_failed", error=str(exc))
+
+
+async def _sync_weather_markets() -> int:
+    """Fetch live Gamma weather markets and upsert them once per scan.
+
+    User-independent; run before the user loop when WEATHER is enabled so every
+    user on the weather preset sees resolvable markets + a populated feed. One
+    Gamma call (city=None returns all weather markets). Returns count upserted.
+    """
+    from ...strategies.weather.market import fetch_weather_markets
+    try:
+        markets = await fetch_weather_markets(limit=200)
+    except Exception as exc:
+        logger.warning("weather_markets_fetch_failed", error=str(exc))
+        return 0
+    if not markets:
+        return 0
+    await _upsert_weather_markets(markets)
+    return len(markets)
+
+
 async def _publication_already_queued(user_id: UUID, publication_id: UUID) -> bool:
     """Return True when (user_id, publication_id) already in execution_queue."""
     pool = get_pool()
@@ -2858,6 +2957,23 @@ async def run_once() -> None:
                 await _sync_playbook_sports_markets()
             except Exception as exc:
                 logger.warning("playbook_sports_sync_failed", error=str(exc))
+
+    # WEATHER: upsert live Gamma weather markets ONCE per scan (user-independent)
+    # so candidates resolve in _load_market AND the WebTrader feed shows weather
+    # rows on the weather preset. Gated by the operator flag; fail-soft.
+    if weather_strat is not None:
+        try:
+            _wx_enabled_global = await _runtime_config.resolve_bool(
+                "WEATHER_STRATEGY_ENABLED",
+                bool(getattr(_get_settings(), "WEATHER_STRATEGY_ENABLED", False)),
+            )
+        except Exception:
+            _wx_enabled_global = False
+        if _wx_enabled_global:
+            try:
+                await _sync_weather_markets()
+            except Exception as exc:
+                logger.warning("weather_markets_sync_failed", error=str(exc))
 
     candidates_processed = 0
     candidates_errored = 0

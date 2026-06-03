@@ -1504,3 +1504,81 @@ def test_sync_playbook_sports_markets_fetches_filters_upserts():
         n = asyncio.run(job._sync_playbook_sports_markets())
     assert n == 1  # only the in-window sports market
     assert any("INSERT INTO markets" in s for s in conn.executes)
+
+
+class _CapConn(_FakeConn):
+    """_FakeConn that also records execute() positional args."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.args: list[tuple] = []
+
+    async def execute(self, sql, *a):
+        self.executes.append(sql)
+        self.args.append(a)
+
+
+def test_upsert_weather_markets_executes_insert():
+    wm = SimpleNamespace(
+        market_id="g1", condition_id="wx1", question="High temp in New York City?",
+        yes_price=0.62, no_price=0.38, end_date_iso="2026-06-03T20:00:00Z",
+        raw={"slug": "nyc-temp", "clobTokenIds": '["y","n"]', "liquidity": 1200},
+    )
+    conn = _FakeConn()
+    with _patch_pool(conn):
+        asyncio.run(job._upsert_weather_markets([wm]))
+    assert any("INSERT INTO markets" in s for s in conn.executes)
+    assert any("'Weather'" in s for s in conn.executes)  # category pinned
+
+
+def test_upsert_weather_markets_keys_row_by_market_id():
+    # Codex P1: row PK must be the Gamma market_id (what _load_market resolves
+    # via SELECT ... WHERE id = candidate.market_id), with condition_id in its
+    # own column — otherwise weather candidates miss the just-synced row.
+    wm = SimpleNamespace(
+        market_id="gamma123", condition_id="cond456", question="High temp in Miami?",
+        yes_price=0.6, no_price=0.4, end_date_iso="2026-06-03T20:00:00Z",
+        raw={"slug": "mia", "clobTokenIds": '["y","n"]', "liquidity": 500},
+    )
+    conn = _CapConn()
+    with _patch_pool(conn):
+        asyncio.run(job._upsert_weather_markets([wm]))
+    assert conn.args[0][0] == "gamma123"   # $1 id = market_id
+    assert conn.args[0][9] == "cond456"    # $10 condition_id column
+
+
+def test_upsert_weather_markets_skips_without_any_id():
+    wm = SimpleNamespace(market_id="", condition_id="", question="x", yes_price=0.5,
+                         no_price=0.5, end_date_iso="", raw={})
+    conn = _FakeConn()
+    with _patch_pool(conn):
+        asyncio.run(job._upsert_weather_markets([wm]))
+    assert conn.executes == []
+
+
+def test_sync_weather_markets_fetches_and_upserts():
+    wm = SimpleNamespace(
+        market_id="g2", condition_id="wx1", question="High temp in Chicago?",
+        yes_price=0.55, no_price=0.45, end_date_iso="2026-06-03T20:00:00Z",
+        raw={"slug": "chi", "clobTokenIds": '["y","n"]', "liquidity": 800},
+    )
+    conn = _FakeConn()
+    with _patch_pool(conn), patch(
+        "projects.polymarket.crusaderbot.strategies.weather.market.fetch_weather_markets",
+        AsyncMock(return_value=[wm]),
+    ):
+        n = asyncio.run(job._sync_weather_markets())
+    assert n == 1
+    assert any("INSERT INTO markets" in s for s in conn.executes)
+
+
+def test_sync_weather_markets_handles_none_fetch():
+    # Defensive (Gemini): a None/empty fetch must not crash on len().
+    conn = _FakeConn()
+    with _patch_pool(conn), patch(
+        "projects.polymarket.crusaderbot.strategies.weather.market.fetch_weather_markets",
+        AsyncMock(return_value=None),
+    ):
+        n = asyncio.run(job._sync_weather_markets())
+    assert n == 0
+    assert conn.executes == []
