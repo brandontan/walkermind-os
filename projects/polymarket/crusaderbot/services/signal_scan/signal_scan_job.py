@@ -2924,6 +2924,19 @@ async def run_once() -> None:
     tel.users_evaluated = len(users)
     tel.markets_seen = len(markets)
 
+    # Phase-2c-2: snapshot the raw full-universe market state for the future
+    # walk-forward replay. Gated (default OFF) + fully fail-soft — never breaks
+    # the scan loop. Captured before any strategy filtering → no selection bias.
+    try:
+        _snap_enabled = bool(getattr(_get_settings(), "SCAN_SNAPSHOT_ENABLED", False))
+    except Exception:
+        _snap_enabled = False
+    if _snap_enabled:
+        from ...domain.research.snapshots import record_market_snapshots
+        # Feed the count into telemetry so scan_runs.snapshots_written reflects
+        # reality for the observability paths (recorder is fail-soft → 0 on error).
+        tel.snapshots_written += await record_market_snapshots(run_id, markets)
+
     try:
         late_entry_strat = StrategyRegistry.instance().get(_LATE_ENTRY_V3_NAME)
     except KeyError:
