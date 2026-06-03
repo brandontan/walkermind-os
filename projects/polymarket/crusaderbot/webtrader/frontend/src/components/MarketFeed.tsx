@@ -10,6 +10,17 @@ const LEAN_ARROW: Record<string, string> = { UP: "▲", DOWN: "▼", EVEN: "─"
 
 function fmtCountdown(s: number): string {
   if (s <= 0) return "closing";
+  // Days/hours for far-dated markets (e.g. sports) — not a five-digit minute count.
+  if (s >= 86_400) {
+    const d = Math.floor(s / 86_400);
+    const h = Math.floor((s % 86_400) / 3_600);
+    return h > 0 ? `${d}d ${h}h` : `${d}d`;
+  }
+  if (s >= 3_600) {
+    const h = Math.floor(s / 3_600);
+    const m = Math.floor((s % 3_600) / 60);
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
@@ -50,11 +61,11 @@ export function MarketFeed({ items, intervalMs = 3500 }: { items: MarketFeedItem
           className="flex items-center gap-2 font-mono text-[11px] min-w-0 flex-1 overflow-hidden"
           style={{ animation: "fadeSlideUp 0.45s cubic-bezier(0.22,1,0.36,1) both" }}
         >
-          <span className="font-bold text-ink-1 shrink-0">{it.label}</span>
+          <span className="font-bold text-ink-1 truncate min-w-0">{it.label}</span>
           <span className={`${LEAN_TONE[it.lean] ?? "text-ink-2"} font-bold shrink-0`}>
             {LEAN_ARROW[it.lean] ?? "─"} {pct}%
           </span>
-          <span className="text-ink-4 truncate">· {fmtCountdown(it.seconds_to_close)}</span>
+          <span className="text-ink-4 shrink-0">· {fmtCountdown(it.seconds_to_close)}</span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {items.map((_, i) => (
