@@ -579,6 +579,12 @@ class Settings(BaseSettings):
     COMPLETE_SET_RECONCILE_STALE_SEC: int = 300
     COMPLETE_SET_RECONCILE_INTERVAL_SEC: int = 300
 
+    # Lane 3C-2: tolerance for an over-budget complete-set fill. A FOK can fill above
+    # the gate-approved budget when the book drifts up within the FOK limits; the set
+    # stays riskless, so we page+flag (not halt) only when actual exceeds budget by
+    # more than this fraction (avoids noise on expected tick-level overshoots).
+    COMPLETE_SET_BUDGET_BREACH_PCT: float = 0.01
+
     # --- TOB freshness gate (WARP/R00T/tob-freshness-gate) ---
     # Max age in milliseconds for the orderbook snapshot that produced
     # a candidate's metadata["entry_price"]. Read by

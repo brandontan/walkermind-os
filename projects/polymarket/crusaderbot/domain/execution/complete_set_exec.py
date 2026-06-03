@@ -850,6 +850,34 @@ async def book_complete_set_live(
     # the persisted size_usdc == what was really spent.
     yes_price = round(yes_actual / shares, 6)
     no_price = round(no_actual / shares, 6)
+    # Post-exact-fill budget re-check (Codex P1): a FOK can fill ABOVE the
+    # gate-approved budget when the book drifts up within the FOK limits between scan
+    # and fill. The set stays RISKLESS (yes_limit+no_limit < payout enforced
+    # pre-submit), so a kill-switch halt is disproportionate — but exceeding the
+    # approved capital allocation must never be silent. We cannot un-fill a completed
+    # FOK: flag the position metadata + page the operator, then book it. A small
+    # tolerance avoids paging on expected tick-level overshoots.
+    actual_filled_total = yes_actual + no_actual
+    try:
+        breach_pct = float(getattr(s, "COMPLETE_SET_BUDGET_BREACH_PCT", 0.01) or 0.0)
+    except (TypeError, ValueError):
+        breach_pct = 0.01
+    if actual_filled_total > approved_budget * (1.0 + max(0.0, breach_pct)):
+        meta = {**meta, "over_budget": True,
+                "approved_budget_usdc": round(approved_budget, 6),
+                "actual_cost_usdc": round(actual_filled_total, 6)}
+        log.warning("complete_set_live_over_budget", market_id=market_id,
+                    approved=round(approved_budget, 6),
+                    actual=round(actual_filled_total, 6))
+        try:
+            await notifications.notify_operator(
+                f"⚠️ <b>COMPLETE-SET OVER-BUDGET FILL</b>\n"
+                f"market=<code>{market_id}</code> actual=${actual_filled_total:.4f} "
+                f"&gt; approved=${approved_budget:.4f} (riskless arb; book drifted "
+                f"within FOK limits). Booked + flagged; trading continues."
+            )
+        except Exception:  # noqa: BLE001 — alert is best-effort, never blocks the book
+            log.exception("complete_set_over_budget_notify_failed", market_id=market_id)
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():

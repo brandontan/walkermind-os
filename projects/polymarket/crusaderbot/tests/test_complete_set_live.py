@@ -298,6 +298,40 @@ async def test_exact_fill_overrides_book_estimate(monkeypatch) -> None:
     assert float(by_side["yes"][5]) == 0.46   # entry_price = actual/shares
 
 
+async def test_over_budget_fill_pages_and_flags_but_books(monkeypatch, alerts) -> None:
+    # budget = quote.total_cost_usdc = 95.0; the broker fills BOTH legs dearer
+    # (0.50 each -> 100.0 > 95*1.01) within the FOK limits. The set is riskless, so
+    # we book it + flag the position metadata + page the operator (no kill switch).
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    fy = {"orderID": "ord-y", "status": "matched"}
+    fn = {"orderID": "ord-n", "status": "matched"}
+    clob = FakeClob([fy, fn], fills={
+        "ord-y": [{"size": "100", "price": "0.50"}],
+        "ord-n": [{"size": "100", "price": "0.50"}],
+    })
+    res = await _book_live(conn, clob)
+    assert res["status"] == "open"  # still booked — cannot un-fill a completed FOK
+    assert any("OVER-BUDGET" in a for a in alerts)
+    # position metadata carries the over_budget flag for audit
+    assert any("over_budget" in str(a) for args in conn.position_inserts for a in args)
+
+
+async def test_in_budget_fill_does_not_page(monkeypatch, alerts) -> None:
+    # actual fills at/under budget (0.45 / 0.50 -> 95.0) -> no over-budget page.
+    conn = FakeConn()
+    _use_conn(monkeypatch, conn)
+    fy = {"orderID": "ord-y", "status": "matched"}
+    fn = {"orderID": "ord-n", "status": "matched"}
+    clob = FakeClob([fy, fn], fills={
+        "ord-y": [{"size": "100", "price": "0.45"}],
+        "ord-n": [{"size": "100", "price": "0.50"}],
+    })
+    res = await _book_live(conn, clob)
+    assert res["status"] == "open"
+    assert not any("OVER-BUDGET" in a for a in alerts)
+
+
 async def test_exact_fill_falls_back_to_estimate_on_incomplete_fills(monkeypatch) -> None:
     # Broker returns a SHORT fill set (60 of 100 shares) -> incomplete view -> the
     # booker keeps its pre-submit estimate rather than trusting partial data.
