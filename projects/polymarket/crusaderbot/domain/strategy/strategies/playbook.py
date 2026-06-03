@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import replace
 from datetime import datetime, timezone
 
 from ...playbook.correlation import cluster_key
@@ -53,12 +52,18 @@ SPORTS_CATEGORIES: tuple[str, ...] = (
     "tennis",
 )
 
-# Only assemble snapshots for markets whose event is within this pre-event
-# window. Closing Edge (the only live module) acts inside 30 min, so a 2h cap
-# bounds the per-scan orderbook fetches while still covering the entry window.
+# Closing Edge (acts inside 30 min) near-event band: a 2h cap bounds the per-scan
+# orderbook fetches while still covering its entry window.
 _SNAPSHOT_TTL_CAP_SEC: float = 7_200.0
-# Hard cap on orderbook fetches per scan (2 books per market).
+# Sharp Money acts FAR from the event (TTL > 24h), so the near band can never
+# surface a market it could claim. A separate far band (24h–72h) carries those
+# markets to the module; it is flow-gated before any orderbook fetch so far-event
+# book reads stay bounded to markets that can actually claim. (Codex P1, PR #1577.)
+_SHARP_TTL_MIN_SEC: float = 86_400.0    # 24h — matches SHARP_MONEY_MIN_TTL_SEC
+_SHARP_TTL_MAX_SEC: float = 259_200.0   # 72h — upper bound on the sharp universe
+# Hard caps on orderbook fetches per scan (2 books per market), per band.
 _MAX_SPORTS_MARKETS_PER_SCAN: int = 40
+_MAX_SHARP_MARKETS_PER_SCAN: int = 20
 # Per-trade sizing fraction applied to deployable equity before the risk gate
 # re-sizes via fractional Kelly + caps. Conservative base; gate is authoritative.
 _SIZE_EQUITY_FRACTION: float = 0.04
@@ -182,15 +187,28 @@ def sports_market_id(market: dict) -> str:
     return str(market.get("conditionId") or market.get("condition_id") or market.get("id") or "")
 
 
+def _condition_id_of(market: dict) -> str:
+    """The Polymarket conditionId for a market (== markets.id PK + the key used
+    in heisenberg_realtime_trades), falling back to the resolved market id."""
+    return str(
+        market.get("conditionId")
+        or market.get("condition_id")
+        or sports_market_id(market)
+    )
+
+
 def select_sports_markets_in_window(
     markets: object, now: datetime | None = None
 ) -> list[tuple[dict, str, str, float]]:
     """Return ``(market, market_id, category, seconds_to_event)`` for sports
-    markets inside the pre-event snapshot window, nearest-event first.
+    markets inside the snapshot windows, nearest-event first.
 
-    Shared by the strategy (snapshot assembly) and the scan job (market upsert)
-    so both agree on exactly which markets are tradeable this scan. Tolerant of
-    malformed payloads (non-list / non-dict entries are skipped).
+    Two bands are in-window: the Closing Edge near band ``(0, 2h]`` and the
+    Sharp Money far band ``(24h, 72h]``. Shared by the strategy (snapshot
+    assembly) and the scan job (market upsert) so both agree on which markets
+    are tradeable this scan — and so far-event Sharp Money candidates resolve in
+    ``_load_market``. Tolerant of malformed payloads (non-list / non-dict
+    entries are skipped).
     """
     if not markets or not isinstance(markets, list):
         return []
@@ -214,7 +232,9 @@ def select_sports_markets_in_window(
         if start is None:
             continue
         ttl = (start - _now).total_seconds()
-        if 0.0 < ttl <= _SNAPSHOT_TTL_CAP_SEC:
+        in_near = 0.0 < ttl <= _SNAPSHOT_TTL_CAP_SEC
+        in_far = _SHARP_TTL_MIN_SEC < ttl <= _SHARP_TTL_MAX_SEC
+        if in_near or in_far:
             out.append((m, market_id, category, ttl))
     out.sort(key=lambda t: t[3])
     return out
@@ -286,18 +306,31 @@ class PlaybookStrategy(BaseStrategy):
             log.warning("playbook: sports market fetch failed: %s", exc)
             return []
 
-        # Sports markets inside the pre-event window, nearest-first (shared with
-        # the scan-job upsert so candidate market_ids resolve in _load_market).
-        # market_id is the conditionId (== markets.id PK). (Codex P1, PR #1572.)
+        # Sports markets in-window, nearest-first (shared with the scan-job upsert
+        # so candidate market_ids resolve in _load_market). market_id is the
+        # conditionId (== markets.id PK). (Codex P1, PR #1572.)
         blacklist = set(market_filters.blacklisted_market_ids or [])
-        prelim = [
+        selected = [
             t for t in select_sports_markets_in_window(markets)
             if t[1] not in blacklist
-        ][:_MAX_SPORTS_MARKETS_PER_SCAN]
+        ]
+        near = [t for t in selected if t[3] <= _SNAPSHOT_TTL_CAP_SEC][
+            :_MAX_SPORTS_MARKETS_PER_SCAN
+        ]
+        # Sharp Money far band (TTL>24h): flow-gate BEFORE any orderbook fetch so
+        # far-event book reads stay bounded to markets that can actually claim —
+        # one cheap batched DB query, fail-soft → no far markets. (Codex P1 #1577.)
+        far = [t for t in selected if t[3] > _SNAPSHOT_TTL_CAP_SEC]
+        far_flows: dict[str, tuple[float, float]] = {}
+        if far:
+            far_flows = await fetch_sharp_flows([_condition_id_of(t[0]) for t in far])
+            far = [t for t in far if _condition_id_of(t[0]) in far_flows][
+                :_MAX_SHARP_MARKETS_PER_SCAN
+            ]
 
         size = _suggested_size_usdc(user_context)
         snapshots: list[MarketSnapshot] = []
-        for m, market_id, category, ttl in prelim:
+        for m, market_id, category, ttl in near + far:
             token_ids = _extract_token_ids(m)
             if len(token_ids) < 2:
                 continue
@@ -315,7 +348,10 @@ class PlaybookStrategy(BaseStrategy):
                 continue
 
             liquidity = float(m.get("liquidity_usdc") or m.get("liquidity") or 0.0)
-            condition_id = str(m.get("conditionId") or m.get("condition_id") or market_id)
+            condition_id = _condition_id_of(m)
+            # Native sharp-money flow attached only for the far band (near-band
+            # markets are <24h, so Sharp Money abstains and they keep 0.0).
+            sharp_signed, sharp_total = far_flows.get(condition_id, (0.0, 0.0))
             snapshots.append(
                 MarketSnapshot(
                     market_id=market_id,
@@ -331,23 +367,10 @@ class PlaybookStrategy(BaseStrategy):
                         sport=category,
                         event_id=str(m.get("conditionId") or m.get("slug") or market_id),
                     ),
+                    sharp_signed_usdc=sharp_signed,
+                    sharp_total_flow_usdc=sharp_total,
                 )
             )
-
-        # Phase-2b: attach native sharp-money flow (top-tier wallets, DB-backed),
-        # batched once for the whole snapshot set. Fail-soft inside fetch_sharp_flows
-        # → markets with no flow keep their 0.0 defaults.
-        if snapshots:
-            flows = await fetch_sharp_flows([s.condition_id for s in snapshots])
-            if flows:
-                snapshots = [
-                    replace(
-                        s,
-                        sharp_signed_usdc=flows.get(s.condition_id, (0.0, 0.0))[0],
-                        sharp_total_flow_usdc=flows.get(s.condition_id, (0.0, 0.0))[1],
-                    )
-                    for s in snapshots
-                ]
         return snapshots
 
     def evaluate_snapshot(

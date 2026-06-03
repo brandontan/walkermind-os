@@ -9,6 +9,7 @@ query shape, fail-soft, zero-flow skip). Hermetic — no DB, no network.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from projects.polymarket.crusaderbot.domain.playbook import sharp_flow as SF
@@ -21,6 +22,9 @@ from projects.polymarket.crusaderbot.domain.playbook.router import PlaybookRoute
 from projects.polymarket.crusaderbot.domain.playbook.signals import (
     SHARP_MONEY,
     compute_signal_bundle,
+)
+from projects.polymarket.crusaderbot.domain.strategy.strategies.playbook import (
+    select_sports_markets_in_window,
 )
 
 _FAR_TTL = 172_800.0  # 48h — outside the 24h Sharp Money gate
@@ -110,6 +114,31 @@ def test_closing_edge_abstains_far_from_event():
     snap = _snapshot(signed=0.0, total=0.0, ttl=_FAR_TTL)
     d = ClosingEdgeModule().evaluate(snap, _bundle(snap))
     assert not d.claimed  # mutually exclusive TTL windows with sharp_money
+
+
+# ── snapshot window covers the Sharp Money far band (Codex P1 #1577) ──────
+def _market(hours_to_event: float, cid: str = "c1") -> dict:
+    start = datetime.now(timezone.utc) + timedelta(hours=hours_to_event)
+    return {"category": "MLB", "conditionId": cid, "gameStartTime": start.isoformat()}
+
+
+def test_window_includes_far_band_and_excludes_gap():
+    markets = [
+        _market(0.25, "near"),  # 15m — Closing Edge near band
+        _market(12.0, "gap"),   # 12h — between bands → excluded
+        _market(48.0, "far"),   # 48h — Sharp Money far band (>24h)
+    ]
+    cids = {t[1] for t in select_sports_markets_in_window(markets)}
+    # market_id resolves to the conditionId, so check by cid via the dicts.
+    got = {t[0]["conditionId"] for t in select_sports_markets_in_window(markets)}
+    assert "near" in got and "far" in got and "gap" not in got
+    assert cids  # sanity: non-empty
+
+
+def test_window_excludes_beyond_far_max():
+    # 96h (> 72h max) is outside the sharp universe.
+    got = {t[0]["conditionId"] for t in select_sports_markets_in_window([_market(96.0, "x")])}
+    assert got == set()
 
 
 # ── DB-backed source (fetch_sharp_flows) ──────────────────────────────────

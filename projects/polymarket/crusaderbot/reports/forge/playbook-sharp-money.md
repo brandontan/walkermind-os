@@ -72,6 +72,13 @@ execution, Kelly, and the live-trading guard are untouched.
   Edge still claims near the event and abstains far from it (mutually exclusive windows).
 - Source pinned: aggregation, batched `ANY($1)` query, `leaderboard_stats` + `win_rate`
   top-tier scoping, fail-soft on error, zero-total skip.
+- **Codex P1 fixed:** the snapshot window only covered ≤2h (Closing Edge), so a TTL>24h
+  module could never see a market — Sharp Money was DOA in the live path. Added a Sharp
+  Money **far band** (24h–72h) to the shared `select_sports_markets_in_window` (so those
+  markets are also upserted → candidates resolve), **flow-gated before any orderbook
+  fetch** (one cheap batched DB query; only far markets with real sharp flow get book
+  reads, capped at 20) so scan-loop cost stays bounded. Near band keeps its 2h cap / 40.
+  +2 window tests (far band included, beyond-72h excluded).
 
 ## 5. Known issues
 
