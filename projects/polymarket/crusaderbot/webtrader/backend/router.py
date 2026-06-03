@@ -409,6 +409,12 @@ async def _crypto_market_feed(pool: Any, assets: list[str]) -> list[MarketFeedIt
     asset_keys = [a.lower() for a in assets] or [
         a.lower() for a in _DEFAULT_CRYPTO_SHORT_ASSETS
     ]
+    # Freshness guard: only surface rows the scan refreshed in the last 5 min.
+    # The per-scan sync sets synced_at=NOW() every tick (15s fast / 180s main) for
+    # candle-preset users; if it stalls (e.g. no candle user active) we'd otherwise
+    # keep showing a frozen last-synced snapshot that reads as fake data. Stale
+    # rows are dropped → the panel shows "awaiting signal" instead of frozen
+    # liquidity. WARP/ROOT/crypto-feed-freshness.
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """SELECT DISTINCT ON (split_part(slug, '-updown-', 1))
@@ -421,6 +427,7 @@ async def _crypto_market_feed(pool: Any, assets: list[str]) -> list[MarketFeedIt
                  AND resolution_at > now()
                  AND yes_price IS NOT NULL
                  AND liquidity_usdc > 0
+                 AND synced_at > now() - interval '5 minutes'
                ORDER BY split_part(slug, '-updown-', 1), resolution_at ASC""",
             asset_keys,
         )
@@ -457,6 +464,7 @@ async def _weather_market_feed(pool: Any) -> list[MarketFeedItem]:
                  AND resolved = false
                  AND resolution_at > now()
                  AND yes_price IS NOT NULL
+                 AND synced_at > now() - interval '5 minutes'
                ORDER BY resolution_at ASC
                LIMIT 40"""
         )
