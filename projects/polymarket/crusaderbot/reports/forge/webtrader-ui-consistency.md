@@ -68,9 +68,17 @@ NOT touched.)
 - **clip-class audit:** every `clip-*` class used across the 16 files resolves to a
   utility defined in `src/index.css` — no invented/typo classes that would silently
   render as plain rectangles.
-- `git diff --stat` = exactly the 16 intended files (+163 / −142); no stray edits;
-  6 unchanged export files confirm the handoff was based on a current repo snapshot
-  (no regression of recent work).
+- `git diff --stat` = exactly the 16 intended files (+190 / −169 after review fixes);
+  no stray edits.
+- **One regression caught + fixed in review** (Codex P2 + Gemini HIGH): the export
+  snapshot predated `#1572` (playbook-live-dispatch) and silently reverted `playbook`
+  out of `TOP_LEVEL_PRESET_KEYS` in AutoTradePage. Restored to match main. Verified
+  `#1572` touched ONLY AutoTradePage in the frontend, so it was the sole semantic
+  revert (the other 15 files diff against main as pure rounded→clip / a11y).
+- **Hardening folded in** (Gemini MEDIUM): `PnlCol` value + `data.balance_usdc`
+  default to `0` (null-safe); the W5 `type="button"` sweep was completed across all
+  29 untyped buttons in the changed files (the intentional `type="submit"` on the
+  SettingsPage link form is preserved).
 
 ## 5. Known issues
 
