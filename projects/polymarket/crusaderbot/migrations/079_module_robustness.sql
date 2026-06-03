@@ -23,3 +23,8 @@ CREATE TABLE IF NOT EXISTS module_robustness (
     -- live-eligibility lookup uses — no separate index needed.
     UNIQUE (module, risk_profile, mode)
 );
+
+-- RLS deny-by-default (repo invariant — every public table; mirrors scan_runs in
+-- migration 055). Analytics only, no user-identifiable data; the backend service
+-- role bypasses RLS to write, anon/authenticated clients get no direct access.
+ALTER TABLE module_robustness ENABLE ROW LEVEL SECURITY;
