@@ -193,6 +193,22 @@ async def scan_complete_set_for_user(
                 trading_mode=trading_mode,
             )
 
+            # Phase-2c-1b robustness gate — consistent coverage with _process_candidate:
+            # force an UNTRADEABLE complete_set_arb module to paper (downgrade-only).
+            # Gated + fail-soft → a gate fault never blocks. (Codex P2, PR #1581.)
+            _cs_live_eligible = True
+            try:
+                from ...config import get_settings as _gs_rg
+                if bool(getattr(_gs_rg(), "ROBUSTNESS_GATE_ENABLED", False)):
+                    from ...domain.research.robustness import untradeable_set
+                    _cs_live_eligible = (
+                        ("complete_set_arb", risk_profile)
+                        not in await untradeable_set(mode="paper")
+                    )
+            except Exception as _rg_exc:  # noqa: BLE001 — gate fault must never block trading
+                ulog.warning("robustness_gate_eval_failed", error=str(_rg_exc))
+                _cs_live_eligible = True
+
             idem = f"complete_set:{user_id}:{market_id}"
             ctx = GateContext(
                 user_id=user_id,
@@ -227,6 +243,7 @@ async def scan_complete_set_for_user(
                     if row.get("max_concurrent_override") is not None else None
                 ),
                 complete_set=True,
+                module_live_eligible=_cs_live_eligible,
             )
             gate_res = await gate_evaluate(ctx)
             if not gate_res.approved:

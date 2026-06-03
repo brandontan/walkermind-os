@@ -34,6 +34,10 @@ default-OFF — it can make a would-be live trade paper, never enable live.
   (`metadata.selected_module` or `strategy_name`) + profile against `untradeable_set` and
   passes `module_live_eligible` into `_build_trade_signal`. Gated + fail-soft: any error →
   eligible (a gate fault never blocks trading).
+- **`services/signal_scan/complete_set_scan.py`** — the other direct `GateContext` money
+  path threads `module_live_eligible` too (module `complete_set_arb`), so the gate's
+  coverage is consistent across both live-routing callers (Codex P2). Same gated + fail-soft
+  pattern.
 - **`config.py`** — `ROBUSTNESS_GATE_ENABLED: bool = False`.
 
 ## 2. Why this is safe (the money-path argument)
