@@ -150,6 +150,12 @@ class Settings(BaseSettings):
     ROBUSTNESS_CLASSIFY_ENABLED: bool = False
     ROBUSTNESS_CLASSIFY_INTERVAL_SEC: int = 3600  # hourly refresh
 
+    # Phase-2c-1b (part 2): when true, an UNTRADEABLE module (Monte Carlo OOS
+    # verdict) is forced to PAPER even if all live guards otherwise pass —
+    # DOWNGRADE-ONLY, can never enable live. Default OFF → no effect. Reads
+    # module_robustness (mig 079) gate-side in domain.risk.gate._robustness_downgrade.
+    ROBUSTNESS_GATE_ENABLED: bool = False
+
     # --- Complete-set arbitrage (WARP/ROOT/complete-set-arb epic) ---
     # Master kill switch for the complete-set arb scan + booking path. Default
     # OFF — even with the code wired (Lane 2C), nothing scans or books a set

@@ -114,6 +114,11 @@ class TradeSignal:
     # trailing-stop + adaptive forecast-shift have the data they need. None for
     # strategies that emit no metadata.
     strategy_metadata: Optional[dict] = None
+    # Robustness gate (Phase-2c-1b). False only when the candidate's module is
+    # classified UNTRADEABLE and ROBUSTNESS_GATE_ENABLED is on. Default True → no
+    # effect. Flows into GateContext.module_live_eligible (downgrade-only: a live
+    # trade becomes paper; never enables live).
+    module_live_eligible: bool = True
 
 
 @dataclass(frozen=True)
@@ -313,4 +318,5 @@ class TradeEngine:
             live_capital_cap_usdc=signal.live_capital_cap_usdc,
             max_concurrent_override=signal.max_concurrent_override,
             bypass_auto_trade_check=signal.bypass_auto_trade_check,
+            module_live_eligible=signal.module_live_eligible,
         )

@@ -193,6 +193,9 @@ async def scan_complete_set_for_user(
                 trading_mode=trading_mode,
             )
 
+            # Robustness gate (Phase-2c-1b) is enforced gate-side in domain.risk.gate
+            # via a (strategy_type='complete_set_arb', risk_profile) lookup — no
+            # per-caller threading needed here (Codex P2 → gate-central coverage).
             idem = f"complete_set:{user_id}:{market_id}"
             ctx = GateContext(
                 user_id=user_id,
