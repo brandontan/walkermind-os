@@ -210,9 +210,24 @@ def _passes_live_guards(ctx: GateContext, settings) -> bool:
         and settings.USE_REAL_CLOB
         and ctx.role == "admin"
         and ctx.trading_mode == "live"
-        # Robustness gate: an UNTRADEABLE module can only run paper (downgrade-only).
-        and ctx.module_live_eligible
     )
+
+
+def _apply_robustness_downgrade(chosen_mode: str, ctx: GateContext) -> str:
+    """Phase-2c-1b: force an UNTRADEABLE module to paper — WITHOUT tripping the
+    user-level live fallback.
+
+    Applied AFTER the live-guard fallback block in ``evaluate`` so it is a pure,
+    per-candidate ``live → paper`` downgrade: it does NOT call
+    ``live_fallback.trigger_for_live_guard_unset`` (which would persistently flip
+    the user's ``trading_mode`` to paper and disable live for their *other*,
+    eligible modules too — Codex P1, PR #1581). Only an UNTRADEABLE module with
+    ``ROBUSTNESS_GATE_ENABLED`` on sets ``module_live_eligible=False``; otherwise
+    this is a no-op. Never upgrades paper → live.
+    """
+    if chosen_mode == "live" and not ctx.module_live_eligible:
+        return "paper"
+    return chosen_mode
 
 
 async def validate_risk_caps(user_id: UUID, proposed_size: Decimal) -> GateResult:
@@ -482,6 +497,17 @@ async def evaluate(ctx: GateContext) -> GateResult:
             logger.error(
                 "live_guard_unset gate fallback trigger failed: %s", fb_exc,
             )
+
+    # Robustness downgrade — applied AFTER the live-guard fallback above so an
+    # UNTRADEABLE module is forced to paper per-candidate WITHOUT tripping the
+    # user-level fallback (which would persistently disable the user's live mode
+    # for their other eligible modules too — Codex P1, PR #1581).
+    _pre_robust_mode = chosen_mode
+    chosen_mode = _apply_robustness_downgrade(chosen_mode, ctx)
+    if chosen_mode != _pre_robust_mode:
+        await _log(ctx.user_id, ctx.market_id, 13, True,
+                   "robustness_downgrade_untradeable_to_paper")
+
     await _log(ctx.user_id, ctx.market_id, 13, True, f"approved_{chosen_mode}")
 
     # 14. Slippage / market-impact guard

@@ -12,7 +12,10 @@ from unittest.mock import patch
 
 from projects.polymarket.crusaderbot.domain.research import robustness as RB
 from projects.polymarket.crusaderbot.domain.research.robustness import untradeable_set
-from projects.polymarket.crusaderbot.domain.risk.gate import _passes_live_guards
+from projects.polymarket.crusaderbot.domain.risk.gate import (
+    _apply_robustness_downgrade,
+    _passes_live_guards,
+)
 from projects.polymarket.crusaderbot.services.trade_engine.engine import (
     TradeEngine,
     TradeSignal,
@@ -36,20 +39,36 @@ def _live_ctx(**over) -> SimpleNamespace:
     return SimpleNamespace(**base)
 
 
-# ── downgrade-only live guard ─────────────────────────────────────────────
-def test_live_guards_pass_when_eligible():
+# ── robustness downgrade is SEPARATE from _passes_live_guards (Codex P1) ──
+# The robustness flag must NOT live inside _passes_live_guards: a False there
+# trips the user-level live fallback (persistent trading_mode flip). It is a
+# standalone post-fallback step instead.
+def test_passes_live_guards_ignores_robustness_flag():
+    # _passes_live_guards is unchanged by the robustness flag — even an
+    # ineligible module passes the guards (so the user-level fallback is NOT
+    # tripped); the downgrade happens separately, after the fallback block.
+    assert _passes_live_guards(_live_ctx(module_live_eligible=False), _all_pass_settings()) is True
     assert _passes_live_guards(_live_ctx(module_live_eligible=True), _all_pass_settings()) is True
 
 
-def test_live_guards_blocked_when_module_untradeable():
-    # Every other guard passes; the robustness flag alone forces paper.
-    assert _passes_live_guards(_live_ctx(module_live_eligible=False), _all_pass_settings()) is False
-
-
-def test_live_guards_still_blocked_when_other_guard_fails():
+def test_passes_live_guards_still_blocks_on_real_guard_failure():
     s = _all_pass_settings()
     s.USE_REAL_CLOB = False
-    assert _passes_live_guards(_live_ctx(module_live_eligible=True), s) is False
+    assert _passes_live_guards(_live_ctx(), s) is False
+
+
+def test_robustness_downgrade_live_to_paper_when_untradeable():
+    assert _apply_robustness_downgrade("live", _live_ctx(module_live_eligible=False)) == "paper"
+
+
+def test_robustness_downgrade_noop_when_eligible():
+    assert _apply_robustness_downgrade("live", _live_ctx(module_live_eligible=True)) == "live"
+
+
+def test_robustness_downgrade_never_upgrades_paper():
+    # An ineligible module on a paper trade stays paper (never upgrades to live).
+    assert _apply_robustness_downgrade("paper", _live_ctx(module_live_eligible=False)) == "paper"
+    assert _apply_robustness_downgrade("paper", _live_ctx(module_live_eligible=True)) == "paper"
 
 
 # ── TradeSignal → GateContext threading ───────────────────────────────────

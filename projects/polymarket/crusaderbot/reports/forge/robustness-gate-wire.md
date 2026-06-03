@@ -17,9 +17,13 @@ The deferred half of Phase-2c-1b: wires the Monte Carlo robustness verdict into 
 decision so an **UNTRADEABLE** module can be held to paper. Strictly **downgrade-only** and
 default-OFF — it can make a would-be live trade paper, never enable live.
 
-- **`domain/risk/gate.py`** — `GateContext.module_live_eligible: bool = True`, AND-ed into
-  `_passes_live_guards` alongside the existing live conditions. `chosen_mode` becomes
-  `paper` whenever it is False. Default True → identical behaviour to today.
+- **`domain/risk/gate.py`** — `GateContext.module_live_eligible: bool = True` + a standalone
+  `_apply_robustness_downgrade(chosen_mode, ctx)` applied in `evaluate` **after** the
+  live-guard fallback block. It flips `live → paper` for an ineligible module WITHOUT
+  tripping `live_fallback.trigger_for_live_guard_unset` (which would persistently flip the
+  user's `trading_mode` and disable live for their *other* eligible modules — Codex P1).
+  The flag is deliberately NOT inside `_passes_live_guards` for exactly that reason. Default
+  True → identical behaviour to today.
 - **`services/trade_engine/engine.py`** — `TradeSignal.module_live_eligible: bool = True`
   threaded through the single `_build_gate_context` into the GateContext.
 - **`domain/research/robustness.py`** — `untradeable_set(mode)`: TTL-cached (300s) read of
@@ -34,9 +38,10 @@ default-OFF — it can make a would-be live trade paper, never enable live.
 
 ## 2. Why this is safe (the money-path argument)
 
-- **Downgrade-only.** The flag is a boolean AND inside `_passes_live_guards`. The only
-  reachable effect of `module_live_eligible=False` is `chosen_mode` flipping `live → paper`.
-  There is no code path where it enables live or changes paper behaviour.
+- **Downgrade-only, no side-effects.** `_apply_robustness_downgrade` runs *after* the
+  live-guard fallback and only flips `chosen_mode` `live → paper`. It does NOT call the
+  user-level `live_fallback` (Codex P1 fix), so it never persistently changes a user's
+  `trading_mode` or affects their other modules. No path enables live or alters paper.
 - **Default OFF + default True.** With the flag off the scan never computes it; the field
   defaults True, so the AND is a no-op. Zero behaviour change until an operator opts in.
 - **Fail-soft at every layer.** `untradeable_set` → empty on error (nothing downgraded);
