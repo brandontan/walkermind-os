@@ -402,6 +402,7 @@ def test_disabled_passes_base_size_unchanged(monkeypatch: pytest.MonkeyPatch) ->
         row=_user_row(balance=2000.0),
         cand=_cand(size=10.0),
         market=_market(),
+        live_price_override=0.55,
         idempotency_key="test",
     )
     assert signal.proposed_size_usdc == Decimal("10")
@@ -419,6 +420,7 @@ def test_enabled_first_call_seeds_baseline(monkeypatch: pytest.MonkeyPatch) -> N
         row=_user_row(balance=1000.0),
         cand=_cand(size=10.0),
         market=_market(),
+        live_price_override=0.55,
         idempotency_key="test",
     )
     assert signal.proposed_size_usdc == Decimal("10")
@@ -435,12 +437,14 @@ def test_enabled_second_call_scales_size_on_growth(monkeypatch: pytest.MonkeyPat
         row=_user_row(balance=1000.0),
         cand=_cand(size=10.0),
         market=_market(),
+        live_price_override=0.55,
         idempotency_key="seed",
     )
     signal = ssj._build_trade_signal(
         row=_user_row(balance=1500.0),
         cand=_cand(size=10.0),
         market=_market(),
+        live_price_override=0.55,
         idempotency_key="grow",
     )
     assert signal.proposed_size_usdc == Decimal("15.00")
@@ -456,12 +460,14 @@ def test_enabled_second_call_scales_size_on_drawdown(monkeypatch: pytest.MonkeyP
         row=_user_row(balance=1000.0),
         cand=_cand(size=10.0),
         market=_market(),
+        live_price_override=0.55,
         idempotency_key="seed",
     )
     signal = ssj._build_trade_signal(
         row=_user_row(balance=500.0),
         cand=_cand(size=10.0),
         market=_market(),
+        live_price_override=0.55,
         idempotency_key="drawdown",
     )
     assert signal.proposed_size_usdc == Decimal("5.00")
@@ -477,6 +483,7 @@ def test_enabled_zero_balance_falls_back_to_base(monkeypatch: pytest.MonkeyPatch
         row=_user_row(balance=0.0),
         cand=_cand(size=10.0),
         market=_market(),
+        live_price_override=0.55,
         idempotency_key="zero",
     )
     assert signal.proposed_size_usdc == Decimal("10")

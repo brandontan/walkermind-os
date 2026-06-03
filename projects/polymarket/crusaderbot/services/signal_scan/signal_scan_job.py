@@ -727,6 +727,22 @@ def _coerce_str_list(val: Any) -> list[str]:
     return []
 
 
+def _opt_price(v: Any) -> float | None:
+    """Parse an outcome price to a float, or None when absent/unparseable.
+
+    No fabricated 0.50: a market the Gamma payload did not price is stored with
+    a NULL price. The trading path requires a live mark before it fills (see
+    _build_trade_signal), so a NULL never executes; the display freshness guard
+    shows "awaiting" instead of a fake 50/50; and the markets table stops
+    accumulating placeholder 0.50/0.50 rows (the systemic fake-data source the
+    WARP•R00T audit surfaced — 155 crypto + 400 weather rows in prod).
+    """
+    try:
+        return float(v) if v is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 async def _upsert_crypto_window_markets(markets: list[dict[str, Any]]) -> None:
     """Upsert live crypto candle markets into the markets table.
 
@@ -756,8 +772,8 @@ async def _upsert_crypto_window_markets(markets: list[dict[str, Any]]) -> None:
                         return float(v)
                     except (TypeError, ValueError):
                         return d
-                yes_price = _f(prices[0] if prices else None, 0.5)
-                no_price = _f(prices[1] if len(prices) > 1 else None, 0.5)
+                yes_price = _opt_price(prices[0] if prices else None)
+                no_price = _opt_price(prices[1] if len(prices) > 1 else None)
                 yes_token = tokens[0] if tokens else None
                 no_token = tokens[1] if len(tokens) > 1 else None
                 liquidity = _f(m.get("liquidity"), 0.0)
@@ -827,8 +843,8 @@ async def _upsert_sports_markets(markets: list[dict[str, Any]]) -> None:
                         return float(v)
                     except (TypeError, ValueError):
                         return d
-                yes_price = _f(prices[0] if prices else None, 0.5)
-                no_price = _f(prices[1] if len(prices) > 1 else None, 0.5)
+                yes_price = _opt_price(prices[0] if prices else None)
+                no_price = _opt_price(prices[1] if len(prices) > 1 else None)
                 yes_token = tokens[0] if tokens else None
                 no_token = tokens[1] if len(tokens) > 1 else None
                 liquidity = _f(m.get("liquidity"), 0.0)
@@ -970,8 +986,8 @@ async def _upsert_weather_markets(markets: list[Any]) -> None:
                         synced_at      = NOW()
                     """,
                     row_id, slug, question,
-                    _f(getattr(wm, "yes_price", 0.5), 0.5),
-                    _f(getattr(wm, "no_price", 0.5), 0.5),
+                    _opt_price(getattr(wm, "yes_price", None)),
+                    _opt_price(getattr(wm, "no_price", None)),
                     yes_token, no_token, liquidity, resolution_at,
                     condition_id or row_id,
                 )
@@ -1774,13 +1790,14 @@ def _build_trade_signal(
         # is-not-None (not > 0) so a live price of exactly 0.0 is honoured.
         _price = live_price_override
     else:
-        # Fallback: cached DB price when live fetch unavailable.
-        if _side == "no":
-            _primary, _fallback = market.get("no_price"), market.get("yes_price")
-        else:
-            _primary, _fallback = market.get("yes_price"), market.get("no_price")
-        _price = float(
-            _primary if _primary is not None else (_fallback if _fallback is not None else 0.5)
+        # No live mark. The scan caller already skips candidates with no live
+        # price (scan_outcome reason=no_live_price) before reaching here — this
+        # is a backstop. Refuse to fill off the cached DB price (which may be a
+        # Gamma 0.50 seed) or fabricate a 0.50 midpoint: raise so the caller
+        # catches and skips the candidate. No fabricated fill, ever.
+        raise ValueError(
+            f"_build_trade_signal: no live price for {cand.market_id} "
+            f"side {_side}; refusing cached/fabricated fill"
         )
     # Use CLOB-derived liquidity when the candidate carries it (late_entry_v3
     # computes live bid depth from both token books). Candle markets have
@@ -2752,6 +2769,18 @@ async def _process_candidate(
     except Exception as exc:  # noqa: BLE001 — gate fault must never block trading
         log.warning("robustness_gate_eval_failed", error=str(exc))
         _module_live_eligible = True
+
+    # 3e. No live mark -> skip (never fabricate a fill). _live_fill_price is the
+    #     candidate metadata entry (late_entry_v3) or the get_live_market_price
+    #     fetch (weather / playbook / signal_following / copy). When both are
+    #     unavailable we refuse to trade off the cached DB seed price (possibly a
+    #     Gamma 0.50 placeholder) — an honest skip, no fake fill.
+    if _live_fill_price is None or not (0.0 < _live_fill_price < 1.0):
+        log.info(
+            "scan_outcome", outcome="skipped", reason="no_live_price",
+            market_id=cand.market_id, side=side, strategy=cand.strategy_name,
+        )
+        return
 
     if _cb_enabled:
         _base_before_build = _bankroll_ema_baseline.get(_uid_str)
