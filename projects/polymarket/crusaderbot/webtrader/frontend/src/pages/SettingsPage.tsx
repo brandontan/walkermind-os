@@ -173,7 +173,7 @@ export function SettingsPage() {
           <div className="text-red font-mono">Couldn’t load settings: {loadError}</div>
           <button
             onClick={() => { setLoadError(null); void load(); }}
-            className="px-3 py-1.5 rounded-md border border-border-1 text-ink-1 text-xs hover:bg-white/5"
+            className="px-3 py-1.5 clip-card-sm border border-border-1 text-ink-1 text-xs hover:bg-white/5"
           >
             Retry
           </button>
@@ -296,7 +296,7 @@ export function SettingsPage() {
                   <>
                     {liveStatus && (
                       <div
-                        className="p-2.5 rounded-sm space-y-1.5"
+                        className="p-2.5 clip-card-sm space-y-1.5"
                         style={{ background: "rgba(0,255,156,0.05)", border: "1px solid rgba(0,255,156,0.18)" }}
                       >
                         <InfoRow

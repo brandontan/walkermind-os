@@ -52,7 +52,7 @@ export function CollapsibleSection({
           <span
             className={[
               "font-hud text-[8px] font-bold tracking-[1.5px] uppercase px-1.5 py-0.5",
-              "rounded border transition-colors ml-1",
+              "clip-tab border transition-colors ml-1",
               open
                 ? "text-ink-3 border-border-2 bg-surface-2 group-hover:border-ink-3"
                 : "text-gold border-gold/40 bg-gold/10 group-hover:bg-gold/20",

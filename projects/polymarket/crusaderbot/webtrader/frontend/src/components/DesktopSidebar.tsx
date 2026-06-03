@@ -126,7 +126,7 @@ export function DesktopSidebar() {
           const copyActive = location.pathname === "/copy-trade" || location.search.includes("tab=copy");
           return (
             <div key={item.to}>
-              <button
+              <button type="button"
                 onClick={() => navigate(item.to)}
                 className={[
                   "w-full flex items-center gap-2.5 px-4 py-2.5 text-left font-sans text-[14px] font-semibold transition-all duration-150",
@@ -141,7 +141,7 @@ export function DesktopSidebar() {
                 {item.label}
               </button>
               {"sub" in item && item.sub && copyTradeEnabled && (
-                <button
+                <button type="button"
                   onClick={() => navigate(item.sub!.to)}
                   className={[
                     "w-full flex items-center gap-2 pl-10 pr-4 py-1.5 text-left font-sans text-[12px] font-medium transition-all duration-150 border-l-2",
@@ -170,7 +170,7 @@ export function DesktopSidebar() {
         >
           System
         </div>
-        <button
+        <button type="button"
           onClick={() => navigate("/settings")}
           className={[
             "w-full flex items-center gap-2.5 px-4 py-2.5 text-left font-sans text-[14px] font-semibold transition-all duration-150",
@@ -185,7 +185,7 @@ export function DesktopSidebar() {
           Config
         </button>
         {!confirming ? (
-          <button
+          <button type="button"
             className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left font-sans text-[14px] font-semibold transition-all duration-150 border-l-2 border-transparent hover:bg-[rgba(255,45,85,0.06)]"
             style={{ color: "var(--red, #FF2D55)" }}
             onClick={() => setConfirming(true)}
@@ -199,14 +199,14 @@ export function DesktopSidebar() {
               Halt trading &amp; close ALL open positions at market — profit or loss.
             </p>
             <div className="flex gap-1.5">
-              <button
+              <button type="button"
                 onClick={() => setConfirming(false)}
                 disabled={stopping}
                 className="flex-1 py-1.5 rounded-[2px] border border-border-2 text-ink-3 font-mono text-[9px] font-bold tracking-[1px] uppercase hover:text-ink-2 disabled:opacity-50 transition-colors"
               >
                 Cancel
               </button>
-              <button
+              <button type="button"
                 onClick={() => void handleEmergencyStop()}
                 disabled={stopping}
                 className="flex-1 py-1.5 rounded-[2px] font-mono text-[9px] font-bold tracking-[1px] uppercase text-white disabled:opacity-60 transition-all"

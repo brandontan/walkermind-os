@@ -295,7 +295,7 @@ export function CopyTradePage() {
         <>
         {/* Active Targets */}
         {tasks.length === 0 && !showForm ? (
-          <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+          <div className="my-6 p-4 clip-card border border-surface-3 bg-surface-1 text-center">
             <div className="text-2xl mb-2">🐋</div>
             <p className="font-hud text-sm font-bold text-ink-2 mb-1">No copy targets yet.</p>
             <p className="text-ink-3 text-xs font-mono leading-relaxed">
@@ -317,7 +317,7 @@ export function CopyTradePage() {
                 return (
                   <div
                     key={t.id}
-                    className="p-3 rounded-lg border border-surface-3 bg-surface-1"
+                    className="p-3 clip-card border border-surface-3 bg-surface-1"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
@@ -393,7 +393,7 @@ export function CopyTradePage() {
 
         {/* Add Form */}
         {showForm && (
-          <div className="mt-4 p-3 rounded-lg border border-surface-3 bg-surface-1 space-y-3">
+          <div className="mt-4 p-3 clip-card border border-surface-3 bg-surface-1 space-y-3">
             <div className="flex items-center justify-between">
               <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
                 <span className="w-3 h-px bg-gold" aria-hidden />
@@ -758,7 +758,7 @@ function LeaderboardPanel({
     return (
       <div className="space-y-2 mt-2">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-16 rounded-lg border border-surface-3 bg-surface-1 animate-pulse" />
+          <div key={i} className="h-16 clip-card border border-surface-3 bg-surface-1 animate-pulse" />
         ))}
       </div>
     );
@@ -766,7 +766,7 @@ function LeaderboardPanel({
 
   if (entries.length === 0) {
     return (
-      <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+      <div className="my-6 p-4 clip-card border border-surface-3 bg-surface-1 text-center">
         <div className="text-2xl mb-2">📊</div>
         <p className="font-hud text-sm font-bold text-ink-2 mb-1">No leaderboard data yet.</p>
         <p className="text-ink-3 text-xs font-mono">Trader rankings appear here as copy data accumulates.</p>
@@ -777,13 +777,13 @@ function LeaderboardPanel({
   return (
     <div className="space-y-2 mt-2">
       <div
-        className="px-2.5 py-1.5 text-[8.5px] font-mono text-ink-4 tracking-[1px] border rounded"
+        className="px-2.5 py-1.5 text-[8.5px] font-mono text-ink-4 tracking-[1px] border clip-card-sm"
         style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.02)" }}
       >
         Realtime Polymarket data · null fields shown as — · badges from backend only
       </div>
       {entries.map((e) => (
-        <div key={e.wallet} className="rounded-lg border border-surface-3 bg-surface-1 overflow-hidden">
+        <div key={e.wallet} className="clip-card border border-surface-3 bg-surface-1 overflow-hidden">
           <button
             className="w-full p-3 text-left"
             onClick={() => void handleExpand(e.wallet)}

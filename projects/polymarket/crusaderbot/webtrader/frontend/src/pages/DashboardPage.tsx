@@ -24,6 +24,22 @@ const PRESET_CODE: Record<string, string> = {
   flip_hunter:  "CANDLE·FLIP",
 };
 
+/** Single P&L column rendered in the HeroCard meta grid. */
+function PnlCol({ label, value }: { label: string; value: number }) {
+  const pos = value > 0.005;
+  const neg = value < -0.005;
+  return (
+    <div>
+      <span className="block font-mono text-[8px] tracking-[1.5px] uppercase text-ink-4 mb-0.5">
+        {label}
+      </span>
+      <span className={`font-mono text-[11px] font-bold ${pos ? "text-grn" : neg ? "text-red" : "text-ink-2"}`}>
+        {pos ? "+" : neg ? "−" : ""}${Math.abs(value).toFixed(2)}
+      </span>
+    </div>
+  );
+}
+
 export function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -166,11 +182,6 @@ export function DashboardPage() {
   const equityWhole = Math.floor(data.equity_usdc);
   const equityCents = `.${(data.equity_usdc - equityWhole).toFixed(2).slice(2)}`;
 
-  const pnlSign = data.pnl_today >= 0 ? "+" : "-";
-  const pnlAbs = Math.abs(data.pnl_today).toFixed(2);
-  const pnlZero = Math.abs(data.pnl_today) < 0.005;
-
-  const closedCount = data.total_trades;
   const winRate = data.total_trades > 0
     ? `${((data.wins / data.total_trades) * 100).toFixed(0)}%`
     : "—";
@@ -226,18 +237,17 @@ export function DashboardPage() {
               statusCode={presetCode ? <AdvancedOnly>{presetCode}</AdvancedOnly> : undefined}
               risk={risk}
               metaItems={
-                <>
-                  <span className={pnlZero ? "text-ink-2 font-bold inline-flex items-center gap-1" : data.pnl_today >= 0 ? "text-grn font-bold inline-flex items-center gap-1" : "text-red font-bold inline-flex items-center gap-1"}>
-                    <span aria-hidden>{pnlZero ? "─" : data.pnl_today >= 0 ? "▲" : "▼"}</span>
-                    {pnlSign}${pnlAbs} TODAY
-                  </span>
-                  <span className="text-ink-4">│</span>
-                  <span>{data.open_positions} OPEN</span>
-                  <AdvancedOnly>
-                    <span className="text-ink-4">│</span>
-                    <span>{closedCount} CLOSED</span>
-                  </AdvancedOnly>
-                </>
+                <div className="grid grid-cols-4 gap-x-3 w-full mt-0.5">
+                  <PnlCol label="Today"    value={data.pnl_today}   />
+                  <PnlCol label="7 Day"    value={data.pnl_7d}      />
+                  <PnlCol label="All Time" value={data.pnl_alltime} />
+                  <div>
+                    <span className="block font-mono text-[8px] tracking-[1.5px] uppercase text-ink-4 mb-0.5">Balance</span>
+                    <span className="font-mono text-[11px] font-bold text-ink-2">
+                      ${data.balance_usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                </div>
               }
               flashDir={pnlFlash}
               ctaPrimary={{ label: "Configure", onClick: () => navigate("/autotrade") }}
@@ -315,7 +325,7 @@ export function DashboardPage() {
             </AdvancedOnly>
 
             {/* Scanner status strip — visible to all users */}
-            <div className="mt-3 mb-2 mx-0.5 md:mt-0 px-2.5 py-1.5 rounded-lg border border-surface-3 bg-surface-1 flex items-center justify-between">
+            <div className="mt-3 mb-2 mx-0.5 md:mt-0 px-2.5 py-1.5 clip-card-sm border border-border-1 bg-surface-1 flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <span
                   className={data.auto_trade_on ? "animate-status-pulse" : ""}

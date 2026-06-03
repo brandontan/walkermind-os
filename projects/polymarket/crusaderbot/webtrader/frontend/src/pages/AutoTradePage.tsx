@@ -130,10 +130,11 @@ const CRYPTO_SHORT_PRESETS: readonly string[] = ["candle_auto", "close_sweep", "
 // (close_sweep / safe_close / flip_hunter) are no longer standalone cards —
 // they live inside Smart Strike as a manual "Rule" sub-picker, so the main page
 // stays uncluttered while power users can still pin one rule.
-// `playbook` re-enabled in WARP/ROOT/playbook-live-dispatch once its scan dispatch
-// (Phase B4) went live — it renders as a top-level family card alongside Smart Strike
-// and Weather. (Dispatch itself is operator-gated by PLAYBOOK_STRATEGY_ENABLED.)
-const TOP_LEVEL_PRESET_KEYS: readonly string[] = ["candle_auto", "weather_monitor", "playbook"];
+// `playbook` intentionally omitted — it's registered + routable but its live scan
+// dispatch is Phase-2 (Codex P2, PR #1567), and backend activation is gated, so it
+// must not render as a selectable card. An ALREADY-active playbook still renders via
+// the activeNonCandle exception in the filter. Re-add when playbook-live-dispatch lands.
+const TOP_LEVEL_PRESET_KEYS: readonly string[] = ["candle_auto", "weather_monitor"];
 
 // Manual rules nested under Smart Strike. "Auto" (candle_auto) is the default —
 // the router picks per candle stage; the three below pin a single rule.
@@ -608,7 +609,7 @@ export function AutoTradePage() {
             on. Replaces the misleading red Stop CTA above. */}
         {state.active_preset_globally_enabled === false && (
           <div
-            className="mb-3 px-3 py-2.5 rounded border flex items-start gap-2 text-[11px] font-mono"
+            className="mb-3 px-3 py-2.5 clip-card border flex items-start gap-2 text-[11px] font-mono"
             style={{
               background: "rgba(120, 140, 170, 0.06)",
               borderColor: "rgba(120, 140, 170, 0.25)",
@@ -631,7 +632,7 @@ export function AutoTradePage() {
         </p>
 
         {presetErr && (
-          <div className="mb-3 px-3 py-2 rounded-lg border border-red/40 bg-red/10 text-red text-xs font-mono">
+          <div className="mb-3 px-3 py-2 clip-card border border-red/40 bg-red/10 text-red text-xs font-mono">
             {presetErr}
           </div>
         )}
@@ -679,10 +680,9 @@ export function AutoTradePage() {
                 {/* Card container — non-interactive, visual wrapper only */}
                 <div
                   className={[
-                    "w-full rounded-lg border transition-all",
-                    showConfig || isDetailOpen ? "rounded-b-none" : "",
+                    "w-full clip-card border transition-all",
                     isActive
-                      ? "border-gold bg-surface-2 shadow-[0_0_8px_rgba(191,155,48,0.25)]"
+                      ? "border-gold bg-surface-2 shadow-[0_0_8px_rgba(191,155,48,0.22)]"
                       : "border-surface-3 bg-surface-1 hover:border-ink-3",
                   ].join(" ")}
                 >
@@ -715,7 +715,7 @@ export function AutoTradePage() {
                             {isActive && (
                               <span
                                 className={[
-                                  "text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded border",
+                                  "text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 clip-tab border",
                                   isGloballyPaused
                                     ? "text-ink-4 border-ink-3 bg-surface-2"
                                     : "text-gold border-gold/40 bg-gold/10",
@@ -744,7 +744,7 @@ export function AutoTradePage() {
                       {p.features.map((f) => (
                         <span
                           key={f}
-                          className="text-[9px] font-mono font-bold tracking-wide text-ink-2 px-1.5 py-0.5 rounded border border-surface-3 bg-surface-1"
+                          className="text-[9px] font-mono font-bold tracking-wide text-ink-2 px-1.5 py-0.5 clip-card-sm border border-border-2 bg-surface-1"
                         >
                           {f}
                         </span>
@@ -775,7 +775,7 @@ export function AutoTradePage() {
                                 if (!ruleDisabled) void handleActivatePreset(r.key);
                               }}
                               className={[
-                                "flex items-center justify-center gap-1 py-1.5 rounded-md border text-[11px] font-hud font-bold transition-all",
+                                "flex items-center justify-center gap-1 py-1.5 clip-card-sm border text-[11px] font-hud font-bold transition-all",
                                 on
                                   ? "border-gold bg-gold/10 text-gold shadow-[0_0_6px_rgba(191,155,48,0.2)]"
                                   : "border-surface-3 bg-surface-1 text-ink-3 hover:border-ink-3",
@@ -822,10 +822,7 @@ export function AutoTradePage() {
                     Square bottom when the asset/timeframe config follows. */}
                 {isDetailOpen && (
                   <div
-                    className={[
-                      "md:col-span-3 p-3 border border-t-0 border-gold/40 bg-surface-2",
-                      showConfig ? "" : "rounded-lg rounded-t-none",
-                    ].join(" ")}
+                    className="md:col-span-3 p-3 border border-t-0 border-gold/40 bg-surface-2"
                   >
                     <ul className="space-y-1.5">
                       {p.detail.map((line, i) => (
@@ -840,7 +837,7 @@ export function AutoTradePage() {
 
                 {/* Inline config for crypto-short presets: assets + timeframe */}
                 {showConfig && (
-                  <div className="md:col-span-3 p-3 rounded-lg rounded-t-none border border-t-0 border-gold/40 bg-surface-2 space-y-2.5">
+                  <div className="md:col-span-3 p-3 border border-t-0 border-gold/40 bg-surface-2 space-y-2.5">
                     {/* Assets — compact 3-up chips (BTC/ETH/SOL), dot marks active */}
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono">Markets</p>
@@ -858,7 +855,7 @@ export function AutoTradePage() {
                             aria-pressed={on}
                             onClick={() => void handleToggleAsset(asset)}
                             className={[
-                              "flex items-center justify-center gap-1 py-1.5 rounded-md border text-[11px] font-hud font-bold tracking-wide transition-all",
+                              "flex items-center justify-center gap-1 py-1.5 clip-card-sm border text-[11px] font-hud font-bold tracking-wide transition-all",
                               on
                                 ? "border-gold bg-gold/10 text-gold"
                                 : "border-surface-3 bg-surface-1 text-ink-3 hover:border-ink-3",
@@ -873,7 +870,7 @@ export function AutoTradePage() {
                     {/* Timeframe — inset segmented control */}
                     <div className="flex items-center gap-2">
                       <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono shrink-0">Candle</p>
-                      <div className="flex-1 grid grid-cols-2 gap-1 p-0.5 rounded-md border border-surface-3 bg-surface-1">
+                      <div className="flex-1 grid grid-cols-2 gap-1 p-0.5 clip-card-sm border border-surface-3 bg-surface-1">
                         {TIMEFRAMES.map((tf) => {
                           const tfActive = activeTimeframe === tf;
                           return (
@@ -909,7 +906,7 @@ export function AutoTradePage() {
           {COMING_SOON_PRESETS.map((p) => (
             <div
               key={p.key}
-              className="w-full text-left p-3 rounded-lg border border-surface-3 bg-surface-1 opacity-50 cursor-not-allowed select-none"
+              className="w-full text-left p-3 clip-card border border-surface-3 bg-surface-1 opacity-50 cursor-not-allowed select-none"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
@@ -917,7 +914,7 @@ export function AutoTradePage() {
                   <div className="min-w-0">
                     <div className="font-hud text-sm font-bold text-ink-2 flex items-center gap-2">
                       {p.name}
-                      <span className="text-[9px] font-bold tracking-widest text-ink-4 uppercase px-1.5 py-0.5 rounded border border-surface-3 bg-surface-2">
+                      <span className="text-[9px] font-bold tracking-widest text-ink-4 uppercase px-1.5 py-0.5 clip-tab border border-surface-3 bg-surface-2">
                         SOON
                       </span>
                     </div>
@@ -949,7 +946,7 @@ export function AutoTradePage() {
                 key={rp.key}
                 onClick={() => void handleActivateRisk(rp.key)}
                 className={[
-                  "text-left p-2.5 rounded-lg border transition-all",
+                  "text-left p-2.5 clip-card border transition-all",
                   isActive
                     ? "border-gold bg-surface-2 shadow-[0_0_10px_rgba(245,200,66,0.15)]"
                     : "border-border-1 bg-surface-1 hover:border-border-3",
@@ -961,7 +958,7 @@ export function AutoTradePage() {
                 </div>
                 {isActive && (
                   <div className="mb-1.5">
-                    <span className="text-[8px] font-bold tracking-widest text-gold uppercase px-1 py-0.5 rounded border border-gold/40 bg-gold/10">
+                    <span className="text-[8px] font-bold tracking-widest text-gold uppercase px-1 py-0.5 clip-tab border border-gold/40 bg-gold/10">
                       ACTIVE
                     </span>
                   </div>
@@ -990,7 +987,7 @@ export function AutoTradePage() {
           return (
             <div
               className={[
-                "p-3 rounded-lg border transition-all",
+                "p-3 clip-card border transition-all",
                 isActive
                   ? "border-gold/60 bg-surface-2"
                   : "border-border-1 bg-surface-1",
@@ -1000,7 +997,7 @@ export function AutoTradePage() {
                 <span className="text-[14px]">{rp.emoji}</span>
                 <span className="font-hud text-[10px] font-bold text-ink-1">{rp.name}</span>
                 {isActive && (
-                  <span className="ml-auto text-[8px] font-bold tracking-widest text-gold uppercase px-1.5 py-0.5 rounded border border-gold/40 bg-gold/10">
+                  <span className="ml-auto text-[8px] font-bold tracking-widest text-gold uppercase px-1.5 py-0.5 clip-tab border border-gold/40 bg-gold/10">
                     ACTIVE
                   </span>
                 )}
@@ -1020,7 +1017,7 @@ export function AutoTradePage() {
                       value={val}
                       placeholder={ph}
                       onChange={e => set(e.target.value)}
-                      className="w-full bg-surface border border-border-2 rounded px-2 py-1.5 text-xs font-mono text-ink-1 placeholder:text-ink-4 focus:border-gold focus:outline-none"
+                      className="w-full bg-surface border border-border-2 px-2 py-1.5 text-xs font-mono text-ink-1 placeholder:text-ink-4 focus:border-gold focus:outline-none"
                     />
                   </div>
                 ))}
@@ -1030,7 +1027,7 @@ export function AutoTradePage() {
               <button
                 onClick={() => void handleSaveCustomRisk()}
                 disabled={savingRisk}
-                className="w-full py-2 rounded border border-gold/40 bg-gold/10 text-gold text-[10px] font-bold tracking-[1.5px] uppercase hover:bg-gold/20 disabled:opacity-50 transition-colors"
+                className="w-full py-2 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[10px] font-bold tracking-[1.5px] uppercase hover:bg-gold/20 disabled:opacity-50 transition-colors"
               >
                 {savingRisk ? "Saving…" : "Save Custom Profile"}
               </button>
@@ -1041,7 +1038,7 @@ export function AutoTradePage() {
         {/* CAP% is the deployable POOL, not the per-trade size. Surface the real
             max-per-trade so users don't read "60%" as "$600 per trade". */}
         {state.effective_max_per_trade_usdc != null && (
-          <p className="text-[11px] font-mono mt-3 mb-2 mx-0.5 px-2 py-1.5 rounded border border-gold/30 bg-gold/5 text-ink-2">
+          <p className="text-[11px] font-mono mt-3 mb-2 mx-0.5 px-2 py-1.5 clip-card-sm border border-gold/30 bg-gold/5 text-ink-2">
             <span className="text-gold font-bold">Max per trade: ${state.effective_max_per_trade_usdc.toFixed(2)}</span>
             {state.equity_usdc != null && (
               <span className="text-ink-3"> · CAP {Math.round(state.capital_alloc_pct * 100)}% of ${state.equity_usdc.toFixed(2)} equity is the deployable pool, not one trade</span>
@@ -1065,7 +1062,7 @@ export function AutoTradePage() {
           Choose which market categories and liquidity thresholds the bot scans.
         </p>
 
-        <div className="p-3 rounded-lg border border-surface-3 bg-surface-1 space-y-3">
+        <div className="p-3 clip-card border border-surface-3 bg-surface-1 space-y-3">
           {/* Categories */}
           <div>
             <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-2">Categories</p>
@@ -1081,7 +1078,7 @@ export function AutoTradePage() {
                   <label
                     key={cat}
                     className={[
-                      "flex items-center gap-1.5 px-2 py-1.5 rounded border text-[10px] font-mono transition-colors",
+                      "flex items-center gap-1.5 px-2 py-1.5 clip-card-sm border text-[10px] font-mono transition-colors",
                       lockedCategory
                         ? "cursor-not-allowed opacity-50"
                         : "cursor-pointer",
@@ -1111,7 +1108,7 @@ export function AutoTradePage() {
               <select
                 value={filterLiquidity}
                 onChange={e => setFilterLiquidity(e.target.value)}
-                className="w-full bg-surface-3 border border-surface-3 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                className="w-full bg-surface-3 border border-surface-3 px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
               >
                 <option value="1000">$1k</option>
                 <option value="5000">$5k</option>
@@ -1124,7 +1121,7 @@ export function AutoTradePage() {
               <select
                 value={filterResolution}
                 onChange={e => setFilterResolution(e.target.value)}
-                className="w-full bg-surface-3 border border-surface-3 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                className="w-full bg-surface-3 border border-surface-3 px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
               >
                 <option value="0">Any</option>
                 <option value="1">1 day</option>
@@ -1138,7 +1135,7 @@ export function AutoTradePage() {
               <select
                 value={filterVolume}
                 onChange={e => setFilterVolume(e.target.value)}
-                className="w-full bg-surface-3 border border-surface-3 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                className="w-full bg-surface-3 border border-surface-3 px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
               >
                 <option value="100">$100</option>
                 <option value="500">$500</option>
@@ -1238,7 +1235,7 @@ function MaxPerTradeControl({ state, api, onSaved }: {
   ];
 
   return (
-    <div className="mb-3 mx-0.5 p-2.5 rounded-lg border border-surface-3 bg-surface-1">
+    <div className="mb-3 mx-0.5 p-2.5 clip-card border border-surface-3 bg-surface-1">
       <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-2">Max per trade</p>
       <div className="grid grid-cols-3 gap-2 mb-2">
         {MODES.map((m) => (
@@ -1246,7 +1243,7 @@ function MaxPerTradeControl({ state, api, onSaved }: {
             key={m.key}
             onClick={() => setMode(m.key)}
             className={[
-              "py-1.5 rounded-md border text-[11px] font-hud font-bold transition-all",
+              "py-1.5 clip-card-sm border text-[11px] font-hud font-bold transition-all",
               mode === m.key ? "border-gold bg-gold/10 text-gold" : "border-surface-3 bg-surface-2 text-ink-3 hover:border-ink-3",
             ].join(" ")}
           >
@@ -1259,7 +1256,7 @@ function MaxPerTradeControl({ state, api, onSaved }: {
           type="number" inputMode="decimal" min={1} max={500} value={usd}
           onChange={(e) => setUsd(e.target.value)}
           placeholder="$ per trade (1–500)"
-          className="w-full mb-2 px-2 py-1.5 rounded-md bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono"
+          className="w-full mb-2 px-2 py-1.5 bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono focus:border-gold focus:outline-none"
         />
       )}
       {mode === "pct" && (
@@ -1267,13 +1264,13 @@ function MaxPerTradeControl({ state, api, onSaved }: {
           type="number" inputMode="decimal" min={0.5} max={10} step={0.5} value={pct}
           onChange={(e) => setPct(e.target.value)}
           placeholder="% of equity (0.5–10)"
-          className="w-full mb-2 px-2 py-1.5 rounded-md bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono"
+          className="w-full mb-2 px-2 py-1.5 bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono focus:border-gold focus:outline-none"
         />
       )}
       <button
         onClick={() => void save()}
         disabled={saving}
-        className="w-full py-1.5 rounded-md border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
+        className="w-full py-1.5 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
       >
         {saved ? "Saved ✓" : saving ? "Saving…" : "Save Max Per Trade"}
       </button>
@@ -1334,7 +1331,7 @@ function DailyLossControl({ state, api, onSaved }: {
     : profileFloor;
 
   return (
-    <div className="mb-3 mx-0.5 p-2.5 rounded-lg border border-surface-3 bg-surface-1">
+    <div className="mb-3 mx-0.5 p-2.5 clip-card border border-surface-3 bg-surface-1">
       <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-1">Daily Loss Limit</p>
       <p className="text-[10px] text-ink-3 font-mono mb-2">
         Halt trading when daily P&amp;L drops below this. Profile default: <span className="text-ink-1">${Math.abs(profileFloor)}</span>.
@@ -1349,14 +1346,14 @@ function DailyLossControl({ state, api, onSaved }: {
           type="number" inputMode="decimal" min={1} max={2000} value={val}
           onChange={(e) => setVal(e.target.value)}
           placeholder={`e.g. ${Math.abs(profileFloor)} (profile default)`}
-          className="flex-1 px-2 py-1.5 rounded-md bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono"
+          className="flex-1 px-2 py-1.5 bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono focus:border-gold focus:outline-none"
         />
       </div>
       <div className="flex gap-2">
         <button
           onClick={() => void save()}
           disabled={saving || !val}
-          className="flex-1 py-1.5 rounded-md border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
+          className="flex-1 py-1.5 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
         >
           {saved ? "Saved ✓" : saving ? "Saving…" : "Set Limit"}
         </button>
@@ -1364,7 +1361,7 @@ function DailyLossControl({ state, api, onSaved }: {
           <button
             onClick={() => void clear()}
             disabled={saving}
-            className="px-3 py-1.5 rounded-md border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"
+            className="px-3 py-1.5 clip-card-sm border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"
           >
             Reset
           </button>
@@ -1421,7 +1418,7 @@ function MaxDrawdownControl({ state, api, onSaved }: {
   const effectivePct = current != null ? Math.min(current, 0.08) : 0.08;
 
   return (
-    <div className="mb-3 mx-0.5 p-2.5 rounded-lg border border-surface-3 bg-surface-1">
+    <div className="mb-3 mx-0.5 p-2.5 clip-card border border-surface-3 bg-surface-1">
       <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-1">Max Drawdown Halt</p>
       <p className="text-[10px] text-ink-3 font-mono mb-2">
         Auto-halt when account drawdown exceeds this. System max: <span className="text-ink-1">8%</span>.
@@ -1435,7 +1432,7 @@ function MaxDrawdownControl({ state, api, onSaved }: {
           type="number" inputMode="decimal" min={1} max={8} step={1} value={val}
           onChange={(e) => setVal(e.target.value)}
           placeholder="% (1–8, system max 8%)"
-          className="flex-1 px-2 py-1.5 rounded-md bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono"
+          className="flex-1 px-2 py-1.5 bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono focus:border-gold focus:outline-none"
         />
         <span className="flex items-center text-xs text-ink-3 font-mono">%</span>
       </div>
@@ -1443,7 +1440,7 @@ function MaxDrawdownControl({ state, api, onSaved }: {
         <button
           onClick={() => void save()}
           disabled={saving || !val}
-          className="flex-1 py-1.5 rounded-md border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
+          className="flex-1 py-1.5 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
         >
           {saved ? "Saved ✓" : saving ? "Saving…" : "Set Drawdown Halt"}
         </button>
@@ -1451,7 +1448,7 @@ function MaxDrawdownControl({ state, api, onSaved }: {
           <button
             onClick={() => void clear()}
             disabled={saving}
-            className="px-3 py-1.5 rounded-md border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"
+            className="px-3 py-1.5 clip-card-sm border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"
           >
             Reset
           </button>
@@ -1516,7 +1513,7 @@ function MaxConcurrentControl({ state, api, onSaved }: {
   const effective = current != null ? Math.min(current, profileCap) : profileCap;
 
   return (
-    <div className="mb-3 mx-0.5 p-2.5 rounded-lg border border-surface-3 bg-surface-1">
+    <div className="mb-3 mx-0.5 p-2.5 clip-card border border-surface-3 bg-surface-1">
       <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-1">Max Concurrent Trades</p>
       <p className="text-[10px] text-ink-3 font-mono mb-2">
         Cap on open positions at once. Profile cap: <span className="text-ink-1">{profileCap}</span>.
@@ -1533,14 +1530,14 @@ function MaxConcurrentControl({ state, api, onSaved }: {
           type="number" inputMode="numeric" min={1} max={20} step={1} value={val}
           onChange={(e) => setVal(e.target.value)}
           placeholder={`1–20 (profile ${profileCap})`}
-          className="flex-1 px-2 py-1.5 rounded-md bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono"
+          className="flex-1 px-2 py-1.5 bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono focus:border-gold focus:outline-none"
         />
       </div>
       <div className="flex gap-2">
         <button
           onClick={() => void save()}
           disabled={saving || !val}
-          className="flex-1 py-1.5 rounded-md border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
+          className="flex-1 py-1.5 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
         >
           {saved ? "Saved ✓" : saving ? "Saving…" : "Set Concurrent Cap"}
         </button>
@@ -1548,7 +1545,7 @@ function MaxConcurrentControl({ state, api, onSaved }: {
           <button
             onClick={() => void clear()}
             disabled={saving}
-            className="px-3 py-1.5 rounded-md border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"
+            className="px-3 py-1.5 clip-card-sm border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"
           >
             Reset
           </button>

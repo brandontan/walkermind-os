@@ -104,7 +104,7 @@ function parseGammaMarket(m: GammaMarket): MarketCard {
 
 function MarketCardRow({ market, onDeploy }: { market: MarketCard; onDeploy: (m: MarketCard) => void }) {
   return (
-    <div className="p-3 rounded-lg border border-surface-3 bg-surface-1 flex flex-col gap-2">
+    <div className="p-3 clip-card border border-surface-3 bg-surface-1 flex flex-col gap-2">
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <p className="font-hud text-[11px] font-bold text-ink-1 leading-snug line-clamp-2">{market.title}</p>
@@ -239,7 +239,7 @@ export function DiscoverPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search markets…"
             aria-label="Search markets"
-            className="w-full pl-9 pr-9 py-2 rounded-lg border border-border-2 bg-surface-2 text-[12px] text-ink-1 placeholder:text-ink-4 font-mono focus:outline-none focus:border-gold transition-colors"
+            className="w-full pl-9 pr-9 py-2 border border-border-2 bg-surface-2 text-[12px] text-ink-1 placeholder:text-ink-4 font-mono focus:outline-none focus:border-gold transition-colors"
           />
           {search && (
             <button
@@ -274,11 +274,11 @@ export function DiscoverPage() {
         {loading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-32 rounded-lg border border-surface-3 bg-surface-1 animate-pulse" />
+              <div key={i} className="h-32 clip-card border border-surface-3 bg-surface-1 animate-pulse" />
             ))}
           </div>
         ) : markets.length === 0 ? (
-          <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+          <div className="my-6 p-4 clip-card border border-surface-3 bg-surface-1 text-center">
             <div className="text-2xl mb-2">{debouncedSearch ? "🔍" : "📊"}</div>
             <p className="font-hud text-sm font-bold text-ink-2 mb-1">
               {debouncedSearch ? "No matches" : "No markets available."}

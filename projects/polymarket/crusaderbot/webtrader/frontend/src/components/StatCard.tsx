@@ -78,7 +78,7 @@ export function StatCard({
   const bar = BAR_COLOR[color];
   return (
     <div
-      className={`relative overflow-hidden clip-card bg-surface border border-border-1 transition-colors hover:border-border-3 ${
+      className={`relative overflow-hidden clip-card bg-surface border border-border-1 transition-colors hover:border-border-3 hover:bg-surface-1 ${
         large ? "row-span-2 p-[14px_12px_12px]" : "p-[10px_10px_9px]"
       }`}
     >

@@ -964,7 +964,7 @@ function OrderRow({ o }: { o: OrderItem }) {
           {o.market_question ?? o.market_id.slice(0, 20)}
         </span>
         <span
-          className="font-hud text-[9px] font-bold tracking-[1.5px] px-1.5 py-0.5 rounded"
+          className="font-hud text-[9px] font-bold tracking-[1.5px] px-1.5 py-0.5 clip-tab"
           style={{ color: badge.color, background: `${badge.color}18`, border: `1px solid ${badge.color}40` }}
         >
           {badge.label}
@@ -1076,7 +1076,7 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
     return (
       <div className="space-y-2 mt-2">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-14 rounded-lg border border-surface-3 bg-surface-1 animate-pulse" />
+          <div key={i} className="h-14 clip-card border border-surface-3 bg-surface-1 animate-pulse" />
         ))}
       </div>
     );
@@ -1084,12 +1084,12 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
 
   if (error) {
     return (
-      <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+      <div className="my-6 p-4 clip-card border border-surface-3 bg-surface-1 text-center">
         <div className="text-2xl mb-2">⚠️</div>
         <p className="font-hud text-sm font-bold text-ink-2 mb-1">Couldn’t load analytics.</p>
         <button
           onClick={reload}
-          className="mt-1 px-3 py-1.5 rounded-md border border-surface-3 text-ink-1 text-xs hover:bg-white/5"
+          className="mt-1 px-3 py-1.5 clip-card-sm border border-surface-3 text-ink-1 text-xs hover:bg-white/5"
         >
           Retry
         </button>
@@ -1099,7 +1099,7 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
 
   if (!data || !data.has_data) {
     return (
-      <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+      <div className="my-6 p-4 clip-card border border-surface-3 bg-surface-1 text-center">
         <div className="text-2xl mb-2">📊</div>
         <p className="font-hud text-sm font-bold text-ink-2 mb-1">No analytics yet.</p>
         <p className="text-ink-3 text-xs font-mono leading-relaxed">
@@ -1174,7 +1174,7 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
 
       {/* Worst trade */}
       {data.worst_trade && (
-        <div className="p-3 rounded-lg border border-surface-3 bg-surface-1">
+        <div className="p-3 clip-card border border-surface-3 bg-surface-1">
           <div className="text-[9px] font-mono text-ink-4 uppercase tracking-widest mb-1">Worst Trade</div>
           <div className="flex items-center justify-between gap-3">
             <span className="text-[10px] font-mono text-ink-2 truncate flex-1 min-w-0">
@@ -1191,7 +1191,7 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
           PositionRow so the labels match across the app instead of showing
           raw "late_entry_v3" snake_case identifiers. */}
       {data.profit_per_strategy.length > 0 && (
-        <div className="p-3 rounded-lg border border-surface-3 bg-surface-1">
+        <div className="p-3 clip-card border border-surface-3 bg-surface-1">
           <div className="text-[9px] font-mono text-ink-4 uppercase tracking-widest mb-2">Profit by Strategy</div>
           <div className="space-y-1.5">
             {data.profit_per_strategy.map((s) => {
@@ -1231,7 +1231,7 @@ function AnalyticCard({
   color: string;
 }) {
   return (
-    <div className="p-3 rounded-lg border border-surface-3 bg-surface-1">
+    <div className="p-3 clip-card border border-surface-3 bg-surface-1">
       <div className="text-[9px] font-mono text-ink-4 uppercase tracking-widest mb-1">{label}</div>
       <div className="font-hud font-bold text-[14px] leading-tight" style={{ color }}>{value}</div>
       {sub && <div className="text-[9px] font-mono text-ink-4 mt-0.5 truncate">{sub}</div>}

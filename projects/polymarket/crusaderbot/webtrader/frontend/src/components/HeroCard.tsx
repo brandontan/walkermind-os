@@ -192,7 +192,7 @@ export function HeroCard({
       {(ctaPrimary || ctaSecondary || ctaDanger) && (
         <div className={ctaDanger ? "mt-4" : "grid grid-cols-[1.4fr_1fr] gap-2 mt-4"}>
           {ctaPrimary && !ctaDanger && (
-            <button
+            <button type="button"
               onClick={ctaPrimary.onClick}
               className="clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-3 px-2.5 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               style={{
@@ -207,7 +207,7 @@ export function HeroCard({
             </button>
           )}
           {ctaSecondary && !ctaDanger && (
-            <button
+            <button type="button"
               onClick={ctaSecondary.onClick}
               className="clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-3 px-2.5 transition-colors flex items-center justify-center gap-1.5 cursor-pointer bg-surface-2 text-ink-1 border border-border-2 hover:border-gold hover:text-gold hover:bg-surface-3"
             >
@@ -215,7 +215,7 @@ export function HeroCard({
             </button>
           )}
           {ctaDanger && (
-            <button
+            <button type="button"
               onClick={ctaDanger.onClick}
               className="clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-3 px-2.5 transition-colors flex items-center justify-center gap-1.5 cursor-pointer w-full text-red border"
               style={{
