@@ -29,6 +29,19 @@ function fmtAgo(iso: string): string {
   return `${Math.round(d / 3600)}h ago`;
 }
 
+/* Preset key → strategy display name (mirrors AutoTradePage STRATEGY_PRESETS).
+   The scanner shows the strategy the user actually picked, not the raw key. */
+const PRESET_LABEL: Record<string, string> = {
+  candle_auto:     "Smart Strike",
+  close_sweep:     "Close Sweep",
+  safe_close:      "Safe Close",
+  flip_hunter:     "Flip Hunter",
+  weather_monitor: "Weather Monitor",
+  playbook:        "Playbook",
+};
+const presetLabel = (p: string | null): string =>
+  p ? (PRESET_LABEL[p] ?? p) : "none";
+
 const LEAN_ARROW: Record<MarketFeedItem["lean"], string> = { UP: "▲", DOWN: "▼", EVEN: "─" };
 const LEAN_VAR: Record<MarketFeedItem["lean"], string> = {
   UP:   "var(--grn,#00FF9C)",
@@ -70,7 +83,24 @@ function SignalCarousel({ signals }: { signals: FeedSignal[] }) {
     return () => clearInterval(t);
   }, [paused, advance, signals.length]);
 
-  if (!signals.length) return null;
+  // Always render the SIGNALS section — when no recent publication exists show
+  // a calm placeholder rather than hiding the carousel entirely, so the panel
+  // shape stays stable and the live feed area is always discoverable.
+  if (!signals.length) {
+    return (
+      <div style={{ borderTop: "1px solid rgba(255,255,255,.04)" }}>
+        <div className="flex items-center justify-between px-3.5 pt-1.5 pb-1">
+          <span className="font-hud text-[7px] font-bold tracking-[2px] uppercase text-ink-4">Signals</span>
+          <span className="font-mono text-[8px] text-ink-4">0/0</span>
+        </div>
+        <div className="px-3.5 pt-1.5 pb-3 flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full inline-block flex-shrink-0 animate-status-pulse"
+            style={{ background: "var(--gold,#F5C842)", boxShadow: "0 0 6px var(--gold,#F5C842)" }} aria-hidden />
+          <span className="font-mono text-[11px] text-ink-3">awaiting signal — scanning live markets…</span>
+        </div>
+      </div>
+    );
+  }
   const sig = signals[Math.min(idx, signals.length - 1)];
   const targetCents = sig.target_price != null ? `${Math.round(sig.target_price * 100)}¢` : "—";
 
@@ -222,7 +252,7 @@ export function ScannerPanel({
   const lines: TLineDef[] = active
     ? [
         { parts: [{ type: "cmd", text: "market_signal_scanner" }, { type: "out", text: "  " }, { type: "ok", text: "✓ ok" }] },
-        { parts: [{ type: "out", text: "mode " }, { type: "warn", text: tradingMode.toUpperCase() }, { type: "out", text: "  preset " }, { type: "cmd", text: activePreset ?? "none" }] },
+        { parts: [{ type: "out", text: "mode " }, { type: "warn", text: tradingMode.toUpperCase() }, { type: "out", text: "  preset " }, { type: "cmd", text: presetLabel(activePreset) }] },
         { parts: [{ type: "out", text: "scanned " }, { type: "warn", text: String(scanned) }, { type: "out", text: "  published " }, { type: "ok", text: String(published) }] },
         { parts: [{ type: "out", text: "last_tick " }, { type: "dim", text: `${liveAgo != null ? `${liveAgo}s ago` : "—"}  ` }, { type: "dim", text: "signals scanning" }], cursor: true },
         { parts: [{ type: "out", text: "markets  " }, { type: "dim", text: feedSummary || "—" }] },

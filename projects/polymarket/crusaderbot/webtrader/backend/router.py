@@ -401,8 +401,14 @@ def _weather_asset_code(question: str) -> str:
     return "WX"
 
 
-async def _crypto_market_feed(pool: Any) -> list[MarketFeedItem]:
-    """Nearest up/down candle market per crypto asset."""
+async def _crypto_market_feed(pool: Any, assets: list[str]) -> list[MarketFeedItem]:
+    """Nearest up/down candle market per crypto asset, scoped to the user's
+    selected assets (e.g. BTC/ETH/SOL) and returned in that selection order —
+    so the feed mirrors exactly what the preset trades, not the whole universe.
+    """
+    asset_keys = [a.lower() for a in assets] or [
+        a.lower() for a in _DEFAULT_CRYPTO_SHORT_ASSETS
+    ]
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """SELECT DISTINCT ON (split_part(slug, '-updown-', 1))
@@ -410,16 +416,17 @@ async def _crypto_market_feed(pool: Any) -> list[MarketFeedItem]:
                       yes_price, liquidity_usdc, resolution_at
                FROM markets
                WHERE slug LIKE '%updown%'
-                 AND split_part(slug, '-updown-', 1) IN ('btc', 'eth', 'sol', 'bnb', 'xrp', 'doge', 'hype')
+                 AND split_part(slug, '-updown-', 1) = ANY($1::text[])
                  AND resolved = false
                  AND resolution_at > now()
                  AND yes_price IS NOT NULL
                  AND liquidity_usdc > 0
-               ORDER BY split_part(slug, '-updown-', 1), resolution_at ASC"""
+               ORDER BY split_part(slug, '-updown-', 1), resolution_at ASC""",
+            asset_keys,
         )
     now = datetime.now(timezone.utc)
-    asset_labels = {"btc": "BTC", "eth": "ETH", "sol": "SOL", "bnb": "BNB",
-                    "xrp": "XRP", "doge": "DOGE", "hype": "HYPE"}
+    asset_labels = {"btc": "BTC", "eth": "ETH", "sol": "SOL"}
+    order = {k: i for i, k in enumerate(asset_keys)}
     feed: list[MarketFeedItem] = []
     for r in rows:
         asset_key = str(r["asset"] or "").lower()
@@ -434,7 +441,9 @@ async def _crypto_market_feed(pool: Any) -> list[MarketFeedItem]:
                 liquidity_usdc=float(r["liquidity_usdc"] or 0.0),
             )
         )
+    feed.sort(key=lambda it: order.get(it.asset.lower(), len(order)))
     return feed
+
 
 
 async def _weather_market_feed(pool: Any) -> list[MarketFeedItem]:
@@ -519,7 +528,8 @@ async def get_market_feed(user: _CurrentUser) -> list[MarketFeedItem]:
     user_id = user["user_id"]
     async with pool.acquire() as conn:
         preset_row = await conn.fetchrow(
-            "SELECT active_preset FROM user_settings WHERE user_id = $1::uuid",
+            "SELECT active_preset, selected_assets FROM user_settings"
+            " WHERE user_id = $1::uuid",
             user_id,
         )
     active_preset = (preset_row["active_preset"] if preset_row else None) or ""
@@ -529,7 +539,11 @@ async def get_market_feed(user: _CurrentUser) -> list[MarketFeedItem]:
         return await _weather_market_feed(pool)
     if category and category != "Crypto":
         return await _category_market_feed(pool, category)
-    return await _crypto_market_feed(pool)
+    assets = (
+        _sanitize_selected_assets(preset_row["selected_assets"] if preset_row else None)
+        or list(_DEFAULT_CRYPTO_SHORT_ASSETS)
+    )
+    return await _crypto_market_feed(pool, assets)
 
 
 def _tp_sl_price(entry: float, side: str, pct, *, is_tp: bool) -> Optional[float]:
