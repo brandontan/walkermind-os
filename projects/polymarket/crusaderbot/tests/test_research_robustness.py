@@ -8,12 +8,13 @@ Hermetic — no DB, no network.
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from projects.polymarket.crusaderbot.domain.research import monte_carlo as MC
 from projects.polymarket.crusaderbot.domain.research import robustness as RB
+from projects.polymarket.crusaderbot.domain.research.robustness import run_job
 from projects.polymarket.crusaderbot.domain.research.monte_carlo import MCResult, simulate
 from projects.polymarket.crusaderbot.domain.research.robustness import (
     Classification,
@@ -202,3 +203,27 @@ def test_live_eligible_failsoft_allows():
     with _patch(conn):
         ok, reason = asyncio.run(live_eligible("m"))
     assert ok is True and reason == "gate_read_failed_allow"
+
+
+# ── scheduled refresh job (2c-1b) ─────────────────────────────────────────
+def test_run_job_classifies_each_standard_profile():
+    mock = AsyncMock(return_value=[])
+    with patch.object(RB, "classify_modules", mock):
+        asyncio.run(run_job())
+    profiles = {c.kwargs["risk_profile"] for c in mock.await_args_list}
+    assert profiles == {"conservative", "balanced", "aggressive"}
+    assert all(c.kwargs["mode"] == "paper" for c in mock.await_args_list)
+
+
+def test_run_job_failsoft_one_profile_does_not_abort_rest():
+    calls: list[str] = []
+
+    async def _flaky(*, risk_profile, mode):
+        calls.append(risk_profile)
+        if risk_profile == "balanced":
+            raise RuntimeError("boom")
+        return []
+
+    with patch.object(RB, "classify_modules", _flaky):
+        asyncio.run(run_job())  # must not raise
+    assert calls == ["conservative", "balanced", "aggressive"]

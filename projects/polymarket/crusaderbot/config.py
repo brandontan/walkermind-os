@@ -144,6 +144,12 @@ class Settings(BaseSettings):
     # append-only telemetry, fail-soft, no effect on trading. Apply migration 080.
     SCAN_SNAPSHOT_ENABLED: bool = False
 
+    # Phase-2c-1b: when true, the scheduler runs the Monte Carlo robustness
+    # classifier periodically (module_robustness table). Default OFF; pure
+    # read-side analytics, fail-soft, no effect on trading. Apply migration 079.
+    ROBUSTNESS_CLASSIFY_ENABLED: bool = False
+    ROBUSTNESS_CLASSIFY_INTERVAL_SEC: int = 3600  # hourly refresh
+
     # --- Complete-set arbitrage (WARP/ROOT/complete-set-arb epic) ---
     # Master kill switch for the complete-set arb scan + booking path. Default
     # OFF — even with the code wired (Lane 2C), nothing scans or books a set
@@ -871,6 +877,18 @@ class Settings(BaseSettings):
                 f"FAST_TOPUP_COOLDOWN_SECONDS must be > 0 (got {v}); "
                 f"zero cooldown would let the same (user, market) "
                 f"spin top-ups indefinitely."
+            )
+        return v
+
+    @field_validator("ROBUSTNESS_CLASSIFY_INTERVAL_SEC")
+    @classmethod
+    def validate_robustness_classify_interval(cls, v: int) -> int:
+        # APScheduler raises ValueError at boot for a non-positive interval, so
+        # reject it here with a clear message instead of crashing the process.
+        if v <= 0:
+            raise ValueError(
+                f"ROBUSTNESS_CLASSIFY_INTERVAL_SEC must be > 0 (got {v}); "
+                f"a non-positive interval is invalid for the scheduler."
             )
         return v
 
