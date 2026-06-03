@@ -24,7 +24,7 @@ from telegram.ext import (
 )
 
 from ...database import get_pool
-from ...domain.preset import Preset, get_preset, list_presets
+from ...domain.preset import Preset, get_preset, is_activatable, list_presets
 from ...domain.preset.presets import capital_for_risk_profile
 from ...users import (
     get_settings_for, set_auto_trade, set_paused, update_settings, upsert_user,
@@ -397,6 +397,11 @@ async def _on_pick(update: Update, preset_key: str) -> None:
     if p is None:
         await _reply(update, "❌ Unknown preset.")
         return
+    # Stale inline button for a registered-but-not-yet-activatable preset
+    # (e.g. playbook before Phase-2 dispatch) — don't offer activation.
+    if not is_activatable(preset_key):
+        await _reply(update, "🔜 That strategy isn't available yet. Coming soon.")
+        return
     text = _preset_confirm_text(p)
     kb = preset_confirm(p.key)
     q = update.callback_query
@@ -418,6 +423,11 @@ async def _on_activate(update: Update, ctx: ContextTypes.DEFAULT_TYPE,
     p = get_preset(preset_key)
     if p is None:
         await _reply(update, "❌ Unknown preset.")
+        return
+    # Registered-but-not-yet-activatable preset (live dispatch not wired) — refuse
+    # so a stale button can't persist a no-op active_preset. (Codex P2, PR #1570.)
+    if not is_activatable(preset_key):
+        await _reply(update, "🔜 That strategy isn't available yet. Coming soon.")
         return
     s = await get_settings_for(user["id"])
     # Live mode requires the existing 2FA-gated dashboard activation flow.

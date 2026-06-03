@@ -6,13 +6,14 @@ risk gate constants in domain/risk/constants.py remain the hard ceiling;
 preset values may only restrict downward.
 """
 from .presets import (
-    CANDLE_PRESET_KEYS, PRESETS, PRESET_ORDER, RECOMMENDED_PRESET,
+    CANDLE_PRESET_KEYS, HIDDEN_PRESETS, PRESETS, PRESET_ORDER, RECOMMENDED_PRESET,
     VISIBLE_PRESET_ORDER, Preset, PresetBadge,
-    get_preset, list_all_presets, list_presets,
+    get_preset, is_activatable, list_all_presets, list_presets,
 )
 
 __all__ = [
     "CANDLE_PRESET_KEYS",
+    "HIDDEN_PRESETS",
     "PRESETS",
     "PRESET_ORDER",
     "RECOMMENDED_PRESET",
@@ -20,6 +21,7 @@ __all__ = [
     "Preset",
     "PresetBadge",
     "get_preset",
+    "is_activatable",
     "list_all_presets",
     "list_presets",
 ]
