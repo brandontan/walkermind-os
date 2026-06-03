@@ -215,6 +215,23 @@ def _crypto_row(asset: str, price: float = 0.6) -> dict:
     }
 
 
+def test_crypto_feed_has_freshness_guard():
+    # The crypto feed must drop rows the scan hasn't refreshed recently so a
+    # stalled sync shows "awaiting" instead of a frozen snapshot (looks fake).
+    conn = _Conn("candle_auto", [], assets=["BTC"])
+    with _patch(conn):
+        asyncio.run(r.get_market_feed(_user()))
+    assert any("synced_at > now() - interval" in q for q in conn.queries)
+
+
+def test_weather_feed_has_freshness_guard():
+    # The weather feed is DB-backed too — same staleness guard applies.
+    conn = _Conn("weather_monitor", [])
+    with _patch(conn):
+        asyncio.run(r.get_market_feed(_user()))
+    assert any("synced_at > now() - interval" in q for q in conn.queries)
+
+
 def test_crypto_feed_scopes_to_selected_assets():
     # User picked BTC/ETH/SOL → ANY($1) param is exactly their lowercased set.
     conn = _Conn("candle_auto", [], assets=["BTC", "ETH", "SOL"])
