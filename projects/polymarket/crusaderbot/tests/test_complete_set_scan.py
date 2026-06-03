@@ -167,25 +167,118 @@ def test_gate_rejection_blocks_booking():
     assert booker.calls == []
 
 
-def test_live_decision_is_skipped_not_executed():
-    booker = _Booker()
+class _LiveBooker:
+    def __init__(self, status: str = "open") -> None:
+        self.calls: list[dict] = []
+        self._status = status
+
+    async def __call__(self, **kw: Any) -> dict:
+        self.calls.append(kw)
+        return {"status": self._status, "mode": "live"}
+
+
+def _approve_live(_ctx: GateContext) -> Any:
+    async def _inner() -> GateResult:
+        return GateResult(True, "approved", None, _ctx.proposed_size_usdc, "live")
+    return _inner()
+
+
+def test_live_decision_routes_to_live_booker():
+    booker = _Booker()  # paper booker — must NOT be called
+    live = _LiveBooker(status="open")
 
     async def fetch(token_id: str) -> dict:
         return _arb_book(0.45, 100.0)
 
-    def approve_live(_ctx: GateContext) -> Any:
+    res = _run(css.scan_complete_set_for_user(
+        _row(role="admin", trading_mode="live"), [_market()], settings=_settings(),
+        book_fetcher=fetch, gate_evaluate=_approve_live,
+        booker=booker, live_booker=live, balance_reader=_balance,
+    ))
+    assert res.booked == 1
+    assert res.rejected == 0
+    assert booker.calls == []  # paper primitive untouched on a live decision
+    assert len(live.calls) == 1
+    call = live.calls[0]
+    # the live booker needs role/trading_mode/both books that the paper one omits
+    assert call["role"] == "admin"
+    assert call["trading_mode"] == "live"
+    assert call["yes_book"] is not None and call["no_book"] is not None
+    assert call["quote"].market_id == "MKT-1"
+    assert call["idempotency_key"].endswith(":MKT-1")
+    assert call["active_preset"] == "close_sweep"
+
+
+def test_live_no_fill_books_nothing():
+    live = _LiveBooker(status="no_fill")  # clean YES kill — zero exposure
+
+    async def fetch(token_id: str) -> dict:
+        return _arb_book(0.45, 100.0)
+
+    res = _run(css.scan_complete_set_for_user(
+        _row(trading_mode="live"), [_market()], settings=_settings(),
+        book_fetcher=fetch, gate_evaluate=_approve_live,
+        live_booker=live, balance_reader=_balance,
+    ))
+    assert res.booked == 0  # nothing persisted
+    assert res.rejected == 0
+    assert res.errors == 0
+    assert len(live.calls) == 1
+
+
+def test_live_naked_halt_counts_as_booked():
+    live = _LiveBooker(status="naked_halt")  # naked leg persisted force-exitable
+
+    async def fetch(token_id: str) -> dict:
+        return _arb_book(0.45, 100.0)
+
+    res = _run(css.scan_complete_set_for_user(
+        _row(trading_mode="live"), [_market()], settings=_settings(),
+        book_fetcher=fetch, gate_evaluate=_approve_live,
+        live_booker=live, balance_reader=_balance,
+    ))
+    assert res.booked == 1  # a position row exists (even though the bot halted)
+    assert len(live.calls) == 1
+
+
+def test_live_booker_raise_isolated_to_market():
+    # An ambiguous post-submit raises LivePostSubmitError (booker already halted +
+    # paged); the per-market handler isolates it as an error, not a crash.
+    async def fetch(token_id: str) -> dict:
+        return _arb_book(0.45, 100.0)
+
+    async def raising_live(**_kw: Any) -> dict:
+        raise RuntimeError("ambiguous post-submit halt")
+
+    res = _run(css.scan_complete_set_for_user(
+        _row(trading_mode="live"), [_market()], settings=_settings(),
+        book_fetcher=fetch, gate_evaluate=_approve_live,
+        live_booker=raising_live, balance_reader=_balance,
+    ))
+    assert res.booked == 0
+    assert res.errors == 1
+
+
+def test_unknown_chosen_mode_skipped_not_executed():
+    booker = _Booker()
+    live = _LiveBooker()
+
+    async def fetch(token_id: str) -> dict:
+        return _arb_book(0.45, 100.0)
+
+    def approve_weird(_ctx: GateContext) -> Any:
         async def _inner() -> GateResult:
-            return GateResult(True, "approved", None, _ctx.proposed_size_usdc, "live")
+            return GateResult(True, "approved", None, _ctx.proposed_size_usdc, "shadow")
         return _inner()
 
     res = _run(css.scan_complete_set_for_user(
         _row(), [_market()], settings=_settings(),
-        book_fetcher=fetch, gate_evaluate=approve_live,
-        booker=booker, balance_reader=_balance,
+        book_fetcher=fetch, gate_evaluate=approve_weird,
+        booker=booker, live_booker=live, balance_reader=_balance,
     ))
     assert res.booked == 0
     assert res.rejected == 1
-    assert booker.calls == []
+    assert booker.calls == [] and live.calls == []
 
 
 def test_capital_too_small_returns_early():

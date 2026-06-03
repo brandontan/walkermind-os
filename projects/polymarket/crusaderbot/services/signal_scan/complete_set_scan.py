@@ -1,17 +1,18 @@
-"""Complete-set arbitrage — scan + PAPER booking wiring (Lane 2C-2b).
+"""Complete-set arbitrage — scan + PAPER/LIVE booking wiring (Lane 3C-1).
 
 This is the runtime activation of the complete-set-arb epic: it joins the Lane 1
-detector (``fillable_complete_set``) to the Lane 2B booking primitive
-(``book_complete_set_paper``) through the risk gate, for one enrolled user per
-call. ``services.signal_scan.signal_scan_job.run_once`` invokes it, gated behind
-``COMPLETE_SET_ARB_ENABLED`` (default OFF), so nothing scans or books a set until
-the operator flips the flag.
+detector (``fillable_complete_set``) to the booking primitives
+(``book_complete_set_paper`` / ``book_complete_set_live``) through the risk gate,
+for one enrolled user per call. ``services.signal_scan.signal_scan_job.run_once``
+invokes it, gated behind ``COMPLETE_SET_ARB_ENABLED`` (default OFF), so nothing
+scans or books a set until the operator flips the flag.
 
 Pipeline (per candidate market):
 
     DATA (both order books) -> SIGNAL (fillable_complete_set, capital-bounded)
         -> [live-quote log] -> RISK (gate, complete_set=True, once on combined
-        cost) -> EXECUTION (book_complete_set_paper, PAPER only)
+        cost) -> EXECUTION (book_complete_set_paper for chosen_mode=="paper",
+        book_complete_set_live for "live")
 
 Why a dedicated path (not ``_process_candidate``): the normal pipeline books a
 single directional leg via the trade engine. A complete set is a hedged YES+NO
@@ -27,8 +28,10 @@ Safety posture:
   * Quote size is bounded up front by the per-position Kelly cap (``max_shares``),
     and the gate re-checks it as a hard reject (``complete_set`` path in step 13),
     so a sizing drift is caught, never silently shrunk.
-  * PAPER only. LIVE is the separate owner-gated Lane 3; an unexpected
-    ``chosen_mode != "paper"`` is skipped here rather than executed.
+  * The gate's ``chosen_mode`` decides the booker: "paper" -> paper primitive,
+    "live" -> ``book_complete_set_live`` (which re-asserts all 5 LIVE activation
+    guards itself, so the live branch is inert until the operator flips them ON);
+    any other value is skipped, never executed.
   * Every fillable quote is logged BEFORE any capital — observability of the rare,
     UNMEASURED edge is the primary deliverable of the dormant phase.
 """
@@ -42,7 +45,10 @@ from uuid import UUID
 
 import structlog
 
-from ...domain.execution.complete_set_exec import book_complete_set_paper
+from ...domain.execution.complete_set_exec import (
+    book_complete_set_live,
+    book_complete_set_paper,
+)
 from ...domain.risk import constants as K
 from ...domain.risk.gate import GateContext, GateResult
 from ...domain.risk.gate import evaluate as _gate_evaluate
@@ -90,6 +96,7 @@ async def scan_complete_set_for_user(
     book_fetcher: BookFetcher = _default_book_fetcher,
     gate_evaluate: GateEvaluator = _gate_evaluate,
     booker: Booker = book_complete_set_paper,
+    live_booker: Booker = book_complete_set_live,
     balance_reader: BalanceReader = get_balance,
 ) -> CompleteSetScanResult:
     """Detect + PAPER-book complete-set arbs for one user over ``markets``.
@@ -232,32 +239,62 @@ async def scan_complete_set_for_user(
                 )
                 continue
 
-            # PAPER only. LIVE is the owner-gated Lane 3 and is not wired here;
-            # an unexpected live decision is skipped, never executed.
-            if gate_res.chosen_mode != "paper":
+            # The gate's chosen_mode selects the booker. The live primitive
+            # re-asserts all 5 LIVE activation guards internally, so this branch
+            # is inert until the operator flips them ON; any other mode is skipped.
+            if gate_res.chosen_mode == "paper":
+                await booker(
+                    user_id=user_id,
+                    telegram_user_id=int(row["telegram_user_id"]),
+                    quote=quote,
+                    market_question=question,
+                    idempotency_key=idem,
+                    active_preset=row.get("active_preset"),
+                )
+                res.booked += 1
+                ulog.info(
+                    "complete_set_booked",
+                    mode="paper",
+                    market_id=market_id,
+                    total_cost_usdc=round(quote.total_cost_usdc, 4),
+                    fillable_shares=round(quote.fillable_shares, 4),
+                )
+            elif gate_res.chosen_mode == "live":
+                # An ambiguous post-submit raises (the booker has already halted +
+                # paged); the per-market handler below isolates it from the batch.
+                live_res = await live_booker(
+                    user_id=user_id,
+                    telegram_user_id=int(row["telegram_user_id"]),
+                    role=str(row.get("role") or "user"),
+                    trading_mode=trading_mode,
+                    quote=quote,
+                    market_question=question,
+                    idempotency_key=idem,
+                    yes_book=yes_book,
+                    no_book=no_book,
+                    active_preset=row.get("active_preset"),
+                )
+                status = str((live_res or {}).get("status", "unknown"))
+                # Count only outcomes that persisted a position: "open" (both legs
+                # filled) and "naked_halt" (naked leg persisted force-exitable).
+                # "no_fill"/"unwound"/"duplicate"/"skipped" booked nothing.
+                if status in ("open", "naked_halt"):
+                    res.booked += 1
+                ulog.info(
+                    "complete_set_live_result",
+                    market_id=market_id,
+                    status=status,
+                    total_cost_usdc=round(quote.total_cost_usdc, 4),
+                    fillable_shares=round(quote.fillable_shares, 4),
+                )
+            else:
                 ulog.warning(
-                    "complete_set_live_not_wired_skipping",
+                    "complete_set_unknown_mode_skipping",
                     market_id=market_id,
                     chosen_mode=gate_res.chosen_mode,
                 )
                 res.rejected += 1
                 continue
-
-            await booker(
-                user_id=user_id,
-                telegram_user_id=int(row["telegram_user_id"]),
-                quote=quote,
-                market_question=question,
-                idempotency_key=idem,
-                active_preset=row.get("active_preset"),
-            )
-            res.booked += 1
-            ulog.info(
-                "complete_set_booked",
-                market_id=market_id,
-                total_cost_usdc=round(quote.total_cost_usdc, 4),
-                fillable_shares=round(quote.fillable_shares, 4),
-            )
         except Exception as exc:  # noqa: BLE001 — isolate one bad market from the batch
             res.errors += 1
             ulog.error(
