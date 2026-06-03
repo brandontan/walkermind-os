@@ -171,6 +171,53 @@ def _suggested_size_usdc(user_context: UserContext) -> float:
     return round(min(size, ceiling), 2) if ceiling else round(size, 2)
 
 
+def sports_market_id(market: dict) -> str:
+    """The condition_id used as the markets.id PK (what _load_market looks up).
+
+    market_sync stores ``condition_id`` AS ``markets.id``, so a Playbook
+    candidate's ``market_id`` MUST be the conditionId or it skips as not-synced.
+    """
+    return str(market.get("conditionId") or market.get("condition_id") or market.get("id") or "")
+
+
+def select_sports_markets_in_window(
+    markets: object, now: datetime | None = None
+) -> list[tuple[dict, str, str, float]]:
+    """Return ``(market, market_id, category, seconds_to_event)`` for sports
+    markets inside the pre-event snapshot window, nearest-event first.
+
+    Shared by the strategy (snapshot assembly) and the scan job (market upsert)
+    so both agree on exactly which markets are tradeable this scan. Tolerant of
+    malformed payloads (non-list / non-dict entries are skipped).
+    """
+    if not markets or not isinstance(markets, list):
+        return []
+    _now = now or datetime.now(timezone.utc)
+    out: list[tuple[dict, str, str, float]] = []
+    for m in markets:
+        if not isinstance(m, dict):
+            continue
+        category = str(m.get("category") or "")
+        if not _is_sports_category(category):
+            continue
+        market_id = sports_market_id(m)
+        if not market_id:
+            continue
+        start = _parse_iso(
+            m.get("gameStartTime")
+            or m.get("game_start_time")
+            or m.get("endDate")
+            or m.get("end_date_iso")
+        )
+        if start is None:
+            continue
+        ttl = (start - _now).total_seconds()
+        if 0.0 < ttl <= _SNAPSHOT_TTL_CAP_SEC:
+            out.append((m, market_id, category, ttl))
+    out.sort(key=lambda t: t[3])
+    return out
+
+
 class PlaybookStrategy(BaseStrategy):
     """Autonomous sports-market orchestration router.
 
@@ -237,42 +284,14 @@ class PlaybookStrategy(BaseStrategy):
             log.warning("playbook: sports market fetch failed: %s", exc)
             return []
 
-        if not markets or not isinstance(markets, list):
-            return []
-
-        now = datetime.now(timezone.utc)
+        # Sports markets inside the pre-event window, nearest-first (shared with
+        # the scan-job upsert so candidate market_ids resolve in _load_market).
+        # market_id is the conditionId (== markets.id PK). (Codex P1, PR #1572.)
         blacklist = set(market_filters.blacklisted_market_ids or [])
-        # Pre-filter to sports markets inside the close window, nearest-first, so
-        # the orderbook-fetch budget covers the markets that can actually route.
-        prelim: list[tuple[dict, str, str, float]] = []
-        for m in markets:
-            if not isinstance(m, dict):
-                continue
-            category = str(m.get("category") or "")
-            if not _is_sports_category(category):
-                continue
-            # market_id MUST be the condition_id: market_sync stores condition_id
-            # AS the markets.id PK, and _process_candidate -> _load_market looks up
-            # WHERE id=$1. Emitting the Gamma `id` here would never match, so every
-            # candidate would skip as not-synced. (Codex P1, PR #1572.)
-            market_id = str(m.get("conditionId") or m.get("condition_id") or m.get("id") or "")
-            if not market_id or market_id in blacklist:
-                continue
-            start = _parse_iso(
-                m.get("gameStartTime")
-                or m.get("game_start_time")
-                or m.get("endDate")
-                or m.get("end_date_iso")
-            )
-            if start is None:
-                continue
-            ttl = (start - now).total_seconds()
-            if not (0.0 < ttl <= _SNAPSHOT_TTL_CAP_SEC):
-                continue
-            prelim.append((m, market_id, category, ttl))
-
-        prelim.sort(key=lambda t: t[3])
-        prelim = prelim[:_MAX_SPORTS_MARKETS_PER_SCAN]
+        prelim = [
+            t for t in select_sports_markets_in_window(markets)
+            if t[1] not in blacklist
+        ][:_MAX_SPORTS_MARKETS_PER_SCAN]
 
         size = _suggested_size_usdc(user_context)
         snapshots: list[MarketSnapshot] = []

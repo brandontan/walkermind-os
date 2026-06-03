@@ -461,3 +461,23 @@ def test_playbook_scan_tolerates_malformed_markets(monkeypatch):
 
     monkeypatch.setattr(pm, "get_events_with_markets", junk_events)
     assert asyncio.run(s.scan(mf, _user())) == []
+
+
+def test_select_sports_markets_in_window():
+    from datetime import datetime, timedelta, timezone
+
+    from projects.polymarket.crusaderbot.domain.strategy.strategies import playbook as pbs
+
+    now = datetime(2026, 6, 3, 0, 0, 0, tzinfo=timezone.utc)
+    markets = [
+        {"conditionId": "a", "category": "nfl", "gameStartTime": (now + timedelta(minutes=20)).isoformat()},
+        {"conditionId": "b", "category": "nba", "gameStartTime": (now + timedelta(minutes=5)).isoformat()},
+        {"conditionId": "c", "category": "nhl", "gameStartTime": (now + timedelta(hours=12)).isoformat()},  # out of window
+        {"conditionId": "d", "category": "crypto", "gameStartTime": (now + timedelta(minutes=10)).isoformat()},  # not sports
+        "junk",
+        None,
+    ]
+    out = pbs.select_sports_markets_in_window(markets, now=now)
+    assert [t[1] for t in out] == ["b", "a"]  # nearest-event first, sports + in-window only
+    assert pbs.select_sports_markets_in_window(None) == []
+    assert pbs.sports_market_id({"conditionId": "x", "id": "y"}) == "x"
