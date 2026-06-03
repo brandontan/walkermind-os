@@ -97,7 +97,7 @@ async def _fetch_mark_price(token_id: Optional[str]) -> Optional[float]:
     return best_bid if best_bid is not None else best_ask
 
 
-def _unrealized_pnl(side: str, entry: float, mark: float, size: float) -> tuple[float, float]:
+def _unrealized_pnl(side: str, entry: float, mark: float | None, size: float) -> tuple[float, float]:
     """Return (pnl_usdc, pnl_pct).
 
     Side-own price frame: ``entry`` and ``mark`` are the position's OWN
@@ -107,7 +107,9 @@ def _unrealized_pnl(side: str, entry: float, mark: float, size: float) -> tuple[
     YES unchanged; corrected NO frame — WARP/ROOT/no-side-pnl-frame.
     Pct uses ``size`` (USDC notional) as the denominator.
     """
-    if entry <= 0:
+    # The caller already shows "price unavailable" for a None mark; this guard
+    # keeps the helper crash-safe for any other caller (mark - entry would raise).
+    if mark is None or entry <= 0:
         return 0.0, 0.0
     shares = size / entry
     pnl = (mark - entry) * shares
