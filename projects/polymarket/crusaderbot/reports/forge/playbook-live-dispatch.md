@@ -90,6 +90,13 @@ Created:
 - `fair_price` relies on the Gamma consensus price; if Gamma lags badly the edge
   estimate inherits that lag. Acceptable for paper; a model/consensus feed is V2.
 - Live external feeds (2d/2e) need owner-provisioned API keys + network allowlist.
+- Booking a Playbook candidate requires the sports market to be present in the
+  `markets` table (keyed by `condition_id` as `markets.id`). Sync is via the
+  category-agnostic, volume-gated `market_sync` job (Heisenberg agent 574,
+  min_volume 50k) — most major sports markets qualify, but thin/niche sports
+  markets not covered there will `skip as not-synced`. A dedicated sports market
+  sync/upsert is a candidate follow-up if coverage proves insufficient. Candidate
+  `market_id` is emitted as the `conditionId` to match this key (Codex P1, #1572).
 
 ## 6. What is next
 

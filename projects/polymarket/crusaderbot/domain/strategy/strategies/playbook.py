@@ -251,7 +251,11 @@ class PlaybookStrategy(BaseStrategy):
             category = str(m.get("category") or "")
             if not _is_sports_category(category):
                 continue
-            market_id = str(m.get("id") or m.get("conditionId") or "")
+            # market_id MUST be the condition_id: market_sync stores condition_id
+            # AS the markets.id PK, and _process_candidate -> _load_market looks up
+            # WHERE id=$1. Emitting the Gamma `id` here would never match, so every
+            # candidate would skip as not-synced. (Codex P1, PR #1572.)
+            market_id = str(m.get("conditionId") or m.get("condition_id") or m.get("id") or "")
             if not market_id or market_id in blacklist:
                 continue
             start = _parse_iso(

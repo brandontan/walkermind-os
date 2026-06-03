@@ -385,7 +385,8 @@ def test_playbook_scan_builds_candidates_from_mocked_feed(monkeypatch):
     mf = MarketFilters(categories=[], min_liquidity=0.0, max_time_to_resolution_days=7, blacklisted_market_ids=[])
     cands = asyncio.run(s.scan(mf, _user()))
     assert len(cands) == 1
-    assert cands[0].market_id == "m1"
+    # market_id is the conditionId (matches markets.id PK that _load_market reads).
+    assert cands[0].market_id == "cond1"
     assert cands[0].side == "YES"
     assert cands[0].metadata["selected_module"] == "closing_edge"
     assert cands[0].suggested_size_usdc > 0
