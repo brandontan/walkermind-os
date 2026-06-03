@@ -195,6 +195,6 @@ Blueprint: docs/blueprint/playbook.md. Linear: WARP-53.
   - [ ] 2c-2 per-scan book/price snapshot persistence (walk-forward substrate)
   - [ ] 2c-1b wire live_eligible into gate behind ROBUSTNESS_GATE_ENABLED + scheduled classify_modules refresh
   - [ ] 2c-3 walk-forward replay engine (consumes 2c-2 data; §12.1 metrics + bias detection)
-- [ ] Phase 2d — Injury Alpha module + injury/news feed adapter
-- [ ] Phase 2e — Public Fade module + public-flow feed adapter
+- [x] Phase 2d — Injury Alpha module + injury/news feed adapter (WARP/ROOT/playbook-feed-adapters) — InjuryAlphaModule full claim logic (injury_present ∧ TTL>1h ∧ repriced<50% ∧ conf≥0.20 → side from signed news_injury_reading; TP0.30/SL0.15) + EspnInjuryFeed (free public endpoint, no key) behind the SportsFeed Protocol; PLAYBOOK_INJURY_FEED_ENABLED (default OFF). Paper-only; MAJOR → SENTINEL.
+- [x] Phase 2e — Public Fade module + public-flow feed adapter (WARP/ROOT/playbook-feed-adapters) — PublicFadeModule full claim logic (public_pct≥0.65 ∧ overreaction≥0.10 vs market-implied ∧ TTL>30min → fade to opposite side) + public_flow_reading + OddsApiFeed soft-vs-sharp public-lean proxy + no-vig consensus model prob (free tier, ODDS_API_KEY env-only); PLAYBOOK_PUBLIC_FEED_ENABLED (default OFF). build_sports_feed → NullFeed until a market→FeedTarget resolver is supplied. Paper-only; MAJOR → SENTINEL.
 - [ ] Phase 3 — Line Momentum + Liquidity Hunt + CLOB WebSocket + Monte-Carlo robustness classifier

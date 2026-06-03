@@ -18,9 +18,11 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from datetime import datetime, timezone
 
 from ...playbook.correlation import cluster_key
+from ...playbook.feeds import InjuryEvent, NullFeed, PublicFlow, SportsFeed
 from ...playbook.market_quality import evaluate_market_quality
 from ...playbook.modules import MarketSnapshot
 from ...playbook.router import PlaybookRouter
@@ -255,8 +257,17 @@ class PlaybookStrategy(BaseStrategy):
         "custom",
     ]
 
-    def __init__(self, router: PlaybookRouter | None = None) -> None:
+    def __init__(
+        self,
+        router: PlaybookRouter | None = None,
+        feed: SportsFeed | None = None,
+    ) -> None:
         self._router = router if router is not None else PlaybookRouter()
+        # External sports feed (Phase-2d/2e). Defaults to NullFeed → no network,
+        # injury/public readings stay neutral, Injury Alpha + Public Fade abstain,
+        # so the registry-constructed strategy behaves exactly as Phase-2b until an
+        # operator injects a resolver-backed feed (feeds_http.build_sports_feed).
+        self._feed: SportsFeed = feed if feed is not None else NullFeed()
 
     def default_tp_sl(self) -> tuple[float, float]:
         """Balanced-profile defaults; per-module TP/SL overrides via metadata."""
@@ -352,6 +363,9 @@ class PlaybookStrategy(BaseStrategy):
             # Native sharp-money flow attached only for the far band (near-band
             # markets are <24h, so Sharp Money abstains and they keep 0.0).
             sharp_signed, sharp_total = far_flows.get(condition_id, (0.0, 0.0))
+            # External injury/public-flow feed inputs (Phase-2d/2e). NullFeed →
+            # empty dict → MarketSnapshot defaults → both modules abstain.
+            feed_inputs = await self._feed_inputs(condition_id)
             snapshots.append(
                 MarketSnapshot(
                     market_id=market_id,
@@ -369,9 +383,44 @@ class PlaybookStrategy(BaseStrategy):
                     ),
                     sharp_signed_usdc=sharp_signed,
                     sharp_total_flow_usdc=sharp_total,
+                    **feed_inputs,
                 )
             )
         return snapshots
+
+    async def _feed_inputs(self, market_id: str) -> dict[str, object]:
+        """External injury/public-flow ``MarketSnapshot`` kwargs for one market.
+
+        Each lookup is fail-soft: any feed error (or the default ``NullFeed``)
+        yields a neutral input so Injury Alpha / Public Fade abstain. Never raises
+        into the scan loop. Returns only the keys that carry a live signal so an
+        inactive feed leaves every ``MarketSnapshot`` default untouched.
+        """
+        inputs: dict[str, object] = {}
+        try:
+            injury: InjuryEvent | None = await self._feed.get_injury_event(market_id)
+        except Exception as exc:  # noqa: BLE001 — fail-soft per market
+            log.warning("playbook: injury feed failed for %s: %s", market_id, exc)
+            injury = None
+        if injury is not None and injury.severity > 0.0:
+            inputs.update(
+                injury_present=True,
+                injury_severity=float(injury.severity),
+                injury_detected_age_sec=max(0.0, time.time() - float(injury.detected_ts_epoch)),
+                injury_repriced_fraction=float(injury.repriced_fraction),
+                injury_yes_favored=bool(injury.yes_favored),
+            )
+        try:
+            public: PublicFlow | None = await self._feed.get_public_flow(market_id)
+        except Exception as exc:  # noqa: BLE001 — fail-soft per market
+            log.warning("playbook: public feed failed for %s: %s", market_id, exc)
+            public = None
+        if public is not None and str(public.side or "").upper() in ("YES", "NO"):
+            inputs.update(
+                public_pct_on_side=float(public.public_pct_on_side),
+                public_side=str(public.side).upper(),
+            )
+        return inputs
 
     def evaluate_snapshot(
         self,
@@ -414,6 +463,13 @@ class PlaybookStrategy(BaseStrategy):
             sell_flow_usdc=0.0,
             sharp_signed_usdc=snapshot.sharp_signed_usdc,
             total_flow_usdc=snapshot.sharp_total_flow_usdc,
+            injury_present=snapshot.injury_present,
+            injury_severity=snapshot.injury_severity,
+            injury_detected_age_sec=snapshot.injury_detected_age_sec,
+            injury_repriced_fraction=snapshot.injury_repriced_fraction,
+            injury_yes_favored=snapshot.injury_yes_favored,
+            public_pct_on_side=snapshot.public_pct_on_side,
+            public_side=snapshot.public_side,
         )
 
         result = self._router.route(snapshot, bundle)
