@@ -42,6 +42,8 @@ from ..oracle import (
     get_price_to_beat,
     sigma_for_asset,
 )
+from ...signal.factors import FactorVector, realized_candle_outcome
+from ...signal.momentum import get_tracker as get_momentum_tracker
 from ..types import ExitDecision, MarketFilters, SignalCandidate, UserContext
 
 log = structlog.get_logger(__name__)
@@ -152,6 +154,20 @@ def _asset_base_from_slug(slug: str) -> Optional[str]:
     return head or None
 
 
+def _timeframe_from_slug(slug: str) -> Optional[str]:
+    """Extract the timeframe token from ``{coin}-updown-{tf}-{slot}`` (``"5m"``).
+
+    Returns ``None`` for a non-candle slug. Used to label the factor-vector
+    dataset per (asset, timeframe) and to derive the candle close epoch.
+    """
+    if not slug or "-updown-" not in slug:
+        return None
+    parts = slug.rsplit("-", 2)
+    if len(parts) == 3 and parts[1] in _TF_STEP_SECONDS:
+        return parts[1]
+    return None
+
+
 def _observe_oracle_edge(
     edge_cfg: "OracleEdgeConfig | None",
     *,
@@ -245,6 +261,164 @@ def _observe_oracle_edge(
 # slug ({coin}-updown-{tf}-{slot}) when the market dict carries no end date.
 _TF_STEP_SECONDS: dict[str, int] = {"5m": 300, "15m": 900}
 
+
+# --- WARP-72 Phase 1: SMART STRIKE factor vector (SHADOW telemetry) -----------
+# Assembles + emits the full 7-factor scorable surface + realized open->close
+# label for EVERY evaluated candle (traded or not), decoupled from execution —
+# the same clean, fail-soft, non-blocking contract as the oracle advisory. This
+# is the labeled dataset the Phase-2 scorer derives weights from. NOTHING here
+# selects, sizes, gates, or blocks a trade. Default ON (pure telemetry); the
+# operator can disable via FACTOR_VECTOR_SHADOW_ENABLED.
+_FACTOR_VECTOR_DEFAULT_ON: bool = True
+
+
+def _factor_vector_enabled() -> bool:
+    try:
+        return bool(
+            getattr(get_settings(), "FACTOR_VECTOR_SHADOW_ENABLED", _FACTOR_VECTOR_DEFAULT_ON)
+        )
+    except Exception:
+        return _FACTOR_VECTOR_DEFAULT_ON
+
+
+def _observe_factor_vector(
+    *,
+    market: dict[str, Any],
+    slug: str,
+    evaluated_rule: Optional[str],
+    seconds_left: float,
+    yes_ask: float,
+    no_ask: float,
+    yes_bid: float | None,
+    no_bid: float | None,
+    clob_liquidity: float,
+    spread: float,
+    complete_set_edge: float,
+    ask_diff: float,
+    fav_side: str,
+    fav_price: float,
+    underdog_mode: bool,
+    sigma_map: Optional[Mapping[str, float]],
+    edge_meta: dict[str, Any],
+    now_ts: float,
+) -> dict[str, Any]:
+    """Build + emit the factor vector for one evaluated candle. Returns metadata.
+
+    SHADOW/telemetry ONLY. Records the momentum sample, reads the rolling repricing
+    velocity, exposes the per-asset volatility sigma, folds in the advisory oracle
+    edge + the realized open->close label, emits the labeled-dataset log, and
+    returns ``factor_*`` metadata to ride on the candidate / position. Fully
+    fail-soft — NEVER blocks, sizes, selects, or raises.
+    """
+    if not _factor_vector_enabled():
+        return {}
+    try:
+        condition_id = str(
+            market.get("conditionId") or market.get("condition_id") or market.get("conditionID") or ""
+        )
+        asset = _asset_base_from_slug(slug)
+        timeframe = _timeframe_from_slug(slug)
+
+        # 1. MOMENTUM — record the YES mid (side-stable repricing reference) and
+        #    read the rolling short-window velocity. None until >=2 samples land.
+        #    Only record when yes_bid is available: falling back to yes_ask would
+        #    mix ask-prices into a mid-price series and inject artificial jumps
+        #    that degrade the velocity (a Phase-2 scorer factor). A bid-less candle
+        #    still reads momentum from prior clean samples (no pollution).
+        tracker = get_momentum_tracker()
+        mkt_key = condition_id or slug
+        if yes_bid is not None:
+            tracker.record(mkt_key, (yes_bid + yes_ask) / 2.0, now=now_ts)
+        mom = tracker.momentum(mkt_key, now=now_ts)
+
+        # 2. VOLATILITY — expose the per-asset sigma (was oracle-advisory-only).
+        if sigma_map is None:
+            try:
+                sigma_map = get_settings().oracle_sigma_per_sqrt_sec
+            except Exception:
+                sigma_map = None
+        sigma: Optional[float] = None
+        if asset:
+            try:
+                sigma = sigma_for_asset(asset, sigma_map)
+            except Exception:
+                sigma = None
+
+        # 3-6. LIQUIDITY / SPREAD / DEPTH / TTL already computed by the caller —
+        #       just expose them on the unified scorable surface (depth shares the
+        #       CLOB book-depth source as liquidity, per the WARP-71 audit).
+
+        # 7. ORACLE — reuse the advisory observation (kept as-is). Realized label:
+        #    oracle_price_to_beat = candle open, oracle_price = now (near the close
+        #    window this is the de-facto settlement on the same Chainlink source
+        #    the market resolves against).
+        oracle_edge: Optional[float] = None
+        ed_up = edge_meta.get("oracle_edge_up")
+        ed_dn = edge_meta.get("oracle_edge_down")
+        if ed_up is not None and ed_dn is not None:
+            oracle_edge = max(float(ed_up), float(ed_dn))
+        open_price = edge_meta.get("oracle_price_to_beat")
+        ref_price = edge_meta.get("oracle_price")
+        realized_outcome, realized_delta = realized_candle_outcome(open_price, ref_price)
+        outcome_source = "oracle_open_to_now" if realized_outcome is not None else None
+
+        open_epoch = _candle_open_epoch(market, slug)
+        close_epoch: Optional[float] = None
+        if open_epoch is not None and timeframe in _TF_STEP_SECONDS:
+            close_epoch = open_epoch + float(_TF_STEP_SECONDS[timeframe])
+
+        # Candidate-shape context (telemetry copy of the entry side/price; the
+        # real entry gates below are untouched).
+        if underdog_mode:
+            entry_side = "NO" if fav_side == "YES" else "YES"
+            entry_price = min(yes_ask, no_ask)
+        else:
+            entry_side = fav_side
+            entry_price = fav_price
+
+        fv = FactorVector(
+            market_id=condition_id,
+            condition_id=condition_id,
+            slug=slug,
+            asset=asset,
+            timeframe=timeframe,
+            evaluated_rule=evaluated_rule,
+            momentum=mom.velocity if mom else None,
+            momentum_delta=mom.delta if mom else None,
+            momentum_span_sec=mom.span_sec if mom else None,
+            momentum_samples=mom.samples if mom else None,
+            volatility_sigma=sigma,
+            liquidity_usdc=clob_liquidity,
+            spread=spread,
+            orderbook_depth_usdc=clob_liquidity,
+            ttl_sec=seconds_left,
+            oracle_edge=oracle_edge,
+            oracle_edge_status=edge_meta.get("oracle_edge_status"),
+            oracle_would_pass=edge_meta.get("oracle_edge_would_pass"),
+            oracle_delta=edge_meta.get("oracle_delta"),
+            fav_side=fav_side,
+            entry_side=entry_side,
+            fav_price=fav_price,
+            entry_price=entry_price,
+            ask_diff=ask_diff,
+            complete_set_edge=complete_set_edge,
+            underdog_mode=underdog_mode,
+            realized_outcome=realized_outcome,
+            realized_delta=realized_delta,
+            outcome_source=outcome_source,
+            outcome_observed_rem_sec=seconds_left,
+            candle_open_epoch=open_epoch,
+            candle_close_epoch=close_epoch,
+        )
+        fv.emit()
+        return fv.to_metadata()
+    except Exception as exc:  # telemetry must never break a scan
+        log.warning(
+            "factor_vector observation failed (shadow, non-blocking)",
+            slug=slug, err=str(exc),
+        )
+        return {}
+
 # Suggested-size envelope (the gate re-sizes downward via Kelly + caps).
 _SUGGESTED_SIZE_FRACTION: float = 0.04
 _SUGGESTED_SIZE_MIN_USDC: float = 1.0
@@ -335,6 +509,7 @@ class LateEntryV3Strategy(BaseStrategy):
         max_leg_spread: float | None = None,
         size_time_decay: bool = False,
         edge_cfg: "OracleEdgeConfig | None" = None,
+        evaluated_rule: str | None = None,
     ) -> list[SignalCandidate]:
         """Emit one candidate per in-window crypto candle market.
 
@@ -425,6 +600,7 @@ class LateEntryV3Strategy(BaseStrategy):
                     max_leg_spread=max_leg_spread,
                     size_time_decay=size_time_decay,
                     edge_cfg=edge_cfg,
+                    evaluated_rule=evaluated_rule,
                 )
             except Exception as exc:
                 log.debug("late_entry_v3 scan: skip market", err=str(exc))
@@ -660,6 +836,7 @@ async def _evaluate_market(
     max_leg_spread: float | None = None,
     size_time_decay: bool = False,
     edge_cfg: "OracleEdgeConfig | None" = None,
+    evaluated_rule: str | None = None,
 ) -> tuple[SignalCandidate | None, str | None]:
     """Return (candidate, None) on success or (None, reject_reason) on any gate failure.
 
@@ -797,6 +974,41 @@ async def _evaluate_market(
     fav_side = "YES" if yes_ask > no_ask else "NO"
     fav_price = max(yes_ask, no_ask)
 
+    # WARP-72 Phase 1 (SHADOW): compute the advisory oracle edge HERE so it — and
+    # the full factor vector + realized open->close label — are emitted for EVERY
+    # evaluated candle (traded or not), decoupled from execution, the same clean
+    # source as the oracle advisory. Both observations are pure / fail-soft and
+    # change no gate, no selection, no sizing. The directional gates below are
+    # untouched; a candidate rejected by them still produced its dataset row.
+    edge_meta = _observe_oracle_edge(
+        edge_cfg,
+        market=m,
+        slug=slug,
+        seconds_left=seconds_left,
+        yes_ask=yes_ask,
+        no_ask=no_ask,
+    )
+    factor_meta = _observe_factor_vector(
+        market=m,
+        slug=slug,
+        evaluated_rule=evaluated_rule,
+        seconds_left=seconds_left,
+        yes_ask=yes_ask,
+        no_ask=no_ask,
+        yes_bid=yes_bid,
+        no_bid=no_bid,
+        clob_liquidity=clob_liquidity,
+        spread=spread,
+        complete_set_edge=complete_set_edge,
+        ask_diff=ask_diff,
+        fav_side=fav_side,
+        fav_price=fav_price,
+        underdog_mode=underdog_mode,
+        sigma_map=(edge_cfg.sigma_map if edge_cfg is not None else None),
+        edge_meta=edge_meta,
+        now_ts=now_ts,
+    )
+
     if ask_diff < min_ask_diff:
         log.debug(
             "late_entry_v3 skip low_ask_diff",
@@ -864,18 +1076,11 @@ async def _evaluate_market(
     # reject the candidate when scan->fill latency exceeds TOB_STALE_MS.
     entry_price_ts = datetime.now(timezone.utc).timestamp()
 
-    # WARP-64 Chunk 3 (ADVISORY): compute + log + stamp the oracle fair-value/edge
-    # for this would-trade candidate. Observability only — never changes the
-    # candidate or any gate (the candidate has already passed all existing gates).
-    edge_meta = _observe_oracle_edge(
-        edge_cfg,
-        market=m,
-        slug=slug,
-        seconds_left=seconds_left,
-        yes_ask=yes_ask,
-        no_ask=no_ask,
-    )
-
+    # WARP-64 Chunk 3 (ADVISORY) oracle fair-value/edge + WARP-72 factor vector are
+    # computed earlier (before the directional gates) so they emit for every
+    # evaluated candle; ``edge_meta`` / ``factor_meta`` are stamped here onto the
+    # surviving candidate. Observability only — never changes the candidate or any
+    # gate (the candidate has already passed all existing gates).
     return SignalCandidate(
         market_id=market_id,
         condition_id=condition_id,
@@ -919,6 +1124,8 @@ async def _evaluate_market(
             ),
             # WARP-64 Chunk 3 advisory oracle-edge fields (empty when off/unavailable).
             **edge_meta,
+            # WARP-72 Phase 1 factor vector (factor_* keys; empty when disabled).
+            **factor_meta,
         },
         reasoning=(
             f"Late entry {entry_side} ({'underdog' if underdog_mode else 'favored'}) "
