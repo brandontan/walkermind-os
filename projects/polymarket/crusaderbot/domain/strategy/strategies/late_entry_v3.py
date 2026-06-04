@@ -124,11 +124,17 @@ def _candle_open_epoch(market: dict[str, Any], slug: str) -> Optional[float]:
         epoch = float(raw)
         return epoch if 1_600_000_000.0 <= epoch <= 2_000_000_000.0 else None
     if isinstance(raw, str):
+        s = raw.strip()
         try:
-            iso = raw.strip().replace("Z", "+00:00")
-            return datetime.fromisoformat(iso).timestamp()
+            return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
         except (ValueError, TypeError):
+            pass
+        # Defensive: a stringified epoch (e.g. "1780550700") is not ISO.
+        try:
+            epoch = float(s)
+        except (TypeError, ValueError):
             return None
+        return epoch if 1_600_000_000.0 <= epoch <= 2_000_000_000.0 else None
     return None
 
 

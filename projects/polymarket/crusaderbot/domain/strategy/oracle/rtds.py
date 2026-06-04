@@ -64,6 +64,38 @@ _HISTORY_MAXLEN = 4000
 # so the open tick sits within ~1 s of the open epoch. Beyond this -> honest miss
 # (a far/stale tick is never substituted for the true open).
 _DEFAULT_PTB_TOLERANCE_SEC = 2.0
+# Plausible epoch bands (~2020..2033) used to sanity-check and unit-normalize the
+# Chainlink report timestamp before it seeds the history ring. A wrong-scale or
+# garbage timestamp must NEVER reach the ring: the ring is time-pruned off the
+# newest tick's own ts (cutoff = ts - window), so a far-future garbage value would
+# evict every legitimate tick. Seconds are normalized to ms; anything outside both
+# bands is dropped (the tick still updates the live cache, just not the history).
+_TS_MIN_SEC = 1_600_000_000.0
+_TS_MAX_SEC = 2_000_000_000.0
+_TS_MIN_MS = 1_600_000_000_000.0
+_TS_MAX_MS = 2_000_000_000_000.0
+
+
+def _normalize_ts_ms(raw: Any) -> Optional[float]:
+    """Coerce a frame timestamp to milliseconds within a sane epoch band, else None.
+
+    Accepts ms directly, normalizes a seconds-scale value to ms, and rejects
+    NaN/inf/non-numeric/out-of-band values so the history ring's prune anchor can
+    never be corrupted by a bad timestamp.
+    """
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if v != v or v in (float("inf"), float("-inf")):  # NaN / inf
+        return None
+    if _TS_MIN_SEC <= v <= _TS_MAX_SEC:  # seconds -> ms
+        v *= 1000.0
+    if _TS_MIN_MS <= v <= _TS_MAX_MS:
+        return v
+    return None
 
 
 class OracleError(RuntimeError):
@@ -436,17 +468,14 @@ class PolymarketRTDSOracle:
             return None
         if price != price or price <= 0 or price in (float("inf"),):  # NaN/inf/<=0
             return None
-        # Chainlink report time (ms) for the history ring; tolerate absence.
+        # Chainlink report time for the history ring — sanity-checked and
+        # normalized to ms (a wrong-scale/garbage ts must never reach the ring,
+        # whose prune anchor it would corrupt). Absence is tolerated (ts -> None;
+        # the live cache still updates, only the candle-open lookup is unseeded).
         raw_ts = payload.get("timestamp")
         if raw_ts is None:
             raw_ts = msg.get("timestamp")
-        ts_ms: Optional[float]
-        try:
-            ts_ms = float(raw_ts) if raw_ts is not None and not isinstance(raw_ts, bool) else None
-        except (TypeError, ValueError):
-            ts_ms = None
-        if ts_ms is not None and ts_ms != ts_ms:  # NaN guard
-            ts_ms = None
+        ts_ms = _normalize_ts_ms(raw_ts)
         return symbol, price, ts_ms
 
 

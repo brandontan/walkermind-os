@@ -125,9 +125,12 @@ def test_candle_open_epoch_from_slug_and_event_start():
     # Non-candle slug -> fall back to an explicit eventStartTime (ISO or epoch).
     assert _candle_open_epoch({"eventStartTime": "2026-06-04T05:25:00Z"}, "x") == pytest.approx(1780550700.0)
     assert _candle_open_epoch({"event_start_time": 1780550700}, "x") == pytest.approx(1780550700.0)
+    # Stringified epoch (not ISO) -> defensively parsed as a float epoch.
+    assert _candle_open_epoch({"eventStartTime": "1780550700"}, "x") == pytest.approx(1780550700.0)
     # Nothing usable -> None (stays no_price_to_beat, never a bogus instant).
     assert _candle_open_epoch({}, "some-random-market") is None
     assert _candle_open_epoch({"eventStartTime": "not-a-date"}, "x") is None
+    assert _candle_open_epoch({"eventStartTime": "999"}, "x") is None  # out-of-band epoch
 
 
 _MKT_NO_PTB = {"slug": "btc-updown-5m-1780550700"}  # no price-to-beat field at all

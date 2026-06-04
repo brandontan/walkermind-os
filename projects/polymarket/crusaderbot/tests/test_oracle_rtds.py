@@ -109,6 +109,20 @@ def test_parse_tick_all_three_symbols():
     assert oracle._parse_tick({"symbol": "sol", "p": 168.25}) == ("sol/usd", 168.25, None)
 
 
+def test_parse_tick_normalizes_and_sanity_bounds_timestamp():
+    # ms passes through; seconds normalize to ms; garbage/out-of-band -> None
+    # (history not seeded, so a bad ts can't corrupt the ring's prune anchor).
+    oracle = _oracle(_FakeWS([]))
+    base = {"symbol": "btc/usd", "value": 1.0}
+    assert oracle._parse_tick({"payload": {**base, "timestamp": 1780550700000}})[2] == 1780550700000.0
+    assert oracle._parse_tick({"payload": {**base, "timestamp": 1780550700}})[2] == 1780550700000.0
+    assert oracle._parse_tick({"payload": {**base, "timestamp": 42}})[2] is None        # too small
+    assert oracle._parse_tick({"payload": {**base, "timestamp": 9.9e12}})[2] is None     # too large
+    assert oracle._parse_tick({"payload": {**base, "timestamp": "x"}})[2] is None        # non-numeric
+    assert oracle._parse_tick({"payload": {**base, "timestamp": float("nan")}})[2] is None
+    assert oracle._parse_tick({"payload": base})[2] is None                              # absent
+
+
 def test_parse_tick_rejects_unconfigured_and_bad_price():
     oracle = _oracle(_FakeWS([]))
     assert oracle._parse_tick({"payload": {"symbol": "doge/usd", "value": 0.4}}) is None
@@ -247,17 +261,20 @@ async def test_price_at_none_before_any_tick_or_off_map():
 @pytest.mark.asyncio
 async def test_history_window_prunes_stale_ticks():
     # A 5s window: an old tick is evicted once a much newer tick arrives.
+    # Timestamps must be in the sane epoch-ms band (~2020..2033).
+    old_epoch = 1_780_550_700           # 05:25:00Z
+    new_epoch = old_epoch + 1_000       # 1000s later
     ws = _FakeWS([
-        _frame("btc/usd", 100.0, ts_ms=1_000),       # epoch 1s
-        _frame("btc/usd", 200.0, ts_ms=1_000_000),   # epoch 1000s (way later)
+        _frame("btc/usd", 100.0, ts_ms=old_epoch * 1000),
+        _frame("btc/usd", 200.0, ts_ms=new_epoch * 1000),
     ])
     oracle = _oracle(ws, history_window_sec=5.0)
     await oracle.start()
     assert await oracle.wait_connected(timeout=2.0)
     for _ in range(20):
         await asyncio.sleep(0)
-    assert oracle.price_at("btc", 1, tolerance_sec=2.0) is None     # pruned out
-    assert oracle.price_at("btc", 1000, tolerance_sec=2.0) == pytest.approx(200.0)
+    assert oracle.price_at("btc", old_epoch, tolerance_sec=2.0) is None      # pruned out
+    assert oracle.price_at("btc", new_epoch, tolerance_sec=2.0) == pytest.approx(200.0)
     await oracle.stop()
 
 
