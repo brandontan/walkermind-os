@@ -371,6 +371,36 @@ class Settings(BaseSettings):
     PRESET_FLIP_HUNTER_15M_MAX_REM_SEC: float = 180.0
     PRESET_FLIP_HUNTER_15M_FORCE_EXIT_REM_SEC: float = 0.0  # Mode A: hold to settlement (0=no exit)
     MARKET_SIGNAL_SCAN_INTERVAL: int = 60
+
+    # --- Multi-asset oracle fair-value calculator (WARP-61 Chunk 2 / WARP-63) ---
+    # Per-asset realized-vol scale for the candle fair-value model, expressed as
+    # the asset's log-return volatility per sqrt(second):
+    #   z = delta / (sigma * sqrt(time_left)).
+    # sigma is PER ASSET because realized vol differs materially (SOL > ETH > BTC);
+    # a single shared sigma would misprice fair value on the higher-vol assets.
+    # Each default = annualized_vol / sqrt(31_557_600 s/yr); tune via env per regime.
+    #   BTC 0.00010 ~= 56% annualized (0.00010 * sqrt(31_557_600) ~= 0.562)
+    #   ETH 0.00013 ~= 73% annualized (ETH realized vol historically above BTC)
+    #   SOL 0.00020 ~= 112% annualized (SOL the most volatile of the three)
+    ORACLE_BTC_SIGMA_PER_SQRT_SEC: float = 0.00010  # env: ORACLE_BTC_SIGMA_PER_SQRT_SEC
+    ORACLE_ETH_SIGMA_PER_SQRT_SEC: float = 0.00013  # env: ORACLE_ETH_SIGMA_PER_SQRT_SEC
+    ORACLE_SOL_SIGMA_PER_SQRT_SEC: float = 0.00020  # env: ORACLE_SOL_SIGMA_PER_SQRT_SEC
+
+    @property
+    def oracle_sigma_per_sqrt_sec(self) -> dict[str, float]:
+        """Per-asset sigma map {btc, eth, sol} consumed by the fair-value calc.
+
+        Keys are lowercase asset symbols, matching ``sigma_for_asset`` in
+        ``domain/strategy/oracle/fair_value.py``. The calculator stays pure —
+        the strategy layer (Chunk 3) passes this map in; the calculator never
+        reads Settings itself.
+        """
+        return {
+            "btc": self.ORACLE_BTC_SIGMA_PER_SQRT_SEC,
+            "eth": self.ORACLE_ETH_SIGMA_PER_SQRT_SEC,
+            "sol": self.ORACLE_SOL_SIGMA_PER_SQRT_SEC,
+        }
+
     # --- Signal scanner thresholds (demo path edge_finder) ---
     # Market eligibility price range: excludes near-resolved markets and
     # extreme longshots / near-certainties where momentum edge is unreliable.
