@@ -43,7 +43,10 @@ _INFRA_DEGRADED_FRAGMENTS = (
 
 
 def _is_infra_degraded(reason: str) -> bool:
-    return any(frag in (reason or "") for frag in _INFRA_DEGRADED_FRAGMENTS)
+    # Case-insensitive so a wording/casing tweak to the live.py message does not
+    # silently drop an infra failure into the deliberate-fallback bucket.
+    reason_lower = (reason or "").lower()
+    return any(frag.lower() in reason_lower for frag in _INFRA_DEGRADED_FRAGMENTS)
 
 
 async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,

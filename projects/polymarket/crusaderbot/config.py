@@ -744,6 +744,31 @@ class Settings(BaseSettings):
     ORDER_DRIFT_DETECT_ENABLED: bool = True
     ORDER_DRIFT_INTERVAL_SEC: int = 600
 
+    @field_validator("LIVE_RECONCILE_INTERVAL_SEC", "ORDER_DRIFT_INTERVAL_SEC")
+    @classmethod
+    def validate_live_reconcile_intervals(cls, v: int) -> int:
+        # Scheduler cadences — APScheduler requires strictly positive seconds, so a
+        # 0/negative misconfig would crash setup. Fail fast at config load.
+        if v <= 0:
+            raise ValueError(
+                f"live-reconcile / drift scheduler interval must be > 0 (got {v})."
+            )
+        return v
+
+    @field_validator(
+        "LIVE_RECONCILE_STALE_SEC", "LIVE_CLOSING_STALE_SEC",
+        "LIVE_RECONCILE_FILLS_WINDOW_SEC",
+    )
+    @classmethod
+    def validate_live_reconcile_windows(cls, v: int) -> int:
+        # Staleness / lookback windows feed SQL interval math, never APScheduler;
+        # 0 is meaningful (reconcile immediately), negative is not.
+        if v < 0:
+            raise ValueError(
+                f"live-reconcile stale/window seconds must be >= 0 (got {v})."
+            )
+        return v
+
     # --- TOB freshness gate (WARP/R00T/tob-freshness-gate) ---
     # Max age in milliseconds for the orderbook snapshot that produced
     # a candidate's metadata["entry_price"]. Read by

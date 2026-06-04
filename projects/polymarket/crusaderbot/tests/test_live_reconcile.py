@@ -195,7 +195,9 @@ async def test_unique_resting_order_is_adopted(monkeypatch, _rec) -> None:
     conn = _Conn(scan_rows=[_unknown_row()], tracked_rows=[],
                  market_row={"yes_token_id": "TOK", "no_token_id": "TOKNO"})
     pool = _wire_pool(monkeypatch, conn)
-    clob = _Clob(open_orders=[{"asset_id": "TOK", "orderID": "B1"}])
+    # Matching size (50/0.5 = 100 shares) + price -> adopt.
+    clob = _Clob(open_orders=[{"asset_id": "TOK", "orderID": "B1",
+                               "price": "0.5", "size": "100"}])
     res = await lr.reconcile_live_orders(
         pool=pool, clob_factory=lambda s: clob, settings=_settings())
     assert res["adopted"] == 1
@@ -203,6 +205,20 @@ async def test_unique_resting_order_is_adopted(monkeypatch, _rec) -> None:
                ((q, str(a)) for q, a in conn.executed))
     assert any(k["action"] == "live_reconcile_adopted" for k in _rec["audit"])
     assert clob.closed
+
+
+async def test_resting_order_size_price_mismatch_pages(monkeypatch, _rec) -> None:
+    # A lone untracked resting order on the token but at a very different price ->
+    # likely an unrelated order -> page, never adopt.
+    conn = _Conn(scan_rows=[_unknown_row()], tracked_rows=[],
+                 market_row={"yes_token_id": "TOK", "no_token_id": "TOKNO"})
+    pool = _wire_pool(monkeypatch, conn)
+    clob = _Clob(open_orders=[{"asset_id": "TOK", "orderID": "B1",
+                               "price": "0.9", "size": "55"}])
+    res = await lr.reconcile_live_orders(
+        pool=pool, clob_factory=lambda s: clob, settings=_settings())
+    assert res["paged"] == 1 and res["adopted"] == 0
+    assert any("size_price_mismatch" in str(a) for _q, a in conn.executed)
 
 
 async def test_multiple_untracked_resting_halts(monkeypatch, _rec) -> None:
@@ -277,14 +293,28 @@ async def test_closing_killed_rolls_back(monkeypatch, _rec) -> None:
     assert not _rec["credit"]
 
 
-async def test_closing_non_terminal_stays_pending(monkeypatch, _rec) -> None:
+async def test_closing_killed_partial_fill_pages(monkeypatch, _rec) -> None:
+    # Terminal KILLED but partially filled -> never finalize the whole position
+    # (would strand the unsold remainder) -> page for manual reconcile.
     conn = _Conn(closing_rows=[_closing_row()])
     pool = _wire_pool(monkeypatch, conn)
-    clob = _Clob(order={"status": "delayed"}, fills=[])
+    clob = _Clob(order={"status": "unmatched"}, fills=[{"size": "40", "price": "0.55"}])
     res = await lr.reconcile_closing_positions(
         pool=pool, clob_factory=lambda s: clob, settings=_settings())
-    assert res["pending"] == 1
-    assert _rec["page"]
+    assert res["paged_partial_close"] == 1
+    assert res["closed"] == 0 and res["rolled_back"] == 0
+    assert not _rec["credit"] and _rec["page"]
+
+
+async def test_closing_non_terminal_stays_pending(monkeypatch, _rec) -> None:
+    # Non-terminal WITH a partial fill in flight must NOT be finalized.
+    conn = _Conn(closing_rows=[_closing_row()])
+    pool = _wire_pool(monkeypatch, conn)
+    clob = _Clob(order={"status": "delayed"}, fills=[{"size": "30", "price": "0.55"}])
+    res = await lr.reconcile_closing_positions(
+        pool=pool, clob_factory=lambda s: clob, settings=_settings())
+    assert res["pending"] == 1 and res["closed"] == 0
+    assert not _rec["credit"] and _rec["page"]
 
 
 async def test_closing_without_order_id_pages(monkeypatch, _rec) -> None:

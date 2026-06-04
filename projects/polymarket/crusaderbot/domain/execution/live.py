@@ -488,6 +488,7 @@ async def close_position(
         (sell_result or {}).get("orderID")
         or (sell_result or {}).get("order_id")
         or (sell_result or {}).get("id")
+        or (sell_result or {}).get("orderId")
         or ""
     )
     if close_order_id:

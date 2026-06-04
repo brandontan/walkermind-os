@@ -68,6 +68,16 @@ _DIRECTIONAL_PREFIXES = ("late_entry_v3", "signal_following", "copy_trade")
 # Broker order dicts spell the outcome token under several historical key names.
 _TOKEN_KEYS = ("asset_id", "token_id", "tokenID", "asset", "tokenId")
 _BROKER_ID_KEYS = ("orderID", "order_id", "id", "orderId")
+_SIZE_KEYS = ("original_size", "originalSize", "size", "size_matched", "sizeMatched")
+
+# Adoption guard tolerances. A lone untracked resting order on the token is only
+# OUR orphan if its price and size plausibly match the 'unknown' order — otherwise
+# it may be an unrelated user/manual order on the same token. The resting price
+# can sit a couple of ticks off our stored signal price (live.execute crosses the
+# spread with an aggressive +1-tick limit), so the price band is deliberately
+# loose; the share count is the strong discriminator.
+_ADOPT_PRICE_TOL = 0.03     # ~3 ticks absolute (outcome-token price ∈ (0,1))
+_ADOPT_SIZE_TOL = 0.05      # 5% share-count tolerance
 
 
 def _order_token(o: dict[str, Any]) -> str:
@@ -84,6 +94,50 @@ def _order_broker_id(o: dict[str, Any]) -> str:
         if v:
             return str(v)
     return ""
+
+
+def _order_size_price(o: dict[str, Any]) -> tuple[float, float]:
+    size = 0.0
+    for k in _SIZE_KEYS:
+        v = o.get(k)
+        if v:
+            try:
+                size = float(v)
+                break
+            except (TypeError, ValueError):
+                continue
+    try:
+        price = float(o.get("price") or 0.0)
+    except (TypeError, ValueError):
+        price = 0.0
+    return size, price
+
+
+def _order_matches(b_order: dict[str, Any], order: dict) -> bool:
+    """True only if a broker resting order plausibly IS the 'unknown' order.
+
+    Price is the unit-unambiguous, mandatory discriminator (outcome-token price in
+    (0,1)). Size is best-effort: brokers report shares either raw OR in 1e6
+    fixed-math, so a match under EITHER interpretation counts; an unreadable size
+    falls back to the price + exact-token + lone-untracked signal. Getting the
+    units wrong can only REJECT (→ page), never wrongly adopt.
+    """
+    try:
+        exp_price = float(order.get("price") or 0.0)
+        exp_size = float(order.get("size_usdc") or 0.0) / max(exp_price, 1e-4)
+    except (TypeError, ValueError):
+        return False
+    if exp_price <= 0.0 or exp_size <= 0.0:
+        return False
+    b_size, b_price = _order_size_price(b_order)
+    if not (b_price > 0.0 and abs(b_price - exp_price) <= _ADOPT_PRICE_TOL):
+        return False
+    if b_size <= 0.0:
+        return True  # price + token + lone-untracked is already specific
+    for scaled in (b_size, b_size / 1_000_000.0):
+        if abs(scaled - exp_size) / max(exp_size, 1e-6) <= _ADOPT_SIZE_TOL:
+            return True
+    return False
 
 
 async def _page_operator(text: str) -> None:
@@ -209,7 +263,20 @@ async def _reconcile_one_unknown(
                  if _order_broker_id(o) and _order_broker_id(o) not in tracked_ids]
 
     if len(untracked) == 1:
-        broker_id = _order_broker_id(untracked[0])
+        b_order = untracked[0]
+        if not _order_matches(b_order, order):
+            # A lone untracked resting order on the token whose size/price does NOT
+            # match ours — likely an unrelated user/manual order, not our orphan.
+            # Never adopt it; page for a manual reconcile.
+            await _page_operator(
+                f"⚠️ <b>LIVE RECONCILE — size/price mismatch</b>\n"
+                f"Unknown order <code>{order_id}</code> market=<code>{market_id}</code>: "
+                f"the lone untracked resting order on the token does not match our "
+                f"size/price — NOT adopting. Reconcile manually."
+            )
+            await _mark_order_paged(order_id, "size_price_mismatch")
+            return "paged"
+        broker_id = _order_broker_id(b_order)
         await _adopt_order(order_id, broker_id)
         await audit.write(actor_role="bot", action="live_reconcile_adopted",
                           user_id=order.get("user_id"),
@@ -395,8 +462,21 @@ async def _reconcile_one_closing(
     filled_size, fill_cost = _fills_cost(fills)
     size_usdc = Decimal(str(position["size_usdc"]))
 
-    if st == FILL_FILLED or filled_size > 0.0:
-        # SELL executed. Proceeds = USDC received from selling the shares.
+    # Only act on a TERMINAL broker state. A non-terminal close — EVEN one that is
+    # partially filled in flight — must NOT be finalized: booking a full close
+    # while shares are still resting/matching on-chain would strand the unsold
+    # remainder and mis-credit the ledger. Leave 'closing'; the next sweep
+    # re-checks once the order settles.
+    if st not in (FILL_FILLED, FILL_KILLED):
+        await _page_operator(
+            f"⚠️ <b>LIVE RECONCILE — close in flight</b>\n"
+            f"Position <code>{pos_id}</code> close order <code>{close_order_id}</code> "
+            f"still non-terminal ({broker.get('status')!r}); monitoring."
+        )
+        return "pending"
+
+    if st == FILL_FILLED:
+        # SELL fully executed. Proceeds = USDC received from selling the shares.
         proceeds = (Decimal(str(fill_cost)) if fill_cost > 0.0
                     else size_usdc * _ret_factor(position))
         exit_price = (round(fill_cost / filled_size, 6) if filled_size > 0.0
@@ -415,24 +495,28 @@ async def _reconcile_one_closing(
             log.info("live_reconcile_closed", position_id=str(pos_id), pnl=str(pnl))
         return "closed"
 
-    if st == FILL_KILLED and filled_size <= 0.0:
-        # SELL definitively did NOT execute -> safe to re-open for a clean retry.
-        await _rollback_closing(position)
-        await audit.write(actor_role="bot", action="live_reconcile_close_rolled_back",
-                          user_id=position["user_id"],
-                          payload={"position_id": str(pos_id),
-                                   "close_order_id": close_order_id})
-        log.info("live_reconcile_close_rolled_back", position_id=str(pos_id))
-        return "rolled_back"
+    # st == FILL_KILLED from here.
+    if filled_size > 0.0:
+        # Terminal KILLED but PARTIALLY filled — some shares sold, the rest
+        # cancelled. Finalizing the whole position would strand the unsold
+        # remainder untracked, so never auto-resolve: page for a manual reconcile.
+        await _page_operator(
+            f"⚠️ <b>LIVE RECONCILE — PARTIAL CLOSE KILLED</b>\n"
+            f"Position <code>{pos_id}</code> close order <code>{close_order_id}</code> "
+            f"KILLED after a partial fill of {filled_size} shares — reconcile "
+            f"manually to avoid untracked on-chain exposure."
+        )
+        return "paged_partial_close"
 
-    # Still resting / non-terminal -> the SELL may yet fill. Leave 'closing'; the
-    # next sweep re-checks. Page so the operator is aware it is in flight.
-    await _page_operator(
-        f"⚠️ <b>LIVE RECONCILE — close in flight</b>\n"
-        f"Position <code>{pos_id}</code> close order <code>{close_order_id}</code> "
-        f"still non-terminal ({broker.get('status')!r}); monitoring."
-    )
-    return "pending"
+    # Terminal KILLED with ZERO fills -> the SELL definitively did NOT execute ->
+    # safe to re-open for a clean exit-watcher retry.
+    await _rollback_closing(position)
+    await audit.write(actor_role="bot", action="live_reconcile_close_rolled_back",
+                      user_id=position["user_id"],
+                      payload={"position_id": str(pos_id),
+                               "close_order_id": close_order_id})
+    log.info("live_reconcile_close_rolled_back", position_id=str(pos_id))
+    return "rolled_back"
 
 
 def _ret_factor(position: dict) -> Decimal:
@@ -465,7 +549,7 @@ async def reconcile_closing_positions(
     pool = pool or get_pool()
     stale_sec = max(0, int(getattr(s, "LIVE_CLOSING_STALE_SEC", 120) or 0))
     out = {"scanned": 0, "closed": 0, "rolled_back": 0, "pending": 0,
-           "paged_no_id": 0, "error": 0}
+           "paged_partial_close": 0, "paged_no_id": 0, "error": 0}
 
     try:
         async with pool.acquire() as conn:
