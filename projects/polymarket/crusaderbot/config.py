@@ -176,25 +176,25 @@ class Settings(BaseSettings):
     # flag (LIVE additionally behind the existing activation guards, Lane 3).
     COMPLETE_SET_ARB_ENABLED: bool = False
 
-    # --- Chainlink BTC/USD oracle (WARP-62, candle edge engine foundation) ---
+    # --- Multi-asset crypto oracle (WARP-62, candle edge engine foundation) ---
     # Foundation knobs for the candle oracle layer. Default OFF — even with the
-    # client code present, the runtime entrypoint
-    # (domain.strategy.oracle.get_btc_price) refuses to read until the operator
-    # sets ORACLE_ENABLED=true. Chunk 1 is the data client only; fair-value calc
-    # and late_entry_v3 wiring land in later chunks (no trading effect yet).
-    # Credentials are read from .env only and NEVER logged. The BTC/USD feed ID
-    # is the Chainlink Data Streams crypto (v3) stream the candle markets resolve
-    # against (data.chain.link/streams/btc-usd); operator may override per
-    # network. Source/timeout are operator-tunable.
+    # client code present, the runtime factory
+    # (domain.strategy.oracle.oracle_from_settings) refuses to construct until
+    # the operator sets ORACLE_ENABLED=true. Chunk 1 is the data client only;
+    # fair-value calc and late_entry_v3 wiring land in later chunks (no trading
+    # effect yet).
+    #
+    # Access path: Polymarket Real-Time Data Stream (RTDS) WebSocket — the SAME
+    # Chainlink price the crypto up/down markets resolve against, so NO separate
+    # Chainlink Data Streams credentials are needed. The oracle is multi-asset,
+    # keyed by symbol: ORACLE_SYMBOLS is a CSV "symbol map" (base/quote pairs)
+    # that the client subscribes to and is extensible to more pairs. SOL/ETH/BTC
+    # all stream from one connection. ORACLE_STALENESS_SEC is the max tick age
+    # before get_price refuses a symbol (returns None, never a stale value).
     ORACLE_ENABLED: bool = False
-    ORACLE_CHAINLINK_API_URL: str = "https://api.dataengine.chain.link"
-    ORACLE_CHAINLINK_BTC_FEED_ID: str = (
-        "0x00037da06d56d083fe599397a4769a042d63aa73dc4ef57709d31e9971a5b439"
-    )
-    ORACLE_TIMEOUT_SEC: float = 5.0
-    # Data Streams API credentials — .env only (parity with POLYMARKET_API_KEY).
-    CHAINLINK_DATASTREAMS_API_KEY: Optional[str] = None
-    CHAINLINK_DATASTREAMS_API_SECRET: Optional[str] = None
+    ORACLE_RTDS_WS_URL: str = "wss://ws-live-data.polymarket.com"
+    ORACLE_SYMBOLS: str = "btc/usd,eth/usd,sol/usd"
+    ORACLE_STALENESS_SEC: float = 10.0
 
     # --- Polymarket (only required for LIVE trading) ---
     POLYMARKET_API_KEY: Optional[str] = None
