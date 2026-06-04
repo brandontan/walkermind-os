@@ -38,11 +38,38 @@ _PRICE_TO_BEAT_KEYS: tuple[str, ...] = (
 # (caller skips) rather than a fabricated baseline.
 _DOLLAR_RE = re.compile(r"\$\s*([-+]?\d+[\d,]*(?:\.\d+)?)")
 
-# Sanity band for a BTC/USD reference. A parsed figure outside this range is
-# almost certainly not the candle open (e.g. a percentage, a year, an id) and is
-# rejected rather than returned as a bogus baseline.
-_MIN_BTC_USD = 1_000.0
-_MAX_BTC_USD = 100_000_000.0
+# Per-asset sanity bands for a USD candle-open reference. A parsed figure outside
+# the band is almost certainly not the candle open (a percentage, a year, an id)
+# and is rejected rather than returned as a bogus baseline. The band is
+# ASSET-AWARE: the oracle is multi-asset (BTC/ETH/SOL...), and a single BTC-scaled
+# band (>= $1,000) silently rejected every SOL reference (~$70) -> permanent
+# no_price_to_beat for SOL. Each band is wide enough to cover realistic price
+# regimes for that asset with margin.
+_ASSET_BANDS: dict[str, tuple[float, float]] = {
+    "btc": (1_000.0, 100_000_000.0),
+    "eth": (10.0, 10_000_000.0),
+    "sol": (0.5, 1_000_000.0),
+}
+# Fallback for any symbol not explicitly mapped: permissive but still finite, so
+# garbage / NaN / inf is rejected while an unknown asset's real level passes.
+_DEFAULT_BAND: tuple[float, float] = (0.0001, 100_000_000.0)
+
+
+def _asset_base_from_slug(slug: Any) -> Optional[str]:
+    """Lowercase base ticker from a candle slug, e.g. ``sol-updown-5m-..`` -> ``sol``.
+
+    Only ``*-updown-*`` candle slugs yield a base; anything else returns ``None``
+    so the permissive default band is used.
+    """
+    if not isinstance(slug, str) or "-updown-" not in slug:
+        return None
+    base = slug.split("-", 1)[0].strip().lower()
+    return base or None
+
+
+def _band_for(market: dict[str, Any]) -> tuple[float, float]:
+    base = _asset_base_from_slug(market.get("slug"))
+    return _ASSET_BANDS.get(base, _DEFAULT_BAND) if base else _DEFAULT_BAND
 
 
 def _coerce_float(value: Any) -> Optional[float]:
@@ -58,33 +85,38 @@ def _coerce_float(value: Any) -> Optional[float]:
     return out
 
 
-def _in_band(value: Optional[float]) -> Optional[float]:
-    """Return value only if it is a plausible BTC/USD level, else None."""
+def _in_band(value: Optional[float], band: tuple[float, float]) -> Optional[float]:
+    """Return value only if it is a plausible USD level for the asset, else None."""
     if value is None:
         return None
-    if _MIN_BTC_USD <= value <= _MAX_BTC_USD:
+    lo, hi = band
+    if lo <= value <= hi:
         return value
     return None
 
 
-def _from_explicit_fields(market: dict[str, Any]) -> Optional[float]:
+def _from_explicit_fields(
+    market: dict[str, Any], band: tuple[float, float]
+) -> Optional[float]:
     for key in _PRICE_TO_BEAT_KEYS:
         if key in market:
-            band = _in_band(_coerce_float(market.get(key)))
-            if band is not None:
-                return band
+            hit = _in_band(_coerce_float(market.get(key)), band)
+            if hit is not None:
+                return hit
     return None
 
 
-def _from_text(market: dict[str, Any]) -> Optional[float]:
+def _from_text(
+    market: dict[str, Any], band: tuple[float, float]
+) -> Optional[float]:
     for key in ("question", "title", "description"):
         text = market.get(key)
         if not isinstance(text, str):
             continue
         for raw in _DOLLAR_RE.findall(text):
-            band = _in_band(_coerce_float(raw))
-            if band is not None:
-                return band
+            hit = _in_band(_coerce_float(raw), band)
+            if hit is not None:
+                return hit
     return None
 
 
@@ -98,9 +130,10 @@ def get_price_to_beat(market: dict[str, Any]) -> Optional[float]:
     """
     if not isinstance(market, dict):
         return None
-    value = _from_explicit_fields(market)
+    band = _band_for(market)
+    value = _from_explicit_fields(market, band)
     if value is None:
-        value = _from_text(market)
+        value = _from_text(market, band)
     if value is None:
         log.debug(
             "price_to_beat not found",

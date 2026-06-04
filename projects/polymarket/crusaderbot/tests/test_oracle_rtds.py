@@ -28,9 +28,13 @@ _SYMBOLS = ["btc/usd", "eth/usd", "sol/usd"]
 
 
 def _frame(symbol: str, value: Any) -> str:
+    # Mirrors the live crypto_prices_chainlink frame shape (verified 2026-06-04).
     return json.dumps(
-        {"topic": "crypto_prices", "type": "update",
-         "payload": {"symbol": symbol, "value": value, "timestamp": 1}}
+        {"topic": "crypto_prices_chainlink", "type": "update",
+         "connection_id": "test",
+         "payload": {"symbol": symbol, "value": value,
+                     "full_accuracy_value": str(int(float(value) * 1e18)),
+                     "timestamp": 1}}
     )
 
 
@@ -161,11 +165,46 @@ async def test_stream_populates_all_symbols_and_subscribes():
     assert oracle.get_price("btc") == pytest.approx(104250.5)
     assert oracle.get_price("eth") == pytest.approx(3850.0)
     assert oracle.get_price("sol") == pytest.approx(168.25)
-    # Subscribe frame was sent for the configured symbols.
+    # Verified live subscribe frame: single Chainlink broadcast subscription,
+    # type "*", string filters "" (server rejects a filters object). Symbols are
+    # scoped client-side, not in the subscribe frame.
     assert ws.sent
     sub = json.loads(ws.sent[0])
-    subbed = {s["symbol"] for s in sub["subscriptions"]}
-    assert subbed == set(_SYMBOLS)
+    assert sub["action"] == "subscribe"
+    assert sub["subscriptions"] == [
+        {"topic": "crypto_prices_chainlink", "type": "*", "filters": ""},
+    ]
+    await oracle.stop()
+
+
+def test_subscribe_frame_matches_verified_chainlink_shape():
+    # Regression: the bug was topic="crypto_prices" (Binance) + type="update" +
+    # top-level per-symbol. Verified live shape is a single Chainlink broadcast.
+    oracle = _oracle(_FakeWS([]))
+    assert oracle._build_subscribe_frame() == {
+        "action": "subscribe",
+        "subscriptions": [
+            {"topic": "crypto_prices_chainlink", "type": "*", "filters": ""},
+        ],
+    }
+
+
+@pytest.mark.asyncio
+async def test_off_map_symbols_are_dropped():
+    # Broadcast subscription receives every symbol; only configured ones land.
+    ws = _FakeWS([
+        _frame("bnb/usd", 612.11),   # off-map -> ignored
+        _frame("doge/usd", 0.09),    # off-map -> ignored
+        _frame("btc/usd", 104250.5),
+    ])
+    oracle = _oracle(ws)
+    await oracle.start()
+    assert await oracle.wait_connected(timeout=2.0)
+    for _ in range(20):
+        await asyncio.sleep(0)
+    assert oracle.get_price("btc") == pytest.approx(104250.5)
+    assert oracle.get_price("bnb") is None
+    assert oracle.get_price("doge") is None
     await oracle.stop()
 
 
@@ -233,7 +272,7 @@ def test_oracle_from_settings_honours_symbol_map(monkeypatch):
 
 
 # ---------------------------------------------------------------------
-# price_to_beat capture (unchanged behaviour)
+# price_to_beat capture (asset-aware sanity band)
 # ---------------------------------------------------------------------
 
 
@@ -243,4 +282,22 @@ def test_price_to_beat_explicit_and_text_and_none():
         {"question": "Will Bitcoin close above $104,250.50 this candle?"}
     ) == pytest.approx(104250.5)
     assert get_price_to_beat({"slug": "btc-updown-5m-1771511700"}) is None
-    assert get_price_to_beat({"priceToBeat": 2.5}) is None  # out of band
+    # A sub-$1k value under a BTC slug is still out of the BTC band.
+    assert get_price_to_beat(
+        {"slug": "btc-updown-5m-1", "priceToBeat": 2.5}
+    ) is None
+
+
+def test_price_to_beat_is_asset_aware_for_sol_and_eth():
+    # Regression: a BTC-only band (>= $1,000) silently rejected every SOL
+    # reference (~$70) -> permanent no_price_to_beat. Asset-aware band accepts it.
+    assert get_price_to_beat(
+        {"slug": "sol-updown-5m-1771511700", "priceToBeat": 70.14}
+    ) == pytest.approx(70.14)
+    assert get_price_to_beat(
+        {"slug": "eth-updown-15m-1771511700", "priceToBeat": 1788.93}
+    ) == pytest.approx(1788.93)
+    # SOL band still rejects an implausible level (e.g. a stray id).
+    assert get_price_to_beat(
+        {"slug": "sol-updown-5m-1", "priceToBeat": 5_000_000.0}
+    ) is None
