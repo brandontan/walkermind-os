@@ -3718,6 +3718,26 @@ async def _scan_one_late_entry(strat, pp, market_filters, user_ctx, preset=None)
     )
 
 
+async def _persist_factor_router_selection(condition_id: str, rule: str | None) -> None:
+    """Stamp the router-selected rule onto the factor_vectors row. Shadow, fail-soft.
+
+    The recorder writes the candle row in ``_evaluate_market`` BEFORE the precedence
+    router picks a winner, so this best-effort UPDATE backfills which rule was
+    actually selected. Gated by FACTOR_DATASET_PERSIST_ENABLED; never blocks a scan.
+    """
+    try:
+        from ...config import get_settings as _gs
+        if not getattr(_gs(), "FACTOR_DATASET_PERSIST_ENABLED", True):
+            return
+    except Exception:
+        return
+    try:
+        from ...domain.research.factor_dataset import mark_router_selection_row
+        await mark_router_selection_row(condition_id, rule)
+    except Exception as exc:  # noqa: BLE001 — shadow telemetry, never break the scan
+        logger.debug("factor_router_persist_skipped", error=str(exc))
+
+
 async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_filters, user_ctx):
     """Resolve preset params and scan late_entry_v3 for a user's active preset.
 
@@ -3757,6 +3777,7 @@ async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_fi
                 # for this market (shadow label; first to claim by dedup wins).
                 # Advisory only — does NOT change selection.
                 mark_router_selection(c.metadata, rule)
+                await _persist_factor_router_selection(c.condition_id, rule)
                 if tp is not None:
                     c.metadata["applied_tp_pct"] = tp
                 if sl is not None:
@@ -3768,7 +3789,55 @@ async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_fi
     # Single-rule preset: the active preset IS the selected rule (no dedup).
     for c in cands:
         mark_router_selection(c.metadata, active_preset)
+        await _persist_factor_router_selection(c.condition_id, active_preset)
     return cands
+
+
+async def run_factor_settlement_backfill() -> None:
+    """Resolve realized open->close labels for closed factor_vectors rows (shadow).
+
+    WARP-72 Phase 2 prep. Scheduled job: reads the oracle ring at each unsettled
+    candle's open + close epoch and writes the settled ``open_to_close`` label so
+    the Phase-2 scorer trains on real outcomes. Pure telemetry — no capital effect.
+    Fully fail-soft; a no-op when persistence is off or the oracle is unavailable.
+    """
+    from ...config import get_settings as _get_settings
+    try:
+        cfg = _get_settings()
+    except Exception:
+        return
+    if not getattr(cfg, "FACTOR_DATASET_PERSIST_ENABLED", True):
+        return
+    try:
+        from ...domain.strategy.oracle import OracleDisabledError
+        try:
+            oracle = await get_candle_oracle()
+        except OracleDisabledError:
+            # No oracle feed -> open/close prices are unavailable; rows stay
+            # unsettled until the operator enables ORACLE_ENABLED (then resolve,
+            # or age out to 'unresolved' past the ring window).
+            return
+    except Exception as exc:  # noqa: BLE001 — never break the scheduler tick
+        logger.warning("factor_settlement_oracle_unavailable", error=str(exc))
+        return
+
+    tol = float(getattr(cfg, "ORACLE_PTB_TOLERANCE_SEC", 2.0))
+
+    def _price_at(symbol: str, epoch: float):
+        try:
+            return oracle.price_at(symbol, epoch, tolerance_sec=tol)
+        except Exception:  # noqa: BLE001 — one lookup failure must not abort the pass
+            return None
+
+    from ...domain.research.factor_dataset import backfill_factor_settlement
+    ring = float(getattr(cfg, "ORACLE_HISTORY_WINDOW_SEC", 1800.0))
+    try:
+        n = await backfill_factor_settlement(_price_at, ring_window_sec=ring)
+    except Exception as exc:  # noqa: BLE001 — fail-soft
+        logger.warning("factor_settlement_backfill_failed", error=str(exc))
+        return
+    if n:
+        logger.info("factor_settlement_backfilled", settled=n)
 
 
 async def run_close_sweep_fast() -> None:
