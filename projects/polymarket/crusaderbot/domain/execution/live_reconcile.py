@@ -216,6 +216,22 @@ async def _mark_order_paged(order_id: Any, note: str) -> None:
         log.error("live_reconcile_mark_paged_failed", err=str(exc))
 
 
+async def _mark_position_paged(pos_id: Any, note: str) -> None:
+    """Stamp an unresolvable stranded 'closing' position so the periodic sweep
+    stops re-paging it every cycle (alert-fatigue guard; mirrors orders.error_msg).
+    The startup sweep ignores this stamp so a restart still re-surfaces it once.
+    """
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE positions SET error_msg=$2 WHERE id=$1",
+                pos_id, f"[reconcile_paged] {note}"[:500],
+            )
+    except Exception as exc:  # noqa: BLE001
+        log.error("live_reconcile_mark_position_paged_failed", err=str(exc))
+
+
 async def _adopt_order(order_id: Any, broker_id: str) -> None:
     """Hand a recovered resting order back to the lifecycle poller: re-link the
     broker id and flip 'unknown' -> 'pending' so ``OrderLifecycleManager`` resumes
@@ -443,6 +459,7 @@ async def _reconcile_one_closing(
             f"Position <code>{pos_id}</code> stuck in 'closing' with no close order "
             f"id. Verify on Polymarket whether the SELL filled, then reconcile."
         )
+        await _mark_position_paged(pos_id, "no_close_order_id")
         return "paged_no_id"
 
     try:
@@ -506,6 +523,7 @@ async def _reconcile_one_closing(
             f"KILLED after a partial fill of {filled_size} shares — reconcile "
             f"manually to avoid untracked on-chain exposure."
         )
+        await _mark_position_paged(pos_id, f"partial_close_killed_filled_{filled_size}")
         return "paged_partial_close"
 
     # Terminal KILLED with ZERO fills -> the SELL definitively did NOT execute ->
@@ -560,10 +578,14 @@ async def reconcile_closing_positions(
                     "FROM positions WHERE mode='live' AND status='closing'",
                 )
             else:
+                # Periodic sweep excludes already-paged unresolvable rows so the
+                # operator is paged once, not every cycle. The startup sweep above
+                # intentionally includes them (re-surface once per restart).
                 rows = await conn.fetch(
                     "SELECT id, user_id, market_id, side, size_usdc, entry_price, "
                     "current_price, close_order_id, closing_at "
                     "FROM positions WHERE mode='live' AND status='closing' "
+                    "AND (error_msg IS NULL OR error_msg NOT LIKE '%reconcile_paged%') "
                     "AND (closing_at IS NULL "
                     "     OR closing_at < NOW() - ($1 || ' seconds')::interval)",
                     str(stale_sec),

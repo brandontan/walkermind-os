@@ -117,8 +117,7 @@ class _Clob:
 
 def _settings(**over: Any) -> SimpleNamespace:
     base = dict(USE_REAL_CLOB=True, LIVE_RECONCILE_ENABLED=True,
-                LIVE_RECONCILE_STALE_SEC=300, LIVE_CLOSING_STALE_SEC=120,
-                LIVE_RECONCILE_FILLS_WINDOW_SEC=3600)
+                LIVE_RECONCILE_STALE_SEC=300, LIVE_CLOSING_STALE_SEC=120)
     base.update(over)
     return SimpleNamespace(**base)
 
@@ -304,6 +303,8 @@ async def test_closing_killed_partial_fill_pages(monkeypatch, _rec) -> None:
     assert res["paged_partial_close"] == 1
     assert res["closed"] == 0 and res["rolled_back"] == 0
     assert not _rec["credit"] and _rec["page"]
+    # stamped paged so the periodic sweep does not re-page it every cycle
+    assert any("reconcile_paged" in str(a) for _q, a in conn.executed)
 
 
 async def test_closing_non_terminal_stays_pending(monkeypatch, _rec) -> None:
@@ -325,6 +326,7 @@ async def test_closing_without_order_id_pages(monkeypatch, _rec) -> None:
         pool=pool, clob_factory=lambda s: clob, settings=_settings())
     assert res["paged_no_id"] == 1
     assert _rec["page"] and not _rec["credit"]
+    assert any("reconcile_paged" in str(a) for _q, a in conn.executed)
 
 
 async def test_closing_query_failure_pages_error(monkeypatch, _rec) -> None:

@@ -1102,9 +1102,12 @@ def setup_scheduler() -> AsyncIOScheduler:
     # closing-position recovery also runs ONCE at startup (every 'closing' row at
     # boot is a crash leftover).
     if bool(getattr(s, "LIVE_RECONCILE_ENABLED", True)):
+        # Job id is intentionally distinct from the WARP-74 Chunk-A detection-only
+        # sweep (#1612 uses 'live_order_reconcile') so the two can coexist without
+        # an APScheduler duplicate-id clash if both lanes ever run together.
         sched.add_job(reconcile_live_orders_job, "interval",
                       seconds=int(getattr(s, "LIVE_RECONCILE_INTERVAL_SEC", 300)),
-                      id="live_order_reconcile", max_instances=1, coalesce=True)
+                      id="live_unknown_order_reconcile", max_instances=1, coalesce=True)
         sched.add_job(reconcile_closing_positions_job, "interval",
                       seconds=int(getattr(s, "LIVE_RECONCILE_INTERVAL_SEC", 300)),
                       id="live_closing_reconcile", max_instances=1, coalesce=True)

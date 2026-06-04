@@ -733,9 +733,6 @@ class Settings(BaseSettings):
     # crash-stranded close — a clean close finalizes in milliseconds. Tighter than
     # the order stale window because a stranded close holds real on-chain exposure.
     LIVE_CLOSING_STALE_SEC: int = 120
-    # Lookback window for the recent-fills scan when reconciling a directional
-    # 'unknown' order with no broker id (instant-fill detection on the order's token).
-    LIVE_RECONCILE_FILLS_WINDOW_SEC: int = 3600
 
     # --- WARP-74 Chunk C: broker<->DB open-order drift detector ---
     # Periodically compares the broker's open-orders set against the DB rows the
@@ -755,10 +752,7 @@ class Settings(BaseSettings):
             )
         return v
 
-    @field_validator(
-        "LIVE_RECONCILE_STALE_SEC", "LIVE_CLOSING_STALE_SEC",
-        "LIVE_RECONCILE_FILLS_WINDOW_SEC",
-    )
+    @field_validator("LIVE_RECONCILE_STALE_SEC", "LIVE_CLOSING_STALE_SEC")
     @classmethod
     def validate_live_reconcile_windows(cls, v: int) -> int:
         # Staleness / lookback windows feed SQL interval math, never APScheduler;

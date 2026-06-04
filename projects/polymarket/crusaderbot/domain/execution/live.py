@@ -435,7 +435,7 @@ async def close_position(
     # and bails. Status flips to 'closing' for the duration of the submit.
     async with pool.acquire() as conn:
         claimed = await conn.fetchval(
-            "UPDATE positions SET status='closing', closing_at=NOW() "
+            "UPDATE positions SET status='closing' "
             "WHERE id=$1 AND user_id=$2 AND status='open' RETURNING id",
             position["id"], position["user_id"],
         )
@@ -471,19 +471,24 @@ async def close_position(
     except Exception:
         async with pool.acquire() as conn:
             await conn.execute(
-                "UPDATE positions SET status='open', closing_at=NULL "
-                "WHERE id=$1 AND user_id=$2",
+                "UPDATE positions SET status='open' WHERE id=$1 AND user_id=$2",
                 position["id"], position["user_id"],
             )
         raise
 
-    # Persist the close SELL's broker order id BEFORE the finalize txn. A crash
-    # in the (millisecond) window between this submit and the 'closed' finalize
-    # strands the row in 'closing'; without the order id the closing-position
-    # reconciler (WARP-74) cannot tell whether the SELL filled and must page for
-    # a manual reconcile. Persisting it here shrinks that blind window to the gap
-    # between post_order returning and this UPDATE. Best-effort — a failure here
-    # must never abort the close (the SELL is already live on-chain).
+    # Persist the close SELL's broker order id + the closing timestamp BEFORE the
+    # finalize txn. A crash in the (millisecond) window between this submit and the
+    # 'closed' finalize strands the row in 'closing'; without the order id the
+    # closing-position reconciler (WARP-74) cannot tell whether the SELL filled and
+    # must page for a manual reconcile. Persisting them here shrinks that blind
+    # window to the gap between post_order returning and this UPDATE.
+    #
+    # Deliberately BEST-EFFORT and kept OUT of the atomic 'closing' claim above:
+    # closing_at / close_order_id are WARP-74 telemetry columns (migration 082). If
+    # the code deploys before the migration, a missing column here only logs — the
+    # core close (claim → SELL → finalize) never references the new columns and so
+    # can never be bricked by deploy ordering. The reconciler treats a NULL
+    # closing_at as reconcilable, so a skipped stamp loses no recovery coverage.
     close_order_id = str(
         (sell_result or {}).get("orderID")
         or (sell_result or {}).get("order_id")
@@ -491,19 +496,18 @@ async def close_position(
         or (sell_result or {}).get("orderId")
         or ""
     )
-    if close_order_id:
-        try:
-            async with pool.acquire() as conn:
-                await conn.execute(
-                    "UPDATE positions SET close_order_id=$2 "
-                    "WHERE id=$1 AND user_id=$3 AND status='closing'",
-                    position["id"], close_order_id, position["user_id"],
-                )
-        except Exception as _exc:  # noqa: BLE001 — bookkeeping must not break close
-            logger.error(
-                "live close: persisting close_order_id failed (non-fatal) "
-                "position=%s err=%s", position["id"], str(_exc),
+    try:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE positions SET close_order_id=$2, closing_at=NOW() "
+                "WHERE id=$1 AND user_id=$3 AND status='closing'",
+                position["id"], (close_order_id or None), position["user_id"],
             )
+    except Exception as _exc:  # noqa: BLE001 — telemetry write must not break close
+        logger.error(
+            "live close: persisting close_order_id/closing_at failed (non-fatal) "
+            "position=%s err=%s", position["id"], str(_exc),
+        )
 
     size = Decimal(str(position["size_usdc"]))
     # Side-own price frame: exit_price/entry are the position's OWN outcome-token
