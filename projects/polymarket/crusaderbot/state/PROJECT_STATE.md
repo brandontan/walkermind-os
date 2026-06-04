@@ -1,5 +1,5 @@
-Last Updated : 2026-06-04 21:06
-Status       : WARP-74 live reconciliation MERGED #1613 + mig 082 applied to prod; WARP-72 Phase 1 SHADOW collecting factor_vector dataset (4 settled, need ~50-100); staging proof pending before LIVE flip.
+Last Updated : 2026-06-05 00:05
+Status       : WARP-74 live reconciliation MERGED #1613 + mig 082 applied to prod; WARP-72 Phase 1 SHADOW collecting factor_vector dataset (4 settled, need ~50-100); WARP-69 auto-trade per-user hardening audit PR #1615 open (held for data window); staging proof pending before LIVE flip.
 
 [COMPLETED]
 - WARP-74 live reconciliation epic MERGED #1613 (c5f0ed1) — generalized live reconciler + kill-switch broker cancel_all + mig 082 applied to Supabase prod; SENTINEL APPROVED 97/100 0 critical
@@ -14,6 +14,7 @@ Status       : WARP-74 live reconciliation MERGED #1613 + mig 082 applied to pro
 - WARP/ROOT/sl-cap-risk-profile MERGED #1599 (3df5c93) — PAPER SL fill capped at stop-threshold price, LIVE uses real mark; SENTINEL APPROVED; report: reports/forge/sl-cap-risk-profile.md
 
 [IN PROGRESS]
+- WARP-69 (WARP/ROOT/auto-trade-per-user) PR #1615 open/held — audit + hardening of existing per-user autonomous loop (auto_trade_on canonical opt-in, no parallel gate); no capital-path defect; 12 tests, zero prod change; F1+F3 findings promoted to WARP-75; report: reports/forge/auto-trade-per-user-hardening.md
 - WARP-74 staging proof: simulate crash mid-close (confirm no orphan) + confirm kill-switch cancels all resting GTC orders via broker cancel_all_orders — operator acceptance gate before LIVE flip
 - WARP-72 Phase 1 shadow observation: factor_vector dataset accruing in paper (13 rows, 4 settled); need ~50-100 settled per asset/TF before Phase 2 weight derivation
 - Bankroll CB 7d paper observation started 2026-05-31 (ends ~2026-06-07): confirm no spurious trips + persisted state survives Fly deploys
