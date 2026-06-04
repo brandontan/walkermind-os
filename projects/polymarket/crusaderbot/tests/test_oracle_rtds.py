@@ -249,6 +249,26 @@ async def test_price_at_returns_open_within_tolerance():
 
 
 @pytest.mark.asyncio
+async def test_corrupt_timestamp_does_not_wipe_history_ring():
+    # A far-future / garbage tick must NOT corrupt or wipe the ring: it is
+    # dropped (ts normalized to None -> not recorded), the good tick survives,
+    # and the live cache still updates (get_price is ts-independent).
+    good_epoch = 1_780_550_700
+    ws = _FakeWS([
+        _frame("btc/usd", 100.0, ts_ms=good_epoch * 1000),    # valid
+        _frame("btc/usd", 999.0, ts_ms=9_900_000_000_000),    # far-future garbage
+    ])
+    oracle = _oracle(ws)
+    await oracle.start()
+    assert await oracle.wait_connected(timeout=2.0)
+    for _ in range(20):
+        await asyncio.sleep(0)
+    assert oracle.price_at("btc", good_epoch, tolerance_sec=2.0) == pytest.approx(100.0)
+    assert oracle.get_price("btc") == pytest.approx(999.0)
+    await oracle.stop()
+
+
+@pytest.mark.asyncio
 async def test_price_at_none_before_any_tick_or_off_map():
     oracle = _oracle(_FakeWS([]))
     await oracle.start()
