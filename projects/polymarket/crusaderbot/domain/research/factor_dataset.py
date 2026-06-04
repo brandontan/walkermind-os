@@ -74,10 +74,9 @@ def _placeholders(n: int) -> str:
 
 def _row(fv: FactorVector) -> tuple:
     """Value tuple aligned to ``_COLS`` (selected_by_router coerced to bool)."""
-    d = fv.__dict__
     out = []
     for c in _COLS:
-        v = d.get(c)
+        v = getattr(fv, c, None)
         if c == "selected_by_router":
             v = bool(v)
         out.append(v)
@@ -126,11 +125,19 @@ async def record_factor_vector(
         if not fv.condition_id:
             return False
         now = time.time() if now is None else now
+        # Reserve the throttle slot synchronously (prevents a concurrent scan of
+        # the same candle from double-writing across the awaited DB call)...
         if _throttled(fv.condition_id, now, min_write_gap_sec):
             return False
         pool = pool or get_pool()
-        async with pool.acquire() as conn:  # type: ignore[attr-defined]
-            await conn.execute(_UPSERT_SQL, *_row(fv))
+        try:
+            async with pool.acquire() as conn:  # type: ignore[attr-defined]
+                await conn.execute(_UPSERT_SQL, *_row(fv))
+        except Exception:
+            # ...but RELEASE it on failure so the next scan retries promptly and a
+            # transient DB error can't drop a candle's final pre-close snapshot.
+            _last_write.pop(fv.condition_id, None)
+            raise
         return True
     except Exception as exc:  # noqa: BLE001 — fail-soft, never break the scan loop
         logger.warning("factor_vector_persist_failed", error=str(exc))

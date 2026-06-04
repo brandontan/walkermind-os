@@ -130,6 +130,21 @@ def test_record_failsoft_on_db_error():
     assert _run(record_factor_vector(_fv(), pool=_Pool(_BadConn()), now=1.0)) is False
 
 
+def test_record_failed_write_releases_throttle_for_retry():
+    # A failed write must NOT poison the throttle cache — otherwise the candle's
+    # final pre-close snapshot could be dropped for the whole gap window.
+    class _BadConn(_Conn):
+        async def execute(self, sql, *args):
+            raise RuntimeError("db down")
+
+    assert _run(record_factor_vector(_fv("0xZ"), pool=_Pool(_BadConn()), now=1000.0)) is False
+    assert "0xZ" not in fd._last_write  # slot released on failure
+    # Retry within the gap is allowed (not throttled) and succeeds on a good pool.
+    good = _Conn()
+    assert _run(record_factor_vector(_fv("0xZ"), pool=_Pool(good), now=1001.0)) is True
+    assert len(good.calls) == 1
+
+
 # ── router-selection backfill UPDATE ──────────────────────────────────────
 def test_mark_router_selection_row():
     conn = _Conn()

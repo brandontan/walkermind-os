@@ -829,6 +829,18 @@ class Settings(BaseSettings):
             )
         return v
 
+    @field_validator("FACTOR_SETTLEMENT_INTERVAL_SEC")
+    @classmethod
+    def validate_factor_settlement_interval(cls, v: int) -> int:
+        # Scheduler interval — APScheduler requires strictly positive seconds, so
+        # a 0/negative misconfig would crash setup. Fail fast at config load.
+        if v <= 0:
+            raise ValueError(
+                f"FACTOR_SETTLEMENT_INTERVAL_SEC must be > 0 (got {v}); it is the "
+                f"factor-vector settlement backfill cadence in seconds."
+            )
+        return v
+
     @field_validator("BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC")
     @classmethod
     def validate_bankroll_baseline_throttle(cls, v: float) -> float:
