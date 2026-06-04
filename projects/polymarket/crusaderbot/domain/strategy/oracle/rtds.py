@@ -23,11 +23,14 @@ Design (mirrors ``integrations/clob/ws.py``):
     latest tick for a symbol is older than ``staleness_sec`` — a stale price is
     NEVER returned as if it were live. No silent failures.
 
-The exact RTDS subscribe/message wire-format is isolated in
-``_build_subscribe_frame`` / ``_parse_tick`` so live verification (operator /
-Chunk 3) can adjust the shape without touching the abstraction. The parser is
-defensive: it accepts several plausible field names and only updates configured
-symbols.
+The RTDS subscribe/message wire-format is isolated in
+``_build_subscribe_frame`` / ``_parse_tick``. It has been verified against a
+live raw-frame dump (2026-06-04): the Chainlink feed is the
+``crypto_prices_chainlink`` topic, subscribed with ``type: "*"`` and a
+string ``filters`` (broadcast-all, scoped client-side), and each tick carries
+``payload.value`` (USD float) plus ``payload.symbol`` (lowercase ``btc/usd``).
+The parser stays defensive: it tolerates acks/empty frames and only updates
+configured symbols.
 """
 from __future__ import annotations
 
@@ -270,18 +273,28 @@ class PolymarketRTDSOracle:
         return await websockets.connect(self._ws_url, close_timeout=5)
 
     def _build_subscribe_frame(self) -> dict[str, Any]:
-        """Build the RTDS subscribe payload for the configured crypto symbols.
+        """Build the RTDS subscribe payload for the Chainlink crypto feed.
 
-        Assumed RTDS shape (isolated here for live verification): subscribe to
-        the ``crypto_prices`` topic, scoped to the configured symbols. If the
-        server broadcasts all symbols regardless, ``_parse_tick`` filters down to
-        the configured set anyway.
+        Wire-format verified against a live ``wss://ws-live-data.polymarket.com``
+        raw-frame dump (2026-06-04):
+
+          * topic ``crypto_prices_chainlink`` — the **Chainlink** oracle feed the
+            up/down candle markets resolve against (the bare ``crypto_prices``
+            topic is the Binance source and is WRONG for resolution).
+          * ``type: "*"`` — subscribe to all message types on the topic (ticks
+            arrive back stamped ``type: "update"``).
+          * ``filters`` MUST be a **string**; ``""`` subscribes to every symbol.
+            A filters *object* is rejected by the server ("Invalid request
+            body"), so we broadcast-subscribe and scope client-side: the
+            per-symbol map (``self._symbol_set``) is enforced in
+            :meth:`_parse_tick`, which drops any symbol outside the configured
+            set. This keeps the BTC/ETH/SOL symbol-map abstraction intact while
+            using the only filter shape the server accepts.
         """
         return {
             "action": "subscribe",
             "subscriptions": [
-                {"topic": "crypto_prices", "type": "update", "symbol": sym}
-                for sym in self._symbols
+                {"topic": "crypto_prices_chainlink", "type": "*", "filters": ""},
             ],
         }
 
@@ -306,9 +319,19 @@ class PolymarketRTDSOracle:
     def _parse_tick(self, msg: dict[str, Any]) -> Optional[tuple[str, float]]:
         """Extract ``(normalized_symbol, price)`` from an RTDS frame.
 
-        Defensive across plausible field names; only configured symbols with a
-        strictly-positive finite price are accepted. Returns ``None`` otherwise
-        (no fabrication).
+        Verified ``crypto_prices_chainlink`` frame shape (live, 2026-06-04)::
+
+            {"topic": "crypto_prices_chainlink", "type": "update",
+             "payload": {"symbol": "btc/usd", "value": 64091.35,
+                         "full_accuracy_value": "64091...e18", "timestamp": <ms>}}
+
+        The price is read from ``payload.value`` — a float already at full
+        precision (``full_accuracy_value`` is the same number as a 1e18-scaled
+        integer string and is intentionally not re-parsed, to avoid a scaling
+        bug). ``price``/``p`` remain accepted as defensive fallbacks. Only
+        configured symbols (``self._symbol_set``) with a strictly-positive finite
+        price are accepted; everything else (acks, empty frames, off-map symbols)
+        returns ``None`` — no fabrication.
         """
         if not isinstance(msg, dict):
             return None
