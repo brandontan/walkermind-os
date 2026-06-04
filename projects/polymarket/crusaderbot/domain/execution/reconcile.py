@@ -61,13 +61,19 @@ _last_orphan_alert: dict[str, float] = {}
 _MAX_PAGED_ORPHANS: int = 20
 
 
-def _broker_id(order: dict) -> str:
+def _broker_id(order: Any) -> str:
     """Extract the broker order id from a /data/orders row.
 
     Polymarket has surfaced ``id`` / ``orderID`` / ``order_id`` across versions;
     accept all three so a schema variation never silently drops an order from the
     diff (which would manufacture a false orphan or hide a real one).
+
+    A non-dict element (malformed broker payload) yields ``""`` and is dropped by
+    the caller's filter — preserving the module's never-raise contract rather than
+    blowing up the whole sweep on one bad row.
     """
+    if not isinstance(order, dict):
+        return ""
     return str(
         order.get("id")
         or order.get("orderID")

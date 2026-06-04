@@ -138,6 +138,21 @@ def test_in_sync_no_orphan_no_page():
     assert client.closed is True  # aclose hygiene
 
 
+# ── malformed broker payload: non-dict elements dropped, never raises ──────
+def test_malformed_broker_rows_dropped_no_raise():
+    # Broker returns a mix of a valid row + a bare string + None. The non-dict
+    # elements must be skipped (not raise AttributeError), preserving the
+    # never-raise contract; only the valid order participates in the diff.
+    client = _Client(open_orders=[{"id": "0xB1"}, "garbage", None])
+    conn = _Conn(db_open=["0xB1"], known={"0xB1": "submitted"})
+    rec, pages, audits = _make(client=client, conn=conn)
+    out = _run(rec.reconcile_once())
+    assert out["broker_open"] == 1 and out["in_sync"] == 1
+    assert out["orphans"] == 0 and out["errors"] == 0
+    assert pages == []
+    assert client.closed is True
+
+
 # ── orphan: untracked at DB (no row) ───────────────────────────────────────
 def test_orphan_untracked_pages_and_audits():
     client = _Client(open_orders=[{"orderID": "0xZ9"}])
