@@ -165,15 +165,17 @@ def _default_transport() -> Transport:
         )
 
     async def _transport(url: str, headers: dict[str, str], timeout: float) -> Any:
-        async for attempt in _retry():
-            with attempt:
-                async with httpx.AsyncClient(timeout=timeout) as client:
+        # One client (and connection pool) for all retry attempts — a transient
+        # error retries on a reused connection rather than re-opening a session.
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            async for attempt in _retry():
+                with attempt:
                     resp = await client.get(url, headers=headers)
                     resp.raise_for_status()
                     return resp.json()
-        # AsyncRetrying(reraise=True) re-raises on exhaustion, so this is
-        # unreachable; kept explicit so no path returns None silently.
-        raise OracleUnavailableError("transport retry exhausted")
+            # AsyncRetrying(reraise=True) re-raises on exhaustion, so this is
+            # unreachable; kept explicit so no path returns None silently.
+            raise OracleUnavailableError("transport retry exhausted")
 
     return _transport
 

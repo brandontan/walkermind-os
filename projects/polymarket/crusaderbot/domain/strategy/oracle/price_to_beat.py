@@ -31,9 +31,12 @@ _PRICE_TO_BEAT_KEYS: tuple[str, ...] = (
     "strike",
 )
 
-# Matches a USD figure inside a question/description, e.g. "$104,250.50" or
-# "104250" — used only as a fallback when no explicit field is present.
-_DOLLAR_RE = re.compile(r"\$?\s*([0-9][0-9,]*(?:\.[0-9]+)?)")
+# Matches a USD figure inside a question/description, e.g. "$104,250.50" — used
+# only as a fallback when no explicit field is present. The "$" is REQUIRED so a
+# bare number (year like 2026, block number, id) that happens to land inside the
+# sanity band cannot be mistaken for the candle open; a missing "$" yields None
+# (caller skips) rather than a fabricated baseline.
+_DOLLAR_RE = re.compile(r"\$\s*([-+]?\d+[\d,]*(?:\.\d+)?)")
 
 # Sanity band for a BTC/USD reference. A parsed figure outside this range is
 # almost certainly not the candle open (e.g. a percentage, a year, an id) and is
@@ -47,7 +50,7 @@ def _coerce_float(value: Any) -> Optional[float]:
     if value is None or isinstance(value, bool):
         return None
     try:
-        out = float(str(value).replace(",", "").strip())
+        out = float(str(value).replace(",", "").replace("$", "").strip())
     except (TypeError, ValueError):
         return None
     if out != out or out in (float("inf"), float("-inf")):  # NaN / inf guard
