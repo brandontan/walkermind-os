@@ -32,18 +32,23 @@ the exact states the two existing reconcilers do NOT own:
   `late_entry_v3` / `signal_following` / `copy_trade` only (never complete-set),
   it resolves each against broker truth: a single untracked resting order on the
   order's token is **adopted** back into the lifecycle poller (re-link broker id,
-  flip `unknown→pending`); multiple untracked matches **halt + page**; an
-  unverifiable order **pages once** for manual reconcile (and is stamped so it
-  does not re-page each sweep). Never auto-cancels (an instant-fill could hide
-  real exposure) and never fabricates a position.
+  flip `unknown→pending`) ONLY after its size + price match the unknown order
+  (price mandatory; size tolerant of raw vs 1e6 fixed-math and the aggressive
+  +1-tick limit) — a size/price mismatch **pages** instead (likely an unrelated
+  order); multiple untracked matches **halt + page**; an unverifiable order
+  **pages once** for manual reconcile (stamped so it does not re-page each sweep).
+  Never auto-cancels (an instant-fill could hide real exposure) and never
+  fabricates a position.
 - `reconcile_closing_positions` — live positions stranded in `status='closing'`
   by a crash between the close SELL and the finalize. Runs ONCE at startup (every
   `closing` row at boot is a crash leftover) and periodically for rows whose
-  `closing_at` is older than `LIVE_CLOSING_STALE_SEC`. Resolves each against the
-  persisted close SELL order id: a confirmed fill **finalizes to `closed` +
-  credits the ledger** (proceeds from real fills); a confirmed non-fill **rolls
-  back to `open`** for a clean exit-watcher retry; anything unverifiable **pages**
-  and is left untouched.
+  `closing_at` is older than `LIVE_CLOSING_STALE_SEC`. Acts ONLY on a TERMINAL
+  broker state: a fully-filled SELL **finalizes to `closed` + credits the ledger**
+  (proceeds from real fills); a terminal-KILLED with zero fills **rolls back to
+  `open`** for a clean exit-watcher retry; a terminal-KILLED with a PARTIAL fill
+  **pages** (`paged_partial_close` — never finalize and strand the unsold
+  remainder); a non-terminal close (even one partially filled in flight) **pages**
+  and is left `closing` for the next sweep — never premature-finalized.
 
 To make closing-recovery possible, migration `082` adds `positions.closing_at`
 (set in the atomic close claim) and `positions.close_order_id` (persisted
@@ -128,17 +133,19 @@ Modified:
 
 ## 4. What is working
 
-Hermetic test evidence (181 passed, 1 skipped across the touched execution/risk
-suites; the 4 new suites = 28 passed):
+Hermetic test evidence (touched execution/risk suites green; the 4 new suites =
+31 passed after the review round):
 - `reconcile_live_orders`: paper no-op; disabled no-op; no-rows no-op; unique
-  resting order **adopted** (broker id re-linked, `unknown→pending`, audit);
+  size/price-matching resting order **adopted** (broker id re-linked,
+  `unknown→pending`, audit); size/price **mismatch → page** (not adopted);
   multiple untracked **halt + kill switch engaged**; already-tracked resting
   order ignored → page; no resting order → page-once + stamp; broker query
   failure → page (never assume).
-- `reconcile_closing_positions`: confirmed fill → `closed` + ledger credit
-  (proceeds from real fills); confirmed non-fill → rollback to `open`;
-  non-terminal → stays `closing` + page; missing close_order_id → page; broker
-  query failure → page.
+- `reconcile_closing_positions`: terminal full fill → `closed` + ledger credit
+  (proceeds from real fills); terminal-KILLED zero fills → rollback to `open`;
+  terminal-KILLED partial fill → `paged_partial_close` (no finalize, no credit);
+  non-terminal (incl. in-flight partial) → stays `closing` + page, no credit;
+  missing close_order_id → page; broker query failure → page.
 - Kill switch: paper no-op; live `cancel_all_orders` called + client closed;
   broker-cancel failure contained (client still closed) AND operator warned
   ("BROKER CANCEL FAILED"); `execute_kill_switch` invokes the broker cancel.
