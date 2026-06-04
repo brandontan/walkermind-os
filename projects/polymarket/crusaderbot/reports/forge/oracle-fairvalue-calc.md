@@ -2,7 +2,7 @@
 
 Role: WARP•R00T (build lane)
 Branch: WARP/ROOT/oracle-fairvalue-calc
-Parent: WARP-61 — Chainlink BTC/USD oracle layer for late_entry_v3
+Parent: WARP-61 — Chainlink multi-asset (BTC/ETH/SOL) oracle layer for late_entry_v3
 Date: 2026-06-04 09:22 Asia/Jakarta
 
 ## 1. What was built
@@ -53,17 +53,17 @@ adds only the pure math leaf:
 domain/strategy/oracle/
   __init__.py        # re-exports the pure API (no network/DB pulled in)
   fair_value.py      # this chunk — pure functions, stdlib math only
-  (chainlink client) # Chunk 1 — separate
+  (chainlink client) # Chunk 1 — separate (BTC/ETH/SOL streams)
   (strategy wiring)  # Chunk 3 — separate, into late_entry_v3
 ```
 
 Data flow once fully wired (Chunks 1+3 land it; not in this chunk):
 
 ```
-Chainlink BTC/USD --> price_to_beat + chainlink_now --> compute_delta
-        |                                                     |
-        +--> time_left (resolution_ts - now)                  v
-        +--> sigma (Settings)  ----------------------> compute_fair_value
+Chainlink {BTC,ETH,SOL} --> price_to_beat + oracle_now --> compute_delta
+        |                                                       |
+        +--> time_left (resolution_ts - now)                    v
+        +--> sigma_for_asset(asset, Settings.oracle_sigma_map) -> compute_fair_value
                                                               |
                   best_ask_up / best_ask_down --> compute_edge (edge_up/down)
                                                               |
@@ -121,7 +121,7 @@ Modified:
 
 ## 6. What is next
 
-- Chunk 1: Chainlink BTC/USD data-streams client (`price_to_beat` capture).
+- Chunk 1: Chainlink BTC/ETH/SOL data-streams client (`oracle_now` + `price_to_beat` capture).
 - Chunk 3 (WARP-64, blocked on this): wire oracle + `compute_edge` gate into the
   `late_entry_v3` presets (Distance / Min Edge / Trend), RISK gate before
   EXECUTION preserved. WARP-64 is unblocked by this chunk.
