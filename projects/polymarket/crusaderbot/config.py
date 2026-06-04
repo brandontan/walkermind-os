@@ -351,6 +351,16 @@ class Settings(BaseSettings):
     PRESET_FLIP_HUNTER_15M_MAX_REM_SEC: float = 180.0
     PRESET_FLIP_HUNTER_15M_FORCE_EXIT_REM_SEC: float = 0.0  # Mode A: hold to settlement (0=no exit)
     MARKET_SIGNAL_SCAN_INTERVAL: int = 60
+
+    # --- BTC oracle fair-value calculator (WARP-61 Chunk 2 / WARP-63) ---
+    # Realized-vol scale for the candle fair-value model, expressed as BTC
+    # log-return volatility per sqrt(second): z = delta / (sigma * sqrt(time_left)).
+    # Default 0.00010 ~= 56% annualized realized vol
+    # (0.00010 * sqrt(31_557_600 s/yr) ~= 0.562), within the typical BTC realized
+    # range. Tune via env to match the observed regime; a larger sigma pulls
+    # fair_up toward 0.5 (less confident), a smaller sigma sharpens convergence.
+    ORACLE_BTC_SIGMA_PER_SQRT_SEC: float = 0.00010  # env: ORACLE_BTC_SIGMA_PER_SQRT_SEC
+
     # --- Signal scanner thresholds (demo path edge_finder) ---
     # Market eligibility price range: excludes near-resolved markets and
     # extreme longshots / near-certainties where momentum edge is unreliable.
