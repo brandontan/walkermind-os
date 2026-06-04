@@ -1,6 +1,6 @@
 # WARP•FORGE Report — project-state-sync
 
-Branch: claude/trusting-meitner-OmfhC
+Branch: WARP/project-state-sync
 Validation Tier: MINOR
 Claim Level: FOUNDATION
 Validation Target: PROJECT_STATE.md structure compliance with AGENTS.md
