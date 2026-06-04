@@ -72,20 +72,6 @@ _DEFAULT_OUT_PATH: Path = (
 # ---------------------------------------------------------------------------
 
 
-def _finite_floats(values: Iterable[Any]) -> list[float]:
-    out: list[float] = []
-    for v in values:
-        if v is None:
-            continue
-        try:
-            f = float(v)
-        except (TypeError, ValueError):
-            continue
-        if math.isfinite(f):
-            out.append(f)
-    return out
-
-
 def _mean(xs: Sequence[float]) -> float:
     return sum(xs) / len(xs) if xs else 0.0
 
