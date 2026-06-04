@@ -1,0 +1,29 @@
+{
+  "cells": {},
+  "factors": [
+    "momentum",
+    "volatility_sigma",
+    "liquidity_usdc",
+    "spread",
+    "orderbook_depth_usdc",
+    "ttl_sec",
+    "oracle_edge"
+  ],
+  "generated_at": "2026-06-04T00:00:00+00:00",
+  "note": "UNTRAINED STUB. Weights are derived offline by domain/strategy/scorer_trainer.py from settled open_to_close factor_vectors (BTC/5m + ETH/5m; SOL/5m skipped, no data). Until a WARP-CMD-approved training run regenerates this file, the scorer scores every rule 0.0 and the precedence ladder (close_sweep > safe_close > flip_hunter) decides selection — i.e. shadow output matches the router exactly. Regenerate: python -m projects.polymarket.crusaderbot.domain.strategy.scorer_trainer --from-db",
+  "rules": [
+    "close_sweep",
+    "safe_close",
+    "flip_hunter"
+  ],
+  "schema_version": 1,
+  "shrinkage_k": 10.0,
+  "skipped": {
+    "SOL/5m": "no_data"
+  },
+  "train_filter": {
+    "outcome_source": "open_to_close",
+    "settled": true
+  },
+  "trained": false
+}

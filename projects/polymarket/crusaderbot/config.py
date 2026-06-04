@@ -238,6 +238,24 @@ class Settings(BaseSettings):
     # ring when its row is resolved.
     FACTOR_SETTLEMENT_INTERVAL_SEC: int = 60
 
+    # WARP-72 Phase 2 — SMART STRIKE scoring orchestrator (StrategyScorer). When
+    # ON, the scorer runs in SHADOW alongside the precedence router on every candle
+    # evaluation, logging the rule it WOULD have selected (event "scorer_shadow")
+    # next to the rule the router actually picked. PURE telemetry: selection,
+    # sizing, the 13-step risk gate, and every protection gate are untouched.
+    # Default ON; set false to silence the shadow comparison with zero capital-path
+    # effect. The scorer consumes weights derived offline by scorer_trainer.py into
+    # config/scorer_weights.json (a missing/untrained model degrades to the
+    # precedence ladder — never raises into the scan loop).
+    SCORER_SHADOW_ENABLED: bool = True
+    # CUTOVER FLAG. When True the scorer's selection would CONTROL execution instead
+    # of the router. Default False — the router controls execution and the scorer is
+    # shadow-only. Flipping this to True is a WARP🔹CMD-gated cutover that requires
+    # the A/B (scorer_ab.py) to prove the scorer beats the router on held-out
+    # settled data with >= 20 rows per cell. NOTHING in the codebase reads this as a
+    # selection authority yet — cutover wiring is deliberately not implemented.
+    SCORER_ACTIVE: bool = False
+
     # --- Polymarket (only required for LIVE trading) ---
     POLYMARKET_API_KEY: Optional[str] = None
     POLYMARKET_API_SECRET: Optional[str] = None
