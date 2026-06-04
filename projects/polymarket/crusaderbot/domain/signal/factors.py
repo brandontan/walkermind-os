@@ -25,7 +25,7 @@ The 7 factors (WARP-71 spec):
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
 import structlog
@@ -124,13 +124,18 @@ class FactorVector:
     selected_by_router: bool = False
 
     def to_metadata(self) -> dict[str, Any]:
-        """Flatten to ``factor_*``-prefixed candidate/position metadata keys."""
-        return {f"factor_{k}": v for k, v in asdict(self).items()}
+        """Flatten to ``factor_*``-prefixed candidate/position metadata keys.
+
+        Uses a shallow ``__dict__`` copy: ``FactorVector`` is a flat dataclass of
+        primitives, so the recursive ``dataclasses.asdict`` (a deep copy) is pure
+        overhead on this hot per-candle path.
+        """
+        return {f"factor_{k}": v for k, v in self.__dict__.items()}
 
     def emit(self, *, extra: Optional[Mapping[str, Any]] = None) -> None:
         """Emit the labeled-dataset record as a structured log (fail-soft)."""
         try:
-            payload = asdict(self)
+            payload = dict(self.__dict__)
             if extra:
                 payload.update(dict(extra))
             log.info(FACTOR_VECTOR_EVENT, **payload)

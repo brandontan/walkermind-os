@@ -321,10 +321,14 @@ def _observe_factor_vector(
 
         # 1. MOMENTUM — record the YES mid (side-stable repricing reference) and
         #    read the rolling short-window velocity. None until >=2 samples land.
-        yes_mid = (yes_bid + yes_ask) / 2.0 if yes_bid is not None else yes_ask
+        #    Only record when yes_bid is available: falling back to yes_ask would
+        #    mix ask-prices into a mid-price series and inject artificial jumps
+        #    that degrade the velocity (a Phase-2 scorer factor). A bid-less candle
+        #    still reads momentum from prior clean samples (no pollution).
         tracker = get_momentum_tracker()
         mkt_key = condition_id or slug
-        tracker.record(mkt_key, yes_mid, now=now_ts)
+        if yes_bid is not None:
+            tracker.record(mkt_key, (yes_bid + yes_ask) / 2.0, now=now_ts)
         mom = tracker.momentum(mkt_key, now=now_ts)
 
         # 2. VOLATILITY — expose the per-asset sigma (was oracle-advisory-only).

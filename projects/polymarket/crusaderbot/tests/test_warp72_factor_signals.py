@@ -130,6 +130,17 @@ def test_tracker_evicts_idle_keys():
     assert t.tracked_keys == 1 and t.momentum("c", now=1100.0) is None
 
 
+def test_tracker_enforces_hard_key_cap_under_churn():
+    # All keys are FRESH (none idle) — the hard cap must still bound the map by
+    # evicting the oldest-updated key, never growing unboundedly.
+    t = MomentumTracker(window_sec=100, max_keys=3)
+    for i, k in enumerate(["a", "b", "c", "d", "e"]):
+        t.record(k, 0.5, now=1000.0 + i)  # each within retention, strictly fresh
+    # Cap holds despite 5 fresh keys; oldest were evicted, newest retained.
+    assert t.tracked_keys == 3
+    assert "e" in t._hist and "a" not in t._hist  # oldest-updated evicted first
+
+
 # ---------------------------------------------------------------------------
 # 3. Factors — realized label, metadata, router stamp, emit
 # ---------------------------------------------------------------------------

@@ -166,11 +166,23 @@ class MomentumTracker:
         )
 
     def _evict_idle(self, now: float) -> None:
-        """Drop keys whose newest sample is older than the retention window."""
+        """Drop idle keys; strictly enforce the hard key cap.
+
+        First removes keys whose newest sample is older than the retention
+        window. If high active churn leaves the map still at/above capacity (no
+        idle keys to drop), defensively evict the single oldest-updated key so
+        ``_hist`` can never grow unboundedly.
+        """
         cutoff = now - self._retention_sec
         stale = [k for k, dq in self._hist.items() if not dq or dq[-1].ts < cutoff]
         for k in stale:
             self._hist.pop(k, None)
+        if len(self._hist) >= self._max_keys:
+            oldest = min(
+                self._hist,
+                key=lambda k: self._hist[k][-1].ts if self._hist[k] else 0.0,
+            )
+            self._hist.pop(oldest, None)
 
     def reset(self) -> None:
         """Clear all history (tests / cold restart)."""
