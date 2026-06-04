@@ -36,9 +36,7 @@ from ...services.referral.referral_service import (
     record_referral,
 )
 from ...users import (
-    set_auto_trade,
     set_onboarding_complete,
-    set_paused,
     update_settings,
     upsert_user,
 )
@@ -450,13 +448,12 @@ async def _launch_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
                     user_id, preset_key, exc,
                 )
 
-    # Activate scanner
-    try:
-        await set_auto_trade(user_id, True)
-        await set_paused(user_id, False)
-    except Exception as exc:
-        logger.error("onboard.auto_trade_activate_failed user=%s err=%s", user_id, exc)
-
+    # WARP-75 (F1 — consent integrity): onboarding does NOT enable autonomous
+    # trading as a side effect. The preset above is configured so the user is
+    # ready, but auto_trade_on stays at its default FALSE until the user makes a
+    # deliberate explicit act — the Dashboard "🤖 Auto Mode" toggle (rendered
+    # below showing Auto Mode OFF). Real capital additionally requires the
+    # typed-CONFIRM live activation gate.
     try:
         await set_onboarding_complete(user_id)
     except Exception as exc:
