@@ -97,10 +97,12 @@ class OracleEdgeConfig:
 def _asset_base_from_slug(slug: str) -> Optional[str]:
     """Extract the asset base ticker from a candle slug ``{coin}-updown-{tf}-...``.
 
-    ``"btc-updown-5m-1771511700"`` -> ``"btc"``. Returns ``None`` when the slug
-    is empty / not a recognisable candle slug (caller then skips the observation).
+    ``"btc-updown-5m-1771511700"`` -> ``"btc"``. Returns ``None`` when the slug is
+    empty or not a recognisable candle slug (must contain ``-updown-``), so a
+    non-candle market never yields a bogus ``some/usd`` oracle lookup / spurious
+    warmup status.
     """
-    if not slug:
+    if not slug or "-updown-" not in slug:
         return None
     head = slug.split("-", 1)[0].strip().lower()
     return head or None

@@ -33,6 +33,8 @@ def test_asset_base_from_slug():
     assert _asset_base_from_slug("btc-updown-5m-1771511700") == "btc"
     assert _asset_base_from_slug("eth-updown-15m-1771511700") == "eth"
     assert _asset_base_from_slug("sol-updown-5m-1") == "sol"
+    assert _asset_base_from_slug("btc-other-slug") is None  # non-candle slug
+    assert _asset_base_from_slug("some-random-market") is None
     assert _asset_base_from_slug("") is None
 
 

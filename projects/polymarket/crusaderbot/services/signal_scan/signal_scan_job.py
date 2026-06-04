@@ -3630,10 +3630,16 @@ async def get_candle_oracle():
 
 
 async def stop_candle_oracle() -> None:
-    """Best-effort stop of the oracle singleton (app shutdown). Never raises."""
+    """Best-effort stop of the oracle singleton (app shutdown). Never raises.
+
+    Acquires the init lock so a stop racing with an in-flight get_candle_oracle()
+    (mid ``oracle.start()``) cannot leave a started-but-orphaned oracle: the stop
+    waits for the pending init to finish, then stops and clears it.
+    """
     global _candle_oracle
-    oracle = _candle_oracle
-    _candle_oracle = None
+    async with _candle_oracle_lock:
+        oracle = _candle_oracle
+        _candle_oracle = None
     if oracle is not None:
         try:
             await oracle.stop()
