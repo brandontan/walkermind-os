@@ -214,6 +214,17 @@ class Settings(BaseSettings):
     # any effect (the lazy singleton oracle is built via oracle_from_settings).
     ORACLE_EDGE_GATE_ENABLED: bool = False
 
+    # WARP-72 Phase 1 (WARP•R00T) — SMART STRIKE factor-vector SHADOW telemetry.
+    # When ON, late_entry_v3 assembles + emits the full 7-factor scorable surface
+    # (momentum / volatility / liquidity / spread / depth / TTL / oracle) plus the
+    # router-selected rule and the realized open->close label for EVERY evaluated
+    # candle — traded or not — as a structured "factor_vector" log + factor_*
+    # candidate/position metadata. This is the labeled dataset the Phase-2 scorer
+    # derives weights from. PURE telemetry: never selects, sizes, gates, or blocks
+    # a trade (decoupled from execution, like the oracle advisory). Default ON;
+    # set false to silence the dataset emission with zero capital-path effect.
+    FACTOR_VECTOR_SHADOW_ENABLED: bool = True
+
     # --- Polymarket (only required for LIVE trading) ---
     POLYMARKET_API_KEY: Optional[str] = None
     POLYMARKET_API_SECRET: Optional[str] = None

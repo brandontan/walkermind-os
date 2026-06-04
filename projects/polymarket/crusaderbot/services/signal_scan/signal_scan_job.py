@@ -3712,6 +3712,9 @@ async def _scan_one_late_entry(strat, pp, market_filters, user_ctx, preset=None)
         max_leg_spread=float(pp["max_leg_spread"]) if pp and "max_leg_spread" in pp else None,
         size_time_decay=bool(pp.get("size_time_decay", False)) if pp else False,
         edge_cfg=edge_cfg,
+        # WARP-72 Phase 1: tag the factor-vector dataset with the rule that
+        # produced this read (shadow telemetry; selection unchanged).
+        evaluated_rule=preset,
     )
 
 
@@ -3728,6 +3731,8 @@ async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_fi
     Dedup by market_id with close_sweep > safe_close > flip_hunter precedence.
     One sub-rule's scan failure never kills the others.
     """
+    from ...domain.signal.factors import mark_router_selection
+
     if active_preset == _CANDLE_AUTO_PRESET:
         merged: list = []
         seen: set[str] = set()
@@ -3748,6 +3753,10 @@ async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_fi
                 # back at exit (TP/SL via _build_trade_signal override below;
                 # force_exit via exit_watcher's strategy_metadata fallback).
                 c.metadata["candle_rule"] = rule
+                # WARP-72 Phase 1: stamp WHICH rule the precedence router picked
+                # for this market (shadow label; first to claim by dedup wins).
+                # Advisory only — does NOT change selection.
+                mark_router_selection(c.metadata, rule)
                 if tp is not None:
                     c.metadata["applied_tp_pct"] = tp
                 if sl is not None:
@@ -3755,7 +3764,11 @@ async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_fi
                 merged.append(c)
         return merged
     pp = _resolve_preset_params(active_preset, timeframe) if active_preset in _CANDLE_PRESETS else None
-    return await _scan_one_late_entry(strat, pp, market_filters, user_ctx, preset=active_preset)
+    cands = await _scan_one_late_entry(strat, pp, market_filters, user_ctx, preset=active_preset)
+    # Single-rule preset: the active preset IS the selected rule (no dedup).
+    for c in cands:
+        mark_router_selection(c.metadata, active_preset)
+    return cands
 
 
 async def run_close_sweep_fast() -> None:
