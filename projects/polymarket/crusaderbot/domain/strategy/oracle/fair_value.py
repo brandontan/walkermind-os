@@ -1,18 +1,24 @@
-"""Pure fair-value / edge calculator for Chainlink-resolved BTC candle markets.
+"""Pure fair-value / edge calculator for Chainlink-resolved crypto candle markets.
 
 WARP-61 Chunk 2 (WARP-63). No I/O -- no network, no DB, no strategy import.
 Every function here is a deterministic, fully unit-testable pure function so the
 candle edge engine can be validated in isolation before any runtime wiring.
 
+Multi-asset: BTC / ETH / SOL Up/Down candle markets each resolve on their own
+Chainlink data stream, and ``sigma`` is PER ASSET (SOL > ETH > BTC realized
+vol). The math functions take a scalar ``sigma`` so they stay asset-agnostic;
+:func:`sigma_for_asset` resolves the per-asset value from a caller-supplied map
+(default :data:`DEFAULT_SIGMA_PER_SQRT_SEC`).
+
 Model
 -----
-The Polymarket BTC Up/Down candle markets resolve on the Chainlink BTC/USD data
-stream against a per-candle "Price to Beat" (the candle open). Treating the BTC
-return over the remaining candle window as a zero-drift Gaussian::
+The candle markets resolve on the asset's Chainlink data stream against a
+per-candle "Price to Beat" (the candle open). Treating the asset return over the
+remaining candle window as a zero-drift Gaussian::
 
-    delta     = (chainlink_now - price_to_beat) / price_to_beat   # signed return
+    delta     = (oracle_now - price_to_beat) / price_to_beat       # signed return
     time_left = resolution_ts - now                                # seconds
-    sigma     = BTC realized vol per sqrt(second)                  # configurable
+    sigma     = asset realized vol per sqrt(second)                # PER ASSET
     z         = delta / (sigma * sqrt(time_left))
     fair_up   = Phi(z)                                             # P(close Up)
     edge_up   = fair_up        - best_ask_up
@@ -28,7 +34,7 @@ and no chance of an unbounded value: ``erf`` saturates cleanly at +/-1.
 from __future__ import annotations
 
 import math
-from typing import NamedTuple, Optional
+from typing import Mapping, NamedTuple, Optional
 
 # Polymarket CLOB minimum price increment. A token price can never be quoted
 # below this, so a missing / empty orderbook side is floored here rather than
@@ -39,6 +45,23 @@ CLOB_MIN_TICK: float = 0.01
 # Seconds in a 365.25-day year -- used to translate an annualized realized-vol
 # figure into the per-sqrt-second ``sigma`` the model consumes.
 _SECONDS_PER_YEAR: float = 365.25 * 24.0 * 60.0 * 60.0  # 31_557_600.0
+
+# Per-asset realized-vol scale (``sigma`` per sqrt-second). sigma is PER ASSET
+# because realized vol differs materially across these candle markets --
+# SOL > ETH > BTC -- so a single shared sigma would misprice fair value on the
+# higher-vol assets (a larger sigma pulls ``fair_up`` toward 0.5). Each default
+# is ``annualized_vol / sqrt(_SECONDS_PER_YEAR)``; cross-check with
+# :func:`annual_vol_to_sigma`:
+#   btc 0.00010 ~= 56%  annualized (0.00010 * sqrt(31_557_600) ~= 0.562)
+#   eth 0.00013 ~= 73%  annualized (ETH realized vol historically above BTC)
+#   sol 0.00020 ~= 112% annualized (SOL the most volatile of the three)
+# These mirror the Settings ``oracle_sigma_per_sqrt_sec`` env-tunable defaults;
+# the calculator stays pure -- callers pass a map in, this is only the fallback.
+DEFAULT_SIGMA_PER_SQRT_SEC: dict[str, float] = {
+    "btc": 0.00010,
+    "eth": 0.00013,
+    "sol": 0.00020,
+}
 
 
 def _require_finite(name: str, value: float) -> float:
@@ -59,17 +82,44 @@ def normal_cdf(z: float) -> float:
     return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
 
 
-def compute_delta(chainlink_now: float, price_to_beat: float) -> float:
-    """Signed candle return ``(chainlink_now - price_to_beat) / price_to_beat``.
+def sigma_for_asset(
+    asset: str,
+    sigma_map: Optional[Mapping[str, float]] = None,
+) -> float:
+    """Resolve the per-sqrt-second ``sigma`` for an asset symbol (pure lookup).
 
-    ``price_to_beat`` is the candle-open reference; it must be strictly
-    positive (a BTC price), otherwise the return is undefined.
+    The calculator never reads Settings / network itself: the strategy layer
+    (Chunk 3) passes the Settings-derived ``oracle_sigma_per_sqrt_sec`` map in.
+    When ``sigma_map`` is omitted, :data:`DEFAULT_SIGMA_PER_SQRT_SEC` is used.
+
+    ``asset`` is case-insensitive (``"BTC"`` == ``"btc"``). An unknown symbol or
+    a non-finite calibrated value raises ``ValueError`` -- no silent default to
+    a wrong-vol sigma, which would misprice fair value.
     """
-    _require_finite("chainlink_now", chainlink_now)
+    if not isinstance(asset, str) or not asset.strip():
+        raise ValueError(f"asset must be a non-empty symbol, got {asset!r}")
+    key = asset.strip().lower()
+    table = DEFAULT_SIGMA_PER_SQRT_SEC if sigma_map is None else sigma_map
+    if key not in table:
+        raise ValueError(
+            f"no sigma calibrated for asset {asset!r}; known: {sorted(table)}"
+        )
+    return _require_finite(f"sigma[{key}]", float(table[key]))
+
+
+def compute_delta(oracle_now: float, price_to_beat: float) -> float:
+    """Signed candle return ``(oracle_now - price_to_beat) / price_to_beat``.
+
+    ``oracle_now`` is the current oracle reading for the asset (BTC/ETH/SOL
+    Chainlink data stream); ``price_to_beat`` is the candle-open reference and
+    must be strictly positive (an asset price), otherwise the return is
+    undefined.
+    """
+    _require_finite("oracle_now", oracle_now)
     _require_finite("price_to_beat", price_to_beat)
     if price_to_beat <= 0.0:
         raise ValueError(f"price_to_beat must be > 0, got {price_to_beat!r}")
-    return (chainlink_now - price_to_beat) / price_to_beat
+    return (oracle_now - price_to_beat) / price_to_beat
 
 
 def compute_fair_value(delta: float, time_left: float, sigma: float) -> float:

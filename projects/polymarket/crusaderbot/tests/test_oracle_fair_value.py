@@ -12,15 +12,17 @@ import pytest
 
 from projects.polymarket.crusaderbot.domain.strategy.oracle.fair_value import (
     CLOB_MIN_TICK,
+    DEFAULT_SIGMA_PER_SQRT_SEC,
     EdgeResult,
     annual_vol_to_sigma,
     compute_delta,
     compute_edge,
     compute_fair_value,
     normal_cdf,
+    sigma_for_asset,
 )
 
-SIGMA = 1e-4  # ~56% annualized, the configured default
+SIGMA = 1e-4  # ~56% annualized, the BTC default
 
 
 # --- normal_cdf ------------------------------------------------------------
@@ -195,3 +197,54 @@ def test_annual_vol_to_sigma_round_trip() -> None:
 def test_annual_vol_to_sigma_rejects_negative() -> None:
     with pytest.raises(ValueError):
         annual_vol_to_sigma(-0.1)
+
+
+# --- per-asset sigma (BTC / ETH / SOL) -------------------------------------
+
+def test_default_sigma_map_orders_sol_gt_eth_gt_btc() -> None:
+    # Realized-vol ordering is the whole point of per-asset sigma.
+    btc = DEFAULT_SIGMA_PER_SQRT_SEC["btc"]
+    eth = DEFAULT_SIGMA_PER_SQRT_SEC["eth"]
+    sol = DEFAULT_SIGMA_PER_SQRT_SEC["sol"]
+    assert sol > eth > btc
+
+
+def test_sigma_for_asset_default_map_case_insensitive() -> None:
+    assert sigma_for_asset("btc") == DEFAULT_SIGMA_PER_SQRT_SEC["btc"]
+    assert sigma_for_asset("ETH") == DEFAULT_SIGMA_PER_SQRT_SEC["eth"]
+    assert sigma_for_asset(" Sol ") == DEFAULT_SIGMA_PER_SQRT_SEC["sol"]
+
+
+def test_sigma_for_asset_uses_supplied_map() -> None:
+    # The strategy layer passes the Settings-derived map; calc stays pure.
+    custom = {"btc": 0.0002, "eth": 0.0003, "sol": 0.0005}
+    assert sigma_for_asset("eth", custom) == 0.0003
+
+
+def test_sigma_for_asset_unknown_symbol_raises() -> None:
+    with pytest.raises(ValueError):
+        sigma_for_asset("doge")
+    with pytest.raises(ValueError):
+        sigma_for_asset("")
+
+
+def test_sigma_for_asset_rejects_non_finite_calibration() -> None:
+    with pytest.raises(ValueError):
+        sigma_for_asset("btc", {"btc": float("nan")})
+
+
+def test_per_asset_sigma_materially_changes_fair_up() -> None:
+    # KEY per-asset proof: the SAME delta + time_left run through the SOL sigma
+    # vs the BTC sigma must yield a MATERIALLY different fair_up. Higher SOL vol
+    # => wider distribution => fair_up nearer 0.5 for the same positive delta.
+    delta = 0.0015
+    time_left = 120.0
+    fair_btc = compute_fair_value(delta, time_left, sigma_for_asset("btc"))
+    fair_eth = compute_fair_value(delta, time_left, sigma_for_asset("eth"))
+    fair_sol = compute_fair_value(delta, time_left, sigma_for_asset("sol"))
+
+    # All bullish on a positive delta, but confidence shrinks as vol rises.
+    assert fair_btc > fair_eth > fair_sol > 0.5
+    # "Materially" different: BTC vs SOL differ by a non-trivial margin, not a
+    # rounding wobble (here ~0.10+ on fair_up).
+    assert fair_btc - fair_sol > 0.05
