@@ -176,6 +176,26 @@ class Settings(BaseSettings):
     # flag (LIVE additionally behind the existing activation guards, Lane 3).
     COMPLETE_SET_ARB_ENABLED: bool = False
 
+    # --- Multi-asset crypto oracle (WARP-62, candle edge engine foundation) ---
+    # Foundation knobs for the candle oracle layer. Default OFF — even with the
+    # client code present, the runtime factory
+    # (domain.strategy.oracle.oracle_from_settings) refuses to construct until
+    # the operator sets ORACLE_ENABLED=true. Chunk 1 is the data client only;
+    # fair-value calc and late_entry_v3 wiring land in later chunks (no trading
+    # effect yet).
+    #
+    # Access path: Polymarket Real-Time Data Stream (RTDS) WebSocket — the SAME
+    # Chainlink price the crypto up/down markets resolve against, so NO separate
+    # Chainlink Data Streams credentials are needed. The oracle is multi-asset,
+    # keyed by symbol: ORACLE_SYMBOLS is a CSV "symbol map" (base/quote pairs)
+    # that the client subscribes to and is extensible to more pairs. SOL/ETH/BTC
+    # all stream from one connection. ORACLE_STALENESS_SEC is the max tick age
+    # before get_price refuses a symbol (returns None, never a stale value).
+    ORACLE_ENABLED: bool = False
+    ORACLE_RTDS_WS_URL: str = "wss://ws-live-data.polymarket.com"
+    ORACLE_SYMBOLS: str = "btc/usd,eth/usd,sol/usd"
+    ORACLE_STALENESS_SEC: float = 10.0
+
     # --- Polymarket (only required for LIVE trading) ---
     POLYMARKET_API_KEY: Optional[str] = None
     POLYMARKET_API_SECRET: Optional[str] = None
