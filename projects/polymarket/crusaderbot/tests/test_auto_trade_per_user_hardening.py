@@ -64,8 +64,18 @@ def test_idempotency_key_differs_across_users_same_market():
     )
 
 
-def test_idempotency_key_stable_for_same_user_market_side_day():
-    """Same (user, market, side, UTC day) → identical key — dedup must hold."""
+def test_idempotency_key_stable_for_same_user_market_side_day(monkeypatch):
+    """Same (user, market, side, UTC day) → identical key — dedup must hold.
+
+    ``datetime`` is frozen so two sequential calls can never straddle a UTC-day
+    boundary and spuriously differ (Gemini review, PR #1615).
+    """
+    class _FrozenDatetime:
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 6, 4, 12, 0, tzinfo=tz)
+
+    monkeypatch.setattr(ssj, "datetime", _FrozenDatetime)
     k1 = ssj._build_idempotency_key(_UID_A, "mkt-1", "yes", uuid4())
     k2 = ssj._build_idempotency_key(_UID_A, "mkt-1", "yes", uuid4())
     # publication_id is intentionally NOT in the hash (signature compat only),
