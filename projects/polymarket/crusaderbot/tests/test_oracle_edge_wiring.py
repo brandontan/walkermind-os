@@ -19,6 +19,7 @@ from projects.polymarket.crusaderbot.domain.strategy.strategies import late_entr
 from projects.polymarket.crusaderbot.domain.strategy.strategies.late_entry_v3 import (
     OracleEdgeConfig,
     _asset_base_from_slug,
+    _candle_open_epoch,
     _observe_oracle_edge,
 )
 from projects.polymarket.crusaderbot.services.signal_scan import signal_scan_job as ssj
@@ -113,6 +114,66 @@ def test_observe_swallows_provider_errors_non_blocking():
 
 
 # ---------------------------------------------------------------------
+# WARP-68 — derive price_to_beat from the Chainlink buffer at candle open
+# ---------------------------------------------------------------------
+
+
+def test_candle_open_epoch_from_slug_and_event_start():
+    # Slug trailing unix ts IS the candle open (2026-06-04T05:25:00Z).
+    assert _candle_open_epoch({}, "btc-updown-5m-1780550700") == 1780550700.0
+    assert _candle_open_epoch({"slug": "x"}, "sol-updown-15m-1780551000") == 1780551000.0
+    # Non-candle slug -> fall back to an explicit eventStartTime (ISO or epoch).
+    assert _candle_open_epoch({"eventStartTime": "2026-06-04T05:25:00Z"}, "x") == pytest.approx(1780550700.0)
+    assert _candle_open_epoch({"event_start_time": 1780550700}, "x") == pytest.approx(1780550700.0)
+    # Stringified epoch (not ISO) -> defensively parsed as a float epoch.
+    assert _candle_open_epoch({"eventStartTime": "1780550700"}, "x") == pytest.approx(1780550700.0)
+    # Nothing usable -> None (stays no_price_to_beat, never a bogus instant).
+    assert _candle_open_epoch({}, "some-random-market") is None
+    assert _candle_open_epoch({"eventStartTime": "not-a-date"}, "x") is None
+    assert _candle_open_epoch({"eventStartTime": "999"}, "x") is None  # out-of-band epoch
+
+
+_MKT_NO_PTB = {"slug": "btc-updown-5m-1780550700"}  # no price-to-beat field at all
+
+
+def test_observe_derives_price_to_beat_from_oracle_buffer():
+    # Market carries NO price-to-beat; the buffer supplies the candle-open price.
+    seen = {}
+
+    def _price_at(sym: str, epoch: float, *, tolerance_sec: float = 2.0):
+        seen.update(sym=sym, epoch=epoch, tol=tolerance_sec)
+        return 63_800.0
+
+    cfg = _cfg(price_provider=lambda s: 63_900.0, price_at_provider=_price_at, ptb_tolerance_sec=2.0)
+    meta = _observe_oracle_edge(
+        cfg, market=_MKT_NO_PTB, slug=_MKT_NO_PTB["slug"], seconds_left=120, yes_ask=0.55, no_ask=0.47
+    )
+    assert meta["oracle_edge_status"] == "computed"
+    assert meta["oracle_price_to_beat"] == pytest.approx(63_800.0)
+    assert meta["oracle_price_to_beat_source"] == "oracle_buffer"
+    assert meta["oracle_delta"] == pytest.approx((63_900.0 - 63_800.0) / 63_800.0)
+    # Looked up the right symbol + candle-open epoch with the configured tolerance.
+    assert seen == {"sym": "btc/usd", "epoch": 1780550700.0, "tol": 2.0}
+
+
+def test_observe_no_price_to_beat_when_buffer_misses():
+    cfg = _cfg(price_provider=lambda s: 63_900.0, price_at_provider=lambda *a, **k: None)
+    meta = _observe_oracle_edge(
+        cfg, market=_MKT_NO_PTB, slug=_MKT_NO_PTB["slug"], seconds_left=120, yes_ask=0.55, no_ask=0.47
+    )
+    assert meta["oracle_edge_status"] == "no_price_to_beat"
+
+
+def test_observe_prefers_explicit_metadata_over_buffer():
+    # When the market DOES carry a baseline, the buffer is not consulted.
+    cfg = _cfg(price_provider=lambda s: 104_500.0, price_at_provider=lambda *a, **k: 999.0)
+    meta = _observe_oracle_edge(cfg, market=_MKT, slug=_MKT["slug"], seconds_left=120, yes_ask=0.6, no_ask=0.4)
+    assert meta["oracle_edge_status"] == "computed"
+    assert meta["oracle_price_to_beat"] == pytest.approx(104_000.0)
+    assert meta["oracle_price_to_beat_source"] == "metadata"
+
+
+# ---------------------------------------------------------------------
 # signal_scan_job lazy-singleton oracle + flag gating
 # ---------------------------------------------------------------------
 
@@ -151,6 +212,9 @@ class _FakeOracle:
     def get_price(self, symbol: str) -> Optional[float]:
         return None
 
+    def price_at(self, symbol: str, epoch_sec: float, *, tolerance_sec: float = 2.0) -> Optional[float]:
+        return None
+
 
 @pytest.mark.asyncio
 async def test_build_edge_cfg_none_when_flag_off(monkeypatch):
@@ -184,6 +248,9 @@ async def test_lazy_singleton_starts_once_and_reuses(monkeypatch):
     assert (cfg1.min_edge, cfg1.trend) == (0.02, False)
     assert (cfg2.min_edge, cfg2.trend) == (0.03, True)
     assert cfg1.price_provider.__self__ is fake  # bound to the singleton oracle
+    # WARP-68: price_at + tolerance wired from the same singleton + settings.
+    assert cfg1.price_at_provider.__self__ is fake
+    assert cfg1.ptb_tolerance_sec == 2.0
 
     await ssj.stop_candle_oracle()
     assert fake.stopped == 1

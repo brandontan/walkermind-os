@@ -27,14 +27,14 @@ from projects.polymarket.crusaderbot.domain.strategy.oracle import (
 _SYMBOLS = ["btc/usd", "eth/usd", "sol/usd"]
 
 
-def _frame(symbol: str, value: Any) -> str:
+def _frame(symbol: str, value: Any, ts_ms: int = 1) -> str:
     # Mirrors the live crypto_prices_chainlink frame shape (verified 2026-06-04).
     return json.dumps(
         {"topic": "crypto_prices_chainlink", "type": "update",
          "connection_id": "test",
          "payload": {"symbol": symbol, "value": value,
                      "full_accuracy_value": str(int(float(value) * 1e18)),
-                     "timestamp": 1}}
+                     "timestamp": ts_ms}}
     )
 
 
@@ -100,10 +100,27 @@ def test_parse_symbols_csv_dedup_order():
 
 
 def test_parse_tick_all_three_symbols():
+    # Now returns (symbol, price, chainlink_report_ms) — ts is None when absent.
     oracle = _oracle(_FakeWS([]))
-    assert oracle._parse_tick({"payload": {"symbol": "btc/usd", "value": 104250.5}}) == ("btc/usd", 104250.5)
-    assert oracle._parse_tick({"payload": {"asset": "ETH/USD", "price": 3850.0}}) == ("eth/usd", 3850.0)
-    assert oracle._parse_tick({"symbol": "sol", "p": 168.25}) == ("sol/usd", 168.25)
+    assert oracle._parse_tick(
+        {"payload": {"symbol": "btc/usd", "value": 104250.5, "timestamp": 1780550700000}}
+    ) == ("btc/usd", 104250.5, 1780550700000.0)
+    assert oracle._parse_tick({"payload": {"asset": "ETH/USD", "price": 3850.0}}) == ("eth/usd", 3850.0, None)
+    assert oracle._parse_tick({"symbol": "sol", "p": 168.25}) == ("sol/usd", 168.25, None)
+
+
+def test_parse_tick_normalizes_and_sanity_bounds_timestamp():
+    # ms passes through; seconds normalize to ms; garbage/out-of-band -> None
+    # (history not seeded, so a bad ts can't corrupt the ring's prune anchor).
+    oracle = _oracle(_FakeWS([]))
+    base = {"symbol": "btc/usd", "value": 1.0}
+    assert oracle._parse_tick({"payload": {**base, "timestamp": 1780550700000}})[2] == 1780550700000.0
+    assert oracle._parse_tick({"payload": {**base, "timestamp": 1780550700}})[2] == 1780550700000.0
+    assert oracle._parse_tick({"payload": {**base, "timestamp": 42}})[2] is None        # too small
+    assert oracle._parse_tick({"payload": {**base, "timestamp": 9.9e12}})[2] is None     # too large
+    assert oracle._parse_tick({"payload": {**base, "timestamp": "x"}})[2] is None        # non-numeric
+    assert oracle._parse_tick({"payload": {**base, "timestamp": float("nan")}})[2] is None
+    assert oracle._parse_tick({"payload": base})[2] is None                              # absent
 
 
 def test_parse_tick_rejects_unconfigured_and_bad_price():
@@ -205,6 +222,79 @@ async def test_off_map_symbols_are_dropped():
     assert oracle.get_price("btc") == pytest.approx(104250.5)
     assert oracle.get_price("bnb") is None
     assert oracle.get_price("doge") is None
+    await oracle.stop()
+
+
+@pytest.mark.asyncio
+async def test_price_at_returns_open_within_tolerance():
+    # WARP-68: derive the candle-open price_to_beat from the Chainlink history.
+    open_epoch = 1_780_550_700  # 2026-06-04T05:25:00Z (a 5m candle open)
+    open_ms = open_epoch * 1000
+    ws = _FakeWS([
+        _frame("btc/usd", 63_700.0, ts_ms=open_ms - 1000),  # 1s before open
+        _frame("btc/usd", 63_800.0, ts_ms=open_ms),         # the open tick
+        _frame("btc/usd", 63_900.0, ts_ms=open_ms + 1000),  # 1s after open
+        _frame("btc/usd", 64_500.0, ts_ms=open_ms + 120_000),  # near close
+    ])
+    oracle = _oracle(ws)
+    await oracle.start()
+    assert await oracle.wait_connected(timeout=2.0)
+    for _ in range(20):
+        await asyncio.sleep(0)
+    # Exact-second open tick is picked, within the 2s tolerance.
+    assert oracle.price_at("btc", open_epoch, tolerance_sec=2.0) == pytest.approx(63_800.0)
+    # A candle open with no tick within tolerance -> honest None (never a far tick).
+    assert oracle.price_at("btc", open_epoch - 600, tolerance_sec=2.0) is None
+    await oracle.stop()
+
+
+@pytest.mark.asyncio
+async def test_corrupt_timestamp_does_not_wipe_history_ring():
+    # A far-future / garbage tick must NOT corrupt or wipe the ring: it is
+    # dropped (ts normalized to None -> not recorded), the good tick survives,
+    # and the live cache still updates (get_price is ts-independent).
+    good_epoch = 1_780_550_700
+    ws = _FakeWS([
+        _frame("btc/usd", 100.0, ts_ms=good_epoch * 1000),    # valid
+        _frame("btc/usd", 999.0, ts_ms=9_900_000_000_000),    # far-future garbage
+    ])
+    oracle = _oracle(ws)
+    await oracle.start()
+    assert await oracle.wait_connected(timeout=2.0)
+    for _ in range(20):
+        await asyncio.sleep(0)
+    assert oracle.price_at("btc", good_epoch, tolerance_sec=2.0) == pytest.approx(100.0)
+    assert oracle.get_price("btc") == pytest.approx(999.0)
+    await oracle.stop()
+
+
+@pytest.mark.asyncio
+async def test_price_at_none_before_any_tick_or_off_map():
+    oracle = _oracle(_FakeWS([]))
+    await oracle.start()
+    assert await oracle.wait_connected(timeout=2.0)
+    assert oracle.price_at("btc", 1_780_550_700) is None  # cold buffer
+    assert oracle.price_at("bnb", 1_780_550_700) is None  # off-map symbol
+    await oracle.stop()
+
+
+@pytest.mark.asyncio
+async def test_history_window_prunes_stale_ticks():
+    # A 5s window: an old tick is evicted once a much newer tick arrives.
+    # Timestamps must be in the sane epoch-ms band (~2020..2033).
+    old_epoch = 1_780_550_700           # 05:25:00Z
+    new_epoch = old_epoch + 1_000       # 1000s later
+    ws = _FakeWS([
+        _frame("btc/usd", 100.0, ts_ms=old_epoch * 1000),
+        _frame("btc/usd", 200.0, ts_ms=new_epoch * 1000),
+    ])
+    oracle = _oracle(ws, history_window_sec=5.0)
+    await oracle.start()
+    assert await oracle.wait_connected(timeout=2.0)
+    for _ in range(20):
+        await asyncio.sleep(0)
+    assert oracle.price_at("btc", old_epoch, tolerance_sec=2.0) is None      # pruned out
+    assert oracle.price_at("btc", new_epoch, tolerance_sec=2.0) == pytest.approx(200.0)
     await oracle.stop()
 
 

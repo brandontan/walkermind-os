@@ -39,8 +39,9 @@ import contextlib
 import json
 import random
 import time
+from collections import deque
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Iterable, Optional
+from typing import Any, Awaitable, Callable, Deque, Iterable, Optional, Tuple
 
 import structlog
 
@@ -54,6 +55,47 @@ ConnectFactory = Callable[[str], Awaitable[Any]]
 _DEFAULT_QUOTE = "usd"
 _INITIAL_BACKOFF_SEC = 1.0
 _MAX_BACKOFF_SEC = 30.0
+# Rolling history ring (WARP-68): derive the candle-open price_to_beat from our
+# own Chainlink feed at eventStartTime. 30 min covers the longest candle (15m) +
+# jitter margin; the hard maxlen is a safety cap (>30 min even at 1 Hz).
+_DEFAULT_HISTORY_WINDOW_SEC = 1800.0
+_HISTORY_MAXLEN = 4000
+# Nearest-tick match window: Chainlink reports at 1 Hz aligned to whole seconds,
+# so the open tick sits within ~1 s of the open epoch. Beyond this -> honest miss
+# (a far/stale tick is never substituted for the true open).
+_DEFAULT_PTB_TOLERANCE_SEC = 2.0
+# Plausible epoch bands (~2020..2033) used to sanity-check and unit-normalize the
+# Chainlink report timestamp before it seeds the history ring. A wrong-scale or
+# garbage timestamp must NEVER reach the ring: the ring is time-pruned off the
+# newest tick's own ts (cutoff = ts - window), so a far-future garbage value would
+# evict every legitimate tick. Seconds are normalized to ms; anything outside both
+# bands is dropped (the tick still updates the live cache, just not the history).
+_TS_MIN_SEC = 1_600_000_000.0
+_TS_MAX_SEC = 2_000_000_000.0
+_TS_MIN_MS = 1_600_000_000_000.0
+_TS_MAX_MS = 2_000_000_000_000.0
+
+
+def _normalize_ts_ms(raw: Any) -> Optional[float]:
+    """Coerce a frame timestamp to milliseconds within a sane epoch band, else None.
+
+    Accepts ms directly, normalizes a seconds-scale value to ms, and rejects
+    NaN/inf/non-numeric/out-of-band values so the history ring's prune anchor can
+    never be corrupted by a bad timestamp.
+    """
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if v != v or v in (float("inf"), float("-inf")):  # NaN / inf
+        return None
+    if _TS_MIN_SEC <= v <= _TS_MAX_SEC:  # seconds -> ms
+        v *= 1000.0
+    if _TS_MIN_MS <= v <= _TS_MAX_MS:
+        return v
+    return None
 
 
 class OracleError(RuntimeError):
@@ -129,6 +171,7 @@ class PolymarketRTDSOracle:
         connect_factory: Optional[ConnectFactory] = None,
         clock: Callable[[], float] = time.monotonic,
         max_backoff_sec: float = _MAX_BACKOFF_SEC,
+        history_window_sec: float = _DEFAULT_HISTORY_WINDOW_SEC,
     ) -> None:
         symbols = parse_symbols(list(symbols))
         if not ws_url:
@@ -142,8 +185,14 @@ class PolymarketRTDSOracle:
         self._connect_factory = connect_factory
         self._clock = clock
         self._max_backoff_sec = float(max_backoff_sec)
+        self._history_window_ms = float(history_window_sec) * 1000.0
 
         self._ticks: dict[str, _Tick] = {}
+        # Per-symbol time-ordered ring of (chainlink_report_ms, price) for the
+        # candle-open lookup (price_at). Keyed by normalized symbol.
+        self._history: dict[str, Deque[Tuple[float, float]]] = {
+            sym: deque(maxlen=_HISTORY_MAXLEN) for sym in symbols
+        }
         self._ws: Any = None
         self._run_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
@@ -183,6 +232,44 @@ class PolymarketRTDSOracle:
         if tick is None:
             return True
         return (self._clock() - tick.at_monotonic) > self._staleness_sec
+
+    def price_at(
+        self,
+        symbol: str,
+        epoch_sec: float,
+        *,
+        tolerance_sec: float = _DEFAULT_PTB_TOLERANCE_SEC,
+    ) -> Optional[float]:
+        """Chainlink price nearest the candle-open ``epoch_sec`` (unix seconds), or None.
+
+        Scans the per-symbol history ring for the tick whose Chainlink report
+        time is closest to ``epoch_sec`` and returns its price ONLY if within
+        ``tolerance_sec``. This is the ``price_to_beat`` baseline: same Chainlink
+        source as :meth:`get_price` (``oracle_now``), so delta is basis-clean.
+
+        Honest by construction — returns ``None`` (never a far/stale tick) when:
+          * the symbol has no buffered tick within tolerance, or
+          * the candle open predates the connection (cold start), or
+          * the open is outside the retained window.
+        A wrong open silently corrupts delta near close, so a miss is preferred
+        over a fabricated baseline.
+        """
+        key = normalize_symbol(symbol)
+        ring = self._history.get(key)
+        if not ring:
+            return None
+        target_ms = float(epoch_sec) * 1000.0
+        tol_ms = float(tolerance_sec) * 1000.0
+        best_price: Optional[float] = None
+        best_dist: Optional[float] = None
+        for ts_ms, price in ring:
+            dist = abs(ts_ms - target_ms)
+            if best_dist is None or dist < best_dist:
+                best_dist = dist
+                best_price = price
+        if best_dist is None or best_dist > tol_ms:
+            return None
+        return best_price
 
     async def start(self) -> None:
         """Open the stream in a background task (idempotent)."""
@@ -312,12 +399,31 @@ class PolymarketRTDSOracle:
         parsed = self._parse_tick(msg)
         if parsed is None:
             return
-        symbol, price = parsed
+        symbol, price, ts_ms = parsed
         self._ticks[symbol] = _Tick(price=price, at_monotonic=self._clock())
+        if ts_ms is not None:
+            self._record_history(symbol, ts_ms, price)
         log.debug("rtds oracle tick", symbol=symbol, price=price)
 
-    def _parse_tick(self, msg: dict[str, Any]) -> Optional[tuple[str, float]]:
-        """Extract ``(normalized_symbol, price)`` from an RTDS frame.
+    def _record_history(self, symbol: str, ts_ms: float, price: float) -> None:
+        """Append a tick to the symbol ring and time-prune the window.
+
+        Pruning is anchored on the newest tick's own Chainlink report time (not
+        a local clock), so the retained window is exactly ``history_window_sec``
+        of wall-clock Chainlink data regardless of host clock skew.
+        """
+        ring = self._history.get(symbol)
+        if ring is None:
+            return
+        ring.append((ts_ms, price))
+        cutoff = ts_ms - self._history_window_ms
+        while ring and ring[0][0] < cutoff:
+            ring.popleft()
+
+    def _parse_tick(
+        self, msg: dict[str, Any]
+    ) -> Optional[tuple[str, float, Optional[float]]]:
+        """Extract ``(normalized_symbol, price, chainlink_report_ms)`` from a frame.
 
         Verified ``crypto_prices_chainlink`` frame shape (live, 2026-06-04)::
 
@@ -362,7 +468,15 @@ class PolymarketRTDSOracle:
             return None
         if price != price or price <= 0 or price in (float("inf"),):  # NaN/inf/<=0
             return None
-        return symbol, price
+        # Chainlink report time for the history ring — sanity-checked and
+        # normalized to ms (a wrong-scale/garbage ts must never reach the ring,
+        # whose prune anchor it would corrupt). Absence is tolerated (ts -> None;
+        # the live cache still updates, only the candle-open lookup is unseeded).
+        raw_ts = payload.get("timestamp")
+        if raw_ts is None:
+            raw_ts = msg.get("timestamp")
+        ts_ms = _normalize_ts_ms(raw_ts)
+        return symbol, price, ts_ms
 
 
 def oracle_from_settings(
@@ -382,4 +496,7 @@ def oracle_from_settings(
         symbols=parse_symbols(settings.ORACLE_SYMBOLS),
         staleness_sec=settings.ORACLE_STALENESS_SEC,
         connect_factory=connect_factory,
+        history_window_sec=getattr(
+            settings, "ORACLE_HISTORY_WINDOW_SEC", _DEFAULT_HISTORY_WINDOW_SEC
+        ),
     )
