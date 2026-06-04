@@ -3679,6 +3679,9 @@ async def _build_oracle_edge_cfg(preset: str | None):
     return OracleEdgeConfig(
         enabled=True,
         price_provider=oracle.get_price,
+        # WARP-68: derive price_to_beat from the Chainlink history at candle open.
+        price_at_provider=oracle.price_at,
+        ptb_tolerance_sec=float(getattr(cfg, "ORACLE_PTB_TOLERANCE_SEC", 2.0)),
         sigma_map=getattr(cfg, "oracle_sigma_per_sqrt_sec", None),
         min_dist=float(e.get("min_dist", 0.0)),
         max_dist=float(e.get("max_dist", 1.0)),

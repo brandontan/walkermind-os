@@ -195,6 +195,16 @@ class Settings(BaseSettings):
     ORACLE_RTDS_WS_URL: str = "wss://ws-live-data.polymarket.com"
     ORACLE_SYMBOLS: str = "btc/usd,eth/usd,sol/usd"
     ORACLE_STALENESS_SEC: float = 10.0
+    # WARP-68 — Polymarket exposes NO candle "Price to Beat" field (verified live
+    # vs the Gamma payload); the candle resolves on Chainlink, the SAME source as
+    # our feed. So price_to_beat is DERIVED from our own RTDS Chainlink history at
+    # the candle-open epoch (eventStartTime). ORACLE_HISTORY_WINDOW_SEC sizes the
+    # per-symbol ring (30 min covers the 15m candle + margin); ORACLE_PTB_TOLERANCE_SEC
+    # is the nearest-tick match window (Chainlink is 1 Hz aligned to whole seconds,
+    # so ~2 s matches the open tick — beyond it the open is an honest no_price_to_beat,
+    # never a fabricated/stale baseline).
+    ORACLE_HISTORY_WINDOW_SEC: float = 1800.0
+    ORACLE_PTB_TOLERANCE_SEC: float = 2.0
     # WARP-64 Chunk 3 — wire the oracle edge into late_entry_v3 as an ADVISORY
     # signal: when ON (and ORACLE_ENABLED=true so the RTDS feed actually runs),
     # the strategy computes + logs + stamps per-candidate fair-value/edge metadata

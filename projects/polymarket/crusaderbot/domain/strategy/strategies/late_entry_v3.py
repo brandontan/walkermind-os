@@ -92,6 +92,44 @@ class OracleEdgeConfig:
     max_dist: float = 1.0          # fraction, e.g. 0.02   = 2.0%
     min_edge: float = 0.0          # fraction, e.g. 0.02   = 2.0%
     trend: bool = False            # Kreo "Trend" align flag (advisory; see note)
+    # WARP-68: Polymarket carries NO candle "Price to Beat" field, so price_to_beat
+    # is derived from our own RTDS Chainlink history at the candle-open epoch.
+    # ``price_at_provider`` is the (sync) oracle.price_at(symbol, epoch_sec,
+    # tolerance_sec=...) reader; ``ptb_tolerance_sec`` is the nearest-tick match
+    # window. Both optional so the metadata-only path still works without an oracle.
+    price_at_provider: Optional[Callable[..., Optional[float]]] = None
+    ptb_tolerance_sec: float = 2.0
+
+
+def _candle_open_epoch(market: dict[str, Any], slug: str) -> Optional[float]:
+    """Resolve the candle-open unix epoch (seconds) for a ``-updown-`` candle.
+
+    Primary source is the slug's trailing unix timestamp — for these markets it
+    IS the candle open (``btc-updown-5m-1780550700`` -> 05:25:00Z = Gamma
+    ``eventStartTime``; +timeframe = resolution). Falls back to an explicit
+    ``eventStartTime`` / ``event_start_time`` field (ISO or epoch) when present.
+    Returns ``None`` for a non-candle slug or an implausible value, so the caller
+    stays ``no_price_to_beat`` rather than looking up a bogus instant.
+    """
+    if slug and "-updown-" in slug:
+        tail = slug.rsplit("-", 1)[-1].strip()
+        if tail.isdigit():
+            epoch = float(tail)
+            if 1_600_000_000.0 <= epoch <= 2_000_000_000.0:  # ~2020..2033 sanity
+                return epoch
+    raw = market.get("eventStartTime") or market.get("event_start_time")
+    if raw is None:
+        return None
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        epoch = float(raw)
+        return epoch if 1_600_000_000.0 <= epoch <= 2_000_000_000.0 else None
+    if isinstance(raw, str):
+        try:
+            iso = raw.strip().replace("Z", "+00:00")
+            return datetime.fromisoformat(iso).timestamp()
+        except (ValueError, TypeError):
+            return None
+    return None
 
 
 def _asset_base_from_slug(slug: str) -> Optional[str]:
@@ -136,7 +174,21 @@ def _observe_oracle_edge(
             # Warmup or stale tick — expected, not an error (owner directive).
             log.info("late_entry_v3 oracle warming up", symbol=symbol, slug=slug)
             return {"oracle_edge_status": "warming_up", "oracle_symbol": symbol}
+        # price_to_beat resolution order:
+        #   1. explicit market metadata (future-proof; Polymarket exposes none today)
+        #   2. WARP-68 fallback — our own RTDS Chainlink price at the candle open
+        #      (eventStartTime), same source as oracle_now -> basis-clean delta.
         price_to_beat = get_price_to_beat(market)
+        ptb_source = "metadata"
+        if price_to_beat is None and edge_cfg.price_at_provider is not None:
+            open_epoch = _candle_open_epoch(market, slug)
+            if open_epoch is not None:
+                derived = edge_cfg.price_at_provider(
+                    symbol, open_epoch, tolerance_sec=edge_cfg.ptb_tolerance_sec
+                )
+                if derived is not None:
+                    price_to_beat = float(derived)
+                    ptb_source = "oracle_buffer"
         if price_to_beat is None:
             return {"oracle_edge_status": "no_price_to_beat", "oracle_symbol": symbol}
         delta = compute_delta(float(oracle_now), float(price_to_beat))
@@ -158,13 +210,14 @@ def _observe_oracle_edge(
             fair_up=round(fair_up, 4), edge_up=round(edge.edge_up, 4),
             edge_down=round(edge.edge_down, 4), distance=round(distance, 6),
             dist_ok=dist_ok, edge_ok=edge_ok, trend_flag=edge_cfg.trend,
-            would_pass=would_pass,
+            would_pass=would_pass, ptb_source=ptb_source,
         )
         return {
             "oracle_edge_status": "computed",
             "oracle_symbol": symbol,
             "oracle_price": float(oracle_now),
             "oracle_price_to_beat": float(price_to_beat),
+            "oracle_price_to_beat_source": ptb_source,
             "oracle_delta": delta,
             "oracle_fair_up": fair_up,
             "oracle_edge_up": edge.edge_up,
