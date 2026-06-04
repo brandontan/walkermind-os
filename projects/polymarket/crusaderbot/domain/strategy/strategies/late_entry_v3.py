@@ -281,6 +281,29 @@ def _factor_vector_enabled() -> bool:
         return _FACTOR_VECTOR_DEFAULT_ON
 
 
+def _factor_dataset_persist_enabled() -> bool:
+    try:
+        return bool(getattr(get_settings(), "FACTOR_DATASET_PERSIST_ENABLED", True))
+    except Exception:
+        return True
+
+
+async def _persist_factor_vector(fv: "FactorVector") -> None:
+    """Durably UPSERT the factor vector (one row per candle). SHADOW, fail-soft.
+
+    Decoupled from execution — every evaluated candle (traded or not) writes its
+    row so the Phase-2 dataset stays unbiased. Gated by FACTOR_DATASET_PERSIST_ENABLED;
+    any error is swallowed so the scan loop is never affected.
+    """
+    if not _factor_dataset_persist_enabled():
+        return
+    try:
+        from ...research.factor_dataset import record_factor_vector
+        await record_factor_vector(fv)
+    except Exception as exc:  # never let persistence break a scan
+        log.debug("factor_vector persist skipped (shadow, non-blocking)", err=str(exc))
+
+
 def _observe_factor_vector(
     *,
     market: dict[str, Any],
@@ -301,17 +324,18 @@ def _observe_factor_vector(
     sigma_map: Optional[Mapping[str, float]],
     edge_meta: dict[str, Any],
     now_ts: float,
-) -> dict[str, Any]:
-    """Build + emit the factor vector for one evaluated candle. Returns metadata.
+) -> "FactorVector | None":
+    """Build + emit the factor vector for one evaluated candle. Returns the vector.
 
     SHADOW/telemetry ONLY. Records the momentum sample, reads the rolling repricing
     velocity, exposes the per-asset volatility sigma, folds in the advisory oracle
-    edge + the realized open->close label, emits the labeled-dataset log, and
-    returns ``factor_*`` metadata to ride on the candidate / position. Fully
-    fail-soft — NEVER blocks, sizes, selects, or raises.
+    edge + the realized open->close label, and emits the labeled-dataset log. The
+    caller stamps ``factor_*`` metadata (``to_metadata``) and durably persists the
+    vector. Returns ``None`` when disabled / on error. Fully fail-soft — NEVER
+    blocks, sizes, selects, or raises.
     """
     if not _factor_vector_enabled():
-        return {}
+        return None
     try:
         condition_id = str(
             market.get("conditionId") or market.get("condition_id") or market.get("conditionID") or ""
@@ -411,13 +435,13 @@ def _observe_factor_vector(
             candle_close_epoch=close_epoch,
         )
         fv.emit()
-        return fv.to_metadata()
+        return fv
     except Exception as exc:  # telemetry must never break a scan
         log.warning(
             "factor_vector observation failed (shadow, non-blocking)",
             slug=slug, err=str(exc),
         )
-        return {}
+        return None
 
 # Suggested-size envelope (the gate re-sizes downward via Kelly + caps).
 _SUGGESTED_SIZE_FRACTION: float = 0.04
@@ -988,7 +1012,7 @@ async def _evaluate_market(
         yes_ask=yes_ask,
         no_ask=no_ask,
     )
-    factor_meta = _observe_factor_vector(
+    fv = _observe_factor_vector(
         market=m,
         slug=slug,
         evaluated_rule=evaluated_rule,
@@ -1008,6 +1032,11 @@ async def _evaluate_market(
         edge_meta=edge_meta,
         now_ts=now_ts,
     )
+    factor_meta = fv.to_metadata() if fv is not None else {}
+    # WARP-72 Phase 2 prep: durably persist the vector for EVERY evaluated candle
+    # (traded or not) so the Phase-2 dataset is unbiased. Shadow, fail-soft.
+    if fv is not None:
+        await _persist_factor_vector(fv)
 
     if ask_diff < min_ask_diff:
         log.debug(

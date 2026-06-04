@@ -225,6 +225,19 @@ class Settings(BaseSettings):
     # set false to silence the dataset emission with zero capital-path effect.
     FACTOR_VECTOR_SHADOW_ENABLED: bool = True
 
+    # WARP-72 Phase 2 prep — durable factor-vector dataset (table factor_vectors,
+    # migration 081). When ON, the shadow factor vector is UPSERTed (one row per
+    # candle, latest-wins) at the entry-decision point and a scheduled backfill
+    # resolves the realized open->close label at candle resolution. This is the
+    # queryable training set the Phase-2 scorer derives weights from. PURE shadow
+    # telemetry — no selection/sizing/gate effect. Default ON; requires the table
+    # (operator applies migration 081) and, for the settled label, ORACLE_ENABLED.
+    FACTOR_DATASET_PERSIST_ENABLED: bool = True
+    # Settlement backfill cadence (seconds). Must be well inside
+    # ORACLE_HISTORY_WINDOW_SEC so a closed candle's open tick still lives in the
+    # ring when its row is resolved.
+    FACTOR_SETTLEMENT_INTERVAL_SEC: int = 60
+
     # --- Polymarket (only required for LIVE trading) ---
     POLYMARKET_API_KEY: Optional[str] = None
     POLYMARKET_API_SECRET: Optional[str] = None

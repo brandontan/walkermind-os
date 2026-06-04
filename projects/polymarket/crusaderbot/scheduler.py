@@ -981,6 +981,14 @@ def setup_scheduler() -> AsyncIOScheduler:
                   id=market_signal_scanner.JOB_ID, max_instances=1, coalesce=True,
                   replace_existing=True,
                   next_run_time=datetime.now(timezone.utc))
+    # WARP-72 Phase 2 prep — settle the factor_vectors labeled dataset: resolve the
+    # realized open->close outcome for closed candle rows from the oracle ring.
+    # Shadow telemetry only; gated by FACTOR_DATASET_PERSIST_ENABLED.
+    if getattr(s, "FACTOR_DATASET_PERSIST_ENABLED", True):
+        sched.add_job(sf_scan_job.run_factor_settlement_backfill, "interval",
+                      seconds=int(getattr(s, "FACTOR_SETTLEMENT_INTERVAL_SEC", 60)),
+                      id="factor_settlement_backfill", max_instances=1, coalesce=True,
+                      replace_existing=True)
     sched.add_job(market_sync.run_job, "interval",
                   seconds=300,   # was 1800 — 5 min for price freshness
                   id=market_sync.JOB_ID, max_instances=1, coalesce=True)
