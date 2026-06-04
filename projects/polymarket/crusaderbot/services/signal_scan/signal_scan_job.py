@@ -704,6 +704,38 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
+async def _count_optedin_unenrolled() -> int:
+    """WARP-75 (F3 — coverage): count users who explicitly opted in
+    (``auto_trade_on=TRUE``, not paused) but are MISSING the ``signal_following``
+    enrolment row that ``_load_enrolled_users`` joins on — they would be silently
+    excluded from every scan and never trade. Returns the count for an actionable
+    operator warning; the enrolment self-heals on the user's next ``/start``
+    (``users.upsert_user`` → ``_enroll_signal_following``, idempotent). Fail-soft:
+    returns -1 on any error (incl. pool-not-ready) so coverage telemetry can
+    never break a scan."""
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            return int(await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM users u
+                JOIN user_settings s ON s.user_id = u.id
+                WHERE u.auto_trade_on = TRUE
+                  AND u.paused        = FALSE
+                  AND NOT EXISTS (
+                        SELECT 1 FROM user_strategies us
+                         WHERE us.user_id = u.id
+                           AND us.strategy_name = $1
+                           AND us.enabled = TRUE
+                  )
+                """,
+                _STRATEGY_NAME,
+            ))
+    except Exception as exc:  # noqa: BLE001 — coverage telemetry must never break a scan
+        logger.warning("optedin_unenrolled_check_failed", error=str(exc))
+        return -1
+
+
 async def _load_market(market_id: str) -> dict[str, Any] | None:
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -3014,6 +3046,18 @@ async def run_once() -> None:
         await _finish_scan_run(run_id, tel)
         return
 
+    # WARP-75 (F3 — coverage): surface opted-in users the enrolment join would
+    # silently drop, so a missing signal_following row never hides a user who
+    # asked to trade. Observability only; never blocks the scan.
+    _unenrolled = await _count_optedin_unenrolled()
+    if _unenrolled > 0:
+        logger.warning(
+            "scan_optedin_unenrolled",
+            count=_unenrolled,
+            reason="users opted in (auto_trade_on) but missing signal_following "
+                   "enrolment — not trading; re-run /start to self-heal",
+        )
+
     await _event_bus.emit("pipeline.strategy_scan_started", user_count=len(users))
 
     if not users:
@@ -3107,6 +3151,19 @@ async def run_once() -> None:
                 "scan_skipped_no_preset",
                 user_id=str(row["user_id"]),
                 reason="active_preset is NULL — user must configure a strategy before trading",
+            )
+            continue
+        # WARP-75 (F3 — coverage): a non-NULL preset that maps to NO strategy
+        # (deny-by-default: renamed / legacy / typo presets such as 'contrarian'
+        # or 'full_auto') would fire nothing SILENTLY for an opted-in user. Surface
+        # it as an actionable warning instead of an invisible skip.
+        if not _PRESET_ALLOWED.get(active_preset):
+            logger.warning(
+                "scan_skipped_unmapped_preset",
+                user_id=str(row["user_id"]),
+                active_preset=active_preset,
+                reason="active_preset maps to no enabled strategy — opted-in user "
+                       "will not trade until the preset is reconfigured",
             )
             continue
         category_filters: list[str] = list(row.get("category_filters") or [])

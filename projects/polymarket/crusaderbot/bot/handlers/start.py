@@ -23,9 +23,7 @@ from ...domain.preset import get_preset
 from ...domain.preset.presets import capital_for_risk_profile
 from ...users import (
     get_settings_for,
-    set_auto_trade,
     set_onboarding_complete,
-    set_paused,
     update_settings,
     upsert_user,
 )
@@ -201,19 +199,26 @@ async def preset_selected_in_onboard_cb(
 
 
 async def skip_deposit_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
-    """Skip deposit → apply selected preset → mark onboarding complete → Dashboard."""
+    """Skip deposit → apply selected preset config → mark onboarding complete → Dashboard.
+
+    WARP-75 (F1 — consent integrity): onboarding NEVER enables autonomous trading
+    as a side effect. It applies the user's chosen preset *configuration* so they
+    are ready to start, but ``auto_trade_on`` stays at its default FALSE. Starting
+    the autonomous loop requires a deliberate, explicit user act — the Dashboard
+    "🤖 Auto Mode" toggle (and, for real capital, the typed-CONFIRM live activation
+    gate). The Dashboard rendered below shows Auto Mode OFF with that toggle, which
+    is the explicit opt-in affordance.
+    """
     q = update.callback_query
     if q is None or update.effective_user is None:
         return ConversationHandler.END
     await q.answer()
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
 
-    # Apply the preset selected during onboarding so auto_trade_on gets set.
-    # Without this, the scanner never picks up the new user.
-    # Fallback ensures auto_trade_on=True even if full preset apply fails —
-    # prevents silent "scanner ignores user" regression on transient DB errors.
+    # Apply the preset selected during onboarding — CONFIGURATION ONLY. This does
+    # NOT set auto_trade_on (see docstring). On transient error the user simply
+    # re-picks the preset from the Dashboard; auto_trade_on remains FALSE either way.
     preset_key = ctx.user_data.get("onboard_preset_key")
-    _preset_ok = False
     if preset_key:
         p = get_preset(preset_key)
         if p is not None:
@@ -231,25 +236,16 @@ async def skip_deposit_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int
                     sl_pct=p.sl_pct,
                     max_position_pct=p.max_position_pct,
                 )
-                await set_auto_trade(user["id"], True)
-                await set_paused(user["id"], False)
-                _preset_ok = True
                 logger.info(
-                    "onboard.preset_applied user=%s preset=%s", user["id"], p.key,
+                    "onboard.preset_configured user=%s preset=%s "
+                    "(auto_trade_on left OFF — explicit opt-in required)",
+                    user["id"], p.key,
                 )
             except Exception as exc:
                 logger.warning(
                     "onboard.preset_apply_failed user=%s preset=%s err=%s",
                     user["id"], preset_key, exc,
                 )
-
-    if not _preset_ok:
-        # Fallback: activate scanner with defaults so user is never stranded.
-        try:
-            await set_auto_trade(user["id"], True)
-            await set_paused(user["id"], False)
-        except Exception as exc:
-            logger.error("onboard.auto_trade_fallback_failed user=%s err=%s", user["id"], exc)
 
     await set_onboarding_complete(user["id"], True)
     ctx.user_data.pop("onboard_in_preset_step", None)

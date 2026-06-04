@@ -1,7 +1,8 @@
-Last Updated : 2026-06-05 00:05
-Status       : WARP-74 live reconciliation MERGED #1613 + mig 082 applied to prod; WARP-72 Phase 1 SHADOW collecting factor_vector dataset (4 settled, need ~50-100); WARP-69 auto-trade per-user hardening audit PR #1615 open (held for data window); staging proof pending before LIVE flip.
+Last Updated : 2026-06-05 00:20
+Status       : WARP-74 live reconciliation MERGED #1613 + mig 082 applied to prod; WARP-72 Phase 1 SHADOW collecting factor_vector dataset (4 settled, need ~50-100); WARP-69 per-user hardening audit MERGED #1615, WARP-75 consent/coverage hardening PR #1617 open; staging proof pending before LIVE flip.
 
 [COMPLETED]
+- WARP-69 per-user autonomous loop hardening audit MERGED #1615 (eebca68) — auto_trade_on canonical opt-in, no parallel gate; no capital-path defect; 12 hermetic tests, zero prod change; report: reports/forge/auto-trade-per-user-hardening.md
 - WARP-74 live reconciliation epic MERGED #1613 (c5f0ed1) — generalized live reconciler + kill-switch broker cancel_all + mig 082 applied to Supabase prod; SENTINEL APPROVED 97/100 0 critical
 - WARP-74 Chunk A MERGED #1612 (4b742f2) — live-order orphan+drift detection/telemetry, no capital action; SENTINEL APPROVED 95/100 0 critical
 - WARP-72 factor dataset persistence MERGED #1609 (e497b57) — mig 081, durable factor_vectors table + per-candle UPSERT + settlement backfill
@@ -11,10 +12,8 @@ Status       : WARP-74 live reconciliation MERGED #1613 + mig 082 applied to pro
 - WARP/ROOT/oracle-rtds-frame-fix MERGED — live RTDS frame confirmed (crypto_prices_chainlink), SOL asset-aware band fix; MAJOR; report: reports/forge/oracle-rtds-frame-fix.md
 - WARP/ROOT/oracle-price-to-beat-buffer MERGED — buffer-at-open price_to_beat, live e2e BTC/ETH/SOL all oracle_edge_status=computed; report: reports/forge/oracle-price-to-beat-buffer.md
 - WARP/sentinel-candle-oracle SENTINEL APPROVED 96/100 0 critical — full oracle epic Chunks 1-3 validated at a92fec2; report: reports/sentinel/candle-oracle.md
-- WARP/ROOT/sl-cap-risk-profile MERGED #1599 (3df5c93) — PAPER SL fill capped at stop-threshold price, LIVE uses real mark; SENTINEL APPROVED; report: reports/forge/sl-cap-risk-profile.md
-
 [IN PROGRESS]
-- WARP-69 (WARP/ROOT/auto-trade-per-user) PR #1615 open/held — audit + hardening of existing per-user autonomous loop (auto_trade_on canonical opt-in, no parallel gate); no capital-path defect; 12 tests, zero prod change; F1+F3 findings promoted to WARP-75; report: reports/forge/auto-trade-per-user-hardening.md
+- WARP-75 (WARP/ROOT/auto-trade-consent-hardening) PR #1617 open — F1 onboarding no longer side-effect-enables auto_trade_on (explicit opt-in only); F3 run_once warns instead of silent-skip (unmapped preset + opted-in-unenrolled); 16 tests; STANDARD; report: reports/forge/auto-trade-consent-hardening.md
 - WARP-74 staging proof: simulate crash mid-close (confirm no orphan) + confirm kill-switch cancels all resting GTC orders via broker cancel_all_orders — operator acceptance gate before LIVE flip
 - WARP-72 Phase 1 shadow observation: factor_vector dataset accruing in paper (13 rows, 4 settled); need ~50-100 settled per asset/TF before Phase 2 weight derivation
 - Bankroll CB 7d paper observation started 2026-05-31 (ends ~2026-06-07): confirm no spurious trips + persisted state survives Fly deploys
