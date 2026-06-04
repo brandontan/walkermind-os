@@ -22,6 +22,32 @@ from .live import LivePostSubmitError, LivePreSubmitError
 
 logger = logging.getLogger(__name__)
 
+# WARP-74 Chunk C (GAP #5 — never silently downgrade live->paper). A
+# LivePreSubmitError can mean two very different things, and conflating them in
+# the audit trail hides a real outage:
+#   * DELIBERATE — a guard is intentionally unset (ENABLE_LIVE_TRADING off, user
+#     not admin, mode not live). Falling back to paper is correct and expected.
+#   * INFRA-DEGRADED — the live path WANTED to trade but a CLOB dependency failed
+#     (market-data API down, client config/auth error, idempotency read failed,
+#     or USE_REAL_CLOB unexpectedly off while guards are on). This MUST be loud:
+#     the operator believes the bot is live, but it just silently went to paper.
+# These substrings are stable fragments of the messages raised in
+# domain/execution/live.py — matched defensively so a wording tweak degrades to
+# the safe (treated-as-deliberate) path rather than a false CRITICAL page.
+_INFRA_DEGRADED_FRAGMENTS = (
+    "CLOB market metadata unavailable",
+    "CLOB client config error",
+    "idempotency precheck failed",
+    "USE_REAL_CLOB must be True",
+)
+
+
+def _is_infra_degraded(reason: str) -> bool:
+    # Case-insensitive so a wording/casing tweak to the live.py message does not
+    # silently drop an infra failure into the deliberate-fallback bucket.
+    reason_lower = (reason or "").lower()
+    return any(frag.lower() in reason_lower for frag in _INFRA_DEGRADED_FRAGMENTS)
+
 
 async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,
                   role: str, market_id: str, market_question: str | None,
@@ -78,12 +104,38 @@ async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,
                 logger.error("post-submit fallback trigger failed: %s", fb_exc)
             raise
         except LivePreSubmitError as exc:
-            logger.warning("router live→paper fallback (pre-submit fail): %s", exc)
-            await audit.write(actor_role="bot",
-                              action="live_blocked_fallback_paper",
-                              user_id=user_id,
-                              payload={"market_id": market_id,
-                                       "reason": f"pre_submit:{exc}"})
+            # Distinguish an INFRA-DEGRADED fallback (live wanted to trade but a
+            # CLOB dependency failed) from a DELIBERATE one (guard intentionally
+            # off). The former is a near-miss outage — audit it distinctly and
+            # page so a live operator is never silently downgraded to paper.
+            if _is_infra_degraded(str(exc)):
+                logger.critical(
+                    "LIVE_INFRA_DEGRADED: live execution wanted but CLOB dependency "
+                    "failed — falling back to paper. user=%s market=%s reason=%s",
+                    user_id, market_id, exc,
+                )
+                await audit.write(actor_role="bot",
+                                  action="live_infra_degraded_paper_fallback",
+                                  user_id=user_id,
+                                  payload={"market_id": market_id,
+                                           "reason": f"infra:{exc}"})
+                try:
+                    from ... import notifications as _notifications
+                    await _notifications.notify_operator(
+                        "🚨 <b>LIVE INFRA DEGRADED — fell back to PAPER</b>\n"
+                        f"market=<code>{market_id}</code>\n"
+                        f"A live trade could not reach the exchange (CLOB dependency "
+                        f"failure) and was routed to paper.\nreason: <code>{exc}</code>"
+                    )
+                except Exception as _notify_exc:  # noqa: BLE001
+                    logger.error("infra-degraded operator page failed: %s", _notify_exc)
+            else:
+                logger.warning("router live→paper fallback (pre-submit fail): %s", exc)
+                await audit.write(actor_role="bot",
+                                  action="live_blocked_fallback_paper",
+                                  user_id=user_id,
+                                  payload={"market_id": market_id,
+                                           "reason": f"pre_submit:{exc}"})
             # If the pre-submit failure was the runtime live-trading guard
             # going dark (operator flipped ENABLE_LIVE_TRADING off mid-flight),
             # also persist the paper fallback on the user's settings so future

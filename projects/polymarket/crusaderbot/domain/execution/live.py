@@ -459,7 +459,7 @@ async def close_position(
             )
         raise RuntimeError(f"CLOB client error during close: {exc}") from exc
     try:
-        await client.post_order(
+        sell_result = await client.post_order(
             token_id=token_id,
             side="SELL",
             price=exit_price,
@@ -475,6 +475,39 @@ async def close_position(
                 position["id"], position["user_id"],
             )
         raise
+
+    # Persist the close SELL's broker order id + the closing timestamp BEFORE the
+    # finalize txn. A crash in the (millisecond) window between this submit and the
+    # 'closed' finalize strands the row in 'closing'; without the order id the
+    # closing-position reconciler (WARP-74) cannot tell whether the SELL filled and
+    # must page for a manual reconcile. Persisting them here shrinks that blind
+    # window to the gap between post_order returning and this UPDATE.
+    #
+    # Deliberately BEST-EFFORT and kept OUT of the atomic 'closing' claim above:
+    # closing_at / close_order_id are WARP-74 telemetry columns (migration 082). If
+    # the code deploys before the migration, a missing column here only logs — the
+    # core close (claim → SELL → finalize) never references the new columns and so
+    # can never be bricked by deploy ordering. The reconciler treats a NULL
+    # closing_at as reconcilable, so a skipped stamp loses no recovery coverage.
+    close_order_id = str(
+        (sell_result or {}).get("orderID")
+        or (sell_result or {}).get("order_id")
+        or (sell_result or {}).get("id")
+        or (sell_result or {}).get("orderId")
+        or ""
+    )
+    try:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE positions SET close_order_id=$2, closing_at=NOW() "
+                "WHERE id=$1 AND user_id=$3 AND status='closing'",
+                position["id"], (close_order_id or None), position["user_id"],
+            )
+    except Exception as _exc:  # noqa: BLE001 — telemetry write must not break close
+        logger.error(
+            "live close: persisting close_order_id/closing_at failed (non-fatal) "
+            "position=%s err=%s", position["id"], str(_exc),
+        )
 
     size = Decimal(str(position["size_usdc"]))
     # Side-own price frame: exit_price/entry are the position's OWN outcome-token
