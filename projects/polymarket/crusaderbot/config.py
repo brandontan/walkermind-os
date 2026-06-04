@@ -788,6 +788,15 @@ class Settings(BaseSettings):
     # order before manual reconciliation.
     ORDER_POLL_MAX_ATTEMPTS: int = 48
 
+    # --- Live order reconciliation (WARP-74 Chunk A) ---
+    # Periodic broker-truth sweep: pulls the broker's open orders and diffs them
+    # against the DB to surface ORPHANS (resting at the broker but not tracked as
+    # open) and db-only drift. Detection / telemetry ONLY — never cancels, sizes,
+    # or mutates an order. No-op when USE_REAL_CLOB=False. Set ENABLED=False to
+    # unregister the job without a redeploy (the sweep also self-skips in paper).
+    RECONCILE_LIVE_ORDERS_ENABLED: bool = True
+    RECONCILE_INTERVAL_SEC: int = 120
+
     # --- CLOB WebSocket (Phase 4D) ---
     # Polymarket exposes two WS channels:
     #   wss://ws-subscriptions-clob.polymarket.com/ws/user    -> user fills + orders
@@ -888,6 +897,18 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"FACTOR_SETTLEMENT_INTERVAL_SEC must be > 0 (got {v}); it is the "
                 f"factor-vector settlement backfill cadence in seconds."
+            )
+        return v
+
+    @field_validator("RECONCILE_INTERVAL_SEC")
+    @classmethod
+    def validate_reconcile_interval(cls, v: int) -> int:
+        # Scheduler interval — APScheduler requires strictly positive seconds, so
+        # a 0/negative misconfig would crash setup. Fail fast at config load.
+        if v <= 0:
+            raise ValueError(
+                f"RECONCILE_INTERVAL_SEC must be > 0 (got {v}); it is the "
+                f"live-order broker-reconcile sweep cadence in seconds."
             )
         return v
 

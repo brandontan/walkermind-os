@@ -722,6 +722,19 @@ async def detect_order_drift_job() -> None:
     await drift_detector.detect_order_drift(clob_factory=get_clob_client)
 
 
+async def reconcile_live_orders() -> dict:
+    """Drive one live-order broker-reconcile sweep (WARP-74 Chunk A, #1612).
+
+    Pulls the broker's open orders and diffs against the DB to surface orphan /
+    drift. Detection-only — never cancels or mutates an order; no-op in
+    paper/non-live. The reconciler contains its own errors so the sweep never
+    raises. Returns the sweep's counters dict, captured into ``job_runs.metadata``
+    via the APScheduler listener.
+    """
+    from .domain.execution import reconcile as live_reconcile
+    return await live_reconcile.reconcile_once()
+
+
 # ---------------- CLOB WebSocket (Phase 4D) ----------------
 # A single ``ClobWebSocketClient`` instance lives for the lifetime of the
 # scheduler. ``ws_connect`` spawns it on startup; ``ws_watchdog`` reconnects
@@ -1119,6 +1132,14 @@ def setup_scheduler() -> AsyncIOScheduler:
         sched.add_job(detect_order_drift_job, "interval",
                       seconds=int(getattr(s, "ORDER_DRIFT_INTERVAL_SEC", 600)),
                       id="order_drift_detect", max_instances=1, coalesce=True)
+    # WARP-74 Chunk A (#1612) — detection-only live-order broker reconcile sweep
+    # (orphan + db-only drift surfacing); no-op in paper/non-live. Gated so an
+    # operator can unregister it without a redeploy via RECONCILE_LIVE_ORDERS_ENABLED.
+    # Distinct job id from the generalized reconciler above so both coexist.
+    if bool(getattr(s, "RECONCILE_LIVE_ORDERS_ENABLED", True)):
+        sched.add_job(reconcile_live_orders, "interval",
+                      seconds=int(getattr(s, "RECONCILE_INTERVAL_SEC", 120)),
+                      id="live_order_reconcile", max_instances=1, coalesce=True)
     # WebSocket fill streaming (Phase 4D). The client itself enforces the
     # USE_REAL_CLOB=False guard; jobs are still registered so a runtime
     # toggle flip + watchdog tick brings the socket up without a redeploy.
