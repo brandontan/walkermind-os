@@ -3589,13 +3589,114 @@ def _candle_auto_rule_tpsl(rule: str) -> tuple[float | None, float | None]:
         return (None, None)
 
 
-async def _scan_one_late_entry(strat, pp, market_filters, user_ctx):
+# --- WARP-64 Chunk 3: advisory oracle-edge wiring -----------------------------
+# Per-preset Distance / Min Edge / Trend (Kreo-aligned, fractions). Feeds ONLY
+# the advisory ``would_pass`` observation in late_entry_v3 — nothing here blocks a
+# trade this chunk (owner directive). Distance band is abs(delta); min_edge is a
+# fraction (2.0% = 0.02); trend is the Kreo align flag (advisory, not yet enforced).
+_CANDLE_PRESET_EDGE: dict[str, dict[str, float | bool]] = {
+    "close_sweep": {"min_dist": 0.0005, "max_dist": 0.020, "min_edge": 0.020, "trend": False},
+    "safe_close":  {"min_dist": 0.0003, "max_dist": 0.010, "min_edge": 0.010, "trend": False},
+    "flip_hunter": {"min_dist": 0.0005, "max_dist": 0.050, "min_edge": 0.030, "trend": True},
+}
+
+# Lazily-started RTDS oracle singleton (WARP-62 Chunk 1). Owns its own run-loop
+# task: started once on first use, REUSED across scans (no per-scan reconnect),
+# stopped best-effort at app shutdown (main.lifespan -> stop_candle_oracle). The
+# first get_price() after start may return None until the first tick lands — that
+# warmup is normal (late_entry_v3 logs "oracle warming up"), never an error.
+_candle_oracle = None
+_candle_oracle_lock = asyncio.Lock()
+
+
+async def get_candle_oracle():
+    """Return the started RTDS oracle singleton (start once, reuse across scans).
+
+    Requires ORACLE_ENABLED=true (``oracle_from_settings`` raises
+    OracleDisabledError otherwise). The run-loop task lives on the singleton until
+    ``stop_candle_oracle()`` at shutdown — this never reconnects per scan.
+    """
+    global _candle_oracle
+    if _candle_oracle is not None:
+        return _candle_oracle
+    async with _candle_oracle_lock:
+        if _candle_oracle is None:
+            from ...domain.strategy.oracle import oracle_from_settings
+            oracle = oracle_from_settings()
+            await oracle.start()
+            _candle_oracle = oracle
+            logger.info("candle_oracle_started", symbols=oracle.symbols)
+    return _candle_oracle
+
+
+async def stop_candle_oracle() -> None:
+    """Best-effort stop of the oracle singleton (app shutdown). Never raises.
+
+    Acquires the init lock so a stop racing with an in-flight get_candle_oracle()
+    (mid ``oracle.start()``) cannot leave a started-but-orphaned oracle: the stop
+    waits for the pending init to finish, then stops and clears it.
+    """
+    global _candle_oracle
+    async with _candle_oracle_lock:
+        oracle = _candle_oracle
+        _candle_oracle = None
+    if oracle is not None:
+        try:
+            await oracle.stop()
+            logger.info("candle_oracle_stopped")
+        except Exception as exc:  # noqa: BLE001 — shutdown must not raise
+            logger.warning("candle_oracle_stop_error", error=str(exc))
+
+
+async def _build_oracle_edge_cfg(preset: str | None):
+    """Build the advisory ``OracleEdgeConfig`` for a preset, or None when off.
+
+    Gated by BOTH ``ORACLE_EDGE_GATE_ENABLED`` (wire the advisory observation) and
+    ``ORACLE_ENABLED`` (the RTDS feed actually runs). Fully fail-soft — any problem
+    yields None (no observation), never affecting the scan or the capital path.
+    """
+    from ...config import get_settings as _get_settings
+    try:
+        cfg = _get_settings()
+    except Exception:
+        return None
+    if not getattr(cfg, "ORACLE_EDGE_GATE_ENABLED", False):
+        return None
+    try:
+        from ...domain.strategy.oracle import OracleDisabledError
+        try:
+            oracle = await get_candle_oracle()
+        except OracleDisabledError:
+            # Edge gate on but the oracle client itself is disabled — advisory
+            # stays inert until the operator also sets ORACLE_ENABLED=true.
+            logger.info("oracle_edge_gate_on_but_oracle_disabled")
+            return None
+    except Exception as exc:  # noqa: BLE001 — advisory only, never break the scan
+        logger.warning("oracle_edge_cfg_unavailable", error=str(exc))
+        return None
+    from ...domain.strategy.strategies.late_entry_v3 import OracleEdgeConfig
+    e = _CANDLE_PRESET_EDGE.get(preset or "", {})
+    return OracleEdgeConfig(
+        enabled=True,
+        price_provider=oracle.get_price,
+        sigma_map=getattr(cfg, "oracle_sigma_per_sqrt_sec", None),
+        min_dist=float(e.get("min_dist", 0.0)),
+        max_dist=float(e.get("max_dist", 1.0)),
+        min_edge=float(e.get("min_edge", 0.0)),
+        trend=bool(e.get("trend", False)),
+    )
+
+
+async def _scan_one_late_entry(strat, pp, market_filters, user_ctx, preset=None):
     """Call ``late_entry_v3.scan()`` with a resolved preset-param dict.
 
     ``pp`` may be ``None`` → scan() falls back to global config (legacy default).
     Centralises the kwarg unpacking that run_once and run_close_sweep_fast share.
+    ``preset`` selects the advisory oracle-edge params (no-op when the edge gate
+    or the oracle is off).
     """
     _force = pp.get("force_exit_at_rem_sec") if pp else None
+    edge_cfg = await _build_oracle_edge_cfg(preset)
     return await strat.scan(
         market_filters, user_ctx,
         min_ask_diff=float(pp["min_ask_diff"]) if pp else None,
@@ -3607,6 +3708,7 @@ async def _scan_one_late_entry(strat, pp, market_filters, user_ctx):
         force_exit_at_rem_sec=float(_force) if _force is not None else None,
         max_leg_spread=float(pp["max_leg_spread"]) if pp and "max_leg_spread" in pp else None,
         size_time_decay=bool(pp.get("size_time_decay", False)) if pp else False,
+        edge_cfg=edge_cfg,
     )
 
 
@@ -3629,7 +3731,7 @@ async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_fi
         for rule in _CANDLE_AUTO_RULE_ORDER:
             try:
                 pp = _resolve_preset_params(rule, timeframe)
-                cands = await _scan_one_late_entry(strat, pp, market_filters, user_ctx)
+                cands = await _scan_one_late_entry(strat, pp, market_filters, user_ctx, preset=rule)
             except Exception as exc:
                 logger.warning("candle_auto_subrule_scan_failed", rule=rule, error=str(exc))
                 continue
@@ -3650,7 +3752,7 @@ async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_fi
                 merged.append(c)
         return merged
     pp = _resolve_preset_params(active_preset, timeframe) if active_preset in _CANDLE_PRESETS else None
-    return await _scan_one_late_entry(strat, pp, market_filters, user_ctx)
+    return await _scan_one_late_entry(strat, pp, market_filters, user_ctx, preset=active_preset)
 
 
 async def run_close_sweep_fast() -> None:

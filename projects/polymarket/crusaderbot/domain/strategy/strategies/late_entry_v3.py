@@ -25,8 +25,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable, Mapping, Optional
 
 import structlog
 
@@ -34,6 +35,13 @@ from ....config import get_settings
 from ....integrations import polymarket as pm
 from ..base import BaseStrategy
 from ..eligibility import is_short_crypto_market
+from ..oracle import (
+    compute_delta,
+    compute_edge,
+    compute_fair_value,
+    get_price_to_beat,
+    sigma_for_asset,
+)
 from ..types import ExitDecision, MarketFilters, SignalCandidate, UserContext
 
 log = structlog.get_logger(__name__)
@@ -55,6 +63,124 @@ FLIP_STOP_PRICE: float = 0.48     # exit when favored side's live price <= this
 
 DEFAULT_TP_PCT: float = 0.15
 DEFAULT_SL_PCT: float = 0.08
+
+
+# --- WARP-64 Chunk 3: oracle edge (ADVISORY) ----------------------------------
+# Wires the merged Chunk-1 oracle (price-by-symbol) + Chunk-2 fair-value calc into
+# late_entry_v3 as an OBSERVABILITY signal. Per WARP🔹CMD direction this chunk is
+# ADVISORY-ONLY: each emitted candidate gets per-asset fair-value/edge metadata
+# computed, logged, and stamped (delta, fair_up, edge_up/edge_down, distance,
+# would_pass) — but nothing here blocks a trade. Flipping `would_pass` into a hard
+# reject is a deliberate follow-up after the live RTDS feed is verified. The
+# existing ask_diff/spread/timing/fav-price gates and all exit logic are untouched.
+@dataclass(frozen=True)
+class OracleEdgeConfig:
+    """Runtime + per-preset params for the advisory oracle-edge observation.
+
+    ``price_provider`` is the (sync) per-symbol price reader from the lazily
+    started RTDS oracle singleton (``oracle.get_price``); it returns ``None``
+    during warmup or when a tick is stale — that is normal and is logged, never
+    raised. ``sigma_map`` is the Settings per-asset sigma map. The distance /
+    min-edge / trend params come from the preset table (Kreo-aligned) and feed
+    only the advisory ``would_pass`` computation.
+    """
+
+    enabled: bool = False
+    price_provider: Optional[Callable[[str], Optional[float]]] = None
+    sigma_map: Optional[Mapping[str, float]] = None
+    min_dist: float = 0.0          # fraction, e.g. 0.0005 = 0.05%
+    max_dist: float = 1.0          # fraction, e.g. 0.02   = 2.0%
+    min_edge: float = 0.0          # fraction, e.g. 0.02   = 2.0%
+    trend: bool = False            # Kreo "Trend" align flag (advisory; see note)
+
+
+def _asset_base_from_slug(slug: str) -> Optional[str]:
+    """Extract the asset base ticker from a candle slug ``{coin}-updown-{tf}-...``.
+
+    ``"btc-updown-5m-1771511700"`` -> ``"btc"``. Returns ``None`` when the slug is
+    empty or not a recognisable candle slug (must contain ``-updown-``), so a
+    non-candle market never yields a bogus ``some/usd`` oracle lookup / spurious
+    warmup status.
+    """
+    if not slug or "-updown-" not in slug:
+        return None
+    head = slug.split("-", 1)[0].strip().lower()
+    return head or None
+
+
+def _observe_oracle_edge(
+    edge_cfg: "OracleEdgeConfig | None",
+    *,
+    market: dict[str, Any],
+    slug: str,
+    seconds_left: float,
+    yes_ask: float,
+    no_ask: float,
+) -> dict[str, Any]:
+    """Compute the ADVISORY oracle-edge metadata for a candidate. Never blocks.
+
+    Returns a metadata dict to merge into the candidate (empty when the edge is
+    off / unavailable). Fully fail-soft: any error is logged and swallowed so the
+    capital path is never affected by the observation. A ``None`` oracle price
+    (warmup / stale) is the documented normal case -> status ``warming_up``.
+    """
+    if edge_cfg is None or not edge_cfg.enabled or edge_cfg.price_provider is None:
+        return {}
+    try:
+        base = _asset_base_from_slug(slug)
+        if not base:
+            return {"oracle_edge_status": "no_symbol"}
+        symbol = f"{base}/usd"
+        oracle_now = edge_cfg.price_provider(symbol)
+        if oracle_now is None:
+            # Warmup or stale tick — expected, not an error (owner directive).
+            log.info("late_entry_v3 oracle warming up", symbol=symbol, slug=slug)
+            return {"oracle_edge_status": "warming_up", "oracle_symbol": symbol}
+        price_to_beat = get_price_to_beat(market)
+        if price_to_beat is None:
+            return {"oracle_edge_status": "no_price_to_beat", "oracle_symbol": symbol}
+        delta = compute_delta(float(oracle_now), float(price_to_beat))
+        sigma = sigma_for_asset(base, edge_cfg.sigma_map)
+        fair_up = compute_fair_value(delta, float(seconds_left), sigma)
+        edge = compute_edge(fair_up, yes_ask, no_ask)
+        distance = abs(delta)
+        dist_ok = edge_cfg.min_dist <= distance <= edge_cfg.max_dist
+        best_edge = max(edge.edge_up, edge.edge_down)
+        edge_ok = best_edge >= edge_cfg.min_edge
+        # Trend-align is advisory and NOT evaluated this chunk: it needs a rolling
+        # recent-delta momentum history the single-read oracle does not yet keep.
+        # would_pass reflects Distance + Min Edge only; trend is recorded as a flag.
+        would_pass = dist_ok and edge_ok
+        log.info(
+            "late_entry_v3 oracle_edge",
+            slug=slug, symbol=symbol, oracle=round(float(oracle_now), 2),
+            price_to_beat=round(float(price_to_beat), 2), delta=round(delta, 6),
+            fair_up=round(fair_up, 4), edge_up=round(edge.edge_up, 4),
+            edge_down=round(edge.edge_down, 4), distance=round(distance, 6),
+            dist_ok=dist_ok, edge_ok=edge_ok, trend_flag=edge_cfg.trend,
+            would_pass=would_pass,
+        )
+        return {
+            "oracle_edge_status": "computed",
+            "oracle_symbol": symbol,
+            "oracle_price": float(oracle_now),
+            "oracle_price_to_beat": float(price_to_beat),
+            "oracle_delta": delta,
+            "oracle_fair_up": fair_up,
+            "oracle_edge_up": edge.edge_up,
+            "oracle_edge_down": edge.edge_down,
+            "oracle_distance": distance,
+            "oracle_trend_align_flag": edge_cfg.trend,
+            # ADVISORY ONLY — not enforced this chunk; a follow-up flips this into
+            # a hard reject once the live RTDS feed is verified.
+            "oracle_edge_would_pass": would_pass,
+        }
+    except Exception as exc:  # never let the advisory observation break a scan
+        log.warning(
+            "late_entry_v3 oracle_edge failed (advisory, non-blocking)",
+            slug=slug, err=str(exc),
+        )
+        return {"oracle_edge_status": "error"}
 
 # Window step seconds by timeframe — used to derive the candle close from the
 # slug ({coin}-updown-{tf}-{slot}) when the market dict carries no end date.
@@ -149,6 +275,7 @@ class LateEntryV3Strategy(BaseStrategy):
         force_exit_at_rem_sec: float | None = None,
         max_leg_spread: float | None = None,
         size_time_decay: bool = False,
+        edge_cfg: "OracleEdgeConfig | None" = None,
     ) -> list[SignalCandidate]:
         """Emit one candidate per in-window crypto candle market.
 
@@ -238,6 +365,7 @@ class LateEntryV3Strategy(BaseStrategy):
                     force_exit_at_rem_sec=force_exit_at_rem_sec,
                     max_leg_spread=max_leg_spread,
                     size_time_decay=size_time_decay,
+                    edge_cfg=edge_cfg,
                 )
             except Exception as exc:
                 log.debug("late_entry_v3 scan: skip market", err=str(exc))
@@ -472,6 +600,7 @@ async def _evaluate_market(
     force_exit_at_rem_sec: float | None = None,
     max_leg_spread: float | None = None,
     size_time_decay: bool = False,
+    edge_cfg: "OracleEdgeConfig | None" = None,
 ) -> tuple[SignalCandidate | None, str | None]:
     """Return (candidate, None) on success or (None, reject_reason) on any gate failure.
 
@@ -676,6 +805,18 @@ async def _evaluate_market(
     # reject the candidate when scan->fill latency exceeds TOB_STALE_MS.
     entry_price_ts = datetime.now(timezone.utc).timestamp()
 
+    # WARP-64 Chunk 3 (ADVISORY): compute + log + stamp the oracle fair-value/edge
+    # for this would-trade candidate. Observability only — never changes the
+    # candidate or any gate (the candidate has already passed all existing gates).
+    edge_meta = _observe_oracle_edge(
+        edge_cfg,
+        market=m,
+        slug=slug,
+        seconds_left=seconds_left,
+        yes_ask=yes_ask,
+        no_ask=no_ask,
+    )
+
     return SignalCandidate(
         market_id=market_id,
         condition_id=condition_id,
@@ -717,6 +858,8 @@ async def _evaluate_market(
                 f"{entry_price:.2f}, diff {ask_diff:.2f}, "
                 f"spread {spread:.2f}, {seconds_left:.0f}s to close"
             ),
+            # WARP-64 Chunk 3 advisory oracle-edge fields (empty when off/unavailable).
+            **edge_meta,
         },
         reasoning=(
             f"Late entry {entry_side} ({'underdog' if underdog_mode else 'favored'}) "
@@ -787,6 +930,7 @@ def force_exit_at_rem_sec_for(
 
 __all__ = [
     "LateEntryV3Strategy",
+    "OracleEdgeConfig",
     "suggested_trade_size",
     "resolve_per_trade_ceiling",
     "force_exit_at_rem_sec_for",

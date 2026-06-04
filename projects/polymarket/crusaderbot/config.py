@@ -195,6 +195,14 @@ class Settings(BaseSettings):
     ORACLE_RTDS_WS_URL: str = "wss://ws-live-data.polymarket.com"
     ORACLE_SYMBOLS: str = "btc/usd,eth/usd,sol/usd"
     ORACLE_STALENESS_SEC: float = 10.0
+    # WARP-64 Chunk 3 — wire the oracle edge into late_entry_v3 as an ADVISORY
+    # signal: when ON (and ORACLE_ENABLED=true so the RTDS feed actually runs),
+    # the strategy computes + logs + stamps per-candidate fair-value/edge metadata
+    # (delta, fair_up, edge_up/edge_down, would_pass) but does NOT block trades —
+    # gating to a hard reject is a deliberate follow-up after the live RTDS feed
+    # is verified. Default OFF; PAPER-only. Requires ORACLE_ENABLED=true to have
+    # any effect (the lazy singleton oracle is built via oracle_from_settings).
+    ORACLE_EDGE_GATE_ENABLED: bool = False
 
     # --- Polymarket (only required for LIVE trading) ---
     POLYMARKET_API_KEY: Optional[str] = None

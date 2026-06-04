@@ -307,6 +307,13 @@ async def lifespan(_: FastAPI):
         except Exception as exc:
             log.warning("ws shutdown error: %s", exc)
         try:
+            # WARP-64 Chunk 3: best-effort stop of the lazily-started candle
+            # oracle WS singleton so its run-loop task does not leak on shutdown.
+            from .services.signal_scan.signal_scan_job import stop_candle_oracle
+            await stop_candle_oracle()
+        except Exception as exc:
+            log.warning("candle oracle shutdown error: %s", exc)
+        try:
             if bot_app and bot_app.updater:
                 await bot_app.updater.stop()
         except Exception as exc:
