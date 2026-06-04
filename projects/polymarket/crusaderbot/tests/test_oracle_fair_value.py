@@ -124,6 +124,14 @@ def test_fair_value_rejects_nan() -> None:
         compute_fair_value(0.01, float("inf"), SIGMA)
 
 
+def test_fair_value_underflow_denominator() -> None:
+    # sigma * sqrt(time_left) can underflow to 0.0 when both are tiny but
+    # positive; it must be handled as the zero-variance limit (sign of delta),
+    # never raise ZeroDivisionError.
+    assert compute_fair_value(0.01, 1e-300, 1e-300) == 1.0
+    assert compute_fair_value(-0.01, 1e-300, 1e-300) == 0.0
+
+
 # --- compute_edge ----------------------------------------------------------
 
 def test_compute_edge_basic_math() -> None:

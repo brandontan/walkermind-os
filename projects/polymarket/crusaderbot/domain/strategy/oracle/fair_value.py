@@ -99,7 +99,16 @@ def compute_fair_value(delta: float, time_left: float, sigma: float) -> float:
     if time_left <= 0.0 or sigma <= 0.0:
         return 1.0 if delta > 0.0 else 0.0
 
-    z = delta / (sigma * math.sqrt(time_left))
+    std = sigma * math.sqrt(time_left)
+    # Numerical-underflow guard: with sigma and time_left both tiny but positive,
+    # ``std`` can round to 0.0, which would make ``delta / std`` raise
+    # ZeroDivisionError. That regime is the same zero-variance limit as the
+    # ``time_left <= 0`` / ``sigma <= 0`` branch above -> outcome decided by the
+    # sign of delta (delta == 0 already returned 0.5 earlier).
+    if std <= 0.0:
+        return 1.0 if delta > 0.0 else 0.0
+
+    z = delta / std
     return normal_cdf(z)
 
 
