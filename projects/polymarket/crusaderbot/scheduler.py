@@ -683,6 +683,45 @@ async def reconcile_complete_set() -> None:
     await complete_set_exec.reconcile_complete_set_orders(clob_factory=get_clob_client)
 
 
+async def reconcile_live_orders_job() -> None:
+    """WARP-74 Chunk A — reconcile directional live orders orphaned in 'unknown'
+    by a crash (the state neither the lifecycle poller nor the complete-set
+    reconciler owns). No-op in paper / non-live; never raises.
+    """
+    from .domain.execution import live_reconcile
+    from .integrations.clob import get_clob_client
+    await live_reconcile.reconcile_live_orders(clob_factory=get_clob_client)
+
+
+async def reconcile_closing_positions_job() -> None:
+    """WARP-74 Chunk A — periodic recovery of live positions stranded in
+    'closing' past the stale window (close crashed between SELL and finalize).
+    """
+    from .domain.execution import live_reconcile
+    from .integrations.clob import get_clob_client
+    await live_reconcile.reconcile_closing_positions(clob_factory=get_clob_client)
+
+
+async def reconcile_closing_positions_startup() -> None:
+    """WARP-74 Chunk A — one-shot startup recovery of ALL live 'closing' rows.
+    A fresh process has nothing legitimately mid-close, so any 'closing' row at
+    boot is a crash leftover and is reconciled against broker truth immediately.
+    """
+    from .domain.execution import live_reconcile
+    from .integrations.clob import get_clob_client
+    await live_reconcile.reconcile_closing_positions(
+        clob_factory=get_clob_client, startup=True)
+
+
+async def detect_order_drift_job() -> None:
+    """WARP-74 Chunk C — periodic broker<->DB open-order drift detector
+    (alert-only). No-op in paper / non-live; never raises.
+    """
+    from .domain.execution import drift_detector
+    from .integrations.clob import get_clob_client
+    await drift_detector.detect_order_drift(clob_factory=get_clob_client)
+
+
 # ---------------- CLOB WebSocket (Phase 4D) ----------------
 # A single ``ClobWebSocketClient`` instance lives for the lifetime of the
 # scheduler. ``ws_connect`` spawns it on startup; ``ws_watchdog`` reconnects
@@ -1057,6 +1096,26 @@ def setup_scheduler() -> AsyncIOScheduler:
         sched.add_job(reconcile_complete_set, "interval",
                       seconds=s.COMPLETE_SET_RECONCILE_INTERVAL_SEC,
                       id="complete_set_reconcile", max_instances=1, coalesce=True)
+    # WARP-74 Chunk A — generalized live reconciler (directional 'unknown' orders
+    # + stranded 'closing' positions). Gated by LIVE_RECONCILE_ENABLED; each sweep
+    # no-ops in paper/non-live so registration is safe regardless of mode. The
+    # closing-position recovery also runs ONCE at startup (every 'closing' row at
+    # boot is a crash leftover).
+    if bool(getattr(s, "LIVE_RECONCILE_ENABLED", True)):
+        sched.add_job(reconcile_live_orders_job, "interval",
+                      seconds=int(getattr(s, "LIVE_RECONCILE_INTERVAL_SEC", 300)),
+                      id="live_order_reconcile", max_instances=1, coalesce=True)
+        sched.add_job(reconcile_closing_positions_job, "interval",
+                      seconds=int(getattr(s, "LIVE_RECONCILE_INTERVAL_SEC", 300)),
+                      id="live_closing_reconcile", max_instances=1, coalesce=True)
+        sched.add_job(reconcile_closing_positions_startup, "date",
+                      id="live_closing_reconcile_startup",
+                      max_instances=1, coalesce=True, replace_existing=True)
+    # WARP-74 Chunk C — broker<->DB open-order drift detector (alert-only).
+    if bool(getattr(s, "ORDER_DRIFT_DETECT_ENABLED", True)):
+        sched.add_job(detect_order_drift_job, "interval",
+                      seconds=int(getattr(s, "ORDER_DRIFT_INTERVAL_SEC", 600)),
+                      id="order_drift_detect", max_instances=1, coalesce=True)
     # WebSocket fill streaming (Phase 4D). The client itself enforces the
     # USE_REAL_CLOB=False guard; jobs are still registered so a runtime
     # toggle flip + watchdog tick brings the socket up without a redeploy.

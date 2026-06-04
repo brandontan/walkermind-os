@@ -713,6 +713,37 @@ class Settings(BaseSettings):
     # more than this fraction (avoids noise on expected tick-level overshoots).
     COMPLETE_SET_BUDGET_BREACH_PCT: float = 0.01
 
+    # --- WARP-74 LIVE reconciliation epic (generalized live reconciler) ---
+    # The OrderLifecycleManager (domain/execution/lifecycle.py) owns directional
+    # live orders in ('submitted','pending','partial_filled'); the complete-set
+    # reconciler owns 'complete_set_arb%' rows. NEITHER touches:
+    #   * directional 'unknown' orders — an ambiguous post-submit (live.execute
+    #     marks 'unknown' with NO broker id) that the poller never selects, so a
+    #     crash leaves it orphaned (P0 #1); and
+    #   * live 'closing' positions stranded by a crash mid-close (P0 #2).
+    # reconcile_live_orders + reconcile_closing_positions close exactly those gaps
+    # for late_entry_v3 / signal_following / copy_trade — NEVER complete-set.
+    LIVE_RECONCILE_ENABLED: bool = True
+    # A directional 'unknown'/'stale' live order older than this is a crash
+    # leftover (the normal flow resolves in seconds) -> reconcile against broker
+    # truth (or page on any uncertainty). Mirrors COMPLETE_SET_RECONCILE_STALE_SEC.
+    LIVE_RECONCILE_STALE_SEC: int = 300
+    LIVE_RECONCILE_INTERVAL_SEC: int = 300
+    # A live position in 'closing' older than this (measured from closing_at) is a
+    # crash-stranded close — a clean close finalizes in milliseconds. Tighter than
+    # the order stale window because a stranded close holds real on-chain exposure.
+    LIVE_CLOSING_STALE_SEC: int = 120
+    # Lookback window for the recent-fills scan when reconciling a directional
+    # 'unknown' order with no broker id (instant-fill detection on the order's token).
+    LIVE_RECONCILE_FILLS_WINDOW_SEC: int = 3600
+
+    # --- WARP-74 Chunk C: broker<->DB open-order drift detector ---
+    # Periodically compares the broker's open-orders set against the DB rows the
+    # bot believes are open. Divergence (broker-only = untracked resting order;
+    # DB-only = phantom open) pages the operator. Alert-only — never auto-cancels.
+    ORDER_DRIFT_DETECT_ENABLED: bool = True
+    ORDER_DRIFT_INTERVAL_SEC: int = 600
+
     # --- TOB freshness gate (WARP/R00T/tob-freshness-gate) ---
     # Max age in milliseconds for the orderbook snapshot that produced
     # a candidate's metadata["entry_price"]. Read by
