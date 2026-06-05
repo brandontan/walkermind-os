@@ -9,6 +9,13 @@ name: WARP-74 Staging Proof (live broker)
 # case is an in-memory recording fake — no Supabase (prod or otherwise) is ever
 # touched. Only the broker is real. No Fly app is required for the proof.
 #
+# GEOBLOCK (IMPORTANT): Polymarket enforces a server-side regional geoblock on
+# ORDER placement. GitHub-HOSTED runners sit in a blocked region, so the
+# order-placing cases (1-4) get a 403 "Trading restricted in your region" there.
+# Run those on a SELF-HOSTED runner on a machine in an allowed region by setting
+# the `runner: self-hosted` dispatch input — see docs/runbooks/warp74-staging-proof.md
+# (§ Self-hosted runner). case5 places NO real orders and runs anywhere.
+#
 # SAFETY (see docs/runbooks/warp74-staging-proof.md):
 #   * workflow_dispatch only — triggering needs repo write access.
 #   * `allow_fills` defaults FALSE. A default run only places tiny resting orders
@@ -48,6 +55,13 @@ on:
         description: "Set true ONLY if the staging market is neg-risk"
         type: boolean
         default: false
+      runner:
+        description: "Where to run. github-hosted is Polymarket-geoblocked for ORDER placement (cases 1-4) -> use self-hosted in an allowed region for those. case5 runs anywhere."
+        type: choice
+        default: github-hosted
+        options:
+          - github-hosted
+          - self-hosted
 
 permissions:
   contents: read
@@ -65,7 +79,11 @@ defaults:
 jobs:
   staging-proof:
     name: Live-broker reconcile proof
-    runs-on: ubuntu-latest
+    # github-hosted (ubuntu-latest) is geoblocked by Polymarket for order
+    # placement; pick `runner: self-hosted` to run the order-placing cases from
+    # a machine you register in an allowed region (the `self-hosted` label is
+    # applied to every self-hosted runner automatically).
+    runs-on: ${{ inputs.runner == 'self-hosted' && 'self-hosted' || 'ubuntu-latest' }}
     timeout-minutes: 20
     defaults:
       run:
