@@ -194,11 +194,11 @@ already green on hosted Actions.
 
 The cases that place orders need an **allowed-region egress**. The two ways:
 
-### (Recommended) Run on Fly.io Singapore — zero operator operation
+### (Recommended) Run on Fly.io Singapore — zero operator setup
 
 The production app already runs in Fly region **`sin` (Singapore)**, which is
 Polymarket-allowed, and the production image already contains the test harness
-and all deps. A dispatch can use the existing **`FLY_API_TOKEN`** secret to
+and all dependencies. A dispatch can use the existing **`FLY_API_TOKEN`** secret to
 launch a **one-off Fly machine in `sin`** that runs the harness and exits; the
 GitHub-hosted runner only drives `flyctl` (control-plane — not geoblocked).
 Nothing to install or keep running locally — you just tap **Run workflow**.
