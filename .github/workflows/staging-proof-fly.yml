@@ -1,11 +1,12 @@
-name: WARP-74 Staging Proof (Fly Singapore — order-placing cases)
+name: WARP-74 Staging Proof (Fly allowed-region — order-placing cases)
 
 # Companion to staging-proof.yml for the ORDER-PLACING cases (1-4), which
 # Polymarket geoblocks on GitHub-hosted runner IPs (403 "Trading restricted in
 # your region"). This workflow keeps the SAME mobile dispatch flow but executes
 # the harness from an ALLOWED region: it drives `flyctl` (control-plane, not
 # geoblocked) from the hosted runner to launch a ONE-OFF, ISOLATED Fly machine
-# in region `sin` (Singapore) that runs the proof and is destroyed afterwards.
+# in a Polymarket-ALLOWED region (default nrt=Tokyo/Japan; Singapore is
+# close-only and rejects opens) that runs the proof and is destroyed afterwards.
 #
 # ISOLATION (owner directive 2026-06-05): the machine runs in a DEDICATED app
 # (`crusaderbot-staging-proof`) that holds NONE of the production secrets, so the
@@ -49,6 +50,15 @@ on:
         description: "Set true ONLY if the staging market is neg-risk"
         type: boolean
         default: false
+      region:
+        description: "Fly region — MUST be Polymarket order-allowed. nrt=Tokyo/Japan (API permitted). sin=Singapore is CLOSE-ONLY (cannot OPEN orders)."
+        type: choice
+        default: nrt
+        options:
+          - nrt   # Tokyo, Japan — API order placement permitted
+          - hkg   # Hong Kong — not on Polymarket blocked list
+          - bom   # Mumbai, India — not on Polymarket blocked list
+          - gru   # Sao Paulo, Brazil — not on Polymarket blocked list
 
 permissions:
   contents: read
@@ -64,13 +74,13 @@ defaults:
 
 jobs:
   fly-proof:
-    name: Order-placing proof on Fly Singapore
+    name: Order-placing proof on Fly (allowed region)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       PROOF_APP: crusaderbot-staging-proof
-      FLY_REGION: sin
+      FLY_REGION: ${{ inputs.region }}
       # Throwaway wallet + market coordinates (NEVER the prod wallet).
       STAGING_WALLET_KEY: ${{ secrets.STAGING_WALLET_KEY }}
       STAGING_TOKEN_ID: ${{ secrets.STAGING_TOKEN_ID }}
@@ -129,7 +139,7 @@ jobs:
             flyctl apps create "$PROOF_APP" --org "$ORG"
           fi
 
-      - name: Run order-placing proof on Fly Singapore
+      - name: Run order-placing proof on Fly (allowed region)
         run: |
           set -euo pipefail
 
@@ -231,7 +241,7 @@ jobs:
             echo "| Field | Value |"
             echo "|---|---|"
             echo "| Case | \`${{ inputs.case }}\` |"
-            echo "| Region | \`sin\` (Singapore, allowed) |"
+            echo "| Region | \`${{ inputs.region }}\` |"
             echo "| Fills enabled (real USDC) | \`${{ inputs.allow_fills }}\` |"
             echo "| Signature type | \`${{ inputs.signature_type }}\` |"
             echo "| Neg-risk market | \`${{ inputs.neg_risk }}\` |"
