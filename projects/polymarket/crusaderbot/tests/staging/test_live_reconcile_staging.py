@@ -103,8 +103,15 @@ def _staging_settings() -> Any:
     """
     from projects.polymarket.crusaderbot.config import get_settings
 
+    # CLOB v2 migration: the proof validates the polymarket-client backend by
+    # default (USE_PYSDK_CLOB unset/1); set USE_PYSDK_CLOB=0 to fall back to the
+    # legacy py-clob-client backend for a comparison run.
+    _use_pysdk = os.getenv("USE_PYSDK_CLOB", "1").strip().lower() not in (
+        "0", "false", "no", "",
+    )
     return get_settings().model_copy(update={
         "USE_REAL_CLOB": True,
+        "USE_PYSDK_CLOB": _use_pysdk,
         "POLYMARKET_PRIVATE_KEY": _WALLET,
         "POLYMARKET_FUNDER_ADDRESS": os.getenv("STAGING_FUNDER_ADDRESS"),
         "POLYMARKET_SIGNATURE_TYPE": int(os.getenv("STAGING_SIGNATURE_TYPE", "2")),
