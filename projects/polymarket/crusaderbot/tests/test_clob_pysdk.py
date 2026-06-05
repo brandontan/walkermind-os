@@ -148,6 +148,25 @@ async def test_get_open_orders_flattens_page_wrapper():
     assert rows[0]["asset_id"] == "TK"
 
 
+class _EmptyPage:
+    """A Page wrapper with markers but items=None (empty/malformed page).
+    Must NOT be appended as a bogus row — yields zero rows."""
+
+    def __init__(self):
+        self.items = None
+        self.has_more = False
+        self.next_cursor = None
+        self.total_count = 0
+
+
+@pytest.mark.asyncio
+async def test_get_open_orders_malformed_page_yields_no_rows():
+    c = _client()
+    c._client._open = [_EmptyPage()]
+    rows = await c.get_open_orders()
+    assert rows == []   # the wrapper itself is never collected as a row
+
+
 @pytest.mark.asyncio
 async def test_get_fills_flattens_page_wrapper():
     c = _client()

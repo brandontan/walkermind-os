@@ -250,18 +250,19 @@ class PolymarketSdkClient:
     def _page_rows(cls, obj: Any) -> Optional[list]:
         """Return a Page wrapper's rows, or None if ``obj`` is itself a row.
 
-        A page is identified by an ``items`` sequence AND at least one
-        pagination marker, so a bare order/trade model (no such markers) is
-        never mistaken for a page."""
+        A page is identified by ≥1 pagination marker; a bare order/trade model
+        (no such markers) is never mistaken for a page. Once recognised as a
+        page the wrapper is NEVER appended as a row -- a malformed/absent
+        ``items`` yields an empty list, not the wrapper itself."""
         if isinstance(obj, dict):
-            seq = obj.get("items")
             has_marker = any(k in obj for k in cls._PAGE_MARKERS)
+            seq = obj.get("items")
         else:
-            seq = getattr(obj, "items", None)
             has_marker = any(hasattr(obj, k) for k in cls._PAGE_MARKERS)
-        if isinstance(seq, (list, tuple)) and has_marker:
-            return list(seq)
-        return None
+            seq = getattr(obj, "items", None)
+        if not has_marker:
+            return None
+        return list(seq) if isinstance(seq, (list, tuple)) else []
 
     async def _collect(self, paginator: Any) -> list[Any]:
         items: list[Any] = []
