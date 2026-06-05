@@ -231,7 +231,7 @@ async def get_recent_signals(user: _CurrentUser, limit: int = 10):
             LIMIT $2
             """,
             user_id,
-            min(limit, 20),
+            max(1, min(limit, 20)),  # clamp: a negative LIMIT errors in Postgres
         )
     return [
         {

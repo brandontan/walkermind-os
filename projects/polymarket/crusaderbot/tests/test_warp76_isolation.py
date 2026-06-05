@@ -101,6 +101,16 @@ async def test_signals_recent_sql_is_user_scoped(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_signals_recent_clamps_negative_limit(monkeypatch) -> None:
+    rmod = _router()
+    conn = _RecordingConn(rows=[])
+    monkeypatch.setattr(rmod, "get_pool", lambda: _Pool(conn))
+    # A negative limit must clamp to >= 1 (a negative SQL LIMIT errors in Postgres).
+    await rmod.get_recent_signals(user={"user_id": _UID_A}, limit=-5)
+    assert conn.args[1] == 1
+
+
+@pytest.mark.asyncio
 async def test_signals_recent_no_cross_user_leak(monkeypatch) -> None:
     rmod = _router()
     now = datetime.now(timezone.utc)
