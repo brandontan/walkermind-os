@@ -246,19 +246,88 @@ class PolymarketSdkClient:
 
     @staticmethod
     def _model_to_dict(obj: Any) -> dict:
-        if hasattr(obj, "model_dump"):
-            return obj.model_dump()
+        """Reduce an SDK response object to a plain mapping, shape-agnostically.
+
+        polymarket-client models are not uniformly pydantic-v2: an open-order
+        item can be a pydantic-v1 model (``.dict()``), a dataclass, or a
+        ``__slots__``/attrs instance with an EMPTY ``__dict__``. The naive
+        ``__dict__`` path then yields ``{}`` and the id/asset are silently lost
+        (the run-#11 staging-proof defect). Try each known shape in order and
+        return the first populated mapping."""
+        # pydantic v2
+        dump = getattr(obj, "model_dump", None)
+        if callable(dump):
+            try:
+                out = dump()
+            except Exception:  # noqa: BLE001 — fall through to next strategy
+                out = None
+            if isinstance(out, dict) and out:
+                return out
+        # pydantic v1 / generic ``.dict()``
+        as_dict = getattr(obj, "dict", None)
+        if callable(as_dict):
+            try:
+                out = as_dict()
+            except Exception:  # noqa: BLE001 — fall through to next strategy
+                out = None
+            if isinstance(out, dict) and out:
+                return out
         if isinstance(obj, dict):
             return dict(obj)
-        return dict(getattr(obj, "__dict__", {}))
+        # dataclass
+        try:
+            import dataclasses  # noqa: WPS433
+            if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+                return dataclasses.asdict(obj)
+        except Exception:  # noqa: BLE001 — fall through to next strategy
+            pass
+        # plain instance ``__dict__``
+        data = getattr(obj, "__dict__", None)
+        if isinstance(data, dict) and data:
+            return dict(data)
+        # ``__slots__`` / attrs instance (no usable ``__dict__``)
+        slots: dict = {}
+        for klass in type(obj).__mro__:
+            for name in getattr(klass, "__slots__", ()) or ():
+                if isinstance(name, str) and hasattr(obj, name):
+                    slots[name] = getattr(obj, name)
+        return slots
+
+    # Attribute names the open-order id / asset may live under, across the
+    # mapping path AND a direct getattr fallback (covers property/slots models
+    # that ``_model_to_dict`` cannot enumerate).
+    _OID_KEYS = ("id", "order_id", "orderID", "orderId")
+    _ASSET_KEYS = ("asset_id", "token_id", "tokenID", "tokenId")
 
     def _order_to_dict(self, obj: Any) -> dict:
         """Open-order / get-order shape with id aliases the consumers read."""
         d = self._model_to_dict(obj)
-        oid = d.get("id") or d.get("order_id") or d.get("orderID")
-        d.setdefault("orderID", oid)
-        d.setdefault("order_id", oid)
-        d.setdefault("asset_id", d.get("token_id"))
+
+        def _pick(keys: tuple[str, ...]) -> Any:
+            for k in keys:
+                v = d.get(k)
+                if v not in (None, ""):
+                    return v
+            for k in keys:  # last resort: read straight off the SDK object
+                v = getattr(obj, k, None)
+                if v not in (None, ""):
+                    return v
+            return None
+
+        oid = _pick(self._OID_KEYS)
+        asset = _pick(self._ASSET_KEYS)
+        if oid is None:
+            # Never silently drop an order: name the real type/attrs so a shape
+            # we still don't map surfaces in ops without another proof cycle.
+            logger.warning(
+                "clob-pysdk: open-order map found no id; type=%s public_attrs=%s",
+                type(obj).__name__,
+                [a for a in dir(obj) if not a.startswith("_")][:40],
+            )
+        d["id"] = d.get("id") or oid
+        d["orderID"] = d.get("orderID") or oid
+        d["order_id"] = d.get("order_id") or oid
+        d["asset_id"] = d.get("asset_id") or asset
         return d
 
     def _accepted_to_dict(self, resp: Any) -> dict:

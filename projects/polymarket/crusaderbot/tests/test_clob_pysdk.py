@@ -124,6 +124,55 @@ async def test_get_open_orders_aliases_id_and_asset():
     assert rows[0]["asset_id"] == "TK"
 
 
+class _SlotsOrder:
+    """An open-order object with __slots__ and NO model_dump/dict/usable
+    __dict__ — the run-#11 staging shape that collapsed to {} and lost the id.
+    Regression guard: _order_to_dict must still surface id/asset via slots."""
+
+    __slots__ = ("id", "asset_id", "price", "size", "status")
+
+    def __init__(self):
+        self.id = "OSLOT"
+        self.asset_id = "TKSLOT"
+        self.price = 0.4
+        self.size = 10
+        self.status = "live"
+
+
+@pytest.mark.asyncio
+async def test_get_open_orders_maps_slots_shape():
+    c = _client()
+    c._client._open = [_SlotsOrder()]
+    rows = await c.get_open_orders()
+    assert rows[0]["id"] == "OSLOT"
+    assert rows[0]["orderID"] == "OSLOT"
+    assert rows[0]["order_id"] == "OSLOT"
+    assert rows[0]["asset_id"] == "TKSLOT"
+
+
+class _PropOrder:
+    """An open-order exposing id/asset only via @property (empty __dict__).
+    Direct getattr fallback in _order_to_dict must still find them."""
+
+    @property
+    def order_id(self):
+        return "OPROP"
+
+    @property
+    def token_id(self):
+        return "TKPROP"
+
+
+@pytest.mark.asyncio
+async def test_get_open_orders_maps_property_shape():
+    c = _client()
+    c._client._open = [_PropOrder()]
+    rows = await c.get_open_orders()
+    assert rows[0]["orderID"] == "OPROP"
+    assert rows[0]["order_id"] == "OPROP"
+    assert rows[0]["asset_id"] == "TKPROP"
+
+
 class _ScopedClient:
     """list_open_orders with an EXPLICIT maker_address param, so _owner_kwargs
     detects and scopes by it (proxy/funder owner-scoping; mirrors get_fills F1)."""
