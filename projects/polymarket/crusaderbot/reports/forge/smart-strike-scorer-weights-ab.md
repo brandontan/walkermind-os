@@ -30,6 +30,12 @@ ETH/5m  close_sweep  n=168 base=0.929  oracle_edge=-0.482  liquidity=+0.207  dep
         flip_hunter  n=168 base=0.071  oracle_edge=+0.482  liquidity=-0.207  depth=-0.207
 ```
 
+Numerical robustness: `volatility_sigma` is a per-asset constant, so its cell std
+is float noise (~3e-19). The trainer collapses any factor with std `< 1e-9`
+(`MIN_FACTOR_STD`) to std=0.0 + weight=0.0, and the scorer's `_z` guard skips it —
+so a live sigma spike can never inflate into an extreme z-score (Gemini review,
+PR #1619). Result is unchanged (the weight was already ~0).
+
 ## 2. A/B — in-sample (scorer trained on all rows, evaluated on same)
 
 ```

@@ -93,6 +93,17 @@ _DEFAULT_WEIGHTS_PATH: Path = (
 
 MODEL_SCHEMA_VERSION: int = 1
 
+# Minimum per-factor std for z-standardization. A factor whose cell std is below
+# this floor is effectively constant (e.g. volatility_sigma is a per-asset
+# constant → std ~1e-19 of float noise). Standardizing against a near-zero std
+# would turn any small live deviation into an astronomical z-score (and a stored
+# std of exactly 0 with v != mean yields inf → 0*inf = NaN), corrupting the score.
+# Such factors contribute exactly 0 instead. The trainer mirrors this by zeroing
+# both the std and the weight of near-constant factors; this is the defense-in-
+# depth floor for any externally-supplied model. Well below every real factor std
+# observed (smallest legitimate ~5e-3), so it never silences a genuine signal.
+MIN_FACTOR_STD: float = 1e-9
+
 
 # ---------------------------------------------------------------------------
 # Side / win helpers (pure, shared by the trainer + A/B harness)
@@ -232,9 +243,10 @@ class StrategyScorer:
     def _z(self, cell: Mapping[str, Any], factor: str, value: Optional[float]) -> float:
         """Standardize ``value`` against the cell's per-factor (mean, std).
 
-        Returns 0.0 when the value is missing/non-finite or the cell lacks norm
-        stats for the factor — an unmeasured factor contributes nothing rather
-        than a fabricated push toward any rule.
+        Returns 0.0 when the value is missing/non-finite, the cell lacks norm
+        stats for the factor, or the factor is (near-)constant (std below
+        ``MIN_FACTOR_STD``) — an unmeasured or non-discriminative factor
+        contributes nothing rather than a fabricated push toward any rule.
         """
         if value is None:
             return 0.0
@@ -253,7 +265,7 @@ class StrategyScorer:
             std = float(stats.get("std", 0.0))
         except (TypeError, ValueError):
             return 0.0
-        if not math.isfinite(std) or std <= 0.0:
+        if not math.isfinite(std) or std < MIN_FACTOR_STD:
             return 0.0
         z = (v - mean) / std
         return z if math.isfinite(z) else 0.0

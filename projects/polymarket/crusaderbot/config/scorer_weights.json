@@ -29,7 +29,7 @@
         },
         "volatility_sigma": {
           "mean": 9.999999999999972e-05,
-          "std": 2.846030702774449e-19
+          "std": 0.0
         }
       },
       "rules": {
@@ -43,7 +43,7 @@
             "orderbook_depth_usdc": 0.22075828230103423,
             "spread": -0.20614752857450114,
             "ttl_sec": 0.12274112068446864,
-            "volatility_sigma": 9.402904759509256e-17
+            "volatility_sigma": 0.0
           }
         },
         "flip_hunter": {
@@ -56,7 +56,7 @@
             "orderbook_depth_usdc": -0.22075828230103423,
             "spread": 0.20614752857450114,
             "ttl_sec": -0.12274112068446864,
-            "volatility_sigma": -2.2016557485680207e-16
+            "volatility_sigma": 0.0
           }
         },
         "safe_close": {
@@ -69,7 +69,7 @@
             "orderbook_depth_usdc": 0.22075828230103423,
             "spread": -0.20614752857450114,
             "ttl_sec": 0.12274112068446864,
-            "volatility_sigma": 9.402904759509256e-17
+            "volatility_sigma": 0.0
           }
         }
       },
@@ -104,7 +104,7 @@
         },
         "volatility_sigma": {
           "mean": 0.0001300000000000004,
-          "std": 4.0657581468206416e-19
+          "std": 0.0
         }
       },
       "rules": {
@@ -118,7 +118,7 @@
             "orderbook_depth_usdc": 0.2065766550785566,
             "spread": -0.041856591195542574,
             "ttl_sec": 0.09303197869659482,
-            "volatility_sigma": 2.886840852075123e-16
+            "volatility_sigma": 0.0
           }
         },
         "flip_hunter": {
@@ -131,7 +131,7 @@
             "orderbook_depth_usdc": -0.20657665507855666,
             "spread": 0.04185659119554257,
             "ttl_sec": -0.09303197869659482,
-            "volatility_sigma": 9.235307423864489e-17
+            "volatility_sigma": 0.0
           }
         },
         "safe_close": {
@@ -144,7 +144,7 @@
             "orderbook_depth_usdc": 0.2065766550785566,
             "spread": -0.041856591195542574,
             "ttl_sec": 0.09303197869659482,
-            "volatility_sigma": 2.886840852075123e-16
+            "volatility_sigma": 0.0
           }
         }
       },
@@ -160,7 +160,7 @@
     "ttl_sec",
     "oracle_edge"
   ],
-  "generated_at": "2026-06-05T02:18:50.698647+00:00",
+  "generated_at": "2026-06-05T02:25:43.158636+00:00",
   "rules": [
     "close_sweep",
     "safe_close",

@@ -162,6 +162,21 @@ def test_trained_scorer_discriminates_on_momentum():
     assert s.select("BTC/5m", {"momentum": -0.003}, rules) == "flip_hunter"
 
 
+def test_near_constant_factor_is_neutralized():
+    # volatility_sigma is a per-asset constant → its std is float noise and its
+    # weight must be exactly 0, so a live spike can't inject an extreme z-score.
+    model = tr.build_weights(_dataset("btc"))
+    cell = model["cells"]["BTC/5m"]
+    assert cell["norm"]["volatility_sigma"]["std"] == 0.0
+    for rule in ("close_sweep", "safe_close", "flip_hunter"):
+        assert cell["rules"][rule]["weights"]["volatility_sigma"] == 0.0
+    # Even a large live deviation contributes nothing (no blow-up / NaN).
+    s = StrategyScorer.from_model(model)
+    spike = s.score_rule("BTC/5m", "close_sweep", {"volatility_sigma": 0.01})
+    flat = s.score_rule("BTC/5m", "close_sweep", {"volatility_sigma": 0.0001})
+    assert spike == flat  # constant factor has zero influence regardless of value
+
+
 def test_write_weights_roundtrip(tmp_path):
     out = tmp_path / "config" / "scorer_weights.json"
     model = tr.build_weights(_dataset("btc"))
