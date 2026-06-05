@@ -1,8 +1,8 @@
 Last Updated : 2026-06-05 15:30
-Status       : WARP-76 PAPER-public hardening (M1 gate) — ALL 4 CHUNKS BUILT AND MERGED: H1 #1622 MERGED, H2 #1623 MERGED, H3 #1624 MERGED, H4 isolation audit PR #1625 open (WARP/isolation-audit). H4 audit: 140 PASS / 20 N/A-operator / 1 FAIL fixed (/signals/recent signal_publications leak → scoped to user_signal_subscriptions). WARP-72 Phase 2 scorer PARKED (SCORER_ACTIVE=False); WARP-74 live reconciliation MERGED #1613; WARP-75 consent hardening PR #1617 open.
+Status       : WARP-76 PAPER-public hardening (M1 gate) COMPLETE — ALL 4 CHUNKS MERGED: H1 #1622, H2 #1623, H3 #1624, H4 #1625. H4 audit: 140 PASS / 20 N/A-operator / 1 FAIL fixed (/signals/recent signal_publications leak → scoped to user_signal_subscriptions). WARP-72 Phase 2 scorer PARKED (SCORER_ACTIVE=False); WARP-74 live reconciliation MERGED #1613; WARP-75 consent hardening PR #1617 open.
 
 [COMPLETED]
-- WARP-76 H4 multi-user isolation audit BUILT (WARP/isolation-audit) — 161 queries on positions/orders/wallets/user_settings/signal_publications/ledger audited: 140 PASS, 20 N/A-operator (admin-gated), 1 FAIL FIXED: /signals/recent returned all feeds' signals to every user → scoped to caller's active user_signal_subscriptions (mirrors signal_evaluator read contract); cross-user leakage test + SQL-contract test; report: reports/forge/isolation-audit.md
+- WARP-76 H4 multi-user isolation audit MERGED #1625 (WARP/isolation-audit) — 161 queries on positions/orders/wallets/user_settings/signal_publications/ledger audited: 140 PASS, 20 N/A-operator (admin-gated), 1 FAIL FIXED: /signals/recent returned all feeds' signals to every user → scoped to caller's active user_signal_subscriptions (mirrors signal_evaluator read contract); cross-user leakage test + SQL-contract test; report: reports/forge/isolation-audit.md
 - WARP-76 H3 feed-loss fail-safe MERGED #1624 (WARP/feed-loss-failsafe) — ORACLE_FEED_TIMEOUT_SEC=120; oracle.is_feed_down; run_once + run_close_sweep_fast halt + page on feed loss, auto-resume + page on recovery; STANDARD; report: reports/forge/feed-loss-failsafe.md
 - WARP-76 H2 monitoring/alerting MERGED #1623 (WARP/monitoring-alerting) — operator daily-P&L summary + structured user_id/market_id/rule trade logs; 3/4 alerts already wired by WARP-74; report: reports/forge/monitoring-alerting.md
 - WARP-76 H1 auth/bcrypt CI test fix MERGED #1622 (WARP/auth-test-fix) — 5 suites degrade to documented SKIP in dep-less envs; report: reports/forge/auth-test-fix.md
@@ -32,7 +32,7 @@ Status       : WARP-76 PAPER-public hardening (M1 gate) — ALL 4 CHUNKS BUILT A
 - @require_access_tier('PREMIUM') on trading command handlers — separate lane, deferred
 
 [NEXT PRIORITY]
-- WARP-76 M1 PAPER-public hardening: H1-H3 MERGED; H4 PR #1625 (WARP/isolation-audit) ready for WARP🔹CMD review + merge. M1 gate clears on #1625 merge.
+- WARP-76 M1 PAPER-public hardening COMPLETE — all 4 PRs merged (#1622/#1623/#1624/#1625). Next: WARP🔹CMD decide next phase (WARP-74 Lane 2 staging proof, WARP-75 consent hardening, or open-position-per-user SENTINEL).
 - WARP-74 Lane 2 staging proof: harness + runbook BUILT (WARP/live-staging-proof) — operator to provision isolated throwaway wallet + minimal USDC on a SEPARATE staging app (never prod), run all 5 cases per docs/runbooks/warp74-staging-proof.md, file the 4-artifact evidence bundle; must pass before real-money LIVE flip
 - WARP🔹CMD merge review: WARP/ROOT/strategy-real-clob-sourcing + WARP/ROOT/playbook-game-sourcing (weather/playbook zero-opens root cause fixed; both PRs open)
 - WARP-72 Phase 2 scorer: PARKED in shadow indefinitely — SCORER_ACTIVE=False; EV A/B (CMD-directed) showed scorer LOSES to router on holdout avg EV/trade (ev_delta -0.065; net-negative EV) despite +0.219 win-rate edge, cutover criterion NOT met. Router retained. CMD re-eval at ~400-500 settled rows/cell — CMD-triggered only, NO auto-rerun. Report: reports/forge/smart-strike-scorer-ev-ab.md
