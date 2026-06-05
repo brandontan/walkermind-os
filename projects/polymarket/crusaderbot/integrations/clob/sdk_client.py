@@ -238,10 +238,39 @@ class PolymarketSdkClient:
             return ClobAPIError(status_code=0, path=ctx, body=str(exc))
         return exc
 
+    # Attributes that mark a paginator element as a PAGE WRAPPER rather than an
+    # order/trade row. The pysdk's list_open_orders / list_account_trades
+    # async-iterate Page objects (``items`` holds the rows; ``has_more`` /
+    # ``next_cursor`` / ``total_count`` are pagination metadata) -- collecting
+    # the wrappers themselves loses every row's id/asset (run-#12 defect:
+    # type=Page public_attrs=['has_more','items','next_cursor','total_count']).
+    _PAGE_MARKERS = ("has_more", "next_cursor", "total_count")
+
+    @classmethod
+    def _page_rows(cls, obj: Any) -> Optional[list]:
+        """Return a Page wrapper's rows, or None if ``obj`` is itself a row.
+
+        A page is identified by an ``items`` sequence AND at least one
+        pagination marker, so a bare order/trade model (no such markers) is
+        never mistaken for a page."""
+        if isinstance(obj, dict):
+            seq = obj.get("items")
+            has_marker = any(k in obj for k in cls._PAGE_MARKERS)
+        else:
+            seq = getattr(obj, "items", None)
+            has_marker = any(hasattr(obj, k) for k in cls._PAGE_MARKERS)
+        if isinstance(seq, (list, tuple)) and has_marker:
+            return list(seq)
+        return None
+
     async def _collect(self, paginator: Any) -> list[Any]:
         items: list[Any] = []
         async for item in paginator:
-            items.append(item)
+            rows = self._page_rows(item)
+            if rows is not None:          # flatten a Page wrapper into its rows
+                items.extend(rows)
+            else:
+                items.append(item)
         return items
 
     @staticmethod
