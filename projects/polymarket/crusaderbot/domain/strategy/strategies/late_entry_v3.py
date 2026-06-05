@@ -101,6 +101,12 @@ class OracleEdgeConfig:
     # window. Both optional so the metadata-only path still works without an oracle.
     price_at_provider: Optional[Callable[..., Optional[float]]] = None
     ptb_tolerance_sec: float = 2.0
+    # WARP-76 H3 — optional "is the RTDS feed down?" probe (oracle.is_feed_down
+    # bound to ORACLE_FEED_TIMEOUT_SEC). When it reports down, the observation
+    # returns oracle_edge_status='feed_down' instead of 'warming_up' so a dropped
+    # stream is distinguishable from a normal cold-start/stale tick. Optional so
+    # the metadata-only path still works without it.
+    feed_down_provider: Optional[Callable[[], bool]] = None
 
 
 def _candle_open_epoch(market: dict[str, Any], slug: str) -> Optional[float]:
@@ -191,6 +197,15 @@ def _observe_oracle_edge(
         if not base:
             return {"oracle_edge_status": "no_symbol"}
         symbol = f"{base}/usd"
+        # WARP-76 H3 — a dropped RTDS stream (last tick older than the feed
+        # timeout) is reported as 'feed_down', NOT the normal warmup/stale
+        # 'warming_up', so a silent outage is visible and never confused with a
+        # cold start. The scan-loop gate halts evaluation before reaching here on
+        # a sustained outage; this keeps the per-candidate status honest if it
+        # ever is reached.
+        if edge_cfg.feed_down_provider is not None and edge_cfg.feed_down_provider():
+            log.warning("late_entry_v3 oracle feed_down", symbol=symbol, slug=slug)
+            return {"oracle_edge_status": "feed_down", "oracle_symbol": symbol}
         oracle_now = edge_cfg.price_provider(symbol)
         if oracle_now is None:
             # Warmup or stale tick — expected, not an error (owner directive).

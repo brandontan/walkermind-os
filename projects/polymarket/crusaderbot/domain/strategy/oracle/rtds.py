@@ -233,6 +233,33 @@ class PolymarketRTDSOracle:
             return True
         return (self._clock() - tick.at_monotonic) > self._staleness_sec
 
+    def latest_tick_age_sec(self) -> Optional[float]:
+        """Age (seconds) of the most recent tick across ALL symbols, or ``None``.
+
+        ``None`` means the stream has not delivered a single tick yet (cold start
+        / never connected) — distinct from a feed that delivered ticks and then
+        went silent. Used by the WARP-76 H3 feed-loss fail-safe to detect a
+        dropped stream (vs. the per-symbol ``staleness_sec`` edge-freshness drop).
+        """
+        if not self._ticks:
+            return None
+        newest = max(t.at_monotonic for t in self._ticks.values())
+        return self._clock() - newest
+
+    def is_feed_down(self, timeout_sec: float) -> bool:
+        """True when the stream delivered ticks but none within ``timeout_sec``.
+
+        A cold start with no tick yet returns ``False`` (warming up, not "down")
+        so the scan is never frozen before the first tick — warmup is already
+        handled per-evaluation (``get_price`` → ``None`` → ``warming_up``). The
+        "down" signal fires only for a feed that WAS live and then went silent,
+        which is the silent-stale-data hazard H3 guards against.
+        """
+        age = self.latest_tick_age_sec()
+        if age is None:
+            return False
+        return age > float(timeout_sec)
+
     def price_at(
         self,
         symbol: str,

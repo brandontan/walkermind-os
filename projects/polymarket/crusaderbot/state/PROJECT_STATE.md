@@ -1,9 +1,10 @@
-Last Updated : 2026-06-05 13:30
-Status       : WARP-76 PAPER-public hardening IN PROGRESS — H1 MERGED #1622; H2 monitoring/alerting BUILT PR #1623 open (WARP/monitoring-alerting); H3/H4 to follow. WARP-72 Phase 2 scorer PARKED (SCORER_ACTIVE=False); WARP-74 live reconciliation MERGED #1613; WARP-75 consent hardening PR #1617 open.
+Last Updated : 2026-06-05 14:30
+Status       : WARP-76 PAPER-public hardening IN PROGRESS — H1 MERGED #1622; H2 MERGED #1623; H3 feed-loss fail-safe BUILT PR #1624 open (WARP/feed-loss-failsafe); H4 isolation audit next. WARP-72 Phase 2 scorer PARKED (SCORER_ACTIVE=False); WARP-74 live reconciliation MERGED #1613; WARP-75 consent hardening PR #1617 open.
 
 [COMPLETED]
-- WARP-76 H2 monitoring/alerting BUILT (WARP/monitoring-alerting) — audit found 3/4 operator alerts already wired by WARP-74 (orphan reconcile, infra-degraded fallback, kill-switch; verified fail-soft); infra-degraded page hardened (+user_id); NEW jobs/operator_daily_summary.py aggregate paper P&L operator page (opened/closed/net delta) registered cron 23:05 Asia/Jakarta; structured user_id+market_id+rule on trade events (signal_scan_job bound logger +rule; paper.py open/close); test_warp76_monitoring.py 12 pass (operator-summary runtime + 4-alert + log-field source-contract); no live/schema/gate change; report: reports/forge/monitoring-alerting.md
-- WARP-76 H1 auth/bcrypt/CI test fix MERGED #1622 (WARP/auth-test-fix) — 5 named suites degrade to documented SKIP in dep-less envs (missing optional deps; no logic bug, 74 pass with full stack); internal projects.* import errors re-raised not masked; ruff clean; report: reports/forge/auth-test-fix.md
+- WARP-76 H3 feed-loss fail-safe BUILT (WARP/feed-loss-failsafe) — STANDARD (no exec-path touch); ORACLE_FEED_TIMEOUT_SEC=120 (+positive validator); oracle.is_feed_down/latest_tick_age_sec (down only after ticks then silence, cold-start=warming-up); _observe_oracle_edge stamps oracle_edge_status='feed_down'; run_once halts scan + pages "RTDS feed lost — scan halted", auto-resumes + pages "restored" (once-per-transition latch, fail-soft); 11 tests + 126 regression pass; ruff clean; report: reports/forge/feed-loss-failsafe.md
+- WARP-76 H2 monitoring/alerting MERGED #1623 (WARP/monitoring-alerting) — 3/4 operator alerts already wired by WARP-74 (verified; infra-degraded +user_id); NEW operator daily-P&L summary + structured user_id/market_id/rule trade logs; report: reports/forge/monitoring-alerting.md
+- WARP-76 H1 auth/bcrypt CI test fix MERGED #1622 (WARP/auth-test-fix) — 5 suites degrade to documented SKIP in dep-less envs; report: reports/forge/auth-test-fix.md
 - WARP-69 per-user autonomous loop hardening audit MERGED #1615 (eebca68) — auto_trade_on canonical opt-in, no parallel gate; no capital-path defect; 12 hermetic tests, zero prod change; report: reports/forge/auto-trade-per-user-hardening.md
 - WARP-74 live reconciliation epic MERGED #1613 (c5f0ed1) — generalized live reconciler + kill-switch broker cancel_all + mig 082 applied to Supabase prod; SENTINEL APPROVED 97/100 0 critical
 - WARP-74 Chunk A MERGED #1612 (4b742f2) — live-order orphan+drift detection/telemetry, no capital action; SENTINEL APPROVED 95/100 0 critical
@@ -30,7 +31,7 @@ Status       : WARP-76 PAPER-public hardening IN PROGRESS — H1 MERGED #1622; H
 - @require_access_tier('PREMIUM') on trading command handlers — separate lane, deferred
 
 [NEXT PRIORITY]
-- WARP-76 H2 PR #1623 + H3 PR #1624 + H4 PR #1625 ready for WARP🔹CMD review + merge — all STANDARD. M1 gate clears once all four merge.
+- WARP-76 H3 PR #1624 + H4 PR #1625 ready for WARP🔹CMD review + merge — both STANDARD. M1 gate clears once all four merge.
 - WARP-74 Lane 2 staging proof: harness + runbook BUILT (WARP/live-staging-proof) — operator to provision isolated throwaway wallet + minimal USDC on a SEPARATE staging app (never prod), run all 5 cases per docs/runbooks/warp74-staging-proof.md, file the 4-artifact evidence bundle; must pass before real-money LIVE flip
 - WARP🔹CMD merge review: WARP/ROOT/strategy-real-clob-sourcing + WARP/ROOT/playbook-game-sourcing (weather/playbook zero-opens root cause fixed; both PRs open)
 - WARP-72 Phase 2 scorer: PARKED in shadow indefinitely — SCORER_ACTIVE=False; EV A/B (CMD-directed) showed scorer LOSES to router on holdout avg EV/trade (ev_delta -0.065; net-negative EV) despite +0.219 win-rate edge, cutover criterion NOT met. Router retained. CMD re-eval at ~400-500 settled rows/cell — CMD-triggered only, NO auto-rerun. Report: reports/forge/smart-strike-scorer-ev-ab.md

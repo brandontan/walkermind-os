@@ -3023,6 +3023,15 @@ async def run_once() -> None:
     # Refresh the operator on/off switch once per tick (fail-safe).
     await _refresh_disabled_strategies()
 
+    # WARP-76 H3 — feed-loss fail-safe. If the RTDS oracle feed has gone silent
+    # past ORACLE_FEED_TIMEOUT_SEC, halt this tick (no new market evaluation) and
+    # page the operator; the next tick after the feed recovers auto-resumes and
+    # pages "restored". Protective halt only — no gate is bypassed. No-op unless
+    # ORACLE_ENABLED.
+    if await _oracle_feed_halts_scan():
+        logger.warning("scan_outcome", outcome="skipped_oracle_feed_down")
+        return
+
     # Count all strategies known to the process (lib + domain registry).
     _lib_count = len(ENABLED_STRATEGIES) + len(DEFERRED_STRATEGIES)
     _domain_count = len(_Registry.instance().list_available())
@@ -3666,6 +3675,64 @@ _CANDLE_PRESET_EDGE: dict[str, dict[str, float | bool]] = {
 _candle_oracle = None
 _candle_oracle_lock = asyncio.Lock()
 
+# WARP-76 H3 — feed-loss fail-safe latch. Tracks whether the last scan tick saw
+# the RTDS oracle feed as DOWN, so the operator is paged exactly once on the
+# down→up and up→down transitions (not every tick) and the scan auto-resumes.
+_oracle_feed_down = False
+
+
+async def _page_feed_alert(text: str) -> None:
+    """Best-effort operator page for the feed-loss fail-safe. Never raises."""
+    try:
+        from ... import notifications
+        await notifications.notify_operator(text)
+    except Exception as exc:  # noqa: BLE001 — page is best-effort
+        logger.error("oracle_feed_alert_failed", error=str(exc))
+
+
+async def _oracle_feed_halts_scan() -> bool:
+    """WARP-76 H3 — return True (halt the scan) when the RTDS feed is DOWN.
+
+    Engages only when ORACLE_ENABLED. Pages the operator once on each
+    transition: "RTDS feed lost — scan halted" on down, "RTDS feed restored —
+    scan resumed" on the first tick after recovery. PROTECTIVE only: it halts
+    evaluation, never opens a permissive path. Fully fail-soft — any error
+    returns False so a monitoring fault can never freeze trading (per-evaluation
+    staleness guards still protect against stale data).
+    """
+    global _oracle_feed_down
+    try:
+        from ...config import get_settings as _get_settings
+        cfg = _get_settings()
+        if not getattr(cfg, "ORACLE_ENABLED", False):
+            return False
+        timeout = float(getattr(cfg, "ORACLE_FEED_TIMEOUT_SEC", 120))
+        from ...domain.strategy.oracle import OracleDisabledError
+        try:
+            oracle = await get_candle_oracle()
+        except OracleDisabledError:
+            return False
+        down = bool(oracle.is_feed_down(timeout))
+    except Exception as exc:  # noqa: BLE001 — monitoring must never freeze the scan
+        logger.warning("oracle_feed_gate_error", error=str(exc))
+        return False
+    if down and not _oracle_feed_down:
+        _oracle_feed_down = True
+        logger.error("oracle_feed_lost_scan_halted")
+        await _page_feed_alert(
+            "🚨 <b>RTDS feed lost — scan halted</b>\n"
+            "No oracle tick within ORACLE_FEED_TIMEOUT_SEC; new market "
+            "evaluation is paused until the feed recovers."
+        )
+    elif not down and _oracle_feed_down:
+        _oracle_feed_down = False
+        logger.info("oracle_feed_restored_scan_resumed")
+        await _page_feed_alert(
+            "✅ <b>RTDS feed restored — scan resumed</b>\n"
+            "Oracle ticks are fresh again; market evaluation has resumed."
+        )
+    return down
+
 
 async def get_candle_oracle():
     """Return the started RTDS oracle singleton (start once, reuse across scans).
@@ -3734,6 +3801,7 @@ async def _build_oracle_edge_cfg(preset: str | None):
         return None
     from ...domain.strategy.strategies.late_entry_v3 import OracleEdgeConfig
     e = _CANDLE_PRESET_EDGE.get(preset or "", {})
+    _feed_timeout = float(getattr(cfg, "ORACLE_FEED_TIMEOUT_SEC", 120))
     return OracleEdgeConfig(
         enabled=True,
         price_provider=oracle.get_price,
@@ -3745,6 +3813,9 @@ async def _build_oracle_edge_cfg(preset: str | None):
         max_dist=float(e.get("max_dist", 1.0)),
         min_edge=float(e.get("min_edge", 0.0)),
         trend=bool(e.get("trend", False)),
+        # WARP-76 H3 — feed-down probe bound to the configured timeout so a
+        # dropped stream stamps oracle_edge_status='feed_down' (not warming_up).
+        feed_down_provider=lambda: oracle.is_feed_down(_feed_timeout),
     )
 
 
@@ -4013,6 +4084,15 @@ async def run_close_sweep_fast() -> None:
     await _refresh_disabled_strategies()
     if _LATE_ENTRY_V3_NAME in _GLOBALLY_DISABLED_STRATEGIES:
         logger.info("close_sweep_fast: late_entry_v3 globally disabled — skipping tick")
+        return
+
+    # WARP-76 H3 — feed-loss fail-safe. This high-frequency loop evaluates the
+    # oracle-dependent candle presets, so it gets the SAME halt gate as run_once:
+    # a silent RTDS feed halts evaluation here too. The down/restored latch is
+    # shared with run_once, so the operator is paged exactly once per transition
+    # regardless of which loop detects it first. No-op unless ORACLE_ENABLED.
+    if await _oracle_feed_halts_scan():
+        logger.warning("scan_outcome", outcome="skipped_oracle_feed_down", loop="close_sweep_fast")
         return
 
     try:
