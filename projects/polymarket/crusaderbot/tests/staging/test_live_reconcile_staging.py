@@ -126,6 +126,8 @@ async def _ensure_staging_creds(s: Any) -> None:
     the same ``_derived`` cache. Any OTHER auth failure (e.g. a signature-type
     mismatch) is re-raised untouched so it surfaces instead of being masked.
     """
+    if _clob_mod._derived:                  # already resolved earlier this run —
+        return                              # reuse the cache, no redundant auth call
     try:
         await ensure_clob_credentials(s)   # no-op if API creds already in env
     except ClobAuthError as exc:
