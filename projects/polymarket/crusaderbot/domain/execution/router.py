@@ -123,6 +123,7 @@ async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,
                     from ... import notifications as _notifications
                     await _notifications.notify_operator(
                         "🚨 <b>LIVE INFRA DEGRADED — fell back to PAPER</b>\n"
+                        f"user=<code>{user_id}</code>\n"
                         f"market=<code>{market_id}</code>\n"
                         f"A live trade could not reach the exchange (CLOB dependency "
                         f"failure) and was routed to paper.\nreason: <code>{exc}</code>"

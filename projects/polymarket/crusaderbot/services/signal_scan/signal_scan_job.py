@@ -2306,6 +2306,7 @@ async def _process_candidate(
     log = logger.bind(
         user_id=str(user_id),
         market_id=cand.market_id,
+        rule=cand.strategy_name,
         side=side,
         strategy=_STRATEGY_NAME,
         publication_id=str(pub_uuid) if pub_uuid else None,
