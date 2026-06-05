@@ -198,7 +198,16 @@ async def get_me(user: _CurrentUser):
 
 @router.get("/signals/recent")
 async def get_recent_signals(user: _CurrentUser, limit: int = 10):
-    """Recent signal publications for the live market feed on dashboard."""
+    """Recent signal publications for the live market feed on dashboard.
+
+    WARP-76 H4 — scoped to the authenticated user's ACTIVE feed subscriptions.
+    Previously this returned every feed's signals to every user (cross-cohort
+    information leak: a user saw signals from feeds they never subscribed to).
+    Mirrors the strategy-plane read contract (signal_evaluator._load_active_*):
+    active subscription + active feed + entry signals published AFTER the user
+    subscribed and not yet expired.
+    """
+    user_id = user["user_id"]
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -207,12 +216,21 @@ async def get_recent_signals(user: _CurrentUser, limit: int = 10):
                    sp.signal_type, sp.published_at,
                    m.question AS market_question
             FROM signal_publications sp
+            JOIN user_signal_subscriptions s
+              ON s.feed_id = sp.feed_id
+             AND s.user_id = $1::uuid
+             AND s.unsubscribed_at IS NULL
+            JOIN signal_feeds f
+              ON f.id = sp.feed_id AND f.status = 'active'
             LEFT JOIN markets m ON m.id = sp.market_id
             WHERE sp.exit_signal = FALSE
               AND sp.published_at >= NOW() - INTERVAL '4 hours'
+              AND sp.published_at > s.subscribed_at
+              AND (sp.expires_at IS NULL OR sp.expires_at > NOW())
             ORDER BY sp.published_at DESC
-            LIMIT $1
+            LIMIT $2
             """,
+            user_id,
             min(limit, 20),
         )
     return [
