@@ -16,13 +16,24 @@ dependencies = [
     "structlog>=24.1",
     "pydantic-settings>=2.2",
     "python-dotenv>=1.0",
+    # CLOB v2 migration (WARP/clob-v2-migration): the official polymarket-client
+    # produces the CLOB v2 SignedOrder schema. Selected by USE_PYSDK_CLOB.
+    # Pinned to the validated pre-release; bump only with a fresh staging proof.
+    "polymarket-client==0.1.0b3",
+    # py-clob-client is RETAINED during the transition: it is still the default
+    # order backend (USE_PYSDK_CLOB=False) AND it transitively supplies
+    # poly_eip712_structs / py-order-utils, which py-builder-signing-sdk and
+    # wallet/safe import directly. Removed only in the legacy-retirement lane,
+    # after the staging proof + SENTINEL flip USE_PYSDK_CLOB to default-on.
     "py-clob-client",
     "tenacity>=8.2",
-    "eth-account>=0.10",
+    # polymarket-client requires eth-account>=0.13,<1 (was >=0.10).
+    "eth-account>=0.13,<1",
     "sentry-sdk[fastapi]>=2.0",
     "bcrypt>=4.0",
     # Phase 4D — push-based fill streaming over wss://ws-subscriptions-clob.polymarket.com.
-    "websockets>=12.0,<14.0",
+    # Lower bound raised to 13 to satisfy polymarket-client (requires >=13,<16).
+    "websockets>=13.0,<14.0",
     # Test-only — listed here (not in a separate test extra) because the
     # CI workflow installs straight from [project.dependencies] and the
     # project does not yet ship a test extras group. Phase 4A CLOB tests

@@ -293,6 +293,15 @@ class Settings(BaseSettings):
     # other activation guard. See docs/runbooks/clob-adapter.md (TBD).
     USE_REAL_CLOB: bool = False
 
+    # --- CLOB order backend (WARP/clob-v2-migration) ---
+    # When True (and USE_REAL_CLOB=True), the order path uses the official
+    # polymarket-client (CLOB v2 SignedOrder schema) instead of the legacy
+    # ClobAdapter (archived py-clob-client v1, rejected by CLOB v2 with
+    # 400 order_version_mismatch). Default False so prod and the test suite
+    # are unchanged until the staging proof + SENTINEL validate the new
+    # backend; the staging-proof harness sets this to 1.
+    USE_PYSDK_CLOB: bool = False
+
     # --- Balance alerting ---
     # Fire low_balance alert when user wallet balance drops below this value.
     # Set to 0 to disable the alert globally.
