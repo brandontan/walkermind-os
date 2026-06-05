@@ -17,10 +17,15 @@ dependencies = [
     "pydantic-settings>=2.2",
     "python-dotenv>=1.0",
     # CLOB v2 migration (WARP/clob-v2-migration): the official polymarket-client
-    # produces the CLOB v2 SignedOrder schema. Replaces the archived (May 2026)
-    # py-clob-client v1, whose order struct CLOB v2 rejects (order_version_mismatch).
+    # produces the CLOB v2 SignedOrder schema. Selected by USE_PYSDK_CLOB.
     # Pinned to the validated pre-release; bump only with a fresh staging proof.
     "polymarket-client==0.1.0b3",
+    # py-clob-client is RETAINED during the transition: it is still the default
+    # order backend (USE_PYSDK_CLOB=False) AND it transitively supplies
+    # poly_eip712_structs / py-order-utils, which py-builder-signing-sdk and
+    # wallet/safe import directly. Removed only in the legacy-retirement lane,
+    # after the staging proof + SENTINEL flip USE_PYSDK_CLOB to default-on.
+    "py-clob-client",
     "tenacity>=8.2",
     # polymarket-client requires eth-account>=0.13,<1 (was >=0.10).
     "eth-account>=0.13,<1",

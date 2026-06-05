@@ -66,7 +66,7 @@ Created:
 Modified:
 - `projects/polymarket/crusaderbot/config.py` — add `USE_PYSDK_CLOB: bool = False`.
 - `projects/polymarket/crusaderbot/integrations/clob/__init__.py` — import/export `PolymarketSdkClient`; `USE_PYSDK_CLOB` branch in `get_clob_client`.
-- `projects/polymarket/crusaderbot/pyproject.toml` — `py-clob-client` → `polymarket-client==0.1.0b3`; `eth-account>=0.13,<1`; `websockets>=13.0,<14.0` (satisfy polymarket-client constraints).
+- `projects/polymarket/crusaderbot/pyproject.toml` — add `polymarket-client==0.1.0b3`; `eth-account>=0.13,<1`; `websockets>=13.0,<14.0` (satisfy polymarket-client constraints). `py-clob-client` is RETAINED during the transition — it is still the default backend AND transitively supplies `poly_eip712_structs`/`py-order-utils` that `py-builder-signing-sdk` + `wallet/safe` import directly (removing it broke `test_builder_relayer` + `test_wallet_safe` in CI). Both clients co-install cleanly (`pip check`: no broken requirements). py-clob-client is removed in the legacy-retirement lane.
 
 ## 4. What is working
 

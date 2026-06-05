@@ -298,6 +298,19 @@ class PolymarketSdkClient:
                 "pysdk CLOB backend supports GTC limit orders only "
                 f"(got {ot!r}); GTD/FOK/FAK/market is a follow-up lane."
             )
+        # tick_size / neg_risk are accepted for ClobClientProtocol parity but
+        # NOT forwarded: py-sdk's create_limit_order resolves both from the
+        # market itself (authoritative truth), so the caller's values are
+        # advisory hints. We deliberately do NOT raise when they are set --
+        # every live caller passes them, and py-sdk derives neg_risk from the
+        # token's market, which is safer than trusting a caller hint. Logged
+        # (not silently dropped) so a divergence is visible in ops.
+        if tick_size is not None or neg_risk is not None:
+            logger.debug(
+                "clob-pysdk: tick_size=%s neg_risk=%s are advisory; py-sdk "
+                "resolves both from market truth for token %s",
+                tick_size, neg_risk, token_id,
+            )
         client = await self._ensure()
 
         async def _do() -> dict:

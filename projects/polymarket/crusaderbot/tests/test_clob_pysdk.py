@@ -52,6 +52,10 @@ class _FakeSecureClient:
         self.cancelled.append(order_id)
         return _Model(canceled=[order_id], not_canceled={})
 
+    async def cancel_orders(self, *, order_ids):
+        self.cancelled.extend(order_ids)
+        return _Model(canceled=list(order_ids), not_canceled={})
+
     async def cancel_all(self):
         return _Model(canceled=["a", "b"], not_canceled={})
 
@@ -145,6 +149,38 @@ async def test_cancel_all_orders_global():
     c = _client()
     out = await c.cancel_all_orders()
     assert set(out["canceled"]) == {"a", "b"}
+
+
+@pytest.mark.asyncio
+async def test_cancel_all_orders_market_scoped_lists_then_cancels():
+    c = _client()
+    c._client._open = [
+        _Model(id="O1", token_id="TK", price=0.5, status="live"),
+        _Model(id="O2", token_id="TK", price=0.6, status="live"),
+    ]
+    out = await c.cancel_all_orders(market="MKT")
+    assert set(out["canceled"]) == {"O1", "O2"}
+    assert c._client.cancelled == ["O1", "O2"]
+
+
+@pytest.mark.asyncio
+async def test_cancel_all_orders_market_scoped_noop_when_empty():
+    c = _client()
+    c._client._open = []
+    out = await c.cancel_all_orders(market="MKT")
+    assert out == {"canceled": [], "not_canceled": {}}
+
+
+@pytest.mark.asyncio
+async def test_post_order_tick_size_neg_risk_are_advisory_not_raised():
+    """Live callers always pass tick_size/neg_risk; py-sdk resolves them
+    from market truth, so they must be accepted (not raised on)."""
+    c = _client()
+    out = await c.post_order(
+        token_id="T", side="BUY", price=0.4, size=10,
+        tick_size="0.01", neg_risk=True,
+    )
+    assert out["orderID"] == "OID-1"
 
 
 def test_map_error_rate_limit():
