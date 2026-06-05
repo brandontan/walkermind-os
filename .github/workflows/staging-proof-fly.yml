@@ -173,7 +173,7 @@ jobs:
           DEPS=$(python -c "import tomllib;print(' '.join(tomllib.load(open('projects/polymarket/crusaderbot/pyproject.toml','rb'))['project']['dependencies']))")
           python -m pip install --quiet --ignore-installed $DEPS
           python -m pip install --quiet --force-reinstall --no-cache-dir cffi
-          ARGS="projects/polymarket/crusaderbot/tests/staging/test_live_reconcile_staging.py -v --tb=short"
+          ARGS="projects/polymarket/crusaderbot/tests/staging/test_live_reconcile_staging.py -v -s --tb=short"
           if [ "${CASE}" != "all-broker" ]; then ARGS="$ARGS -k ${CASE}"; fi
           echo "RUN: pytest $ARGS  (sig=${STAGING_SIGNATURE_TYPE} fills=${STAGING_ALLOW_FILLS} neg_risk=${STAGING_NEG_RISK})"
           if pytest $ARGS; then echo "PROOF_RESULT=PASS"; else echo "PROOF_RESULT=FAIL"; fi

@@ -99,6 +99,8 @@ class PolymarketSdkClient:
         self._breaker = circuit_breaker or CircuitBreaker(name="clob-pysdk")
         self._limiter = rate_limiter or RateLimiter(rps=0)
         self._client: Any = None
+        self._owner_kw: Optional[str] = None      # cached owner-scope kwarg name
+        self._owner_kw_resolved = False
         self._lock = asyncio.Lock()
         self._address = self._derive_address(private_key)
         if self._funder:
@@ -413,6 +415,41 @@ class PolymarketSdkClient:
                 out.append(d)
         return out
 
+    def _owner_kwargs(self, fn: Any) -> dict:
+        """Scope a list call by the proxy FUNDER when set.
+
+        Proxy wallets (signature_type 1/2 + funder) record their orders/trades
+        under the FUNDER address, not the EOA signer -- so a list query keyed on
+        the signer returns nothing (mirrors the get_fills F1 fix). Pick whichever
+        owner-style kwarg the installed pysdk's ``list_open_orders`` exposes, so
+        this works regardless of the exact param name; if none is supported the
+        call falls back to the SDK's default auth scoping. The resolved kwarg name
+        is cached (the pysdk client is fixed per instance) so ``inspect.signature``
+        runs once, not on every trading-loop read."""
+        owner = self._funder or self._address
+        if not owner:
+            return {}
+        if not self._owner_kw_resolved:
+            self._owner_kw = self._detect_owner_kw(fn)
+            self._owner_kw_resolved = True
+        return {self._owner_kw: owner} if self._owner_kw else {}
+
+    @staticmethod
+    def _detect_owner_kw(fn: Any) -> Optional[str]:
+        """Name of the owner-scope kwarg the pysdk list call accepts (or None).
+
+        Skips POSITIONAL_ONLY params (passing them by keyword raises TypeError)."""
+        try:
+            import inspect  # noqa: WPS433
+            params = inspect.signature(fn).parameters
+        except (TypeError, ValueError):
+            return None
+        for name in ("maker_address", "owner", "owner_address", "maker", "address"):
+            p = params.get(name)
+            if p is not None and p.kind is not inspect.Parameter.POSITIONAL_ONLY:
+                return name
+        return None
+
     async def get_open_orders(
         self, market: Optional[str] = None,
     ) -> list[dict]:
@@ -421,10 +458,10 @@ class PolymarketSdkClient:
         async def _do() -> list[dict]:
             await self._limiter.acquire()
             try:
+                kw = self._owner_kwargs(client.list_open_orders)
                 if market:
-                    pag = client.list_open_orders(market=market)
-                else:
-                    pag = client.list_open_orders()
+                    kw["market"] = market
+                pag = client.list_open_orders(**kw)
                 items = await self._collect(pag)
             except Exception as exc:
                 raise self._map_error(exc, "/data/orders")
