@@ -40,6 +40,7 @@ from typing import Any, Optional
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
 
 from projects.polymarket.crusaderbot.domain.execution import drift_detector as dd
 from projects.polymarket.crusaderbot.domain.execution import live_reconcile as lr
@@ -133,7 +134,7 @@ async def _place_resting_buy(client, *, price: float = _REST_PRICE,
     return bid
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def broker():
     """Yield a real staging client; cancel ALL of its resting orders on teardown
     so each case is fully independent (no shared state between cases)."""
