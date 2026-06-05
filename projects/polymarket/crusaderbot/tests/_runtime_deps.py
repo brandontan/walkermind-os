@@ -46,10 +46,19 @@ def optional_runtime_imports(suite: str) -> Iterator[None]:
     missing dependency raises ``ModuleNotFoundError``, which is converted into
     ``pytest.skip(..., allow_module_level=True)`` so the module is reported as
     SKIPPED (with the missing dep name) instead of ERRORED.
+
+    A missing *internal* module (one whose name starts with ``projects.``) is
+    re-raised rather than skipped: that signals a real typo or refactor break in
+    the project itself, which must surface as an error, not be masked.
     """
     try:
         yield
     except ModuleNotFoundError as exc:  # optional runtime dep not installed
+        # A missing *internal* module (``projects.*``) is a real typo / refactor
+        # break, not an absent optional dependency — surface it as an error so it
+        # is never silently masked by a skip.
+        if exc.name and exc.name.startswith("projects."):
+            raise
         pytest.skip(
             f"{suite} suite skipped — optional runtime dependency "
             f"'{exc.name}' not installed in this environment "
