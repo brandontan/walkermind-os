@@ -468,7 +468,7 @@ class ClobAdapter:
             ) from exc
 
         signer = Signer(
-            key=self._signer.private_key, chain_id=self._chain_id,
+            private_key=self._signer.private_key, chain_id=self._chain_id,
         )
         builder = OrderBuilder(signer, sig_type=self._signature_type, funder=self._funder)
         order_args = OrderArgs(
