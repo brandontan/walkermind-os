@@ -99,6 +99,8 @@ class PolymarketSdkClient:
         self._breaker = circuit_breaker or CircuitBreaker(name="clob-pysdk")
         self._limiter = rate_limiter or RateLimiter(rps=0)
         self._client: Any = None
+        self._owner_kw: Optional[str] = None      # cached owner-scope kwarg name
+        self._owner_kw_resolved = False
         self._lock = asyncio.Lock()
         self._address = self._derive_address(private_key)
         if self._funder:
@@ -421,19 +423,32 @@ class PolymarketSdkClient:
         the signer returns nothing (mirrors the get_fills F1 fix). Pick whichever
         owner-style kwarg the installed pysdk's ``list_open_orders`` exposes, so
         this works regardless of the exact param name; if none is supported the
-        call falls back to the SDK's default auth scoping."""
+        call falls back to the SDK's default auth scoping. The resolved kwarg name
+        is cached (the pysdk client is fixed per instance) so ``inspect.signature``
+        runs once, not on every trading-loop read."""
         owner = self._funder or self._address
         if not owner:
             return {}
+        if not self._owner_kw_resolved:
+            self._owner_kw = self._detect_owner_kw(fn)
+            self._owner_kw_resolved = True
+        return {self._owner_kw: owner} if self._owner_kw else {}
+
+    @staticmethod
+    def _detect_owner_kw(fn: Any) -> Optional[str]:
+        """Name of the owner-scope kwarg the pysdk list call accepts (or None).
+
+        Skips POSITIONAL_ONLY params (passing them by keyword raises TypeError)."""
         try:
             import inspect  # noqa: WPS433
-            params = set(inspect.signature(fn).parameters)
+            params = inspect.signature(fn).parameters
         except (TypeError, ValueError):
-            return {}
+            return None
         for name in ("maker_address", "owner", "owner_address", "maker", "address"):
-            if name in params:
-                return {name: owner}
-        return {}
+            p = params.get(name)
+            if p is not None and p.kind is not inspect.Parameter.POSITIONAL_ONLY:
+                return name
+        return None
 
     async def get_open_orders(
         self, market: Optional[str] = None,
