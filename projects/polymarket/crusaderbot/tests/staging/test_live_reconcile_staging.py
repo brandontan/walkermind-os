@@ -491,6 +491,30 @@ async def _poll_open_order(broker, bid: str, *, present: bool,
     return seen
 
 
+async def _poll_closing_rollback(pool, *, tries: int = 10, delay: float = 1.5) -> dict:
+    """Re-run the closing sweep until it ROLLS BACK (or the budget runs out).
+
+    A cancel is eventually-consistent: ``get_order`` may still read the just-
+    cancelled close order as non-terminal (LIVE) for a beat, so the sweep
+    conservatively returns 'pending' on the first pass. Mirror the case3
+    ``_poll_open_order`` bounded-poll (same tries/delay budget) so the real-
+    broker rollback path is validated once the cancellation settles. Returns the
+    last sweep result."""
+    import asyncio
+    res: dict = {}
+    for _ in range(tries):
+        try:
+            res = await lr.reconcile_closing_positions(
+                pool=pool, clob_factory=_factory, settings=_settings_live())
+        except Exception:  # noqa: BLE001 — transient read error: retry next tick
+            await asyncio.sleep(delay)
+            continue
+        if int(res.get("rolled_back", 0)) >= 1:
+            return res
+        await asyncio.sleep(delay)
+    return res
+
+
 # ============================================================================
 # CASE 3 — kill switch broker cancel-all (the headline real-broker proof)
 # ============================================================================
@@ -600,8 +624,10 @@ async def test_case1_closing_rollback_on_cancelled_sell(broker, monkeypatch, pag
     conn = _Conn(closing_rows=[_closing_row(close_order_id=close_id)])
     pool = _Pool(conn)
     monkeypatch.setattr(lr, "get_pool", lambda: pool)
-    res = await lr.reconcile_closing_positions(
-        pool=pool, clob_factory=_factory, settings=_settings_live())
+    # The cancel is eventually-consistent on the real broker: poll the sweep
+    # until the cancellation reaches a terminal get_order state and rolls back
+    # (mirrors case3's _poll_open_order — single immediate read is racy).
+    res = await _poll_closing_rollback(pool)
 
     assert res["rolled_back"] == 1, res
     assert any("status='open'" in q for q, _a in conn.executed)
