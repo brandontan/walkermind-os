@@ -327,7 +327,8 @@ async def test_case2_unknown_order_reconcile(broker, monkeypatch, pages, variant
         assert any("UNTRACKED EXPOSURE" in p for p in pages)
 
 
-async def _noop() -> None:
+async def _noop(*_a: Any, **_k: Any) -> None:
+    """Awaitable no-op usable directly as an async mock (ignores any call args)."""
     return None
 
 
@@ -386,8 +387,13 @@ async def test_case1_closing_finalize_once_on_filled_sell(broker, monkeypatch, p
     res = await lr.reconcile_closing_positions(
         pool=pool, clob_factory=_factory, settings=_settings_live())
     assert res["closed"] == 1 and credited, res
-    # finalize-ONCE: a second sweep must not re-credit (row already 'closed').
+    # finalize-ONCE: in the real DB the finalized row is now 'closed' and leaves
+    # the 'closing' scan set, so a second sweep finds nothing to re-finalize. (The
+    # static mock conn would otherwise re-serve the same row, and
+    # _reconcile_one_closing returns "closed" unconditionally on a FILLED broker
+    # state — so we must model the row leaving the set, not rely on finalize_id.)
     conn.finalize_id = None
+    conn.closing_rows = []
     res2 = await lr.reconcile_closing_positions(
         pool=pool, clob_factory=_factory, settings=_settings_live())
     assert res2["closed"] == 0, "second sweep must not re-finalize a closed position"
