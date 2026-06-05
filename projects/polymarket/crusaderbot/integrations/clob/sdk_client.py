@@ -211,7 +211,11 @@ class PolymarketSdkClient:
             return ClobRateLimitError(status_code=429, path=ctx, body=str(exc))
         if isinstance(exc, RequestRejectedError):
             status = int(getattr(exc, "status", 0) or 0)
-            if status in (400, 401, 403):
+            # Only 401/403 are authn/authz failures. A 400 (and 404/409/422 etc.)
+            # is a request/validation rejection -- e.g. "the orderbook does not
+            # exist", bad price/tick, or a closed market -- and must NOT be
+            # bucketed as auth, or ops/retry logic would react to the wrong cause.
+            if status in (401, 403):
                 return ClobAuthError(
                     f"{ctx}: {exc}", status_code=status, path=ctx, body=str(exc),
                 )
