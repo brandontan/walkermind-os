@@ -205,6 +205,13 @@ class Settings(BaseSettings):
     # never a fabricated/stale baseline).
     ORACLE_HISTORY_WINDOW_SEC: float = 1800.0
     ORACLE_PTB_TOLERANCE_SEC: float = 2.0
+    # WARP-76 H3 — feed-loss fail-safe. ORACLE_STALENESS_SEC (10s) governs the
+    # per-symbol get_price freshness drop for a single edge computation;
+    # ORACLE_FEED_TIMEOUT_SEC is the longer "the stream is DOWN" threshold: when
+    # the newest RTDS tick across all symbols is older than this, the signal scan
+    # halts (no new market evaluation) and the operator is paged, auto-resuming on
+    # the next tick after the feed recovers. Default 120s; strictly positive.
+    ORACLE_FEED_TIMEOUT_SEC: int = 120
     # WARP-64 Chunk 3 — wire the oracle edge into late_entry_v3 as an ADVISORY
     # signal: when ON (and ORACLE_ENABLED=true so the RTDS feed actually runs),
     # the strategy computes + logs + stamps per-candidate fair-value/edge metadata
@@ -768,6 +775,15 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"live-reconcile / drift scheduler interval must be > 0 (got {v})."
             )
+        return v
+
+    @field_validator("ORACLE_FEED_TIMEOUT_SEC")
+    @classmethod
+    def validate_oracle_feed_timeout(cls, v: int) -> int:
+        # WARP-76 H3 — a 0/negative feed timeout would make the scan halt
+        # permanently (or never), so reject it at config load.
+        if v <= 0:
+            raise ValueError(f"ORACLE_FEED_TIMEOUT_SEC must be > 0 (got {v}).")
         return v
 
     @field_validator("LIVE_RECONCILE_STALE_SEC", "LIVE_CLOSING_STALE_SEC")
