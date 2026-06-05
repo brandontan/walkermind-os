@@ -198,3 +198,18 @@ def test_map_error_request_rejected_auth():
     mapped = c._map_error(RequestRejectedError("forbidden", status=403), "/order")
     assert isinstance(mapped, ClobAuthError)
     assert mapped.status_code == 403
+
+
+def test_map_error_request_rejected_400_is_api_not_auth():
+    """A 400 request-rejection (e.g. "the orderbook does not exist", bad
+    price/tick, closed market) is a validation error, NOT an auth failure.
+    Regression guard for the staging-proof mis-bucketing fix."""
+    from polymarket import RequestRejectedError
+
+    c = _client()
+    mapped = c._map_error(
+        RequestRejectedError("the orderbook does not exist", status=400), "/order"
+    )
+    assert isinstance(mapped, ClobAPIError)
+    assert not isinstance(mapped, ClobAuthError)
+    assert mapped.status_code == 400
