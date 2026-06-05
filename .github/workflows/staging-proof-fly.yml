@@ -85,7 +85,11 @@ jobs:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       PROOF_APP: crusaderbot-staging-proof
       FLY_REGION: ${{ inputs.region }}
-      # Throwaway wallet + market coordinates (NEVER the prod wallet).
+      # Throwaway wallet (NEVER the prod wallet). The wallet key is the only
+      # REQUIRED staging secret. STAGING_TOKEN_ID/MARKET_ID/NO_TOKEN_ID are now
+      # OPTIONAL overrides -- the harness resolves a live open market at runtime
+      # (the bot trades 5m/15m markets whose token ids roll over constantly, so a
+      # pinned secret would always be stale). Set them only to reproduce a market.
       STAGING_WALLET_KEY: ${{ secrets.STAGING_WALLET_KEY }}
       STAGING_TOKEN_ID: ${{ secrets.STAGING_TOKEN_ID }}
       STAGING_MARKET_ID: ${{ secrets.STAGING_MARKET_ID }}
