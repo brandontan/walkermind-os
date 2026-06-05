@@ -1,5 +1,156 @@
 {
-  "cells": {},
+  "cells": {
+    "BTC/5m": {
+      "n_rows": 170,
+      "norm": {
+        "liquidity_usdc": {
+          "mean": 25961.652289999998,
+          "std": 14658.219836786011
+        },
+        "momentum": {
+          "mean": 0.000523537294117647,
+          "std": 0.0050253970868089585
+        },
+        "oracle_edge": {
+          "mean": 0.06815451794117652,
+          "std": 0.12019332722467957
+        },
+        "orderbook_depth_usdc": {
+          "mean": 25961.652289999998,
+          "std": 14658.219836786011
+        },
+        "spread": {
+          "mean": 1.0115882352941172,
+          "std": 0.007464100935019991
+        },
+        "ttl_sec": {
+          "mean": 34.879770588235296,
+          "std": 28.279338162865898
+        },
+        "volatility_sigma": {
+          "mean": 9.999999999999972e-05,
+          "std": 2.846030702774449e-19
+        }
+      },
+      "rules": {
+        "close_sweep": {
+          "base_winrate": 0.9294117647058824,
+          "n": 170,
+          "weights": {
+            "liquidity_usdc": 0.22075828230103423,
+            "momentum": 0.013408631027563216,
+            "oracle_edge": -0.44731393781166706,
+            "orderbook_depth_usdc": 0.22075828230103423,
+            "spread": -0.20614752857450114,
+            "ttl_sec": 0.12274112068446864,
+            "volatility_sigma": 9.402904759509256e-17
+          }
+        },
+        "flip_hunter": {
+          "base_winrate": 0.07058823529411765,
+          "n": 170,
+          "weights": {
+            "liquidity_usdc": -0.22075828230103423,
+            "momentum": -0.013408631027563216,
+            "oracle_edge": 0.44731393781166706,
+            "orderbook_depth_usdc": -0.22075828230103423,
+            "spread": 0.20614752857450114,
+            "ttl_sec": -0.12274112068446864,
+            "volatility_sigma": -2.2016557485680207e-16
+          }
+        },
+        "safe_close": {
+          "base_winrate": 0.9294117647058824,
+          "n": 170,
+          "weights": {
+            "liquidity_usdc": 0.22075828230103423,
+            "momentum": 0.013408631027563216,
+            "oracle_edge": -0.44731393781166706,
+            "orderbook_depth_usdc": 0.22075828230103423,
+            "spread": -0.20614752857450114,
+            "ttl_sec": 0.12274112068446864,
+            "volatility_sigma": 9.402904759509256e-17
+          }
+        }
+      },
+      "sufficient": true
+    },
+    "ETH/5m": {
+      "n_rows": 168,
+      "norm": {
+        "liquidity_usdc": {
+          "mean": 9825.481649166668,
+          "std": 5899.555021223901
+        },
+        "momentum": {
+          "mean": 0.00012790203592814373,
+          "std": 0.004870974191697949
+        },
+        "oracle_edge": {
+          "mean": 0.07525406005952384,
+          "std": 0.1108073237677408
+        },
+        "orderbook_depth_usdc": {
+          "mean": 9825.481649166668,
+          "std": 5899.555021223901
+        },
+        "spread": {
+          "mean": 1.0137380952380948,
+          "std": 0.018315111538224314
+        },
+        "ttl_sec": {
+          "mean": 39.03479166666666,
+          "std": 33.72008459870024
+        },
+        "volatility_sigma": {
+          "mean": 0.0001300000000000004,
+          "std": 4.0657581468206416e-19
+        }
+      },
+      "rules": {
+        "close_sweep": {
+          "base_winrate": 0.9285714285714286,
+          "n": 168,
+          "weights": {
+            "liquidity_usdc": 0.2065766550785566,
+            "momentum": 0.049699490023559036,
+            "oracle_edge": -0.4816934392346493,
+            "orderbook_depth_usdc": 0.2065766550785566,
+            "spread": -0.041856591195542574,
+            "ttl_sec": 0.09303197869659482,
+            "volatility_sigma": 2.886840852075123e-16
+          }
+        },
+        "flip_hunter": {
+          "base_winrate": 0.07142857142857142,
+          "n": 168,
+          "weights": {
+            "liquidity_usdc": -0.20657665507855666,
+            "momentum": -0.04969949002355902,
+            "oracle_edge": 0.4816934392346493,
+            "orderbook_depth_usdc": -0.20657665507855666,
+            "spread": 0.04185659119554257,
+            "ttl_sec": -0.09303197869659482,
+            "volatility_sigma": 9.235307423864489e-17
+          }
+        },
+        "safe_close": {
+          "base_winrate": 0.9285714285714286,
+          "n": 168,
+          "weights": {
+            "liquidity_usdc": 0.2065766550785566,
+            "momentum": 0.049699490023559036,
+            "oracle_edge": -0.4816934392346493,
+            "orderbook_depth_usdc": 0.2065766550785566,
+            "spread": -0.041856591195542574,
+            "ttl_sec": 0.09303197869659482,
+            "volatility_sigma": 2.886840852075123e-16
+          }
+        }
+      },
+      "sufficient": true
+    }
+  },
   "factors": [
     "momentum",
     "volatility_sigma",
@@ -9,8 +160,7 @@
     "ttl_sec",
     "oracle_edge"
   ],
-  "generated_at": "2026-06-04T00:00:00+00:00",
-  "note": "UNTRAINED STUB. Weights are derived offline by domain/strategy/scorer_trainer.py from settled open_to_close factor_vectors (BTC/5m + ETH/5m; SOL/5m skipped, no data). Until a WARP-CMD-approved training run regenerates this file, the scorer scores every rule 0.0 and the precedence ladder (close_sweep > safe_close > flip_hunter) decides selection — i.e. shadow output matches the router exactly. Regenerate: python -m projects.polymarket.crusaderbot.domain.strategy.scorer_trainer --from-db",
+  "generated_at": "2026-06-05T02:18:50.698647+00:00",
   "rules": [
     "close_sweep",
     "safe_close",
@@ -25,5 +175,5 @@
     "outcome_source": "open_to_close",
     "settled": true
   },
-  "trained": false
+  "trained": true
 }
