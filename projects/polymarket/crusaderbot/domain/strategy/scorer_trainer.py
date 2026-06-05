@@ -45,8 +45,15 @@ from .scorer import (
     MODEL_SCHEMA_VERSION,
     RULE_PRECEDENCE,
     normalize_cell_key,
+    rule_ev,
     rule_won,
 )
+
+# Training label: realized per-trade EV (``is_win - entry_price``) rather than
+# binary win/loss. EV correctly prices the favorite/underdog asymmetry — a cheap
+# underdog entry that loses costs little, an expensive favorite that loses costs a
+# lot — so the scorer optimizes selection for expected PnL, not raw hit-rate.
+LABEL_TYPE: str = "ev"
 
 log = structlog.get_logger(__name__)
 
@@ -146,14 +153,22 @@ def derive_cell(rows: Sequence[Mapping[str, Any]], *, shrinkage_k: float = DEFAU
 
     rules_model: dict[str, Any] = {}
     for rule in RULE_PRECEDENCE:
-        # Per-row hypothetical win for this rule (None = undecidable → skipped).
+        # Per-row EV label for this rule (None = undecidable → skipped). The EV
+        # label (is_win - entry_price) is the realized per-trade PnL; the binary
+        # win is kept alongside as the informational base_winrate.
+        evs: dict[int, float] = {}
         wins: dict[int, float] = {}
         for idx, r in enumerate(rows):
-            won = rule_won(rule, r.get("fav_side"), r.get("realized_outcome"))
-            if won is None:
+            ev = rule_ev(
+                rule, r.get("fav_side"), r.get("fav_price"), r.get("realized_outcome")
+            )
+            if ev is None:
                 continue
+            evs[idx] = ev
+            won = rule_won(rule, r.get("fav_side"), r.get("realized_outcome"))
             wins[idx] = 1.0 if won else 0.0
-        n = len(wins)
+        n = len(evs)
+        base = _mean(list(evs.values())) if evs else 0.0
         base_winrate = _mean(list(wins.values())) if wins else 0.0
 
         weights: dict[str, float] = {}
@@ -164,13 +179,13 @@ def derive_cell(rows: Sequence[Mapping[str, Any]], *, shrinkage_k: float = DEFAU
             if norm[f]["std"] <= 0.0:
                 weights[f] = 0.0
                 continue
-            # Paired (factor, win) samples over decidable rows that have the factor.
+            # Paired (factor, EV) samples over decidable rows that have the factor.
             xs: list[float] = []
             ys: list[float] = []
             for idx, fv in factor_values[f]:
-                if idx in wins:
+                if idx in evs:
                     xs.append(fv)
-                    ys.append(wins[idx])
+                    ys.append(evs[idx])
             n_pairs = len(xs)
             if n_pairs < 2:
                 weights[f] = 0.0
@@ -182,6 +197,7 @@ def derive_cell(rows: Sequence[Mapping[str, Any]], *, shrinkage_k: float = DEFAU
 
         rules_model[rule] = {
             "n": n,
+            "base": base,
             "base_winrate": base_winrate,
             "weights": weights,
         }
@@ -248,6 +264,7 @@ def build_weights(
         "schema_version": MODEL_SCHEMA_VERSION,
         "generated_at": generated_at or datetime.now(timezone.utc).isoformat(),
         "trained": bool(cells),
+        "label_type": LABEL_TYPE,
         "train_filter": {"outcome_source": "open_to_close", "settled": True},
         "shrinkage_k": shrinkage_k,
         "factors": list(FACTORS),
@@ -273,7 +290,7 @@ def write_weights(model: Mapping[str, Any], out_path: str | Path | None = None) 
 
 _FETCH_SQL = """
 SELECT condition_id, asset, timeframe, fav_side, entry_side,
-       realized_outcome, realized_delta,
+       fav_price, entry_price, realized_outcome, realized_delta,
        momentum, volatility_sigma, liquidity_usdc, spread,
        orderbook_depth_usdc, ttl_sec, oracle_edge,
        oracle_edge_status, router_selected_rule, evaluated_rule
@@ -320,6 +337,7 @@ def format_summary(model: Mapping[str, Any]) -> str:
     lines.append(f"schema_version : {model.get('schema_version')}")
     lines.append(f"generated_at   : {model.get('generated_at')}")
     lines.append(f"trained        : {model.get('trained')}")
+    lines.append(f"label_type     : {model.get('label_type')}")
     lines.append(f"shrinkage_k    : {model.get('shrinkage_k')}")
     cells = model.get("cells", {}) or {}
     for cell, cm in cells.items():
@@ -332,7 +350,8 @@ def format_summary(model: Mapping[str, Any]) -> str:
             top = sorted(wv.items(), key=lambda kv: -abs(kv[1]))[:3]
             top_s = ", ".join(f"{k}={v:+.3f}" for k, v in top)
             lines.append(
-                f"    {rule:<12} n={rm.get('n', 0):>3} base={rm.get('base_winrate', 0.0):.3f}  top:[{top_s}]"
+                f"    {rule:<12} n={rm.get('n', 0):>3} base_ev={rm.get('base', 0.0):+.4f} "
+                f"winrate={rm.get('base_winrate', 0.0):.3f}  top:[{top_s}]"
             )
     for cell, reason in (model.get("skipped", {}) or {}).items():
         lines.append(f"  cell {cell}: SKIPPED ({reason})")
