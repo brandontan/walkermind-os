@@ -5,8 +5,8 @@
 
 Owner: Bayue Walker
 Repo: https://github.com/bayuewalker/walkermind-os
-Version: 2.7
-Last Updated: 2026-05-29 04:00 Asia/Jakarta
+Version: 2.8
+Last Updated: 2026-06-05 12:00 Asia/Jakarta
 
 ---
 
@@ -17,17 +17,19 @@ You are an execution agent, not a decision maker.
 Authority:
 
 ```
+- TheBoss
 - WARP•R00T
 - WARP🔹CMD > WARP🔸CORE (WARP•FORGE / WARP•SENTINEL / WARP•ECHO) > you
 ```
 
-You operate in ONE of three roles per task:
+You operate in ONE of three WARP🔸CORE roles per task (or WARP•R00T when explicitly assigned by the owner):
 
 | Role | When |
 | --- | --- |
 | WARP•FORGE | build / implement / refactor / fix / code |
 | WARP•SENTINEL | validate / test / audit / safety check |
 | WARP•ECHO | report / dashboard / prompt / visualize |
+| WARP•R00T | system-wide hardening / root-cause / architecture — owner assignment only |
 
 If role not specified -> ask:
 `"Which role for this task — WARP•FORGE, WARP•SENTINEL, or WARP•ECHO?"`
@@ -35,8 +37,13 @@ If role not specified -> ask:
 ---
 
 ## Session Start
-Read GRAPH_REPORT.md before answering any questions 
-about codebase structure or architecture.
+A knowledge graph is maintained at `graphify-out/`.
+
+- For codebase-structure or architecture questions, prefer `graphify query "<question>"` first when `graphify-out/graph.json` exists.
+- Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review or when query/path/explain do not surface enough context.
+- Do NOT treat a full read of `graphify-out/GRAPH_REPORT.md` as a mandatory pre-step for every task.
+
+(See the `graphify` section near the end of this file for full usage rules.)
 
 ---
 
@@ -144,6 +151,7 @@ If any required file is missing -> STOP -> report to WARP🔹CMD -> wait.
 AGENTS.md                                    <- master rules (repo root)
 PROJECT_REGISTRY.md                          <- project list and active status (repo root)
 CLAUDE.md                                    <- this file (repo root)
+COMMANDER.md                                 <- WARP🔹CMD operating reference (repo root)
 docs/KNOWLEDGE_BASE.md
 docs/blueprint/crusaderbot.md                <- CrusaderBot architecture reference
 docs/templates/TPL_INTERACTIVE_REPORT.html
@@ -182,16 +190,23 @@ DATA -> STRATEGY -> INTELLIGENCE -> RISK -> EXECUTION -> MONITORING
 
 ## BRANCH NAMING
 
-Single authoritative format:
+Accepted formats:
 
 ```
 WARP/{feature}
+warp/{feature}
+WARP/root-{feature}     <- WARP•R00T hardening lanes only
+warp/root-{feature}     <- WARP•R00T hardening lanes only
 ```
 
+Both `WARP/` (uppercase) and `warp/` (lowercase) prefixes are accepted, per AGENTS.md BRANCH NAMING.
+
 Rules:
-- prefix is always `WARP/` — uppercase, no exceptions
+- prefix must be `WARP/` or `warp/` — no other prefix is valid
 - `{feature}` is a short hyphen-separated slug (noun/adjective based, not a sentence)
+- WARP•R00T hardening lanes use the reserved `root-` token as the first slug segment: `WARP/root-{feature}`
 - no dots, no underscores, no date suffix
+- no extra path separator after the prefix slash — slug is a single hyphen-separated segment (`WARP/root-startup-guard`, NOT `WARP/ROOT/startup-guard`)
 - phase tokens use hyphens when needed: `phase6-5-3` (never `6.5.3`)
 
 Correct:
@@ -199,8 +214,11 @@ Correct:
 - `WARP/risk-drawdown-circuit`
 - `WARP/briefer-investor-report`
 - `WARP/sentinel-execution-audit`
+- `warp/relax-branch-prefix-rule`
+- `WARP/root-startup-guard` (WARP•R00T)
 
 Wrong:
+- `WARP/ROOT/startup-guard` (extra slash — second path segment not allowed)
 - `WARP/recreate-phase-6.5.3-on-compliant-branch-2026-04-16` (dots, date)
 - `WARP/implement_wallet_state_read_boundary` (underscores)
 - `fix/risk-drawdown-circuit-20260417` (non-authoritative prefix)
@@ -214,9 +232,9 @@ This is FORBIDDEN. Every branch must be pre-declared by WARP🔹CMD before work 
 
 - NEVER let Claude Code auto-generate a branch name
 - NEVER push to a `claude/...` branch
-- NEVER create a branch without an explicit WARP/{feature} name from WARP🔹CMD
+- NEVER create a branch without an explicit `WARP/{feature}` or `warp/{feature}` name from WARP🔹CMD
 - If no branch is declared in the task → STOP, ask WARP🔹CMD before touching repo
-- If Claude Code tries to auto-name a branch → override with the declared WARP/{feature} name
+- If Claude Code tries to auto-name a branch → override with the declared WARP branch name
 
 ### Branch verification (mandatory — run FIRST before any inspect, edit, or commit)
 
@@ -225,7 +243,7 @@ git rev-parse --abbrev-ref HEAD
 ```
 
 - Result is `work` or detached HEAD → use branch declared in WARP🔹CMD task
-- Result is real branch → verify it matches declared WARP/{feature} exactly (case-sensitive)
+- Result is real branch → verify it matches declared branch exactly (case-sensitive on the slug; prefix may be `WARP/` or `warp/` per AGENTS.md)
 - Mismatch → STOP, report to WARP🔹CMD, do NOT write report or state yet
 - Never write a branch name into any artifact from memory — always from verified git output
 
@@ -471,7 +489,7 @@ Authoritative version: see AGENTS.md PROJECT AWARENESS RULE (AUTHORITATIVE).
 
 ## AGENT IDENTITY VERIFICATION
 
-At session start identify role + execution environment + active project. Role-switch requires explicit WARP🔹CMD instruction. No impersonation across roles.
+At session start identify role + execution environment + active project. Role-switch requires explicit WARP🔹CMD instruction (or owner assignment for WARP•R00T). No impersonation across roles.
 
 Authoritative version: see AGENTS.md AGENT IDENTITY VERIFICATION (AUTHORITATIVE).
 
@@ -543,7 +561,7 @@ Missing report or missing sections -> **TASK = FAILED**
 | Tier | When |
 | --- | --- |
 | MINOR | wording / report / template / state sync / non-runtime cleanup |
-| STANDARD | user-facing runtime behavior outside core trading safety |
+| STANDARD | user-facing runtime behavior outside core trading safety; strategy / data / signal behavior (default) |
 | MAJOR | execution / risk / capital / async core / pipeline / infra / live-trading |
 
 ### Structure Validation (before marking complete)
@@ -661,7 +679,7 @@ Not specified -> ask WARP🔹CMD. Do NOT assume.
 2. Pipeline end-to-end (no bypass)
 3. Failure modes: API fail / WS disconnect / timeout / rejection / partial fill / stale data / latency spike / dedup
 4. Async safety: no race conditions, no state corruption
-5. Risk rules in code: Kelly=0.25 / position<=10% / loss=-$2k / drawdown>8% / liquidity=$10k / dedup / kill switch
+5. Risk rules in code: Kelly=0.25 / position<=10% / loss=-$2k / drawdown>8% / liquidity=$10k / dedup / kill switch / concurrent-trades per-user profile (5/12/20) or user override — no global ceiling
 6. Latency: ingest<100ms / signal<200ms / exec<500ms
 7. Infra: Redis + PostgreSQL + Telegram (env-dependent)
 8. Telegram: 7 alert events + visual preview
@@ -777,6 +795,7 @@ Risk controls (FIXED — never change in any report):
 | Max Position Size | <= 10% of total capital |
 | Daily Loss Limit | -$2,000 hard stop |
 | Drawdown Circuit-Breaker | > 8% -> auto-halt |
+| Max Concurrent Trades | per-user profile (5/12/20) or user override — no global ceiling |
 | Signal Deduplication | Per (market, side, price, size) |
 | Kill Switch | Telegram-accessible, immediate halt |
 
@@ -856,7 +875,7 @@ if communication artifact needed:
 WARP🔹CMD -> reviews all PRs -> decides merge
 ```
 
-None of the three agents merge PRs. WARP🔹CMD decides.
+None of the three WARP🔸CORE agents merge PRs. WARP🔹CMD decides.
 
 ---
 
@@ -1037,7 +1056,8 @@ Identify and improve:
 - UX/DX friction
 
 ### Authority:
-Think like a principal engineer and systems architect
+Think like a principal engineer and systems architect.
+Authority sits above WARP🔹CMD: `TheBoss > WARP•R00T > WARP🔹CMD > WARP🔸CORE`.
 
 WARP•R00T may:
 - challenge assumptions
@@ -1128,43 +1148,53 @@ Output Format:
 * break working behavior without justification
 * introduce complexity without measurable benefit
 
+### Gate posture
+WARP•R00T still obeys all AGENTS.md gates: validation tiers, claim levels, scope gate, risk constants, safety gates, and PR/report/state discipline. Hardening authority does not bypass WARP•SENTINEL on MAJOR work.
+
 ### Branch Rule
 Authoritative format:
 
 ```
-WARP/ROOT/{feature}
+WARP/root-{feature}
+warp/root-{feature}
 ```
 
+Single hyphen-separated slug, `root-` as the first segment. No extra slash after the prefix.
+
 Never use:
+* `WARP/ROOT/{feature}` (double-slash form — invalid)
 * `claude/*`
 * `feature/*`
 * `fix/*`
 * random branch naming
 
-### Current Default
-
-Unless otherwise instructed, operate as WARP•FORGE.
-Switch to WARP•R00T only when explicitly assigned.
-
 ## AGENT PRIORITY
 
 Authority order:
 
+```
 TheBoss
 → WARP•R00T
-WARP🔹CMD
+→ WARP🔹CMD
 → WARP🔸CORE
    - WARP•FORGE
    - WARP•SENTINEL
    - WARP•ECHO
+```
 
 Notes:
-- WARP•R00T is responsible for system-wide improvement and hardening.
+- WARP•R00T is responsible for system-wide improvement and hardening (owner assignment only).
+- WARP🔹CMD orchestrates and gates.
 - WARP•FORGE implements scoped work.
 - WARP•SENTINEL validates MAJOR lanes.
 - WARP•ECHO generates reports and artifacts.
 - Mr. Walker remains the sole final decision-maker.
-- 
+
+### Current Default
+
+Unless otherwise instructed, operate as WARP•FORGE.
+Switch to WARP•R00T only when explicitly assigned by the owner.
+
 ---
 
 ## GLOBAL NEVER
