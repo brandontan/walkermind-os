@@ -209,3 +209,22 @@ async def test_feed_loss_pages_only_once_until_recovery(monkeypatch) -> None:
     await ssj._oracle_feed_halts_scan()
     await ssj._oracle_feed_halts_scan()  # still down — must NOT re-page
     assert len(alerts) == 1
+
+
+def test_both_scan_loops_invoke_feed_gate() -> None:
+    """Source-contract: run_once AND the high-frequency run_close_sweep_fast must
+    both call _oracle_feed_halts_scan() (no oracle-dependent loop left unguarded).
+    """
+    from pathlib import Path
+    src = Path(__file__).resolve().parent.parent.joinpath(
+        "services", "signal_scan", "signal_scan_job.py"
+    ).read_text(encoding="utf-8")
+
+    def _fn_body(name: str) -> str:
+        i = src.find(f"async def {name}(")
+        assert i != -1, f"{name} not found"
+        nxt = src.find("\nasync def ", i + 1)
+        return src[i: nxt if nxt != -1 else len(src)]
+
+    assert "_oracle_feed_halts_scan()" in _fn_body("run_once")
+    assert "_oracle_feed_halts_scan()" in _fn_body("run_close_sweep_fast")

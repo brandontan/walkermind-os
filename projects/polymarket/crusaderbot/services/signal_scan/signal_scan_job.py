@@ -4086,6 +4086,15 @@ async def run_close_sweep_fast() -> None:
         logger.info("close_sweep_fast: late_entry_v3 globally disabled — skipping tick")
         return
 
+    # WARP-76 H3 — feed-loss fail-safe. This high-frequency loop evaluates the
+    # oracle-dependent candle presets, so it gets the SAME halt gate as run_once:
+    # a silent RTDS feed halts evaluation here too. The down/restored latch is
+    # shared with run_once, so the operator is paged exactly once per transition
+    # regardless of which loop detects it first. No-op unless ORACLE_ENABLED.
+    if await _oracle_feed_halts_scan():
+        logger.warning("scan_outcome", outcome="skipped_oracle_feed_down", loop="close_sweep_fast")
+        return
+
     try:
         users = await _load_enrolled_users()
     except Exception as exc:
