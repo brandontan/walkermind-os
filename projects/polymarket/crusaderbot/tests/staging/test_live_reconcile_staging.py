@@ -461,6 +461,32 @@ def _settings_live(**over: Any) -> SimpleNamespace:
     return SimpleNamespace(**base)
 
 
+async def _poll_open_order(broker, bid: str, *, present: bool,
+                           tries: int = 10, delay: float = 1.5) -> bool:
+    """Poll the broker's open orders until `bid` matches `present` (resting/gone).
+
+    Polymarket's /data/orders read is eventually-consistent AFTER a POST or a
+    cancel, so a single immediate read is racy: the order may not appear (or not
+    yet disappear) on the first query. Polls the market-scoped list first, then
+    the unscoped list as a fallback — covering both read-after-write lag and any
+    market-filter quirk. Returns the last observed 'is present'."""
+    import asyncio
+    seen = not present
+    for _ in range(tries):
+        try:
+            ids = {_broker_id(o) for o in await broker.get_open_orders(_MARKET)}
+            if bid not in ids:                  # fall back to the unscoped list
+                ids |= {_broker_id(o) for o in await broker.get_open_orders()}
+        except Exception:  # noqa: BLE001 — transient read error: retry next tick
+            await asyncio.sleep(delay)
+            continue
+        seen = bid in ids
+        if seen == present:
+            return seen
+        await asyncio.sleep(delay)
+    return seen
+
+
 # ============================================================================
 # CASE 3 — kill switch broker cancel-all (the headline real-broker proof)
 # ============================================================================
@@ -470,7 +496,7 @@ async def test_case3_kill_switch_cancels_resting_gtc(broker, monkeypatch, pages)
     """
     _need_market()
     bid = await _place_resting_buy(broker)
-    assert any(_broker_id(o) == bid for o in await broker.get_open_orders(_MARKET)), \
+    assert await _poll_open_order(broker, bid, present=True), \
         "precondition: the staging GTC should be resting on the book"
 
     # Drive the REAL kill-switch broker-cancel. It builds + acloses its OWN staging
@@ -480,8 +506,8 @@ async def test_case3_kill_switch_cancels_resting_gtc(broker, monkeypatch, pages)
     res = await kse._broker_cancel_all_orders()
     assert res["attempted"] and res["cancelled"], res
 
-    remaining = [_broker_id(o) for o in await broker.get_open_orders(_MARKET)]
-    assert bid not in remaining, f"GTC {bid} STILL LIVE after kill switch: {remaining}"
+    assert not await _poll_open_order(broker, bid, present=False), \
+        f"GTC {bid} STILL LIVE after kill switch"
 
 
 # ============================================================================
