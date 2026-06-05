@@ -392,7 +392,13 @@ class PolymarketSdkClient:
             if market:
                 pag = client.list_account_trades(market=market)
             else:
-                pag = client.list_account_trades(maker_address=self._address)
+                # Proxy wallets (signature_type 1/2) record on-chain trades
+                # under the FUNDER/proxy address, not the EOA signer -- query
+                # the funder when set so fills are found for proxy accounts
+                # (the staging/prod wallet config); fall back to the EOA.
+                pag = client.list_account_trades(
+                    maker_address=self._funder or self._address
+                )
             items = await self._collect(pag)
         except Exception as exc:
             raise self._map_error(exc, "/data/trades")
