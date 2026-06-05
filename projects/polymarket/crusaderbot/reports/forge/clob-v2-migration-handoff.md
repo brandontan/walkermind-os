@@ -12,7 +12,7 @@ Suggested Next Step: read-only investigation of `py-clob-client-v2` + `integrati
 A self-contained handoff so a new session resumes the WARP-74 staging proof with zero context loss. No runtime change.
 
 ## 2. Current system architecture (relevant slice)
-Live order path: `integrations/clob/adapter.py` builds + signs orders via the archived `py-clob-client` (v1) `OrderBuilder`/`Signer`/`OrderArgs`, posts to `https://clob.polymarket.com`. Credentials resolve through `integrations/clob/__init__.py` (`_derived` cache, `ensure_clob_credentials`, `_resolve_credentials`, `get_clob_client`). The staging harness (`tests/staging/test_live_reconcile_staging.py`) drives this against the REAL CLOB with an isolated throwaway wallet; DB side is an in-memory recording fake; `notify_operator` monkeypatched.
+Live order path: `integrations/clob/adapter.py` builds + signs orders via the archived `py-clob-client` (v1) `OrderBuilder`/`Signer`/`OrderArgs`, posts to `https://clob.polymarket.com`. Credentials resolve through `integrations/clob/__init__.py` (`_derived` cache, `ensure_clob_credentials`, `effective_credentials`, `get_clob_client`). The staging harness (`tests/staging/test_live_reconcile_staging.py`) drives this against the REAL CLOB with an isolated throwaway wallet; DB side is an in-memory recording fake; `notify_operator` monkeypatched.
 
 ## 3. Mission
 Validate live Polymarket CLOB order placement/cancel via the staging-proof harness before enabling live trading. Drive iteratively — boss wants ZERO hands-on operation. Owner: Bayue Walker (TheBoss). Role: WARP•FORGE (no merge authority).
@@ -32,7 +32,7 @@ Cause: order path uses the archived `py-clob-client` (v1), whose EIP-712 order s
 ## 6. What is next — APPROVED step (boss: "Investigate + plan first")
 Produce a migration plan ONLY — NO execution-path code change yet:
 1. Study `py-clob-client-v2` API: `Signer`, `OrderBuilder`/order creation, `ClobClient`, `OrderArgs`/`CreateOrderOptions`, v2 EIP-712 order schema, install/package name.
-2. Map against current usage in `integrations/clob/adapter.py` (`_build_signed_order`, `post_order`, `create_api_credentials`) and `__init__.py` (`_derived`, `ensure_clob_credentials`, `_resolve_credentials`, `get_clob_client`) + `pyproject.toml` dep (currently unpinned `py-clob-client`, ~line 19).
+2. Map against current usage in `integrations/clob/adapter.py` (`_build_signed_order`, `post_order`, `create_api_credentials`) and `__init__.py` (`_derived`, `ensure_clob_credentials`, `effective_credentials`, `get_clob_client`) + `pyproject.toml` dep (currently unpinned `py-clob-client`, ~line 19).
 3. Deliver concrete migration plan + effort/risk. MAJOR tier (execution/capital path) — SENTINEL likely needed before merge.
 Present plan; get approval before touching execution code.
 
