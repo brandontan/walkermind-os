@@ -96,63 +96,89 @@ def _need_market() -> None:
         pytest.skip("no open market resolved/overridden for broker cases")
 
 
+def _parse_json_list(v: Any) -> list:
+    """Gamma encodes ``clobTokenIds``/``outcomePrices`` as JSON STRINGS (e.g.
+    '["123","456"]') on most fields, but occasionally as real lists. Accept both."""
+    import json as _json
+    if isinstance(v, list):
+        return v
+    if isinstance(v, str):
+        try:
+            out = _json.loads(v)
+            return out if isinstance(out, list) else []
+        except (ValueError, TypeError):
+            return []
+    return []
+
+
 async def _resolve_open_market() -> dict[str, Any]:
     """Pick a tradable, currently-OPEN market for the resting-order cases.
 
-    No stale secret required. Criteria: active & not closed & accepting_orders &
-    order-book enabled, exactly two binary tokens, NOT neg-risk (keeps the proof on
-    the standard exchange contract), and a BUY-side token priced comfortably above
-    ``_REST_PRICE`` so the test order RESTS rather than crosses. Far-dated markets
-    are preferred so the book cannot resolve mid-test, and the chosen token's book
-    is verified to carry an ask above the resting price before acceptance.
-
-    Uses the unauthenticated ``MarketDataClient`` (public CLOB reads: ``/markets``,
-    ``/book``) -- no signing, no credentials, no cache backend.
+    No stale secret required. Source is the Gamma API ``/markets`` with
+    ``active=true&closed=false`` ordered by 24h volume — this returns LIQUID, OPEN
+    markets directly (the CLOB ``/markets`` cursor endpoint has no active filter and
+    pages over the entire historical, mostly-closed set, so it surfaces nothing
+    usable). Criteria: order-book enabled, accepting orders, exactly two binary
+    tokens, NOT neg-risk (keeps the proof on the standard exchange contract), and a
+    BUY-side token priced comfortably above ``_REST_PRICE`` so the test order RESTS
+    rather than crosses. The chosen token's CLOB ``/book`` is then verified to carry
+    an ask above the resting price before the market is accepted.
     """
+    import httpx
+
     from projects.polymarket.crusaderbot.integrations.clob.market_data import (
         MarketDataClient,
     )
 
     floor = _REST_PRICE + 0.05   # required headroom: best ask must exceed this
-    candidates: list[dict[str, Any]] = []
+    params = {
+        "active": "true", "closed": "false", "limit": "500",
+        "order": "volume24hr", "ascending": "false",
+    }
+    async with httpx.AsyncClient(timeout=10.0) as http:
+        resp = await http.get("https://gamma-api.polymarket.com/markets", params=params)
+        resp.raise_for_status()
+        rows = resp.json()
+    if isinstance(rows, dict):
+        rows = rows.get("data") or rows.get("markets") or []
+
+    # Build (market, buy_token, no_token, buy_price) tuples for binary, open,
+    # order-book-enabled, non-neg-risk markets, BUYing the higher-priced outcome.
+    candidates: list[tuple[dict, str, str, float]] = []
+    for m in (rows or []):
+        if not isinstance(m, dict):
+            continue
+        if m.get("closed") or not m.get("active"):
+            continue
+        # Only an EXPLICIT False excludes -- a missing/renamed flag must not zero
+        # out the universe; the real gate is the /book verification below.
+        if m.get("enableOrderBook") is False or m.get("acceptingOrders") is False:
+            continue
+        if m.get("negRisk"):
+            continue
+        toks = _parse_json_list(m.get("clobTokenIds"))
+        prices = _parse_json_list(m.get("outcomePrices"))
+        cond = m.get("conditionId") or ""
+        if len(toks) != 2 or len(prices) != 2 or not cond:
+            continue
+        try:
+            p = [float(x) for x in prices]
+        except (TypeError, ValueError):
+            continue
+        idx = 0 if p[0] >= p[1] else 1               # BUY the higher-priced side
+        buy_tok, no_tok, price = str(toks[idx]), str(toks[1 - idx]), p[idx]
+        if not buy_tok or price < floor + 0.05:      # need headroom above the rest price
+            continue
+        candidates.append((m, buy_tok, no_tok, price))
+
+    # Volume order already favours liquidity; among those, prefer the longest-dated
+    # so the book can't resolve mid-test.
+    candidates.sort(key=lambda c: str(c[0].get("endDate") or ""), reverse=True)
+
     async with MarketDataClient() as md:
-        cursor: Optional[str] = None
-        for _page in range(6):
-            resp = await md.get_markets(next_cursor=cursor)
-            rows = resp.get("data") if isinstance(resp, dict) else resp
-            for m in (rows or []):
-                if not isinstance(m, dict):
-                    continue
-                if not (m.get("active") and not m.get("closed")
-                        and m.get("accepting_orders") and m.get("enable_order_book")):
-                    continue
-                if m.get("neg_risk"):
-                    continue
-                if len(m.get("tokens") or []) != 2 or not m.get("condition_id"):
-                    continue
-                candidates.append(m)
-            cursor = (resp.get("next_cursor") if isinstance(resp, dict) else "") or ""
-            if not cursor or cursor == "LTE=":
-                break
-
-        # Longest-dated first: a far resolution date can't expire mid-test.
-        candidates.sort(key=lambda m: str(m.get("end_date_iso") or ""), reverse=True)
-
-        for m in candidates:
-            toks = m["tokens"]
-            # BUY the higher-priced token (most headroom above _REST_PRICE); the
-            # other is the NO leg referenced by the DB-fake rows.
+        for m, buy_tok, no_tok, _price in candidates:
             try:
-                buy_tok, other_tok = sorted(
-                    toks, key=lambda t: float(t.get("price") or 0.0), reverse=True)
-                price = float(buy_tok.get("price") or 0.0)
-            except (TypeError, ValueError, AttributeError, KeyError):
-                continue  # a token entry is malformed (not a dict / bad price)
-            tok_id = str(buy_tok.get("token_id") or "")
-            if not tok_id or price < floor + 0.05:
-                continue
-            try:
-                book = await md.get_orderbook(tok_id)
+                book = await md.get_orderbook(buy_tok)
                 ask_prices = [
                     float(a["price"]) for a in (book.get("asks") or [])
                     if isinstance(a, dict) and a.get("price")
@@ -162,18 +188,18 @@ async def _resolve_open_market() -> dict[str, Any]:
             if not ask_prices or min(ask_prices) <= floor:
                 continue
             return {
-                "token": tok_id,
-                "market": str(m["condition_id"]),
-                "no_token": str(other_tok.get("token_id") or ""),
-                "tick": str(m.get("minimum_tick_size") or m.get("tick_size") or _TICK),
+                "token": buy_tok,
+                "market": str(m["conditionId"]),
+                "no_token": no_tok,
+                "tick": str(m.get("orderPriceMinTickSize") or _TICK),
                 "neg_risk": False,
             }
 
     raise RuntimeError(
         "staging proof could not resolve any open, order-book-enabled market with "
-        "an ask above the resting price -- CLOB /markets returned no eligible "
+        "an ask above the resting price -- Gamma /markets returned no eligible "
         "candidate (network/region issue or an unusually thin market universe). "
-        "Pin STAGING_TOKEN_ID + STAGING_MARKET_ID to override."
+        "Pin STAGING_TOKEN_ID + STAGING_MARKET_ID + pin_market=true to override."
     )
 
 
