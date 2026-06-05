@@ -55,6 +55,12 @@ In-sample the scorer looks +EV; **out-of-sample it is −EV vs the router on eve
 cell** (and net-negative EV outright on ETH and overall). Classic small-sample
 overfitting of the per-cell factor weights.
 
+(EV denominator integrity: every compared row had a valid `fav_price`
+[range 0.52–0.999, 0 nulls], so `n_ev_compared == n_compared` and the avg-EV
+figures are undiluted. The A/B divides EV sums by `n_ev_compared` so an
+EV-undecidable row could never drag the average toward zero — Gemini review,
+PR #1620.)
+
 ## 4. Why win-rate said "ship" and EV says "don't"
 
 For contrast, the **win-rate** holdout (same run) still favors the scorer

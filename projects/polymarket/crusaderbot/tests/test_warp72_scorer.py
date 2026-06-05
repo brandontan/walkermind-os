@@ -243,6 +243,19 @@ def test_ab_compare_scorer_beats_router_on_constructed_case():
     assert "ev_delta" in ab.format_ev_report(report)
 
 
+def test_ab_ev_excludes_missing_fav_price():
+    # A compared row with no fav_price: win-rate is decidable, EV is not — it must
+    # be counted in n_compared but excluded from n_ev_compared so it cannot dilute
+    # the avg-EV denominator toward zero.
+    s = StrategyScorer.from_model(tr.build_weights(_dataset("btc")))
+    rows = [_row("btc", 0.003, "UP", fav_price=None)]
+    cell = ab.compare(rows, s).cells["BTC/5m"]
+    assert cell.n_compared == 1        # win-rate still credited
+    assert cell.n_ev_compared == 0     # EV row excluded
+    assert cell.ev_delta is None       # no EV-decidable rows → no metric
+    assert cell.router_ev is None and cell.scorer_ev is None
+
+
 def test_ab_counts_abstain_and_undecidable():
     # All three rules denied (edge below every threshold) → scorer abstains.
     rows = [_row("btc", 0.003, "UP", oracle_edge=0.001, oracle_status="computed")]
