@@ -150,6 +150,22 @@ jobs:
           STAGING_NEG_RISK: ${{ inputs.neg_risk && 'true' || 'false' }}
           STAGING_ALLOW_FILLS: ${{ inputs.allow_fills && '1' || '0' }}
           CASE: ${{ inputs.case }}
+          # --- Inert app config so the full Settings() model validates on a bare
+          #     runner. The harness builds the staging settings via
+          #     get_settings().model_copy(...), which instantiates the whole
+          #     prod Settings first; these 6 fields are required and have no
+          #     defaults. NONE are exercised by the proof: the DB is the
+          #     in-memory recording fake (never connects), notify_operator is
+          #     monkeypatched (no Bot built), and the staging CLOB client uses
+          #     POLYMARKET_PRIVATE_KEY (not the HD wallet). They exist only to
+          #     satisfy pydantic-settings. Override POLYGON_RPC_URL via secret
+          #     if you want your own endpoint.
+          TELEGRAM_BOT_TOKEN: "0:staging-proof-unused"
+          OPERATOR_CHAT_ID: "0"
+          DATABASE_URL: "postgresql://staging:staging@localhost:5432/staging_proof_fake"
+          POLYGON_RPC_URL: ${{ secrets.STAGING_POLYGON_RPC_URL || 'https://polygon-rpc.com' }}
+          WALLET_HD_SEED: "staging proof hd seed placeholder unused"
+          WALLET_ENCRYPTION_KEY: "WpM238hakouxf5pD_ekYTwFZc_V9BQY1AEnj3BAiYxc="
         run: |
           set -o pipefail
           if [ -z "$STAGING_WALLET_KEY" ]; then
