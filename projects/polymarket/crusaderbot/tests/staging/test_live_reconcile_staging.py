@@ -473,9 +473,13 @@ async def _poll_open_order(broker, bid: str, *, present: bool,
     import asyncio
     seen = not present
     for _ in range(tries):
-        ids = {_broker_id(o) for o in await broker.get_open_orders(_MARKET)}
-        if bid not in ids:                      # fall back to the unscoped list
-            ids |= {_broker_id(o) for o in await broker.get_open_orders()}
+        try:
+            ids = {_broker_id(o) for o in await broker.get_open_orders(_MARKET)}
+            if bid not in ids:                  # fall back to the unscoped list
+                ids |= {_broker_id(o) for o in await broker.get_open_orders()}
+        except Exception:  # noqa: BLE001 — transient read error: retry next tick
+            await asyncio.sleep(delay)
+            continue
         seen = bid in ids
         if seen == present:
             return seen
