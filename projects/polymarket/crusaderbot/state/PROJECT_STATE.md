@@ -1,7 +1,8 @@
-Last Updated : 2026-06-05 11:00
-Status       : WARP-74 Lane 2 live-broker staging proof harness BUILT (WARP/live-staging-proof, 5 acceptance cases, STAGING_WALLET_KEY-guarded, CI-safe 9-skip) — pending operator wallet to execute before LIVE flip; WARP-72 Phase 2 scorer PARKED in shadow (SCORER_ACTIVE=False indefinitely, EV A/B showed scorer loses to router, CMD re-eval at ~400-500 settled rows/cell); WARP-74 live reconciliation MERGED #1613; WARP-75 consent hardening PR #1617 open.
+Last Updated : 2026-06-05 12:30
+Status       : WARP-76 PAPER-public hardening STARTED — H1 auth/bcrypt/CI test fix BUILT (WARP/auth-test-fix, 5 named suites degrade to documented SKIP in dep-less envs, 74 pass with deps, ruff clean) pending CMD review; H2-H4 sequential to follow. WARP-74 Lane 2 live-broker staging proof harness BUILT (WARP/live-staging-proof) — pending operator wallet before LIVE flip; WARP-72 Phase 2 scorer PARKED in shadow (SCORER_ACTIVE=False indefinitely); WARP-74 live reconciliation MERGED #1613; WARP-75 consent hardening PR #1617 open.
 
 [COMPLETED]
+- WARP-76 H1 auth/bcrypt/CI test fix BUILT (WARP/auth-test-fix) — root cause = missing optional runtime deps at import time (no logic bug; 74 pass with full stack); 5 named suites (webtrader auth/bcrypt, clob auth, account-link, paper-default-invariant, playbook engine) wrapped via tests/_runtime_deps.optional_runtime_imports → documented module-level SKIP not collection ERROR in dep-less envs; CI behaviour unchanged; ruff clean; no prod/requirements/CI change; report: reports/forge/auth-test-fix.md
 - WARP-69 per-user autonomous loop hardening audit MERGED #1615 (eebca68) — auto_trade_on canonical opt-in, no parallel gate; no capital-path defect; 12 hermetic tests, zero prod change; report: reports/forge/auto-trade-per-user-hardening.md
 - WARP-74 live reconciliation epic MERGED #1613 (c5f0ed1) — generalized live reconciler + kill-switch broker cancel_all + mig 082 applied to Supabase prod; SENTINEL APPROVED 97/100 0 critical
 - WARP-74 Chunk A MERGED #1612 (4b742f2) — live-order orphan+drift detection/telemetry, no capital action; SENTINEL APPROVED 95/100 0 critical
@@ -28,6 +29,7 @@ Status       : WARP-74 Lane 2 live-broker staging proof harness BUILT (WARP/live
 - @require_access_tier('PREMIUM') on trading command handlers — separate lane, deferred
 
 [NEXT PRIORITY]
+- WARP-76 H1 (WARP/auth-test-fix) ready for WARP🔹CMD review + merge — STANDARD, source: reports/forge/auth-test-fix.md. On merge proceed to H2 monitoring/alerting (branch WARP/monitoring-alerting).
 - WARP-74 Lane 2 staging proof: harness + runbook BUILT (WARP/live-staging-proof) — operator to provision isolated throwaway wallet + minimal USDC on a SEPARATE staging app (never prod), run all 5 cases per docs/runbooks/warp74-staging-proof.md, file the 4-artifact evidence bundle; must pass before real-money LIVE flip
 - WARP🔹CMD merge review: WARP/ROOT/strategy-real-clob-sourcing + WARP/ROOT/playbook-game-sourcing (weather/playbook zero-opens root cause fixed; both PRs open)
 - WARP-72 Phase 2 scorer: PARKED in shadow indefinitely — SCORER_ACTIVE=False; EV A/B (CMD-directed) showed scorer LOSES to router on holdout avg EV/trade (ev_delta -0.065; net-negative EV) despite +0.219 win-rate edge, cutover criterion NOT met. Router retained. CMD re-eval at ~400-500 settled rows/cell — CMD-triggered only, NO auto-rerun. Report: reports/forge/smart-strike-scorer-ev-ab.md

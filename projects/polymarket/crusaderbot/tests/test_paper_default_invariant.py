@@ -16,8 +16,16 @@ from uuid import uuid4
 
 import pytest
 
-from projects.polymarket.crusaderbot import users as users_module
-from projects.polymarket.crusaderbot.users import get_settings_for, upsert_user
+from projects.polymarket.crusaderbot.tests._runtime_deps import (
+    optional_runtime_imports,
+)
+
+with optional_runtime_imports("paper-signup default invariant"):
+    from projects.polymarket.crusaderbot import users as users_module
+    from projects.polymarket.crusaderbot.users import (
+        get_settings_for,
+        upsert_user,
+    )
 
 
 def _ctx(return_value=None):
