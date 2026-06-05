@@ -205,7 +205,7 @@ Nothing to install or keep running locally — you just tap **Run workflow**.
 
 Wired as **`.github/workflows/staging-proof-fly.yml`** ("WARP-74 Staging Proof
 (Fly Singapore — order-placing cases)"). It reuses the existing `FLY_API_TOKEN`
-+ `STAGING_*` secrets, and runs in a DEDICATED isolated app
+and `STAGING_*` secrets, and runs in a DEDICATED isolated app
 (`crusaderbot-staging-proof`, no prod secrets) so the proof can never touch the
 real wallet. The machine clones the public repo, installs deps exactly like the
 hosted runner, and runs pytest from Singapore. Pass/fail is decided by an
