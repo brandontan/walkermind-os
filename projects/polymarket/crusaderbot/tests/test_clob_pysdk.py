@@ -335,6 +335,21 @@ def test_map_error_request_rejected_auth():
     assert mapped.status_code == 403
 
 
+def test_map_error_user_input_is_config_not_auth():
+    """A pysdk UserInputError (bad price/tick, too many decimals, bad size) is a
+    CONFIG/usage error, NOT auth. Regression guard for the all-broker case2
+    mis-bucketing (price not conforming to tick size was raised as ClobAuthError)."""
+    from polymarket import UserInputError
+
+    c = _client()
+    mapped = c._map_error(
+        UserInputError("price must conform to tick size 0.01 with at most 2 decimal places."),
+        "/order",
+    )
+    assert isinstance(mapped, ClobConfigError)
+    assert not isinstance(mapped, ClobAuthError)
+
+
 def test_map_error_request_rejected_400_is_api_not_auth():
     """A 400 request-rejection (e.g. "the orderbook does not exist", bad
     price/tick, closed market) is a validation error, NOT an auth failure.

@@ -558,7 +558,11 @@ async def test_case2_unknown_order_reconcile(broker, monkeypatch, pages, variant
     if variant == "adopt":
         await _place_resting_buy(broker)   # price+size match the unknown row
     elif variant == "mismatch":
-        await _place_resting_buy(broker, price=max(_REST_PRICE * 3, 0.30), shares=_SHARES)
+        # round to the tick (0.01): _REST_PRICE*3 is a binary float (e.g.
+        # 0.30000000000000004) which the broker rejects as "more than 2 decimals".
+        await _place_resting_buy(
+            broker, price=round(max(_REST_PRICE * 3, 0.30), 2), shares=_SHARES,
+        )
     else:  # halt — two distinct untracked resting orders on the same token
         await _place_resting_buy(broker)
         await _place_resting_buy(broker, price=round(_REST_PRICE + float(_TICK), 4))
