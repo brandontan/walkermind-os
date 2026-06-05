@@ -54,6 +54,10 @@ on:
         description: "Use the CLOB v2 polymarket-client backend (the migration under test). Uncheck to run the legacy py-clob-client backend."
         type: boolean
         default: true
+      pin_market:
+        description: "Pin the market from the STAGING_TOKEN_ID/MARKET_ID secrets instead of auto-resolving. Default false = resolve a live OPEN market at runtime (the bot's 5m/15m markets roll over, so a pinned secret goes stale). Check only to reproduce a specific market."
+        type: boolean
+        default: false
       region:
         description: "Fly region — MUST be Polymarket order-allowed. nrt=Tokyo/Japan (API permitted). sin=Singapore is CLOSE-ONLY (cannot OPEN orders)."
         type: choice
@@ -86,14 +90,14 @@ jobs:
       PROOF_APP: crusaderbot-staging-proof
       FLY_REGION: ${{ inputs.region }}
       # Throwaway wallet (NEVER the prod wallet). The wallet key is the only
-      # REQUIRED staging secret. STAGING_TOKEN_ID/MARKET_ID/NO_TOKEN_ID are now
-      # OPTIONAL overrides -- the harness resolves a live open market at runtime
-      # (the bot trades 5m/15m markets whose token ids roll over constantly, so a
-      # pinned secret would always be stale). Set them only to reproduce a market.
+      # REQUIRED staging secret. The market-id secrets are forwarded ONLY when
+      # pin_market=true; by default they are blanked so the harness resolves a
+      # live OPEN market at runtime (the bot trades 5m/15m markets whose token ids
+      # roll over constantly, so a pinned secret would always be stale).
       STAGING_WALLET_KEY: ${{ secrets.STAGING_WALLET_KEY }}
-      STAGING_TOKEN_ID: ${{ secrets.STAGING_TOKEN_ID }}
-      STAGING_MARKET_ID: ${{ secrets.STAGING_MARKET_ID }}
-      STAGING_NO_TOKEN_ID: ${{ secrets.STAGING_NO_TOKEN_ID }}
+      STAGING_TOKEN_ID: ${{ inputs.pin_market && secrets.STAGING_TOKEN_ID || '' }}
+      STAGING_MARKET_ID: ${{ inputs.pin_market && secrets.STAGING_MARKET_ID || '' }}
+      STAGING_NO_TOKEN_ID: ${{ inputs.pin_market && secrets.STAGING_NO_TOKEN_ID || '' }}
       STAGING_FUNDER_ADDRESS: ${{ secrets.STAGING_FUNDER_ADDRESS }}
       STAGING_POLYMARKET_API_KEY: ${{ secrets.STAGING_POLYMARKET_API_KEY }}
       STAGING_POLYMARKET_API_SECRET: ${{ secrets.STAGING_POLYMARKET_API_SECRET }}

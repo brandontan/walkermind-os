@@ -47,9 +47,9 @@ that drift detection sees a real orphan.
 | Var | Required | Default | Meaning |
 |---|---|---|---|
 | `STAGING_WALLET_KEY` | **yes** | — | Throwaway wallet private key. Absent ⇒ whole suite skips. |
-| `STAGING_TOKEN_ID` | no (auto-resolved) | — | Override: BUY-side token of a specific market. Unset ⇒ a live open market is resolved at runtime (the bot's 5m/15m markets roll over too fast to pin). |
-| `STAGING_MARKET_ID` | no (auto-resolved) | — | Override: condition id of that market. Set together with `STAGING_TOKEN_ID`. |
-| `STAGING_NO_TOKEN_ID` | no (auto-resolved) | — | Override: NO outcome token. Resolved automatically when the market is auto-picked. |
+| `STAGING_TOKEN_ID` | no (auto-resolved) | — | Override, used ONLY when the workflow is dispatched with `pin_market=true`. By default the market is resolved at runtime (the bot's 5m/15m markets roll over too fast to pin). |
+| `STAGING_MARKET_ID` | no (auto-resolved) | — | Override condition id; only honoured with `pin_market=true` (set together with `STAGING_TOKEN_ID`). |
+| `STAGING_NO_TOKEN_ID` | no (auto-resolved) | — | Override NO outcome token; only honoured with `pin_market=true`. Resolved automatically otherwise. |
 | `STAGING_FUNDER_ADDRESS` | depends | — | Proxy/Safe funder address (signature_type 1/2). |
 | `STAGING_SIGNATURE_TYPE` | no | `2` | 0=EOA, 1=POLY_PROXY, 2=GNOSIS_SAFE. |
 | `STAGING_POLYMARKET_API_KEY` / `_SECRET` / `_PASSPHRASE` | no | — | L2 creds. If unset, auto-derived from the key at runtime. |
