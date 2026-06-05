@@ -124,6 +124,61 @@ async def test_get_open_orders_aliases_id_and_asset():
     assert rows[0]["asset_id"] == "TK"
 
 
+class _Page:
+    """A pysdk-style pagination wrapper: rows live in .items, plus pagination
+    metadata. _collect must flatten this into its rows, not map the wrapper
+    (the run-#12 defect: list_open_orders yields Page, not orders)."""
+
+    def __init__(self, items):
+        self.items = list(items)
+        self.has_more = False
+        self.next_cursor = None
+        self.total_count = len(items)
+
+
+@pytest.mark.asyncio
+async def test_get_open_orders_flattens_page_wrapper():
+    c = _client()
+    # paginator async-iterates ONE Page that holds the actual order rows
+    c._client._open = [_Page([_Model(id="O1", token_id="TK", price=0.5, status="live")])]
+    rows = await c.get_open_orders()
+    assert len(rows) == 1
+    assert rows[0]["orderID"] == "O1"
+    assert rows[0]["order_id"] == "O1"
+    assert rows[0]["asset_id"] == "TK"
+
+
+class _EmptyPage:
+    """A Page wrapper with markers but items=None (empty/malformed page).
+    Must NOT be appended as a bogus row — yields zero rows."""
+
+    def __init__(self):
+        self.items = None
+        self.has_more = False
+        self.next_cursor = None
+        self.total_count = 0
+
+
+@pytest.mark.asyncio
+async def test_get_open_orders_malformed_page_yields_no_rows():
+    c = _client()
+    c._client._open = [_EmptyPage()]
+    rows = await c.get_open_orders()
+    assert rows == []   # the wrapper itself is never collected as a row
+
+
+@pytest.mark.asyncio
+async def test_get_fills_flattens_page_wrapper():
+    c = _client()
+    c._client._trades = [_Page([
+        _Model(id="t1", taker_order_id="OID-1", price=0.4, size=5),
+        _Model(id="t2", taker_order_id="OTHER", price=0.4, size=5),
+    ])]
+    fills = await c.get_fills("OID-1")
+    assert len(fills) == 1
+    assert fills[0]["id"] == "t1"
+
+
 class _SlotsOrder:
     """An open-order object with __slots__ and NO model_dump/dict/usable
     __dict__ — the run-#11 staging shape that collapsed to {} and lost the id.
