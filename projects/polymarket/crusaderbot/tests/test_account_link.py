@@ -12,14 +12,19 @@ from uuid import uuid4
 
 import pytest
 
-from projects.polymarket.crusaderbot.domain.activation import account_link
-from projects.polymarket.crusaderbot.domain.activation.account_link import (
-    AccountLinkError,
-    LinkOutcome,
-    format_code_for_display,
-    generate_link_code,
-    redeem_link_code,
+from projects.polymarket.crusaderbot.tests._runtime_deps import (
+    optional_runtime_imports,
 )
+
+with optional_runtime_imports("account-link"):
+    from projects.polymarket.crusaderbot.domain.activation import account_link
+    from projects.polymarket.crusaderbot.domain.activation.account_link import (
+        AccountLinkError,
+        LinkOutcome,
+        format_code_for_display,
+        generate_link_code,
+        redeem_link_code,
+    )
 
 
 # ── pool/conn fakes ───────────────────────────────────────────────────────────

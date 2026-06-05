@@ -10,20 +10,25 @@ import base64
 
 import pytest
 
-from projects.polymarket.crusaderbot.integrations.clob.auth import (
-    CLOB_AUTH_MESSAGE,
-    CLOB_DOMAIN_NAME,
-    CLOB_DOMAIN_VERSION,
-    DEFAULT_CHAIN_ID,
-    ClobAuthSigner,
-    build_builder_headers,
-    build_hmac_signature,
-    build_l1_headers,
-    build_l2_headers,
+from projects.polymarket.crusaderbot.tests._runtime_deps import (
+    optional_runtime_imports,
 )
-from projects.polymarket.crusaderbot.integrations.clob.exceptions import (
-    ClobAuthError,
-)
+
+with optional_runtime_imports("clob auth"):
+    from projects.polymarket.crusaderbot.integrations.clob.auth import (
+        CLOB_AUTH_MESSAGE,
+        CLOB_DOMAIN_NAME,
+        CLOB_DOMAIN_VERSION,
+        DEFAULT_CHAIN_ID,
+        ClobAuthSigner,
+        build_builder_headers,
+        build_hmac_signature,
+        build_l1_headers,
+        build_l2_headers,
+    )
+    from projects.polymarket.crusaderbot.integrations.clob.exceptions import (
+        ClobAuthError,
+    )
 
 
 # --- Deterministic vectors ------------------------------------------

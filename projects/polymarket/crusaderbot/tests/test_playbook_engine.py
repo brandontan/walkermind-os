@@ -10,46 +10,51 @@ import asyncio
 
 import pytest
 
-from projects.polymarket.crusaderbot.domain.playbook.correlation import (
-    cluster_key,
-    score_correlation,
+from projects.polymarket.crusaderbot.tests._runtime_deps import (
+    optional_runtime_imports,
 )
-from projects.polymarket.crusaderbot.domain.playbook.market_quality import (
-    evaluate_market_quality,
-)
-from projects.polymarket.crusaderbot.domain.playbook.modules import (
-    ClosingEdgeModule,
-    InjuryAlphaModule,
-    MarketSnapshot,
-    PublicFadeModule,
-    SharpMoneyModule,
-)
-from projects.polymarket.crusaderbot.domain.playbook.router import (
-    DEFAULT_MODULE_ORDER,
-    PlaybookRouter,
-)
-from projects.polymarket.crusaderbot.domain.playbook.signals import (
-    EVENT_TTL,
-    LINE_MOVEMENT,
-    SHARP_MONEY,
-    compute_signal_bundle,
-    event_ttl_reading,
-    line_movement_reading,
-    liquidity_reading,
-    market_sentiment_reading,
-    sharp_money_reading,
-)
-from projects.polymarket.crusaderbot.domain.strategy.registry import (
-    StrategyRegistry,
-    bootstrap_default_strategies,
-)
-from projects.polymarket.crusaderbot.domain.strategy.strategies.playbook import (
-    PlaybookStrategy,
-)
-from projects.polymarket.crusaderbot.domain.strategy.types import (
-    MarketFilters,
-    UserContext,
-)
+
+with optional_runtime_imports("playbook-roster engine"):
+    from projects.polymarket.crusaderbot.domain.playbook.correlation import (
+        cluster_key,
+        score_correlation,
+    )
+    from projects.polymarket.crusaderbot.domain.playbook.market_quality import (
+        evaluate_market_quality,
+    )
+    from projects.polymarket.crusaderbot.domain.playbook.modules import (
+        ClosingEdgeModule,
+        InjuryAlphaModule,
+        MarketSnapshot,
+        PublicFadeModule,
+        SharpMoneyModule,
+    )
+    from projects.polymarket.crusaderbot.domain.playbook.router import (
+        DEFAULT_MODULE_ORDER,
+        PlaybookRouter,
+    )
+    from projects.polymarket.crusaderbot.domain.playbook.signals import (
+        EVENT_TTL,
+        LINE_MOVEMENT,
+        SHARP_MONEY,
+        compute_signal_bundle,
+        event_ttl_reading,
+        line_movement_reading,
+        liquidity_reading,
+        market_sentiment_reading,
+        sharp_money_reading,
+    )
+    from projects.polymarket.crusaderbot.domain.strategy.registry import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+    from projects.polymarket.crusaderbot.domain.strategy.strategies.playbook import (
+        PlaybookStrategy,
+    )
+    from projects.polymarket.crusaderbot.domain.strategy.types import (
+        MarketFilters,
+        UserContext,
+    )
 
 
 def _snapshot(**over) -> MarketSnapshot:

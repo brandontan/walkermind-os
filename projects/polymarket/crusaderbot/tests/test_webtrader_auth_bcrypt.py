@@ -12,7 +12,12 @@ from __future__ import annotations
 
 import pytest
 
-from projects.polymarket.crusaderbot.webtrader.backend import auth as auth_mod
+from projects.polymarket.crusaderbot.tests._runtime_deps import (
+    optional_runtime_imports,
+)
+
+with optional_runtime_imports("webtrader auth/bcrypt"):
+    from projects.polymarket.crusaderbot.webtrader.backend import auth as auth_mod
 
 
 def test_hash_password_round_trip_short():
