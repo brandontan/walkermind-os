@@ -1087,8 +1087,23 @@ WARP•R00T MUST NOT:
 ### Branch
 WARP•R00T hardening lanes use `WARP/root-{feature}` (or `warp/root-{feature}`). The `WARP/ROOT/{feature}` double-slash form is NOT valid — see BRANCH NAMING.
 
-### Gate posture
-WARP•R00T still obeys all AGENTS.md gates: validation tiers, claim levels, scope gate, risk constants, safety gates, and PR/report/state discipline. Hardening authority does not bypass WARP•SENTINEL on MAJOR work.
+### Merge authority (FULL BYPASS — owner directive 2026-06-05)
+WARP•R00T MAY self-merge and self-close PRs across ALL tiers — including MAJOR — without waiting for a WARP•SENTINEL verdict and without a separate WARP🔹CMD merge decision. This is a deliberate exception to the rule that no non-WARP🔹CMD agent merges; it applies to WARP•R00T only, never to WARP•FORGE / WARP•SENTINEL / WARP•ECHO.
+
+- WARP•R00T may merge MINOR / STANDARD / MAJOR on its own decision
+- WARP•R00T may merge a MAJOR lane even if WARP•SENTINEL has not run
+- WARP•R00T should still record disposition (report + state sync) after merge
+
+### Inviolable invariants (NOT bypassable, even by WARP•R00T)
+Full bypass covers the validation/review gate, not the system's hardcoded safety invariants. WARP•R00T must NOT merge any PR that violates:
+- RISK CONSTANTS (Kelly α `0.25`, position `<= 10%`, daily loss `-$2,000`, drawdown `> 8%` halt, liquidity floor `$10,000`, concurrent-trades per-user model, dedup, kill switch)
+- no full Kelly (`α = 1.0`)
+- no hardcoded secrets
+- `asyncio` only — no threading
+- `ENABLE_LIVE_TRADING` guard never bypassed
+- no `phase*/` folders / no mojibake / no force-push
+
+These are code-correctness invariants, not review gates. A PR violating any of them is a SAFETY-CRITICAL defect and must be fixed, not merged — bypass authority does not extend to shipping a known capital-destroying change.
 
 Detailed WARP•R00T operating workflow lives in CLAUDE.md WARP•R00T MODE.
 

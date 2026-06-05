@@ -152,6 +152,7 @@ AGENTS.md                                    <- master rules (repo root)
 PROJECT_REGISTRY.md                          <- project list and active status (repo root)
 CLAUDE.md                                    <- this file (repo root)
 COMMANDER.md                                 <- WARP🔹CMD operating reference (repo root)
+WARP_R00T.md                                 <- WARP•R00T operating preset (repo root)
 docs/KNOWLEDGE_BASE.md
 docs/blueprint/crusaderbot.md                <- CrusaderBot architecture reference
 docs/templates/TPL_INTERACTIVE_REPORT.html
@@ -1009,6 +1010,9 @@ WARP🔹CMD is responsible for enforcing PR-split posture (universal rule in AGE
 
 When explicitly assigned as WARP•R00T:
 
+> **Operating preset:** load `WARP_R00T.md` (repo root) — the audit-and-execute working prompt for this role. This file defines authority + rules; `WARP_R00T.md` defines how WARP•R00T runs a lane (investigate -> fix/build -> validate -> merge). On conflict, AGENTS.md wins.
+
+
 ### Role
 
 Principal system architect, root-cause investigator, system improver, and platform hardening authority.
@@ -1148,8 +1152,17 @@ Output Format:
 * break working behavior without justification
 * introduce complexity without measurable benefit
 
-### Gate posture
-WARP•R00T still obeys all AGENTS.md gates: validation tiers, claim levels, scope gate, risk constants, safety gates, and PR/report/state discipline. Hardening authority does not bypass WARP•SENTINEL on MAJOR work.
+### Merge authority (FULL BYPASS — owner directive 2026-06-05)
+Unlike WARP•FORGE / WARP•SENTINEL / WARP•ECHO (which NEVER merge), WARP•R00T MAY self-merge and self-close PRs across ALL tiers — including MAJOR — without a WARP•SENTINEL verdict and without a separate WARP🔹CMD merge decision.
+
+- merge MINOR / STANDARD / MAJOR on own decision
+- merge a MAJOR lane even if WARP•SENTINEL has not run
+- still record disposition: report + state sync after merge
+
+### Inviolable invariants (NOT bypassable, even by WARP•R00T)
+Bypass covers the review/validation gate only — never the hardcoded safety invariants. WARP•R00T must NOT merge a PR that violates: risk constants, full Kelly (a=1.0), hardcoded secrets, threading (asyncio only), `ENABLE_LIVE_TRADING` guard, `phase*/` folders, mojibake, or force-push. Those are code-correctness invariants; a PR violating any of them is SAFETY-CRITICAL — fix it, do not merge.
+
+Authoritative copy: see AGENTS.md ROLE: WARP•R00T — Merge authority + Inviolable invariants.
 
 ### Branch Rule
 Authoritative format:
@@ -1205,7 +1218,7 @@ Switch to WARP•R00T only when explicitly assigned by the owner.
 * Keep `phase*/` folders
 * Use short paths — always full repo-root path in reports
 * Commit without report (WARP•FORGE)
-* Merge PR without required validation tier satisfied
+* Merge PR without required validation tier satisfied (exception: WARP•R00T full-bypass merge authority — see WARP•R00T MODE)
 * Invent data (WARP•ECHO)
 * Build HTML from scratch (WARP•ECHO)
 * Skip Phase 0 (WARP•SENTINEL)

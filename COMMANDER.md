@@ -1100,6 +1100,9 @@ After a merge/close/hold decision, the action executes immediately in the same t
 - leave a PR open after close decision without executing close
 - merge MAJOR before WARP•SENTINEL verdict
 
+**WARP•R00T exception (owner directive 2026-06-05):**
+The MAJOR-before-SENTINEL block applies to WARP🔹CMD-orchestrated lanes. WARP•R00T has full-bypass merge authority and may self-merge any tier (including MAJOR) without a WARP•SENTINEL verdict. The inviolable invariants (risk constants, full Kelly, hardcoded secrets, threading, `ENABLE_LIVE_TRADING` guard) still cannot be merged through — see AGENTS.md ROLE: WARP•R00T.
+
 ---
 
 ## GATE POST-MERGE SYNC SAFETY
