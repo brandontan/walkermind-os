@@ -3795,6 +3795,83 @@ async def _persist_factor_router_selection(condition_id: str, rule: str | None) 
         logger.debug("factor_router_persist_skipped", error=str(exc))
 
 
+def _scorer_shadow_observe(shadow: dict[str, dict[str, Any]], cand: Any, rule: str) -> None:
+    """Record one candle's factor surface + firing rules for the scorer shadow.
+
+    WARP-72 Phase 2 — pure bookkeeping. The first rule to fire for a market is the
+    precedence router's pick (``_CANDLE_AUTO_RULE_ORDER`` IS the precedence ladder,
+    and the merge keeps the first), so it is stamped as ``router_rule``. Never
+    touches the candidate or the merge — selection is unchanged.
+    """
+    try:
+        mid = cand.market_id
+        entry = shadow.get(mid)
+        if entry is None:
+            entry = {
+                "metadata": cand.metadata or {},
+                "condition_id": cand.condition_id,
+                "firing_rules": [],
+                "router_rule": rule,  # first to fire = precedence winner
+            }
+            shadow[mid] = entry
+        if rule not in entry["firing_rules"]:
+            entry["firing_rules"].append(rule)
+    except Exception as exc:  # noqa: BLE001 — shadow telemetry, never break the scan
+        logger.debug("scorer_shadow_observe_failed", error=str(exc))
+
+
+async def _maybe_emit_scorer_shadow(shadow: dict[str, dict[str, Any]]) -> None:
+    """Run the scorer in shadow and log its pick vs the router's, per candle.
+
+    Gated by SCORER_SHADOW_ENABLED. Emits a structured ``scorer_shadow`` event with
+    ``scorer_selected_rule`` alongside ``router_selected_rule`` for every evaluated
+    candle. Fully fail-soft and decoupled from execution: the scorer's pick is
+    logged only — the router still controls selection (SCORER_ACTIVE stays False
+    until a WARP🔹CMD-gated cutover).
+    """
+    if not shadow:
+        return
+    try:
+        from ...domain.strategy import scorer as _scorer_mod
+        if not _scorer_mod.shadow_enabled():
+            return
+        sc = _scorer_mod.get_scorer()
+        scorer_is_active = _scorer_mod.active()
+    except Exception as exc:  # noqa: BLE001 — never break the scan on a shadow path
+        logger.debug("scorer_shadow_unavailable", error=str(exc))
+        return
+    for mid, entry in shadow.items():
+        try:
+            md = entry["metadata"]
+            cell = _scorer_mod.normalize_cell_key(
+                md.get("factor_asset"), md.get("factor_timeframe")
+            )
+            factors = _scorer_mod.factors_from_metadata(md)
+            firing = entry["firing_rules"]
+            ranked = sc.rank(
+                cell, factors, firing,
+                oracle_edge=md.get("factor_oracle_edge"),
+                oracle_edge_status=md.get("factor_oracle_edge_status"),
+            )
+            scorer_rule = next((s.rule for s in ranked if not s.denied), None)
+            logger.info(
+                "scorer_shadow",
+                market_id=mid,
+                condition_id=entry.get("condition_id"),
+                cell=cell,
+                firing_rules=firing,
+                router_selected_rule=entry["router_rule"],
+                scorer_selected_rule=scorer_rule,
+                scores={s.rule: round(s.score, 6) for s in ranked},
+                denied=[s.rule for s in ranked if s.denied],
+                agree=(scorer_rule == entry["router_rule"]),
+                # Always False today — proves selection is router-controlled.
+                scorer_active=scorer_is_active,
+            )
+        except Exception as exc:  # noqa: BLE001 — one market never aborts the rest
+            logger.debug("scorer_shadow_emit_failed", market_id=mid, error=str(exc))
+
+
 async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_filters, user_ctx):
     """Resolve preset params and scan late_entry_v3 for a user's active preset.
 
@@ -3813,6 +3890,9 @@ async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_fi
     if active_preset == _CANDLE_AUTO_PRESET:
         merged: list = []
         seen: set[str] = set()
+        # WARP-72 Phase 2 — per-market factor surface + firing rules for the scorer
+        # shadow comparison emitted after the merge (does NOT affect dedup/merge).
+        shadow: dict[str, dict[str, Any]] = {}
         for rule in _CANDLE_AUTO_RULE_ORDER:
             try:
                 pp = _resolve_preset_params(rule, timeframe)
@@ -3822,6 +3902,7 @@ async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_fi
                 continue
             tp, sl = _candle_auto_rule_tpsl(rule)
             for c in cands:
+                _scorer_shadow_observe(shadow, c, rule)
                 if c.market_id in seen:
                     continue
                 seen.add(c.market_id)
@@ -3840,13 +3921,17 @@ async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_fi
                 if sl is not None:
                     c.metadata["applied_sl_pct"] = sl
                 merged.append(c)
+        await _maybe_emit_scorer_shadow(shadow)
         return merged
     pp = _resolve_preset_params(active_preset, timeframe) if active_preset in _CANDLE_PRESETS else None
     cands = await _scan_one_late_entry(strat, pp, market_filters, user_ctx, preset=active_preset)
     # Single-rule preset: the active preset IS the selected rule (no dedup).
+    shadow_single: dict[str, dict[str, Any]] = {}
     for c in cands:
         mark_router_selection(c.metadata, active_preset)
         await _persist_factor_router_selection(c.condition_id, active_preset)
+        _scorer_shadow_observe(shadow_single, c, active_preset)
+    await _maybe_emit_scorer_shadow(shadow_single)
     return cands
 
 

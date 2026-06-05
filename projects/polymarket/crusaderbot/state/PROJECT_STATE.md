@@ -1,5 +1,5 @@
-Last Updated : 2026-06-05 00:20
-Status       : WARP-74 live reconciliation MERGED #1613 + mig 082 applied to prod; WARP-72 Phase 1 SHADOW collecting factor_vector dataset (4 settled, need ~50-100); WARP-69 per-user hardening audit MERGED #1615, WARP-75 consent/coverage hardening PR #1617 open; staging proof pending before LIVE flip.
+Last Updated : 2026-06-05 09:30
+Status       : WARP-74 live reconciliation MERGED #1613 + mig 082 applied to prod; WARP-72 Phase 2 SMART STRIKE scorer built SHADOW-only (PR open, SCORER_ACTIVE=False, router controls) on the 163-row/132-settled factor_vector dataset; WARP-69 hardening audit MERGED #1615, WARP-75 consent/coverage hardening PR #1617 open; staging proof pending before LIVE flip.
 
 [COMPLETED]
 - WARP-69 per-user autonomous loop hardening audit MERGED #1615 (eebca68) — auto_trade_on canonical opt-in, no parallel gate; no capital-path defect; 12 hermetic tests, zero prod change; report: reports/forge/auto-trade-per-user-hardening.md
@@ -15,7 +15,8 @@ Status       : WARP-74 live reconciliation MERGED #1613 + mig 082 applied to pro
 [IN PROGRESS]
 - WARP-75 (WARP/ROOT/auto-trade-consent-hardening) PR #1617 open — F1 onboarding no longer side-effect-enables auto_trade_on (explicit opt-in only); F3 run_once warns instead of silent-skip (unmapped preset + opted-in-unenrolled); 16 tests; STANDARD; report: reports/forge/auto-trade-consent-hardening.md
 - WARP-74 staging proof: simulate crash mid-close (confirm no orphan) + confirm kill-switch cancels all resting GTC orders via broker cancel_all_orders — operator acceptance gate before LIVE flip
-- WARP-72 Phase 1 shadow observation: factor_vector dataset accruing in paper (13 rows, 4 settled); need ~50-100 settled per asset/TF before Phase 2 weight derivation
+- WARP-72 Phase 2 scorer (claude/jolly-brahmagupta-kb02j) PR open — StrategyScorer + scorer_trainer + scorer_ab, SHADOW-only: per-cell factor-weighted rule ranking + ADDITIVE Oracle deny-gate; logs scorer_selected_rule vs router_selected_rule per candle; SCORER_ACTIVE=False (router controls); ships untrained stub. 18 tests; STANDARD; report: reports/forge/smart-strike-scorer.md
+- WARP-72 dataset now 163 rows / 132 settled open_to_close (BTC/5m=61, ETH/5m=59, SOL/5m=0); sufficient for the data-derived weight run (≥20/cell met for BTC+ETH)
 - Bankroll CB 7d paper observation started 2026-05-31 (ends ~2026-06-07): confirm no spurious trips + persisted state survives Fly deploys
 - WARP/ROOT/max-concurrent-ui-parity PR open — MINOR, WebTrader MaxConcurrentControl for max_concurrent_override; tsc + vite clean; report: reports/forge/max-concurrent-ui.md
 - Paper observation (directive-strategy-alignment): confirm flip_hunter entries 0.10-0.35 at 60-180s before close; confirm dual-leg top-up completes the expensive leg
@@ -29,7 +30,7 @@ Status       : WARP-74 live reconciliation MERGED #1613 + mig 082 applied to pro
 [NEXT PRIORITY]
 - WARP-74 staging proof: crash sim (no orphan closing position) + kill-switch broker cancel-all confirmation — must pass before real-money LIVE flip
 - WARP🔹CMD merge review: WARP/ROOT/strategy-real-clob-sourcing + WARP/ROOT/playbook-game-sourcing (weather/playbook zero-opens root cause fixed; both PRs open)
-- WARP-72 Phase 2 (data-derived scorer weights) unblocked only after ~50-100 settled factor_vectors per asset/TF — currently 4 settled, collection in progress
+- WARP-72 Phase 2 scorer: WARP🔹CMD review (STANDARD) → greenlight scorer_trainer.py --from-db to replace the untrained stub with real BTC/5m+ETH/5m weights → read scorer_ab.py --from-db --holdout (scorer-vs-router win-rate delta) before any cutover; SCORER_ACTIVE flip is CMD-gated and not implemented
 
 [KNOWN ISSUES]
 - Weather + Playbook zero-opens: fixed in PRs WARP/ROOT/strategy-real-clob-sourcing + WARP/ROOT/playbook-game-sourcing — pending WARP🔹CMD merge + Fly redeploy
