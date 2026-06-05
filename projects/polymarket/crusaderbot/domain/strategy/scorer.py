@@ -169,6 +169,46 @@ def rule_won(
     return entry == winner
 
 
+def rule_entry_price(rule: str, fav_price: Optional[float]) -> Optional[float]:
+    """The price a rule pays to enter, given the market's favored-side price.
+
+    Binary market (YES + NO ≈ 1): a favorite rule (close_sweep / safe_close) pays
+    ``fav_price``; an underdog rule (flip_hunter) pays the complement
+    ``1 - fav_price`` (the cheap side it deliberately enters). Returns ``None``
+    when ``fav_price`` is missing or not a valid probability — never a guess.
+    """
+    if fav_price is None:
+        return None
+    try:
+        p = float(fav_price)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(p) or not (0.0 <= p <= 1.0):
+        return None
+    return (1.0 - p) if rule in _UNDERDOG_RULES else p
+
+
+def rule_ev(
+    rule: str,
+    fav_side: Optional[str],
+    fav_price: Optional[float],
+    realized_outcome: Optional[str],
+) -> Optional[float]:
+    """Realized per-share EV (PnL) of a rule on a settled row. ``None`` = undecidable.
+
+    ``ev = is_win - entry_price`` — the realized payoff of a 1-unit binary position:
+    a win pays ``1 - entry_price`` (profit), a loss pays ``-entry_price``. Unlike
+    win/loss, this correctly prices the asymmetry between a cheap underdog entry
+    (small loss / large win) and an expensive favorite entry (small win / large
+    loss). Returns ``None`` when the win or the entry price cannot be determined.
+    """
+    won = rule_won(rule, fav_side, realized_outcome)
+    price = rule_entry_price(rule, fav_price)
+    if won is None or price is None:
+        return None
+    return (1.0 if won else 0.0) - price
+
+
 # ---------------------------------------------------------------------------
 # Scored-rule result
 # ---------------------------------------------------------------------------
@@ -273,9 +313,11 @@ class StrategyScorer:
     def score_rule(self, cell_key: str, rule: str, factors: Mapping[str, Any]) -> float:
         """Linear score for ``rule`` in ``cell_key`` given a factor surface.
 
-        ``score = base_winrate + Σ_f weight[f] * z_f``. With no cell/rule model the
-        score is 0.0 (neutral) so the precedence tie-break decides — i.e. an
-        untrained scorer exactly reproduces the router.
+        ``score = base + Σ_f weight[f] * z_f`` where ``base`` is the rule's mean
+        training label in the cell (EV per trade under the EV model; ``base_winrate``
+        is the legacy/back-compat key). With no cell/rule model the score is 0.0
+        (neutral) so the precedence tie-break decides — i.e. an untrained scorer
+        exactly reproduces the router.
         """
         cell = self._cells.get(cell_key)
         if not isinstance(cell, Mapping):
@@ -285,7 +327,8 @@ class StrategyScorer:
         if not isinstance(rule_model, Mapping):
             return 0.0
         try:
-            score = float(rule_model.get("base_winrate", 0.0))
+            base = rule_model.get("base", rule_model.get("base_winrate", 0.0))
+            score = float(base)
         except (TypeError, ValueError):
             score = 0.0
         weights = rule_model.get("weights")
@@ -468,6 +511,8 @@ __all__ = [
     "rule_entry_side",
     "winning_side",
     "rule_won",
+    "rule_entry_price",
+    "rule_ev",
     "factors_from_metadata",
     "factors_from_row",
     "shadow_enabled",

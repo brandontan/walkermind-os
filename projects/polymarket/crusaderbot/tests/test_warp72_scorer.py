@@ -30,13 +30,15 @@ def _run(coro):
 # momentum → UP, low momentum → DOWN. All other factors are held constant so
 # their derived weight is 0 (zero variance) and only momentum discriminates.
 def _row(asset, momentum, outcome, *, fav_side="YES", router_rule="flip_hunter",
-         oracle_edge=0.05, oracle_status="computed", timeframe="5m"):
+         oracle_edge=0.05, oracle_status="computed", timeframe="5m", fav_price=0.5):
     return {
         "condition_id": f"0x{asset}{momentum}{outcome}",
         "asset": asset,
         "timeframe": timeframe,
         "fav_side": fav_side,
         "entry_side": fav_side,
+        "fav_price": fav_price,
+        "entry_price": fav_price,
         "realized_outcome": outcome,
         "realized_delta": 0.001 if outcome == "UP" else -0.001,
         "momentum": momentum,
@@ -80,6 +82,21 @@ def test_winning_side_and_rule_won():
     assert sc.rule_won("flip_hunter", "YES", "DOWN") is True
     assert sc.rule_won("flip_hunter", "YES", "UP") is False
     assert sc.rule_won("close_sweep", None, "UP") is None  # undecidable
+
+
+def test_rule_entry_price_and_ev():
+    # Favorite pays fav_price; underdog pays the binary complement.
+    assert sc.rule_entry_price("close_sweep", 0.93) == 0.93
+    assert sc.rule_entry_price("flip_hunter", 0.93) == pytest.approx(0.07)
+    assert sc.rule_entry_price("close_sweep", None) is None
+    assert sc.rule_entry_price("close_sweep", 1.5) is None  # out of [0,1]
+    # ev = is_win - entry_price. Favorite at 0.93: win -> +0.07, loss -> -0.93.
+    assert sc.rule_ev("close_sweep", "YES", 0.93, "UP") == pytest.approx(0.07)
+    assert sc.rule_ev("close_sweep", "YES", 0.93, "DOWN") == pytest.approx(-0.93)
+    # Underdog (flip_hunter) at 0.07: win on DOWN -> +0.93, loss on UP -> -0.07.
+    assert sc.rule_ev("flip_hunter", "YES", 0.93, "DOWN") == pytest.approx(0.93)
+    assert sc.rule_ev("flip_hunter", "YES", 0.93, "UP") == pytest.approx(-0.07)
+    assert sc.rule_ev("close_sweep", "YES", None, "UP") is None  # undecidable price
 
 
 # ── neutral scorer = precedence ladder ────────────────────────────────────
@@ -136,6 +153,7 @@ def test_build_weights_derives_target_cells_and_skips_sol():
     # SOL/5m has no rows → explicitly skipped with reason no_data.
     assert model["skipped"]["SOL/5m"] == "no_data"
     assert model["train_filter"] == {"outcome_source": "open_to_close", "settled": True}
+    assert model["label_type"] == "ev"
 
 
 def test_derived_weight_signs_match_construction():
@@ -143,13 +161,15 @@ def test_derived_weight_signs_match_construction():
     cell = model["cells"]["BTC/5m"]
     cs = cell["rules"]["close_sweep"]["weights"]["momentum"]
     fh = cell["rules"]["flip_hunter"]["weights"]["momentum"]
-    # close_sweep (favorite/YES) wins on UP, which tracks high momentum → +weight.
+    # close_sweep (favorite/YES) higher EV on UP, which tracks high momentum → +weight.
     assert cs > 0.0
-    # flip_hunter (underdog) wins on DOWN → negatively correlated with momentum.
+    # flip_hunter (underdog) higher EV on DOWN → negatively correlated with momentum.
     assert fh < 0.0
     # constant factors have zero variance → zero weight.
     assert cell["rules"]["close_sweep"]["weights"]["spread"] == 0.0
-    # base win-rate ~0.5 (half UP, half DOWN, fav YES).
+    # EV base at fav_price=0.5: win -> +0.5, loss -> -0.5, half/half -> ~0.0.
+    assert abs(cell["rules"]["close_sweep"]["base"]) < 1e-9
+    # informational win-rate base still recorded (~0.5).
     assert abs(cell["rules"]["close_sweep"]["base_winrate"] - 0.5) < 1e-9
 
 
@@ -216,6 +236,24 @@ def test_ab_compare_scorer_beats_router_on_constructed_case():
     # Scorer follows momentum → picks the winning side both halves.
     assert btc.scorer_winrate > btc.router_winrate
     assert btc.winrate_delta is not None and btc.winrate_delta > 0.0
+    # EV metric (the cutover criterion): scorer earns more EV/trade than router.
+    assert btc.ev_delta is not None and btc.ev_delta > 0.0
+    assert btc.scorer_ev > btc.router_ev
+    # format_ev_report renders without raising.
+    assert "ev_delta" in ab.format_ev_report(report)
+
+
+def test_ab_ev_excludes_missing_fav_price():
+    # A compared row with no fav_price: win-rate is decidable, EV is not — it must
+    # be counted in n_compared but excluded from n_ev_compared so it cannot dilute
+    # the avg-EV denominator toward zero.
+    s = StrategyScorer.from_model(tr.build_weights(_dataset("btc")))
+    rows = [_row("btc", 0.003, "UP", fav_price=None)]
+    cell = ab.compare(rows, s).cells["BTC/5m"]
+    assert cell.n_compared == 1        # win-rate still credited
+    assert cell.n_ev_compared == 0     # EV row excluded
+    assert cell.ev_delta is None       # no EV-decidable rows → no metric
+    assert cell.router_ev is None and cell.scorer_ev is None
 
 
 def test_ab_counts_abstain_and_undecidable():

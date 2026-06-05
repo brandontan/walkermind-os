@@ -1,5 +1,5 @@
-Last Updated : 2026-06-05 09:45
-Status       : WARP-72 Phase 2 SMART STRIKE scorer MERGED #1618 (SHADOW-only, SCORER_ACTIVE=False); real weights derived from live data (BTC/5m=170, ETH/5m=168) + A/B holdout scorer beats router +0.315 win-rate (gate met, EV read pending) — PR open; WARP-74 live reconciliation MERGED #1613; WARP-75 consent hardening PR #1617 open; staging proof pending before LIVE flip.
+Last Updated : 2026-06-05 10:05
+Status       : WARP-72 Phase 2 SMART STRIKE scorer MERGED #1618+#1619 (SHADOW-only, SCORER_ACTIVE=False); EV A/B (CMD-directed) shows scorer LOSES to router on holdout avg EV/trade (ev_delta -0.065) — cutover NOT justified, router retained — PR open; WARP-74 live reconciliation MERGED #1613; WARP-75 consent hardening PR #1617 open; staging proof pending before LIVE flip.
 
 [COMPLETED]
 - WARP-69 per-user autonomous loop hardening audit MERGED #1615 (eebca68) — auto_trade_on canonical opt-in, no parallel gate; no capital-path defect; 12 hermetic tests, zero prod change; report: reports/forge/auto-trade-per-user-hardening.md
@@ -30,7 +30,7 @@ Status       : WARP-72 Phase 2 SMART STRIKE scorer MERGED #1618 (SHADOW-only, SC
 [NEXT PRIORITY]
 - WARP-74 staging proof: crash sim (no orphan closing position) + kill-switch broker cancel-all confirmation — must pass before real-money LIVE flip
 - WARP🔹CMD merge review: WARP/ROOT/strategy-real-clob-sourcing + WARP/ROOT/playbook-game-sourcing (weather/playbook zero-opens root cause fixed; both PRs open)
-- WARP-72 Phase 4 cutover decision (CMD): scorer weights derived from live data + A/B holdout shows scorer beats router +0.315 win-rate (numeric gate met) — but edge is favorite/underdog asymmetry, win-rate != EV; run an EV/realized-PnL comparison before any SCORER_ACTIVE flip (selection-authority wiring still unbuilt). Report: reports/forge/smart-strike-scorer-weights-ab.md
+- WARP-72 Phase 4 cutover: EV A/B done (CMD-directed) — scorer retrained on EV label, holdout avg EV/trade scorer LOSES to router (ev_delta -0.065; scorer net-negative EV) despite +0.219 win-rate edge. Cutover criterion NOT met → DO NOT flip SCORER_ACTIVE; keep router, accrue more data. Report: reports/forge/smart-strike-scorer-ev-ab.md
 
 [KNOWN ISSUES]
 - Weather + Playbook zero-opens: fixed in PRs WARP/ROOT/strategy-real-clob-sourcing + WARP/ROOT/playbook-game-sourcing — pending WARP🔹CMD merge + Fly redeploy

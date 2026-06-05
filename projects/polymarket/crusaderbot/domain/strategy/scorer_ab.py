@@ -33,6 +33,7 @@ from .scorer import (
     StrategyScorer,
     factors_from_row,
     normalize_cell_key,
+    rule_ev,
     rule_won,
 )
 
@@ -47,6 +48,9 @@ class CellAB:
     n_compared: int = 0          # rows where both selectors made a decidable pick
     router_wins: int = 0
     scorer_wins: int = 0
+    router_ev_sum: float = 0.0   # Σ realized EV of the router's picks (ev-compared rows)
+    scorer_ev_sum: float = 0.0   # Σ realized EV of the scorer's picks (ev-compared rows)
+    n_ev_compared: int = 0       # compared rows where EV was decidable (valid fav_price)
     agreements: int = 0          # rows where scorer pick == router pick
     scorer_abstain: int = 0      # rows where the Oracle deny-gate left no pick
     undecidable: int = 0         # rows missing fav_side / realized winner / attributable rule
@@ -65,6 +69,29 @@ class CellAB:
         if not self.n_compared:
             return None
         return (self.scorer_wins - self.router_wins) / self.n_compared
+
+    @property
+    def router_ev(self) -> Optional[float]:
+        """Router's avg realized EV per trade (over EV-decidable compared rows)."""
+        return (self.router_ev_sum / self.n_ev_compared) if self.n_ev_compared else None
+
+    @property
+    def scorer_ev(self) -> Optional[float]:
+        """Scorer's avg realized EV per trade (over EV-decidable compared rows)."""
+        return (self.scorer_ev_sum / self.n_ev_compared) if self.n_ev_compared else None
+
+    @property
+    def ev_delta(self) -> Optional[float]:
+        """avg EV/trade delta (scorer - router); ``None`` when no EV-decidable rows.
+
+        Divides by ``n_ev_compared`` (rows with a valid ``fav_price``) so rows that
+        are win-rate-decidable but EV-undecidable cannot dilute the average toward
+        zero. This is the cutover metric: the scorer is preferred only when this is
+        positive (scorer earns more expected PnL per trade than the router).
+        """
+        if not self.n_ev_compared:
+            return None
+        return (self.scorer_ev_sum - self.router_ev_sum) / self.n_ev_compared
 
     @property
     def agreement_rate(self) -> Optional[float]:
@@ -133,11 +160,21 @@ def compare(
 
         router_win = bool(rule_won(router_rule, fav, outcome))
         scorer_win = bool(rule_won(scorer_rule, fav, outcome))
+        fav_price = row.get("fav_price")
+        router_ev = rule_ev(router_rule, fav, fav_price, outcome)
+        scorer_ev = rule_ev(scorer_rule, fav, fav_price, outcome)
 
         for agg in (cell, report.overall):
             agg.n_compared += 1
             agg.router_wins += int(router_win)
             agg.scorer_wins += int(scorer_win)
+            # EV is decidable only with a valid fav_price (both picks share it, so
+            # they are None together). Gate on both + a dedicated counter so an
+            # EV-undecidable row never dilutes the avg-EV denominator.
+            if router_ev is not None and scorer_ev is not None:
+                agg.router_ev_sum += router_ev
+                agg.scorer_ev_sum += scorer_ev
+                agg.n_ev_compared += 1
             agg.agreements += int(scorer_rule == router_rule)
 
     return report
@@ -209,6 +246,35 @@ def format_report(report: ABReport) -> str:
     return "\n".join(lines)
 
 
+def format_ev_report(report: ABReport) -> str:
+    """Render the avg-EV/trade comparison (the cutover metric) as a text table.
+
+    ``router_ev`` / ``scorer_ev`` are average realized per-trade EV
+    (``is_win - entry_price``) over the compared rows; ``ev_delta`` is
+    ``scorer - router``. The scorer is preferred only when ``ev_delta > 0``.
+    """
+    head = (
+        f"{'cell':<10} {'n':>5} {'router_ev':>11} {'scorer_ev':>11} "
+        f"{'ev_delta':>10} {'abstain':>8}"
+    )
+    lines = [head, "-" * len(head)]
+
+    def _row(c: CellAB) -> str:
+        rev = f"{c.router_ev:+.4f}" if c.router_ev is not None else "N/A"
+        sev = f"{c.scorer_ev:+.4f}" if c.scorer_ev is not None else "N/A"
+        dl = f"{c.ev_delta:+.4f}" if c.ev_delta is not None else "N/A"
+        return (
+            f"{c.cell:<10} {c.n_ev_compared:>5} {rev:>11} {sev:>11} "
+            f"{dl:>10} {c.scorer_abstain:>8}"
+        )
+
+    for cell in sorted(report.cells):
+        lines.append(_row(report.cells[cell]))
+    lines.append("-" * len(head))
+    lines.append(_row(report.overall))
+    return "\n".join(lines)
+
+
 async def _fetch_rows() -> list[dict[str, Any]]:
     """Read settled open->close rows for the A/B (reuses the trainer's query)."""
     from .scorer_trainer import fetch_settled_rows
@@ -249,6 +315,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         scorer = StrategyScorer.from_file(args.weights)
         report = compare(rows, scorer)
     print(format_report(report))
+    print()
+    print(format_ev_report(report))
     return 0
 
 
@@ -262,5 +330,6 @@ __all__ = [
     "compare",
     "evaluate_holdout",
     "format_report",
+    "format_ev_report",
     "main",
 ]
