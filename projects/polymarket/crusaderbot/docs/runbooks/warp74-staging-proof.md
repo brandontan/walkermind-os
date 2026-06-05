@@ -202,7 +202,16 @@ and all dependencies. A dispatch can use the existing **`FLY_API_TOKEN`** secret
 launch a **one-off Fly machine in `sin`** that runs the harness and exits; the
 GitHub-hosted runner only drives `flyctl` (control-plane — not geoblocked).
 Nothing to install or keep running locally — you just tap **Run workflow**.
-(Wiring tracked separately; reuses `FLY_API_TOKEN` + the `STAGING_*` secrets.)
+
+Wired as **`.github/workflows/staging-proof-fly.yml`** ("WARP-74 Staging Proof
+(Fly Singapore — order-placing cases)"). It reuses the existing `FLY_API_TOKEN`
++ `STAGING_*` secrets, and runs in a DEDICATED isolated app
+(`crusaderbot-staging-proof`, no prod secrets) so the proof can never touch the
+real wallet. The machine clones the public repo, installs deps exactly like the
+hosted runner, and runs pytest from Singapore. Pass/fail is decided by an
+explicit `PROOF_RESULT` sentinel in the machine logs (an inconclusive run fails
+closed). Dispatch: Actions → that workflow → pick `case` + `signature_type:1`
+(proxy) → Run.
 
 ### (Alternative) Self-hosted runner on an always-on allowed-region host
 

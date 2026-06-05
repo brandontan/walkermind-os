@@ -1,0 +1,238 @@
+name: WARP-74 Staging Proof (Fly Singapore — order-placing cases)
+
+# Companion to staging-proof.yml for the ORDER-PLACING cases (1-4), which
+# Polymarket geoblocks on GitHub-hosted runner IPs (403 "Trading restricted in
+# your region"). This workflow keeps the SAME mobile dispatch flow but executes
+# the harness from an ALLOWED region: it drives `flyctl` (control-plane, not
+# geoblocked) from the hosted runner to launch a ONE-OFF, ISOLATED Fly machine
+# in region `sin` (Singapore) that runs the proof and is destroyed afterwards.
+#
+# ISOLATION (owner directive 2026-06-05): the machine runs in a DEDICATED app
+# (`crusaderbot-staging-proof`) that holds NONE of the production secrets, so the
+# proof can never touch the real trading wallet. The throwaway STAGING_* values
+# are injected per-run as machine env. The repo is PUBLIC, so the machine clones
+# it directly (no token) and installs deps exactly like the hosted runner — the
+# monorepo layout the tests import (`projects.polymarket.crusaderbot...`) is
+# reproduced by the clone, which the flattened prod image would not provide.
+#
+# SAFETY:
+#   * workflow_dispatch only.
+#   * `allow_fills` defaults FALSE — only tiny resting orders that never fill,
+#     cancelled on teardown (~no USDC).
+#   * Concurrency-locked with staging-proof.yml so two runs never place live
+#     orders at the same time.
+#   * case5 stays on staging-proof.yml (it places no real orders).
+
+on:
+  workflow_dispatch:
+    inputs:
+      case:
+        description: "Order-placing case to run (one at a time for clean evidence)"
+        type: choice
+        default: case3
+        options:
+          - case3       # kill switch broker cancel-all (headline proof)
+          - case2       # unknown-order reconcile (adopt / mismatch / halt)
+          - case1       # crash mid-close (rollback / page-no-id / finalize)
+          - case4       # broker<->DB drift detector
+          - all-broker  # all of the above in one run
+      allow_fills:
+        description: "Enable the finalize fill sub-case (SPENDS REAL USDC)"
+        type: boolean
+        default: false
+      signature_type:
+        description: "Staging wallet signature type (0=EOA, 1=POLY_PROXY, 2=GNOSIS_SAFE)"
+        type: choice
+        default: '1'
+        options: ['0', '1', '2']
+      neg_risk:
+        description: "Set true ONLY if the staging market is neg-risk"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Share the lock with staging-proof.yml — never place live orders concurrently.
+concurrency:
+  group: staging-proof
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  fly-proof:
+    name: Order-placing proof on Fly Singapore
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      PROOF_APP: crusaderbot-staging-proof
+      FLY_REGION: sin
+      # Throwaway wallet + market coordinates (NEVER the prod wallet).
+      STAGING_WALLET_KEY: ${{ secrets.STAGING_WALLET_KEY }}
+      STAGING_TOKEN_ID: ${{ secrets.STAGING_TOKEN_ID }}
+      STAGING_MARKET_ID: ${{ secrets.STAGING_MARKET_ID }}
+      STAGING_NO_TOKEN_ID: ${{ secrets.STAGING_NO_TOKEN_ID }}
+      STAGING_FUNDER_ADDRESS: ${{ secrets.STAGING_FUNDER_ADDRESS }}
+      STAGING_POLYMARKET_API_KEY: ${{ secrets.STAGING_POLYMARKET_API_KEY }}
+      STAGING_POLYMARKET_API_SECRET: ${{ secrets.STAGING_POLYMARKET_API_SECRET }}
+      STAGING_POLYMARKET_API_PASSPHRASE: ${{ secrets.STAGING_POLYMARKET_API_PASSPHRASE }}
+      STAGING_FILLED_CLOSE_ID: ${{ secrets.STAGING_FILLED_CLOSE_ID }}
+      STAGING_SIGNATURE_TYPE: ${{ inputs.signature_type }}
+      STAGING_NEG_RISK: ${{ inputs.neg_risk && 'true' || 'false' }}
+      STAGING_ALLOW_FILLS: ${{ inputs.allow_fills && '1' || '0' }}
+      CASE: ${{ inputs.case }}
+      # Inert app config so the full Settings() model validates (see
+      # staging-proof.yml for why none are exercised by the proof).
+      TELEGRAM_BOT_TOKEN: "0:staging-proof-unused"
+      OPERATOR_CHAT_ID: "0"
+      DATABASE_URL: "postgresql://staging:staging@localhost:5432/staging_proof_fake"
+      POLYGON_RPC_URL: ${{ secrets.STAGING_POLYGON_RPC_URL || 'https://polygon-rpc.com' }}
+      WALLET_HD_SEED: "staging proof hd seed placeholder unused"
+      WALLET_ENCRYPTION_KEY: "WpM238hakouxf5pD_ekYTwFZc_V9BQY1AEnj3BAiYxc="
+
+    steps:
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Preflight
+        run: |
+          set -euo pipefail
+          if [ -z "${FLY_API_TOKEN:-}" ]; then
+            echo "::error::FLY_API_TOKEN secret not set — add it (same token CD uses) in repo Settings -> Secrets -> Actions." >&2
+            exit 1
+          fi
+          if [ -z "${STAGING_WALLET_KEY:-}" ]; then
+            echo "::error::STAGING_WALLET_KEY not set — every case would skip." >&2
+            exit 1
+          fi
+
+      - name: Ensure isolated proof app exists (no prod secrets)
+        run: |
+          set -euo pipefail
+          # Derive the org from the existing crusaderbot app; fall back to the
+          # first org, then to 'personal'. The proof app is created ONCE and
+          # reused; it carries no secrets.
+          ORG="$(flyctl apps list --json 2>/dev/null \
+                 | jq -r '.[] | select(.Name=="crusaderbot") | (.Organization.Slug // .Org // empty)' | head -1)"
+          if [ -z "${ORG:-}" ]; then
+            ORG="$(flyctl orgs list --json 2>/dev/null | jq -r '(to_entries[0].value.Slug // to_entries[0].value // to_entries[0].key)' | head -1)"
+          fi
+          [ -z "${ORG:-}" ] && ORG="personal"
+          echo "Using Fly org: $ORG"
+          if flyctl status --app "$PROOF_APP" >/dev/null 2>&1; then
+            echo "Proof app $PROOF_APP already exists."
+          else
+            flyctl apps create "$PROOF_APP" --org "$ORG"
+          fi
+
+      - name: Run order-placing proof on Fly Singapore
+        run: |
+          set -euo pipefail
+
+          # ---- Build the in-machine proof script (clone + install + pytest) ----
+          # python:3.11-slim machine; clones the PUBLIC repo so the monorepo
+          # import layout matches the hosted runner exactly.
+          read -r -d '' SCRIPT <<'EOS' || true
+          set -u
+          export DEBIAN_FRONTEND=noninteractive
+          echo "PROOF_BEGIN"
+          apt-get update >/dev/null 2>&1
+          apt-get install -y --no-install-recommends git gcc libpq-dev >/dev/null 2>&1
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet pytest pytest-asyncio cffi
+          git clone --depth 1 https://github.com/bayuewalker/walkermind-os /repo
+          cd /repo
+          DEPS=$(python -c "import tomllib;print(' '.join(tomllib.load(open('projects/polymarket/crusaderbot/pyproject.toml','rb'))['project']['dependencies']))")
+          python -m pip install --quiet --ignore-installed $DEPS
+          python -m pip install --quiet --force-reinstall --no-cache-dir cffi
+          ARGS="projects/polymarket/crusaderbot/tests/staging/test_live_reconcile_staging.py -v --tb=short"
+          if [ "${CASE}" != "all-broker" ]; then ARGS="$ARGS -k ${CASE}"; fi
+          echo "RUN: pytest $ARGS  (sig=${STAGING_SIGNATURE_TYPE} fills=${STAGING_ALLOW_FILLS} neg_risk=${STAGING_NEG_RISK})"
+          if pytest $ARGS; then echo "PROOF_RESULT=PASS"; else echo "PROOF_RESULT=FAIL"; fi
+          echo "PROOF_END"
+          EOS
+          B64=$(printf '%s' "$SCRIPT" | base64 -w0)
+
+          # ---- Env injected into the isolated machine ----
+          ENVARGS=()
+          for v in CASE STAGING_WALLET_KEY STAGING_TOKEN_ID STAGING_MARKET_ID \
+                   STAGING_NO_TOKEN_ID STAGING_FUNDER_ADDRESS \
+                   STAGING_POLYMARKET_API_KEY STAGING_POLYMARKET_API_SECRET \
+                   STAGING_POLYMARKET_API_PASSPHRASE STAGING_FILLED_CLOSE_ID \
+                   STAGING_SIGNATURE_TYPE STAGING_NEG_RISK STAGING_ALLOW_FILLS \
+                   TELEGRAM_BOT_TOKEN OPERATOR_CHAT_ID DATABASE_URL \
+                   POLYGON_RPC_URL WALLET_HD_SEED WALLET_ENCRYPTION_KEY; do
+            ENVARGS+=( --env "${v}=${!v}" )
+          done
+
+          # ---- Launch the one-off machine (detached) and capture its id ----
+          MID=$(flyctl machine run python:3.11-slim \
+            --app "$PROOF_APP" --region "$FLY_REGION" \
+            --restart no --vm-memory 2048 \
+            "${ENVARGS[@]}" \
+            --entrypoint sh \
+            --json \
+            -- -c "echo $B64 | base64 -d | sh" | jq -r '.id')
+          if [ -z "${MID:-}" ] || [ "$MID" = "null" ]; then
+            echo "::error::failed to launch Fly machine (see flyctl output above)"; exit 1
+          fi
+          echo "Launched proof machine: $MID (app=$PROOF_APP region=$FLY_REGION)"
+
+          # ---- Wait for it to finish ----
+          for i in $(seq 1 100); do
+            ST=$(flyctl machine status "$MID" --app "$PROOF_APP" --json 2>/dev/null | jq -r '.state // "unknown"')
+            echo "[$i] machine state=$ST"
+            case "$ST" in stopped|destroyed|failed) break;; esac
+            sleep 10
+          done
+
+          # ---- Pull logs, then destroy the machine ----
+          flyctl logs --app "$PROOF_APP" --machine "$MID" --no-tail 2>/dev/null | tee fly-proof.log || true
+          flyctl machine destroy "$MID" --app "$PROOF_APP" --force >/dev/null 2>&1 || true
+
+          # ---- Authoritative pass/fail: explicit sentinel in the logs ----
+          if grep -q "PROOF_RESULT=PASS" fly-proof.log; then
+            echo "Proof PASSED on Fly $FLY_REGION."
+          elif grep -q "PROOF_RESULT=FAIL" fly-proof.log; then
+            echo "::error::Proof FAILED (pytest reported failures) — see logs above."; exit 1
+          else
+            echo "::error::Proof result INCONCLUSIVE (no PROOF_RESULT sentinel in logs — machine may not have finished, or logs were truncated). Re-run or inspect the $PROOF_APP machine."; exit 1
+          fi
+
+      - name: Job summary (mobile-friendly)
+        if: always()
+        run: |
+          {
+            echo "## WARP-74 Staging Proof (Fly $FLY_REGION) — result"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Case | \`${{ inputs.case }}\` |"
+            echo "| Region | \`sin\` (Singapore, allowed) |"
+            echo "| Fills enabled (real USDC) | \`${{ inputs.allow_fills }}\` |"
+            echo "| Signature type | \`${{ inputs.signature_type }}\` |"
+            echo "| Neg-risk market | \`${{ inputs.neg_risk }}\` |"
+            echo ""
+            echo "<details><summary>Last 40 lines of Fly machine output</summary>"
+            echo ""
+            echo '```'
+            tail -n 40 fly-proof.log 2>/dev/null || echo "(no machine output captured)"
+            echo '```'
+            echo ""
+            echo "</details>"
+            echo ""
+            echo "After a Case 3 run, confirm the wallet shows zero open orders on polymarket.com (runbook §4)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload proof log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-proof-fly-${{ github.run_id }}
+          path: fly-proof.log
+          if-no-files-found: warn
+          retention-days: 30
