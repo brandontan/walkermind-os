@@ -182,3 +182,33 @@ then return to WARP🔹CMD for the `ENABLE_LIVE_TRADING` go/no-go decision.
 - If `STAGING_ALLOW_FILLS=1` was used, redeem/close any residual position so the
   wallet returns to a clean state.
 - Unset the `STAGING_*` env vars from the shell. Never persist `STAGING_WALLET_KEY`.
+
+## 6. Geoblock — running the order-placing cases (1–4)
+
+Polymarket enforces a **server-side regional geoblock** on order placement.
+GitHub-**hosted** runners (`ubuntu-latest`) sit in a blocked region, so cases
+1–4 return `403 "Trading restricted in your region"` there. Everything else in
+the pipeline (auth, signing) works on a hosted runner — only the final `/order`
+POST is refused by IP. **case5 places no real orders and runs anywhere** and is
+already green on hosted Actions.
+
+The cases that place orders need an **allowed-region egress**. The two ways:
+
+### (Recommended) Run on Fly.io Singapore — zero operator operation
+
+The production app already runs in Fly region **`sin` (Singapore)**, which is
+Polymarket-allowed, and the production image already contains the test harness
+and all deps. A dispatch can use the existing **`FLY_API_TOKEN`** secret to
+launch a **one-off Fly machine in `sin`** that runs the harness and exits; the
+GitHub-hosted runner only drives `flyctl` (control-plane — not geoblocked).
+Nothing to install or keep running locally — you just tap **Run workflow**.
+(Wiring tracked separately; reuses `FLY_API_TOKEN` + the `STAGING_*` secrets.)
+
+### (Alternative) Self-hosted runner on an always-on allowed-region host
+
+Register a self-hosted GitHub runner on any always-on machine in an allowed
+region (a small VPS / a Fly machine — **not** required to be your laptop), then
+dispatch with input **`runner: self-hosted`**. The `self-hosted` label is
+applied automatically. Requirements on the host: Python 3.11, `bash`, outbound
+network to Polymarket. For a Magic-link/proxy wallet use `signature_type: 1`
+(POLY_PROXY) plus the `STAGING_FUNDER_ADDRESS` (proxy address) secret.
