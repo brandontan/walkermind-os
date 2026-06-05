@@ -324,6 +324,10 @@ async def _place_resting_buy(client, *, price: float = _REST_PRICE,
         token_id=_TOKEN, side="buy", price=price, size=shares,
         order_type="GTC", tick_size=_TICK, neg_risk=_NEG_RISK,
     )
+    import json as _json
+    import sys as _sys
+    print("DIAG post_order_resp=", _json.dumps(resp, default=str)[:1500],
+          file=_sys.stderr, flush=True)
     bid = _broker_id(resp) if isinstance(resp, dict) else ""
     assert bid, f"staging post_order returned no order id: {resp!r}"
     return bid
@@ -496,6 +500,30 @@ async def test_case3_kill_switch_cancels_resting_gtc(broker, monkeypatch, pages)
     """
     _need_market()
     bid = await _place_resting_buy(broker)
+
+    # --- root-cause diagnostics (one dispatch must explain a missing readback) ---
+    import json as _json
+    import sys as _sys
+
+    def _diag(label: str, val: Any) -> None:
+        print(f"DIAG {label}=", _json.dumps(val, default=str)[:2500],
+              file=_sys.stderr, flush=True)
+
+    _diag("market_id", _MARKET)
+    _diag("token_id", _TOKEN)
+    _diag("signature_type", getattr(broker, "signature_type", "?"))
+    _diag("signer_address", getattr(broker, "address", "?"))
+    _diag("funder_address", getattr(broker, "funder", "?"))
+    _diag("placed_bid", bid)
+    try:
+        _diag("open_orders_scoped_raw", await broker.get_open_orders(_MARKET))
+    except Exception as _e:  # noqa: BLE001
+        _diag("open_orders_scoped_err", f"{type(_e).__name__}: {_e}")
+    try:
+        _diag("open_orders_unscoped_raw", await broker.get_open_orders())
+    except Exception as _e:  # noqa: BLE001
+        _diag("open_orders_unscoped_err", f"{type(_e).__name__}: {_e}")
+
     assert await _poll_open_order(broker, bid, present=True), \
         "precondition: the staging GTC should be resting on the book"
 

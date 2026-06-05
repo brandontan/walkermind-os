@@ -124,6 +124,37 @@ async def test_get_open_orders_aliases_id_and_asset():
     assert rows[0]["asset_id"] == "TK"
 
 
+class _ScopedClient:
+    """list_open_orders with an EXPLICIT maker_address param, so _owner_kwargs
+    detects and scopes by it (proxy/funder owner-scoping; mirrors get_fills F1)."""
+
+    def __init__(self):
+        self.captured: dict = {}
+
+    def list_open_orders(self, *, maker_address=None, market=None):
+        self.captured = {"maker_address": maker_address, "market": market}
+        return _AsyncIter([_Model(id="O1", token_id="TK", price=0.5, status="live")])
+
+
+@pytest.mark.asyncio
+async def test_get_open_orders_scopes_by_funder():
+    c = PolymarketSdkClient(private_key=_KEY, funder_address="0x000000000000000000000000000000000000dEaD")
+    c._client = _ScopedClient()
+    rows = await c.get_open_orders("MKT")
+    assert c._client.captured["maker_address"] == c.funder   # proxy funder, not EOA
+    assert c._client.captured["market"] == "MKT"
+    assert rows[0]["orderID"] == "O1"
+
+
+@pytest.mark.asyncio
+async def test_get_open_orders_falls_back_to_eoa_without_funder():
+    c = PolymarketSdkClient(private_key=_KEY, funder_address=None)
+    c._client = _ScopedClient()
+    await c.get_open_orders()
+    assert c._client.captured["maker_address"] == c.address   # EOA signer
+    assert c._client.captured["market"] is None
+
+
 @pytest.mark.asyncio
 async def test_get_fills_filters_by_order_id():
     c = _client()

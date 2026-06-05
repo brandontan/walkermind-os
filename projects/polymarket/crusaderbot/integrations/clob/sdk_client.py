@@ -413,6 +413,28 @@ class PolymarketSdkClient:
                 out.append(d)
         return out
 
+    def _owner_kwargs(self, fn: Any) -> dict:
+        """Scope a list call by the proxy FUNDER when set.
+
+        Proxy wallets (signature_type 1/2 + funder) record their orders/trades
+        under the FUNDER address, not the EOA signer -- so a list query keyed on
+        the signer returns nothing (mirrors the get_fills F1 fix). Pick whichever
+        owner-style kwarg the installed pysdk's ``list_open_orders`` exposes, so
+        this works regardless of the exact param name; if none is supported the
+        call falls back to the SDK's default auth scoping."""
+        owner = self._funder or self._address
+        if not owner:
+            return {}
+        try:
+            import inspect  # noqa: WPS433
+            params = set(inspect.signature(fn).parameters)
+        except (TypeError, ValueError):
+            return {}
+        for name in ("maker_address", "owner", "owner_address", "maker", "address"):
+            if name in params:
+                return {name: owner}
+        return {}
+
     async def get_open_orders(
         self, market: Optional[str] = None,
     ) -> list[dict]:
@@ -421,10 +443,10 @@ class PolymarketSdkClient:
         async def _do() -> list[dict]:
             await self._limiter.acquire()
             try:
+                kw = self._owner_kwargs(client.list_open_orders)
                 if market:
-                    pag = client.list_open_orders(market=market)
-                else:
-                    pag = client.list_open_orders()
+                    kw["market"] = market
+                pag = client.list_open_orders(**kw)
                 items = await self._collect(pag)
             except Exception as exc:
                 raise self._map_error(exc, "/data/orders")
