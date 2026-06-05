@@ -228,7 +228,15 @@ class PolymarketSdkClient:
             return ClobTimeoutError(f"{ctx}: {exc}")
         if isinstance(exc, TransportError):
             return ClobNetworkError(f"{ctx}: {exc}")
-        if isinstance(exc, (SigningError, UserInputError)):
+        if isinstance(exc, UserInputError):
+            # Client-side input/validation error (bad price/tick, too many
+            # decimals, bad size) -- a CONFIG/usage problem, NOT an auth failure.
+            # Bucketing it as auth would mis-route ops/retry to a credential
+            # cause (the staging all-broker case2 mis-mapping).
+            return ClobConfigError(f"{ctx}: {exc}")
+        if isinstance(exc, SigningError):
+            # A signing failure points at the key/credential, so auth is the
+            # right bucket here.
             return ClobAuthError(
                 f"{ctx}: {exc}", status_code=400, path=ctx, body=str(exc),
             )

@@ -109,6 +109,10 @@ jobs:
       # CLOB v2 migration: select the polymarket-client backend for the proof.
       USE_PYSDK_CLOB: ${{ inputs.use_pysdk_clob && '1' || '0' }}
       CASE: ${{ inputs.case }}
+      # Per-run nonce: tags the PROOF_RESULT sentinel so a stale PASS line that
+      # `flyctl logs` may stream from a PRIOR machine in the same app can never
+      # be mistaken for THIS run's result (run_attempt distinguishes re-runs).
+      PROOF_NONCE: ${{ github.run_id }}-${{ github.run_attempt }}
       # Inert app config so the full Settings() model validates (see
       # staging-proof.yml for why none are exercised by the proof).
       TELEGRAM_BOT_TOKEN: "0:staging-proof-unused"
@@ -119,6 +123,9 @@ jobs:
       WALLET_ENCRYPTION_KEY: "WpM238hakouxf5pD_ekYTwFZc_V9BQY1AEnj3BAiYxc="
 
     steps:
+      - name: Checkout (for scripts/proof_result.sh)
+        uses: actions/checkout@v4
+
       - name: Set up flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
 
@@ -176,14 +183,14 @@ jobs:
           ARGS="projects/polymarket/crusaderbot/tests/staging/test_live_reconcile_staging.py -v -s --tb=short"
           if [ "${CASE}" != "all-broker" ]; then ARGS="$ARGS -k ${CASE}"; fi
           echo "RUN: pytest $ARGS  (sig=${STAGING_SIGNATURE_TYPE} fills=${STAGING_ALLOW_FILLS} neg_risk=${STAGING_NEG_RISK})"
-          if pytest $ARGS; then echo "PROOF_RESULT=PASS"; else echo "PROOF_RESULT=FAIL"; fi
+          if pytest $ARGS; then echo "PROOF_RESULT=PASS ${PROOF_NONCE}"; else echo "PROOF_RESULT=FAIL ${PROOF_NONCE}"; fi
           echo "PROOF_END"
           EOS
           B64=$(printf '%s' "$SCRIPT" | base64 -w0)
 
           # ---- Env injected into the isolated machine ----
           ENVARGS=()
-          for v in CASE STAGING_WALLET_KEY STAGING_TOKEN_ID STAGING_MARKET_ID \
+          for v in CASE PROOF_NONCE STAGING_WALLET_KEY STAGING_TOKEN_ID STAGING_MARKET_ID \
                    STAGING_NO_TOKEN_ID STAGING_FUNDER_ADDRESS \
                    STAGING_POLYMARKET_API_KEY STAGING_POLYMARKET_API_SECRET \
                    STAGING_POLYMARKET_API_PASSPHRASE STAGING_FILLED_CLOSE_ID \
@@ -238,14 +245,20 @@ jobs:
           done
           echo "----- captured machine output (tail) -----"; tail -n 60 fly-proof.log 2>/dev/null || true
 
-          # ---- Authoritative pass/fail: explicit sentinel in the logs ----
-          if grep -q "PROOF_RESULT=PASS" fly-proof.log; then
-            echo "Proof PASSED on Fly $FLY_REGION."
-          elif grep -q "PROOF_RESULT=FAIL" fly-proof.log; then
-            echo "::error::Proof FAILED (pytest reported failures) — see logs above."; exit 1
-          else
-            echo "::error::Proof result INCONCLUSIVE (no PROOF_RESULT sentinel in logs — machine may not have finished, or logs were truncated). Re-run or inspect the $PROOF_APP machine."; exit 1
-          fi
+          # ---- Authoritative pass/fail: NONCE-SCOPED sentinel (no stale leak) ----
+          # `flyctl logs` can stream a prior machine's PROOF_RESULT=PASS from the
+          # same app; matching the per-run nonce makes that impossible to mistake
+          # for this run (see scripts/proof_result.sh).
+          STATUS=$(bash scripts/proof_result.sh fly-proof.log "$PROOF_NONCE") || true
+          echo "Proof determination: $STATUS (nonce $PROOF_NONCE)"
+          case "$STATUS" in
+            PASS)
+              echo "Proof PASSED on Fly $FLY_REGION." ;;
+            FAIL)
+              echo "::error::Proof FAILED (pytest reported failures) — see logs above."; exit 1 ;;
+            *)
+              echo "::error::Proof result INCONCLUSIVE (no PROOF_RESULT=<PASS|FAIL> $PROOF_NONCE sentinel — machine may not have finished, logs were truncated, or only a stale prior-run line was present and was correctly ignored). Re-run or inspect the $PROOF_APP machine."; exit 1 ;;
+          esac
 
       - name: Job summary (mobile-friendly)
         if: always()
