@@ -47,8 +47,13 @@ from projects.polymarket.crusaderbot.domain.execution import live_reconcile as l
 from projects.polymarket.crusaderbot.domain.risk import kill_switch_exec as kse
 from projects.polymarket.crusaderbot.integrations.clob import (
     ensure_clob_credentials,
+    get_clob_breaker,
     get_clob_client,
+    get_clob_rate_limiter,
 )
+from projects.polymarket.crusaderbot.integrations import clob as _clob_mod
+from projects.polymarket.crusaderbot.integrations.clob.adapter import ClobAdapter
+from projects.polymarket.crusaderbot.integrations.clob.exceptions import ClobAuthError
 
 # --- staging guard ------------------------------------------------------------
 _WALLET = os.getenv("STAGING_WALLET_KEY")
@@ -109,9 +114,47 @@ def _staging_settings() -> Any:
     })
 
 
+async def _ensure_staging_creds(s: Any) -> None:
+    """Resolve L2 API creds for the staging wallet into the same cache the CLOB
+    client reads (env creds > module-level ``_derived``), so the persistent
+    ``broker`` fixture client AND every ``_factory``-built client share them.
+
+    Mirrors production ``ensure_clob_credentials`` (GET /auth/derive-api-key),
+    but a FRESH throwaway wallet has nothing to derive yet — the CLOB returns
+    ``400 "Could not derive api key!"``. In that one case we fall back to
+    POST /auth/api-key (create) ONCE to self-provision the key, then populate
+    the same ``_derived`` cache. Any OTHER auth failure (e.g. a signature-type
+    mismatch) is re-raised untouched so it surfaces instead of being masked.
+    """
+    try:
+        await ensure_clob_credentials(s)   # no-op if API creds already in env
+    except ClobAuthError as exc:
+        if "could not derive" not in str(exc).lower():
+            raise
+        tmp = ClobAdapter(
+            api_key="", api_secret="", passphrase="",
+            private_key=s.POLYMARKET_PRIVATE_KEY,
+            funder_address=s.POLYMARKET_FUNDER_ADDRESS,
+            signature_type=s.POLYMARKET_SIGNATURE_TYPE,
+            circuit_breaker=get_clob_breaker(s),
+            rate_limiter=get_clob_rate_limiter(s),
+        )
+        try:
+            creds = await tmp.create_api_credentials()
+        finally:
+            await tmp.aclose()
+        # Populate the SAME cache get_clob_client reads, so _factory clients
+        # (which build from bare settings) pick the freshly-created creds up.
+        _clob_mod._derived = {
+            "api_key": creds.get("apiKey") or creds.get("api_key", ""),
+            "api_secret": creds.get("secret") or creds.get("api_secret", ""),
+            "passphrase": creds.get("passphrase", ""),
+        }
+
+
 async def _new_client():
     s = _staging_settings()
-    await ensure_clob_credentials(s)   # no-op if API creds already in env
+    await _ensure_staging_creds(s)   # derive; create once on a fresh wallet
     return get_clob_client(s), s
 
 
