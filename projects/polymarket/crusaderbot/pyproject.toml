@@ -16,13 +16,19 @@ dependencies = [
     "structlog>=24.1",
     "pydantic-settings>=2.2",
     "python-dotenv>=1.0",
-    "py-clob-client",
+    # CLOB v2 migration (WARP/clob-v2-migration): the official polymarket-client
+    # produces the CLOB v2 SignedOrder schema. Replaces the archived (May 2026)
+    # py-clob-client v1, whose order struct CLOB v2 rejects (order_version_mismatch).
+    # Pinned to the validated pre-release; bump only with a fresh staging proof.
+    "polymarket-client==0.1.0b3",
     "tenacity>=8.2",
-    "eth-account>=0.10",
+    # polymarket-client requires eth-account>=0.13,<1 (was >=0.10).
+    "eth-account>=0.13,<1",
     "sentry-sdk[fastapi]>=2.0",
     "bcrypt>=4.0",
     # Phase 4D — push-based fill streaming over wss://ws-subscriptions-clob.polymarket.com.
-    "websockets>=12.0,<14.0",
+    # Lower bound raised to 13 to satisfy polymarket-client (requires >=13,<16).
+    "websockets>=13.0,<14.0",
     # Test-only — listed here (not in a separate test extra) because the
     # CI workflow installs straight from [project.dependencies] and the
     # project does not yet ship a test extras group. Phase 4A CLOB tests
