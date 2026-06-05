@@ -41,6 +41,7 @@ import structlog
 
 from .scorer import (
     FACTORS,
+    MIN_FACTOR_STD,
     MODEL_SCHEMA_VERSION,
     RULE_PRECEDENCE,
     normalize_cell_key,
@@ -134,6 +135,13 @@ def derive_cell(rows: Sequence[Mapping[str, Any]], *, shrinkage_k: float = DEFAU
         vals = [v for _, v in factor_values[f]]
         mean = _mean(vals)
         std = _pop_std(vals, mean)
+        # Collapse a near-constant factor's std to exactly 0.0 so the scorer's
+        # MIN_FACTOR_STD guard zeroes it cleanly (e.g. volatility_sigma is a
+        # per-asset constant → std ~1e-19 of float noise; standardizing against
+        # it would inflate any live deviation into an extreme z-score). Its
+        # weight is forced to 0.0 below too.
+        if std < MIN_FACTOR_STD:
+            std = 0.0
         norm[f] = {"mean": mean, "std": std}
 
     rules_model: dict[str, Any] = {}
@@ -150,6 +158,12 @@ def derive_cell(rows: Sequence[Mapping[str, Any]], *, shrinkage_k: float = DEFAU
 
         weights: dict[str, float] = {}
         for f in FACTORS:
+            # Near-constant factor (std collapsed to 0 above): non-discriminative,
+            # so its weight is exactly 0 — never a tiny Pearson-noise coefficient
+            # that the scorer would divide by a near-zero std.
+            if norm[f]["std"] <= 0.0:
+                weights[f] = 0.0
+                continue
             # Paired (factor, win) samples over decidable rows that have the factor.
             xs: list[float] = []
             ys: list[float] = []
