@@ -146,18 +146,19 @@ async def _resolve_open_market() -> dict[str, Any]:
                 buy_tok, other_tok = sorted(
                     toks, key=lambda t: float(t.get("price") or 0.0), reverse=True)
                 price = float(buy_tok.get("price") or 0.0)
-            except (TypeError, ValueError):
-                continue
+            except (TypeError, ValueError, AttributeError, KeyError):
+                continue  # a token entry is malformed (not a dict / bad price)
             tok_id = str(buy_tok.get("token_id") or "")
             if not tok_id or price < floor + 0.05:
                 continue
             try:
                 book = await md.get_orderbook(tok_id)
-            except Exception:  # noqa: BLE001 — thin/absent book: try the next one
+                ask_prices = [
+                    float(a["price"]) for a in (book.get("asks") or [])
+                    if isinstance(a, dict) and a.get("price")
+                ]
+            except Exception:  # noqa: BLE001 — thin/absent/malformed book: skip it
                 continue
-            ask_prices = [
-                float(a["price"]) for a in (book.get("asks") or []) if a.get("price")
-            ]
             if not ask_prices or min(ask_prices) <= floor:
                 continue
             return {
