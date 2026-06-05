@@ -502,16 +502,25 @@ async def _poll_closing_rollback(pool, *, tries: int = 10, delay: float = 1.5) -
     last sweep result."""
     import asyncio
     res: dict = {}
-    for _ in range(tries):
+    last_exc: Exception | None = None
+    for i in range(tries):
         try:
             res = await lr.reconcile_closing_positions(
                 pool=pool, clob_factory=_factory, settings=_settings_live())
-        except Exception:  # noqa: BLE001 — transient read error: retry next tick
-            await asyncio.sleep(delay)
+            last_exc = None
+        except Exception as exc:  # noqa: BLE001 — transient read error: retry next tick
+            last_exc = exc
+            if i < tries - 1:
+                await asyncio.sleep(delay)
             continue
         if int(res.get("rolled_back", 0)) >= 1:
             return res
-        await asyncio.sleep(delay)
+        if i < tries - 1:
+            await asyncio.sleep(delay)
+    # Budget exhausted: surface a persistent error rather than masking it as a
+    # generic KeyError/AssertionError on an empty result (Gemini review).
+    if last_exc is not None:
+        raise last_exc
     return res
 
 
