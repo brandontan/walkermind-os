@@ -50,6 +50,10 @@ on:
         description: "Set true ONLY if the staging market is neg-risk"
         type: boolean
         default: false
+      use_pysdk_clob:
+        description: "Use the CLOB v2 polymarket-client backend (the migration under test). Uncheck to run the legacy py-clob-client backend."
+        type: boolean
+        default: true
       region:
         description: "Fly region — MUST be Polymarket order-allowed. nrt=Tokyo/Japan (API permitted). sin=Singapore is CLOSE-ONLY (cannot OPEN orders)."
         type: choice
@@ -94,6 +98,8 @@ jobs:
       STAGING_SIGNATURE_TYPE: ${{ inputs.signature_type }}
       STAGING_NEG_RISK: ${{ inputs.neg_risk && 'true' || 'false' }}
       STAGING_ALLOW_FILLS: ${{ inputs.allow_fills && '1' || '0' }}
+      # CLOB v2 migration: select the polymarket-client backend for the proof.
+      USE_PYSDK_CLOB: ${{ inputs.use_pysdk_clob && '1' || '0' }}
       CASE: ${{ inputs.case }}
       # Inert app config so the full Settings() model validates (see
       # staging-proof.yml for why none are exercised by the proof).
@@ -174,6 +180,7 @@ jobs:
                    STAGING_POLYMARKET_API_KEY STAGING_POLYMARKET_API_SECRET \
                    STAGING_POLYMARKET_API_PASSPHRASE STAGING_FILLED_CLOSE_ID \
                    STAGING_SIGNATURE_TYPE STAGING_NEG_RISK STAGING_ALLOW_FILLS \
+                   USE_PYSDK_CLOB \
                    TELEGRAM_BOT_TOKEN OPERATOR_CHAT_ID DATABASE_URL \
                    POLYGON_RPC_URL WALLET_HD_SEED WALLET_ENCRYPTION_KEY; do
             ENVARGS+=( --env "${v}=${!v}" )
