@@ -75,7 +75,7 @@ async def execute(
                 ref_id=position_id, note=f"paper open {side} {market_id}",
             )
 
-    log.info("paper_trade_open", user_id=str(user_id), market_id=market_id, side=side, size_usdc=str(size_usdc), price=price)
+    log.info("paper_trade_open", user_id=str(user_id), market_id=market_id, rule=strategy_type, side=side, size_usdc=str(size_usdc), price=price)
     await audit.write(actor_role="bot", action="paper_open", user_id=user_id,
                       payload={
                           "order_id": str(order_id),
@@ -137,7 +137,7 @@ async def close_position(*, position: dict, exit_price: float,
                 conn, position["user_id"], proceeds, ledger.T_TRADE_CLOSE,
                 ref_id=position["id"], note=f"paper close {exit_reason}",
             )
-    log.info("paper_trade_close", user_id=str(position["user_id"]), position_id=str(position["id"]), exit_reason=exit_reason, pnl=str(pnl))
+    log.info("paper_trade_close", user_id=str(position["user_id"]), market_id=position.get("market_id"), rule=position.get("strategy_type"), position_id=str(position["id"]), exit_reason=exit_reason, pnl=str(pnl))
     await audit.write(actor_role="bot", action="paper_close",
                       user_id=position["user_id"],
                       payload={"position_id": str(position["id"]),

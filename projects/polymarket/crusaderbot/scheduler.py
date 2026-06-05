@@ -38,6 +38,7 @@ from .jobs import (
     hourly_report,
     market_signal_scanner,
     market_sync,
+    operator_daily_summary,
     weekly_insights,
 )
 from .services.daily_report_service import daily_pnl_report_job, JOB_ID as DAILY_REPORT_JOB_ID
@@ -1161,6 +1162,14 @@ def setup_scheduler() -> AsyncIOScheduler:
         daily_pnl_summary.run_job, "cron",
         hour=23, minute=0,
         id=daily_pnl_summary.JOB_ID, max_instances=1, coalesce=True,
+    )
+    # Operator-facing aggregate paper-P&L summary (WARP-76 H2) — 23:05
+    # Asia/Jakarta, just after the per-user push. Single page to the operator
+    # channel with positions opened/closed/net delta across all paper users.
+    sched.add_job(
+        operator_daily_summary.run_job, "cron",
+        hour=23, minute=5,
+        id=operator_daily_summary.JOB_ID, max_instances=1, coalesce=True,
     )
     # Weekly insights — Monday 08:00 Asia/Jakarta.
     sched.add_job(
