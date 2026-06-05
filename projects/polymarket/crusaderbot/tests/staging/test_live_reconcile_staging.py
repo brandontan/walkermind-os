@@ -135,10 +135,18 @@ async def _resolve_open_market() -> dict[str, Any]:
         "active": "true", "closed": "false", "limit": "500",
         "order": "volume24hr", "ascending": "false",
     }
-    async with httpx.AsyncClient(timeout=10.0) as http:
-        resp = await http.get("https://gamma-api.polymarket.com/markets", params=params)
-        resp.raise_for_status()
-        rows = resp.json()
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as http:
+            resp = await http.get(
+                "https://gamma-api.polymarket.com/markets", params=params)
+            resp.raise_for_status()
+            rows = resp.json()
+    except Exception as exc:  # noqa: BLE001 — surface a clear, actionable error
+        raise RuntimeError(
+            f"staging proof could not reach Gamma /markets to resolve an open "
+            f"market ({type(exc).__name__}: {exc}). If the run region is geoblocked, "
+            f"pin STAGING_TOKEN_ID + STAGING_MARKET_ID with pin_market=true."
+        ) from exc
     if isinstance(rows, dict):
         rows = rows.get("data") or rows.get("markets") or []
 
@@ -166,8 +174,11 @@ async def _resolve_open_market() -> dict[str, Any]:
         except (TypeError, ValueError):
             continue
         idx = 0 if p[0] >= p[1] else 1               # BUY the higher-priced side
-        buy_tok, no_tok, price = str(toks[idx]), str(toks[1 - idx]), p[idx]
-        if not buy_tok or price < floor + 0.05:      # need headroom above the rest price
+        buy_val, no_val = toks[idx], toks[1 - idx]
+        if not buy_val or not no_val:                 # guard None/empty (str(None)="None")
+            continue
+        buy_tok, no_tok, price = str(buy_val), str(no_val), p[idx]
+        if price < floor + 0.05:                      # need headroom above the rest price
             continue
         candidates.append((m, buy_tok, no_tok, price))
 
