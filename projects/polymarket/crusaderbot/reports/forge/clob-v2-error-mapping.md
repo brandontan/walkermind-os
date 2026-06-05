@@ -69,7 +69,7 @@ Created:
 - GTC-only on this backend (GTD/FOK/FAK/market → `ClobConfigError`): follow-up lane.
 - polymarket-client pinned `==0.1.0b3` (beta).
 
-## 6. What is next
+## 7. What is next
 
 1. Owner refreshes the staging market secrets to a currently-OPEN market.
 2. Re-dispatch `staging-proof-fly.yml` case3 → confirm a real GTC order rests,
