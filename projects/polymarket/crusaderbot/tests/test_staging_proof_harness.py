@@ -58,6 +58,19 @@ def test_current_pass_is_recognised(tmp_path):
     assert rc == 0
 
 
+def test_fail_wins_over_pass_for_same_nonce(tmp_path):
+    """Fail-closed: if a FAIL and a PASS for THIS nonce both appear (e.g. a
+    machine restart within the same run attempt), the verdict is FAIL."""
+    log = tmp_path / "fly-proof.log"
+    log.write_text(
+        "app[m1] nrt [info]PROOF_RESULT=PASS 222-1\n"
+        "app[m2] nrt [info]PROOF_RESULT=FAIL 222-1\n"
+    )
+    out, rc = _run(log, "222-1")
+    assert out == "FAIL"
+    assert rc == 1
+
+
 def test_only_stale_pass_is_inconclusive_not_pass(tmp_path):
     """Only a prior run's PASS present (this run produced no sentinel) -> NOT a
     pass; must be INCONCLUSIVE so the job fails loudly rather than green."""

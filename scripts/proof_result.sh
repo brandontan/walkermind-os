@@ -27,12 +27,14 @@ if [ ! -f "$log" ]; then
 fi
 
 # Fixed-string match (-F): the nonce + sentinel are literal, never a pattern.
-if grep -qF "PROOF_RESULT=PASS ${nonce}" "$log"; then
-  echo "PASS"
-  exit 0
-elif grep -qF "PROOF_RESULT=FAIL ${nonce}" "$log"; then
+# FAIL is checked FIRST (fail-closed): a run emits exactly one sentinel, but if
+# a FAIL and a PASS for THIS nonce ever coexist, the safe verdict is FAIL.
+if grep -qF "PROOF_RESULT=FAIL ${nonce}" "$log"; then
   echo "FAIL"
   exit 1
+elif grep -qF "PROOF_RESULT=PASS ${nonce}" "$log"; then
+  echo "PASS"
+  exit 0
 else
   echo "INCONCLUSIVE"
   exit 2
