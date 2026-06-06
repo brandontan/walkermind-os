@@ -89,10 +89,16 @@ def test_record_upsert_args_aligned():
     assert "INSERT INTO factor_vectors" in sql
     assert "ON CONFLICT (condition_id) DO UPDATE" in sql
     assert "WHERE factor_vectors.settled = FALSE" in sql  # settled rows immutable
-    assert len(args) == len(fd._COLS) == 34
+    # 34 fv-derived columns + the WARP-77 data_source provenance tag (appended last).
+    assert len(args) == len(fd._INSERT_COLS) == 35
     assert args[0] == "0xC1"               # condition_id first
     assert args[fd._COLS.index("volatility_sigma")] == 0.0001
     assert args[fd._COLS.index("selected_by_router")] is False  # coerced bool
+    assert args[-1] in {
+        fd.DATA_SOURCE_PAPER_SYNTHETIC,
+        fd.DATA_SOURCE_PAPER_REAL,
+        fd.DATA_SOURCE_LIVE_REAL,
+    }  # data_source resolved from the runtime regime
 
 
 def test_record_throttle_collapses_scan_ticks():
