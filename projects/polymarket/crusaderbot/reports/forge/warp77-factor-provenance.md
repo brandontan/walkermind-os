@@ -31,8 +31,11 @@ synthetic and real-CLOB rows when it iterates the strategy on real data):
   (`run_migrations` is non-recursive), so it is never auto-executed; apply manually
   to revert.
 - **Writer (`domain/research/factor_dataset.py`)** — `resolve_data_source(settings)`
-  maps the runtime regime to the tag (`ENABLE_LIVE_TRADING → live_real`;
-  else `USE_PYSDK_CLOB → paper_real`; else `paper_synthetic`), fail-soft to
+  maps the runtime regime to the tag: real LIVE posture → `live_real`
+  (reuses the canonical `config.resolve_trading_mode`, i.e. ALL THREE guards open:
+  `ENABLE_LIVE_TRADING` + `EXECUTION_PATH_VALIDATED` + `CAPITAL_MODE_CONFIRMED` —
+  `ENABLE_LIVE_TRADING` alone is still PAPER and must not be tagged live); else
+  `USE_PYSDK_CLOB → paper_real`; else `paper_synthetic`. Fail-soft to
   `paper_synthetic`. `record_factor_vector` appends the tag as the final INSERT
   column and refreshes it on the latest-wins UPSERT.
 

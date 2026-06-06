@@ -84,7 +84,12 @@ _UPDATE_COLS: tuple[str, ...] = tuple(
 def resolve_data_source(settings: Any) -> str:
     """Provenance tag for a ``factor_vectors`` row from the runtime data regime.
 
-    * ``live_real``       — real capital path armed (``ENABLE_LIVE_TRADING``).
+    * ``live_real``       — the bot is actually in LIVE mode, i.e. ALL THREE
+      activation guards are open (``ENABLE_LIVE_TRADING`` +
+      ``EXECUTION_PATH_VALIDATED`` + ``CAPITAL_MODE_CONFIRMED``). This reuses the
+      canonical ``config.resolve_trading_mode`` so the provenance label can never
+      diverge from the real paper/live posture: ``ENABLE_LIVE_TRADING`` alone, with
+      the other guards unvalidated, is still PAPER and must NOT be tagged live.
     * ``paper_real``      — paper sizing on the real CLOB v2 backend (``USE_PYSDK_CLOB``).
     * ``paper_synthetic`` — default: paper sizing on the legacy/synthetic data path
       (matches every historical row, and the column DEFAULT).
@@ -93,7 +98,9 @@ def resolve_data_source(settings: Any) -> str:
     break or block a write.
     """
     try:
-        if bool(getattr(settings, "ENABLE_LIVE_TRADING", False)):
+        from ...config import resolve_trading_mode
+
+        if resolve_trading_mode(settings) == "live":
             return DATA_SOURCE_LIVE_REAL
         if bool(getattr(settings, "USE_PYSDK_CLOB", False)):
             return DATA_SOURCE_PAPER_REAL

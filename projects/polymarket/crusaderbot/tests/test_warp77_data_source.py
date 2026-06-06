@@ -78,19 +78,45 @@ def _fv(condition_id="0xC1", **over) -> FactorVector:
 
 
 # ── resolver: runtime data regime → provenance tag ────────────────────────
+def _live_settings(**over) -> SimpleNamespace:
+    # LIVE requires ALL THREE activation guards open (config.resolve_trading_mode).
+    base = dict(
+        ENABLE_LIVE_TRADING=True,
+        EXECUTION_PATH_VALIDATED=True,
+        CAPITAL_MODE_CONFIRMED=True,
+        USE_PYSDK_CLOB=True,
+    )
+    base.update(over)
+    return SimpleNamespace(**base)
+
+
 def test_resolve_live_real():
-    s = SimpleNamespace(ENABLE_LIVE_TRADING=True, USE_PYSDK_CLOB=True)
-    assert resolve_data_source(s) == DATA_SOURCE_LIVE_REAL
+    assert resolve_data_source(_live_settings()) == DATA_SOURCE_LIVE_REAL
 
 
 def test_resolve_paper_real():
-    s = SimpleNamespace(ENABLE_LIVE_TRADING=False, USE_PYSDK_CLOB=True)
+    s = SimpleNamespace(
+        ENABLE_LIVE_TRADING=False, EXECUTION_PATH_VALIDATED=False,
+        CAPITAL_MODE_CONFIRMED=False, USE_PYSDK_CLOB=True,
+    )
     assert resolve_data_source(s) == DATA_SOURCE_PAPER_REAL
 
 
 def test_resolve_paper_synthetic_default():
-    s = SimpleNamespace(ENABLE_LIVE_TRADING=False, USE_PYSDK_CLOB=False)
+    s = SimpleNamespace(
+        ENABLE_LIVE_TRADING=False, EXECUTION_PATH_VALIDATED=False,
+        CAPITAL_MODE_CONFIRMED=False, USE_PYSDK_CLOB=False,
+    )
     assert resolve_data_source(s) == DATA_SOURCE_PAPER_SYNTHETIC
+
+
+def test_partial_live_guards_is_not_live_real():
+    # ENABLE_LIVE_TRADING True but a sibling guard unvalidated → bot is PAPER →
+    # tag by the data backend, NOT live_real (the provenance bug Gemini caught).
+    s = _live_settings(EXECUTION_PATH_VALIDATED=False, USE_PYSDK_CLOB=True)
+    assert resolve_data_source(s) == DATA_SOURCE_PAPER_REAL
+    s2 = _live_settings(CAPITAL_MODE_CONFIRMED=False, USE_PYSDK_CLOB=False)
+    assert resolve_data_source(s2) == DATA_SOURCE_PAPER_SYNTHETIC
 
 
 def test_resolve_missing_attrs_defaults_synthetic():
@@ -100,17 +126,17 @@ def test_resolve_missing_attrs_defaults_synthetic():
 
 def test_resolve_failsoft_on_raising_settings():
     class _Boom:
-        @property
-        def ENABLE_LIVE_TRADING(self):  # noqa: N802
+        def __getattr__(self, name):
             raise RuntimeError("config blew up")
 
+    # getattr's default only suppresses AttributeError, so the RuntimeError
+    # propagates into resolve_data_source's try/except → conservative default.
     assert resolve_data_source(_Boom()) == DATA_SOURCE_PAPER_SYNTHETIC
 
 
 def test_live_takes_precedence_over_pysdk():
-    # ENABLE_LIVE_TRADING dominates even if the data backend flag is off.
-    s = SimpleNamespace(ENABLE_LIVE_TRADING=True, USE_PYSDK_CLOB=False)
-    assert resolve_data_source(s) == DATA_SOURCE_LIVE_REAL
+    # Full LIVE posture dominates even when the data backend flag is off.
+    assert resolve_data_source(_live_settings(USE_PYSDK_CLOB=False)) == DATA_SOURCE_LIVE_REAL
 
 
 # ── recorder: data_source is the final INSERT column, aligned with values ──
