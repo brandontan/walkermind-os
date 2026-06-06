@@ -52,7 +52,7 @@ _COLS: tuple[str, ...] = (
     "condition_id", "market_id", "slug", "asset", "timeframe", "evaluated_rule",
     "router_selected_rule", "selected_by_router",
     "momentum", "momentum_delta", "momentum_span_sec", "momentum_samples",
-    "volatility_sigma", "liquidity_usdc", "spread", "orderbook_depth_usdc",
+    "volatility_sigma", "realized_vol", "liquidity_usdc", "spread", "orderbook_depth_usdc",
     "ttl_sec", "oracle_edge", "oracle_edge_status", "oracle_would_pass", "oracle_delta",
     "fav_side", "entry_side", "fav_price", "entry_price", "ask_diff",
     "complete_set_edge", "underdog_mode",
