@@ -63,6 +63,17 @@ def test_verdict_retry_when_marginal() -> None:
     assert verdict == "RETRY"
 
 
+def test_overall_excludes_off_target_cells() -> None:
+    # A --from-db fetch can return off-grid cells (e.g. SOL/5m). They must NOT
+    # pollute the overall aggregate the cutover decision is gated on.
+    rows = _demo_rows(per_cell=120)
+    sol = [dict(r, asset="sol") for r in rows[:120]]  # SOL/5m — off target
+    cells, overall, _ = compute_report(rows + sol)
+    assert "SOL/5m" in cells  # still reported per-cell
+    assert "SOL/5m" not in TARGET_CELLS
+    assert overall.settled == sum(cells[ck].settled for ck in TARGET_CELLS)  # SOL excluded
+
+
 def test_verdict_fail_on_catastrophic_cell() -> None:
     cells, overall = _strong_cells()
     bad = cells[TARGET_CELLS[0]]

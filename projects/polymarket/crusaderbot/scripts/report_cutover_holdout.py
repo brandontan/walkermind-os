@@ -190,7 +190,12 @@ def compute_report(
                 key = (router_rule, comp_rule)
                 cs.disagreements[key] = cs.disagreements.get(key, 0) + 1
         cells[ck] = cs
-        # fold into overall
+        # Fold into overall ONLY for the target cells under test — a --from-db
+        # fetch can return off-grid cells (e.g. SOL/5m, other timeframes, UNKNOWN);
+        # folding those in would pollute the overall EV delta / CI that the Track C
+        # criteria gate the cutover on.
+        if ck not in TARGET_CELLS:
+            continue
         overall.settled += cs.settled
         overall.holdout_n += cs.holdout_n
         overall.decided += cs.decided
@@ -462,7 +467,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     md = render_markdown(cells, overall, meta, verdict, gates, crit, data_source=data_source)
 
     if args.out:
-        Path(args.out).write_text(md + "\n", encoding="utf-8")
+        out_path = Path(args.out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(md + "\n", encoding="utf-8")
         print(f"wrote {args.out}  (verdict={verdict})")
     else:
         print(md)
