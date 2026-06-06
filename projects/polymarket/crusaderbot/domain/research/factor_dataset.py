@@ -46,6 +46,15 @@ _last_write: dict[str, float] = {}
 # stop retrying and mark the row 'unresolved' so the backfill loop stays bounded.
 DEFAULT_RING_WINDOW_SEC: float = 1800.0
 
+# WARP-78 label fix: safe_close force-exits ~30s BEFORE candle close (the strategy's
+# safe_close force_exit_at_rem_sec; see late_entry_v3 / exit_watcher). So its realized
+# label is the underlying direction open→(close − 30s), NOT open→close. We record that
+# horizon's outcome alongside the open→close label so the EV trainer/A/B can judge
+# safe_close at its real exit (and so it stops sharing close_sweep's identical label).
+# close_sweep (~8s ≈ close) and flip_hunter (hold-to-settlement) keep open→close.
+# NOTE: mirrors the strategy's 30s; centralizing this constant is a follow-up.
+SAFE_CLOSE_EXIT_LEAD_SEC: float = 30.0
+
 
 # INSERT column order — the value tuple in ``_row`` MUST stay aligned with this.
 _COLS: tuple[str, ...] = (
@@ -276,9 +285,19 @@ async def backfill_factor_settlement(
                 close_p = price_at(symbol, float(close_epoch))
             if open_p is not None and close_p is not None:
                 outcome, delta = realized_candle_outcome(float(open_p), float(close_p))
+                # WARP-78 label fix: also resolve the safe_close horizon outcome at
+                # open→(close − SAFE_CLOSE_EXIT_LEAD_SEC) from the same ring. NULL when
+                # that tick isn't in the ring — honest, like the open→close label.
+                sc_outcome: str | None = None
+                sc_delta: float | None = None
+                sc_p = price_at(symbol, float(close_epoch) - SAFE_CLOSE_EXIT_LEAD_SEC)
+                if sc_p is not None:
+                    sc_outcome, sc_delta = realized_candle_outcome(
+                        float(open_p), float(sc_p)
+                    )
                 await _write_settled(
                     pool, cid, outcome, delta, float(open_p), float(close_p),
-                    "open_to_close",
+                    "open_to_close", sc_outcome, sc_delta,
                 )
                 settled += 1
             elif close_epoch is not None and (now - float(close_epoch)) > ring_window_sec:
@@ -297,8 +316,15 @@ async def _write_settled(
     open_price: float | None,
     close_price: float | None,
     source: str,
+    sc_outcome: str | None = None,
+    sc_delta: float | None = None,
 ) -> None:
-    """Mark a candle row settled with its resolved (or unresolved) label."""
+    """Mark a candle row settled with its resolved (or unresolved) label.
+
+    ``sc_outcome`` / ``sc_delta`` are the WARP-78 safe_close-horizon label
+    (open→close−30s); COALESCE-guarded so the unresolved path (which passes None)
+    never clobbers an existing value.
+    """
     async with pool.acquire() as conn:  # type: ignore[attr-defined]
         await conn.execute(
             """
@@ -308,12 +334,15 @@ async def _write_settled(
                    open_price = $4,
                    close_price = $5,
                    outcome_source = $6,
+                   realized_outcome_safe_close = COALESCE($7, realized_outcome_safe_close),
+                   realized_delta_safe_close = COALESCE($8, realized_delta_safe_close),
                    settled = TRUE,
                    settled_at = NOW(),
                    updated_at = NOW()
              WHERE condition_id = $1 AND settled = FALSE
             """,
             condition_id, outcome, delta, open_price, close_price, source,
+            sc_outcome, sc_delta,
         )
 
 
