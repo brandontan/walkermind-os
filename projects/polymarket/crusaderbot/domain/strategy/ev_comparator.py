@@ -75,7 +75,10 @@ def _pearson(xs: Sequence[float], ys: Sequence[float]) -> float:
     sy = math.sqrt(sum((y - my) ** 2 for y in ys))
     if sx <= 0.0 or sy <= 0.0:
         return 0.0
-    r = cov / (sx * sy)
+    denom = sx * sy
+    if denom <= 0.0:  # underflow guard: tiny-but-positive sx*sy can flush to 0.0
+        return 0.0
+    r = cov / denom
     if not math.isfinite(r):
         return 0.0
     return max(-1.0, min(1.0, r))
@@ -126,7 +129,8 @@ def derive_ev_model(
             std = _pop_std(vals, mean)
             if std < MIN_FACTOR_STD:
                 std = 0.0
-            norm[f] = {"mean": round(mean, 8), "std": round(std, 8)}
+            # round to 10dp (> MIN_FACTOR_STD precision) so valid small stds survive
+            norm[f] = {"mean": round(mean, 10), "std": round(std, 10)}
 
         rule_stats: dict[str, Any] = {}
         for rule in RULE_PRECEDENCE:
@@ -282,7 +286,11 @@ class EVComparator:
         if not math.isfinite(std) or std < MIN_FACTOR_STD:
             return 0.0
         z = (v - mean) / std
-        return z if math.isfinite(z) else 0.0
+        if not math.isfinite(z):
+            return 0.0
+        # clamp: a tiny-but-valid std could blow a slight deviation into a huge
+        # z-score that dominates the EV estimate — cap outliers at ±10 sigma
+        return max(-10.0, min(10.0, z))
 
     def estimate_ev(
         self,
