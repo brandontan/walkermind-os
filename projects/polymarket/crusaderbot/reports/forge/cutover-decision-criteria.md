@@ -64,7 +64,7 @@ RETRY, not PASS.
 The 4 target cells — `BTC/5m`, `BTC/15m`, `ETH/5m`, `ETH/15m` — are each checked.
 A cell is **catastrophic** if EITHER:
 - `ev_delta_cell ≤ −0.020` (orchestrator materially worse than router in that
-  cell — more than ~1.5× half-spread of damage), OR
+  cell — ~1.67× the full spread, ≈3× the half-spread, of damage), OR
 - `comp_avg_ev_cell ≤ −0.050` (orchestrator's absolute realized EV is a large
   per-trade loss in that cell, even if it "beats" an even-worse router).
 
