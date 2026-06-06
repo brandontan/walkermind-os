@@ -18,7 +18,7 @@
 The real-data re-run readiness check found the 15m cells stuck far below the
 Track C §1.5 minimum (≥200 settled/cell):
 
-| Cell | `paper_real` settled OTC | latest 15m observation |
+| Cell | `paper_real` settled (open→close) | latest 15m observation |
 |---|---|---|
 | BTC/15m | 13 | first_seen 13:57 UTC / settled 14:30 UTC |
 | ETH/15m | 11 | first_seen 13:57 UTC / settled 14:30 UTC |
