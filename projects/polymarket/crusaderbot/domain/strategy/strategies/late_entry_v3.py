@@ -319,6 +319,31 @@ async def _persist_factor_vector(fv: "FactorVector") -> None:
         log.debug("factor_vector persist skipped (shadow, non-blocking)", err=str(exc))
 
 
+def _ev_comparator_shadow(fv: "FactorVector", *, evaluated_rule: Optional[str]) -> None:
+    """WARP-78 Phase 2 shadow: log what the EV-comparator would select for this candle.
+
+    Fail-soft: any error is silently absorbed. Never routes, never sizes, never
+    blocks. Runs only when ORCHESTRATOR_ACTIVE is False (the default).
+    """
+    try:
+        from ..ev_comparator import ORCHESTRATOR_ACTIVE, get_ev_comparator
+        if ORCHESTRATOR_ACTIVE:
+            return
+        from ..scorer import RULE_PRECEDENCE, normalize_cell_key
+        comparator = get_ev_comparator()
+        cell_key = normalize_cell_key(fv.asset, fv.timeframe)
+        pick = comparator.select(cell_key, list(RULE_PRECEDENCE))
+        log.debug(
+            "ev_comparator_shadow",
+            cell=cell_key,
+            router_rule=evaluated_rule,
+            ev_pick=pick,
+            condition_id=fv.condition_id,
+        )
+    except Exception:  # shadow must never raise into the scan loop
+        pass
+
+
 def _observe_factor_vector(
     *,
     market: dict[str, Any],
@@ -1056,6 +1081,7 @@ async def _evaluate_market(
     # (traded or not) so the Phase-2 dataset is unbiased. Shadow, fail-soft.
     if fv is not None:
         await _persist_factor_vector(fv)
+        _ev_comparator_shadow(fv, evaluated_rule=evaluated_rule)  # WARP-78 Phase 2
 
     if ask_diff < min_ask_diff:
         log.debug(
