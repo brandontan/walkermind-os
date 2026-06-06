@@ -3082,8 +3082,13 @@ async def run_once() -> None:
     # Phase-2c-2: snapshot the raw full-universe market state for the future
     # walk-forward replay. Gated (default OFF) + fully fail-soft — never breaks
     # the scan loop. Captured before any strategy filtering → no selection bias.
+    # Runtime-config wired (mirrors PLAYBOOK/WEATHER): DB overlay wins over the
+    # static env/Fly default, so the PAPER flip is a no-redeploy operator toggle.
     try:
-        _snap_enabled = bool(getattr(_get_settings(), "SCAN_SNAPSHOT_ENABLED", False))
+        _snap_enabled = await _runtime_config.resolve_bool(
+            "SCAN_SNAPSHOT_ENABLED",
+            bool(getattr(_get_settings(), "SCAN_SNAPSHOT_ENABLED", False)),
+        )
     except Exception:
         _snap_enabled = False
     if _snap_enabled:

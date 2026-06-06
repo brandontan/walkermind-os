@@ -77,6 +77,14 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
         label="Playbook sports router",
         description="Enable the PLAYBOOK sports scan dispatch (Phase B4, PAPER).",
     ),
+    "SCAN_SNAPSHOT_ENABLED": SettingSpec(
+        key="SCAN_SNAPSHOT_ENABLED",
+        kind="bool",
+        label="Scan snapshot capture",
+        description="Persist the raw full-universe market state to market_snapshots "
+                    "each scan tick (walk-forward replay substrate, Phase-2c-2). "
+                    "Append-only telemetry, fail-soft, no effect on trading.",
+    ),
 }
 
 

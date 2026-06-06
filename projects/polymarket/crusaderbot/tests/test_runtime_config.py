@@ -62,6 +62,7 @@ def _wire(monkeypatch: pytest.MonkeyPatch, store: dict[str, str]) -> dict[str, s
 class _Settings:
     WEATHER_STRATEGY_ENABLED = False
     COMPLETE_SET_ARB_ENABLED = False
+    SCAN_SNAPSHOT_ENABLED = False
 
 
 # --- resolve_bool -------------------------------------------------------------
@@ -143,6 +144,43 @@ def test_list_effective_reports_default_and_override(monkeypatch):
     cs = by_key["COMPLETE_SET_ARB_ENABLED"]
     assert cs["overridden"] is False
     assert cs["effective"] is False
+
+
+# --- SCAN_SNAPSHOT_ENABLED (Phase-2c-2 capture toggle) ------------------------
+
+def test_scan_snapshot_is_whitelisted_bool():
+    spec = rc.RUNTIME_SETTINGS.get("SCAN_SNAPSHOT_ENABLED")
+    assert spec is not None, "SCAN_SNAPSHOT_ENABLED must be runtime-editable"
+    assert spec.kind == "bool"
+
+
+def test_scan_snapshot_dormant_by_default(monkeypatch):
+    # No override row -> falls back to the static env/Fly default (OFF). This is
+    # the "DEFAULT false" guarantee: absence of an override == capture disabled.
+    _wire(monkeypatch, {})
+    assert _run(rc.resolve_bool("SCAN_SNAPSHOT_ENABLED", False)) is False
+
+
+def test_scan_snapshot_db_override_enables_without_redeploy(monkeypatch):
+    # Operator flips it ON in the DB overlay -> capture armed, no redeploy.
+    _wire(monkeypatch, {"cfg:SCAN_SNAPSHOT_ENABLED": "true"})
+    assert _run(rc.resolve_bool("SCAN_SNAPSHOT_ENABLED", False)) is True
+
+
+def test_scan_snapshot_override_off_beats_env_on(monkeypatch):
+    # Kill-switch precedence: DB OFF wins even if the env default were ON.
+    _wire(monkeypatch, {"cfg:SCAN_SNAPSHOT_ENABLED": "false"})
+    assert _run(rc.resolve_bool("SCAN_SNAPSHOT_ENABLED", True)) is False
+
+
+def test_scan_snapshot_appears_in_list_effective(monkeypatch):
+    _wire(monkeypatch, {"cfg:SCAN_SNAPSHOT_ENABLED": "true"})
+    rows = _run(rc.list_effective(_Settings()))
+    by_key = {r["key"]: r for r in rows}
+    snap = by_key["SCAN_SNAPSHOT_ENABLED"]
+    assert snap["overridden"] is True
+    assert snap["effective"] is True
+    assert snap["env_default"] is False
 
 
 def test_whitelist_excludes_secrets_and_guards():
