@@ -153,6 +153,8 @@ class Settings(BaseSettings):
     # Phase-2c-2: when true, each scan tick persists the raw full-universe market
     # state to market_snapshots (walk-forward replay substrate). Default OFF; pure
     # append-only telemetry, fail-soft, no effect on trading. Apply migration 080.
+    # Runtime-config wired (RUNTIME_SETTINGS): the DB overlay overrides this static
+    # default, so PAPER capture can be flipped from the web admin without a redeploy.
     SCAN_SNAPSHOT_ENABLED: bool = False
 
     # Phase-2c-1b: when true, the scheduler runs the Monte Carlo robustness
