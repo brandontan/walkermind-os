@@ -60,12 +60,46 @@ _COLS: tuple[str, ...] = (
     "candle_open_epoch", "candle_close_epoch",
 )
 
+# Provenance tag (WARP-77 Phase 1.4): the data regime a row was captured under.
+# Supplied at write time from runtime config (NOT a FactorVector field) and
+# appended after the fv-derived columns in the INSERT.
+DATA_SOURCE_PAPER_SYNTHETIC: str = "paper_synthetic"
+DATA_SOURCE_PAPER_REAL: str = "paper_real"
+DATA_SOURCE_LIVE_REAL: str = "live_real"
+_PROVENANCE_COL: str = "data_source"
+
+# Full INSERT column order = fv-derived columns + the provenance tag. The value
+# tuple in ``_row`` covers ``_COLS``; the provenance value is appended explicitly.
+_INSERT_COLS: tuple[str, ...] = _COLS + (_PROVENANCE_COL,)
+
 # Snapshot columns refreshed on a latest-wins UPSERT (everything except the PK,
 # first_seen_at, the settlement columns, and the two merge-special columns handled
-# explicitly in the SET clause below).
+# explicitly in the SET clause below). ``data_source`` IS refreshed so a row
+# re-seen after a data-regime change reflects the current regime.
 _UPDATE_COLS: tuple[str, ...] = tuple(
-    c for c in _COLS if c not in ("condition_id", "router_selected_rule", "selected_by_router")
+    c for c in _INSERT_COLS if c not in ("condition_id", "router_selected_rule", "selected_by_router")
 )
+
+
+def resolve_data_source(settings: Any) -> str:
+    """Provenance tag for a ``factor_vectors`` row from the runtime data regime.
+
+    * ``live_real``       — real capital path armed (``ENABLE_LIVE_TRADING``).
+    * ``paper_real``      — paper sizing on the real CLOB v2 backend (``USE_PYSDK_CLOB``).
+    * ``paper_synthetic`` — default: paper sizing on the legacy/synthetic data path
+      (matches every historical row, and the column DEFAULT).
+
+    Fail-soft to ``paper_synthetic`` on any read error — provenance must never
+    break or block a write.
+    """
+    try:
+        if bool(getattr(settings, "ENABLE_LIVE_TRADING", False)):
+            return DATA_SOURCE_LIVE_REAL
+        if bool(getattr(settings, "USE_PYSDK_CLOB", False)):
+            return DATA_SOURCE_PAPER_REAL
+    except Exception:  # noqa: BLE001 — provenance never breaks the write
+        return DATA_SOURCE_PAPER_SYNTHETIC
+    return DATA_SOURCE_PAPER_SYNTHETIC
 
 
 def _placeholders(n: int) -> str:
@@ -84,8 +118,8 @@ def _row(fv: FactorVector) -> tuple:
 
 
 _UPSERT_SQL = f"""
-INSERT INTO factor_vectors ({", ".join(_COLS)})
-VALUES ({_placeholders(len(_COLS))})
+INSERT INTO factor_vectors ({", ".join(_INSERT_COLS)})
+VALUES ({_placeholders(len(_INSERT_COLS))})
 ON CONFLICT (condition_id) DO UPDATE SET
     {", ".join(f"{c} = EXCLUDED.{c}" for c in _UPDATE_COLS)},
     router_selected_rule = COALESCE(EXCLUDED.router_selected_rule, factor_vectors.router_selected_rule),
@@ -114,6 +148,7 @@ async def record_factor_vector(
     pool: object | None = None,
     now: float | None = None,
     min_write_gap_sec: float = DEFAULT_MIN_WRITE_GAP_SEC,
+    data_source: str | None = None,
 ) -> bool:
     """UPSERT one candle's factor vector (latest-wins). Returns True on write.
 
@@ -129,10 +164,17 @@ async def record_factor_vector(
         # the same candle from double-writing across the awaited DB call)...
         if _throttled(fv.condition_id, now, min_write_gap_sec):
             return False
+        if data_source is None:
+            try:
+                from ...config import get_settings
+
+                data_source = resolve_data_source(get_settings())
+            except Exception:  # noqa: BLE001 — fail-soft to the historical default
+                data_source = DATA_SOURCE_PAPER_SYNTHETIC
         pool = pool or get_pool()
         try:
             async with pool.acquire() as conn:  # type: ignore[attr-defined]
-                await conn.execute(_UPSERT_SQL, *_row(fv))
+                await conn.execute(_UPSERT_SQL, *_row(fv), data_source)
         except Exception:
             # ...but RELEASE it on failure so the next scan retries promptly and a
             # transient DB error can't drop a candle's final pre-close snapshot.
@@ -272,6 +314,10 @@ __all__ = [
     "record_factor_vector",
     "mark_router_selection_row",
     "backfill_factor_settlement",
+    "resolve_data_source",
+    "DATA_SOURCE_PAPER_SYNTHETIC",
+    "DATA_SOURCE_PAPER_REAL",
+    "DATA_SOURCE_LIVE_REAL",
     "DEFAULT_MIN_WRITE_GAP_SEC",
     "DEFAULT_RING_WINDOW_SEC",
 ]
