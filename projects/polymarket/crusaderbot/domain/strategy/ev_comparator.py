@@ -403,6 +403,57 @@ def get_ev_comparator(*, reload: bool = False) -> EVComparator:
 
 
 # ---------------------------------------------------------------------------
+# Cutover kill-switch (WARP-78) — the emergency fallback gate
+# ---------------------------------------------------------------------------
+
+# The candle_auto preset key + the rule value that engages the orchestrator.
+CANDLE_AUTO_PRESET: str = "candle_auto"
+ORCHESTRATOR_RULE: str = "auto"
+
+
+async def orchestrator_kill_switch_active() -> bool:
+    """Runtime emergency kill-switch for the EV-comparator orchestrator.
+
+    Reads the ``ORCHESTRATOR_KILL_SWITCH`` runtime-config overlay (precedence: DB
+    override → env/Fly ``Settings`` → code default ``False``), mirroring the
+    ``SCAN_SNAPSHOT_ENABLED`` pattern (#1663). When ``True`` the orchestrator is
+    halted and ``candle_auto`` + rule ``auto`` users fall back to the precedence
+    router — instantly, with NO redeploy (flip the web-admin toggle /
+    ``system_settings`` ``cfg:ORCHESTRATOR_KILL_SWITCH`` row).
+
+    Fail-soft: any read error returns the static env/Fly default
+    (``Settings.ORCHESTRATOR_KILL_SWITCH``, default ``False``). For a
+    redeploy-proof hard halt that survives a DB outage, set that env default
+    ``true`` (Fly secret) — it becomes the backstop the overlay layers on top of.
+    """
+    try:
+        from ...config import get_settings
+        from ..ops import runtime_config
+
+        env_default = bool(getattr(get_settings(), "ORCHESTRATOR_KILL_SWITCH", False))
+        return await runtime_config.resolve_bool("ORCHESTRATOR_KILL_SWITCH", env_default)
+    except Exception:  # noqa: BLE001 — gate read must never break selection
+        return False
+
+
+async def orchestrator_routes(preset: Optional[str], rule: Optional[str]) -> bool:
+    """Whether the EV-comparator orchestrator should drive selection for a user.
+
+    ``True`` iff the user is on the ``candle_auto`` (Smart Strike) preset with rule
+    ``auto`` AND the runtime kill-switch is OFF. Any other preset, a pinned rule,
+    or an engaged kill-switch routes via the precedence router instead.
+
+    This is the single gate the cutover wire consults before using
+    :meth:`EVComparator.select`. It is dormant today — the
+    ``candle_auto``+``auto`` routing wire lands with the cutover PR, so nothing
+    calls this yet and it changes no behavior on its own.
+    """
+    if preset != CANDLE_AUTO_PRESET or rule != ORCHESTRATOR_RULE:
+        return False
+    return not await orchestrator_kill_switch_active()
+
+
+# ---------------------------------------------------------------------------
 # Offline CLI
 # ---------------------------------------------------------------------------
 
@@ -582,6 +633,10 @@ __all__ = [
     "ev_ab_compare",
     "evaluate_ev_holdout",
     "get_ev_comparator",
+    "orchestrator_kill_switch_active",
+    "orchestrator_routes",
+    "CANDLE_AUTO_PRESET",
+    "ORCHESTRATOR_RULE",
     "format_ev_model_summary",
     "main",
 ]

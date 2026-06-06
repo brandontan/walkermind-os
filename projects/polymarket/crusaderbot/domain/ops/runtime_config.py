@@ -85,6 +85,16 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
                     "each scan tick (walk-forward replay substrate, Phase-2c-2). "
                     "Append-only telemetry, fail-soft, no effect on trading.",
     ),
+    "ORCHESTRATOR_KILL_SWITCH": SettingSpec(
+        key="ORCHESTRATOR_KILL_SWITCH",
+        kind="bool",
+        label="Orchestrator kill-switch",
+        description="WARP-78 cutover emergency fallback. When ON, the candle_auto "
+                    "+ rule 'auto' EV-comparator orchestrator is DISABLED and those "
+                    "users fall back to the precedence router — instant, no-redeploy. "
+                    "Default OFF (orchestrator allowed). Flip ON to halt the "
+                    "orchestrator if it misbehaves post-cutover.",
+    ),
 }
 
 

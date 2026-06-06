@@ -157,6 +157,15 @@ class Settings(BaseSettings):
     # default, so PAPER capture can be flipped from the web admin without a redeploy.
     SCAN_SNAPSHOT_ENABLED: bool = False
 
+    # WARP-78 cutover emergency kill-switch. When true, the candle_auto + rule
+    # "auto" orchestrator (EV-comparator) is DISABLED and those users fall back to
+    # the precedence router. Default OFF (orchestrator allowed). Runtime-config
+    # wired (RUNTIME_SETTINGS) so it is a no-redeploy DB toggle for instant
+    # fallback; this static value is the redeploy-proof backstop (set true as a Fly
+    # secret to force the router even if the DB overlay is unreadable). Mirrors the
+    # SCAN_SNAPSHOT_ENABLED runtime-config pattern (#1663).
+    ORCHESTRATOR_KILL_SWITCH: bool = False
+
     # Phase-2c-1b: when true, the scheduler runs the Monte Carlo robustness
     # classifier periodically (module_robustness table). Default OFF; pure
     # read-side analytics, fail-soft, no effect on trading. Apply migration 079.
