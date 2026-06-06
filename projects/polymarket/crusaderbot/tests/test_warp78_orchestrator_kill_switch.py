@@ -57,6 +57,10 @@ class _Stub:
 def _wire(monkeypatch: pytest.MonkeyPatch, store: dict[str, str], *, env_kill: bool = False) -> dict[str, str]:
     monkeypatch.setattr(rc, "get_pool", lambda: _FakePool(store))
     monkeypatch.setattr(config, "get_settings", lambda: _Stub(env_kill))
+    # Fresh lock per test: the module-level _cache.lock is created once at import,
+    # but each test drives a new event loop via asyncio.run — rebinding it here
+    # avoids a cross-loop "Lock bound to a different event loop" RuntimeError.
+    monkeypatch.setattr(rc._cache, "_lock", asyncio.Lock())
     rc.invalidate_cache()
     return store
 
@@ -104,6 +108,20 @@ def test_gate_only_candle_auto_plus_auto(monkeypatch) -> None:
     assert _run(ev.orchestrator_routes("weather_monitor", "auto")) is False
     assert _run(ev.orchestrator_routes("playbook", "auto")) is False
     assert _run(ev.orchestrator_routes(None, None)) is False
+
+
+def test_failsafe_returns_env_default_on_read_error(monkeypatch) -> None:
+    # If resolve_bool blows up, the env/Fly backstop must still win — a hardcoded
+    # False would silently re-enable the orchestrator during a DB outage.
+    async def _boom(*_a, **_k):
+        raise RuntimeError("overlay read failed")
+
+    monkeypatch.setattr(config, "get_settings", lambda: _Stub(True))  # Fly backstop ON
+    monkeypatch.setattr(rc, "resolve_bool", _boom)
+    assert _run(ev.orchestrator_kill_switch_active()) is True
+
+    monkeypatch.setattr(config, "get_settings", lambda: _Stub(False))
+    assert _run(ev.orchestrator_kill_switch_active()) is False
 
 
 def test_persists_across_reads_via_cache(monkeypatch) -> None:

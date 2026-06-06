@@ -426,6 +426,10 @@ async def orchestrator_kill_switch_active() -> bool:
     redeploy-proof hard halt that survives a DB outage, set that env default
     ``true`` (Fly secret) — it becomes the backstop the overlay layers on top of.
     """
+    # env_default is the redeploy-proof backstop; resolve it first so the except
+    # branch can fall back to it (returning a hardcoded False would defeat a Fly
+    # secret ORCHESTRATOR_KILL_SWITCH=true during a DB outage).
+    env_default = False
     try:
         from ...config import get_settings
         from ..ops import runtime_config
@@ -433,7 +437,7 @@ async def orchestrator_kill_switch_active() -> bool:
         env_default = bool(getattr(get_settings(), "ORCHESTRATOR_KILL_SWITCH", False))
         return await runtime_config.resolve_bool("ORCHESTRATOR_KILL_SWITCH", env_default)
     except Exception:  # noqa: BLE001 — gate read must never break selection
-        return False
+        return env_default
 
 
 async def orchestrator_routes(preset: Optional[str], rule: Optional[str]) -> bool:
