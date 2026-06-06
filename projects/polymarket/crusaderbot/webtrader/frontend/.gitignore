@@ -1,3 +1,8 @@
 node_modules/
 dist/
 .vite/
+
+# Playwright e2e runtime artifacts (keep __screenshots__ committed)
+playwright/.cache/
+playwright-report/
+test-results/

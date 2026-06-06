@@ -23,7 +23,7 @@ interface Props {
 // here, so the admin could not assign them. There is no separate "smart_strike"
 // key: candle_auto IS Smart Strike (its display name + the EV-comparator entry
 // point that engages when ORCHESTRATOR_ACTIVE flips at the Phase-4 cutover).
-const PRESET_OPTIONS: readonly { value: string; label: string }[] = [
+export const PRESET_OPTIONS: readonly { value: string; label: string }[] = [
   { value: "candle_auto", label: "candle_auto — Smart Strike (auto: scores 7 factors, picks close/safe/flip)" },
   { value: "close_sweep", label: "close_sweep — Close Sweep" },
   { value: "safe_close", label: "safe_close — Safe Close" },
@@ -626,9 +626,9 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-type SelectOption = string | { value: string; label: string };
+export type SelectOption = string | { value: string; label: string };
 
-function FieldSelect({
+export function FieldSelect({
   label, value, options, placeholder, onChange,
 }: {
   label: string;

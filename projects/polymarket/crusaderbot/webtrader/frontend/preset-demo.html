@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Preset dropdown demo (e2e harness)</title>
+  </head>
+  <body>
+    <!--
+      Headless harness for the /admin preset dropdown e2e (e2e/preset-dropdown.spec.ts).
+      Renders the REAL FieldSelect + PRESET_OPTIONS from AdminUserDrawer.tsx through
+      the real Vite pipeline — no mocks. Not linked from the app; dev/test only.
+    -->
+    <div id="root"></div>
+    <!-- relative so it resolves under the app's /dashboard/ base on the dev server -->
+    <script type="module" src="./src/devtools/presetDemo.tsx"></script>
+  </body>
+</html>

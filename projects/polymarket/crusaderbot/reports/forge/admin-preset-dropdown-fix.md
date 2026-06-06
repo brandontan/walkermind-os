@@ -116,6 +116,19 @@ feeds) is CMD's call — see §6 of that report.
 - `projects/polymarket/crusaderbot/tests/test_admin_console.py` — +3 tests pinning
   the admin preset contract (candle_auto + playbook accepted; dropdown == canonical
   registry; bogus key still rejected).
+- Frontend e2e (Playwright) — NEW:
+  - `webtrader/frontend/e2e/run-preset-dropdown.mjs` — Playwright-as-a-library
+    driver (boots Vite dev, drives real Chromium against the harness, asserts the
+    option contract, writes the before/after screenshot).
+  - `webtrader/frontend/preset-demo.html` + `webtrader/frontend/src/devtools/presetDemo.tsx`
+    — dev/e2e harness rendering the REAL FieldSelect + PRESET_OPTIONS (no mocks; not
+    wired into the app router).
+  - `webtrader/frontend/playwright/__screenshots__/preset-dropdown-before-after.png`
+    — the before/after dropdown screenshot.
+  - `webtrader/frontend/package.json` — `@playwright/test` devDep + `test:e2e` script;
+    `.gitignore` — playwright runtime-artifact dirs.
+  - `AdminUserDrawer.tsx` — `PRESET_OPTIONS` + `FieldSelect` exported so the harness
+    mounts the real symbols.
 - `projects/polymarket/crusaderbot/reports/forge/admin-preset-dropdown-fix.md` — this report.
 - State sync: `state/PROJECT_STATE.md`, `state/CHANGELOG.md`.
 
@@ -123,6 +136,11 @@ feeds) is CMD's call — see §6 of that report.
 
 - `npx tsc --noEmit` → **0 errors**; `npm run build` → **built in 6.18s** (prod bundle clean).
 - `pytest tests/test_admin_console.py` → **59 passed** (incl. 3 new).
+- `npm run test:e2e` (Playwright + real Chromium against the real component) →
+  **E2E PASSED**: 7-option dropdown (6 presets + placeholder), candle_auto +
+  playbook present with "Smart Strike"/"Playbook" labels, before/after screenshot
+  written. (Operator-requested screenshot delivered:
+  `webtrader/frontend/playwright/__screenshots__/preset-dropdown-before-after.png`.)
 - `domain.preset` standalone assertion: `VISIBLE_PRESET_ORDER` == the 6 dropdown
   options, all `is_activatable`.
 - No backend code change → zero backend regression surface.
@@ -141,13 +159,18 @@ AFTER:  (unchanged) | candle_auto — Smart Strike (auto: 7 factors → close/sa
 
 ## 8. Known issues / constraints
 
-- **Screenshots / e2e:** the repo has no frontend test harness (no
-  vitest/jest/Playwright in `webtrader/frontend/package.json`) and the agent env
-  cannot run a browser (Playwright Chromium needs `cdn.playwright.dev`, outside
-  the network policy). Validation is therefore: `tsc` typecheck + prod build +
-  backend contract tests + the before/after option list above, in lieu of a
-  rendered screenshot. Standing up a Playwright e2e harness is a separate lane if
-  CMD wants persistent UI coverage.
+- **e2e harness now exists (Playwright installed).** `cdn.playwright.dev` IS
+  reachable under the network policy, so Chromium was installed and a Playwright
+  e2e was added + run green (see §7). Implementation note: this project is ESM
+  (`"type":"module"`), which trips the Playwright *test runner*
+  ("did not expect test() to be called here" — module-registry split). The e2e
+  therefore uses Playwright **as a library** (`e2e/run-preset-dropdown.mjs`)
+  driving real Chromium — robust under ESM, same real component + screenshot. A
+  follow-up could migrate to the runner (CT or a separate non-ESM test package)
+  if standing UI coverage in CI is wanted; the Python CI job does not run it today.
+- **Full persist-e2e** (selection → backend round-trip) needs the live API + DB +
+  auth stack, which the harness deliberately avoids; the server-side persist
+  contract is covered by the 3 backend tests instead.
 - The admin drawer's preset list is a hand-maintained mirror of
   `presets.py PRESET_ORDER`; `test_admin_preset_dropdown_matches_canonical_registry`
   guards backend drift, but a future preset still needs a one-line dropdown edit.
