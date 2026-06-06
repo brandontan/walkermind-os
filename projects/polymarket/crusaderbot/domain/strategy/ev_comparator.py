@@ -1,21 +1,22 @@
-"""Phase 2 EV-comparator: per-rule empirical EV estimation, argmax selection (shadow).
+"""Phase 3 EV-comparator: factor-weighted per-rule EV estimation, argmax selection (shadow).
 
 ORCHESTRATOR_ACTIVE = False by default. Shadow mode: computes the comparator's
 preferred rule alongside the precedence router, logs the pick, never routes.
 Cutover to True requires explicit WARP🔹CMD greenlight — this module never flips it.
 
-Estimator: shrunk mean realized EV per rule per cell, computed offline from
-settled ``factor_vectors`` rows (same source as ``scorer_trainer``). Uses the
-per-rule horizon labels via ``row_outcome_for_rule`` so safe_close is judged at
-its real 30 s force-exit, not at open→close. Model is stored in
+Estimator: per-cell, per-rule linear EV model derived offline from settled
+``factor_vectors`` rows. For each (cell, rule) pair:
+  ``estimated_ev = base_ev + Σ_f  weight[f] * z_f``
+where ``base_ev`` is the shrunk mean realized EV, ``weight[f]`` is the shrunk
+Pearson correlation of factor ``f`` with the per-rule EV label, and ``z_f`` is
+the live factor value standardized by the cell's (mean, std). Uses per-rule
+horizon labels via ``row_outcome_for_rule`` so safe_close is judged at its real
+30 s force-exit, not at open→close. Model is stored in
 ``config/ev_comparator_model.json`` and loaded once at first use.
 
-Abstain: comparator picks nothing when every rule's shrunk EV ≤
+Abstain: comparator picks nothing when every rule's estimated EV ≤
 ``ABSTAIN_EV_THRESHOLD`` (default 0.0) — never selects a rule the data says
 loses money in expectation.
-
-Factor-weighted EV estimation (conditioning EV on the factor surface) is deferred
-to Phase 3 once more paper_real rows accumulate. This phase nails the base-rate.
 """
 from __future__ import annotations
 
@@ -28,7 +29,7 @@ from typing import Any, Iterable, Mapping, Optional, Sequence
 
 import structlog
 
-from .scorer import RULE_PRECEDENCE, normalize_cell_key, rule_ev, rule_won
+from .scorer import FACTORS, MIN_FACTOR_STD, RULE_PRECEDENCE, normalize_cell_key, rule_ev, rule_won
 from .scorer_trainer import DEFAULT_SHRINKAGE_K, row_outcome_for_rule
 
 log = structlog.get_logger(__name__)
@@ -37,7 +38,7 @@ log = structlog.get_logger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-EV_COMPARATOR_SCHEMA_VERSION: int = 1
+EV_COMPARATOR_SCHEMA_VERSION: int = 2
 
 # Abstain when every rule's shrunk EV is at or below this level (no positive edge).
 ABSTAIN_EV_THRESHOLD: float = 0.0
@@ -56,6 +57,33 @@ def _mean(xs: Sequence[float]) -> float:
     return sum(xs) / len(xs) if xs else 0.0
 
 
+def _pop_std(xs: Sequence[float], mean: float | None = None) -> float:
+    if len(xs) < 2:
+        return 0.0
+    m = _mean(xs) if mean is None else mean
+    var = sum((x - m) ** 2 for x in xs) / len(xs)
+    return math.sqrt(var) if var > 0.0 else 0.0
+
+
+def _pearson(xs: Sequence[float], ys: Sequence[float]) -> float:
+    n = len(xs)
+    if n < 2 or n != len(ys):
+        return 0.0
+    mx, my = _mean(xs), _mean(ys)
+    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    sx = math.sqrt(sum((x - mx) ** 2 for x in xs))
+    sy = math.sqrt(sum((y - my) ** 2 for y in ys))
+    if sx <= 0.0 or sy <= 0.0:
+        return 0.0
+    denom = sx * sy
+    if denom <= 0.0:  # underflow guard: tiny-but-positive sx*sy can flush to 0.0
+        return 0.0
+    r = cov / denom
+    if not math.isfinite(r):
+        return 0.0
+    return max(-1.0, min(1.0, r))
+
+
 def derive_ev_model(
     rows: Iterable[Mapping[str, Any]],
     *,
@@ -63,14 +91,15 @@ def derive_ev_model(
     abstain_threshold: float = ABSTAIN_EV_THRESHOLD,
     generated_at: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Derive the per-rule EV model from settled factor_vectors rows.
+    """Derive the factor-weighted per-rule EV model from settled factor_vectors rows.
 
-    For each (cell, rule) pair computes the mean realized EV using the
-    per-rule horizon label (safe_close → realized_outcome_safe_close, others →
-    realized_outcome), then shrinks toward 0.0 with ``n / (n + shrinkage_k)``
-    to prevent thin-data rules from dominating selection. Pure / deterministic.
+    For each (cell, rule) pair:
+    1. Compute base_ev = shrunk mean realized EV (per-rule horizon labels).
+    2. Compute per-factor z-normalization (mean, std over the cell).
+    3. Compute per-factor EV weight = shrunk Pearson(factor, rule_ev).
+    The runtime uses ``estimated_ev = base_ev + Σ weight[f] * z[f]``.
+    Pure / deterministic.
     """
-    # Group by cell.
     cells_rows: dict[str, list[dict[str, Any]]] = {}
     for r in rows:
         ck = normalize_cell_key(r.get("asset"), r.get("timeframe"))
@@ -79,36 +108,83 @@ def derive_ev_model(
 
     cells_out: dict[str, dict[str, Any]] = {}
     for ck, cell_rows in cells_rows.items():
+        # Per-factor normalization stats over the whole cell.
+        factor_values: dict[str, list[tuple[int, float]]] = {f: [] for f in FACTORS}
+        for idx, r in enumerate(cell_rows):
+            for f in FACTORS:
+                v = r.get(f)
+                if v is None:
+                    continue
+                try:
+                    fv = float(v)
+                except (TypeError, ValueError):
+                    continue
+                if math.isfinite(fv):
+                    factor_values[f].append((idx, fv))
+
+        norm: dict[str, dict[str, float]] = {}
+        for f in FACTORS:
+            vals = [v for _, v in factor_values[f]]
+            mean = _mean(vals)
+            std = _pop_std(vals, mean)
+            if std < MIN_FACTOR_STD:
+                std = 0.0
+            # round to 10dp (> MIN_FACTOR_STD precision) so valid small stds survive
+            norm[f] = {"mean": round(mean, 10), "std": round(std, 10)}
+
         rule_stats: dict[str, Any] = {}
         for rule in RULE_PRECEDENCE:
-            evs: list[float] = []
-            for r in cell_rows:
+            evs: dict[int, float] = {}
+            for idx, r in enumerate(cell_rows):
                 outcome = row_outcome_for_rule(rule, r)
                 ev = rule_ev(rule, r.get("fav_side"), r.get("fav_price"), outcome)
                 if ev is not None:
-                    evs.append(ev)
+                    evs[idx] = ev
+
             n = len(evs)
-            mean_ev = _mean(evs)
+            mean_ev = _mean(list(evs.values())) if evs else 0.0
             shrink = n / (n + shrinkage_k) if (n + shrinkage_k) > 0 else 0.0
-            shrunk_ev = mean_ev * shrink
+            base_ev = mean_ev * shrink
+
+            weights: dict[str, float] = {}
+            for f in FACTORS:
+                if norm[f]["std"] <= 0.0:
+                    weights[f] = 0.0
+                    continue
+                xs: list[float] = []
+                ys: list[float] = []
+                for idx, fv in factor_values[f]:
+                    if idx in evs:
+                        xs.append(fv)
+                        ys.append(evs[idx])
+                n_pairs = len(xs)
+                if n_pairs < 2:
+                    weights[f] = 0.0
+                    continue
+                corr = _pearson(xs, ys)
+                w = corr * (n_pairs / (n_pairs + shrinkage_k) if (n_pairs + shrinkage_k) > 0 else 0.0)
+                weights[f] = round(w, 6) if math.isfinite(w) else 0.0
+
             rule_stats[rule] = {
                 "n": n,
                 "mean_ev": round(mean_ev, 6) if math.isfinite(mean_ev) else 0.0,
-                "shrunk_ev": round(shrunk_ev, 6) if math.isfinite(shrunk_ev) else 0.0,
+                "base_ev": round(base_ev, 6) if math.isfinite(base_ev) else 0.0,
+                "weights": weights,
             }
             log.debug(
                 "ev_comparator_derive_rule",
                 cell=ck, rule=rule, n=n,
                 mean_ev=rule_stats[rule]["mean_ev"],
-                shrunk_ev=rule_stats[rule]["shrunk_ev"],
+                base_ev=rule_stats[rule]["base_ev"],
             )
-        cells_out[ck] = rule_stats
+        cells_out[ck] = {"norm": norm, "rules": rule_stats}
 
     return {
         "schema_version": EV_COMPARATOR_SCHEMA_VERSION,
         "generated_at": generated_at or datetime.now(timezone.utc).isoformat(),
         "shrinkage_k": shrinkage_k,
         "abstain_threshold": abstain_threshold,
+        "factors": list(FACTORS),
         "rules": list(RULE_PRECEDENCE),
         "cells": cells_out,
     }
@@ -184,46 +260,105 @@ class EVComparator:
             log.warning("ev_comparator_model_load_failed", path=str(p), error=str(exc))
             return cls.neutral()
 
-    def estimate_ev(self, cell_key: Optional[str], rule: str) -> Optional[float]:
-        """Shrunk estimated EV for ``rule`` in ``cell_key``. ``None`` when unknown."""
+    def _z(self, cell: Mapping[str, Any], factor: str, value: Optional[float]) -> float:
+        """Standardize ``value`` against the cell's per-factor (mean, std).
+
+        Returns 0.0 when the value is missing/non-finite, the cell lacks norm
+        stats for the factor, or the factor is near-constant.
+        """
+        if value is None:
+            return 0.0
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        if not math.isfinite(v):
+            return 0.0
+        norm = cell.get("norm") if isinstance(cell, Mapping) else None
+        stats = norm.get(factor) if isinstance(norm, Mapping) else None
+        if not isinstance(stats, Mapping):
+            return 0.0
+        try:
+            mean = float(stats.get("mean", 0.0))
+            std = float(stats.get("std", 0.0))
+        except (TypeError, ValueError):
+            return 0.0
+        if not math.isfinite(std) or std < MIN_FACTOR_STD:
+            return 0.0
+        z = (v - mean) / std
+        if not math.isfinite(z):
+            return 0.0
+        # clamp: a tiny-but-valid std could blow a slight deviation into a huge
+        # z-score that dominates the EV estimate — cap outliers at ±10 sigma
+        return max(-10.0, min(10.0, z))
+
+    def estimate_ev(
+        self,
+        cell_key: Optional[str],
+        rule: str,
+        factors: Optional[Mapping[str, Any]] = None,
+    ) -> Optional[float]:
+        """Factor-weighted estimated EV for ``rule`` in ``cell_key``.
+
+        ``estimated_ev = base_ev + Σ weight[f] * z[f]`` when ``factors`` is
+        provided. Without factors falls back to ``base_ev`` (the shrunk mean).
+        Returns ``None`` when the cell/rule is unknown.
+        """
         if not cell_key:
             return None
         cell = self._cells.get(cell_key)
         if not isinstance(cell, Mapping):
             return None
-        rule_stats = cell.get(rule)
+        rules = cell.get("rules") if isinstance(cell, Mapping) else None
+        rule_stats = rules.get(rule) if isinstance(rules, Mapping) else None
+        # v1 compat: rules at cell root (no "rules" wrapper)
+        if rule_stats is None:
+            rule_stats = cell.get(rule)
         if not isinstance(rule_stats, Mapping):
             return None
-        ev = rule_stats.get("shrunk_ev")
-        if ev is None:
-            return None
         try:
-            v = float(ev)
-            return v if math.isfinite(v) else None
+            base = float(rule_stats.get("base_ev", rule_stats.get("shrunk_ev", 0.0)))
         except (TypeError, ValueError):
             return None
+        if not math.isfinite(base):
+            return None
+        if factors is None:
+            return base
+        # Factor adjustment.
+        weights = rule_stats.get("weights")
+        if isinstance(weights, Mapping):
+            for f in FACTORS:
+                try:
+                    w = float(weights.get(f, 0.0))
+                except (TypeError, ValueError):
+                    continue
+                if w == 0.0 or not math.isfinite(w):
+                    continue
+                base += w * self._z(cell, f, factors.get(f))
+        return base if math.isfinite(base) else None
 
     def rank(
         self,
         cell_key: Optional[str],
         candidate_rules: Sequence[str],
         *,
+        factors: Optional[Mapping[str, Any]] = None,
         threshold: Optional[float] = None,
     ) -> list[EVRankedRule]:
-        """Rank ``candidate_rules`` by shrunk EV (highest first), mark threshold pass."""
+        """Rank ``candidate_rules`` by estimated EV (highest first), mark threshold pass."""
         t = threshold if threshold is not None else self._threshold
         ranked: list[EVRankedRule] = []
         for rule in candidate_rules:
             if rule not in RULE_PRECEDENCE:
                 continue
-            ev = self.estimate_ev(cell_key, rule)
-            shrunk = ev if ev is not None else 0.0
+            ev = self.estimate_ev(cell_key, rule, factors)
+            est = ev if ev is not None else 0.0
             ranked.append(EVRankedRule(
                 rule=rule,
-                shrunk_ev=shrunk,
-                passes_threshold=shrunk > t,
+                shrunk_ev=est,
+                passes_threshold=est > t,
             ))
-        # Sort by shrunk_ev descending; tie-break by precedence.
+
         def _precedence(r: EVRankedRule) -> int:
             try:
                 return RULE_PRECEDENCE.index(r.rule)
@@ -238,10 +373,11 @@ class EVComparator:
         cell_key: Optional[str],
         candidate_rules: Sequence[str],
         *,
+        factors: Optional[Mapping[str, Any]] = None,
         threshold: Optional[float] = None,
     ) -> Optional[str]:
-        """The rule with the highest shrunk EV that exceeds threshold, or ``None`` (abstain)."""
-        for r in self.rank(cell_key, candidate_rules, threshold=threshold):
+        """The rule with the highest estimated EV that exceeds threshold, or ``None`` (abstain)."""
+        for r in self.rank(cell_key, candidate_rules, factors=factors, threshold=threshold):
             if r.passes_threshold:
                 return r.rule
         return None
@@ -278,16 +414,123 @@ def format_ev_model_summary(model: Mapping[str, Any]) -> str:
     lines.append(f"generated_at      : {model.get('generated_at')}")
     lines.append(f"shrinkage_k       : {model.get('shrinkage_k')}")
     lines.append(f"abstain_threshold : {model.get('abstain_threshold')}")
-    for ck, rule_stats in sorted((model.get("cells") or {}).items()):
+    for ck, cell_data in sorted((model.get("cells") or {}).items()):
         lines.append(f"  cell {ck}:")
+        rule_block = cell_data.get("rules", cell_data) if isinstance(cell_data, dict) else cell_data
         for rule in RULE_PRECEDENCE:
-            rs = (rule_stats or {}).get(rule, {})
+            rs = (rule_block or {}).get(rule, {})
+            wv = rs.get("weights", {}) or {}
+            top = sorted(wv.items(), key=lambda kv: -abs(kv[1]))[:3]
+            top_s = ", ".join(f"{k}={v:+.4f}" for k, v in top) if top else "none"
             lines.append(
                 f"    {rule:<12} n={rs.get('n', 0):>4} "
-                f"mean_ev={rs.get('mean_ev', 0.0):+.4f}  "
-                f"shrunk_ev={rs.get('shrunk_ev', 0.0):+.4f}"
+                f"base_ev={rs.get('base_ev', rs.get('shrunk_ev', 0.0)):+.4f}  "
+                f"top:[{top_s}]"
             )
     return "\n".join(lines)
+
+
+def ev_ab_compare(
+    rows: Iterable[Mapping[str, Any]],
+    comparator: "EVComparator",
+) -> dict[str, Any]:
+    """Compare EV-comparator selection vs router on settled rows.
+
+    For each row where the router's pick is decidable, the comparator picks
+    with factor conditioning, and we compare the realized per-rule EV of each
+    pick. Returns per-cell + overall aggregates.
+    """
+    from .scorer import factors_from_row
+
+    cells: dict[str, dict[str, Any]] = {}
+    overall = {"n": 0, "router_ev_sum": 0.0, "comp_ev_sum": 0.0, "agreements": 0, "undecidable": 0, "abstain": 0}
+
+    for row in rows:
+        ck = normalize_cell_key(row.get("asset"), row.get("timeframe"))
+        cell = cells.setdefault(ck or "UNKNOWN", {"n": 0, "router_ev_sum": 0.0, "comp_ev_sum": 0.0, "agreements": 0, "undecidable": 0, "abstain": 0})
+
+        fav = row.get("fav_side")
+        router_rule = row.get("router_selected_rule") or row.get("evaluated_rule")
+        if router_rule not in RULE_PRECEDENCE:
+            cell["undecidable"] += 1
+            overall["undecidable"] += 1
+            continue
+
+        router_outcome = row_outcome_for_rule(router_rule, row)
+        r_ev = rule_ev(router_rule, fav, row.get("fav_price"), router_outcome)
+        if r_ev is None:
+            cell["undecidable"] += 1
+            overall["undecidable"] += 1
+            continue
+
+        factors = factors_from_row(row)
+        comp_rule = comparator.select(ck, list(RULE_PRECEDENCE), factors=factors)
+        if comp_rule is None:
+            cell["abstain"] += 1
+            overall["abstain"] += 1
+            continue
+
+        comp_outcome = row_outcome_for_rule(comp_rule, row)
+        c_ev = rule_ev(comp_rule, fav, row.get("fav_price"), comp_outcome)
+        if c_ev is None:
+            cell["undecidable"] += 1
+            overall["undecidable"] += 1
+            continue
+
+        for agg in (cell, overall):
+            agg["n"] += 1
+            agg["router_ev_sum"] += r_ev
+            agg["comp_ev_sum"] += c_ev
+            agg["agreements"] += int(comp_rule == router_rule)
+
+    result: dict[str, Any] = {}
+    for key, agg in [("overall", overall)] + [(k, v) for k, v in sorted(cells.items())]:
+        n = agg["n"]
+        result[key] = {
+            "n": n,
+            "router_avg_ev": round(agg["router_ev_sum"] / n, 6) if n else None,
+            "comp_avg_ev": round(agg["comp_ev_sum"] / n, 6) if n else None,
+            "ev_delta": round((agg["comp_ev_sum"] - agg["router_ev_sum"]) / n, 6) if n else None,
+            "agreement_rate": round(agg["agreements"] / n, 4) if n else None,
+            "abstain": agg["abstain"],
+            "undecidable": agg["undecidable"],
+        }
+    return result
+
+
+def evaluate_ev_holdout(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    train_fraction: float = 0.7,
+    shrinkage_k: float = DEFAULT_SHRINKAGE_K,
+) -> dict[str, Any]:
+    """Out-of-sample: train on a cell split, evaluate comparator on the rest."""
+    by_cell: dict[str, list[Mapping[str, Any]]] = {}
+    for r in rows:
+        ck = normalize_cell_key(r.get("asset"), r.get("timeframe"))
+        by_cell.setdefault(ck or "UNKNOWN", []).append(r)
+
+    train_rows: list[Mapping[str, Any]] = []
+    test_rows: list[Mapping[str, Any]] = []
+    for cell_rows in by_cell.values():
+        if len(cell_rows) < 4:
+            train_rows.extend(cell_rows)
+            test_rows.extend(cell_rows)
+            continue
+        cut = max(1, int(len(cell_rows) * train_fraction))
+        train_rows.extend(cell_rows[:cut])
+        test_rows.extend(cell_rows[cut:] or cell_rows[:cut])
+
+    model = derive_ev_model(train_rows, shrinkage_k=shrinkage_k)
+    comparator = EVComparator.from_model(model)
+    ab = ev_ab_compare(test_rows, comparator)
+    ab["_model_summary"] = {
+        "train_rows": len(train_rows),
+        "test_rows": len(test_rows),
+        "shrinkage_k": shrinkage_k,
+        "schema_version": model.get("schema_version"),
+    }
+    return ab
 
 
 async def _fetch_and_derive(
@@ -336,6 +579,8 @@ __all__ = [
     "EVComparator",
     "derive_ev_model",
     "write_ev_model",
+    "ev_ab_compare",
+    "evaluate_ev_holdout",
     "get_ev_comparator",
     "format_ev_model_summary",
     "main",

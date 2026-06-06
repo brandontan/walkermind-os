@@ -320,7 +320,7 @@ async def _persist_factor_vector(fv: "FactorVector") -> None:
 
 
 def _ev_comparator_shadow(fv: "FactorVector", *, evaluated_rule: Optional[str]) -> None:
-    """WARP-78 Phase 2 shadow: log what the EV-comparator would select for this candle.
+    """WARP-78 Phase 3 shadow: log what the factor-weighted EV-comparator would select.
 
     Fail-soft: any error is silently absorbed. Never routes, never sizes, never
     blocks. Runs only when ORCHESTRATOR_ACTIVE is False (the default).
@@ -329,10 +329,11 @@ def _ev_comparator_shadow(fv: "FactorVector", *, evaluated_rule: Optional[str]) 
         from ..ev_comparator import ORCHESTRATOR_ACTIVE, get_ev_comparator
         if ORCHESTRATOR_ACTIVE:
             return
-        from ..scorer import RULE_PRECEDENCE, normalize_cell_key
+        from ..scorer import FACTORS, RULE_PRECEDENCE, normalize_cell_key
         comparator = get_ev_comparator()
         cell_key = normalize_cell_key(fv.asset, fv.timeframe)
-        pick = comparator.select(cell_key, list(RULE_PRECEDENCE))
+        factors = {f: getattr(fv, f, None) for f in FACTORS}
+        pick = comparator.select(cell_key, list(RULE_PRECEDENCE), factors=factors)
         log.debug(
             "ev_comparator_shadow",
             cell=cell_key,
