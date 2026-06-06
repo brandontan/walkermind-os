@@ -369,6 +369,9 @@ def _observe_factor_vector(
         if yes_bid is not None:
             tracker.record(mkt_key, (yes_bid + yes_ask) / 2.0, now=now_ts)
         mom = tracker.momentum(mkt_key, now=now_ts)
+        # WARP-78 Phase 1 — REAL realized volatility (per sqrt-sec) of the same
+        # YES-mid series; replaces the dead per-asset constant as a scorable factor.
+        rvol = tracker.realized_vol(mkt_key, now=now_ts)
 
         # 2. VOLATILITY — expose the per-asset sigma (was oracle-advisory-only).
         if sigma_map is None:
@@ -427,6 +430,7 @@ def _observe_factor_vector(
             momentum_span_sec=mom.span_sec if mom else None,
             momentum_samples=mom.samples if mom else None,
             volatility_sigma=sigma,
+            realized_vol=rvol,
             liquidity_usdc=clob_liquidity,
             spread=spread,
             orderbook_depth_usdc=clob_liquidity,

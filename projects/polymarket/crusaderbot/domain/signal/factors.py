@@ -119,6 +119,12 @@ class FactorVector:
     candle_open_epoch: Optional[float]
     candle_close_epoch: Optional[float]
 
+    # --- WARP-78 Phase 1: real per-(asset,TF) realized volatility -----------
+    # Rolling realized vol of the YES-mid price series (per sqrt-second), measured
+    # at entry from the momentum ring — a REAL volatility signal alongside the dead
+    # per-asset constant ``volatility_sigma``. SHADOW telemetry only; not routed.
+    realized_vol: Optional[float] = None
+
     # --- router selection (stamped post-dedup; advisory, selection unchanged)
     router_selected_rule: Optional[str] = None
     selected_by_router: bool = False

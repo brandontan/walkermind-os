@@ -89,8 +89,9 @@ def test_record_upsert_args_aligned():
     assert "INSERT INTO factor_vectors" in sql
     assert "ON CONFLICT (condition_id) DO UPDATE" in sql
     assert "WHERE factor_vectors.settled = FALSE" in sql  # settled rows immutable
-    # 34 fv-derived columns + the WARP-77 data_source provenance tag (appended last).
-    assert len(args) == len(fd._INSERT_COLS) == 35
+    # 35 fv-derived columns (incl. WARP-78 realized_vol) + the WARP-77 data_source
+    # provenance tag (appended last).
+    assert len(args) == len(fd._INSERT_COLS) == 36
     assert args[0] == "0xC1"               # condition_id first
     assert args[fd._COLS.index("volatility_sigma")] == 0.0001
     assert args[fd._COLS.index("selected_by_router")] is False  # coerced bool

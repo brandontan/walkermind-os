@@ -102,6 +102,52 @@ def compute_momentum(
     )
 
 
+def compute_realized_vol(
+    samples: Iterable[PriceSample],
+    *,
+    window_sec: float,
+    now: float,
+) -> Optional[float]:
+    """Pure rolling-window realized volatility (per sqrt-second). ``None`` if undefined.
+
+    WARP-78 Phase 1: a REAL volatility measure to replace the dead per-asset
+    constant ``volatility_sigma`` (Phase-0 found it collapses to weight 0). Over the
+    consecutive log-returns in ``[now - window_sec, now]`` this returns the
+    realized-variance estimator ``sigma = sqrt( sum(r_i^2) / sum(dt_i) )`` where
+    ``r_i = ln(p_i / p_{i-1})`` and ``dt_i`` is the inter-sample seconds — units are
+    per-sqrt-second, directly comparable to the config ``volatility_sigma``.
+
+    Needs >= 3 in-window samples (>= 2 returns) spanning positive time; otherwise
+    ``None`` (the honest "not enough history" case, never a fabricated zero). A
+    flat (non-moving) series yields exactly ``0.0`` — that IS the measurement.
+    """
+    if window_sec <= 0:
+        return None
+    lo = now - window_sec
+    window = [
+        s for s in samples
+        if lo <= s.ts <= now and math.isfinite(s.price) and s.price > 0.0
+    ]
+    if len(window) < 3:
+        return None
+    window.sort(key=lambda s: s.ts)
+    sum_r2 = 0.0
+    sum_dt = 0.0
+    for prev, cur in zip(window, window[1:]):
+        dt = cur.ts - prev.ts
+        if dt <= 0.0:
+            continue
+        r = math.log(cur.price / prev.price)
+        if not math.isfinite(r):
+            continue
+        sum_r2 += r * r
+        sum_dt += dt
+    if sum_dt <= 0.0:
+        return None
+    sigma = math.sqrt(sum_r2 / sum_dt)
+    return sigma if math.isfinite(sigma) else None
+
+
 class MomentumTracker:
     """In-process rolling price history per market, with momentum readout.
 
@@ -165,6 +211,24 @@ class MomentumTracker:
             list(dq), window_sec=window_sec or self.window_sec, now=now
         )
 
+    def realized_vol(
+        self,
+        key: str,
+        *,
+        now: float,
+        window_sec: Optional[float] = None,
+    ) -> Optional[float]:
+        """Rolling realized volatility (per sqrt-sec) for ``key``; ``None`` if undefined.
+
+        Reads the SAME per-market price ring as :meth:`momentum` (WARP-78 Phase 1).
+        """
+        dq = self._hist.get(key)
+        if not dq:
+            return None
+        return compute_realized_vol(
+            list(dq), window_sec=window_sec or self.window_sec, now=now
+        )
+
     def _evict_idle(self, now: float) -> None:
         """Drop idle keys; strictly enforce the hard key cap.
 
@@ -209,6 +273,7 @@ __all__ = [
     "PriceSample",
     "MomentumReading",
     "compute_momentum",
+    "compute_realized_vol",
     "MomentumTracker",
     "get_tracker",
     "DEFAULT_WINDOW_SEC",
