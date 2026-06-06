@@ -149,9 +149,12 @@ class EVComparator:
         self._model: dict[str, Any] = dict(model or {})
         cells = self._model.get("cells")
         self._cells: dict[str, Any] = dict(cells) if isinstance(cells, dict) else {}
-        self._threshold: float = float(
-            self._model.get("abstain_threshold", ABSTAIN_EV_THRESHOLD)
-        )
+        try:
+            self._threshold = float(
+                self._model.get("abstain_threshold", ABSTAIN_EV_THRESHOLD)
+            )
+        except (TypeError, ValueError):
+            self._threshold = ABSTAIN_EV_THRESHOLD
         self.trained: bool = bool(self._cells)
 
     @classmethod
