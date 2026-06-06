@@ -36,6 +36,20 @@ DEFAULT_TIMEOUT = 5.0
 _default_read_limiter = RateLimiter(rps=10.0, burst=10.0)
 
 
+def _mark_clob_read_ok() -> None:
+    """Heartbeat (WARP-77 Phase 1.2): record a successful CLOB data read.
+
+    Fail-soft + lazy-imported so this low-level read client never hard-depends on
+    the monitoring package and a monitoring fault can never break a read.
+    """
+    try:
+        from ...monitoring.clob_heartbeat import mark_clob_read_ok
+
+        mark_clob_read_ok()
+    except Exception:  # noqa: BLE001 — telemetry must never break a read
+        pass
+
+
 class MarketDataClient:
     """Unauthenticated read client for CLOB market data.
 
@@ -161,6 +175,7 @@ class MarketDataClient:
                         body=resp.text or "",
                     )
                 resp.raise_for_status()
+                _mark_clob_read_ok()  # WARP-77 Phase 1.2 — real-CLOB-data heartbeat
                 if not resp.text:
                     return {}
                 return resp.json()

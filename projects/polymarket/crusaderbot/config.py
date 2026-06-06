@@ -212,6 +212,18 @@ class Settings(BaseSettings):
     # halts (no new market evaluation) and the operator is paged, auto-resuming on
     # the next tick after the feed recovers. Default 120s; strictly positive.
     ORACLE_FEED_TIMEOUT_SEC: int = 120
+    # WARP-77 Phase 1.2 — real-CLOB-data feed heartbeat. CLOB_DATA_FEED_TIMEOUT_SEC
+    # is the "CLOB data feed is DOWN" threshold: when the newest SUCCESSFUL
+    # MarketDataClient read is older than this, the operator is paged (Telegram) +
+    # Sentry ONCE per transition, auto-clearing on recovery. The alarm ARMS ONLY
+    # when USE_PYSDK_CLOB is true (paper-on-real-data / live) — fully dormant on the
+    # legacy adapter, so it can never page in current prod. CLOB_DATA_FEED_CHECK_
+    # INTERVAL_SEC is how often the scheduler check runs; CLOB_DATA_FEED_HEARTBEAT_
+    # ENABLED unregisters the job entirely. Tune the timeout during the post-cutover
+    # 24h observation (default 180s; strictly positive).
+    CLOB_DATA_FEED_TIMEOUT_SEC: int = 180
+    CLOB_DATA_FEED_CHECK_INTERVAL_SEC: int = 60
+    CLOB_DATA_FEED_HEARTBEAT_ENABLED: bool = True
     # WARP-64 Chunk 3 — wire the oracle edge into late_entry_v3 as an ADVISORY
     # signal: when ON (and ORACLE_ENABLED=true so the RTDS feed actually runs),
     # the strategy computes + logs + stamps per-candidate fair-value/edge metadata
