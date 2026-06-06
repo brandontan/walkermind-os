@@ -301,15 +301,29 @@ SELECT condition_id, asset, timeframe, fav_side, entry_side,
 """
 
 
-async def fetch_settled_rows(pool: object | None = None) -> list[dict[str, Any]]:
-    """Read settled open->close rows from ``factor_vectors``. Fail-soft → []."""
+async def fetch_settled_rows(
+    pool: object | None = None, *, data_source: str | None = None
+) -> list[dict[str, Any]]:
+    """Read settled open->close rows from ``factor_vectors``. Fail-soft → [].
+
+    When ``data_source`` is provided (e.g. ``"paper_real"``) the read is
+    restricted to that provenance (the WARP-77 #1655 ``data_source`` enum), so a
+    cutover model trains ONLY on real rows and never the ``paper_synthetic`` seed.
+    ``None`` (the default) reads every provenance — back-compat for the parked
+    WARP-72 scorer / A/B callers.
+    """
+    sql = _FETCH_SQL
+    args: list[Any] = []
+    if data_source is not None:
+        sql = sql + "   AND data_source = $1\n"
+        args.append(data_source)
     try:
         if pool is None:
             from ...database import get_pool
 
             pool = get_pool()
         async with pool.acquire() as conn:  # type: ignore[attr-defined]
-            rows = await conn.fetch(_FETCH_SQL)
+            rows = await conn.fetch(sql, *args)
         return [dict(r) for r in rows]
     except Exception as exc:  # noqa: BLE001 — research read must not crash the CLI
         log.warning("scorer_trainer_fetch_failed", error=str(exc))

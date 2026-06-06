@@ -429,9 +429,15 @@ def _demo_rows(seed: int = 78, per_cell: int = 220) -> list[dict[str, Any]]:
     return out
 
 
-async def _fetch_real_rows() -> list[dict[str, Any]]:
+# The cutover report reads real rows only by default; the factor_vectors table
+# still holds the paper_synthetic seed (WARP-77 #1655 data_source enum).
+CUTOVER_DATA_SOURCE: str = "paper_real"
+_DATA_SOURCE_CHOICES: tuple[str, ...] = ("paper_real", "paper_synthetic", "live_real", "all")
+
+
+async def _fetch_real_rows(data_source: str | None = CUTOVER_DATA_SOURCE) -> list[dict[str, Any]]:
     from domain.strategy.scorer_trainer import fetch_settled_rows
-    return await fetch_settled_rows()
+    return await fetch_settled_rows(data_source=data_source)
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -444,8 +450,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p = argparse.ArgumentParser(prog="report_cutover_holdout", description=__doc__)
     src = p.add_mutually_exclusive_group(required=True)
     src.add_argument("--demo", action="store_true", help="Render the template from a synthetic fixture.")
-    src.add_argument("--from-db", action="store_true", help="Render from settled paper_real rows (CMD-gated).")
+    src.add_argument("--from-db", action="store_true", help="Render from settled rows (CMD-gated).")
     p.add_argument("--margin", choices=list(_MARGIN_OPTIONS), default="C2", help="Track C margin option.")
+    p.add_argument(
+        "--data-source", choices=_DATA_SOURCE_CHOICES, default=CUTOVER_DATA_SOURCE,
+        help="Provenance filter for --from-db (default paper_real; 'all' reads every provenance).",
+    )
     p.add_argument("--out", default=None, help="Write markdown to this path (default: stdout).")
     args = p.parse_args(argv)
 
@@ -456,8 +466,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         rows = _demo_rows()
         data_source = "paper_synthetic (DEMO — template only, not a real cutover signal)"
     else:
-        rows = asyncio.run(_fetch_real_rows())
-        data_source = "paper_real (settled, open_to_close)"
+        ds = None if args.data_source == "all" else args.data_source
+        rows = asyncio.run(_fetch_real_rows(ds))
+        data_source = f"{ds or 'all'} (settled, open_to_close)"
         if not rows:
             print("No settled rows returned from DB — cannot render.", file=sys.stderr)
             return 2
