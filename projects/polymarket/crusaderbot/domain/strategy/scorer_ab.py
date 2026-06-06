@@ -33,6 +33,7 @@ from .scorer import (
     StrategyScorer,
     factors_from_row,
     normalize_cell_key,
+    row_outcome_for_rule,
     rule_ev,
     rule_won,
 )
@@ -136,11 +137,17 @@ def compare(
         cell = report.cells.setdefault(cell_key or "UNKNOWN", CellAB(cell=cell_key or "UNKNOWN"))
 
         fav = row.get("fav_side")
-        outcome = row.get("realized_outcome")
         router_rule = _attributable_router_rule(row)
 
-        # Need a winner + an attributable router rule to compare at all.
-        if router_rule is None or rule_won(router_rule, fav, outcome) is None:
+        # Need an attributable router rule to compare at all.
+        if router_rule is None:
+            cell.undecidable += 1
+            report.overall.undecidable += 1
+            continue
+
+        # Per-rule horizon label: safe_close uses the 30-s-before-close outcome.
+        router_outcome = row_outcome_for_rule(router_rule, row)
+        if rule_won(router_rule, fav, router_outcome) is None:
             cell.undecidable += 1
             report.overall.undecidable += 1
             continue
@@ -158,11 +165,12 @@ def compare(
             report.overall.scorer_abstain += 1
             continue
 
-        router_win = bool(rule_won(router_rule, fav, outcome))
-        scorer_win = bool(rule_won(scorer_rule, fav, outcome))
+        scorer_outcome = row_outcome_for_rule(scorer_rule, row)
+        router_win = bool(rule_won(router_rule, fav, router_outcome))
+        scorer_win = bool(rule_won(scorer_rule, fav, scorer_outcome))
         fav_price = row.get("fav_price")
-        router_ev = rule_ev(router_rule, fav, fav_price, outcome)
-        scorer_ev = rule_ev(scorer_rule, fav, fav_price, outcome)
+        router_ev = rule_ev(router_rule, fav, fav_price, router_outcome)
+        scorer_ev = rule_ev(scorer_rule, fav, fav_price, scorer_outcome)
 
         for agg in (cell, report.overall):
             agg.n_compared += 1

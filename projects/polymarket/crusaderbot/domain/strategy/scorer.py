@@ -209,6 +209,26 @@ def rule_ev(
     return (1.0 if won else 0.0) - price
 
 
+# Rules that use a corrected settlement horizon. safe_close force-exits 30 s
+# before candle close, so its realized label is open→(close−30s), not open→close.
+# The trainer and A/B route to realized_outcome_safe_close for these rules.
+_SAFE_CLOSE_HORIZON_RULES: frozenset[str] = frozenset({"safe_close"})
+
+
+def row_outcome_for_rule(rule: str, row: Mapping[str, Any]) -> Optional[str]:
+    """Per-rule horizon label for a settled factor_vectors row.
+
+    Returns ``realized_outcome_safe_close`` for safe_close rules (when non-NULL);
+    falls back to ``realized_outcome`` for all other rules or when the safe_close
+    column is absent/NULL (pre-migration rows or missed oracle ticks).
+    """
+    if rule in _SAFE_CLOSE_HORIZON_RULES:
+        sc = row.get("realized_outcome_safe_close")
+        if sc is not None:
+            return str(sc)
+    return row.get("realized_outcome")
+
+
 # ---------------------------------------------------------------------------
 # Scored-rule result
 # ---------------------------------------------------------------------------
@@ -505,6 +525,7 @@ __all__ = [
     "ORACLE_DENY_THRESHOLDS",
     "ORACLE_STATUS_COMPUTED",
     "MODEL_SCHEMA_VERSION",
+    "_SAFE_CLOSE_HORIZON_RULES",
     "ScoredRule",
     "StrategyScorer",
     "normalize_cell_key",
@@ -513,6 +534,7 @@ __all__ = [
     "rule_won",
     "rule_entry_price",
     "rule_ev",
+    "row_outcome_for_rule",
     "factors_from_metadata",
     "factors_from_row",
     "shadow_enabled",

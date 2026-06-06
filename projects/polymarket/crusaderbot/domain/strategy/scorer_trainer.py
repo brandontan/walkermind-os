@@ -45,6 +45,7 @@ from .scorer import (
     MODEL_SCHEMA_VERSION,
     RULE_PRECEDENCE,
     normalize_cell_key,
+    row_outcome_for_rule,
     rule_ev,
     rule_won,
 )
@@ -159,13 +160,12 @@ def derive_cell(rows: Sequence[Mapping[str, Any]], *, shrinkage_k: float = DEFAU
         evs: dict[int, float] = {}
         wins: dict[int, float] = {}
         for idx, r in enumerate(rows):
-            ev = rule_ev(
-                rule, r.get("fav_side"), r.get("fav_price"), r.get("realized_outcome")
-            )
+            _outcome = row_outcome_for_rule(rule, r)
+            ev = rule_ev(rule, r.get("fav_side"), r.get("fav_price"), _outcome)
             if ev is None:
                 continue
             evs[idx] = ev
-            won = rule_won(rule, r.get("fav_side"), r.get("realized_outcome"))
+            won = rule_won(rule, r.get("fav_side"), _outcome)
             wins[idx] = 1.0 if won else 0.0
         n = len(evs)
         base = _mean(list(evs.values())) if evs else 0.0
@@ -291,6 +291,7 @@ def write_weights(model: Mapping[str, Any], out_path: str | Path | None = None) 
 _FETCH_SQL = """
 SELECT condition_id, asset, timeframe, fav_side, entry_side,
        fav_price, entry_price, realized_outcome, realized_delta,
+       realized_outcome_safe_close, realized_delta_safe_close,
        momentum, volatility_sigma, liquidity_usdc, spread,
        orderbook_depth_usdc, ttl_sec, oracle_edge,
        oracle_edge_status, router_selected_rule, evaluated_rule
@@ -415,4 +416,6 @@ __all__ = [
     "train_from_db",
     "format_summary",
     "main",
+    # re-exported for consumers that only import scorer_trainer
+    "row_outcome_for_rule",
 ]
