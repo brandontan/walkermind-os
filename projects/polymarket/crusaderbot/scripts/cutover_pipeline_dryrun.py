@@ -52,8 +52,9 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-# Quiet the pipeline's shadow DEBUG logs so the dry-run report is clean.
-structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(logging.WARNING))
+# NB: structlog config is deferred to main() — configuring it at import scope
+# would mutate the global logging level for the whole test runner process, so
+# importing this module from a test would silence other tests' captured logs.
 
 from domain.strategy.ev_comparator import (  # noqa: E402
     EVComparator,
@@ -90,6 +91,10 @@ GAMMA_ORACLE: float = 0.06
 _MOM_SD: float = 0.6
 _OE_SD: float = 0.02
 _SAFE_CLOSE_FLIP_P: float = 0.08  # final-30s reversal rate vs open->close label
+# Shared train/test split so evaluate_ev_holdout and _paired_holdout_deltas
+# always agree (keeps the holdout_vs_paired_delta_consistent check robust even
+# if ev_comparator's own default ever changes).
+_TRAIN_FRACTION: float = 0.7
 
 
 @dataclass(frozen=True)
@@ -379,8 +384,8 @@ def run_dryrun(*, rows_per_cell: int, seed: int) -> tuple[list[Check], dict[str,
     full_model = derive_ev_model(rows)
     comparator = EVComparator.from_model(full_model)
     in_sample_ab = ev_ab_compare(rows, comparator)
-    holdout = evaluate_ev_holdout(rows)
-    ci = _paired_holdout_deltas(rows, train_fraction=0.7)
+    holdout = evaluate_ev_holdout(rows, train_fraction=_TRAIN_FRACTION)
+    ci = _paired_holdout_deltas(rows, train_fraction=_TRAIN_FRACTION)
 
     checks: list[Check] = []
     checks += validate_no_nan(full_model)
@@ -400,6 +405,10 @@ def run_dryrun(*, rows_per_cell: int, seed: int) -> tuple[list[Check], dict[str,
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    # Quiet the pipeline's shadow DEBUG logs so the CLI report is clean. Done
+    # here (not at import) so importing this module never mutates global logging.
+    structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(logging.WARNING))
+
     p = argparse.ArgumentParser(prog="cutover_pipeline_dryrun", description=__doc__)
     p.add_argument("--rows-per-cell", type=int, default=200)
     p.add_argument("--seed", type=int, default=78)
