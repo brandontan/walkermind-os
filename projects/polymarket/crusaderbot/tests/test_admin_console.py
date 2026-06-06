@@ -845,3 +845,45 @@ def test_admin_paper_reset_404_on_missing_user():
         with pytest.raises(r.HTTPException) as exc:
             asyncio.run(r.admin_paper_reset(str(uuid4()), {"user_id": str(uuid4())}))
     assert exc.value.status_code == 404
+
+
+# ── admin user-detail preset dropdown contract (WARP/admin-preset-dropdown-fix) ──
+# The /admin user-detail dropdown (AdminUserDrawer.tsx) lets an operator assign a
+# user's active_preset. CMD found candle_auto (Smart Strike) + playbook were
+# missing from that dropdown. These tests pin the BACKEND contract the dropdown
+# depends on so the gap cannot silently reopen: every preset the operator can pick
+# must be accepted by the admin-patch validator and map to a reachable strategy.
+
+
+def test_admin_patch_accepts_candle_auto_and_playbook():
+    """The admin-patch validator (active_preset ∈ _PRESET_TO_STRATEGY) must accept
+    candle_auto (Smart Strike) + playbook — the two presets CMD found missing."""
+    assert r._PRESET_TO_STRATEGY.get("candle_auto") == "late_entry_v3"
+    assert r._PRESET_TO_STRATEGY.get("playbook") == "playbook"
+
+
+def test_admin_preset_dropdown_matches_canonical_registry():
+    """Every operator-selectable preset must be a registered, activatable preset
+    (domain/preset/presets.py) AND wired in the backend validation maps — no
+    dropdown-only or backend-only drift."""
+    from projects.polymarket.crusaderbot.domain.preset import (
+        VISIBLE_PRESET_ORDER,
+        is_activatable,
+    )
+
+    # The operator dropdown is sourced from the canonical visible order; the
+    # frontend list (AdminUserDrawer PRESET_OPTIONS) mirrors it exactly.
+    expected = {
+        "candle_auto", "close_sweep", "safe_close",
+        "flip_hunter", "weather_monitor", "playbook",
+    }
+    assert set(VISIBLE_PRESET_ORDER) == expected
+    for key in expected:
+        assert is_activatable(key), f"{key} must be user-activatable"
+        assert key in r._PRESET_TO_STRATEGY, f"{key} must pass admin-patch validation"
+        assert key in r._PRESET_PARAMS, f"{key} must have activation params"
+
+
+def test_admin_patch_still_rejects_unknown_preset():
+    """Validation must still 400 a bogus key (no regression in the guard)."""
+    assert "totally_made_up" not in r._PRESET_TO_STRATEGY

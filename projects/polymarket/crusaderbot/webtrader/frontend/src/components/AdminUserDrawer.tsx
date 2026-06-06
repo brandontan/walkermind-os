@@ -15,12 +15,30 @@ interface Props {
   onSaved?: (next: AdminUserDetail) => void;
 }
 
-const PRESETS = ["close_sweep", "safe_close", "flip_hunter", "weather_monitor"] as const;
+// Active-preset options for the operator dropdown. value = the canonical preset
+// key persisted to user_settings.active_preset + validated by the backend against
+// _PRESET_TO_STRATEGY (router.py); label keeps the key visible (admin clarity) and
+// adds the human name. Mirrors domain/preset/presets.py PRESET_ORDER exactly —
+// candle_auto (Smart Strike, the 7-factor auto-router) and playbook were missing
+// here, so the admin could not assign them. There is no separate "smart_strike"
+// key: candle_auto IS Smart Strike (its display name + the EV-comparator entry
+// point that engages when ORCHESTRATOR_ACTIVE flips at the Phase-4 cutover).
+export const PRESET_OPTIONS: readonly { value: string; label: string }[] = [
+  { value: "candle_auto", label: "candle_auto — Smart Strike (auto: scores 7 factors, picks close/safe/flip)" },
+  { value: "close_sweep", label: "close_sweep — Close Sweep" },
+  { value: "safe_close", label: "safe_close — Safe Close" },
+  { value: "flip_hunter", label: "flip_hunter — Flip Hunter" },
+  { value: "weather_monitor", label: "weather_monitor — Weather Monitor" },
+  { value: "playbook", label: "playbook — Playbook (sports router, PAPER)" },
+];
 const RISK_PROFILES = ["conservative", "balanced", "aggressive", "custom"] as const;
 const MAX_PER_TRADE_MODES = ["auto", "fixed", "pct"] as const;
 const TIMEFRAMES = ["5m", "15m"] as const;
 const CRYPTO_ASSETS = ["BTC", "ETH", "SOL"] as const;
-const CRYPTO_SHORT_PRESETS = new Set<string>(["close_sweep", "safe_close", "flip_hunter"]);
+// Crypto-short presets expose the timeframe + asset fields. Mirrors the backend
+// _CRYPTO_SHORT_PRESETS (router.py) which includes candle_auto (the auto-router
+// runs on the same 5m/15m candle universe as the three single-rule presets).
+const CRYPTO_SHORT_PRESETS = new Set<string>(["candle_auto", "close_sweep", "safe_close", "flip_hunter"]);
 
 function fmtUsd(v: number | null | undefined): string {
   if (v == null) return "—";
@@ -391,7 +409,7 @@ export function AdminUserDrawer({ userId, onClose, onSaved }: Props) {
               <FieldSelect
                 label="Active preset"
                 value={draft.active_preset}
-                options={PRESETS}
+                options={PRESET_OPTIONS}
                 placeholder="(unchanged)"
                 onChange={(v) => setDraft({ ...draft, active_preset: v })}
               />
@@ -608,12 +626,14 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function FieldSelect({
+export type SelectOption = string | { value: string; label: string };
+
+export function FieldSelect({
   label, value, options, placeholder, onChange,
 }: {
   label: string;
   value: string;
-  options: readonly string[];
+  options: readonly SelectOption[];
   placeholder?: string;
   onChange: (v: string) => void;
 }) {
@@ -626,9 +646,10 @@ function FieldSelect({
         className="w-full bg-surface-2 border border-surface-3 text-ink-1 font-mono text-[12px] px-2 py-1.5 rounded-sm"
       >
         <option value="">{placeholder ?? "—"}</option>
-        {options.map((o) => (
-          <option key={o} value={o}>{o}</option>
-        ))}
+        {options.map((o) => {
+          const opt = typeof o === "string" ? { value: o, label: o } : o;
+          return <option key={opt.value} value={opt.value}>{opt.label}</option>;
+        })}
       </select>
     </label>
   );
