@@ -736,6 +736,21 @@ async def reconcile_live_orders() -> dict:
     return await live_reconcile.reconcile_once()
 
 
+async def clob_data_feed_heartbeat_job() -> None:
+    """WARP-77 Phase 1.2 — periodic real-CLOB-data feed staleness check.
+
+    Pages the operator + Sentry once if the MarketDataClient read feed goes stale
+    while USE_PYSDK_CLOB is on; fully dormant (immediate no-op) on the legacy
+    adapter. Fail-soft — monitoring must never break the scheduler.
+    """
+    try:
+        from .monitoring.clob_heartbeat import check_clob_feed_and_alert
+
+        await check_clob_feed_and_alert()
+    except Exception:  # noqa: BLE001 — monitoring must never break the scheduler
+        pass
+
+
 # ---------------- CLOB WebSocket (Phase 4D) ----------------
 # A single ``ClobWebSocketClient`` instance lives for the lifetime of the
 # scheduler. ``ws_connect`` spawns it on startup; ``ws_watchdog`` reconnects
@@ -1141,6 +1156,14 @@ def setup_scheduler() -> AsyncIOScheduler:
         sched.add_job(reconcile_live_orders, "interval",
                       seconds=int(getattr(s, "RECONCILE_INTERVAL_SEC", 120)),
                       id="live_order_reconcile", max_instances=1, coalesce=True)
+    # WARP-77 Phase 1.2 — real-CLOB-data feed heartbeat. Pages the operator +
+    # Sentry if the MarketDataClient read feed goes stale while USE_PYSDK_CLOB is
+    # on. The check is internally gated on USE_PYSDK_CLOB → fully dormant (and
+    # cannot page) on the legacy adapter in current prod.
+    if bool(getattr(s, "CLOB_DATA_FEED_HEARTBEAT_ENABLED", True)):
+        sched.add_job(clob_data_feed_heartbeat_job, "interval",
+                      seconds=int(getattr(s, "CLOB_DATA_FEED_CHECK_INTERVAL_SEC", 60)),
+                      id="clob_data_feed_heartbeat", max_instances=1, coalesce=True)
     # WebSocket fill streaming (Phase 4D). The client itself enforces the
     # USE_REAL_CLOB=False guard; jobs are still registered so a runtime
     # toggle flip + watchdog tick brings the socket up without a redeploy.
