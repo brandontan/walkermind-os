@@ -470,6 +470,13 @@ class PlaybookStrategy(BaseStrategy):
         Returns ``None`` when the market fails quality or no module claims it.
         This is the unit-testable core of the strategy.
         """
+        from ...research.scan_observability import ScanObservation, record_observation
+
+        # WARP-80 1a: feed darkness drives playbook's zero-entry behaviour — 2 of
+        # 4 alpha modules (injury_alpha, public_fade) abstain on the default
+        # NullFeed. Stamp the live/dark state onto each abstain observation.
+        _module_state = "null_feed" if isinstance(self._feed, NullFeed) else "live"
+
         # Binary-market YES book: the YES bid is implied by the NO ask
         # (buying NO at no_ask ⇒ willing to sell YES at 1 - no_ask), and the
         # YES ask is yes_ask. The spread is therefore yes_ask + no_ask - 1.
@@ -485,6 +492,16 @@ class PlaybookStrategy(BaseStrategy):
         if not quality.accepted:
             log.debug("playbook: market %s rejected by quality: %s",
                       snapshot.market_id, quality.reason)
+            try:
+                record_observation(ScanObservation(
+                    strategy=self.name,
+                    market_id=str(snapshot.market_id),
+                    zero_reason="filter_or_no_match",
+                    binding_filter="quality",
+                    module_state=_module_state,
+                ))
+            except Exception:  # noqa: BLE001 — observability is fail-soft
+                pass
             return None
 
         mid = snapshot.fair_price
@@ -512,6 +529,16 @@ class PlaybookStrategy(BaseStrategy):
 
         result = self._router.route(snapshot, bundle)
         if not result.routed or result.decision is None:
+            try:
+                record_observation(ScanObservation(
+                    strategy=self.name,
+                    market_id=str(snapshot.market_id),
+                    zero_reason="filter_or_no_match",
+                    binding_filter="router_abstain",
+                    module_state=_module_state,
+                ))
+            except Exception:  # noqa: BLE001 — observability is fail-soft
+                pass
             return None
 
         decision = result.decision
