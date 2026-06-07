@@ -26,7 +26,7 @@ Windows are config-driven (env-overridable); ``DB_RETENTION_ENABLED`` gates it.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from ..config import get_settings
 from ..database import get_pool
@@ -64,28 +64,37 @@ async def _prune(conn: Any, table: str, where: str, *params: Any) -> int:
         total += deleted
         if deleted < _BATCH:
             break
+    else:
+        # Hit the per-run iteration ceiling — a backlog remains; surface it (not
+        # silent) so the next daily run / an operator knows to expect more.
+        logger.warning(
+            "db_retention: hit %d-iteration ceiling for %s (%d rows pruned this "
+            "run; backlog remains for the next run)", _MAX_ITERS, table, total,
+        )
     return total
 
 
-# (table, where-clause, uses_days_param). where uses $1 for the retention-day
-# count when uses_days_param is True; idempotency_keys keys off its own expires_at.
-def _specs(s: Any) -> list[tuple[str, str, Optional[int]]]:
+# (table, where-clause, params). ``where`` uses $1 for the retention-day count
+# where applicable; ``params`` is bound positionally (empty for idempotency_keys,
+# which keys off its own expires_at). Returning a params tuple keeps _prune robust
+# for any future table needing zero, one, or more bind params.
+def _specs(s: Any) -> list[tuple[str, str, tuple[Any, ...]]]:
     return [
         # Expired dedup keys — expiry is their whole contract; always safe.
-        ("idempotency_keys", "expires_at < NOW()", None),
+        ("idempotency_keys", "expires_at < NOW()", ()),
         ("system_alerts",
          "created_at < NOW() - ($1 * INTERVAL '1 day')",
-         s.DB_RETENTION_SYSTEM_ALERTS_DAYS),
+         (s.DB_RETENTION_SYSTEM_ALERTS_DAYS,)),
         ("scan_runs",
          "started_at < NOW() - ($1 * INTERVAL '1 day')",
-         s.DB_RETENTION_SCAN_RUNS_DAYS),
+         (s.DB_RETENTION_SCAN_RUNS_DAYS,)),
         ("portfolio_snapshots",
          "snapshot_at < NOW() - ($1 * INTERVAL '1 day')",
-         s.DB_RETENTION_PORTFOLIO_SNAPSHOTS_DAYS),
+         (s.DB_RETENTION_PORTFOLIO_SNAPSHOTS_DAYS,)),
         # Only already-executed queue rows (executed_at set) — never in-flight items.
         ("execution_queue",
          "executed_at IS NOT NULL AND queued_at < NOW() - ($1 * INTERVAL '1 day')",
-         s.DB_RETENTION_EXECUTION_QUEUE_DAYS),
+         (s.DB_RETENTION_EXECUTION_QUEUE_DAYS,)),
     ]
 
 
@@ -108,13 +117,10 @@ async def run_job(*, pool: Any | None = None) -> dict[str, int]:
         logger.exception("db_retention: pool unavailable: %s", exc)
         return {}
 
-    for table, where, days in _specs(settings):
+    for table, where, params in _specs(settings):
         try:
             async with pool.acquire() as conn:  # type: ignore[attr-defined]
-                if days is None:
-                    n = await _prune(conn, table, where)
-                else:
-                    n = await _prune(conn, table, where, days)
+                n = await _prune(conn, table, where, *params)
             deleted[table] = n
             if n:
                 logger.info("db_retention: pruned %d rows from %s", n, table)

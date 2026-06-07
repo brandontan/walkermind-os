@@ -139,3 +139,33 @@ def test_pool_unavailable_is_noop(monkeypatch):
     monkeypatch.setattr(db_retention, "get_pool",
                         lambda: (_ for _ in ()).throw(RuntimeError("no pool")))
     assert _run(db_retention.run_job()) == {}
+
+
+def test_ceiling_warns_when_backlog_remains(monkeypatch):
+    # Every execute returns a full batch → loop never drops below _BATCH → the
+    # iteration ceiling is hit and a warning is surfaced (no silent backlog).
+    _patch_settings(monkeypatch)
+    monkeypatch.setattr(db_retention, "_MAX_ITERS", 3)
+
+    class _FullConn(_Conn):
+        async def execute(self, sql, *args):
+            self.calls.append((sql, args))
+            return f"DELETE {db_retention._BATCH}"
+
+    conn = _FullConn()
+    result = _run(db_retention.run_job(pool=_Pool(conn)))
+    # idempotency_keys looped exactly _MAX_ITERS times at full batch
+    assert result["idempotency_keys"] == db_retention._BATCH * 3
+
+
+def test_config_rejects_nonpositive_retention_days():
+    # The Pydantic validator must fail fast on a 0/negative window so a misconfig
+    # can never turn the prune job into a wipe of recent data.
+    import pytest
+
+    from projects.polymarket.crusaderbot.config import Settings
+
+    with pytest.raises(Exception):
+        Settings(DB_RETENTION_SCAN_RUNS_DAYS=0)
+    with pytest.raises(Exception):
+        Settings(DB_RETENTION_PORTFOLIO_SNAPSHOTS_DAYS=-5)

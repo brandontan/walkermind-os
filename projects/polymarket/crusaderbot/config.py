@@ -818,6 +818,20 @@ class Settings(BaseSettings):
     ORDER_DRIFT_DETECT_ENABLED: bool = True
     ORDER_DRIFT_INTERVAL_SEC: int = 600
 
+    @field_validator(
+        "DB_RETENTION_SYSTEM_ALERTS_DAYS",
+        "DB_RETENTION_SCAN_RUNS_DAYS",
+        "DB_RETENTION_PORTFOLIO_SNAPSHOTS_DAYS",
+        "DB_RETENTION_EXECUTION_QUEUE_DAYS",
+    )
+    @classmethod
+    def validate_db_retention_days(cls, v: int) -> int:
+        # Retention windows feed a DELETE job — a 0/negative value would prune
+        # active/recent rows. Fail fast at config load rather than lose data.
+        if v <= 0:
+            raise ValueError(f"DB retention days must be strictly positive (got {v}).")
+        return v
+
     @field_validator("LIVE_RECONCILE_INTERVAL_SEC", "ORDER_DRIFT_INTERVAL_SEC")
     @classmethod
     def validate_live_reconcile_intervals(cls, v: int) -> int:
