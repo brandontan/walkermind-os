@@ -300,6 +300,13 @@ def _import_estimate_slippage_bps() -> Optional[Any]:
             "runtime root — trying direct leaf-module load",
             error=str(exc),
         )
+    except Exception as exc:  # noqa: BLE001 — any __init__-chain error must still
+        # degrade to the direct leaf load, never crash the replay.
+        logger.warning(
+            "slippage_estimator_package_import_error",
+            error=str(exc),
+            action="trying direct leaf-module load",
+        )
 
     leaf = _PROJECT_ROOT / "domain" / "research" / "slippage_estimator.py"
     if not leaf.is_file():
@@ -323,7 +330,13 @@ def _import_estimate_slippage_bps() -> Optional[Any]:
         # Register before exec so dataclass / typing resolution can find the
         # module by name during its own import side effects.
         sys.modules[spec.name] = module
-        spec.loader.exec_module(module)
+        try:
+            spec.loader.exec_module(module)
+        except Exception:
+            # Don't leave a half-initialised module in the registry — pop it so a
+            # later retry / other code sees a clean sys.modules.
+            sys.modules.pop(spec.name, None)
+            raise
         logger.info(
             "slippage_estimator_loaded_direct",
             source=str(leaf),
