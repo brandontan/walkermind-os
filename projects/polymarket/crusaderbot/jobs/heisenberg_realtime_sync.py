@@ -1,4 +1,4 @@
-"""Heisenberg agent 556 sync job — populates heisenberg_realtime_trades buffer.
+"""Heisenberg agent 556 sync job — feeds the in-memory real-time trade buffer.
 
 Every HEISENBERG_REALTIME_TRADES_INTERVAL_SEC (default 60s) when the feature
 flag is on:
@@ -6,30 +6,31 @@ flag is on:
   1. Fetch trades from the last HEISENBERG_REALTIME_TRADES_WINDOW_SEC
      (default 300s = 5 min — wider than the poll cycle so we don't drop
      trades on a slow tick).
-  2. UPSERT each trade by (wallet, condition_id, trade_time, side).
-  3. DELETE rows older than HEISENBERG_REALTIME_TRADES_RETENTION_HOURS
-     (default 24h).
+  2. Record each trade into the in-memory buffer (services.heisenberg_buffer),
+     which dedups by (wallet, condition_id, trade_time, side) and prunes
+     entries older than HEISENBERG_REALTIME_TRADES_RETENTION_HOURS (default 24h).
+
+No durable storage — per the operator ruling "real-time signals do not need
+durable storage", the buffer lives in process memory (the
+``heisenberg_realtime_trades`` table was the top disk hog, dropped in migration
+087). Consumers: the Playbook Sharp Money module (domain/playbook/sharp_flow.py)
+and the copy-trade fast-track (services/copy_trade/realtime_fast_track.py) read
+the same buffer.
 
 Triple-gated:
   - HEISENBERG_API_TOKEN env var set (client returns [] otherwise — no-op)
   - HEISENBERG_REALTIME_TRADES_ENABLED config flag (scheduler registers only
     when on — see scheduler.py)
   - asyncio coalesce + max_instances=1 (scheduler-side concurrency cap)
-
-The buffer is dormant — no downstream consumer reads it yet. A future
-copy-trade fast-track lane will tap it.
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
 
 from ..config import get_settings
-from ..database import get_pool
-from ..services import heisenberg_trades
+from ..services import heisenberg_buffer, heisenberg_trades
 
 log = logging.getLogger(__name__)
 
@@ -37,10 +38,11 @@ JOB_ID = "heisenberg_realtime_trades_sync"
 
 
 async def run_job() -> tuple[int, int]:
-    """Fetch + upsert + prune one tick. Returns (upserted, pruned).
+    """Fetch + record one tick into the in-memory buffer. Returns (recorded, 0).
 
-    Never raises. Token-unset / DB error / upstream error all return (0, 0)
-    and log a warning.
+    Never raises. Token-unset / upstream error returns (0, 0) and logs. The
+    second tuple element is retained as 0 for the scheduler-listener metadata
+    shape (the former durable-prune count; pruning is now in-buffer).
     """
     if not os.getenv("HEISENBERG_API_TOKEN", ""):
         log.warning("heisenberg_realtime_sync: HEISENBERG_API_TOKEN unset — skipping")
@@ -57,52 +59,12 @@ async def run_job() -> tuple[int, int]:
         log.exception("heisenberg_realtime_sync: fetch failed: %s", exc)
         return 0, 0
 
-    # WARP-82: NO durable persistence. Per the operator ruling ("real-time
-    # signals do not need durable storage"), the former UPSERT into
-    # heisenberg_realtime_trades + retention prune are removed; trades are
-    # debug-logged only. The table is dropped in migration 087.
-    #
-    # CONSEQUENCE (intentional, flagged): the durable buffer was the data source
-    # for the Playbook Sharp Money module (domain/playbook/sharp_flow.py) and the
-    # copy-trade fast-track. With no buffer, sharp_flow returns no flow (fail-soft)
-    # → Sharp Money abstains, and the fast-track has nothing to mirror. This is the
-    # accepted trade-off of killing real-time persistence.
-    for tr in trades:
-        log.debug(
-            "heisenberg_trade wallet=%s cid=%s side=%s size=%s ts=%s",
-            tr.wallet, tr.condition_id, tr.side, tr.size_usdc, tr.trade_time,
-        )
+    recorded = heisenberg_buffer.record_trades(trades, retention_hours=retention_hours)
     log.info(
-        "heisenberg_realtime_sync: fetched=%d (not persisted, WARP-82) window=%ds elapsed=%.2fs",
-        len(trades), window, time.monotonic() - t0,
+        "heisenberg_realtime_sync: fetched=%d recorded=%d buffer_size=%d window=%ds elapsed=%.2fs",
+        len(trades), recorded, heisenberg_buffer.size(), window, time.monotonic() - t0,
     )
-    return len(trades), 0
-
-
-async def _prune(retention_hours: int) -> int:
-    """Delete buffer rows older than `retention_hours`. Returns deleted count."""
-    if retention_hours <= 0:
-        return 0
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=retention_hours)
-    try:
-        pool = get_pool()
-        async with pool.acquire() as conn:
-            result = await conn.execute(
-                "DELETE FROM heisenberg_realtime_trades WHERE fetched_at < $1",
-                cutoff,
-            )
-        # asyncpg `execute()` returns 'DELETE N' on success.
-        try:
-            return int(str(result).split()[-1])
-        except (ValueError, IndexError) as exc:
-            log.warning(
-                "heisenberg_realtime_sync: prune result parse failed result=%r err=%s",
-                result, exc,
-            )
-            return 0
-    except Exception as exc:
-        log.warning("heisenberg_realtime_sync: prune failed: %s", exc)
-        return 0
+    return recorded, 0
 
 
 __all__ = ["run_job", "JOB_ID"]

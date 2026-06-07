@@ -60,14 +60,21 @@ def test_tables_are_listed_for_drop_in_a_migration():
     assert "drop table if exists job_runs" in drops_088, "088 must drop job_runs"
 
 
-_READ_RE = re.compile(r"""\b(from|join)\s+['"]?job_runs['"]?\b""", re.IGNORECASE)
+# Dropped tables that had raw-SQL readers, now repointed to in-memory stores:
+# job_runs → job ring (domain/ops/job_tracker.py, #1679);
+# heisenberg_realtime_trades → trade buffer (services/heisenberg_buffer.py).
+_READ_RE = re.compile(
+    r"""\b(from|join)\s+['"]?(job_runs|heisenberg_realtime_trades)['"]?\b""",
+    re.IGNORECASE,
+)
 
 
-def test_no_read_sites_to_job_runs():
-    """No production code may SELECT FROM job_runs — the table is dropped (088).
+def test_no_read_sites_to_dropped_reader_tables():
+    """No production code may SELECT FROM the dropped reader-bearing tables.
 
-    Readers were repointed to the in-memory job ring (domain/ops/job_tracker.py);
-    a re-introduced raw-SQL read of the dropped table fails here.
+    job_runs (dropped in 088) and heisenberg_realtime_trades (dropped in 087)
+    both had raw-SQL readers, now repointed to in-memory stores. A re-introduced
+    raw-SQL read of either fails here.
     """
     offenders: list[str] = []
     for p in _production_py_files():
@@ -76,6 +83,6 @@ def test_no_read_sites_to_job_runs():
             line_no = text[: m.start()].count("\n") + 1
             offenders.append(f"{p.relative_to(_ROOT)}:{line_no} -> {m.group(0)!r}")
     assert not offenders, (
-        "job_runs is dropped (088); read it from the in-memory ring instead:\n"
+        "These tables are dropped; read from the in-memory store instead:\n"
         + "\n".join(offenders)
     )
