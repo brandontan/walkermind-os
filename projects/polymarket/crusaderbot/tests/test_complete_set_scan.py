@@ -426,7 +426,15 @@ def _patch_gate_passthrough(monkeypatch: pytest.MonkeyPatch, *, balance: float) 
     async def _record(*a: Any, **k: Any) -> None:
         return None
 
+    async def _cap(*a: Any, **k: Any) -> float:
+        # Step 8 reads the per-user risk-profile CAP% (capital_alloc_pct) as the
+        # total-deployment ceiling (added by the risk-profile-capital lane /
+        # #1694). 0.40 clears these tests' exposure (≤0.09) without hitting the
+        # real DB pool.
+        return 0.40
+
     monkeypatch.setattr(gate_mod, "_log", _noop_log)
+    monkeypatch.setattr(gate_mod, "_capital_alloc_pct", _cap)
     monkeypatch.setattr(gate_mod, "validate_risk_caps", _caps_ok)
     monkeypatch.setattr(gate_mod, "kill_switch_is_active", _false)
     monkeypatch.setattr(gate_mod, "daily_pnl", _zero_pnl)
