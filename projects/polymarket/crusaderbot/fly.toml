@@ -12,6 +12,12 @@ kill_timeout = '30s'
   dockerfile = 'Dockerfile'
 
 [deploy]
+  # Run DB migrations in a one-off release machine BEFORE promoting the new
+  # version (WARP-80 RCA). A migration failure now fails the DEPLOY and Fly keeps
+  # the previous version serving, instead of crash-looping the web app at boot
+  # (run_migrations is also awaited in the lifespan, but the tracker makes that a
+  # fast skip-all once this step has applied everything). See scripts/migrate.py.
+  release_command = 'python -m crusaderbot.scripts.migrate'
   strategy = 'immediate'
 
 [env]
