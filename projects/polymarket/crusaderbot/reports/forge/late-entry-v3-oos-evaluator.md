@@ -67,7 +67,7 @@ Created:
 - `projects/polymarket/crusaderbot/reports/forge/late-entry-v3-oos-evaluator.md` — this report
 
 Modified:
-- `projects/polymarket/crusaderbot/state/PROJECT_STATE.md`, `state/CHANGELOG.md` — synced
+- `projects/polymarket/crusaderbot/state/PROJECT_STATE.md`, `projects/polymarket/crusaderbot/state/CHANGELOG.md` — synced
 
 ## 4. What is working
 
