@@ -46,14 +46,21 @@ cost_usdc = size_usdc * total_bps / 1e4
 
 ### 4.1 Per-cell calibrated slippage (paper sizing, ~$7 avg notional)
 
+Per-cell `slip %` is `total_slippage ÷ |gross P&L|` — the per-cell convention the
+replay engine's `aggregate_by_cell` uses. The **ALL** `slip %` uses the engine's
+`overall_gate` convention: `total_slippage ÷ Σ|per-cell gross|` (sum of ABSOLUTE
+per-cell gross, so opposite-signed cells don't cancel and mask erosion) = **5.4%**.
+For reference, against *net* gross it is 22.37 ÷ 349.94 ≈ 6.4%; both are ≪ 50%. All
+rows are one consistent snapshot (n sums to 545).
+
 | Cell | n | avg bps | spread bps | impact bps | gross P&L | slippage $ | adj. P&L | slip % | gate |
 |---|---|---|---|---|---|---|---|---|---|
-| btc/5m | 257 | 56.7 | 51.9 | 4.8 | +$269.84 | $10.33 | +$259.52 | 3.8% | OK |
-| eth/5m | 265 | 60.0 | 52.8 | 7.2 | +$121.84 | $11.22 | +$110.62 | 9.2% | OK |
+| btc/5m | 257 | 56.7 | 51.9 | 4.8 | +$263.30 | $10.40 | +$252.91 | 3.9% | OK |
+| eth/5m | 265 | 59.9 | 52.8 | 7.2 | +$115.30 | $11.29 | +$104.01 | 9.8% | OK |
 | btc/15m | 10 | 59.7 | 55.0 | 4.7 | +$4.47 | $0.26 | +$4.21 | 5.8% | OK |
 | eth/15m | 9 | 68.8 | 61.1 | 7.7 | −$22.47 | $0.27 | −$22.73 | 1.2% | OK* |
 | sol/15m | 4 | 87.7 | 75.0 | 12.7 | −$10.66 | $0.15 | −$10.81 | 1.4% | OK* |
-| **ALL** | **541** | **58.8** | **52.7** | **6.0** | **+$363.02** | **$22.22** | **+$340.80** | **6.1%** | **OK** |
+| **ALL** | **545** | **58.7** | **52.7** | **6.1** | **net +$349.94** | **$22.37** | **+$327.59** | **5.4%** | **OK** |
 
 \* eth/15m and sol/15m are net-**losing** cells on tiny samples (n=9, n=4); their low
 slippage % is arithmetic against a negative gross, not a sign of health. Slippage
@@ -61,13 +68,13 @@ does not rescue a losing cell — it deepens the loss (adj. P&L more negative).
 
 ### 4.2 Per-trade slippage distribution (bps) and book depth
 
-| Cell | bps p50 | bps p90 | bps p99 | bps max | depth p50 | depth p10 | depth min | gross edge (bps of notional) |
-|---|---|---|---|---|---|---|---|---|
-| btc/5m | 54.4 | 57.2 | 106.1 | 256.5 | 14,510 | 5,964 | 2,816 | +1,436 |
-| eth/5m | 56.5 | 63.0 | 112.2 | 207.9 | 7,242 | 2,370 | 510 | +612 |
-| btc/15m | 54.5 | 61.8 | 99.4 | 103.5 | 9,268 | 4,071 | 3,294 | +1,038 |
-| eth/15m | 57.4 | 110.8 | 112.7 | 112.9 | 3,186 | 1,487 | 1,036 | −5,828 |
-| sol/15m | 62.8 | 133.9 | 161.2 | 164.2 | 1,051 | 887 | 844 | −6,229 |
+| Cell | bps p50 | bps p90 | bps p99 | bps max | depth p50 | depth min | gross edge (bps of notional) |
+|---|---|---|---|---|---|---|---|
+| btc/5m | 54.4 | 57.2 | 106.1 | 256.5 | 14,510 | 2,816 | +1,436 |
+| eth/5m | 56.5 | 63.0 | 112.2 | 207.9 | 7,242 | 510 | +612 |
+| btc/15m | 54.5 | 61.8 | 99.4 | 103.5 | 9,268 | 3,294 | +1,038 |
+| eth/15m | 57.4 | 110.8 | 112.7 | 112.9 | 3,186 | 1,036 | −5,828 |
+| sol/15m | 62.8 | 133.9 | 161.2 | 164.2 | 1,051 | 844 | −6,229 |
 
 ### 4.3 Read
 
