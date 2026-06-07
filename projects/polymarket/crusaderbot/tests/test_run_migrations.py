@@ -27,9 +27,17 @@ class _FakeConn:
         self.applied: dict[str, str] = dict(preapplied or {})
         self.executed: list[str] = []          # migration bodies actually run
         self.tracker_created = False
+        self.lock_calls = 0
+        self.unlock_calls = 0
 
     async def execute(self, sql, *args):
         s = sql.strip()
+        if "pg_advisory_lock" in sql:
+            self.lock_calls += 1
+            return
+        if "pg_advisory_unlock" in sql:
+            self.unlock_calls += 1
+            return
         if "schema_migrations" in sql and "CREATE TABLE" in sql:
             self.tracker_created = True
             return
@@ -134,6 +142,22 @@ def test_checksum_mismatch_warns_not_rerun(tmp_path):
 def test_no_files_returns_empty(tmp_path):
     conn = _FakeConn()
     assert _run(db.run_migrations(migrations_dir=tmp_path, pool=_FakePool(conn))) == []
+
+
+def test_advisory_lock_acquired_and_released(tmp_path):
+    _write(tmp_path, "001_a.sql", "CREATE TABLE a();")
+    conn = _FakeConn()
+    _run(db.run_migrations(migrations_dir=tmp_path, pool=_FakePool(conn)))
+    assert conn.lock_calls == 1 and conn.unlock_calls == 1
+
+
+def test_advisory_lock_released_on_failure(tmp_path):
+    _write(tmp_path, "001_bad.sql", "BOOM;")
+    conn = _FakeConn()
+    with pytest.raises(RuntimeError):
+        _run(db.run_migrations(migrations_dir=tmp_path, pool=_FakePool(conn)))
+    # unlock must run even when a migration raises (finally).
+    assert conn.lock_calls == 1 and conn.unlock_calls == 1
 
 
 def test_rerun_is_noop_once_recorded(tmp_path):

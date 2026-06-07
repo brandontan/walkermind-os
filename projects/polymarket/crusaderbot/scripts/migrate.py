@@ -16,10 +16,12 @@ Invoked via:  python -m crusaderbot.scripts.migrate
 from __future__ import annotations
 
 import asyncio
+import os
 
 import structlog
 
 from ..database import close_pool, run_migrations
+from ..monitoring.logging import configure_json_logging
 
 logger = structlog.get_logger(__name__)
 
@@ -40,6 +42,10 @@ async def _main() -> int:
 
 
 def main() -> None:
+    # Standalone process (Fly release machine) — main.py never runs, so configure
+    # JSON logging here or logger.info migration progress is suppressed (stdlib
+    # defaults to WARNING) and release logs are unstructured.
+    configure_json_logging(level=os.environ.get("LOG_LEVEL", "INFO"))
     raise SystemExit(asyncio.run(_main()))
 
 

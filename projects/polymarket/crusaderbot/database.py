@@ -139,6 +139,14 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 );
 """
 
+# Session-level advisory-lock key serializing concurrent migration runs. The
+# lifespan calls run_migrations on EVERY app machine at boot, so a rolling /
+# immediate deploy (or a scale-up) can boot replicas concurrently — without this
+# they would race on the same pending files (UniqueViolation / duplicate apply).
+# A session-scoped lock makes the others wait, then see a fully-populated tracker
+# and skip-all; it auto-releases if the holder's connection dies.
+_MIGRATION_ADVISORY_LOCK_KEY = 789234101
+
 
 def _discover_migrations(migrations_dir: Path) -> list[Path]:
     """All ``*.sql`` files in ``migrations_dir``, sorted by filename.
@@ -205,13 +213,14 @@ async def _apply_pending_migrations(
 
 
 async def run_migrations(
-    *, migrations_dir: Path | None = None, pool: object | None = None
+    *, migrations_dir: Path | None = None, pool: asyncpg.Pool | None = None
 ) -> list[str]:
     """Apply pending SQL migrations, tracked in ``schema_migrations``. Idempotent.
 
     Returns the filenames applied THIS run (empty when the DB is already current).
     Re-raises on a migration error (fail-loud) so the deploy ``release_command``
-    surfaces it. ``migrations_dir`` / ``pool`` are injectable for tests.
+    surfaces it. A session-level advisory lock serializes concurrent runs across
+    replicas. ``migrations_dir`` / ``pool`` are injectable for tests.
     """
     pool = pool or await init_pool()
     md = migrations_dir or MIGRATIONS_DIR
@@ -220,10 +229,17 @@ async def run_migrations(
         logger.warning("No migration files found in %s", md)
         return []
     try:
-        async with pool.acquire() as conn:  # type: ignore[attr-defined]
-            await conn.execute(_SCHEMA_MIGRATIONS_DDL)
-            applied = await _load_applied_migrations(conn)
-            newly, mismatches = await _apply_pending_migrations(conn, files, applied)
+        async with pool.acquire() as conn:
+            # Serialize concurrent migration runs (rolling/immediate deploys boot
+            # replicas in parallel); others block here then skip-all once the
+            # tracker is populated. Released in finally + on connection close.
+            await conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_ADVISORY_LOCK_KEY)
+            try:
+                await conn.execute(_SCHEMA_MIGRATIONS_DDL)
+                applied = await _load_applied_migrations(conn)
+                newly, mismatches = await _apply_pending_migrations(conn, files, applied)
+            finally:
+                await conn.execute("SELECT pg_advisory_unlock($1)", _MIGRATION_ADVISORY_LOCK_KEY)
     except Exception as exc:
         logger.error("run_migrations failed: %s", exc, exc_info=True)
         raise
