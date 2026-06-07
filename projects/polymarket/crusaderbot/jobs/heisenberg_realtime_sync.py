@@ -57,52 +57,26 @@ async def run_job() -> tuple[int, int]:
         log.exception("heisenberg_realtime_sync: fetch failed: %s", exc)
         return 0, 0
 
-    if not trades:
-        log.info("heisenberg_realtime_sync: no trades returned (window=%ds)", window)
-        # Still prune so stale rows don't accumulate when the upstream is empty.
-        return 0, await _prune(retention_hours)
-
-    upserted = 0
-    # Top-level guard so a pool/acquire failure honours the module's
-    # "never raises" contract — the APScheduler executor must never see an
-    # unhandled exception bubble up.
-    try:
-        pool = get_pool()
-        async with pool.acquire() as conn:
-            for tr in trades:
-                try:
-                    await conn.execute(
-                        """
-                        INSERT INTO heisenberg_realtime_trades
-                            (wallet, condition_id, side, price, size_usdc,
-                             trade_time, raw, fetched_at)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, NOW())
-                        ON CONFLICT (wallet, condition_id, trade_time, side)
-                        DO UPDATE SET
-                            price       = COALESCE(EXCLUDED.price, heisenberg_realtime_trades.price),
-                            size_usdc   = COALESCE(EXCLUDED.size_usdc, heisenberg_realtime_trades.size_usdc),
-                            raw         = EXCLUDED.raw,
-                            fetched_at  = NOW()
-                        """,
-                        tr.wallet, tr.condition_id, tr.side, tr.price, tr.size_usdc,
-                        tr.trade_time, json.dumps(tr.raw, default=str),
-                    )
-                    upserted += 1
-                except Exception as exc:
-                    log.warning(
-                        "heisenberg_realtime_sync: upsert failed wallet=%s cid=%s: %s",
-                        tr.wallet, tr.condition_id, exc,
-                    )
-    except Exception as exc:
-        log.exception("heisenberg_realtime_sync: db upsert phase failed: %s", exc)
-        return 0, 0
-
-    pruned = await _prune(retention_hours)
+    # WARP-82: NO durable persistence. Per the operator ruling ("real-time
+    # signals do not need durable storage"), the former UPSERT into
+    # heisenberg_realtime_trades + retention prune are removed; trades are
+    # debug-logged only. The table is dropped in migration 087.
+    #
+    # CONSEQUENCE (intentional, flagged): the durable buffer was the data source
+    # for the Playbook Sharp Money module (domain/playbook/sharp_flow.py) and the
+    # copy-trade fast-track. With no buffer, sharp_flow returns no flow (fail-soft)
+    # → Sharp Money abstains, and the fast-track has nothing to mirror. This is the
+    # accepted trade-off of killing real-time persistence.
+    for tr in trades:
+        log.debug(
+            "heisenberg_trade wallet=%s cid=%s side=%s size=%s ts=%s",
+            tr.wallet, tr.condition_id, tr.side, tr.size_usdc, tr.trade_time,
+        )
     log.info(
-        "heisenberg_realtime_sync: upserted=%d pruned=%d window=%ds elapsed=%.2fs",
-        upserted, pruned, window, time.monotonic() - t0,
+        "heisenberg_realtime_sync: fetched=%d (not persisted, WARP-82) window=%ds elapsed=%.2fs",
+        len(trades), window, time.monotonic() - t0,
     )
-    return upserted, pruned
+    return len(trades), 0
 
 
 async def _prune(retention_hours: int) -> int:

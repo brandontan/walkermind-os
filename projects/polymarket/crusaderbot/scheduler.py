@@ -34,6 +34,7 @@ from .domain.activation.auto_fallback import (
 )
 from .jobs import (
     daily_pnl_summary,
+    disk_monitor,
     heisenberg_realtime_sync,
     hourly_report,
     market_signal_scanner,
@@ -1049,6 +1050,10 @@ def setup_scheduler() -> AsyncIOScheduler:
                   id=market_signal_scanner.JOB_ID, max_instances=1, coalesce=True,
                   replace_existing=True,
                   next_run_time=datetime.now(timezone.utc))
+    # WARP-82 disk-usage safeguard — alert at 70%/85% of the DB-size cap before
+    # the next near-miss. 5-min cadence; fully fail-soft (never crashes the loop).
+    sched.add_job(disk_monitor.run_job, "interval", seconds=300,
+                  id=disk_monitor.JOB_ID, max_instances=1, coalesce=True)
     # WARP-72 Phase 2 prep — settle the factor_vectors labeled dataset: resolve the
     # realized open->close outcome for closed candle rows from the oracle ring.
     # Shadow telemetry only; gated by FACTOR_DATASET_PERSIST_ENABLED.
