@@ -84,3 +84,43 @@ def test_record_job_event_never_raises_and_no_get_pool():
 
 def test_fetch_recent_zero_limit_returns_empty():
     assert _run(job_tracker.fetch_recent(0)) == []
+
+
+# ── hour-window aggregates (back /health + hourly_report after job_runs drop) ──
+
+def _seed_ring() -> datetime:
+    """Seed the ring with a fixed mix; return a `since` cutoff at T-30m."""
+    job_tracker._recent_runs.clear()
+    now = datetime.now(timezone.utc)
+    from datetime import timedelta
+    def at(mins_ago: int):
+        return now - timedelta(minutes=mins_ago)
+    # 2 scanner successes + 1 scanner failure inside window; 1 scanner before it
+    _run(job_tracker.record_job_event(job_id="market_signal_scanner", success=True, started_at=at(5), finished_at=at(5)))
+    _run(job_tracker.record_job_event(job_id="market_signal_scanner", success=True, started_at=at(10), finished_at=at(10)))
+    _run(job_tracker.record_job_event(job_id="market_signal_scanner", success=False, error="e", started_at=at(15), finished_at=at(15)))
+    _run(job_tracker.record_job_event(job_id="redeem", success=True, started_at=at(20), finished_at=at(20)))
+    _run(job_tracker.record_job_event(job_id="market_signal_scanner", success=True, started_at=at(90), finished_at=at(90)))
+    return now - timedelta(minutes=30)
+
+
+def test_count_runs_since_total_and_filtered():
+    since = _seed_ring()
+    # 4 runs inside the 30m window (the 90m-old scanner run is excluded).
+    assert _run(job_tracker.count_runs_since(since)) == 4
+    assert _run(job_tracker.count_runs_since(since, job_id="market_signal_scanner")) == 3
+    assert _run(job_tracker.count_runs_since(since, only_failed=True)) == 1
+
+
+def test_distinct_jobs_since():
+    since = _seed_ring()
+    # Two distinct job names inside the window: scanner + redeem.
+    assert _run(job_tracker.distinct_jobs_since(since)) == 2
+
+
+def test_aggregates_tolerate_naive_since():
+    """A naive `since` must not raise (coerced to UTC) — matches the aware result."""
+    since_aware = _seed_ring()
+    since_naive = since_aware.replace(tzinfo=None)
+    assert _run(job_tracker.count_runs_since(since_naive)) == 4
+    assert _run(job_tracker.distinct_jobs_since(since_naive)) == 2

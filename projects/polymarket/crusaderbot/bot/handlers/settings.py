@@ -38,6 +38,7 @@ from ...users import get_settings_for, update_settings, upsert_user
 from ...wallet.ledger import get_balance
 from ...config import get_settings as get_app_settings
 from ...database import get_pool
+from ...domain.ops import job_tracker
 from ..keyboards import risk_picker_kb as mvp_risk_kb
 from ..roles import is_admin as _is_admin
 from ..ui.tree import md_v2_escape as _md
@@ -196,12 +197,8 @@ async def settings_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         import datetime
         now = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M UTC")
         try:
-            pool = get_pool()
-            async with pool.acquire() as conn:
-                job_rows = await conn.fetch(
-                    "SELECT job_name, status, finished_at FROM job_runs "
-                    "ORDER BY finished_at DESC LIMIT 3",
-                )
+            # In-memory ring (job_runs dropped — WARP follow-up to WARP-82).
+            job_rows = await job_tracker.fetch_recent(limit=3)
             if job_rows:
                 job_summary = "\n".join(
                     f"├ {_md(r['job_name'])}: {_md(r['status'])}" for r in job_rows
