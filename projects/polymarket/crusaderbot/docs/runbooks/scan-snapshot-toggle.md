@@ -33,7 +33,10 @@ After toggling, wait one scan tick (~30-60 s) and check:
 
 - Telegram `/health` or the Admin console still shows the bot running.
 - If you turned it ON: `market_snapshots` rows appear in Supabase table
-  view after the next tick.
+  view after the next tick — **only if the `market_snapshots` table exists**.
+  The table was dropped in WARP-82 (migration 087), so until it is recreated
+  this capture is a no-op and no rows will appear (the toggle flips cleanly,
+  but there is nowhere to write).
 - If you turned it OFF: no new rows are appended (existing rows stay).
 
 ---
