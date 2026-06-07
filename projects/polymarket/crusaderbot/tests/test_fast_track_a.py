@@ -43,11 +43,24 @@ from projects.polymarket.crusaderbot.domain.positions.registry import (
     OpenPositionForExit,
 )
 from projects.polymarket.crusaderbot.domain.risk.gate import GateResult
+from projects.polymarket.crusaderbot.domain.strategy.registry import (
+    bootstrap_default_strategies,
+)
 from projects.polymarket.crusaderbot.services.trade_engine import (
     TradeEngine,
     TradeResult,
     TradeSignal,
 )
+
+
+@pytest.fixture(autouse=True)
+def _bootstrap_strategies():
+    # WARP-85: the user_settings-NULL fallback resolves the default FROM the
+    # active strategy's default_tp_sl() hook; without a populated registry the
+    # resolver would silently take the last-resort guard instead of exercising
+    # the hook. bootstrap_default_strategies() is idempotent.
+    bootstrap_default_strategies()
+
 
 # ---------------------------------------------------------------------------
 # Shared test data

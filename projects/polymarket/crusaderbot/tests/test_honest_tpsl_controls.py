@@ -20,8 +20,20 @@ from uuid import uuid4
 
 import pytest
 
+from projects.polymarket.crusaderbot.domain.strategy.registry import (
+    bootstrap_default_strategies,
+)
 from projects.polymarket.crusaderbot.domain.strategy.types import SignalCandidate
 from projects.polymarket.crusaderbot.services.signal_scan import signal_scan_job as ssj
+
+
+@pytest.fixture(autouse=True)
+def _bootstrap_strategies():
+    # WARP-85: the user_settings-NULL fallback resolves the default FROM the
+    # active strategy's default_tp_sl() hook; without a populated registry the
+    # resolver would silently take the last-resort guard instead of exercising
+    # the hook. bootstrap_default_strategies() is idempotent.
+    bootstrap_default_strategies()
 
 
 _MIGRATIONS_DIR = (
