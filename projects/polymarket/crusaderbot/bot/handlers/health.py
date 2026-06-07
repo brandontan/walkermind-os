@@ -17,6 +17,7 @@ from telegram.ext import ContextTypes
 
 from ...config import get_settings
 from ...database import get_pool
+from ...domain.ops import job_tracker
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
 
 logger = logging.getLogger(__name__)
@@ -46,29 +47,18 @@ async def _get_health_data() -> dict:
     now = datetime.now(timezone.utc)
     since_1h = now - timedelta(hours=1)
 
+    # Job stats come from the in-memory ring (job_runs dropped — WARP follow-up
+    # to WARP-82). Signal-publication count stays in the DB.
+    last_scan = await job_tracker.fetch_latest("market_signal_scanner")
+    markets_1h = await job_tracker.count_runs_since(
+        since_1h, job_id="market_signal_scanner",
+    )
+    running_jobs = await job_tracker.distinct_jobs_since(since_1h)
+    errors_1h = await job_tracker.count_runs_since(since_1h, only_failed=True)
+
     async with pool.acquire() as conn:
-        last_scan_row = await conn.fetchrow(
-            "SELECT started_at FROM job_runs "
-            "WHERE job_name='market_signal_scanner' AND status='success' "
-            "ORDER BY started_at DESC LIMIT 1",
-        )
         signals_1h = await conn.fetchval(
             "SELECT count(*) FROM signal_publications WHERE published_at > $1", since_1h,
-        ) or 0
-        markets_1h = await conn.fetchval(
-            "SELECT count(*) FROM job_runs "
-            "WHERE job_name='market_signal_scanner' AND started_at > $1", since_1h,
-        ) or 0
-        total_jobs = await conn.fetchval(
-            "SELECT count(*) FROM job_runs WHERE started_at > $1", since_1h,
-        ) or 0
-        running_jobs = await conn.fetchval(
-            "SELECT count(DISTINCT job_name) FROM job_runs WHERE started_at > $1",
-            since_1h,
-        ) or 0
-        errors_1h = await conn.fetchval(
-            "SELECT count(*) FROM job_runs WHERE status='error' AND started_at > $1",
-            since_1h,
         ) or 0
 
     pool_obj = get_pool()
@@ -76,8 +66,8 @@ async def _get_health_data() -> dict:
     pool_max = pool_obj.get_size()
 
     last_scan_ago: str
-    if last_scan_row:
-        delta = now - last_scan_row["started_at"]
+    if last_scan and last_scan.get("started_at"):
+        delta = now - last_scan["started_at"]
         minutes = int(delta.total_seconds() // 60)
         last_scan_ago = f"{minutes}m ago"
     else:

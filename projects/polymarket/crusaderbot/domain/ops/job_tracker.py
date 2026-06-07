@@ -19,7 +19,11 @@ logger = logging.getLogger(__name__)
 # In-memory, non-durable ring of recent job outcomes. Bounded so it can never
 # grow unbounded in memory (the whole point of WARP-82 — no unbounded growth).
 # Per-process (resets on restart) — acceptable for operator job-status display.
-_RECENT_MAXLEN = 200
+# Sized to comfortably cover ~1h of high-frequency scheduler ticks so the
+# hour-window aggregates below (count_runs_since / distinct_jobs_since), which
+# now back /health + the hourly report after job_runs was dropped, stay
+# representative rather than truncated.
+_RECENT_MAXLEN = 1000
 _recent_runs: Deque[dict[str, Any]] = deque(maxlen=_RECENT_MAXLEN)
 
 
@@ -105,4 +109,43 @@ async def fetch_recent(limit: int = 10, *, only_failed: bool = False) -> list[di
         if len(out) >= limit:
             break
     return out
+
+
+async def count_runs_since(
+    since: datetime, *, job_id: str | None = None, only_failed: bool = False
+) -> int:
+    """Count ring entries started after ``since`` (aware UTC), best-effort.
+
+    Backs the former ``count(*)`` job_runs hour-window queries in /health and
+    the hourly report now that the ``job_runs`` table is dropped.
+    ``only_failed`` counts non-success outcomes (ring status is
+    ``success`` / ``failed``). Bounded by the ring size — a count over a window
+    longer than the ring retains is a lower bound, not exact.
+    """
+    n = 0
+    for r in _recent_runs:
+        ts = r.get("started_at")
+        if ts is None or ts <= since:
+            continue
+        if job_id is not None and r.get("job_name") != job_id:
+            continue
+        if only_failed and r.get("status") == "success":
+            continue
+        n += 1
+    return n
+
+
+async def distinct_jobs_since(since: datetime) -> int:
+    """Count distinct job names started after ``since`` (aware UTC). Best-effort.
+
+    Backs the former ``count(DISTINCT job_name)`` job_runs query in /health
+    (the "active jobs" figure) from the in-memory ring.
+    """
+    names: set[Any] = set()
+    for r in _recent_runs:
+        ts = r.get("started_at")
+        if ts is None or ts <= since:
+            continue
+        names.add(r.get("job_name"))
+    return len(names)
 
