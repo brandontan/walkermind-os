@@ -204,15 +204,26 @@ def profile_or_default(name: str | None) -> dict:
     return PROFILES.get((name or "balanced").lower(), PROFILES["balanced"])
 
 
-# Canonical TP/SL + capital per risk profile — the SINGLE source of truth for
-# a position's take-profit / stop-loss. Preset activation must NOT override
-# these with preset-specific values; the user's risk profile owns TP/SL so the
-# behaviour matches the Kreo reference ("auto TP/SL = user risk profile").
-# Fractions (0.20 = +20%). 'custom' has no fixed values — the user sets them.
+# WARP-83 E.2 (Path C): canonical capital + TP/SL per risk profile.
+#
+# Risk profile governs CAPITAL SIZING ONLY (capital_alloc_pct). TP/SL is a
+# STRATEGY-LEVEL property — the SAME for every profile (Balanced 150% / 50%) —
+# NOT a per-profile bundle. A tighter profile (conservative) risks fewer dollars
+# via a smaller capital allocation; it does NOT exit faster. The previous
+# per-profile TP/SL values (10/5, 20/15, 30/20) were a UX-deception: they were
+# written into user_settings on profile/preset activation but the strategy
+# applied a hardcoded 150/50 anyway, so the configured numbers were silently
+# ignored. The user's configured user_settings.tp_pct / sl_pct is now the single
+# source of truth the strategy reads at entry; these defaults seed it to the
+# strategy default for non-custom profiles. Fractions (1.5 = +150%). 'custom'
+# has no fixed TP/SL — the user supplies them (advanced override).
+STRATEGY_DEFAULT_TP_PCT: float = 1.5
+STRATEGY_DEFAULT_SL_PCT: float = 0.5
+
 PROFILE_TP_SL: dict[str, dict[str, float]] = {
-    "conservative": {"capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
-    "balanced":     {"capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
-    "aggressive":   {"capital_alloc_pct": 0.60, "tp_pct": 0.30, "sl_pct": 0.20},
+    "conservative": {"capital_alloc_pct": 0.20, "tp_pct": STRATEGY_DEFAULT_TP_PCT, "sl_pct": STRATEGY_DEFAULT_SL_PCT},
+    "balanced":     {"capital_alloc_pct": 0.40, "tp_pct": STRATEGY_DEFAULT_TP_PCT, "sl_pct": STRATEGY_DEFAULT_SL_PCT},
+    "aggressive":   {"capital_alloc_pct": 0.60, "tp_pct": STRATEGY_DEFAULT_TP_PCT, "sl_pct": STRATEGY_DEFAULT_SL_PCT},
 }
 
 
