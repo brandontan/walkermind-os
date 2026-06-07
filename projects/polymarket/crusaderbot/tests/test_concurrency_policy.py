@@ -80,6 +80,7 @@ def _patch_clear(
     open_count=0,
     open_exp=0.0,
     kill_switch=False,
+    capital_alloc_pct=0.40,
 ):
     monkeypatch.setattr(gate_mod, "_log", AsyncMock(return_value=None))
     monkeypatch.setattr(gate_mod, "daily_pnl", AsyncMock(return_value=Decimal(str(pnl))))
@@ -87,6 +88,11 @@ def _patch_clear(
     monkeypatch.setattr(gate_mod, "_max_drawdown_breached", AsyncMock(return_value=dd))
     monkeypatch.setattr(gate_mod, "_open_position_count", AsyncMock(return_value=open_count))
     monkeypatch.setattr(gate_mod, "_open_exposure", AsyncMock(return_value=Decimal(str(open_exp))))
+    # Step 8 reads the per-user risk-profile CAP% (capital_alloc_pct) as the
+    # total-deployment ceiling (added by the risk-profile-capital lane / #1694).
+    # Mock it so these concurrency tests don't hit the real DB pool.
+    monkeypatch.setattr(gate_mod, "_capital_alloc_pct",
+                        AsyncMock(return_value=float(capital_alloc_pct)))
     monkeypatch.setattr(gate_mod, "kill_switch_is_active", AsyncMock(return_value=kill_switch))
     monkeypatch.setattr(gate_mod, "_record_idempotency", AsyncMock(return_value=None))
     monkeypatch.setattr(gate_mod, "_idempotent_already_seen", AsyncMock(return_value=False))
