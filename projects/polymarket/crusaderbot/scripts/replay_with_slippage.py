@@ -202,37 +202,62 @@ class DefaultSlippageModel:
         return total
 
 
-def resolve_slippage_model() -> SlippageModel:
-    """Return the Sub-Lane A estimator if importable, else the built-in default.
+class CalibratedSlippageModel:
+    """Adapter wrapping the Sub-Lane A calibrated estimator as a :class:`SlippageModel`.
 
-    The fallback is LOGGED (``slippage_estimator_fallback``) — never silently
-    swallowed — so a missing Sub-Lane A module is visible in the run output and
-    the engine auto-upgrades once that lane merges. Any unexpected import error is
+    The merged ``domain/research/slippage_estimator.py`` exposes a pure function
+    ``estimate_slippage_bps(**kwargs) -> SlippageEstimate`` — a keyword-only factor
+    API that does NOT match this engine's ``SlippageModel`` Protocol
+    (``__call__(SlippageInputs) -> float``) directly. This thin, typed adapter
+    reconciles the two: it maps the engine's per-trade :class:`SlippageInputs` onto
+    the estimator's kwargs and returns ``SlippageEstimate.total_bps``.
+
+    Input mapping (engine -> estimator)::
+
+        size_usdc            -> stake_usdc
+        orderbook_depth_usdc -> orderbook_depth_usdc
+        spread               -> spread
+        entry_price          -> entry_price
+        (no live price)      -> current_price = entry_price
+
+    The engine's :class:`SlippageInputs` surface carries no live ``current_price``
+    (the replay reconstructs entry-time factors only), so ``current_price`` is set
+    equal to ``entry_price``. That yields a zero ``adverse_move_bps`` component by
+    construction — the replay charges spread + impact, not realized post-entry
+    drift, which it has no data for. This is explicit, not a silent default.
+    """
+
+    def __init__(self, estimate_fn: Any) -> None:
+        self._estimate_fn = estimate_fn
+
+    def __call__(self, x: SlippageInputs) -> float:
+        estimate = self._estimate_fn(
+            stake_usdc=x.size_usdc,
+            orderbook_depth_usdc=x.orderbook_depth_usdc,
+            spread=x.spread,
+            entry_price=x.entry_price,
+            current_price=x.entry_price,
+        )
+        return float(estimate.total_bps)
+
+
+def resolve_slippage_model() -> SlippageModel:
+    """Return the Sub-Lane A calibrated estimator if importable, else the default.
+
+    Sub-Lane A merged ``estimate_slippage_bps`` (a keyword-only factor function,
+    NOT a ``build_slippage_model`` factory), so this wraps it in
+    :class:`CalibratedSlippageModel` to satisfy the engine's Protocol. The fallback
+    is LOGGED (``slippage_estimator_fallback``) — never silently swallowed — so a
+    missing module is visible in the run output. Any unexpected import error is
     also logged and degrades to the default rather than aborting the replay.
     """
-    try:
-        from domain.research.slippage_estimator import (  # type: ignore  # noqa: E402
-            build_slippage_model,
-        )
-    except ImportError as exc:
-        logger.info(
-            "slippage_estimator_fallback",
-            reason="domain.research.slippage_estimator not importable "
-            "(Sub-Lane A not merged yet) — using DefaultSlippageModel",
-            error=str(exc),
-        )
-        return DefaultSlippageModel()
-    except Exception as exc:  # noqa: BLE001 — never abort the replay on a bad import
-        logger.warning(
-            "slippage_estimator_import_error",
-            error=str(exc),
-            action="degraded to DefaultSlippageModel",
-        )
+    estimate_fn = _import_estimate_slippage_bps()
+    if estimate_fn is None:
         return DefaultSlippageModel()
 
     try:
-        model = build_slippage_model()
-    except Exception as exc:  # noqa: BLE001 — bad factory degrades, not aborts
+        model: SlippageModel = CalibratedSlippageModel(estimate_fn)
+    except Exception as exc:  # noqa: BLE001 — bad adapter degrades, not aborts
         logger.warning(
             "slippage_estimator_build_failed",
             error=str(exc),
@@ -241,7 +266,90 @@ def resolve_slippage_model() -> SlippageModel:
         return DefaultSlippageModel()
 
     logger.info("slippage_estimator_loaded", source="domain.research.slippage_estimator")
-    return model  # type: ignore[return-value]
+    return model
+
+
+def _import_estimate_slippage_bps() -> Optional[Any]:
+    """Resolve Sub-Lane A's ``estimate_slippage_bps`` across both import roots.
+
+    The repo runs under two import roots: pytest uses the repo root (package
+    ``projects.polymarket.crusaderbot.*``) while the bot/scripts insert the
+    crusaderbot dir as root (top-level ``domain`` / ``database``). The
+    ``domain.research`` package ``__init__`` eagerly imports ``robustness``,
+    whose ``from ...database import`` only resolves under the repo root — so the
+    plain ``from domain.research.slippage_estimator import ...`` raises
+    ImportError under the script's own runtime root, even though the estimator
+    leaf module itself has no intra-package imports.
+
+    Strategy (each step LOGGED, never silently swallowed):
+      1. Normal package import (works under the repo/pytest root).
+      2. Direct file load of the leaf module via importlib, bypassing the
+         ``domain/research/__init__`` chain (works under the crusaderbot root).
+      3. Return ``None`` -> caller degrades to ``DefaultSlippageModel``.
+    """
+    try:
+        from domain.research.slippage_estimator import (  # type: ignore  # noqa: E402
+            estimate_slippage_bps,
+        )
+
+        return estimate_slippage_bps
+    except ImportError as exc:
+        logger.info(
+            "slippage_estimator_package_import_failed",
+            reason="domain.research.__init__ chain not importable under this "
+            "runtime root — trying direct leaf-module load",
+            error=str(exc),
+        )
+    except Exception as exc:  # noqa: BLE001 — any __init__-chain error must still
+        # degrade to the direct leaf load, never crash the replay.
+        logger.warning(
+            "slippage_estimator_package_import_error",
+            error=str(exc),
+            action="trying direct leaf-module load",
+        )
+
+    leaf = _PROJECT_ROOT / "domain" / "research" / "slippage_estimator.py"
+    if not leaf.is_file():
+        logger.info(
+            "slippage_estimator_fallback",
+            reason="estimator leaf module not found (Sub-Lane A not merged yet) "
+            "— using DefaultSlippageModel",
+            path=str(leaf),
+        )
+        return None
+
+    try:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "_slippage_estimator_leaf", leaf
+        )
+        if spec is None or spec.loader is None:
+            raise ImportError(f"could not build import spec for {leaf}")
+        module = importlib.util.module_from_spec(spec)
+        # Register before exec so dataclass / typing resolution can find the
+        # module by name during its own import side effects.
+        sys.modules[spec.name] = module
+        try:
+            spec.loader.exec_module(module)
+        except Exception:
+            # Don't leave a half-initialised module in the registry — pop it so a
+            # later retry / other code sees a clean sys.modules.
+            sys.modules.pop(spec.name, None)
+            raise
+        logger.info(
+            "slippage_estimator_loaded_direct",
+            source=str(leaf),
+            note="bypassed domain.research.__init__ chain",
+        )
+        return module.estimate_slippage_bps
+    except Exception as exc:  # noqa: BLE001 — never abort the replay on a bad import
+        logger.warning(
+            "slippage_estimator_direct_load_failed",
+            error=str(exc),
+            action="degraded to DefaultSlippageModel",
+        )
+        return None
 
 
 # ---------------------------------------------------------------------------

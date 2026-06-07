@@ -106,6 +106,18 @@ class Settings(BaseSettings):
     # --- Heisenberg / Falcon API (market data + signal enrichment) ---
     HEISENBERG_API_TOKEN: Optional[str] = None
 
+    # --- DB retention (prevent unbounded operational-table growth) ---
+    # WARP•R00T follow-up to the WARP-82 disk-full P0: disk_monitor only ALERTS,
+    # it never frees space. The db_retention job prunes operational time-series
+    # tables beyond these windows (idempotency_keys keys off its own expires_at).
+    # Generous defaults — well clear of any read path; audit.log + core trading
+    # tables are deliberately never auto-pruned. Default ON so the DB self-limits.
+    DB_RETENTION_ENABLED: bool = True
+    DB_RETENTION_SYSTEM_ALERTS_DAYS: int = 30
+    DB_RETENTION_SCAN_RUNS_DAYS: int = 30
+    DB_RETENTION_PORTFOLIO_SNAPSHOTS_DAYS: int = 90
+    DB_RETENTION_EXECUTION_QUEUE_DAYS: int = 30
+
     # --- Heisenberg agent 556 (real-time trades) buffer ---
     # Triple-gated foundation lane: scheduler registers the sync job only when
     # this flag is on. Default OFF so the buffer table sits idle until WARP🔹CMD
@@ -805,6 +817,20 @@ class Settings(BaseSettings):
     # DB-only = phantom open) pages the operator. Alert-only — never auto-cancels.
     ORDER_DRIFT_DETECT_ENABLED: bool = True
     ORDER_DRIFT_INTERVAL_SEC: int = 600
+
+    @field_validator(
+        "DB_RETENTION_SYSTEM_ALERTS_DAYS",
+        "DB_RETENTION_SCAN_RUNS_DAYS",
+        "DB_RETENTION_PORTFOLIO_SNAPSHOTS_DAYS",
+        "DB_RETENTION_EXECUTION_QUEUE_DAYS",
+    )
+    @classmethod
+    def validate_db_retention_days(cls, v: int) -> int:
+        # Retention windows feed a DELETE job — a 0/negative value would prune
+        # active/recent rows. Fail fast at config load rather than lose data.
+        if v <= 0:
+            raise ValueError(f"DB retention days must be strictly positive (got {v}).")
+        return v
 
     @field_validator("LIVE_RECONCILE_INTERVAL_SEC", "ORDER_DRIFT_INTERVAL_SEC")
     @classmethod
