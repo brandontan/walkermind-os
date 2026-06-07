@@ -102,13 +102,10 @@ async def _log(user_id: UUID, market_id: str, step: int,
             try:
                 import sentry_sdk
                 sentry_sdk.capture_message(
-                    f"risk_gate reject step={step} reason={reason}",
+                    f"risk_gate reject step={step} user={user_id} "
+                    f"market={market_id} reason={reason}",
                     level="warning",
                 )
-                with sentry_sdk.configure_scope() as scope:  # type: ignore[attr-defined]
-                    scope.set_extra("user_id", str(user_id))
-                    scope.set_extra("market_id", market_id)
-                    scope.set_extra("gate_step", step)
             except Exception:  # noqa: BLE001 — sentry optional, never break the gate
                 pass
             logger.warning(

@@ -83,8 +83,9 @@ async def record_market_snapshots(
     """
     if not markets:
         return 0
-    # Debug-only visibility; never persisted.
-    logger.debug("market_snapshots_skipped count=%d (durable persistence killed, WARP-82)", len(markets))
+    # Debug-only visibility; never persisted. structlog → keyword fields.
+    logger.debug("market_snapshots_skipped", count=len(markets),
+                 detail="durable persistence killed (WARP-82)")
     return 0
 
 

@@ -50,7 +50,7 @@ async def run_job(*, pool: Any | None = None) -> Optional[str]:
             throttled = await conn.fetchval(
                 "SELECT 1 FROM system_alerts "
                 "WHERE severity = $1 AND metadata->>'alert_type' = 'disk_usage' "
-                "AND created_at > NOW() - make_interval(secs => $2) LIMIT 1",
+                "AND created_at > NOW() - ($2 * INTERVAL '1 second') LIMIT 1",
                 severity, _THROTTLE_SECONDS,
             )
             if throttled:
