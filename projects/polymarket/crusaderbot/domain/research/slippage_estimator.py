@@ -132,8 +132,12 @@ def _participation_ratio(
         or orderbook_depth_usdc <= MIN_USABLE_DEPTH_USDC
     ):
         return (ILLIQUID_PARTICIPATION_CEILING, True)
-    if not math.isfinite(stake_usdc) or stake_usdc <= 0.0:
+    if math.isnan(stake_usdc) or stake_usdc <= 0.0:
         return (0.0, False)
+    if math.isinf(stake_usdc):
+        # An infinitely large order is maximally illiquid, not zero-impact:
+        # clamp to the ceiling so downstream impact is not understated.
+        return (ILLIQUID_PARTICIPATION_CEILING, False)
     ratio = stake_usdc / orderbook_depth_usdc
     return (min(ratio, ILLIQUID_PARTICIPATION_CEILING), False)
 

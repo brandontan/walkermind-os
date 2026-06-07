@@ -152,6 +152,21 @@ def test_non_finite_inputs_do_not_propagate_nan() -> None:
     assert est.adverse_move_bps == 0.0  # nan current_price -> no move term
 
 
+def test_infinite_stake_clamps_to_illiquid_ceiling() -> None:
+    # An infinite stake must be treated as maximally illiquid (clamped to the
+    # ceiling), NOT coerced to zero market impact — the latter would tell a
+    # downstream sizing/EV model an unbounded order is free, which is dangerous.
+    est = estimate_slippage_bps(
+        stake_usdc=float("inf"),
+        orderbook_depth_usdc=10_000.0,
+        spread=1.0,
+        entry_price=0.50,
+    )
+    assert est.participation_ratio == pytest.approx(ILLIQUID_PARTICIPATION_CEILING)
+    assert est.impact_bps > 0.0
+    assert math.isfinite(est.total_bps)
+
+
 # --- adverse price move ------------------------------------------------------
 
 
