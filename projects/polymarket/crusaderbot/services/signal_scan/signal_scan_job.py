@@ -79,6 +79,18 @@ logger = structlog.get_logger(__name__)
 
 _STRATEGY_NAME = "signal_following"
 
+# WARP-83 E.2 (Path C) — strategy-level default TP/SL.
+# TP/SL is a STRATEGY-LEVEL property (Balanced 150% / 50%) that is the SAME for
+# every risk profile; the risk profile governs CAPITAL SIZING only
+# (capital_alloc_pct + max_position_pct), never the exit thresholds. The source
+# of truth the strategy reads at entry is ``user_settings.tp_pct / sl_pct``.
+# These constants are ONLY the defensive fallback applied (and logged) when the
+# user_settings value is NULL/missing — they must never silently shadow a
+# configured user value. Migration 089 backfills user_settings to exactly these
+# values, so the fallback is a safety net, not the normal path.
+_DEFAULT_STRATEGY_TP_PCT: float = 1.5
+_DEFAULT_STRATEGY_SL_PCT: float = 0.5
+
 # Maximum age of a signal_publication before it is rejected for execution.
 # Signals older than this window have stale entry prices — the market has
 # already moved, making fills unrealistic. 30 minutes is conservative;
@@ -1883,6 +1895,34 @@ def _build_trade_signal(
             fallback_size_usdc=str(_base_size),
         )
 
+    # WARP-83 E.2 (Path C) — resolve TP/SL from user_settings (single source of
+    # truth). The strategy reads the user's configured exit thresholds LITERALLY;
+    # there is no per-rule TP/SL bundle and no risk-profile-driven TP/SL. When a
+    # user_settings value is NULL/missing (legacy row, pre-089 backfill, schema
+    # gap) we fall back to the Balanced strategy default (150% / 50%) and LOG it
+    # — never a silent default. Migration 089 backfills every row to exactly
+    # these values so in steady state the fallback never fires.
+    _tp_raw = row.get("tp_pct")
+    _sl_raw = row.get("sl_pct")
+    if _tp_raw is not None:
+        _resolved_tp_pct: float = float(_tp_raw)
+    else:
+        _resolved_tp_pct = _DEFAULT_STRATEGY_TP_PCT
+        logger.warning(
+            "user_settings_tp_pct_missing_defensive_fallback",
+            user_id=str(row["user_id"]),
+            fallback_tp_pct=_DEFAULT_STRATEGY_TP_PCT,
+        )
+    if _sl_raw is not None:
+        _resolved_sl_pct: float = float(_sl_raw)
+    else:
+        _resolved_sl_pct = _DEFAULT_STRATEGY_SL_PCT
+        logger.warning(
+            "user_settings_sl_pct_missing_defensive_fallback",
+            user_id=str(row["user_id"]),
+            fallback_sl_pct=_DEFAULT_STRATEGY_SL_PCT,
+        )
+
     return TradeSignal(
         user_id=UUID(str(row["user_id"])),
         telegram_user_id=int(row["telegram_user_id"]),
@@ -1908,20 +1948,13 @@ def _build_trade_signal(
         # step 12's MIN_EDGE_BPS floor then actually fires. Heuristic strategies
         # that do not measure EV return None and stay ungated by step 12.
         edge_bps=_edge_bps_from_metadata(cand.metadata),
-        # Per-rule TP/SL override: the candle_auto router stamps applied_tp_pct /
-        # applied_sl_pct into candidate metadata so each lifecycle rule keeps its
-        # own exit (flip holds longer than close). Any other strategy leaves these
-        # keys unset → falls through to the user-level tp/sl unchanged.
-        tp_pct=(
-            float(cand.metadata["applied_tp_pct"])
-            if isinstance(cand.metadata, dict) and cand.metadata.get("applied_tp_pct") is not None
-            else (float(row["tp_pct"]) if row.get("tp_pct") is not None else None)
-        ),
-        sl_pct=(
-            float(cand.metadata["applied_sl_pct"])
-            if isinstance(cand.metadata, dict) and cand.metadata.get("applied_sl_pct") is not None
-            else (float(row["sl_pct"]) if row.get("sl_pct") is not None else None)
-        ),
+        # WARP-83 E.2 (Path C): TP/SL is sourced from user_settings (single
+        # source of truth), resolved above with a logged defensive fallback to
+        # the Balanced strategy default when the column is NULL. No per-rule /
+        # per-profile TP/SL bundle is applied — risk profile governs capital
+        # sizing only.
+        tp_pct=_resolved_tp_pct,
+        sl_pct=_resolved_sl_pct,
         daily_loss_override=(
             float(row["daily_loss_override"])
             if row.get("daily_loss_override") is not None
@@ -3659,28 +3692,12 @@ _ALL_CANDLE_PRESETS: frozenset[str] = _CANDLE_PRESETS | {_CANDLE_AUTO_PRESET}
 # time-disjoint from the two favorite rules, so it never conflicts on side.
 _CANDLE_AUTO_RULE_ORDER: tuple[str, ...] = ("close_sweep", "safe_close", "flip_hunter")
 
-
-def _candle_auto_rule_tpsl(rule: str) -> tuple[float | None, float | None]:
-    """Per-rule TP/SL for the candle_auto router, sourced from the canonical
-    domain ``PRESETS`` so there is a single source of truth (no new magic
-    numbers). Returns ``(None, None)`` when the rule or its TP/SL is unavailable,
-    in which case the user-level default tp/sl applies unchanged.
-    """
-    try:
-        # Relative import kept deliberately: this file imports domain via
-        # `from ...domain...` throughout, and production runs the package as
-        # `crusaderbot.*` (Dockerfile `uvicorn crusaderbot.main:app`) — an
-        # absolute `projects.polymarket.crusaderbot.*` import would ModuleNotFound
-        # at runtime. Per-field None guard so a future schema change can't raise.
-        from ...domain.preset.presets import PRESETS as _P
-        p = _P.get(rule)
-        if p is None:
-            return (None, None)
-        tp = float(p.tp_pct) if p.tp_pct is not None else None
-        sl = float(p.sl_pct) if p.sl_pct is not None else None
-        return (tp, sl)
-    except Exception:
-        return (None, None)
+# WARP-83 E.2 (Path C): the former ``_candle_auto_rule_tpsl`` helper (which
+# sourced per-rule TP/SL from PRESETS and stamped it into candidate metadata)
+# was REMOVED. Per-rule TP/SL bundles were the UX-deception bug — they silently
+# overrode user_settings.tp_pct / sl_pct. TP/SL is now a strategy-level property
+# sourced exclusively from user_settings in _build_trade_signal. The PRESETS
+# tp_pct / sl_pct fields remain only as display/sizing metadata for the picker.
 
 
 # --- WARP-64 Chunk 3: advisory oracle-edge wiring -----------------------------
@@ -3999,7 +4016,6 @@ async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_fi
             except Exception as exc:
                 logger.warning("candle_auto_subrule_scan_failed", rule=rule, error=str(exc))
                 continue
-            tp, sl = _candle_auto_rule_tpsl(rule)
             for c in cands:
                 _scorer_shadow_observe(shadow, c, rule)
                 if c.market_id in seen:
@@ -4007,18 +4023,24 @@ async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_fi
                 seen.add(c.market_id)
                 # SignalCandidate is frozen, but .metadata is a mutable dict —
                 # these keys ride to positions.strategy_metadata and are read
-                # back at exit (TP/SL via _build_trade_signal override below;
-                # force_exit via exit_watcher's strategy_metadata fallback).
+                # back at exit (force_exit via the exit_watcher's
+                # strategy_metadata fallback). The per-rule exit *timing*
+                # (force_exit_at_rem_sec / fav_price_min/max) is stamped inside
+                # scan(); the per-rule *candle_rule* tag stays for audit/exit.
                 c.metadata["candle_rule"] = rule
                 # WARP-72 Phase 1: stamp WHICH rule the precedence router picked
                 # for this market (shadow label; first to claim by dedup wins).
                 # Advisory only — does NOT change selection.
                 mark_router_selection(c.metadata, rule)
                 await _persist_factor_router_selection(c.condition_id, rule)
-                if tp is not None:
-                    c.metadata["applied_tp_pct"] = tp
-                if sl is not None:
-                    c.metadata["applied_sl_pct"] = sl
+                # WARP-83 E.2 (Path C): the candle_auto router NO LONGER stamps
+                # applied_tp_pct / applied_sl_pct. TP/SL is a strategy-level
+                # property sourced from user_settings.tp_pct / sl_pct (single
+                # source of truth) in _build_trade_signal — NOT a per-rule
+                # bundle. Stamping per-rule TP/SL here was the UX-deception bug:
+                # it silently overrode the user's configured exit thresholds
+                # (e.g. forced flip_hunter 150/50 onto every candle_auto entry
+                # regardless of the user's UI setting).
                 merged.append(c)
         await _maybe_emit_scorer_shadow(shadow)
         return merged

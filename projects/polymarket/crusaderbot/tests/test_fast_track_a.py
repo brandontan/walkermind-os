@@ -928,15 +928,21 @@ class TestScanPathTradeEngineIntegration:
         assert sig.tp_pct == pytest.approx(0.30)
         assert sig.sl_pct == pytest.approx(0.15)
 
-    def test_build_trade_signal_none_tp_sl_when_row_missing(self):
-        """Missing TP/SL in row produces None fields on TradeSignal."""
+    def test_build_trade_signal_defensive_fallback_when_row_missing(self):
+        """WARP-83 E.2 (Path C): missing TP/SL in user_settings falls back to the
+        logged strategy default (150% / 50%), NOT None — a position must never be
+        opened without an exit. The fallback is the safety net; migration 089
+        backfills every row so it does not fire in steady state."""
+        import projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job as _ssj
         row = {**_make_scan_row(), "tp_pct": None, "sl_pct": None}
         sig = _build_trade_signal(
             row=row, cand=_make_scan_cand(), market=_make_scan_market(),
             idempotency_key="k4", live_price_override=0.60,
         )
-        assert sig.tp_pct is None
-        assert sig.sl_pct is None
+        assert sig.tp_pct == pytest.approx(_ssj._DEFAULT_STRATEGY_TP_PCT)
+        assert sig.sl_pct == pytest.approx(_ssj._DEFAULT_STRATEGY_SL_PCT)
+        assert sig.tp_pct == pytest.approx(1.5)
+        assert sig.sl_pct == pytest.approx(0.5)
 
 
 # ---------------------------------------------------------------------------

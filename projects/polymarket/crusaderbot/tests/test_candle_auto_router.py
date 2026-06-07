@@ -3,15 +3,20 @@
 candle_auto is an additive 4th candle preset whose internal key stays
 ``candle_auto`` (the user-facing label is "Smart Strike"). It routes to the same
 ``late_entry_v3`` engine as the three single-rule candle presets, but per market
-picks whichever rule fits the candle's stage and stamps that rule's exit (TP/SL +
-force-exit) into the candidate metadata so each entry keeps its own exit.
+picks whichever rule fits the candle's stage and stamps that rule's force-exit
+TIMING into the candidate metadata so each entry keeps its own exit window.
+
+WARP-83 E.2 (Path C): TP/SL is NO LONGER a per-rule bundle stamped by the
+router. It is a strategy-level property sourced from user_settings.tp_pct /
+sl_pct in _build_trade_signal. These tests now assert the router does NOT stamp
+applied_tp_pct / applied_sl_pct.
 
 These tests pin:
   * preset wiring (registered, visible, routes to late_entry_v3, NOT a member of
     _CANDLE_PRESETS so the single-rule param dispatch is unaffected),
-  * the per-rule TP/SL source (canonical domain PRESETS — no magic numbers),
+  * the per-rule TP/SL helper is removed (no per-rule TP/SL bundle),
   * the router merge: scans each rule, dedups by market_id with close_sweep >
-    safe_close > flip_hunter precedence, stamps candle_rule + applied tp/sl,
+    safe_close > flip_hunter precedence, stamps candle_rule (no TP/SL),
   * the single-preset path stays a single scan() with no router stamping.
 """
 from __future__ import annotations
@@ -103,13 +108,11 @@ def test_candle_auto_scanner_gating():
     assert _CANDLE_AUTO not in ssj._CANDLE_PRESETS
 
 
-def test_candle_auto_rule_tpsl_from_canonical_presets():
-    for rule in ("close_sweep", "safe_close", "flip_hunter"):
-        tp, sl = ssj._candle_auto_rule_tpsl(rule)
-        assert tp == pytest.approx(dp.PRESETS[rule].tp_pct)
-        assert sl == pytest.approx(dp.PRESETS[rule].sl_pct)
-    # unknown rule → (None, None) → user-level tp/sl applies unchanged
-    assert ssj._candle_auto_rule_tpsl("nope") == (None, None)
+def test_candle_auto_rule_tpsl_helper_removed():
+    # WARP-83 E.2 (Path C): the per-rule TP/SL helper was removed — TP/SL is no
+    # longer a per-rule bundle; it is sourced from user_settings in
+    # _build_trade_signal. The helper must not exist any more.
+    assert not hasattr(ssj, "_candle_auto_rule_tpsl")
 
 
 # ---------------------------------------------------------------------------
@@ -142,12 +145,13 @@ def test_router_merges_dedups_and_stamps(monkeypatch):
     assert by_market["M_SAFE"].metadata["candle_rule"] == "safe_close"
     assert by_market["M_FLIP"].metadata["candle_rule"] == "flip_hunter"
 
-    # per-rule TP/SL stamped from canonical PRESETS so the exit stays per-rule
-    flip = by_market["M_FLIP"]
-    assert flip.metadata["applied_tp_pct"] == pytest.approx(dp.PRESETS["flip_hunter"].tp_pct)
-    assert flip.metadata["applied_sl_pct"] == pytest.approx(dp.PRESETS["flip_hunter"].sl_pct)
-    close = by_market["M_CLOSE"]
-    assert close.metadata["applied_tp_pct"] == pytest.approx(dp.PRESETS["close_sweep"].tp_pct)
+    # WARP-83 E.2 (Path C): the router NO LONGER stamps per-rule TP/SL into the
+    # candidate metadata. TP/SL is sourced from user_settings in
+    # _build_trade_signal — the deception bug (forcing per-rule 150/50 over the
+    # user's UI config) is gone. The candle_rule tag (exit-timing context) stays.
+    for mid in ("M_FLIP", "M_CLOSE", "M_SAFE", "M_OVERLAP"):
+        assert "applied_tp_pct" not in by_market[mid].metadata
+        assert "applied_sl_pct" not in by_market[mid].metadata
 
 
 def test_router_subrule_failure_isolated(monkeypatch):

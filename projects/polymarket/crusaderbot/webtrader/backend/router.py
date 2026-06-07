@@ -1222,11 +1222,11 @@ _FLIP_HUNTER_TF_PARAMS: dict[str, dict[str, float]] = {
 
 _VALID_RISK_PROFILES: frozenset[str] = frozenset({"conservative", "balanced", "aggressive", "custom"})
 
-_RISK_PROFILE_DEFAULTS: dict[str, dict[str, float]] = {
-    "conservative": {"capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
-    "balanced":     {"capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
-    "aggressive":   {"capital_alloc_pct": 0.60, "tp_pct": 0.30, "sl_pct": 0.20},
-}
+# WARP-83 E.2 (Path C): non-custom profile defaults source TP/SL from the
+# canonical domain PROFILE_TP_SL (single source of truth) — TP/SL is a
+# strategy-level property (150/50) identical across profiles; only
+# capital_alloc_pct differs per profile. No duplicated TP/SL numbers here.
+from ...domain.risk.constants import PROFILE_TP_SL as _RISK_PROFILE_DEFAULTS
 
 
 @router.post("/autotrade/preset")
@@ -1244,9 +1244,12 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
         )
     pool = get_pool()
     user_id = user["user_id"]
-    # TP/SL follow the RISK PROFILE, not the preset (Kreo parity). The preset
-    # still routes strategy + capital + window, but take-profit / stop-loss are
-    # owned by the user's risk profile so they stay consistent across presets.
+    # WARP-83 E.2 (Path C): TP/SL is a strategy-level property (150/50), the same
+    # for every profile, NOT preset- or profile-specific. The preset still routes
+    # strategy + capital + window; tp_sl_for_profile now returns the strategy
+    # default for all non-custom profiles so activation seeds user_settings with
+    # the honest default (the strategy reads user_settings as source of truth).
+    # A user's prior custom TP/SL override is preserved by the COALESCE on write.
     from ...domain.risk.constants import tp_sl_for_profile
     params = dict(_PRESET_PARAMS[body.preset_key])
     _profile_ts = tp_sl_for_profile(str(params.get("risk_profile") or "balanced"))

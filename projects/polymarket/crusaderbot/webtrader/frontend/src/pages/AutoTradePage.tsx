@@ -167,11 +167,23 @@ const CRYPTO_ASSETS_DEFAULT: readonly string[] = ["BTC", "ETH"];
 
 // ── Section B: Risk Profiles ──────────────────────────────────────────────────
 
+// WARP-83 E.2 (Path C): risk profiles govern CAPITAL SIZING ONLY (capital % +
+// max position %). TP/SL is a STRATEGY-LEVEL property — the SAME for every
+// profile (Balanced 150% / 50%) — sourced from user_settings.tp_pct / sl_pct.
+// Conservative "risks fewer dollars, it does not exit faster": it uses a smaller
+// capital allocation but the same TP/SL as Balanced. The per-profile tp/sl
+// numbers shown previously were a UX-deception bug (they implied a per-profile
+// exit bundle that the strategy never actually applied). Cards now display TP/SL
+// as informational strategy-level values; the advanced Custom Risk block below
+// is the only place an override can be entered (with an explicit warning).
+const STRATEGY_TP_PCT = 150;
+const STRATEGY_SL_PCT = 50;
+
 const RISK_PROFILES = [
-  { key: "conservative" as const, name: "Conservative", emoji: "🟢", capital: 20, tp: 10,  sl: 5  },
-  { key: "balanced"     as const, name: "Balanced",     emoji: "🟡", capital: 40, tp: 20,  sl: 15 },
-  { key: "aggressive"   as const, name: "Aggressive",   emoji: "🔴", capital: 60, tp: 30,  sl: 20 },
-  { key: "custom"       as const, name: "Custom Risk",  emoji: "⚙️", capital: null, tp: null, sl: null },
+  { key: "conservative" as const, name: "Conservative", emoji: "🟢", capital: 20 },
+  { key: "balanced"     as const, name: "Balanced",     emoji: "🟡", capital: 40 },
+  { key: "aggressive"   as const, name: "Aggressive",   emoji: "🔴", capital: 60 },
+  { key: "custom"       as const, name: "Custom Risk",  emoji: "⚙️", capital: null },
 ];
 
 const riskColor: Record<string, string> = {
@@ -196,8 +208,11 @@ export function AutoTradePage() {
 
   // Custom risk inputs
   const [customCapital, setCustomCapital] = useState("20");
-  const [customTp, setCustomTp]           = useState("15");
-  const [customSl, setCustomSl]           = useState("10");
+  // WARP-83 E.2 (Path C): seed the advanced override inputs with the strategy
+  // default TP/SL (150% / 50%) so the starting point matches what the strategy
+  // actually applies, not a misleading lower value.
+  const [customTp, setCustomTp]           = useState(String(STRATEGY_TP_PCT));
+  const [customSl, setCustomSl]           = useState(String(STRATEGY_SL_PCT));
   const [customErr, setCustomErr]         = useState<string | null>(null);
   const [savingRisk, setSavingRisk]       = useState(false);
   // Surface preset/timeframe/asset toggle errors so a 400 from the
@@ -932,7 +947,9 @@ export function AutoTradePage() {
         {/* ── SECTION B: Risk Profile ── */}
         <SectionTitle>Risk Profile</SectionTitle>
         <p className="text-ink-3 text-xs font-mono mb-3 mx-0.5">
-          Controls capital %, take profit, and stop loss. Applies to all trade types.
+          Controls how much capital is deployed. Take profit / stop loss are set by
+          the strategy ({STRATEGY_TP_PCT}% / {STRATEGY_SL_PCT}%) and are the same for
+          every profile — a tighter profile risks fewer dollars, it does not exit faster.
         </p>
 
         {/* Profile picker comes first — pick the profile, then fine-tune the
@@ -963,16 +980,26 @@ export function AutoTradePage() {
                   </div>
                 )}
                 <div className="space-y-1">
-                  {[
-                    { label: "CAP", val: `${rp.capital}%` },
-                    { label: "TP",  val: `+${rp.tp}%` },
-                    { label: "SL",  val: `-${rp.sl}%` },
-                  ].map(({ label, val }) => (
-                    <div key={label} className="flex justify-between items-center">
-                      <span className="text-[8px] text-ink-4 font-mono uppercase">{label}</span>
-                      <span className="text-[10px] font-mono font-bold text-ink-1">{val}</span>
-                    </div>
-                  ))}
+                  {/* CAP is the per-profile sizing control (it differs by
+                      profile). TP/SL are INFORMATIONAL strategy-level values —
+                      identical across profiles (Path C) — shown so the user
+                      knows the exit behaviour without implying a per-profile
+                      bundle. */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-[8px] text-ink-4 font-mono uppercase">CAP</span>
+                    <span className="text-[10px] font-mono font-bold text-ink-1">{rp.capital}%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[8px] text-ink-4 font-mono uppercase">TP</span>
+                    <span className="text-[10px] font-mono font-bold text-ink-3">+{STRATEGY_TP_PCT}%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[8px] text-ink-4 font-mono uppercase">SL</span>
+                    <span className="text-[10px] font-mono font-bold text-ink-3">-{STRATEGY_SL_PCT}%</span>
+                  </div>
+                  <div className="text-[7px] text-ink-4 font-mono leading-tight pt-0.5">
+                    Strategy TP/SL · same for all profiles
+                  </div>
                 </div>
               </button>
             );
@@ -1021,7 +1048,14 @@ export function AutoTradePage() {
                   </div>
                 ))}
               </div>
-              <p className="text-[8px] text-ink-4 font-mono mb-2">Leave TP or SL blank to use only one. At least one required.</p>
+              <p className="text-[8px] text-ink-4 font-mono mb-1.5">Leave TP or SL blank to use only one. At least one required.</p>
+              {/* WARP-83 E.2 (Path C): advanced override path. The strategy was
+                  tuned for the default TP/SL (150% / 50%); custom exit values are
+                  honoured but not validated by backtest. Warn explicitly. */}
+              <p className="text-[8px] text-gold font-mono mb-2 leading-tight">
+                ⚠ Advanced: custom TP/SL override the strategy default
+                ({STRATEGY_TP_PCT}% / {STRATEGY_SL_PCT}%). Non-default values are not backtested.
+              </p>
               {customErr && <p className="text-xs text-red mb-2">{customErr}</p>}
               <button type="button"
                 onClick={() => void handleSaveCustomRisk()}
