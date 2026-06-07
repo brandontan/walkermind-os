@@ -1,9 +1,10 @@
-Last Updated : 2026-06-07 22:45
-Status       : WARP-83 pre-LIVE compliance bundle — Layer 1 COMPLETE + MERGED (5 lanes): slippage estimator (Sub-Lane A, MAJOR, SENTINEL APPROVED 100/100) + slippage replay engine (Sub-Lane B) + TP/SL calibration backtest (E.1; CMD signed off: KEEP Balanced 150/50, REJECT Conservative, DEFER Aggressive) + admin snapshot toggle (WARP-81 P1) + feed vendor scoping (WARP-80 1c'; 1c integration PAUSED). Layer 2 IN PROGRESS: E.2 honest TP/SL controls BUILDING; Phase 2b calibrated slippage re-run + Sub-Lanes C/D next.
+Last Updated : 2026-06-07 23:40
+Status       : WARP-83 pre-LIVE compliance bundle — Layer 1 COMPLETE + MERGED (5 lanes). Layer 2: Phase 2b calibrated slippage re-run done (PR #1687, gate 6.1% — NO BREACH) + E.2 honest TP/SL controls (PR #1688, MAJOR, held for SENTINEL) + Sub-Lane D per-cell slippage report done. Sub-Lane C cutover slippage thresholds next.
 
 [COMPLETED]
 - WARP-83 Sub-Lane A — pre-trade slippage estimator MERGED (#1683, MAJOR; WARP•SENTINEL APPROVED 100/100, 0 critical, 16/16 tests). domain/research/slippage_estimator.py pure/deterministic estimate_slippage_bps (spread_cost + sqrt market impact + adverse move); +inf-stake clamp fix verified.
 - WARP-83 Sub-Lane B — slippage replay engine MERGED (#1686). scripts/replay_with_slippage.py DI'd SlippageModel + >50% catastrophic LIVE-viability gate; advisory default-model breach 150.7% pending calibrated re-run (Phase 2b).
+- WARP-83 Sub-Lane D — per-cell calibrated slippage report done (WARP/per-cell-slippage-report, MINOR, report-only). Per-cell breakdown of the Phase 2b calibrated replay (n≈541 paper_real, Supabase replication): btc/5m 3.8% (depth p50 14.5k, edge +1436 bps), eth/5m 9.2% (depth p50 7.2k, edge +612 bps), 15m/sol cells thin + net-losing on alpha. Spread cost (~52 bps, size-independent) dominates; impact tiny at ~$7 paper sizing. Distribution p50 ~54-63 bps, thin high tail (p99 106-161). Report: reports/forge/per-cell-slippage-report.md
 - WARP-83 Sub-Lane E.1 — TP/SL calibration backtest MERGED (#1684, report-only). n=1445; Balanced 150/50 = +0.48% unweighted EV (only certain-positive bundle); Conservative 60/30 = -6.85% REJECTED; Aggressive deferred.
 - WARP-81 P1 — admin snapshot toggle documented + MERGED (#1682). Toggle pre-existed (#1663); operator runbook added.
 - WARP-80 1c' — Weather+Playbook feed vendor scoping MERGED (#1685, report-only). $59/mo recommended; 1c integration PAUSED per CMD.
