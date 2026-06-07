@@ -588,17 +588,31 @@ def evaluate_ev_holdout(
     return ab
 
 
+# Provenance the cutover model trains on by default. The factor_vectors table
+# still holds the paper_synthetic seed; the WARP-78 cutover model must come from
+# real rows only (WARP-77 #1655 data_source enum).
+CUTOVER_DATA_SOURCE: str = "paper_real"
+_DATA_SOURCE_CHOICES: tuple[str, ...] = ("paper_real", "paper_synthetic", "live_real", "all")
+
+
 async def _fetch_and_derive(
     out_path: str | Path | None = None,
     *,
     shrinkage_k: float = DEFAULT_SHRINKAGE_K,
+    data_source: str | None = CUTOVER_DATA_SOURCE,
 ) -> dict[str, Any]:
     from .scorer_trainer import fetch_settled_rows
 
-    rows = await fetch_settled_rows()
+    rows = await fetch_settled_rows(data_source=data_source)
     model = derive_ev_model(rows, shrinkage_k=shrinkage_k)
     path = write_ev_model(model, out_path)
-    log.info("ev_comparator_model_written", path=str(path), cells=list((model.get("cells") or {}).keys()))
+    log.info(
+        "ev_comparator_model_written",
+        path=str(path),
+        data_source=data_source or "all",
+        rows=len(rows),
+        cells=list((model.get("cells") or {}).keys()),
+    )
     return model
 
 
@@ -613,11 +627,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p.add_argument("--from-db", action="store_true", help="Read rows from the configured DB.")
     p.add_argument("--out", default=None, help="Output path for the model JSON.")
     p.add_argument("--shrinkage-k", type=float, default=DEFAULT_SHRINKAGE_K)
+    p.add_argument(
+        "--data-source", choices=_DATA_SOURCE_CHOICES, default=CUTOVER_DATA_SOURCE,
+        help="Provenance filter (default paper_real — the cutover trains on real rows only; "
+             "'all' reads every provenance).",
+    )
     args = p.parse_args(argv)
     if not args.from_db:
         print("Pass --from-db to read the configured database (CMD approval required for prod).")
         return 2
-    model = asyncio.run(_fetch_and_derive(args.out, shrinkage_k=args.shrinkage_k))
+    ds = None if args.data_source == "all" else args.data_source
+    model = asyncio.run(_fetch_and_derive(args.out, shrinkage_k=args.shrinkage_k, data_source=ds))
     print(format_ev_model_summary(model))
     return 0
 
