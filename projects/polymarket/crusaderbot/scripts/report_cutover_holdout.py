@@ -479,6 +479,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     margin, label = _MARGIN_OPTIONS[args.margin]
     crit = Criteria(margin=margin, margin_label=label)
     target_cells = tuple(c.strip() for c in args.cells.split(",") if c.strip())
+    if not target_cells:
+        p.error("At least one cell must be specified via --cells (empty scope would "
+                "render empty tables and a misleading RETRY).")
 
     if args.demo:
         rows = _demo_rows()

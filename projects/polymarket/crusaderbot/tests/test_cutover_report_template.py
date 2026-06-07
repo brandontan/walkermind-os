@@ -30,6 +30,15 @@ def _strong_cells():
     return cells, overall
 
 
+def test_empty_cells_arg_is_a_cli_error() -> None:
+    import pytest
+
+    from projects.polymarket.crusaderbot.scripts.report_cutover_holdout import main
+    with pytest.raises(SystemExit) as exc:  # argparse parser.error → exit 2
+        main(["--demo", "--cells", " , "])
+    assert exc.value.code == 2
+
+
 def test_5m_scope_passes_despite_terminal_15m() -> None:
     # Strong 5m cells + terminal (sub-minimum) 15m cells. Under the default
     # CUTOVER_CELLS scope the 15m cells are ignored → PASS. Under the full 4-cell
