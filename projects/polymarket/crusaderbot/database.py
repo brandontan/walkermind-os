@@ -1,6 +1,7 @@
 """asyncpg pool + migration runner + kill-switch helper."""
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from pathlib import Path
@@ -60,6 +61,17 @@ def _warn_if_supavisor_transaction_pool(dsn: str) -> None:
         )
 
 
+# Boot-resilience knobs (WARP/root-db-boot-resilience). The 2026-06-07 incident:
+# the app booted, the DB warm-ping/connect stalled against Supabase/Supavisor,
+# and the event loop wedged — /health froze reporting database TimeoutError and
+# never recovered without a manual machine restart. These bound the boot-time
+# connect so a transient stall fails fast and retries instead of hanging.
+_INIT_PING_TIMEOUT: float = 5.0          # per-new-connection warm SELECT 1 budget
+_POOL_CONNECT_ATTEMPTS: int = 5          # create_pool tries before giving up
+_POOL_CONNECT_BASE_DELAY: float = 1.0    # exp-backoff base between attempts (s)
+_POOL_CONNECT_MAX_DELAY: float = 16.0    # exp-backoff cap (s)
+
+
 async def _init_connection(conn: asyncpg.Connection) -> None:
     """Warm-ping every new pool connection on creation.
 
@@ -67,8 +79,13 @@ async def _init_connection(conn: asyncpg.Connection) -> None:
     at pool-init time rather than mid-request, so the pool health check in
     /health and job_runs write paths never hit a silently dead connection.
     asyncpg calls this coroutine once per new physical backend connection.
+
+    Bounded by an explicit timeout: a hung/recycled Supabase backend whose
+    ``SELECT 1`` never returns must fail FAST so asyncpg discards that backend
+    and opens a fresh one, rather than wedging the acquiring coroutine (the
+    boot-time stall that froze /health on 2026-06-07).
     """
-    await conn.execute("SELECT 1")
+    await asyncio.wait_for(conn.execute("SELECT 1"), timeout=_INIT_PING_TIMEOUT)
 
 
 async def init_pool() -> asyncpg.Pool:
@@ -93,19 +110,49 @@ async def init_pool() -> asyncpg.Pool:
     # Supabase SQL editor (or Postgres directly) can immediately tell
     # which sessions belong to this bot, distinct from psql / Studio /
     # other workloads sharing the project.
-    _pool = await asyncpg.create_pool(
-        dsn=settings.DATABASE_URL,
-        min_size=1,
-        max_size=settings.DB_POOL_MAX,
-        max_inactive_connection_lifetime=60.0,
-        command_timeout=30,
-        statement_cache_size=0,
-        timeout=10,
-        init=_init_connection,
-        server_settings={"application_name": "crusaderbot"},
+    # Bounded connect-retry with exponential backoff: a transient Supabase /
+    # Supavisor connect stall at boot must retry rather than yield a half-dead
+    # pool or hang the lifespan. Only connectivity-class errors are retried;
+    # after the budget is exhausted we re-raise (no silent failure) so the
+    # process exits and Fly restarts it cleanly instead of running DB-blind.
+    last_exc: BaseException | None = None
+    for attempt in range(1, _POOL_CONNECT_ATTEMPTS + 1):
+        try:
+            _pool = await asyncpg.create_pool(
+                dsn=settings.DATABASE_URL,
+                min_size=2,
+                max_size=settings.DB_POOL_MAX,
+                max_inactive_connection_lifetime=300.0,
+                command_timeout=30,
+                statement_cache_size=0,
+                timeout=10,
+                init=_init_connection,
+                server_settings={"application_name": "crusaderbot"},
+            )
+            logger.info(
+                "asyncpg pool initialised (max=%s, attempt=%s/%s)",
+                settings.DB_POOL_MAX, attempt, _POOL_CONNECT_ATTEMPTS,
+            )
+            return _pool
+        except (OSError, asyncio.TimeoutError, asyncpg.PostgresError) as exc:
+            last_exc = exc
+            if attempt >= _POOL_CONNECT_ATTEMPTS:
+                break
+            delay = min(
+                _POOL_CONNECT_BASE_DELAY * (2 ** (attempt - 1)),
+                _POOL_CONNECT_MAX_DELAY,
+            )
+            logger.warning(
+                "asyncpg pool init attempt %s/%s failed (%s: %s) — retrying in %.1fs",
+                attempt, _POOL_CONNECT_ATTEMPTS, type(exc).__name__, exc, delay,
+            )
+            await asyncio.sleep(delay)
+    logger.error(
+        "asyncpg pool init FAILED after %s attempts — re-raising for clean restart",
+        _POOL_CONNECT_ATTEMPTS,
     )
-    logger.info("asyncpg pool initialised (max=%s)", settings.DB_POOL_MAX)
-    return _pool
+    assert last_exc is not None
+    raise last_exc
 
 
 def get_pool() -> asyncpg.Pool:
