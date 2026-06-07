@@ -34,6 +34,7 @@ from .domain.activation.auto_fallback import (
 )
 from .jobs import (
     daily_pnl_summary,
+    db_retention,
     disk_monitor,
     heisenberg_realtime_sync,
     hourly_report,
@@ -1076,6 +1077,10 @@ def setup_scheduler() -> AsyncIOScheduler:
     # the next near-miss. 5-min cadence; fully fail-soft (never crashes the loop).
     sched.add_job(disk_monitor.run_job, "interval", seconds=300,
                   id=disk_monitor.JOB_ID, max_instances=1, coalesce=True)
+    # WARP•R00T DB retention — daily prune of operational time-series tables so the
+    # DB self-limits (disk_monitor only alerts; it never frees space). Off-peak 04:00.
+    sched.add_job(db_retention.run_job, "cron", hour=4,
+                  id=db_retention.JOB_ID, max_instances=1, coalesce=True)
     # WARP-72 Phase 2 prep — settle the factor_vectors labeled dataset: resolve the
     # realized open->close outcome for closed candle rows from the oracle ring.
     # Shadow telemetry only; gated by FACTOR_DATASET_PERSIST_ENABLED.
