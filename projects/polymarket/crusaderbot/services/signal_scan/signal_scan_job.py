@@ -79,17 +79,46 @@ logger = structlog.get_logger(__name__)
 
 _STRATEGY_NAME = "signal_following"
 
-# WARP-83 E.2 (Path C) — strategy-level default TP/SL.
-# TP/SL is a STRATEGY-LEVEL property (Balanced 150% / 50%) that is the SAME for
-# every risk profile; the risk profile governs CAPITAL SIZING only
-# (capital_alloc_pct + max_position_pct), never the exit thresholds. The source
-# of truth the strategy reads at entry is ``user_settings.tp_pct / sl_pct``.
-# These constants are ONLY the defensive fallback applied (and logged) when the
-# user_settings value is NULL/missing — they must never silently shadow a
-# configured user value. Migration 089 backfills user_settings to exactly these
-# values, so the fallback is a safety net, not the normal path.
-_DEFAULT_STRATEGY_TP_PCT: float = 1.5
-_DEFAULT_STRATEGY_SL_PCT: float = 0.5
+# WARP-85 — STRATEGY-owned exit default (CLAUDE.md SYSTEM PIPELINE: exit
+# thresholds are a STRATEGY-stage concern, not a scan-job constant). TP/SL is a
+# STRATEGY-LEVEL property that is the SAME for every risk profile; the risk
+# profile governs CAPITAL SIZING only (capital_alloc_pct + max_position_pct),
+# never the exit thresholds. The source of truth the strategy reads at entry is
+# ``user_settings.tp_pct / sl_pct``. When that is NULL/missing the default is
+# resolved (and logged) from the active strategy's ``default_tp_sl()`` hook via
+# ``_strategy_default_tp_sl`` — never a silent default. Migration 089 backfills
+# user_settings to the same Balanced baseline, so the fallback is a safety net,
+# not the normal path.
+#
+# The constants below are the LAST-RESORT guard used ONLY when no strategy can be
+# resolved for the row (registry miss / unknown strategy_name) — NOT the normal
+# default path. They match the E.1/E.2 Balanced production baseline so an
+# unresolvable row still degrades to the proven value, never a nonsense one.
+_LAST_RESORT_TP_PCT: float = 1.5
+_LAST_RESORT_SL_PCT: float = 0.5
+
+
+def _strategy_default_tp_sl(strategy_name: str) -> tuple[float, float]:
+    """Resolve the default ``(tp_pct, sl_pct)`` from the active strategy's
+    ``default_tp_sl()`` hook (STRATEGY-stage ownership, CLAUDE.md SYSTEM
+    PIPELINE).
+
+    Falls back to the last-resort guard — logged, never silent — only when the
+    strategy cannot be resolved (unknown name / malformed hook return).
+    """
+    try:
+        strat = StrategyRegistry.instance().get(strategy_name)
+        tp_pct, sl_pct = strat.default_tp_sl()
+        return float(tp_pct), float(sl_pct)
+    except (KeyError, ValueError, TypeError) as exc:
+        logger.warning(
+            "strategy_default_tp_sl_unresolved_last_resort",
+            strategy_name=strategy_name,
+            error=str(exc),
+            last_resort_tp_pct=_LAST_RESORT_TP_PCT,
+            last_resort_sl_pct=_LAST_RESORT_SL_PCT,
+        )
+        return _LAST_RESORT_TP_PCT, _LAST_RESORT_SL_PCT
 
 # Maximum age of a signal_publication before it is rejected for execution.
 # Signals older than this window have stale entry prices — the market has
@@ -1902,32 +1931,37 @@ def _build_trade_signal(
             fallback_size_usdc=str(_base_size),
         )
 
-    # WARP-83 E.2 (Path C) — resolve TP/SL from user_settings (single source of
-    # truth). The strategy reads the user's configured exit thresholds LITERALLY;
-    # there is no per-rule TP/SL bundle and no risk-profile-driven TP/SL. When a
-    # user_settings value is NULL/missing (legacy row, pre-089 backfill, schema
-    # gap) we fall back to the Balanced strategy default (150% / 50%) and LOG it
-    # — never a silent default. Migration 089 backfills every row to exactly
-    # these values so in steady state the fallback never fires.
+    # WARP-83 E.2 (Path C) + WARP-85 — resolve TP/SL from user_settings (single
+    # source of truth). The strategy reads the user's configured exit thresholds
+    # LITERALLY; there is no per-rule TP/SL bundle and no risk-profile-driven
+    # TP/SL. When a user_settings value is NULL/missing (legacy row, pre-089
+    # backfill, schema gap) we fall back to the active STRATEGY's own
+    # default_tp_sl() hook — exit thresholds are a STRATEGY-stage concern
+    # (CLAUDE.md SYSTEM PIPELINE), not a scan-job constant — and LOG it, never a
+    # silent default. Migration 089 backfills every row to the same Balanced
+    # baseline so in steady state the fallback never fires.
+    _default_tp_pct, _default_sl_pct = _strategy_default_tp_sl(cand.strategy_name)
     _tp_raw = row.get("tp_pct")
     _sl_raw = row.get("sl_pct")
     if _tp_raw is not None:
         _resolved_tp_pct: float = float(_tp_raw)
     else:
-        _resolved_tp_pct = _DEFAULT_STRATEGY_TP_PCT
+        _resolved_tp_pct = _default_tp_pct
         logger.warning(
             "user_settings_tp_pct_missing_defensive_fallback",
             user_id=str(row["user_id"]),
-            fallback_tp_pct=_DEFAULT_STRATEGY_TP_PCT,
+            strategy_name=cand.strategy_name,
+            fallback_tp_pct=_default_tp_pct,
         )
     if _sl_raw is not None:
         _resolved_sl_pct: float = float(_sl_raw)
     else:
-        _resolved_sl_pct = _DEFAULT_STRATEGY_SL_PCT
+        _resolved_sl_pct = _default_sl_pct
         logger.warning(
             "user_settings_sl_pct_missing_defensive_fallback",
             user_id=str(row["user_id"]),
-            fallback_sl_pct=_DEFAULT_STRATEGY_SL_PCT,
+            strategy_name=cand.strategy_name,
+            fallback_sl_pct=_default_sl_pct,
         )
 
     return TradeSignal(

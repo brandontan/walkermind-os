@@ -43,11 +43,24 @@ from projects.polymarket.crusaderbot.domain.positions.registry import (
     OpenPositionForExit,
 )
 from projects.polymarket.crusaderbot.domain.risk.gate import GateResult
+from projects.polymarket.crusaderbot.domain.strategy.registry import (
+    bootstrap_default_strategies,
+)
 from projects.polymarket.crusaderbot.services.trade_engine import (
     TradeEngine,
     TradeResult,
     TradeSignal,
 )
+
+
+@pytest.fixture(autouse=True)
+def _bootstrap_strategies():
+    # WARP-85: the user_settings-NULL fallback resolves the default FROM the
+    # active strategy's default_tp_sl() hook; without a populated registry the
+    # resolver would silently take the last-resort guard instead of exercising
+    # the hook. bootstrap_default_strategies() is idempotent.
+    bootstrap_default_strategies()
+
 
 # ---------------------------------------------------------------------------
 # Shared test data
@@ -939,8 +952,8 @@ class TestScanPathTradeEngineIntegration:
             row=row, cand=_make_scan_cand(), market=_make_scan_market(),
             idempotency_key="k4", live_price_override=0.60,
         )
-        assert sig.tp_pct == pytest.approx(_ssj._DEFAULT_STRATEGY_TP_PCT)
-        assert sig.sl_pct == pytest.approx(_ssj._DEFAULT_STRATEGY_SL_PCT)
+        assert sig.tp_pct == pytest.approx(_ssj._LAST_RESORT_TP_PCT)
+        assert sig.sl_pct == pytest.approx(_ssj._LAST_RESORT_SL_PCT)
         assert sig.tp_pct == pytest.approx(1.5)
         assert sig.sl_pct == pytest.approx(0.5)
 
