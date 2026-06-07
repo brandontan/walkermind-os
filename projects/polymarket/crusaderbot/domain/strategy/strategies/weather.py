@@ -276,9 +276,9 @@ class WeatherDomainStrategy(BaseStrategy):
                                 metric_value=float(wm.yes_price),
                                 threshold=float(max_price),
                                 distance_to_threshold=signed_distance(
-                                    wm.yes_price, max_price, direction="max"),
+                                    float(wm.yes_price), float(max_price), direction="max"),
                                 would_pass_at_threshold=threshold_pass_map(
-                                    wm.yes_price, max_price, direction="max"),
+                                    float(wm.yes_price), float(max_price), direction="max"),
                                 module_state="live",
                             ))
                         except Exception:  # noqa: BLE001 — observability is fail-soft
@@ -310,8 +310,10 @@ class WeatherDomainStrategy(BaseStrategy):
                             binding_filter="ev",
                             metric_value=float(ev),
                             threshold=float(min_ev),
-                            distance_to_threshold=signed_distance(ev, min_ev, direction="min"),
-                            would_pass_at_threshold=threshold_pass_map(ev, min_ev, direction="min"),
+                            distance_to_threshold=signed_distance(
+                                float(ev), float(min_ev), direction="min"),
+                            would_pass_at_threshold=threshold_pass_map(
+                                float(ev), float(min_ev), direction="min"),
                             module_state="live",
                         ))
                     except Exception:  # noqa: BLE001 — observability is fail-soft
