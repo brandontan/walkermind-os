@@ -132,8 +132,11 @@ def test_candle_auto_metadata_does_not_override_user_settings(monkeypatch):
 
 def test_defensive_fallback_when_tpsl_null(monkeypatch):
     sig = _build(monkeypatch, tp_pct=None, sl_pct=None)
-    assert sig.tp_pct == pytest.approx(ssj._DEFAULT_STRATEGY_TP_PCT)
-    assert sig.sl_pct == pytest.approx(ssj._DEFAULT_STRATEGY_SL_PCT)
+    # WARP-85: the fallback now resolves from the active strategy's
+    # default_tp_sl() hook; late_entry_v3 returns the Balanced baseline, equal to
+    # the last-resort guard, so the value is byte-identical (150% / 50%).
+    assert sig.tp_pct == pytest.approx(ssj._LAST_RESORT_TP_PCT)
+    assert sig.sl_pct == pytest.approx(ssj._LAST_RESORT_SL_PCT)
     # Pin the signed-off default values explicitly (150% / 50%).
     assert sig.tp_pct == pytest.approx(1.5)
     assert sig.sl_pct == pytest.approx(0.5)
@@ -143,7 +146,7 @@ def test_defensive_fallback_partial_null(monkeypatch):
     # tp present, sl NULL → tp honoured literally, sl falls back.
     sig = _build(monkeypatch, tp_pct=0.30, sl_pct=None)
     assert sig.tp_pct == pytest.approx(0.30)
-    assert sig.sl_pct == pytest.approx(ssj._DEFAULT_STRATEGY_SL_PCT)
+    assert sig.sl_pct == pytest.approx(ssj._LAST_RESORT_SL_PCT)
 
 
 def test_per_rule_tpsl_helper_removed():

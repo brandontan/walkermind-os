@@ -10,7 +10,7 @@ Coverage:
     * BUG 1: market_id equals conditionId (not Gamma UUID)
     * BUG 3: active=False on candle (updown) slug does NOT skip the market
     * Empty / errored market data + empty orderbooks return [] / skip
-    * default_tp_sl() == (0.15, 0.08)
+    * default_tp_sl() == (1.5, 0.5)
     * evaluate_exit() flip-stop: exit at <=0.48, hold above
 
 No network, no DB, no broker. Polymarket API calls are patched with AsyncMock.
@@ -143,7 +143,8 @@ def test_implements_base_strategy_contract():
     assert isinstance(strat, BaseStrategy)
     assert strat.name == "late_entry_v3"
     assert strat.version == "1.0.0"
-    assert strat.default_tp_sl() == (DEFAULT_TP_PCT, DEFAULT_SL_PCT) == (0.15, 0.08)
+    # WARP-85: aligned to the E.1/E.2 Balanced production baseline (150% / 50%).
+    assert strat.default_tp_sl() == (DEFAULT_TP_PCT, DEFAULT_SL_PCT) == (1.5, 0.5)
 
 
 def test_registered_by_bootstrap():

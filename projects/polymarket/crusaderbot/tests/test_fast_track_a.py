@@ -939,8 +939,8 @@ class TestScanPathTradeEngineIntegration:
             row=row, cand=_make_scan_cand(), market=_make_scan_market(),
             idempotency_key="k4", live_price_override=0.60,
         )
-        assert sig.tp_pct == pytest.approx(_ssj._DEFAULT_STRATEGY_TP_PCT)
-        assert sig.sl_pct == pytest.approx(_ssj._DEFAULT_STRATEGY_SL_PCT)
+        assert sig.tp_pct == pytest.approx(_ssj._LAST_RESORT_TP_PCT)
+        assert sig.sl_pct == pytest.approx(_ssj._LAST_RESORT_SL_PCT)
         assert sig.tp_pct == pytest.approx(1.5)
         assert sig.sl_pct == pytest.approx(0.5)
 

@@ -11,7 +11,9 @@ Foundation contract:
                                  favored-price gates all pass.
     BaseStrategy.evaluate_exit — flip-stop: close once the favored side's live price
                                  falls to FLIP_STOP_PRICE or below.
-    BaseStrategy.default_tp_sl — TP 15% / SL 8% (matches the close_sweep preset).
+    BaseStrategy.default_tp_sl — TP 150% / SL 50% (the E.1/E.2 Balanced production
+                                 baseline; this is the STRATEGY-owned exit default
+                                 the scan job reads when user_settings is NULL).
 
 Pipeline boundary:
     DATA -> [STRATEGY <-- this file] -> INTELLIGENCE -> RISK -> EXECUTION
@@ -63,8 +65,12 @@ MAX_SPREAD: float = 1.05          # combined YES+NO asks must not be too wide
 FAV_PRICE_MAX: float = 0.70       # skip expensive favored entries; fav>0.70 is a net-loss zone (low win-rate + asymmetric ~100% downside). Module fallback; env-tunable via LATE_ENTRY_FAV_PRICE_MAX.
 FLIP_STOP_PRICE: float = 0.48     # exit when favored side's live price <= this
 
-DEFAULT_TP_PCT: float = 0.15
-DEFAULT_SL_PCT: float = 0.08
+# WARP-85: STRATEGY-owned exit default = the E.1/E.2 Balanced production baseline
+# (TP +150% / SL -50%, decimal-of-return). This is the same value migration 089
+# backfilled into every user_settings row, so the scan job's strategy-sourced
+# fallback is byte-identical to the live runtime when user_settings is NULL.
+DEFAULT_TP_PCT: float = 1.5
+DEFAULT_SL_PCT: float = 0.5
 
 
 # --- WARP-64 Chunk 3: oracle edge (ADVISORY) ----------------------------------

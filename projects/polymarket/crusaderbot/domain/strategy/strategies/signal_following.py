@@ -5,7 +5,7 @@ Foundation contract (P3a):
                                  publications (no HTTP, pure DB reads).
     BaseStrategy.evaluate_exit - close on operator-published exit triggers
                                  for the originating feed + market.
-    BaseStrategy.default_tp_sl - TP 20% / SL 8%
+    BaseStrategy.default_tp_sl - TP 150% / SL 50% (E.1/E.2 Balanced baseline)
 
 Pipeline boundary (P3c scope):
     DATA -> [STRATEGY <-- this file] -> INTELLIGENCE -> RISK -> EXECUTION
@@ -44,8 +44,11 @@ from ..types import ExitDecision, MarketFilters, SignalCandidate, UserContext
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TP_PCT = 0.20
-DEFAULT_SL_PCT = 0.08
+# WARP-85: STRATEGY-owned exit default aligned to the E.1/E.2 Balanced production
+# baseline (TP +150% / SL -50%, decimal-of-return) — same value as every other
+# enabled strategy and migration 089's user_settings backfill.
+DEFAULT_TP_PCT = 1.5
+DEFAULT_SL_PCT = 0.5
 
 
 class SignalFollowingStrategy(BaseStrategy):

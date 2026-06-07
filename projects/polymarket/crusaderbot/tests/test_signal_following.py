@@ -161,8 +161,9 @@ class _FakePool:
 
 
 def test_signal_following_default_tp_sl_matches_spec():
+    # WARP-85: aligned to the E.1/E.2 Balanced production baseline (150% / 50%).
     tp, sl = SignalFollowingStrategy().default_tp_sl()
-    assert (tp, sl) == (DEFAULT_TP_PCT, DEFAULT_SL_PCT) == (0.20, 0.08)
+    assert (tp, sl) == (DEFAULT_TP_PCT, DEFAULT_SL_PCT) == (1.5, 0.5)
 
 
 def test_signal_following_strategy_attributes():
