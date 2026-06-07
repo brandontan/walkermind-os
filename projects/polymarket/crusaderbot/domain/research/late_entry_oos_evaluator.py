@@ -356,7 +356,12 @@ async def load_settled_rows(
     ``data_source='all'`` reads every provenance (no filter); otherwise filters
     by the provenance enum so the proof never mixes the paper_synthetic seed in.
     """
-    from ...database import get_pool
+    # Lazily initialise the pool (idempotent — returns the existing one if set).
+    # Run standalone as a CLI (--from-db) the pool is not pre-initialised, so
+    # get_pool() would raise → fail-soft to []. init_pool() covers both the
+    # standalone and already-initialised paths; tests inject ``pool`` so this
+    # branch is never reached under test.
+    from ...database import init_pool
 
     where = "settled = TRUE"
     args: list[Any] = []
@@ -372,7 +377,7 @@ async def load_settled_rows(
         "ORDER BY candle_close_epoch ASC NULLS LAST, settled_at ASC"
     )
     try:
-        pool = pool or get_pool()
+        pool = pool or await init_pool()
         async with pool.acquire() as conn:  # type: ignore[attr-defined]
             records = await conn.fetch(sql, *args)
     except Exception as exc:  # noqa: BLE001 — research tool, fail-soft to empty
