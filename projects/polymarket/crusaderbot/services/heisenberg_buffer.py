@@ -19,6 +19,7 @@ no lock (and certainly no threading) is needed.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
@@ -69,6 +70,11 @@ def record_trades(
         for tr in trades:
             if tr is None or tr.trade_time is None:
                 continue
+            # Normalise to aware-UTC once, here at the ingestion boundary, so
+            # every downstream read/prune/cap comparison runs on aware datetimes
+            # without re-coercing per element (RealtimeTrade is frozen → replace).
+            if tr.trade_time.tzinfo is None or tr.trade_time.tzinfo.utcoffset(tr.trade_time) is None:
+                tr = replace(tr, trade_time=_aware(tr.trade_time))
             _store[_key(tr)] = tr
             count += 1
         _prune(retention_hours)
@@ -82,7 +88,8 @@ def _prune(retention_hours: int) -> None:
     if retention_hours <= 0:
         return
     cutoff = datetime.now(timezone.utc) - timedelta(hours=retention_hours)
-    stale = [k for k, tr in _store.items() if _aware(tr.trade_time) < cutoff]
+    # trade_time is normalised to aware-UTC at ingestion, so a bare compare is safe.
+    stale = [k for k, tr in _store.items() if tr.trade_time < cutoff]
     for k in stale:
         _store.pop(k, None)
 
@@ -91,8 +98,8 @@ def _enforce_cap() -> None:
     over = len(_store) - _MAX_ENTRIES
     if over <= 0:
         return
-    # Evict the oldest entries by trade_time.
-    oldest = sorted(_store.items(), key=lambda kv: _aware(kv[1].trade_time))[:over]
+    # Evict the oldest entries by trade_time (aware-UTC since ingestion).
+    oldest = sorted(_store.items(), key=lambda kv: kv[1].trade_time)[:over]
     for k, _ in oldest:
         _store.pop(k, None)
 
@@ -111,7 +118,7 @@ def trades_for_markets(
     since = _aware(since)
     return [
         tr for tr in _store.values()
-        if tr.condition_id in cids and _aware(tr.trade_time) > since
+        if tr.condition_id in cids and tr.trade_time > since
     ]
 
 
@@ -126,9 +133,9 @@ def trades_for_wallet(wallet: str, since: datetime) -> list[RealtimeTrade]:
     since = _aware(since)
     out = [
         tr for tr in _store.values()
-        if (tr.wallet or "").lower() == wl and _aware(tr.trade_time) > since
+        if (tr.wallet or "").lower() == wl and tr.trade_time > since
     ]
-    out.sort(key=lambda tr: _aware(tr.trade_time))
+    out.sort(key=lambda tr: tr.trade_time)
     return out
 
 
