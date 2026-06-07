@@ -446,3 +446,42 @@ def test_init_pool_reraises_after_exhausting_attempts():
     assert create_pool_mock.await_count == db_module._POOL_CONNECT_ATTEMPTS
     # Slept between each failed attempt, but never after the final one.
     assert sleep_mock.await_count == db_module._POOL_CONNECT_ATTEMPTS - 1
+
+
+def test_init_pool_clamps_min_size_when_max_is_one():
+    """A DB_POOL_MAX of 1 must NOT crash create_pool with min_size > max_size:
+    min_size is clamped to min(2, DB_POOL_MAX)."""
+    create_pool_mock = AsyncMock(return_value=_FakePool())
+    fake_settings = MagicMock(DATABASE_URL="postgresql://example/db", DB_POOL_MAX=1)
+    with patch.object(db_module.asyncpg, "create_pool", new=create_pool_mock), \
+         patch.object(db_module, "get_settings", return_value=fake_settings):
+        _run(db_module.init_pool())
+    kwargs = create_pool_mock.await_args.kwargs
+    assert kwargs.get("min_size") == 1
+    assert kwargs.get("max_size") == 1
+
+
+def test_init_pool_concurrent_calls_create_single_pool():
+    """Concurrent first-callers must serialize on _pool_lock and build exactly
+    one pool — no leaked second pool."""
+    fake_pool = _FakePool()
+
+    async def _slow_create_pool(*_a: Any, **_k: Any) -> _FakePool:
+        await asyncio.sleep(0.01)  # widen the race window
+        return fake_pool
+
+    create_pool_mock = AsyncMock(side_effect=_slow_create_pool)
+    fake_settings = MagicMock(DATABASE_URL="postgresql://example/db", DB_POOL_MAX=5)
+
+    async def _race() -> tuple:
+        return await asyncio.gather(db_module.init_pool(), db_module.init_pool())
+
+    with patch.object(db_module.asyncpg, "create_pool", new=create_pool_mock), \
+         patch.object(db_module, "get_settings", return_value=fake_settings):
+        p1, p2 = _run(_race())
+
+    assert p1 is fake_pool and p2 is fake_pool
+    assert create_pool_mock.await_count == 1, (
+        "init_pool must serialize on _pool_lock so concurrent callers build "
+        f"exactly one pool; created {create_pool_mock.await_count}"
+    )

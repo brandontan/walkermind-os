@@ -71,6 +71,13 @@ _POOL_CONNECT_ATTEMPTS: int = 5          # create_pool tries before giving up
 _POOL_CONNECT_BASE_DELAY: float = 1.0    # exp-backoff base between attempts (s)
 _POOL_CONNECT_MAX_DELAY: float = 16.0    # exp-backoff cap (s)
 
+# Serialize init_pool() so concurrent first-callers (lifespan + an early health
+# ping / SSE listener) cannot each build a pool and leak one — the retry/backoff
+# loop widens that window. Eagerly constructed: in Python 3.10+ asyncio.Lock
+# binds to the running loop lazily on first use, so module-import construction is
+# safe and avoids a lazy-init race on the lock itself.
+_pool_lock = asyncio.Lock()
+
 
 async def _init_connection(conn: asyncpg.Connection) -> None:
     """Warm-ping every new pool connection on creation.
@@ -92,6 +99,17 @@ async def init_pool() -> asyncpg.Pool:
     global _pool
     if _pool is not None:
         return _pool
+    async with _pool_lock:
+        # Double-checked: another coroutine may have built the pool while we
+        # waited for the lock.
+        if _pool is not None:
+            return _pool
+        return await _create_pool_with_retry()
+
+
+async def _create_pool_with_retry() -> asyncpg.Pool:
+    """Build the asyncpg pool with bounded connect-retry. Caller holds _pool_lock."""
+    global _pool
     settings = get_settings()
     _warn_if_supavisor_transaction_pool(settings.DATABASE_URL)
     # statement_cache_size=0 disables asyncpg's per-connection
@@ -120,7 +138,9 @@ async def init_pool() -> asyncpg.Pool:
         try:
             _pool = await asyncpg.create_pool(
                 dsn=settings.DATABASE_URL,
-                min_size=2,
+                # Clamp so a DB_POOL_MAX of 1 can't make min_size > max_size
+                # (asyncpg raises ValueError at create_pool → startup crash).
+                min_size=min(2, settings.DB_POOL_MAX),
                 max_size=settings.DB_POOL_MAX,
                 max_inactive_connection_lifetime=300.0,
                 command_timeout=30,
