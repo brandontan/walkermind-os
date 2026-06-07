@@ -695,49 +695,38 @@ function PnlChart({
 
 // ── Position Row ──────────────────────────────────────────────────────────────
 
-// Every close still carries its trigger bucket — TP / SL / TIME — even when the
-// market resolved. resolution_win is TP-side (profit threshold crossed),
-// resolution_loss is SL-side (loss threshold); time/expiry exits are TIME.
+// The pill names the ACTUAL trigger that closed the position — nothing else.
+//   tp_hit → TP, sl_hit → SL (these are inherently win/loss).
+//   A market that ran to its scheduled end (resolution_win/loss, market_expired,
+//   horizon, generic resolution) closed by TIME — NOT by TP/SL. Win vs loss is
+//   shown by colour + the PnL number, never by mislabelling it "TP"/"SL".
+//   strategy_exit closed by the strategy's own logic → STRATEGY.
 const EXIT_LABEL: Record<string, string> = {
-  tp_hit: "TP HIT",
-  sl_hit: "SL HIT",
+  tp_hit: "TP",
+  sl_hit: "SL",
   manual: "CLOSED",
-  strategy_exit: "TIME",
+  strategy_exit: "STRATEGY",
   horizon_exceeded: "TIME",
   resolution: "TIME",
-  resolution_win: "TP · WON",
-  resolution_loss: "SL · LOST",
+  resolution_win: "TIME",
+  resolution_loss: "TIME",
   force_close: "FORCED",
   close_failed: "ERROR",
   market_expired: "TIME",
 };
 
-const EXIT_TONE: Record<string, string> = {
-  tp_hit: "text-grn",
-  sl_hit: "text-red",
-  manual: "text-ink-2",
-  strategy_exit: "text-cyan",
-  horizon_exceeded: "text-cyan",
-  resolution: "text-cyan",
-  resolution_win: "text-grn",
-  resolution_loss: "text-red",
-  force_close: "text-gold",
-  close_failed: "text-red",
-  market_expired: "text-cyan",
-};
-
-// Human-readable "Closed by" reason for the expandable trade detail. Always
-// names the trigger (TP/SL/TIME) and, for resolutions, the Won/Lost outcome.
+// Human-readable "Closed by" reason for the expandable trade detail. Names the
+// trigger; for time-resolved closes it adds the Won/Lost outcome for clarity.
 const EXIT_FULL_LABEL: Record<string, string> = {
   tp_hit: "Take Profit (TP)",
   sl_hit: "Stop Loss (SL)",
   resolution: "Time Exit (TIME)",
-  resolution_win: "Take Profit (TP) — Resolved Won",
-  resolution_loss: "Stop Loss (SL) — Resolved Lost",
+  resolution_win: "Time Exit (TIME) — Won",
+  resolution_loss: "Time Exit (TIME) — Lost",
   market_expired: "Time Exit (TIME)",
   horizon_exceeded: "Time Exit (TIME)",
   manual: "Manual Close",
-  strategy_exit: "Time Exit (TIME)",
+  strategy_exit: "Strategy Exit (STRATEGY)",
   force_close: "Force Close",
   close_failed: "Close Failed",
 };
@@ -815,10 +804,20 @@ export function PositionRow({ p, onCashOut, onForceRedeem, defaultExpanded }: {
 
   const exitKey = p.exit_reason ?? "";
   const exitLabel = EXIT_LABEL[exitKey];
-  const exitToneClass = EXIT_TONE[exitKey] ?? "text-ink-3";
 
   const pnlToneClass =
     tone === "zero" ? "text-ink-2" : tone === "up" ? "text-grn" : "text-red";
+
+  // Pill colour follows the trigger's nature: TP always green, SL always red;
+  // every TIME / STRATEGY / resolution close reflects the real win/loss via the
+  // PnL tone (so a TIME close shows green when it won, red when it lost).
+  const exitToneClass =
+    exitKey === "tp_hit" ? "text-grn"
+    : exitKey === "sl_hit" ? "text-red"
+    : exitKey === "force_close" ? "text-gold"
+    : exitKey === "close_failed" ? "text-red"
+    : exitKey === "manual" ? "text-ink-2"
+    : pnlToneClass;
 
   const strategyLabel =
     (p.active_preset ? PRESET_LABEL[p.active_preset] : null) ??
@@ -886,7 +885,7 @@ export function PositionRow({ p, onCashOut, onForceRedeem, defaultExpanded }: {
         <DetailRow
           label="Closed By"
           value={EXIT_FULL_LABEL[p.exit_reason] ?? p.exit_reason}
-          tone={EXIT_TONE[p.exit_reason] ?? "text-ink-1"}
+          tone={exitToneClass}
         />
       ) : null}
     </div>

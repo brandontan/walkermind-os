@@ -381,15 +381,19 @@ export function DashboardPage() {
   );
 }
 
+// Pill names the actual close trigger. tp_hit→TP, sl_hit→SL; any market that ran
+// to its scheduled end (resolution_win/loss, market_expired, horizon, resolution)
+// closed by TIME — win/loss is shown by the PnL colour, not by the label.
+// strategy_exit closed by strategy logic → STRATEGY.
 const RECENT_PILL_LABEL: Record<string, string> = {
-  tp_hit:          "TP HIT",
-  sl_hit:          "SL HIT",
+  tp_hit:          "TP",
+  sl_hit:          "SL",
   market_expired:  "TIME",
-  strategy_exit:   "TIME",
+  strategy_exit:   "STRATEGY",
   horizon_exceeded:"TIME",
   resolution:      "TIME",
-  resolution_win:  "TP · WON",
-  resolution_loss: "SL · LOST",
+  resolution_win:  "TIME",
+  resolution_loss: "TIME",
   force_close:     "FORCED",
   manual:          "MANUAL",
 };
