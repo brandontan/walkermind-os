@@ -457,7 +457,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     import logging
 
     import structlog
-    structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(logging.WARNING))
 
     p = argparse.ArgumentParser(prog="report_cutover_holdout", description=__doc__)
     src = p.add_mutually_exclusive_group(required=True)
@@ -482,6 +481,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if not target_cells:
         p.error("At least one cell must be specified via --cells (empty scope would "
                 "render empty tables and a misleading RETRY).")
+
+    # Quiet the pipeline's shadow DEBUG logs — done AFTER arg validation so a
+    # bad-args exit (e.g. empty --cells, in a test) never mutates the process-wide
+    # logging config, which would corrupt other suites' captured-log assertions.
+    structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(logging.WARNING))
 
     if args.demo:
         rows = _demo_rows()
