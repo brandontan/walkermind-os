@@ -113,14 +113,16 @@ No weather vendor exceeds $500/mo at any recommended tier. No CMD budget flag tr
 
 | Vendor | Cost | Integration Complexity | Licensing / Legal | Time-to-Live | Notes |
 |---|---|---|---|---|---|
-| **ESPN Unofficial API — RECOMMENDED** | **$0** | Adapter code-complete (`EspnInjuryFeed` in `feeds_http.py`); only `MarketResolver` needed | No ToS for public endpoints; undocumented — can be pulled without notice | 1-2 days (resolver only) | No key; no SLA; appropriate for paper trading |
-| **Sportradar Injury API** | Custom pricing (contact sales; est. $200-$500+/mo) | New adapter; OAuth; different JSON shape | Commercial licence; enterprise contract | 5-10 days | Industry standard; pricing opaque — **FLAG if > $500/mo at quote** |
+| **ESPN Unofficial API — RECOMMENDED (PAPER only)** | **$0** | Adapter code-complete (`EspnInjuryFeed` in `feeds_http.py`); only `MarketResolver` needed | No ToS for public endpoints; undocumented — can be pulled / IP-banned without notice; **NOT commercial-compliant** | 1-2 days (resolver only) | No key; no SLA; appropriate for PAPER only — see compliance note below |
+| **Sportradar Injury API** | Custom enterprise pricing (contact sales; realistically **$1,000s/mo + annual commitment**, not low hundreds) | New adapter; OAuth; different JSON shape | Commercial licence; enterprise contract | 5-10 days | Industry standard; enterprise sports feeds routinely run into the thousands/mo — **assume CMD budget flag** |
 | **OddsJam API (injury data)** | **~$500-$1,000+/mo est.** (enterprise; not publicly listed) | New adapter; proprietary shape | Custom commercial licence | 5-10 days | Includes injury data per docs; likely > $500/mo |
 | **Stats Perform / Opta** | Custom enterprise (likely **> $500/mo**) | New adapter; XML/JSON feeds | Strict commercial; per-sport packages | 10-20 days | Gold standard for injury/lineup; expensive |
 
-**Recommendation:** ESPN unofficial API via existing `EspnInjuryFeed` adapter. Cost: **$0/mo**.
+**Recommendation:** ESPN unofficial API via existing `EspnInjuryFeed` adapter for PAPER. Cost: **$0/mo**.
 
-> CMD BUDGET DECISION REQUIRED: If CMD requires a production-grade SLA-backed injury feed (Sportradar / OddsJam / Stats Perform), estimated cost is **> $500/month per module**. Do not procure without explicit CMD approval.
+> COMPLIANCE NOTE (CMD DECISION): Recommending the undocumented ESPN endpoint at $0 is *inconsistent* with upgrading Open-Meteo to a paid tier for commercial compliance. The ESPN public API has no commercial ToS, no SLA, and can break or IP-ban without notice. It is fine for PAPER; for a commercial / LIVE deployment a licensed feed (Sportradar / Stats Perform) is advised. This compliance inconsistency is surfaced for CMD to decide explicitly — do not assume the $0 path is LIVE-safe.
+
+> CMD BUDGET DECISION REQUIRED: A production-grade SLA-backed injury feed (Sportradar / OddsJam / Stats Perform) is enterprise-tier — realistically **$1,000s/month + annual commitment**, well above $500/mo. Do not procure without explicit CMD approval.
 
 ---
 
@@ -133,7 +135,7 @@ No weather vendor exceeds $500/mo at any recommended tier. No CMD budget flag tr
 | **The Odds API Free Tier** | $0 | Same | Same | Same | 500 credits/mo — insufficient for hourly scan |
 | **OddsJam API** | **~$500-$1,000+/mo est.** (not publicly listed) | New adapter | Custom commercial licence | 5-10 days | 100+ books; genuine public ticket % data; likely > $500/mo |
 | **Action Network** | No API (website only) | Scraping — fragile, ToS violation risk | Not viable | N/A | Not a viable path |
-| **SharpAPI** | Unlisted | New adapter | Commercial | 3-5 days | Pricing unverified |
+| **SharpSports** (sharpsports.io) | Unlisted | New adapter | Commercial | 3-5 days | Sportsbook-integration / bet-tracking API; pricing unverified |
 
 **Recommendation:** The Odds API 20K plan at **$30/mo** using existing `OddsApiFeed` adapter.
 
@@ -146,11 +148,13 @@ No weather vendor exceeds $500/mo at any recommended tier. No CMD budget flag tr
 | Module | Recommended Vendor | Monthly Cost | Code Change | Time-to-Live |
 |---|---|---|---|---|
 | **Weather ensemble** | Open-Meteo Standard + Visual Crossing free key | **$29/mo** | URL param change + set env key | < 1 day |
-| **Injury Alpha** | ESPN unofficial API (free) | **$0/mo** | MarketResolver only | 1-2 days |
+| **Injury Alpha** | ESPN unofficial API (free) † | **$0/mo** | MarketResolver only | 1-2 days |
 | **Public Fade** | The Odds API 20K plan | **$30/mo** | `ODDS_API_KEY` + MarketResolver | 1-2 days |
 | **Total** | | **$59/mo** | | |
 
-**No recommended vendor exceeds $500/month. CMD budget flag NOT triggered for recommended options.**
+† PAPER only — the ESPN endpoint is undocumented and NOT commercial-compliant (no ToS, no SLA, breakage/IP-ban risk). For commercial / LIVE it needs a licensed feed (enterprise-tier, $1,000s/mo). See the compliance note in §5b — surfaced for explicit CMD decision.
+
+**No recommended vendor exceeds $500/month for the PAPER configuration. CMD budget flag NOT triggered for recommended options; a LIVE-compliant injury feed would change this (see §5b).**
 
 > CONDITIONAL FLAG: Enterprise-grade alternatives (Sportradar injury feed, OddsJam public %) are estimated > $500/month each and require a separate explicit CMD budget decision before any procurement or integration work.
 
