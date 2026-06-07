@@ -60,6 +60,7 @@ from ...database import get_pool
 from ...domain.execution.router import execute as router_execute
 from ...domain.ops import runtime_config as _runtime_config
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
+from ...domain.research import scan_observability as _scan_observability
 from ...domain.risk.constants import PROFILES
 from ...domain.risk.gate import resume_safety_check as _resume_safety_check
 from ...domain.strategy.registry import StrategyRegistry
@@ -3097,6 +3098,17 @@ async def run_once() -> None:
         # reality for the observability paths (recorder is fail-soft → 0 on error).
         tel.snapshots_written += await record_market_snapshots(run_id, markets)
 
+    # WARP-80 1a: open a per-tick observation sink so weather + playbook can
+    # record near-miss / abstain readings (distance-to-threshold, would-pass-at-
+    # relaxed-threshold, feed state). Gated (default ON) + fully fail-soft. The
+    # sink is drained and persisted once, just before _finish_scan_run below.
+    _obs_token = None
+    try:
+        if bool(getattr(_get_settings(), "SCAN_OBSERVABILITY_ENABLED", True)):
+            _obs_token = _scan_observability.begin_sink()
+    except Exception:  # noqa: BLE001 — observability must never break the scan loop
+        _obs_token = None
+
     try:
         late_entry_strat = StrategyRegistry.instance().get(_LATE_ENTRY_V3_NAME)
     except KeyError:
@@ -3475,6 +3487,16 @@ async def run_once() -> None:
         zero_reason_breakdown=tel.zero_reason_breakdown,
         rejection_breakdown=tel.rejection_breakdown,
     )
+    # WARP-80 1a: drain the per-tick observation sink and persist it (one batched,
+    # append-only INSERT). Fail-soft — a write error never affects the scan run.
+    if _obs_token is not None:
+        try:
+            _obs = _scan_observability.drain_sink(_obs_token)
+            if _obs:
+                await _scan_observability.record_scan_observations(run_id, _obs)
+        except Exception:  # noqa: BLE001 — observability is fail-soft
+            pass
+
     await _finish_scan_run(run_id, tel)
     await _event_bus.emit(
         "pipeline.strategy_scan_done",

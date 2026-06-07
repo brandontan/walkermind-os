@@ -107,6 +107,12 @@ class WeatherDomainStrategy(BaseStrategy):
             kelly_size,
         )
         from ....strategies.weather.strategy import _hours_to_expiry, _load_config
+        from ...research.scan_observability import (
+            ScanObservation,
+            record_observation,
+            signed_distance,
+            threshold_pass_map,
+        )
 
         weather_cfg = _load_config()
         sigma = get_sigma()
@@ -259,6 +265,24 @@ class WeatherDomainStrategy(BaseStrategy):
                         skip_spread += 1
                         continue
                     if wm.yes_price > max_price:
+                        # WARP-80 1a: record how far over the price ceiling this
+                        # market was + whether it would clear a relaxed ceiling.
+                        try:
+                            record_observation(ScanObservation(
+                                strategy=_WEATHER_STRATEGY_NAME,
+                                market_id=str(wm.market_id),
+                                zero_reason="filter_or_no_match",
+                                binding_filter="price",
+                                metric_value=float(wm.yes_price),
+                                threshold=float(max_price),
+                                distance_to_threshold=signed_distance(
+                                    float(wm.yes_price), float(max_price), direction="max"),
+                                would_pass_at_threshold=threshold_pass_map(
+                                    float(wm.yes_price), float(max_price), direction="max"),
+                                module_state="live",
+                            ))
+                        except Exception:  # noqa: BLE001 — observability is fail-soft
+                            pass
                         skip_price += 1
                         continue
                     if wm.bucket_low is None or wm.bucket_high is None:
@@ -275,6 +299,25 @@ class WeatherDomainStrategy(BaseStrategy):
 
                     p_true = bucket_prob(mean_tmax, sigma, wm.bucket_low, wm.bucket_high)
                     ev = expected_value(p_true, wm.yes_price)
+                    # WARP-80 1a: record the EV-gate reading for EVERY structurally
+                    # eligible market (pass or fail) so 1b sees the full EV
+                    # distribution vs min_ev and the would-pass-at-relaxed counts.
+                    try:
+                        record_observation(ScanObservation(
+                            strategy=_WEATHER_STRATEGY_NAME,
+                            market_id=str(wm.market_id),
+                            zero_reason=("filter_or_no_match" if ev < min_ev else "passed_ev_gate"),
+                            binding_filter="ev",
+                            metric_value=float(ev),
+                            threshold=float(min_ev),
+                            distance_to_threshold=signed_distance(
+                                float(ev), float(min_ev), direction="min"),
+                            would_pass_at_threshold=threshold_pass_map(
+                                float(ev), float(min_ev), direction="min"),
+                            module_state="live",
+                        ))
+                    except Exception:  # noqa: BLE001 — observability is fail-soft
+                        pass
                     if ev < min_ev:
                         skip_ev += 1
                         continue

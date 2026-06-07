@@ -157,6 +157,14 @@ class Settings(BaseSettings):
     # default, so PAPER capture can be flipped from the web admin without a redeploy.
     SCAN_SNAPSHOT_ENABLED: bool = False
 
+    # WARP-80 sub-lane 1a: when true, each scan tick records weather + playbook
+    # near-miss observability (distance-to-threshold + would-pass-at-relaxed-
+    # threshold + feed state) into strategy_scan_observations. Default ON; pure
+    # append-only telemetry written fail-soft AFTER the strategy returns, no
+    # effect on selection/thresholds/trading. Apply migration 086. Set false as a
+    # Fly secret to kill it without a redeploy if log volume ever spikes.
+    SCAN_OBSERVABILITY_ENABLED: bool = True
+
     # WARP-78 cutover emergency kill-switch. When true, the candle_auto + rule
     # "auto" orchestrator (EV-comparator) is DISABLED and those users fall back to
     # the precedence router. Default OFF (orchestrator allowed). Runtime-config
