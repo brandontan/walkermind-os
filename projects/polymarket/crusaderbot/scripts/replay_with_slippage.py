@@ -458,10 +458,13 @@ async def load_paper_real_trades(
     replays each through ``model``. Read-only and fail-soft: a DB error logs and
     returns ``[]``; per-row failures are skipped (see :func:`_record_from_row`).
     """
-    from database import get_pool  # noqa: E402 — deferred so import never needs DB
+    from database import init_pool  # noqa: E402 — deferred so import never needs DB
 
     try:
-        pool = pool or get_pool()
+        # init_pool() is idempotent (returns the existing pool if already
+        # initialised); get_pool() would raise when run standalone via --from-db
+        # because nothing initialises the pool first.
+        pool = pool or await init_pool()
         async with pool.acquire() as conn:  # type: ignore[attr-defined]
             rows = await conn.fetch(
                 _FETCH_SQL, data_source, join_pre_min, join_post_min, days
