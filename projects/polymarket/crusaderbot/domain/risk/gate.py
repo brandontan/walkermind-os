@@ -89,22 +89,38 @@ class GateResult:
 
 async def _log(user_id: UUID, market_id: str, step: int,
                approved: bool, reason: str) -> None:
-    pool = get_pool()
+    """Emit a risk-gate decision to stdout (+ Sentry on rejection). No DB write.
+
+    WARP-82 (kill-realtime-persistence): the former risk_log write is
+    replaced by a severity-gated dual sink — a rejection (``approved=False``) is
+    a WARNING-level Sentry capture (with structured extra) so operators still see
+    it; an approval is an info stdout line. Never raises into the gate loop.
+    """
+    reason = (reason or "")[:200]
     try:
-        async with pool.acquire() as conn:
-            await conn.execute(
-                "INSERT INTO risk_log (user_id, market_id, gate_step, approved, reason)"
-                " VALUES ($1, $2, $3, $4, $5)",
-                user_id, market_id, step, approved, reason[:200],
+        if not approved:
+            try:
+                import sentry_sdk
+                sentry_sdk.capture_message(
+                    f"risk_gate reject step={step} reason={reason}",
+                    level="warning",
+                )
+                with sentry_sdk.configure_scope() as scope:  # type: ignore[attr-defined]
+                    scope.set_extra("user_id", str(user_id))
+                    scope.set_extra("market_id", market_id)
+                    scope.set_extra("gate_step", step)
+            except Exception:  # noqa: BLE001 — sentry optional, never break the gate
+                pass
+            logger.warning(
+                "risk_event approved=False step=%s market_id=%s reason=%s",
+                step, market_id, reason,
             )
-    except asyncpg.exceptions.ForeignKeyViolationError:
-        # risk_log.user_id has FK on users.id. Operator /admin/dry-run uses
-        # a synthetic user_id that doesn't exist — there's nothing to audit
-        # and the FK is expected. Drop to debug so Sentry isn't paged on
-        # every dry-run tick.
-        logger.debug("risk_log skipped: synthetic user_id %s (dry-run)", user_id)
-    except Exception as exc:
-        logger.error("risk_log insert failed: %s", exc)
+        else:
+            logger.info(
+                "risk_event approved=True step=%s market_id=%s", step, market_id,
+            )
+    except Exception as exc:  # noqa: BLE001 — observability must not break the gate
+        logger.error("risk_event log failed: %s", exc)
 
 
 async def _open_position_count(user_id: UUID) -> int:

@@ -72,33 +72,20 @@ async def record_market_snapshots(
     *,
     pool: object | None = None,
 ) -> int:
-    """Persist a snapshot row per market for this scan tick. Returns rows written.
+    """WARP-82: NO durable persistence — market snapshots are real-time only.
 
-    Fail-soft: any error logs and returns 0 — the scan loop is never broken. The
-    caller is responsible for the ``SCAN_SNAPSHOT_ENABLED`` gate.
+    Per the operator architecture ruling ("real-time signals do not need durable
+    storage"), the former market_snapshots write is removed; the raw
+    universe stays in-memory inside the scanner cycle. Kept as a fail-soft no-op
+    (returns 0) so the gated call site in ``signal_scan_job.run_once`` and any
+    test harness keep working without a code change. The ``market_snapshots``
+    table is dropped in migration 087.
     """
     if not markets:
         return 0
-    rows = [r for r in (_extract(m) for m in markets if isinstance(m, dict)) if r]
-    if not rows:
-        return 0
-    payload = [(scan_run_id, *r) for r in rows]
-    try:
-        pool = pool or get_pool()
-        async with pool.acquire() as conn:  # type: ignore[attr-defined]
-            await conn.executemany(
-                """
-                INSERT INTO market_snapshots
-                    (scan_run_id, market_id, category, best_bid, best_ask,
-                     mid_price, liquidity_usdc, raw, scanned_at)
-                VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW())
-                """,
-                payload,
-            )
-    except Exception as exc:  # noqa: BLE001 — fail-soft, never break the scan loop
-        logger.warning("market_snapshot_write_failed", error=str(exc))
-        return 0
-    return len(payload)
+    # Debug-only visibility; never persisted.
+    logger.debug("market_snapshots_skipped count=%d (durable persistence killed, WARP-82)", len(markets))
+    return 0
 
 
 __all__ = ["record_market_snapshots"]

@@ -160,99 +160,53 @@ def test_job_returns_zero_when_token_unset():
 # ---------------------------------------------------------------------------
 
 
-def test_job_upserts_each_trade_and_prunes():
-    pool, conn = _make_pool()
+def test_job_fetches_but_does_not_persist():
+    """WARP-82: run_job fetches trades + logs them but writes NOTHING to the DB.
 
+    Returns (fetched_count, 0) and never acquires the pool — durable persistence
+    to heisenberg_realtime_trades is removed.
+    """
+    pool, conn = _make_pool()
     sample_trades = [
         heisenberg_trades.RealtimeTrade(
-            wallet="0xabc",
-            condition_id="cond-1",
-            side="YES",
-            price=0.42,
-            size_usdc=50.0,
-            trade_time=datetime(2026, 5, 30, 4, 30, tzinfo=timezone.utc),
+            wallet="0xabc", condition_id="cond-1", side="YES", price=0.42,
+            size_usdc=50.0, trade_time=datetime(2026, 5, 30, 4, 30, tzinfo=timezone.utc),
             raw={"k": "v"},
         ),
         heisenberg_trades.RealtimeTrade(
-            wallet="0xdef",
-            condition_id="cond-2",
-            side="NO",
-            price=None,
-            size_usdc=None,
-            trade_time=datetime(2026, 5, 30, 4, 31, tzinfo=timezone.utc),
+            wallet="0xdef", condition_id="cond-2", side="NO", price=None,
+            size_usdc=None, trade_time=datetime(2026, 5, 30, 4, 31, tzinfo=timezone.utc),
             raw={"k": "v2"},
         ),
     ]
-
-    # Prune DELETE returns 'DELETE 7' → parsed to int 7
-    conn.execute = AsyncMock(side_effect=["INSERT 0 1", "INSERT 0 1", "DELETE 7"])
-
     with (
         patch.dict("os.environ", {"HEISENBERG_API_TOKEN": "x"}),
         patch.object(sync_job, "get_settings", return_value=_fake_settings()),
         patch.object(sync_job, "get_pool", return_value=pool),
         patch.object(
-            sync_job.heisenberg_trades,
-            "fetch_recent",
+            sync_job.heisenberg_trades, "fetch_recent",
             new=AsyncMock(return_value=sample_trades),
         ),
     ):
         upserted, pruned = asyncio.run(sync_job.run_job())
 
-    assert upserted == 2
-    assert pruned == 7
-    assert conn.execute.await_count == 3  # 2 upserts + 1 prune
-
-    # First upsert call has the expected SQL shape (INSERT … ON CONFLICT).
-    first_sql = conn.execute.await_args_list[0].args[0]
-    assert "INSERT INTO heisenberg_realtime_trades" in first_sql
-    assert "ON CONFLICT (wallet, condition_id, trade_time, side)" in first_sql
-    # raw is JSON-serialised as a string for $7::jsonb.
-    assert isinstance(conn.execute.await_args_list[0].args[7], str)
-    json.loads(conn.execute.await_args_list[0].args[7])  # parses cleanly
+    assert (upserted, pruned) == (2, 0)
+    pool.acquire.assert_not_called()      # no DB acquired
+    assert conn.execute.await_count == 0  # nothing written/pruned
 
 
-def test_job_returns_zero_when_no_trades_but_still_prunes():
+def test_job_returns_zero_when_no_trades():
     pool, conn = _make_pool()
-    conn.execute = AsyncMock(return_value="DELETE 3")
-
     with (
         patch.dict("os.environ", {"HEISENBERG_API_TOKEN": "x"}),
         patch.object(sync_job, "get_settings", return_value=_fake_settings()),
         patch.object(sync_job, "get_pool", return_value=pool),
         patch.object(
-            sync_job.heisenberg_trades,
-            "fetch_recent",
+            sync_job.heisenberg_trades, "fetch_recent",
             new=AsyncMock(return_value=[]),
         ),
     ):
         upserted, pruned = asyncio.run(sync_job.run_job())
-
-    assert upserted == 0
-    assert pruned == 3
-    # Only the prune query ran — no upserts.
-    assert conn.execute.await_count == 1
-    assert "DELETE FROM heisenberg_realtime_trades" in conn.execute.await_args.args[0]
-
-
-def test_prune_skipped_when_retention_zero():
-    pool, conn = _make_pool()
-
-    with (
-        patch.dict("os.environ", {"HEISENBERG_API_TOKEN": "x"}),
-        patch.object(
-            sync_job, "get_settings",
-            return_value=_fake_settings(HEISENBERG_REALTIME_TRADES_RETENTION_HOURS=0),
-        ),
-        patch.object(sync_job, "get_pool", return_value=pool),
-        patch.object(
-            sync_job.heisenberg_trades,
-            "fetch_recent",
-            new=AsyncMock(return_value=[]),
-        ),
-    ):
-        upserted, pruned = asyncio.run(sync_job.run_job())
-
     assert (upserted, pruned) == (0, 0)
     assert conn.execute.await_count == 0
 
@@ -406,35 +360,28 @@ def test_coerce_dt_normalises_iso_string_without_tz_to_utc():
     assert out == datetime(2026, 5, 30, 4, 0, tzinfo=timezone.utc)
 
 
-def test_job_returns_zero_zero_when_db_acquire_raises():
-    """Pool/acquire failure must NOT bubble up to APScheduler — the contract
-    is 'never raises'. Returns (0, 0) and logs."""
+def test_job_never_touches_db_even_with_pool_present():
+    """WARP-82: even when a pool is available, run_job must not acquire it —
+    persistence is fully removed, so a pool failure can't affect the job."""
     sample_trades = [
         heisenberg_trades.RealtimeTrade(
-            wallet="0xabc",
-            condition_id="cond-1",
-            side="YES",
-            price=0.42,
-            size_usdc=50.0,
-            trade_time=datetime(2026, 5, 30, 4, 30, tzinfo=timezone.utc),
+            wallet="0xabc", condition_id="cond-1", side="YES", price=0.42,
+            size_usdc=50.0, trade_time=datetime(2026, 5, 30, 4, 30, tzinfo=timezone.utc),
             raw={"k": "v"},
         ),
     ]
-
     pool = MagicMock()
-    # Simulate the pool failing the moment we touch acquire().
     pool.acquire = MagicMock(side_effect=RuntimeError("pool exhausted"))
-
     with (
         patch.dict("os.environ", {"HEISENBERG_API_TOKEN": "x"}),
         patch.object(sync_job, "get_settings", return_value=_fake_settings()),
         patch.object(sync_job, "get_pool", return_value=pool),
         patch.object(
-            sync_job.heisenberg_trades,
-            "fetch_recent",
+            sync_job.heisenberg_trades, "fetch_recent",
             new=AsyncMock(return_value=sample_trades),
         ),
     ):
         upserted, pruned = asyncio.run(sync_job.run_job())
-
-    assert (upserted, pruned) == (0, 0)
+    # Fetched 1, persisted 0, and acquire() was never called (so its boom is moot).
+    assert (upserted, pruned) == (1, 0)
+    pool.acquire.assert_not_called()

@@ -88,23 +88,18 @@ def test_record_empty_returns_zero():
     assert n == 0 and conn.rows is None
 
 
-def test_record_batches_with_run_id_and_skips_non_dict():
+def test_record_never_persists_warp82():
+    """WARP-82: record_market_snapshots is a no-op (no durable storage).
+
+    Even with valid markets, it returns 0 and never calls executemany — the
+    real-time universe stays in-memory; the table is dropped in migration 087.
+    """
     markets = [
         {"conditionId": "c1", "bestBid": "0.4", "bestAsk": "0.6"},
-        "not-a-dict",
         {"id": "c2", "lastTradePrice": "0.5"},
     ]
     conn = _Conn()
     with _patch(conn):
         n = asyncio.run(record_market_snapshots("run1", markets))
-    assert n == 2
-    assert all(r[0] == "run1" for r in conn.rows)        # run_id prepended
-    assert {r[1] for r in conn.rows} == {"c1", "c2"}     # market_id at index 1
-    assert "$1::uuid" in conn.sql  # str run_id cast → no silent type-mismatch fail
-
-
-def test_record_failsoft_on_error():
-    conn = _Conn(raise_exc=True)
-    with _patch(conn):
-        n = asyncio.run(record_market_snapshots("run1", [{"conditionId": "c1"}]))
     assert n == 0
+    assert conn.rows is None and conn.sql == ""  # no DB write attempted
