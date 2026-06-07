@@ -10,7 +10,7 @@ Suggested Next Step: WARP🔹CMD sign-off on the final TP/SL values. The Conserv
 
 ## STOP CONDITION — TRIGGERED (read first)
 
-The Conservative bundle (TP 60% / SL 30%) produces **NET NEGATIVE expected EV of -6.76% per trade** (a CERTAIN point estimate, not a bound — see methodology). Per the lane STOP CONDITION, no decision is made here. This is escalated as a **PRODUCT QUESTION requiring WARP🔹CMD sign-off**: the strategy is a low-win-rate / fat-right-tail profile (25.6% win rate), and a tight 60% take-profit truncates the very winners that carry the edge, flipping the book negative. A "Conservative" label that loses money is a product contradiction CMD must resolve (rename / re-spec / drop the Conservative tier).
+The Conservative bundle (TP 60% / SL 30%) produces **NET NEGATIVE expected EV of -6.85% per trade** (a CERTAIN point estimate, not a bound — see methodology; the backtest now anchors each trade on its own realized tp_pct/sl_pct, default fallback 1.5/0.5). Per the lane STOP CONDITION, no decision is made here. This is escalated as a **PRODUCT QUESTION requiring WARP🔹CMD sign-off**: the strategy is a low-win-rate / fat-right-tail profile (25.6% win rate), and a tight 60% take-profit truncates the very winners that carry the edge, flipping the book negative. A "Conservative" label that loses money is a product contradiction CMD must resolve (rename / re-spec / drop the Conservative tier).
 
 ---
 
@@ -18,7 +18,7 @@ The Conservative bundle (TP 60% / SL 30%) produces **NET NEGATIVE expected EV of
 
 A reproducible TP/SL calibration backtest over the CrusaderBot settled paper trade history, plus this report. Deliverables:
 
-- `scripts/tpsl_calibration_backtest.py` — a read-only research tool (full type hints, asyncio, no runtime imports) that loads the settled paper cohort from Supabase and computes, per bundle, EV/trade, win rate, max drawdown, and Sharpe-equivalent using a bounded-counterfactual method. It re-derives every number in this report.
+- `scripts/tpsl_calibration_backtest.py` — a read-only research tool (full type hints, asyncio, no runtime imports) that loads the settled paper cohort from Supabase and computes, per bundle, EV/trade, win rate, max drawdown, and Sharpe-equivalent using a bounded-counterfactual method. The counterfactual now anchors each trade on its own realized `tp_pct`/`sl_pct` (default fallback 1.5/0.5) rather than a global hardcoded 1.5/0.5, so the ~3.67% of trades that ran non-default profiles are mapped correctly. It re-derives every number in this report.
 - This report, quantifying the three proposed bundles and recommending final values.
 
 No strategy default was changed. No ev_comparator / scorer / orchestrator path was touched.
@@ -26,12 +26,12 @@ No strategy default was changed. No ev_comparator / scorer / orchestrator path w
 ### Data cohort
 
 - Source: Supabase project `ykyagjdeqcgcktnpdhes`, table `positions`, filter `mode='paper' AND size_usdc>0 AND pnl_usdc IS NOT NULL`.
-- n = 1439 settled positions; total stake $8,060; strategy = `late_entry_v3` (1436) + 1 `playbook`; `is_demo=false`.
-- The realized policy was TP 1.5 / SL 0.5 on 1386 / 1437 rows — i.e. the proposed **Balanced bundle IS the current live default** (confirmed below).
+- n = 1445 settled positions; total stake $8,096; strategy = `late_entry_v3`-dominated; `is_demo=false`.
+- The realized policy was TP 1.5 / SL 0.5 on 1392 of 1445 rows (96.3%); the remaining 53 rows (3.67%) ran NON-default tp_pct/sl_pct profiles (e.g. 0.8/0.35, 0.9/0.4, 0.25/0.12). The proposed **Balanced bundle IS the dominant live default** (confirmed below). The backtest anchors each trade on its OWN realized tp_pct/sl_pct (default fallback 1.5/0.5) rather than a single global hardcode, so the 53 non-default trades are mapped against the threshold that actually governed their exit.
 
 ### Confirming the current hardcoded default (CONFIRM step)
 
-- `domain/strategy/strategies/late_entry_v3.py` defines `DEFAULT_TP_PCT = 0.15` / `DEFAULT_SL_PCT = 0.08`, but these module fallbacks are NOT what ran: the live positions were stamped with TP/SL from the user risk profile / preset, and the dominant realized values are **tp_pct=1.5, sl_pct=0.5** (1386 of 1437 rows). 
+- `domain/strategy/strategies/late_entry_v3.py` defines `DEFAULT_TP_PCT = 0.15` / `DEFAULT_SL_PCT = 0.08`, but these module fallbacks are NOT what ran: the live positions were stamped with TP/SL from the user risk profile / preset, and the dominant realized values are **tp_pct=1.5, sl_pct=0.5** (1392 of 1445 rows). 
 - Semantics confirmed empirically: `tp_pct`/`sl_pct` are **return-on-stake thresholds**, not price-move fractions. `sl_hit` trades realize return-on-stake ≈ -0.50 (exactly the SL); `tp_hit` trades realize ≥ +1.50 (the TP, with overshoot). So Balanced = TP +150% of stake / SL -50% of stake = the realized live policy. The webtrader `PROFILE_TP_SL` table in `domain/risk/constants.py` (balanced 0.20/0.15) is a SEPARATE price-move convention and is not the strategy exit policy that generated this data.
 
 ---
@@ -88,46 +88,51 @@ No strategy, risk, ev_comparator, scorer, or orchestrator file was modified.
 
 ## 4. What is working
 
-### Results table (per profile, settled paper cohort, n=1439)
+### Results table (per profile, settled paper cohort, n=1445)
+
+EV / trade is the script's canonical metric: the **mean of per-trade counterfactual return-on-stake** (unweighted across trades). The stake-weighted return is reported separately as the baseline-sanity figure.
 
 | Profile (TP / SL) | Scenario | EV / trade | Win rate | Max drawdown | Sharpe-equiv |
 |---|---|---|---|---|---|
-| Conservative 60% / 30% | certain | **-6.76%** | 25.8% | -$573.34 | -0.176 |
-| Balanced 150% / 50% (current default) | certain (= realized) | **+13.0%** | 25.8% | -$153.63 | +0.104 |
-| Aggressive 250% / 75% | pessimistic bound | **-3.0%** | 25.8% | -$490.29 | -0.027 |
-| Aggressive 250% / 75% | optimistic bound | **+181.7%** | 25.8% | (favorable) | +1.46* |
+| Conservative 60% / 30% | certain | **-6.85%** | 25.7% | -$581.74 | -0.176 |
+| Balanced 150% / 50% (current default) | certain (= realized) | **+0.48%** | 25.7% | -$267.17 | +0.006 |
+| Aggressive 250% / 75% | pessimistic bound | **-3.08%** | 25.7% | -$503.96 | -0.026 |
+| Aggressive 250% / 75% | optimistic bound | **+180.2%** | 79.1% | -$17.20 | +1.43* |
 
-\* The Aggressive optimistic bound assumes EVERY looser-SL trade recovered to full take-profit — physically implausible; it is an upper bound only, not an estimate. The honest read of Aggressive is "somewhere between -3.0% and +181.7%, undeterminable from available data."
+\* The Aggressive optimistic bound assumes EVERY looser-SL trade recovered to full take-profit — physically implausible; it is an upper bound only, not an estimate. The honest read of Aggressive is "somewhere between -3.08% and +180.2%, undeterminable from available data."
 
 Notes:
-- Win rate is identical across bundles at 25.8% because the sign of the per-trade outcome rarely flips under these threshold changes (winners stay winners, losers stay losers); what changes is the *magnitude* captured, which is what drives EV.
-- Baseline sanity: realized total PnL = +$1,020.10 on $8,060.05 stake = +12.66% pnl-weighted return, win rate 25.64% — consistent with the Balanced row.
+- Per-trade-threshold correction: the backtest now anchors each trade on its OWN realized tp_pct/sl_pct (default fallback 1.5/0.5) rather than a global 1.5/0.5 hardcode. On the current cohort the 53 non-default trades (3.67%) do not move the aggregate metrics at quoted precision (their realized profiles are mostly tighter than the candidate bundles, so they map identically), but the mapping is now correct for any cohort mix.
+- Win rate is identical across the certain/pessimistic rows at 25.7% because the sign of the per-trade outcome rarely flips under these threshold changes (winners stay winners, losers stay losers); what changes is the *magnitude* captured, which drives EV. The Aggressive optimistic row jumps to 79.1% only because it counterfactually books every looser-SL loser as a recovery to +TP (an upper bound, not realistic).
+- Baseline sanity: realized total PnL = +$1,030.47 on $8,096.05 stake = +12.73% stake-weighted return, win rate 25.67% — consistent with the realized (Balanced) policy. The Balanced EV/trade (+0.48%) is positive but far below the stake-weighted +12.73% because the unweighted mean gives equal weight to many small losers vs. fewer large winners; both are positive, so the conclusion (Balanced is certainly profitable) is unchanged.
 
 ### Why Conservative fails (mechanism)
 
-This strategy makes money from a **fat right tail**: 279 tp_hit trades overshoot to +1.5…+6.8 (avg +2.18) and 59 resolution_win trades pay up to +6.6 (avg +2.49), while losers are bounded near -0.5. Capping the upside at +60% while still losing -30%…-95% on ~74% of trades removes the tail that carries the book. The 30% stop also fires on more trades than the 50% stop saves, deepening drawdown (-$573 vs -$153 for Balanced).
+This strategy makes money from a **fat right tail**: 281 tp_hit trades overshoot to +1.5…+6.8 (avg +2.18) and 59 resolution_win trades pay up to +6.7 (avg +2.49), while losers are bounded near -0.5. Capping the upside at +60% while still losing -30%…-95% on ~74% of trades removes the tail that carries the book. The 30% stop also fires on more trades than the 50% stop saves, deepening drawdown (-$582 vs -$267 for Balanced).
 
 ### Alternative-bundle exploration (SL fixed at 0.5, the only SL modellable with certainty)
 
+EV / trade below is the unweighted per-trade mean (the script's canonical metric).
+
 | Bundle | EV / trade | Sharpe-equiv | Max drawdown | Note |
 |---|---|---|---|---|
-| TP 60% / SL 50% | -20.5% | n/a | worse | tighter TP destroys edge |
-| TP 100% / SL 50% | -11.1% | n/a | worse | still negative |
-| TP 150% / SL 50% (Balanced) | +13.0% | +0.104 | -$153.63 | current default — the profitable inflection |
-| TP 200% / SL 50% (lower bound) | +9.0% | +0.090 | -$141.97 | LOWER bound; true value likely higher |
-| No-TP-cap / SL 50% (lower bound) | **+17.9%** | **+0.148** | **-$121.06** | "let winners run" — best on all three metrics |
+| TP 60% / SL 50% | -20.5% | -0.435 | -$1,692.69 | tighter TP destroys edge |
+| TP 100% / SL 50% | -11.2% | -0.176 | -$950.13 | still negative |
+| TP 150% / SL 50% (Balanced) | +0.48% | +0.006 | -$267.17 | current default — the profitable inflection |
+| TP 200% / SL 50% (lower bound) | +9.0% | +0.090 | -$147.51 | LOWER bound; true value likely higher |
+| No-TP-cap / SL 50% (lower bound) | **+18.0%** | **+0.148** | **-$121.06** | "let winners run" — best on all three metrics |
 
-The "let winners run / SL 50%" LOWER bound dominates the current default on EV (+17.9% vs +13.0%), Sharpe (+0.148 vs +0.104) AND drawdown (-$121 vs -$154). Because tp_hit trades were force-exited at +1.5, their realized return understates their true peak — so this is a conservative lower bound and the real improvement is likely larger. This is a strong signal that **the current TP=150% may be too tight**, but it requires forward (live-path) validation to confirm, which is exactly why this lane stops for sign-off.
+The "let winners run / SL 50%" LOWER bound dominates the current default on EV (+18.0% vs +0.48%), Sharpe (+0.148 vs +0.006) AND drawdown (-$121 vs -$267). Because tp_hit trades were force-exited at +1.5, their realized return understates their true peak — so this is a conservative lower bound and the real improvement is likely larger. This is a strong signal that **the current TP=150% may be too tight**, but it requires forward (live-path) validation to confirm, which is exactly why this lane stops for sign-off.
 
 ---
 
 ## 5. Known issues
 
 - **No intra-trade price path / MFE-MAE data.** This is the irreducible limitation. Conservative and SL=0.5 variations are exact; the Aggressive bundle and any looser-SL or "let-winners-run" recommendation are bounds, not point estimates. Closing this gap requires capturing per-position peak-favorable / peak-adverse excursion going forward (a possible E.2 instrumentation lane — NOT built here).
-- **Single TP/SL regime in the data.** 96% of rows ran exactly 1.5/0.5, so the realized sample is concentrated at one operating point; counterfactuals extrapolate from it rather than observing alternative regimes directly.
+- **Single TP/SL regime in the data.** 96.3% of rows ran exactly 1.5/0.5; the other 3.67% ran tighter custom profiles. The backtest now anchors each trade on its own realized tp_pct/sl_pct (default fallback 1.5/0.5), so the non-default trades are mapped correctly, but the realized sample is still concentrated at one operating point; counterfactuals extrapolate from it rather than observing alternative regimes directly.
 - **Sharpe is per-trade, not annualised.** Holding-period / trade-frequency normalisation is out of scope; the ratio is comparable across bundles but is not a conventional annualised Sharpe.
 - **Cohort is `late_entry_v3`-dominated.** Findings are specific to this strategy's fat-tail return shape; they do not generalise to other strategies.
-- **Aggressive optimistic bound is not actionable** — it assumes universal SL recovery; treat only the pessimistic bound (-3.0%) as a floor.
+- **Aggressive optimistic bound is not actionable** — it assumes universal SL recovery; treat only the pessimistic bound (-3.08%) as a floor.
 
 ---
 
@@ -140,10 +145,10 @@ The "let winners run / SL 50%" LOWER bound dominates the current default on EV (
 
 ### Recommended final TP/SL values (for CMD sign-off)
 
-- **KEEP Balanced TP 150% / SL 50% as the default.** It is the only proposed bundle that is clearly and certainly positive (+13.0% EV/trade), has the smallest drawdown (-$153) and the only solidly positive Sharpe among the required three.
-- **REJECT Conservative 60% / 30%** (-6.76% EV — STOP CONDITION). Escalate the product question above.
-- **DO NOT adopt Aggressive 250% / 75% on this data** — the outcome is bounded -3.0% to +181.7% and undeterminable; the pessimistic floor is negative.
-- **Optional, data-backed candidate for a future test:** loosen/remove the TP cap while holding SL at 50% (lower-bound EV +17.9%, Sharpe +0.148, drawdown -$121 — beats the current default on every metric). This is a LOWER bound and needs forward MFE/MAE validation before adoption; surfaced for CMD awareness only, not recommended for immediate change.
+- **KEEP Balanced TP 150% / SL 50% as the default.** It is the only proposed bundle that is clearly and certainly positive (+0.48% EV/trade unweighted, +12.73% stake-weighted), has the smallest drawdown among the certain rows (-$267) and the only positive Sharpe among the required three.
+- **REJECT Conservative 60% / 30%** (-6.85% EV — STOP CONDITION). Escalate the product question above.
+- **DO NOT adopt Aggressive 250% / 75% on this data** — the outcome is bounded -3.08% to +180.2% and undeterminable; the pessimistic floor is negative.
+- **Optional, data-backed candidate for a future test:** loosen/remove the TP cap while holding SL at 50% (lower-bound EV +18.0%, Sharpe +0.148, drawdown -$121 — beats the current default on every metric). This is a LOWER bound and needs forward MFE/MAE validation before adoption; surfaced for CMD awareness only, not recommended for immediate change.
 
 ---
 

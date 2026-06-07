@@ -59,7 +59,7 @@ except ImportError:  # pragma: no cover - asyncpg always present in prod
 # Cohort filter: settled paper trades on real data (mode='paper'; the live
 # late_entry_v3 cohort recorded under data_source semantics of paper_real).
 _COHORT_SQL: Final[str] = (
-    "SELECT opened_at, size_usdc, pnl_usdc, exit_reason "
+    "SELECT opened_at, size_usdc, pnl_usdc, exit_reason, tp_pct, sl_pct "
     "FROM positions "
     "WHERE mode = 'paper' AND size_usdc > 0 AND pnl_usdc IS NOT NULL "
     "ORDER BY opened_at ASC"
@@ -74,6 +74,8 @@ class Trade:
     size_usdc: float
     realized_return: float  # pnl_usdc / size_usdc (return on stake)
     exit_reason: str | None
+    realized_tp: float  # tp_pct that actually ran on this trade (default 1.5)
+    realized_sl: float  # sl_pct that actually ran on this trade (default 0.5)
 
 
 @dataclass(frozen=True)
@@ -118,24 +120,29 @@ def counterfactual_return(
     r = trade.realized_return
     reason = trade.exit_reason
     tp, sl = bundle.tp, bundle.sl
+    # Per-trade realized thresholds (NOT a global hardcode): ~3.5% of the cohort
+    # ran non-default tp_pct/sl_pct, so the counterfactual anchor must be the
+    # threshold that actually governed each trade's exit.
+    realized_tp = trade.realized_tp
+    realized_sl = trade.realized_sl
 
     # --- Take-profit side ---------------------------------------------------
     if reason == "tp_hit":
-        # Price provably reached +1.5 (the realized TP) and overshot to r.
-        if tp <= 1.5:
+        # Price provably reached +realized_tp (the realized TP) and overshot to r.
+        if tp <= realized_tp:
             # Tighter/equal TP: certain hit at +tp (price crossed it earlier).
             return tp
-        # Higher TP than realized: unknown if it continued past +1.5.
+        # Higher TP than realized: unknown if it continued past +realized_tp.
         if r >= tp:
             return tp  # already overshot beyond the higher TP -> locks +tp
-        # pessimistic: assume reversed after +1.5, keep realized overshoot r.
+        # pessimistic: assume reversed after +realized_tp, keep overshoot r.
         # optimistic: assume continued up to +tp.
         return max(r, tp) if optimistic else r
 
     # --- Stop-loss side -----------------------------------------------------
     if reason == "sl_hit":
-        # Price provably reached -0.5 (the realized SL).
-        if sl <= 0.5:
+        # Price provably reached -realized_sl (the realized SL).
+        if sl <= realized_sl:
             # Tighter/equal SL: certain hit at -sl (price crossed it earlier).
             return -sl
         # Looser SL than realized: unknown if it recovered or sank further.
@@ -231,6 +238,8 @@ async def _load_trades() -> list[Trade]:  # pragma: no cover - needs live DB
             size_usdc=float(row["size_usdc"]),
             realized_return=float(row["pnl_usdc"]) / float(row["size_usdc"]),
             exit_reason=row["exit_reason"],
+            realized_tp=float(row["tp_pct"]) if row["tp_pct"] is not None else 1.5,
+            realized_sl=float(row["sl_pct"]) if row["sl_pct"] is not None else 0.5,
         )
         for row in rows
     ]
