@@ -70,7 +70,7 @@ Observations:
 ## 3. Files created / modified (full repo-root paths)
 
 - `projects/polymarket/crusaderbot/reports/forge/weather-playbook-threshold-tuning.md` — this report
-- `projects/polymarket/crusaderbot/state/PROJECT_STATE.md`, `state/CHANGELOG.md` — synced
+- `projects/polymarket/crusaderbot/state/PROJECT_STATE.md`, `projects/polymarket/crusaderbot/state/CHANGELOG.md` — synced
 
 ## 4. What is working (what v1 can conclude)
 
