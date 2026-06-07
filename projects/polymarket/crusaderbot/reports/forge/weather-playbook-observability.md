@@ -85,7 +85,7 @@ Modified:
 - `projects/polymarket/crusaderbot/domain/strategy/strategies/weather.py` — EV + price gate observations (fail-soft)
 - `projects/polymarket/crusaderbot/domain/strategy/strategies/playbook.py` — quality + router-abstain observations (fail-soft)
 - `projects/polymarket/crusaderbot/services/signal_scan/signal_scan_job.py` — import alias + per-tick sink begin/drain/persist
-- `projects/polymarket/crusaderbot/state/PROJECT_STATE.md`, `state/CHANGELOG.md` — synced
+- `projects/polymarket/crusaderbot/state/PROJECT_STATE.md`, `projects/polymarket/crusaderbot/state/CHANGELOG.md` — synced
 
 ## 4. What is working
 
