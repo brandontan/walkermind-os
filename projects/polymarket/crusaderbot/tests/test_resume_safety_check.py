@@ -29,7 +29,8 @@ _MARKET = "market-resume-001"
 
 
 def _patch_clear(monkeypatch, *, balance=1000.0, pnl=0.0, dd=False,
-                 open_count=0, open_exp=0.0, open_live=0.0):
+                 open_count=0, open_exp=0.0, open_live=0.0,
+                 capital_alloc_pct=0.40):
     """Patch every gate DB helper to a clear (passing) baseline."""
     monkeypatch.setattr(gate_mod, "_log", AsyncMock(return_value=None))
     monkeypatch.setattr(gate_mod, "daily_pnl", AsyncMock(return_value=Decimal(str(pnl))))
@@ -38,6 +39,9 @@ def _patch_clear(monkeypatch, *, balance=1000.0, pnl=0.0, dd=False,
     monkeypatch.setattr(gate_mod, "_open_position_count", AsyncMock(return_value=open_count))
     monkeypatch.setattr(gate_mod, "_open_exposure", AsyncMock(return_value=Decimal(str(open_exp))))
     monkeypatch.setattr(gate_mod, "_open_live_exposure", AsyncMock(return_value=Decimal(str(open_live))))
+    # Step 8 deployment cap = per-user risk-profile CAP% (capital_alloc_pct).
+    monkeypatch.setattr(gate_mod, "_capital_alloc_pct",
+                        AsyncMock(return_value=float(capital_alloc_pct)))
 
 
 def _run(**kw):
@@ -102,11 +106,13 @@ def test_resume_concurrent_blocks(monkeypatch):
 
 
 def test_resume_exposure_blocks(monkeypatch):
-    # open 350 + proposed 100 = 450 / 1000 = 0.45 > MAX_CORRELATED_EXPOSURE 0.40
-    _patch_clear(monkeypatch, open_exp=350.0)
+    # Balanced cap 0.40; equity = balance 1000 + open 700 = 1700.
+    # (open 700 + proposed 100) / 1700 = 0.47 > 0.40 → block at step 8.
+    _patch_clear(monkeypatch, open_exp=700.0, capital_alloc_pct=0.40)
     res = _run()
     assert res.approved is False
     assert res.failed_step == 8
+    assert res.reason == "capital_deployment_cap"
 
 
 def test_resume_live_not_opted_in_blocks(monkeypatch):
