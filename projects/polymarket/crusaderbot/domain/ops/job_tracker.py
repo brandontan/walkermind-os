@@ -111,6 +111,14 @@ async def fetch_recent(limit: int = 10, *, only_failed: bool = False) -> list[di
     return out
 
 
+def _as_aware_utc(dt: datetime) -> datetime:
+    """Coerce a datetime to aware UTC (naive → assume UTC) so the ring
+    aggregates below never raise on a naive/aware comparison."""
+    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 async def count_runs_since(
     since: datetime, *, job_id: str | None = None, only_failed: bool = False
 ) -> int:
@@ -122,10 +130,11 @@ async def count_runs_since(
     ``success`` / ``failed``). Bounded by the ring size — a count over a window
     longer than the ring retains is a lower bound, not exact.
     """
+    since = _as_aware_utc(since)
     n = 0
     for r in _recent_runs:
         ts = r.get("started_at")
-        if ts is None or ts <= since:
+        if ts is None or _as_aware_utc(ts) <= since:
             continue
         if job_id is not None and r.get("job_name") != job_id:
             continue
@@ -141,10 +150,11 @@ async def distinct_jobs_since(since: datetime) -> int:
     Backs the former ``count(DISTINCT job_name)`` job_runs query in /health
     (the "active jobs" figure) from the in-memory ring.
     """
+    since = _as_aware_utc(since)
     names: set[Any] = set()
     for r in _recent_runs:
         ts = r.get("started_at")
-        if ts is None or ts <= since:
+        if ts is None or _as_aware_utc(ts) <= since:
             continue
         names.add(r.get("job_name"))
     return len(names)

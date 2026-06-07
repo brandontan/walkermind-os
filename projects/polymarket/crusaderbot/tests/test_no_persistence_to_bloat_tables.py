@@ -60,7 +60,7 @@ def test_tables_are_listed_for_drop_in_a_migration():
     assert "drop table if exists job_runs" in drops_088, "088 must drop job_runs"
 
 
-_READ_RE = re.compile(r"\bfrom\s+job_runs\b", re.IGNORECASE)
+_READ_RE = re.compile(r"""\b(from|join)\s+['"]?job_runs['"]?\b""", re.IGNORECASE)
 
 
 def test_no_read_sites_to_job_runs():

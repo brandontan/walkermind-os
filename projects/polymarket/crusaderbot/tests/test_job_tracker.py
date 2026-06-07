@@ -116,3 +116,11 @@ def test_distinct_jobs_since():
     since = _seed_ring()
     # Two distinct job names inside the window: scanner + redeem.
     assert _run(job_tracker.distinct_jobs_since(since)) == 2
+
+
+def test_aggregates_tolerate_naive_since():
+    """A naive `since` must not raise (coerced to UTC) — matches the aware result."""
+    since_aware = _seed_ring()
+    since_naive = since_aware.replace(tzinfo=None)
+    assert _run(job_tracker.count_runs_since(since_naive)) == 4
+    assert _run(job_tracker.distinct_jobs_since(since_naive)) == 2
