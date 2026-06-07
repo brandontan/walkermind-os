@@ -1244,17 +1244,15 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
         )
     pool = get_pool()
     user_id = user["user_id"]
-    # WARP-83 E.2 (Path C): TP/SL is a strategy-level property (150/50), the same
-    # for every profile, NOT preset- or profile-specific. The preset still routes
-    # strategy + capital + window; tp_sl_for_profile now returns the strategy
-    # default for all non-custom profiles so activation seeds user_settings with
-    # the honest default (the strategy reads user_settings as source of truth).
-    # A user's prior custom TP/SL override is preserved by the COALESCE on write.
-    from ...domain.risk.constants import tp_sl_for_profile
-    params = dict(_PRESET_PARAMS[body.preset_key])
-    _profile_ts = tp_sl_for_profile(str(params.get("risk_profile") or "balanced"))
-    params["tp_pct"] = _profile_ts["tp_pct"]
-    params["sl_pct"] = _profile_ts["sl_pct"]
+    # A preset selects STRATEGY + market window + assets only. It MUST NOT touch
+    # the user's risk profile, capital_alloc_pct, or TP/SL — those are owned by
+    # the risk-profile setter (/autotrade/risk-profile) and the custom override.
+    # Previously activation force-wrote risk_profile='balanced' + the preset's
+    # capital_alloc_pct, silently resetting a user's chosen profile (e.g.
+    # Aggressive 60%) back to balanced on every preset toggle. Now capital_alloc_pct
+    # actually drives sizing (signal_scan_job), so that clobber would also silently
+    # shrink their trade size. The preset's _PRESET_PARAMS capital/TP/SL are no
+    # longer applied here; the user's existing profile values are preserved.
 
     is_crypto_short = body.preset_key in _CRYPTO_SHORT_PRESETS
 
@@ -1310,24 +1308,16 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
         await conn.execute(
             """UPDATE user_settings
                   SET active_preset       = $1,
-                      risk_profile        = COALESCE($2, risk_profile),
-                      capital_alloc_pct   = COALESCE($3, capital_alloc_pct),
-                      tp_pct              = COALESCE($4, tp_pct),
-                      sl_pct              = COALESCE($5, sl_pct),
-                      selected_timeframe  = $6,
-                      category_filters    = COALESCE($7, category_filters),
+                      selected_timeframe  = $2,
+                      category_filters    = COALESCE($3, category_filters),
                       strategy_params     = CASE
-                                              WHEN $8::jsonb IS NULL THEN strategy_params
-                                              ELSE COALESCE(strategy_params, '{}'::jsonb) || $8::jsonb
+                                              WHEN $4::jsonb IS NULL THEN strategy_params
+                                              ELSE COALESCE(strategy_params, '{}'::jsonb) || $4::jsonb
                                             END,
-                      selected_assets     = $9,
+                      selected_assets     = $5,
                       updated_at          = NOW()
-               WHERE user_id = $10::uuid""",
+               WHERE user_id = $6::uuid""",
             body.preset_key,
-            params.get("risk_profile"),
-            params.get("capital_alloc_pct"),
-            params.get("tp_pct"),
-            params.get("sl_pct"),
             timeframe,
             category_filters,
             tf_params_json,

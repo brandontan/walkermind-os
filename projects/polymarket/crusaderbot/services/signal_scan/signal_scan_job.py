@@ -685,7 +685,14 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 s.daily_loss_override,
                 s.max_drawdown_pct,
                 s.max_concurrent_override,
-                us.weight                AS capital_allocation_pct,
+                -- Per-trade sizing scales with the user's RISK-PROFILE capital %
+                -- (capital_alloc_pct: conservative 0.20 / balanced 0.40 /
+                -- aggressive 0.60 / custom), NOT the strategy enrolment weight.
+                -- Previously aliased us.weight (≈0.10 for everyone) so the risk
+                -- profile had no effect on size; the late_entry_v3 engine already
+                -- sizes against this as the risk-profile CAP%. Falls back to the
+                -- enrolment weight, then 0.10, only for a legacy/NULL row.
+                COALESCE(s.capital_alloc_pct, us.weight, 0.10) AS capital_allocation_pct,
                 COALESCE(urp.profile_name, s.risk_profile, 'balanced') AS resolved_profile,
                 s.active_preset,
                 s.selected_timeframe,

@@ -152,6 +152,41 @@ async def _open_exposure(user_id: UUID) -> Decimal:
         ))
 
 
+# Absolute hard ceiling on total capital deployment — mirrors the custom-profile
+# capital_alloc_pct bound in the WebTrader (set_risk_profile). No profile or
+# custom value may deploy more than this fraction of equity.
+_MAX_DEPLOYMENT_PCT: float = 0.80
+
+
+async def _capital_alloc_pct(user_id: UUID, profile: str) -> float:
+    """User's risk-profile CAP% — the authoritative total capital-deployment cap.
+
+    Owner directive (2026-06-08): the risk-profile capital_alloc_pct (conservative
+    0.20 / balanced 0.40 / aggressive 0.60 / custom ≤0.80) governs how much of the
+    user's equity may sit in open positions, and SUPERSEDES the legacy system-wide
+    correlated-exposure ceiling (``MAX_CORRELATED_EXPOSURE`` = 0.40) so Aggressive
+    can deploy beyond 40%. The single source of truth is ``user_settings``
+    (written by ``set_risk_profile``); falls back to the profile default, then
+    balanced 0.40, for a legacy/NULL row. Clamped to ``_MAX_DEPLOYMENT_PCT`` so no
+    misconfiguration can push deployment past the absolute 80% ceiling.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        raw = await conn.fetchval(
+            "SELECT capital_alloc_pct FROM user_settings WHERE user_id = $1",
+            user_id,
+        )
+    if raw is not None:
+        try:
+            val = float(raw)
+            if val > 0:
+                return min(val, _MAX_DEPLOYMENT_PCT)
+        except (TypeError, ValueError):
+            pass
+    prof = K.PROFILE_TP_SL.get((profile or "balanced").lower())
+    return float(prof["capital_alloc_pct"]) if prof else 0.40
+
+
 async def _max_drawdown_breached(user_id: UUID,
                                   user_drawdown_pct: float | None = None) -> bool:
     """Drawdown vs initial deposits — halts when threshold crossed.
@@ -446,23 +481,24 @@ async def evaluate(ctx: GateContext) -> GateResult:
         return GateResult(False, "max_concurrent_trades", 7)
     await _log(ctx.user_id, ctx.market_id, 7, True, "ok")
 
-    # 8. Correlated exposure — most restrictive of the system constant
-    #    (MAX_CORRELATED_EXPOSURE) and the operator env cap
-    #    (MAX_TOTAL_EXPOSURE_PCT). Step 0 cap 2 used to enforce the env value
-    #    separately but it was always shadowed by the tighter 0.40 system cap
-    #    here; routing it through effective_exposure_cap removes the duplicate
-    #    evaluation. ``balance > 0`` is asserted at validate_risk_caps step 0.
+    # 8. Total capital-deployment cap — the user's risk-profile CAP%
+    #    (capital_alloc_pct) is authoritative: total open cost + this proposed
+    #    trade must stay within equity × cap% (conservative 20% / balanced 40% /
+    #    aggressive 60% / custom ≤80%). Owner directive (2026-06-08): cap% governs
+    #    deployment per profile and OVERRIDES the legacy system-wide
+    #    correlated-exposure ceiling (0.40) so Aggressive can deploy beyond 40%.
+    #    Denominator is equity (free balance + open cost) — the same pool the
+    #    sizing engine allocates against — so the cap reads as a true % of equity.
     balance = await get_balance(ctx.user_id)
-    exposure_cap = K.effective_exposure_cap(
-        system_cap=float(settings.MAX_TOTAL_EXPOSURE_PCT),
-    )
     open_exp = await _open_exposure(ctx.user_id)
-    if balance > 0 and (open_exp + ctx.proposed_size_usdc) / balance > Decimal(
-        str(exposure_cap)
+    equity = balance + open_exp
+    deploy_cap = await _capital_alloc_pct(ctx.user_id, ctx.risk_profile)
+    if equity > 0 and (open_exp + ctx.proposed_size_usdc) / equity > Decimal(
+        str(deploy_cap)
     ):
         await _log(ctx.user_id, ctx.market_id, 8, False,
-                   f"correlated_exposure cap={exposure_cap:.4f}")
-        return GateResult(False, "correlated_exposure_cap", 8)
+                   f"capital_deployment cap={deploy_cap:.4f}")
+        return GateResult(False, "capital_deployment_cap", 8)
     await _log(ctx.user_id, ctx.market_id, 8, True, "ok")
 
     # 9. Signal staleness
@@ -698,14 +734,17 @@ async def resume_safety_check(
                    f"resume_max_concurrent {cur}/{max_concurrent}")
         return GateResult(False, "max_concurrent_trades", 7)
 
-    # 8. Correlated exposure — reuses the balance fetched at step 0 (guaranteed
-    #    > 0 there, so the division is always safe).
+    # 8. Total capital-deployment cap — same per-user CAP% authority as the main
+    #    gate path (capital_alloc_pct supersedes the legacy 0.40 ceiling; owner
+    #    directive 2026-06-08). Denominator is equity (balance + open cost).
     open_exp = await _open_exposure(user_id)
-    if (open_exp + proposed_size_usdc) / balance > Decimal(
-        str(K.MAX_CORRELATED_EXPOSURE)
+    equity = balance + open_exp
+    deploy_cap = await _capital_alloc_pct(user_id, risk_profile)
+    if equity > 0 and (open_exp + proposed_size_usdc) / equity > Decimal(
+        str(deploy_cap)
     ):
-        await _log(user_id, market_id, 8, False, "resume_correlated_exposure")
-        return GateResult(False, "correlated_exposure_cap", 8)
+        await _log(user_id, market_id, 8, False, "resume_capital_deployment")
+        return GateResult(False, "capital_deployment_cap", 8)
 
     # 15. Per-user LIVE capital cap — only when resuming a live-mode trade.
     if chosen_mode == "live":

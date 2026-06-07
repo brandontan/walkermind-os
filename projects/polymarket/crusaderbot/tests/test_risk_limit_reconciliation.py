@@ -79,6 +79,7 @@ def _patch_clear(
     open_count=0,
     open_exp=0.0,
     kill_switch=False,
+    capital_alloc_pct=0.40,
     settings_kwargs=None,
 ):
     """Patch every gate DB helper + settings to a clear (passing) baseline."""
@@ -88,6 +89,10 @@ def _patch_clear(
     monkeypatch.setattr(gate_mod, "_max_drawdown_breached", AsyncMock(return_value=dd))
     monkeypatch.setattr(gate_mod, "_open_position_count", AsyncMock(return_value=open_count))
     monkeypatch.setattr(gate_mod, "_open_exposure", AsyncMock(return_value=Decimal(str(open_exp))))
+    # Step 8 now reads the per-user risk-profile CAP% (capital_alloc_pct) as the
+    # authoritative total-deployment ceiling (owner directive 2026-06-08).
+    monkeypatch.setattr(gate_mod, "_capital_alloc_pct",
+                        AsyncMock(return_value=float(capital_alloc_pct)))
     monkeypatch.setattr(gate_mod, "kill_switch_is_active",
                         AsyncMock(return_value=kill_switch))
     monkeypatch.setattr(gate_mod, "_record_idempotency", AsyncMock(return_value=None))
@@ -266,26 +271,29 @@ def test_step_5_profile_cap_fires_when_pnl_breaches_profile(monkeypatch):
     assert res.failed_step == 5
 
 
-def test_step_8_uses_reconciled_exposure_cap_constant_when_tighter(monkeypatch):
-    # open 395 + proposed 10 = 405/1000 = 0.405 > 0.40 system constant → reject step 8.
-    _patch_clear(monkeypatch, open_exp=395.0,
-                 settings_kwargs={"max_total_exposure_pct": 0.60})
+def test_step_8_rejects_when_over_capital_deploy_cap(monkeypatch):
+    # Balanced cap 0.40; equity = balance 1000 + open 700 = 1700.
+    # (open 700 + proposed 10) / 1700 = 0.4176 > 0.40 → reject at step 8.
+    _patch_clear(monkeypatch, open_exp=700.0, capital_alloc_pct=0.40)
     res = asyncio.run(evaluate(_ctx(proposed_size=Decimal("10"))))
     assert res.approved is False
     assert res.failed_step == 8
+    assert res.reason == "capital_deployment_cap"
 
 
-def test_step_8_uses_operator_cap_when_tighter(monkeypatch):
-    # operator tightens cap to 0.20; open 195 + proposed 10 = 205/1000 = 0.205 → reject step 8.
-    _patch_clear(monkeypatch, open_exp=195.0,
-                 settings_kwargs={"max_total_exposure_pct": 0.20})
-    res = asyncio.run(evaluate(_ctx(proposed_size=Decimal("10"))))
-    assert res.approved is False
-    assert res.failed_step == 8
+def test_step_8_aggressive_cap_allows_deployment_beyond_40pct(monkeypatch):
+    # Owner directive: Aggressive cap 0.60 supersedes the legacy 0.40 ceiling.
+    # Same exposure as above (0.4176 of equity) now PASSES under a 0.60 cap.
+    _patch_clear(monkeypatch, open_exp=700.0, capital_alloc_pct=0.60)
+    res = asyncio.run(evaluate(_ctx(risk_profile="aggressive",
+                                    proposed_size=Decimal("10"))))
+    assert res.approved is True
 
 
-def test_step_8_passes_when_under_reconciled_cap(monkeypatch):
-    # 390 + 10 = 400/1000 = 0.40 exactly, not >, so passes step 8.
-    _patch_clear(monkeypatch, open_exp=390.0)
-    res = asyncio.run(evaluate(_ctx(proposed_size=Decimal("10"))))
+def test_step_8_passes_when_under_capital_deploy_cap(monkeypatch):
+    # Conservative cap 0.20; equity = 1000 + 200 = 1200.
+    # (200 + 10) / 1200 = 0.175 < 0.20 → passes step 8.
+    _patch_clear(monkeypatch, open_exp=200.0, capital_alloc_pct=0.20)
+    res = asyncio.run(evaluate(_ctx(risk_profile="conservative",
+                                    proposed_size=Decimal("10"))))
     assert res.approved is True
