@@ -76,3 +76,52 @@ WARP🔹CMD: apply 086 (dashboard) + share flyctl logs; review MAJOR boot-path c
 Source: projects/polymarket/crusaderbot/reports/forge/run-migrations-skip-086-rca.md
 Tier: MAJOR
 ```
+
+---
+
+## Addendum (post-deploy) — the failure is the DB-CONNECT phase, not migrations
+
+The first real deploy of this fix ran the `release_command` and it **failed (exit 1)**
+in the connect/setup phase — the deploy aborted (fail-loud working; prod unharmed)
+but blocked. Fly couldn't surface the traceback ("timeout waiting for release
+command logs"). Triangulated without log access:
+
+- **`schema_migrations` was never created** after the release run. The runner
+  creates that tracker table **before any migration executes**, so `run_migrations`
+  failed **before reaching the tracker DDL** → at `init_pool()` / the connect phase
+  (or import), **not** on a migration.
+- **086 SQL is exonerated**: table absent, 0 index-name collisions, `pgcrypto` +
+  `gen_random_uuid` present, and the `JSONB NOT NULL DEFAULT '{}'` pattern is
+  already proven in prod (`scan_runs`) — and a migration error would have created
+  the tracker first anyway.
+- **Import chain is fine in prod**: `python -m crusaderbot.scripts.migrate` imports
+  cleanly (the only sandbox import error was a missing `starlette`, which IS
+  installed in prod).
+
+⇒ **Root cause is DB connectivity at `init_pool()`** (connection refused / timeout
+/ connection-limit exhaustion / a `DATABASE_URL` issue) — the same phase that
+crash-loops the app boot (`main.py:75` `init_pool` is before `run_migrations`). The
+read-only Supabase MCP connects via a separate management path, which is why it
+works while the app's pool does not. **This is operational, beyond the
+migration-runner — escalated to CMD.**
+
+### Follow-up hardening (this lane, `WARP/migrate-resilience`)
+`scripts/migrate.py`:
+- **Decoupled from the web stack** — no longer imports `monitoring.logging` (which
+  pulls in starlette); logging is configured inline so the migration step never
+  depends on HTTP deps.
+- **Bounded connect retry** (5 attempts, exp backoff ≤ ~60s total) — rides out a
+  transient connection-contention window during a deploy.
+- **Raw `traceback.print_exc()` to stderr** on final failure — so the next failure
+  is never invisible, even if structlog / Fly log-fetch is flaky.
+
+4 entrypoint tests added (retry-succeeds / retry-exhausts / main exit 1 / 0).
+
+### Operator actions to clear the outage (require prod access CC lacks)
+1. `flyctl logs -a crusaderbot` → read the `init_pool` exception from the boot /
+   release machine (now also printed raw on the next deploy attempt).
+2. Check Supabase: project not paused, `pg_stat_activity` connection count vs the
+   limit, and the `DATABASE_URL` secret. If the crash-loop exhausted connections,
+   `flyctl scale count 0 -a crusaderbot` (drain) then redeploy breaks the spiral.
+3. Apply the frozen 086 DDL via the dashboard anytime — independent unblock for the
+   table (no-op for the runner once connectivity is restored).
