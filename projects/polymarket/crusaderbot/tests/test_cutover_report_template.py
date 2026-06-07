@@ -6,6 +6,7 @@ keys are used, and the Track C verdict logic (PASS / FAIL / RETRY) is correct.
 from __future__ import annotations
 
 from projects.polymarket.crusaderbot.scripts.report_cutover_holdout import (
+    CUTOVER_CELLS,
     TARGET_CELLS,
     CellStats,
     Criteria,
@@ -27,6 +28,27 @@ def _strong_cells():
     overall.comp_ev_sum = 240 * 0.03
     overall.deltas = [0.03] * 240
     return cells, overall
+
+
+def test_5m_scope_passes_despite_terminal_15m() -> None:
+    # Strong 5m cells + terminal (sub-minimum) 15m cells. Under the default
+    # CUTOVER_CELLS scope the 15m cells are ignored → PASS. Under the full 4-cell
+    # scope the terminal 15m cells fail §1.5 → RETRY (never PASS). This is the
+    # whole reason for the scope param.
+    cells = {}
+    for ck in ("BTC/5m", "ETH/5m"):
+        cs = CellStats(cell=ck, settled=210, holdout_n=63, decided=60)
+        cs.comp_ev_sum = 60 * 0.03
+        cs.deltas = [0.03] * 60
+        cells[ck] = cs
+    for ck in ("BTC/15m", "ETH/15m"):  # terminal — far below the 200 minimum
+        cells[ck] = CellStats(cell=ck, settled=12, holdout_n=4, decided=4)
+    overall = CellStats(cell="overall", settled=420, holdout_n=126, decided=120)
+    overall.comp_ev_sum = 120 * 0.03
+    overall.deltas = [0.03] * 120
+
+    assert apply_criteria(cells, overall, Criteria())[0] == "PASS"  # default 5m scope
+    assert apply_criteria(cells, overall, Criteria(), target_cells=TARGET_CELLS)[0] == "RETRY"
 
 
 def test_demo_report_renders_all_sections() -> None:
@@ -63,15 +85,18 @@ def test_verdict_retry_when_marginal() -> None:
     assert verdict == "RETRY"
 
 
-def test_overall_excludes_off_target_cells() -> None:
-    # A --from-db fetch can return off-grid cells (e.g. SOL/5m). They must NOT
-    # pollute the overall aggregate the cutover decision is gated on.
-    rows = _demo_rows(per_cell=120)
-    sol = [dict(r, asset="sol") for r in rows[:120]]  # SOL/5m — off target
-    cells, overall, _ = compute_report(rows + sol)
-    assert "SOL/5m" in cells  # still reported per-cell
-    assert "SOL/5m" not in TARGET_CELLS
-    assert overall.settled == sum(cells[ck].settled for ck in TARGET_CELLS)  # SOL excluded
+def test_overall_excludes_off_scope_cells() -> None:
+    # The default scope is the 5m-first cutover cells. Off-scope cells — SOL/5m
+    # AND the terminal 15m cells — must NOT pollute the overall aggregate the
+    # cutover decision is gated on.
+    rows = _demo_rows(per_cell=120)  # generates BTC/5m, BTC/15m, ETH/5m, ETH/15m
+    sol = [dict(r, asset="sol") for r in rows[:120]]  # SOL/5m — off scope
+    cells, overall, _ = compute_report(rows + sol)  # default target_cells = CUTOVER_CELLS
+    assert CUTOVER_CELLS == ("BTC/5m", "ETH/5m")
+    assert "SOL/5m" in cells and "BTC/15m" in cells  # still computed per-cell
+    # overall sums ONLY the in-scope 5m cells (15m + SOL excluded)
+    assert overall.settled == sum(cells[ck].settled for ck in CUTOVER_CELLS)
+    assert overall.settled < sum(cells[ck].settled for ck in TARGET_CELLS)
 
 
 def test_verdict_fail_on_catastrophic_cell() -> None:

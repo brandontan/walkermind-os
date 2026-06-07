@@ -56,6 +56,11 @@ from domain.strategy.scorer import (  # noqa: E402
 )
 
 TARGET_CELLS: tuple[str, ...] = ("BTC/5m", "BTC/15m", "ETH/5m", "ETH/15m")
+# Confirmed cutover scope (WARP-79): 5m-first — 15m dropped (Polymarket
+# discontinued the updown-15m series, so those cells are terminal). §1.5/§1.7
+# evaluate ONLY these cells; the §1.7 verdict LOGIC is unchanged — only the cell
+# set it ranges over. Override at the CLI with --cells for a different scope.
+CUTOVER_CELLS: tuple[str, ...] = ("BTC/5m", "ETH/5m")
 _TRAIN_FRACTION: float = 0.7
 
 
@@ -145,7 +150,8 @@ def _split(rows: Sequence[Mapping[str, Any]], train_fraction: float):
 
 
 def compute_report(
-    rows: Sequence[Mapping[str, Any]], *, train_fraction: float = _TRAIN_FRACTION
+    rows: Sequence[Mapping[str, Any]], *, train_fraction: float = _TRAIN_FRACTION,
+    target_cells: Sequence[str] = CUTOVER_CELLS,
 ) -> tuple[dict[str, CellStats], CellStats, dict[str, Any]]:
     train, test, settled = _split(rows, train_fraction)
     model = derive_ev_model(train)
@@ -190,11 +196,11 @@ def compute_report(
                 key = (router_rule, comp_rule)
                 cs.disagreements[key] = cs.disagreements.get(key, 0) + 1
         cells[ck] = cs
-        # Fold into overall ONLY for the target cells under test — a --from-db
-        # fetch can return off-grid cells (e.g. SOL/5m, other timeframes, UNKNOWN);
-        # folding those in would pollute the overall EV delta / CI that the Track C
-        # criteria gate the cutover on.
-        if ck not in TARGET_CELLS:
+        # Fold into overall ONLY for the cells in scope — a --from-db fetch returns
+        # off-scope cells (the terminal 15m cells, SOL/5m, UNKNOWN); folding those
+        # in would pollute the overall EV delta / CI that the Track C criteria gate
+        # the cutover on.
+        if ck not in target_cells:
             continue
         overall.settled += cs.settled
         overall.holdout_n += cs.holdout_n
@@ -215,7 +221,8 @@ def compute_report(
 
 
 def apply_criteria(
-    cells: dict[str, CellStats], overall: CellStats, crit: Criteria
+    cells: dict[str, CellStats], overall: CellStats, crit: Criteria,
+    *, target_cells: Sequence[str] = CUTOVER_CELLS,
 ) -> tuple[str, list[tuple[str, bool, str]]]:
     gates: list[tuple[str, bool, str]] = []
     delta = overall.ev_delta
@@ -229,7 +236,7 @@ def apply_criteria(
 
     sample_ok = True
     sample_detail: list[str] = []
-    for ck in TARGET_CELLS:
+    for ck in target_cells:
         cs = cells.get(ck)
         ok = bool(cs and cs.settled >= crit.min_settled and cs.holdout_n >= crit.min_holdout
                   and cs.decided >= crit.min_decided)
@@ -238,10 +245,10 @@ def apply_criteria(
             n = (cs.settled if cs else 0, cs.holdout_n if cs else 0, cs.decided if cs else 0)
             sample_detail.append(f"{ck}:{n}")
     gates.append(("sample_minimums", sample_ok,
-                  "all cells ≥200/60/40" if sample_ok else "below: " + ", ".join(sample_detail)))
+                  "all scoped cells ≥200/60/40" if sample_ok else "below: " + ", ".join(sample_detail)))
 
     catastrophic: list[str] = []
-    for ck in TARGET_CELLS:
+    for ck in target_cells:
         cs = cells.get(ck)
         if not cs or cs.decided == 0:
             continue
@@ -279,11 +286,14 @@ def _ci(ci: Optional[tuple[float, float]]) -> str:
 def render_markdown(
     cells: dict[str, CellStats], overall: CellStats, meta: dict[str, Any],
     verdict: str, gates: list[tuple[str, bool, str]], crit: Criteria, *, data_source: str,
+    target_cells: Sequence[str] = CUTOVER_CELLS,
 ) -> str:
     L: list[str] = []
     L.append("# WARP-78 Orchestrator Cutover — Holdout Report")
     L.append("")
     L.append(f"- Data source: **{data_source}**")
+    L.append(f"- Cutover scope: **{', '.join(target_cells)}** "
+             f"(15m dropped — Polymarket discontinued the updown-15m series)")
     L.append(f"- Decision criteria: Track C, margin **{crit.margin_label}**, "
              f"CI-excludes-0={crit.ci_must_exclude_zero}")
     L.append(f"- Preset under test: `candle_auto` + rule `auto` (orchestrator) vs precedence router")
@@ -299,7 +309,7 @@ def render_markdown(
     L.append("")
     L.append("| Cell | Settled | Holdout | Decided | Abstain | Undecidable |")
     L.append("|---|--:|--:|--:|--:|--:|")
-    for ck in TARGET_CELLS:
+    for ck in target_cells:
         cs = cells.get(ck) or CellStats(cell=ck)
         L.append(f"| `{ck}` | {cs.settled} | {cs.holdout_n} | {cs.decided} | {cs.abstain} | {cs.undecidable} |")
     L.append(f"| **overall** | {overall.settled} | {overall.holdout_n} | {overall.decided} "
@@ -310,7 +320,7 @@ def render_markdown(
     L.append("")
     L.append("| Cell | Router EV/trade | Orchestrator EV/trade | Δ | 95% CI | Agreement |")
     L.append("|---|--:|--:|--:|:--:|--:|")
-    for ck in TARGET_CELLS:
+    for ck in target_cells:
         cs = cells.get(ck) or CellStats(cell=ck)
         agree = f"{cs.agreements / cs.decided:.0%}" if cs.decided else "N/A"
         L.append(f"| `{ck}` | {_f(cs.router_avg)} | {_f(cs.comp_avg)} | {_f(cs.ev_delta)} "
@@ -323,7 +333,7 @@ def render_markdown(
     L.append("## 3. Decision diff matrix (router → orchestrator, where they disagreed)")
     L.append("")
     any_disagree = False
-    for ck in TARGET_CELLS:
+    for ck in target_cells:
         cs = cells.get(ck)
         if not cs or not cs.disagreements:
             continue
@@ -338,7 +348,7 @@ def render_markdown(
     L.append("")
     L.append("| Cell | `close_sweep` drivers | `flip_hunter` drivers |")
     L.append("|---|---|---|")
-    for ck in TARGET_CELLS:
+    for ck in target_cells:
         cs = cells.get(ck)
         cs_drv = _fmt_factors(cs.top_factors.get("close_sweep") if cs else None)
         fh_drv = _fmt_factors(cs.top_factors.get("flip_hunter") if cs else None)
@@ -352,7 +362,7 @@ def render_markdown(
     L.append("")
     L.append("| Cell | Δ | Orchestrator EV/trade | Status |")
     L.append("|---|--:|--:|:--:|")
-    for ck in TARGET_CELLS:
+    for ck in target_cells:
         cs = cells.get(ck)
         if not cs or cs.decided == 0:
             L.append(f"| `{ck}` | N/A | N/A | ⚠️ INCONCLUSIVE |")
@@ -399,6 +409,8 @@ def _fmt_factors(top: Optional[list[tuple[str, float]]]) -> str:
 def _demo_rows(seed: int = 78, per_cell: int = 220) -> list[dict[str, Any]]:
     rng = random.Random(seed)
     out: list[dict[str, Any]] = []
+    # Generate the full 4-cell grid so the demo also exercises off-scope exclusion
+    # (the 15m cells are present in the data but dropped from the verdict scope).
     for ck in TARGET_CELLS:
         asset, tf = ck.split("/")
         asset = asset.lower()
@@ -456,11 +468,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--data-source", choices=_DATA_SOURCE_CHOICES, default=CUTOVER_DATA_SOURCE,
         help="Provenance filter for --from-db (default paper_real; 'all' reads every provenance).",
     )
+    p.add_argument(
+        "--cells", default=",".join(CUTOVER_CELLS),
+        help="Comma-separated cells the §1.7 verdict ranges over (default the confirmed "
+             "5m-first scope BTC/5m,ETH/5m; 15m is terminal and excluded).",
+    )
     p.add_argument("--out", default=None, help="Write markdown to this path (default: stdout).")
     args = p.parse_args(argv)
 
     margin, label = _MARGIN_OPTIONS[args.margin]
     crit = Criteria(margin=margin, margin_label=label)
+    target_cells = tuple(c.strip() for c in args.cells.split(",") if c.strip())
 
     if args.demo:
         rows = _demo_rows()
@@ -473,9 +491,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print("No settled rows returned from DB — cannot render.", file=sys.stderr)
             return 2
 
-    cells, overall, meta = compute_report(rows)
-    verdict, gates = apply_criteria(cells, overall, crit)
-    md = render_markdown(cells, overall, meta, verdict, gates, crit, data_source=data_source)
+    cells, overall, meta = compute_report(rows, target_cells=target_cells)
+    verdict, gates = apply_criteria(cells, overall, crit, target_cells=target_cells)
+    md = render_markdown(cells, overall, meta, verdict, gates, crit,
+                         data_source=data_source, target_cells=target_cells)
 
     if args.out:
         out_path = Path(args.out)
