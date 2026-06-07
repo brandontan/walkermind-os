@@ -7,22 +7,26 @@ blueprint (§2.2, §Phase-2b) specifies:
 
 * **Sharp-wallet set** — top-tier wallets from ``leaderboard_stats`` (synced by
   ``copy_trade.leaderboard_sync``): ``win_rate >= θ_wr`` AND ``total_pnl > 0``.
-* **Per-market flow** — their recent trades from ``heisenberg_realtime_trades``
-  (synced by ``jobs.heisenberg_realtime_sync``), summed as *signed* USDC:
-  YES-accumulation positive, NO-accumulation negative.
+* **Per-market flow** — their recent trades from the in-memory real-time buffer
+  (``services.heisenberg_buffer``, fed by ``jobs.heisenberg_realtime_sync``),
+  summed as *signed* USDC: YES-accumulation positive, NO-accumulation negative.
 
 For one market the *imbalance* ``sharp_signed_usdc / total_flow_usdc`` feeds the
 existing ``sharp_money_reading`` formula; a persistent one-sided lean by
 profitable wallets is the informed-flow edge ``SharpMoneyModule`` trades.
 
-Fail-soft: any DB error returns empty flow (0.0, 0.0) so the scan loop never
-breaks and the module simply does not claim. Pure read — no writes.
+Fail-soft: any error (leaderboard query or buffer read) returns empty flow so the
+scan loop never breaks and the module simply does not claim. Pure read — no
+writes, no durable storage (the buffer is in process memory).
 """
 from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
 
 import structlog
 
 from ...database import get_pool
+from ...services import heisenberg_buffer
 
 logger = structlog.get_logger(__name__)
 
@@ -80,48 +84,55 @@ async def fetch_sharp_flows(
     """Return ``{condition_id: (sharp_signed_usdc, total_flow_usdc)}`` for the
     given markets, restricted to top-tier sharp wallets over the lookback.
 
-    One batched query for the whole scan's market set; the per-trade rows are
-    summed in Python via ``yes_accumulation_signed`` (so the directional logic is
-    unit-tested, not buried in SQL). The row count is small and bounded — the
-    sharp set is the ≤50-wallet top-tier leaderboard, the far band is ≤20 markets,
-    over a 24h window. Markets with no flow are absent from the result (caller
-    defaults them to 0.0/0.0). Fail-soft: on any error returns an empty mapping.
+    The sharp-wallet set is one small query against the durable
+    ``leaderboard_stats`` table (the ≤50-wallet top tier); the per-market trades
+    come from the in-memory buffer over the lookback window and are summed in
+    Python via ``yes_accumulation_signed`` (so the directional logic is
+    unit-tested, not buried in SQL). Markets with no flow are absent from the
+    result (caller defaults them to 0.0/0.0). Fail-soft: on any error (leaderboard
+    query or buffer read) returns an empty mapping.
     """
     if not condition_ids:
         return {}
     try:
         pool = get_pool()
         async with pool.acquire() as conn:
-            rows = await conn.fetch(
+            wallet_rows = await conn.fetch(
                 """
-                SELECT t.condition_id          AS condition_id,
-                       t.raw->>'outcome'       AS raw_outcome,
-                       t.raw->>'side'          AS raw_side,
-                       t.raw->>'direction'     AS raw_direction,
-                       t.side                  AS side_col,
-                       COALESCE(t.size_usdc, 0) AS size_usdc
-                  FROM heisenberg_realtime_trades t
-                  JOIN leaderboard_stats l ON l.wallet = t.wallet
-                 WHERE t.condition_id = ANY($1::text[])
-                   AND t.trade_time > NOW() - make_interval(hours => $2)
-                   AND l.win_rate >= $3
-                   AND l.total_pnl > $4
+                SELECT wallet
+                  FROM leaderboard_stats
+                 WHERE win_rate >= $1
+                   AND total_pnl > $2
                 """,
-                condition_ids, lookback_hours, min_win_rate, min_total_pnl,
+                min_win_rate, min_total_pnl,
             )
     except Exception as exc:  # noqa: BLE001 — fail-soft, never break the scan loop
-        logger.warning("playbook_sharp_flow_fetch_failed", error=str(exc))
+        logger.warning("playbook_sharp_flow_leaderboard_fetch_failed", error=str(exc))
+        return {}
+
+    sharp_wallets = {str(r["wallet"]).lower() for r in wallet_rows if r["wallet"]}
+    if not sharp_wallets:
+        return {}
+
+    since = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
+    try:
+        trades = heisenberg_buffer.trades_for_markets(condition_ids, since)
+    except Exception as exc:  # noqa: BLE001 — fail-soft, never break the scan loop
+        logger.warning("playbook_sharp_flow_buffer_read_failed", error=str(exc))
         return {}
 
     agg: dict[str, list[float]] = {}  # cid -> [signed, total]
-    for r in rows:
-        cid = str(r["condition_id"] or "")
-        size = float(r["size_usdc"] or 0.0)
+    for tr in trades:
+        if (tr.wallet or "").lower() not in sharp_wallets:
+            continue
+        cid = str(tr.condition_id or "")
+        size = float(tr.size_usdc or 0.0)
         if not cid or size <= 0.0:
             continue
         # Classify by value — outcome and action may live in any of these fields.
+        raw = tr.raw or {}
         signed = yes_accumulation_signed(
-            [r["raw_outcome"], r["raw_side"], r["raw_direction"], r["side_col"]],
+            [raw.get("outcome"), raw.get("side"), raw.get("direction"), tr.side],
             size,
         )
         bucket = agg.setdefault(cid, [0.0, 0.0])

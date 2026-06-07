@@ -1,18 +1,17 @@
-"""Copy-trade fast-track consumer — reads heisenberg_realtime_trades buffer.
+"""Copy-trade fast-track consumer — reads the in-memory real-time trade buffer.
 
 Sub-minute mirror evaluation. The existing copy_trade.monitor.run_once() polls
 the wallet-watcher (Polymarket Data API) every 30s. That path remains intact
 as a fallback — this consumer rides on top of the Heisenberg agent 556
-real-time buffer so a leader trade lands in our mirror queue within ~60s
-of execution upstream (vs up to 5-10 min for the wallet-watcher path's
-HTTP polling latency).
+real-time buffer (services.heisenberg_buffer, in process memory — no durable
+storage) so a leader trade lands in our mirror queue within ~60s of execution
+upstream (vs up to 5-10 min for the wallet-watcher path's HTTP polling latency).
 
 Pipeline:
   1. List active copy_trade_tasks (same source as monitor).
   2. Group by target wallet.
-  3. For each wallet: SELECT FROM heisenberg_realtime_trades
-       WHERE wallet = leader_wallet
-         AND trade_time > task.last_realtime_seen_at (NULL -> NOW() - 5min).
+  3. For each wallet: read the buffer for that leader_wallet
+       with trade_time > task.last_realtime_seen_at (NULL -> NOW() - 5min).
   4. For each fresh trade, delegate to monitor._process_one(task, raw, wallet)
      — the SAME execution path the slow leader poller uses. Dedup is handled
      by copy_trade_idempotency (existing table), so a trade landing in both
@@ -41,6 +40,7 @@ from ...config import get_settings
 from ...database import get_pool
 from ...domain.copy_trade.models import CopyTradeTask
 from ...domain.copy_trade.repository import list_active_tasks
+from .. import heisenberg_buffer
 from . import monitor as _monitor
 
 log = structlog.get_logger(__name__)
@@ -131,27 +131,15 @@ async def _process_wallet(
         (t.last_realtime_seen_at or fallback) for t in tasks
     )
 
-    # Agent 556 stores wallets as all-lowercase hex (verified on live buffer).
-    # `task.wallet_address` may be checksummed (mixed case) depending on how
-    # the user entered it. Lowercase the query arg so the index hit is preserved
-    # without resorting to LOWER(wallet) which would defeat the wallet index.
+    # Agent 556 stores wallets as all-lowercase hex (verified on live buffer);
+    # `task.wallet_address` may be checksummed. The buffer lookup lowercases both
+    # sides, so a mixed-case task wallet still matches.
     wallet_key = wallet.lower()
-    pool = get_pool()
     try:
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT trade_time, raw
-                  FROM heisenberg_realtime_trades
-                 WHERE wallet = $1
-                   AND trade_time > $2
-                 ORDER BY trade_time ASC
-                """,
-                wallet_key, earliest,
-            )
-    except Exception as exc:
+        rows = heisenberg_buffer.trades_for_wallet(wallet_key, earliest)
+    except Exception as exc:  # noqa: BLE001 — fail-soft, never break the tick
         log.warning(
-            "copy_trade_fast_track: buffer fetch failed",
+            "copy_trade_fast_track: buffer read failed",
             wallet=wallet, error=str(exc),
         )
         return 0, 0
@@ -171,11 +159,11 @@ async def _process_wallet(
         latest_seen = task_cutoff
         failed = False
         for row in rows:
-            trade_time = row["trade_time"]
+            trade_time = row.trade_time
             if trade_time <= task_cutoff:
                 continue
             scanned += 1
-            raw = dict(row["raw"]) if row["raw"] else {}
+            raw = dict(row.raw) if row.raw else {}
             try:
                 await _monitor._process_one(task, raw, wallet)
                 dispatched += 1

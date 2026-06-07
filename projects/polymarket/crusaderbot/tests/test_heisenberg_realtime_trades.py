@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from projects.polymarket.crusaderbot.services import heisenberg_trades
+from projects.polymarket.crusaderbot.services import heisenberg_buffer, heisenberg_trades
 from projects.polymarket.crusaderbot.jobs import heisenberg_realtime_sync as sync_job
 
 
@@ -160,55 +160,49 @@ def test_job_returns_zero_when_token_unset():
 # ---------------------------------------------------------------------------
 
 
-def test_job_fetches_but_does_not_persist():
-    """WARP-82: run_job fetches trades + logs them but writes NOTHING to the DB.
-
-    Returns (fetched_count, 0) and never acquires the pool — durable persistence
-    to heisenberg_realtime_trades is removed.
-    """
-    pool, conn = _make_pool()
+def test_job_records_to_buffer_no_db():
+    """run_job fetches trades and records them into the in-memory buffer, never
+    touching the DB — the get_pool dependency is gone."""
+    assert not hasattr(sync_job, "get_pool")  # DB dependency fully removed
+    heisenberg_buffer.clear()
+    now = datetime.now(timezone.utc)
     sample_trades = [
         heisenberg_trades.RealtimeTrade(
             wallet="0xabc", condition_id="cond-1", side="YES", price=0.42,
-            size_usdc=50.0, trade_time=datetime(2026, 5, 30, 4, 30, tzinfo=timezone.utc),
-            raw={"k": "v"},
+            size_usdc=50.0, trade_time=now, raw={"k": "v"},
         ),
         heisenberg_trades.RealtimeTrade(
             wallet="0xdef", condition_id="cond-2", side="NO", price=None,
-            size_usdc=None, trade_time=datetime(2026, 5, 30, 4, 31, tzinfo=timezone.utc),
-            raw={"k": "v2"},
+            size_usdc=None, trade_time=now, raw={"k": "v2"},
         ),
     ]
     with (
         patch.dict("os.environ", {"HEISENBERG_API_TOKEN": "x"}),
         patch.object(sync_job, "get_settings", return_value=_fake_settings()),
-        patch.object(sync_job, "get_pool", return_value=pool),
         patch.object(
             sync_job.heisenberg_trades, "fetch_recent",
             new=AsyncMock(return_value=sample_trades),
         ),
     ):
-        upserted, pruned = asyncio.run(sync_job.run_job())
+        recorded, pruned = asyncio.run(sync_job.run_job())
 
-    assert (upserted, pruned) == (2, 0)
-    pool.acquire.assert_not_called()      # no DB acquired
-    assert conn.execute.await_count == 0  # nothing written/pruned
+    assert (recorded, pruned) == (2, 0)
+    assert heisenberg_buffer.size() == 2  # both landed in the buffer
 
 
 def test_job_returns_zero_when_no_trades():
-    pool, conn = _make_pool()
+    heisenberg_buffer.clear()
     with (
         patch.dict("os.environ", {"HEISENBERG_API_TOKEN": "x"}),
         patch.object(sync_job, "get_settings", return_value=_fake_settings()),
-        patch.object(sync_job, "get_pool", return_value=pool),
         patch.object(
             sync_job.heisenberg_trades, "fetch_recent",
             new=AsyncMock(return_value=[]),
         ),
     ):
-        upserted, pruned = asyncio.run(sync_job.run_job())
-    assert (upserted, pruned) == (0, 0)
-    assert conn.execute.await_count == 0
+        recorded, pruned = asyncio.run(sync_job.run_job())
+    assert (recorded, pruned) == (0, 0)
+    assert heisenberg_buffer.size() == 0
 
 
 # ---------------------------------------------------------------------------
@@ -360,28 +354,25 @@ def test_coerce_dt_normalises_iso_string_without_tz_to_utc():
     assert out == datetime(2026, 5, 30, 4, 0, tzinfo=timezone.utc)
 
 
-def test_job_never_touches_db_even_with_pool_present():
-    """WARP-82: even when a pool is available, run_job must not acquire it —
-    persistence is fully removed, so a pool failure can't affect the job."""
+def test_job_has_no_db_dependency():
+    """Persistence is fully removed — the job module no longer imports get_pool,
+    so a DB outage cannot affect the real-time buffer feed."""
+    assert not hasattr(sync_job, "get_pool")
+    heisenberg_buffer.clear()
     sample_trades = [
         heisenberg_trades.RealtimeTrade(
             wallet="0xabc", condition_id="cond-1", side="YES", price=0.42,
-            size_usdc=50.0, trade_time=datetime(2026, 5, 30, 4, 30, tzinfo=timezone.utc),
-            raw={"k": "v"},
+            size_usdc=50.0, trade_time=datetime.now(timezone.utc), raw={"k": "v"},
         ),
     ]
-    pool = MagicMock()
-    pool.acquire = MagicMock(side_effect=RuntimeError("pool exhausted"))
     with (
         patch.dict("os.environ", {"HEISENBERG_API_TOKEN": "x"}),
         patch.object(sync_job, "get_settings", return_value=_fake_settings()),
-        patch.object(sync_job, "get_pool", return_value=pool),
         patch.object(
             sync_job.heisenberg_trades, "fetch_recent",
             new=AsyncMock(return_value=sample_trades),
         ),
     ):
-        upserted, pruned = asyncio.run(sync_job.run_job())
-    # Fetched 1, persisted 0, and acquire() was never called (so its boom is moot).
-    assert (upserted, pruned) == (1, 0)
-    pool.acquire.assert_not_called()
+        recorded, pruned = asyncio.run(sync_job.run_job())
+    assert (recorded, pruned) == (1, 0)
+    assert heisenberg_buffer.size() == 1

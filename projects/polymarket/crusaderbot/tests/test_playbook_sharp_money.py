@@ -15,6 +15,8 @@ from unittest.mock import patch
 import pytest
 
 from projects.polymarket.crusaderbot.domain.playbook import sharp_flow as SF
+from projects.polymarket.crusaderbot.services import heisenberg_buffer as _BUF
+from projects.polymarket.crusaderbot.services.heisenberg_trades import RealtimeTrade
 from projects.polymarket.crusaderbot.domain.playbook.modules import (
     ClosingEdgeModule,
     MarketSnapshot,
@@ -172,10 +174,17 @@ def test_window_excludes_beyond_far_max():
     assert got == set()
 
 
-# ── DB-backed source (fetch_sharp_flows) ──────────────────────────────────
+# ── leaderboard + in-memory-buffer source (fetch_sharp_flows) ──────────────
+# fetch_sharp_flows now queries leaderboard_stats for the sharp-wallet set (the
+# only DB hop) and reads the per-market trades from the in-memory buffer
+# (heisenberg_realtime_trades was dropped). _Conn serves the leaderboard query;
+# trades are seeded into the buffer.
+_SHARP = "0xsharp"  # a wallet returned by the mocked leaderboard sharp set
+
+
 class _Conn:
-    def __init__(self, rows=None, raise_exc=False):
-        self._rows = rows or []
+    def __init__(self, wallets=(_SHARP,), raise_exc=False):
+        self._rows = [{"wallet": w} for w in wallets]
         self._raise = raise_exc
         self.queries: list[str] = []
         self.args: list[tuple] = []
@@ -209,52 +218,75 @@ def _patch(conn: _Conn):
     return patch.object(SF, "get_pool", return_value=_Pool(conn))
 
 
-def _trade(
+_TR_SEQ = [0]  # monotone offset so each seeded trade gets a distinct trade_time
+
+
+def _seed(*trades: RealtimeTrade) -> None:
+    _BUF.clear()
+    if trades:
+        _BUF.record_trades(list(trades))
+
+
+def _tr(
     size: float, *, raw_outcome: str | None = None, raw_side: str | None = None,
     raw_direction: str | None = None, side_col: str | None = None, cid: str = "c1",
-) -> dict:
-    return {
-        "condition_id": cid, "raw_outcome": raw_outcome, "raw_side": raw_side,
-        "raw_direction": raw_direction, "side_col": side_col, "size_usdc": size,
-    }
+    wallet: str = _SHARP,
+) -> RealtimeTrade:
+    raw = {"outcome": raw_outcome, "side": raw_side, "direction": raw_direction}
+    _TR_SEQ[0] += 1
+    # Distinct, recent (within 24h) timestamp per trade so same-market trades
+    # never collide on the buffer dedup key.
+    ts = datetime.now(timezone.utc) - timedelta(minutes=5, seconds=_TR_SEQ[0])
+    return RealtimeTrade(
+        wallet=wallet, condition_id=cid, side=side_col, price=0.5, size_usdc=size,
+        trade_time=ts, raw=raw,
+    )
 
 
 def test_fetch_sharp_flows_aggregates_signed_outcome_action():
     # BUY YES +8000, BUY NO −2000 → signed 6000, total 10000.
-    conn = _Conn(rows=[
-        _trade(8_000.0, raw_outcome="yes", raw_side="buy"),
-        _trade(2_000.0, raw_outcome="no", raw_side="buy"),
-    ])
+    _seed(
+        _tr(8_000.0, raw_outcome="yes", raw_side="buy"),
+        _tr(2_000.0, raw_outcome="no", raw_side="buy"),
+    )
+    conn = _Conn()
     with _patch(conn):
         out = asyncio.run(SF.fetch_sharp_flows(["c1"]))
     assert out == {"c1": (6_000.0, 10_000.0)}
     q = conn.queries[0]
     assert "leaderboard_stats" in q and "win_rate" in q  # top-tier scoping pinned
-    assert "heisenberg_realtime_trades" in q and "raw->>'outcome'" in q
-    assert conn.args[0][0] == ["c1"]  # batched ANY($1)
 
 
 def test_fetch_sharp_flows_outcome_in_side_action_in_direction():
     # Codex P2: raw.side carries the OUTCOME, raw.direction the ACTION — both
     # must be honoured (BUY YES → +5000), not neutralised.
-    conn = _Conn(rows=[_trade(5_000.0, raw_side="YES", raw_direction="BUY")])
-    with _patch(conn):
+    _seed(_tr(5_000.0, raw_side="YES", raw_direction="BUY"))
+    with _patch(_Conn()):
         out = asyncio.run(SF.fetch_sharp_flows(["c1"]))
     assert out == {"c1": (5_000.0, 5_000.0)}
 
 
 def test_fetch_sharp_flows_ambiguous_counts_total_not_signed():
     # Action-only (no outcome anywhere) → can't sign → 0 signed but counts total.
-    conn = _Conn(rows=[
-        _trade(5_000.0, raw_side="buy"),
-        _trade(1_000.0, raw_outcome="yes", raw_direction="buy"),
-    ])
-    with _patch(conn):
+    _seed(
+        _tr(5_000.0, raw_side="buy"),
+        _tr(1_000.0, raw_outcome="yes", raw_direction="buy"),
+    )
+    with _patch(_Conn()):
         out = asyncio.run(SF.fetch_sharp_flows(["c1"]))
     assert out == {"c1": (1_000.0, 6_000.0)}
 
 
+def test_fetch_sharp_flows_excludes_non_sharp_wallets():
+    # A trade from a wallet NOT in the leaderboard sharp set is ignored.
+    _seed(_tr(9_000.0, raw_outcome="yes", raw_side="buy", wallet="0xnobody"))
+    with _patch(_Conn(wallets=(_SHARP,))):
+        out = asyncio.run(SF.fetch_sharp_flows(["c1"]))
+    assert out == {}
+
+
 def test_fetch_sharp_flows_empty_ids_skips_query():
+    _seed()
     conn = _Conn()
     with _patch(conn):
         out = asyncio.run(SF.fetch_sharp_flows([]))
@@ -262,6 +294,7 @@ def test_fetch_sharp_flows_empty_ids_skips_query():
 
 
 def test_fetch_sharp_flows_failsoft_on_error():
+    _seed(_tr(1_000.0, raw_outcome="yes", raw_side="buy"))
     conn = _Conn(raise_exc=True)
     with _patch(conn):
         out = asyncio.run(SF.fetch_sharp_flows(["c1"]))
@@ -269,8 +302,8 @@ def test_fetch_sharp_flows_failsoft_on_error():
 
 
 def test_fetch_sharp_flows_skips_zero_size():
-    conn = _Conn(rows=[_trade(0.0, raw_outcome="yes", raw_side="buy")])
-    with _patch(conn):
+    _seed(_tr(0.0, raw_outcome="yes", raw_side="buy"))
+    with _patch(_Conn()):
         out = asyncio.run(SF.fetch_sharp_flows(["c1"]))
     assert out == {}
 
