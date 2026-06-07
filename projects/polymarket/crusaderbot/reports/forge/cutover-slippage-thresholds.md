@@ -95,13 +95,14 @@ edge **+612 bps**, depth p50 **7.2k**.
 | Cell | GREEN up to | WATCH band | HALT onset |
 |---|---|---|---|
 | btc/5m | ≥ $5,000 (12.5% @ $5k) | not reached in tested range | not reached ≤ $5k |
-| eth/5m | ~$250 (15.6% @ $250) | $250 – ~$3k | ~$5k (39.5%) |
+| eth/5m | ~$100 (13.1% @ $100; $250 is already 15.6% = WATCH) | ~$100 – ~$3k | ~$5k (39.5%) |
 
 **Recommendation:** adopt the GREEN ≤15% / WATCH 15–30% / HALT >30% tiers and an
-**initial LIVE per-trade cap of ~$250 on eth/5m and ~$1–2k on btc/5m**, re-tuned after
-the first LIVE week. Rationale: keep both target cells in GREEN at launch, leaving the
-EV gate (WARP-78) as the primary go/no-go and slippage as a sizing constraint rather
-than a blocker.
+**initial LIVE per-trade cap of ~$100 on eth/5m and ~$1–2k on btc/5m**, re-tuned after
+the first LIVE week. (eth/5m's largest *strictly* GREEN tested stake is $100 at 13.1%;
+$250 already crosses into WATCH at 15.6%.) Rationale: keep both target cells in GREEN
+at launch, leaving the EV gate (WARP-78) as the primary go/no-go and slippage as a
+sizing constraint rather than a blocker.
 
 ## 5. Known issues
 
