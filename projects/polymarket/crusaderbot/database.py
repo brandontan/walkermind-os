@@ -1,6 +1,7 @@
 """asyncpg pool + migration runner + kill-switch helper."""
 from __future__ import annotations
 
+import hashlib
 import logging
 from pathlib import Path
 from typing import Optional
@@ -120,30 +121,134 @@ async def close_pool() -> None:
         _pool = None
 
 
-async def run_migrations() -> None:
-    """Run all SQL migrations. MUST be idempotent — safe to call on every restart."""
-    pool = await init_pool()
-    migrations_dir = Path(__file__).parent / "migrations"
-    files = sorted(migrations_dir.glob("*.sql"))
+MIGRATIONS_DIR = Path(__file__).parent / "migrations"
+
+# Migration tracking. Before WARP-80's RCA the runner had NO tracker and re-ran
+# EVERY migrations/*.sql on every boot, relying purely on per-file idempotency,
+# and a single failure aborted the whole batch — which is how migration 086 was
+# silently skipped and (worse) crash-looped the boot. The tracker records each
+# applied file (filename + content checksum) so the runner only applies NEW files
+# and an operator can SEE from the DB what ran (the table CMD looked for and did
+# not find). Created in-code (CREATE TABLE IF NOT EXISTS) rather than as a .sql
+# migration so it bootstraps before any migration is consulted.
+_SCHEMA_MIGRATIONS_DDL = """
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    filename   TEXT PRIMARY KEY,
+    checksum   TEXT NOT NULL,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+"""
+
+# Session-level advisory-lock key serializing concurrent migration runs. The
+# lifespan calls run_migrations on EVERY app machine at boot, so a rolling /
+# immediate deploy (or a scale-up) can boot replicas concurrently — without this
+# they would race on the same pending files (UniqueViolation / duplicate apply).
+# A session-scoped lock makes the others wait, then see a fully-populated tracker
+# and skip-all; it auto-releases if the holder's connection dies.
+_MIGRATION_ADVISORY_LOCK_KEY = 789234101
+
+
+def _discover_migrations(migrations_dir: Path) -> list[Path]:
+    """All ``*.sql`` files in ``migrations_dir``, sorted by filename.
+
+    Sorted-by-name is the application order (the 0NN_ prefix encodes sequence);
+    this is unchanged from the historical runner so order never shifts.
+    """
+    return sorted(migrations_dir.glob("*.sql"))
+
+
+def _migration_checksum(sql: str) -> str:
+    return hashlib.sha256(sql.encode("utf-8")).hexdigest()
+
+
+async def _load_applied_migrations(conn) -> dict[str, str]:
+    """Return ``{filename: checksum}`` already recorded in ``schema_migrations``."""
+    rows = await conn.fetch("SELECT filename, checksum FROM schema_migrations")
+    return {str(r["filename"]): str(r["checksum"]) for r in rows}
+
+
+async def _apply_pending_migrations(
+    conn, files: list[Path], applied: dict[str, str]
+) -> tuple[list[str], list[str]]:
+    """Apply every file not yet in ``applied``; record each on success.
+
+    Returns ``(newly_applied, checksum_mismatches)``. Already-applied files are
+    skipped (a checksum drift is WARNED, never silently re-run — migrations are
+    append-only by convention). A genuine SQL error is logged WITH the offending
+    filename and re-raised (fail-loud) so the deploy ``release_command`` fails the
+    deploy rather than the app crash-looping. Each migration autocommits (no outer
+    transaction — matches the historical runner so statements that cannot run in a
+    transaction, e.g. enum ``ADD VALUE``, keep working); files applied before a
+    failure stay recorded so the next run resumes instead of restarting.
+    """
+    newly: list[str] = []
+    mismatches: list[str] = []
+    for f in files:
+        sql = f.read_text(encoding="utf-8")
+        checksum = _migration_checksum(sql)
+        if f.name in applied:
+            if applied[f.name] != checksum:
+                logger.warning(
+                    "Migration %s checksum changed since it was applied "
+                    "(recorded %s, now %s) — NOT re-run; migrations must be "
+                    "append-only. Add a new migration to alter schema.",
+                    f.name, applied[f.name][:12], checksum[:12],
+                )
+                mismatches.append(f.name)
+            continue
+        logger.info("Applying migration %s", f.name)
+        try:
+            await conn.execute(sql)
+        except Exception as exc:
+            logger.error("Migration failed: %s — %s", f.name, exc, exc_info=True)
+            raise
+        await conn.execute(
+            "INSERT INTO schema_migrations (filename, checksum) VALUES ($1, $2) "
+            "ON CONFLICT (filename) DO UPDATE SET checksum = EXCLUDED.checksum, "
+            "applied_at = NOW()",
+            f.name, checksum,
+        )
+        newly.append(f.name)
+    return newly, mismatches
+
+
+async def run_migrations(
+    *, migrations_dir: Path | None = None, pool: asyncpg.Pool | None = None
+) -> list[str]:
+    """Apply pending SQL migrations, tracked in ``schema_migrations``. Idempotent.
+
+    Returns the filenames applied THIS run (empty when the DB is already current).
+    Re-raises on a migration error (fail-loud) so the deploy ``release_command``
+    surfaces it. A session-level advisory lock serializes concurrent runs across
+    replicas. ``migrations_dir`` / ``pool`` are injectable for tests.
+    """
+    pool = pool or await init_pool()
+    md = migrations_dir or MIGRATIONS_DIR
+    files = _discover_migrations(md)
     if not files:
-        logger.warning("No migration files found in %s", migrations_dir)
-        return
+        logger.warning("No migration files found in %s", md)
+        return []
     try:
         async with pool.acquire() as conn:
-            for f in files:
-                sql = f.read_text(encoding="utf-8")
-                logger.info("Running migration %s", f.name)
-                try:
-                    await conn.execute(sql)
-                except Exception as exc:
-                    logger.error(
-                        "Migration failed: %s — %s", f.name, exc, exc_info=True
-                    )
-                    raise
+            # Serialize concurrent migration runs (rolling/immediate deploys boot
+            # replicas in parallel); others block here then skip-all once the
+            # tracker is populated. Released in finally + on connection close.
+            await conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_ADVISORY_LOCK_KEY)
+            try:
+                await conn.execute(_SCHEMA_MIGRATIONS_DDL)
+                applied = await _load_applied_migrations(conn)
+                newly, mismatches = await _apply_pending_migrations(conn, files, applied)
+            finally:
+                await conn.execute("SELECT pg_advisory_unlock($1)", _MIGRATION_ADVISORY_LOCK_KEY)
     except Exception as exc:
         logger.error("run_migrations failed: %s", exc, exc_info=True)
         raise
-    logger.info("Migrations complete (%d files)", len(files))
+    logger.info(
+        "Migrations complete: %d applied this run, %d already present, %d total%s",
+        len(newly), len(files) - len(newly), len(files),
+        f", {len(mismatches)} checksum mismatch(es)" if mismatches else "",
+    )
+    return newly
 
 
 async def ping() -> bool:
