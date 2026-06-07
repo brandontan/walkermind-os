@@ -752,6 +752,28 @@ async def clob_data_feed_heartbeat_job() -> None:
         pass
 
 
+async def clob_data_feed_ping_job() -> None:
+    """WARP-84 — proactive CLOB REST ping to keep the data-feed heartbeat fresh.
+
+    Runs every 30 s regardless of strategy activity so the heartbeat stamp
+    never goes stale during quiet periods (all positions closed, no exit-watcher
+    polling). Dormant when USE_PYSDK_CLOB is False — identical guard to the
+    staleness-check job. Fail-soft: any error is logged and swallowed.
+    """
+    from .config import get_settings
+
+    s = get_settings()
+    if not s.USE_PYSDK_CLOB:
+        return
+    try:
+        from .integrations.clob import MarketDataClient
+
+        async with MarketDataClient() as client:
+            await client.get_markets()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("clob_ping_failed", error=str(exc))
+
+
 # ---------------- CLOB WebSocket (Phase 4D) ----------------
 # A single ``ClobWebSocketClient`` instance lives for the lifetime of the
 # scheduler. ``ws_connect`` spawns it on startup; ``ws_watchdog`` reconnects
@@ -1169,6 +1191,12 @@ def setup_scheduler() -> AsyncIOScheduler:
         sched.add_job(clob_data_feed_heartbeat_job, "interval",
                       seconds=int(getattr(s, "CLOB_DATA_FEED_CHECK_INTERVAL_SEC", 60)),
                       id="clob_data_feed_heartbeat", max_instances=1, coalesce=True)
+        # WARP-84 — proactive REST ping keeps the heartbeat stamp fresh every 30 s
+        # so quiet strategy periods (all positions closed) no longer trip a false
+        # "CLOB data feed lost" alarm. Internally gated on USE_PYSDK_CLOB.
+        sched.add_job(clob_data_feed_ping_job, "interval",
+                      seconds=30,
+                      id="clob_feed_ping", max_instances=1, coalesce=True)
     # WebSocket fill streaming (Phase 4D). The client itself enforces the
     # USE_REAL_CLOB=False guard; jobs are still registered so a runtime
     # toggle flip + watchdog tick brings the socket up without a redeploy.
