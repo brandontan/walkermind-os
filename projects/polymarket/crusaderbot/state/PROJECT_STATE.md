@@ -1,9 +1,10 @@
-Last Updated : 2026-06-07 22:45
-Status       : WARP-83 pre-LIVE compliance bundle — Layer 1 COMPLETE + MERGED (5 lanes): slippage estimator (Sub-Lane A, MAJOR, SENTINEL APPROVED 100/100) + slippage replay engine (Sub-Lane B) + TP/SL calibration backtest (E.1; CMD signed off: KEEP Balanced 150/50, REJECT Conservative, DEFER Aggressive) + admin snapshot toggle (WARP-81 P1) + feed vendor scoping (WARP-80 1c'; 1c integration PAUSED). Layer 2 IN PROGRESS: E.2 honest TP/SL controls BUILDING; Phase 2b calibrated slippage re-run + Sub-Lanes C/D next.
+Last Updated : 2026-06-07 23:45
+Status       : WARP-83 pre-LIVE compliance bundle — Layer 1 COMPLETE + MERGED (5 lanes). Layer 2 COMPLETE (PRs open): Phase 2b calibrated slippage re-run (#1687, gate 6.1% — NO BREACH) + E.2 honest TP/SL controls (#1688, MAJOR, held for SENTINEL) + Sub-Lane D per-cell report + Sub-Lane C cutover slippage thresholds proposal. Awaiting WARP🔹CMD review + WARP•SENTINEL on E.2.
 
 [COMPLETED]
 - WARP-83 Sub-Lane A — pre-trade slippage estimator MERGED (#1683, MAJOR; WARP•SENTINEL APPROVED 100/100, 0 critical, 16/16 tests). domain/research/slippage_estimator.py pure/deterministic estimate_slippage_bps (spread_cost + sqrt market impact + adverse move); +inf-stake clamp fix verified.
 - WARP-83 Sub-Lane B — slippage replay engine MERGED (#1686). scripts/replay_with_slippage.py DI'd SlippageModel + >50% catastrophic LIVE-viability gate; advisory default-model breach 150.7% pending calibrated re-run (Phase 2b).
+- WARP-83 Sub-Lane C — cutover slippage gate thresholds PROPOSAL done (WARP/cutover-slippage-thresholds, STANDARD, proposal-only). Re-ran calibrated estimator at LIVE notional ($50-$5k) on real per-trade depth: btc/5m comfortable (12.5% of edge @ $5k, deep book + high edge), eth/5m binding (18.5% @ $500, 39.5% @ $5k — low edge + shallow book). Proposes tiered gate GREEN ≤15% / WATCH 15-30% / HALT >30% (old single 50% too lenient) + initial caps ~$250 eth/5m, ~$1-2k btc/5m. CMD picks tiers + caps; follow-up lane wires it. Report: reports/forge/cutover-slippage-thresholds.md
 - WARP-83 Sub-Lane E.1 — TP/SL calibration backtest MERGED (#1684, report-only). n=1445; Balanced 150/50 = +0.48% unweighted EV (only certain-positive bundle); Conservative 60/30 = -6.85% REJECTED; Aggressive deferred.
 - WARP-81 P1 — admin snapshot toggle documented + MERGED (#1682). Toggle pre-existed (#1663); operator runbook added.
 - WARP-80 1c' — Weather+Playbook feed vendor scoping MERGED (#1685, report-only). $59/mo recommended; 1c integration PAUSED per CMD.
