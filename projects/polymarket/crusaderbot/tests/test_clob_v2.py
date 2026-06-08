@@ -148,6 +148,34 @@ def test_error_mapping_rate_limit_and_api():
         _run(c.get_order("0xORDER"))
 
 
+def test_error_mapping_dict_body_does_not_crash_formatter():
+    """Regression (WARP-97 staging proof, run 27150856603): the real
+    ``py_clob_client_v2.PolyApiException`` exposes ``error_msg`` as the parsed
+    JSON *dict* (e.g. {"error": "maker address not allowed"}). The mapper
+    forwarded that dict as ``body``, and ``ClobAPIError`` formatted it with
+    ``(body or '')[:200]`` -> ``TypeError: unhashable type: 'slice'``, masking
+    the genuine broker rejection. The error must surface cleanly as a typed
+    ClobAPIError carrying a stringified body."""
+    fake = _FakeV2()
+
+    class _PolyApiException(Exception):
+        status_code = 400
+
+        def __init__(self) -> None:
+            self.error_msg = {"error": "maker address not allowed, "
+                                       "please use the deposit wallet flow"}
+            super().__init__(str(self.error_msg))
+
+    c = _client(fake)
+    fake.raise_on_get_order = _PolyApiException()
+    with pytest.raises(ClobAPIError) as ei:
+        _run(c.get_order("0xORDER"))
+    # body coerced to text; the broker reason is preserved, not lost to a crash.
+    assert isinstance(ei.value.body, str)
+    assert "maker address not allowed" in ei.value.body
+    assert "maker address not allowed" in str(ei.value)
+
+
 def test_factory_selects_v2_when_enabled():
     from projects.polymarket.crusaderbot.integrations import clob
 
