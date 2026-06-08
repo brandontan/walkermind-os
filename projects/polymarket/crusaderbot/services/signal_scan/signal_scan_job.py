@@ -1134,7 +1134,7 @@ async def _load_stale_queued_row(
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT market_id, side, final_size_usdc, suggested_size_usdc, "
-            "       idempotency_key, chosen_mode "
+            "       idempotency_key, chosen_mode, strategy_name "
             "  FROM execution_queue "
             " WHERE user_id = $1 AND publication_id = $2 AND status = 'queued'",
             user_id, publication_id,
@@ -2480,14 +2480,22 @@ async def _process_candidate(
             )
             _stale_idem = str(stale["idempotency_key"])
             _stale_size = Decimal(str(stale["final_size_usdc"]))
+            # Resolve the ORIGINATING strategy for this queued row (WARP-91).
+            # execution_queue.strategy_name stores the strategy that queued the
+            # row at INSERT time (signal_following / late_entry_v3 / ...). The
+            # resume path must execute under THAT strategy — routing a
+            # late_entry_v3-origin row as signal_following would skip
+            # strategy-specific exit/force-exit evaluation. Legacy rows missing
+            # the column fall back to the historical constant (backward-compat).
+            _stale_strategy: str = str(stale.get("strategy_name") or _STRATEGY_NAME)
             # TP/SL resolution — mirror the normal-mode _build_trade_signal
             # fallback (WARP-90 / PR #1688 SENTINEL condition B). The stale-queue
             # resume path (covers safe_close + the other candle presets) re-emits
             # a queued entry; on a NULL user_settings row it must NOT resume with
-            # tp/sl = None. Fall back to the executed strategy's default_tp_sl()
-            # hook (strategy_type below is _STRATEGY_NAME) and LOG it.
+            # tp/sl = None. Fall back to the originating strategy's default_tp_sl()
+            # hook (strategy_type below is _stale_strategy) and LOG it.
             _stale_default_tp_pct, _stale_default_sl_pct = _strategy_default_tp_sl(
-                _STRATEGY_NAME
+                _stale_strategy
             )
             if row.get("tp_pct") is not None:
                 _tp: float = float(row["tp_pct"])
@@ -2496,7 +2504,7 @@ async def _process_candidate(
                 log.warning(
                     "user_settings_tp_pct_missing_defensive_fallback",
                     user_id=str(user_id),
-                    strategy_name=_STRATEGY_NAME,
+                    strategy_name=_stale_strategy,
                     mode="safe_close_resume",
                     fallback_tp_pct=_stale_default_tp_pct,
                 )
@@ -2507,7 +2515,7 @@ async def _process_candidate(
                 log.warning(
                     "user_settings_sl_pct_missing_defensive_fallback",
                     user_id=str(user_id),
-                    strategy_name=_STRATEGY_NAME,
+                    strategy_name=_stale_strategy,
                     mode="safe_close_resume",
                     fallback_sl_pct=_stale_default_sl_pct,
                 )
@@ -2574,7 +2582,7 @@ async def _process_candidate(
                     size_usdc=_stale_size,
                     price=_stale_price,
                     idempotency_key=_stale_idem,
-                    strategy_type=_STRATEGY_NAME,
+                    strategy_type=_stale_strategy,
                     tp_pct=_tp,
                     sl_pct=_sl,
                     trading_mode=str(row.get("trading_mode") or "paper"),

@@ -828,6 +828,97 @@ def test_process_candidate_skips_resume_when_kill_switch_active():
     assert not executed["called"]
 
 
+def test_process_candidate_resume_routes_under_original_strategy():
+    """WARP-91: a late_entry_v3-origin queued row must resume under
+    strategy_type='late_entry_v3' (not the hardcoded signal_following), and the
+    NULL-fallback TP/SL default must resolve via that originating strategy."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    # NULL user TP/SL forces the default-resolution fallback path.
+    row["tp_pct"] = None
+    row["sl_pct"] = None
+    cand = _candidate()
+
+    stale = {
+        "market_id": _MARKET_ID,
+        "side": "yes",
+        "final_size_usdc": Decimal("10"),
+        "suggested_size_usdc": Decimal("10"),
+        "idempotency_key": "le3:abc123",
+        "chosen_mode": "paper",
+        "strategy_name": "late_entry_v3",
+    }
+    captured: dict = {}
+    default_resolver_calls: list[str] = []
+
+    async def _fake_router(**kwargs):
+        captured["strategy_type"] = kwargs.get("strategy_type")
+
+    def _fake_default_tp_sl(strategy_name: str) -> tuple[float, float]:
+        default_resolver_calls.append(strategy_name)
+        return (1.5, 0.5)
+
+    _approved = GateResult(True, "resume_safety_ok")
+    with patch.object(job, "_load_stale_queued_row", return_value=stale), \
+            patch.object(job, "kill_switch_is_active", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "_resume_safety_check", new=AsyncMock(return_value=_approved)), \
+            patch.object(job, "_strategy_default_tp_sl", side_effect=_fake_default_tp_sl), \
+            patch.object(job, "router_execute", side_effect=_fake_router), \
+            patch.object(job, "_mark_executed", new=AsyncMock()), \
+            patch.object(job._engine, "execute", new=AsyncMock()):
+        asyncio.run(job._process_candidate(row, cand))
+
+    # router_execute routed under the ORIGINATING strategy.
+    assert captured["strategy_type"] == "late_entry_v3"
+    # NULL-fallback default resolved via the originating strategy too.
+    assert "late_entry_v3" in default_resolver_calls
+
+
+def test_process_candidate_resume_backward_compat_missing_strategy_name():
+    """WARP-91 backward-compat: a legacy queued row with no strategy_name
+    falls back to the historical _STRATEGY_NAME ('signal_following') for both
+    the router routing and the NULL-fallback default resolution."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    row["tp_pct"] = None
+    row["sl_pct"] = None
+    cand = _candidate()
+
+    # Legacy row: strategy_name field absent entirely (pre-WARP-91 SELECT).
+    stale = {
+        "market_id": _MARKET_ID,
+        "side": "yes",
+        "final_size_usdc": Decimal("10"),
+        "suggested_size_usdc": Decimal("10"),
+        "idempotency_key": "sf:legacy",
+        "chosen_mode": "paper",
+    }
+    captured: dict = {}
+    default_resolver_calls: list[str] = []
+
+    async def _fake_router(**kwargs):
+        captured["strategy_type"] = kwargs.get("strategy_type")
+
+    def _fake_default_tp_sl(strategy_name: str) -> tuple[float, float]:
+        default_resolver_calls.append(strategy_name)
+        return (1.5, 0.5)
+
+    _approved = GateResult(True, "resume_safety_ok")
+    with patch.object(job, "_load_stale_queued_row", return_value=stale), \
+            patch.object(job, "kill_switch_is_active", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "_resume_safety_check", new=AsyncMock(return_value=_approved)), \
+            patch.object(job, "_strategy_default_tp_sl", side_effect=_fake_default_tp_sl), \
+            patch.object(job, "router_execute", side_effect=_fake_router), \
+            patch.object(job, "_mark_executed", new=AsyncMock()), \
+            patch.object(job._engine, "execute", new=AsyncMock()):
+        asyncio.run(job._process_candidate(row, cand))
+
+    assert captured["strategy_type"] == job._STRATEGY_NAME == "signal_following"
+    assert default_resolver_calls == ["signal_following"]
+
+
 # ===========================================================================
 # Preset isolation tests (WARP/R00T/strategy-system-cleanup baseline)
 # ===========================================================================
