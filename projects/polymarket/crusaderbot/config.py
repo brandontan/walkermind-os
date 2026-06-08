@@ -346,6 +346,12 @@ class Settings(BaseSettings):
     POLYMARKET_BUILDER_API_KEY: Optional[str] = None
     POLYMARKET_BUILDER_API_SECRET: Optional[str] = None
     POLYMARKET_BUILDER_PASSPHRASE: Optional[str] = None
+    # On-chain builder attribution for py-clob-client-v2's BuilderConfig: the
+    # 32-byte builder code + the API-only builder address from
+    # polymarket.com/settings (Builders tab). NOT secrets, but kept env-driven
+    # so they are never hardcoded; consumed only by the v2 CLOB backend.
+    POLYMARKET_BUILDER_CODE: Optional[str] = None
+    POLYMARKET_BUILDER_ADDRESS: Optional[str] = None
 
     # --- ClobAdapter toggle (Phase 4A) ---
     # Default False keeps every caller on MockClobClient (paper-safe). Real
@@ -361,6 +367,16 @@ class Settings(BaseSettings):
     # are unchanged until the staging proof + SENTINEL validate the new
     # backend; the staging-proof harness sets this to 1.
     USE_PYSDK_CLOB: bool = False
+
+    # --- CLOB v2 cutover (WARP/clob-v2-cutover) ---
+    # When True (and USE_REAL_CLOB=True), the order path uses py-clob-client-v2
+    # (stable 1.0.1) -- the single-package successor that builds the v2 order
+    # struct natively + native builder attribution -- taking precedence over
+    # USE_PYSDK_CLOB. Default False: the proven PolymarketSdkClient stays the
+    # active real path until ClobV2Client is validated against the real broker
+    # via the WARP-74 staging harness (allow_fills=false). Flip to 1 only after
+    # that proof. Live trading remains independently gated by ENABLE_LIVE_TRADING.
+    USE_CLOB_V2: bool = False
 
     # --- Balance alerting ---
     # Fire low_balance alert when user wallet balance drops below this value.
