@@ -71,24 +71,26 @@ def test_load_enrolled_users_query_decoupled_from_signal_following():
 
 def test_signal_following_off_does_not_block_late_entry_v3():
     """signal_following=OFF + late_entry_v3=ON → candle_auto still runs."""
+    _orig = job._GLOBALLY_DISABLED_STRATEGIES
     job._GLOBALLY_DISABLED_STRATEGIES = frozenset({"signal_following"})
     try:
         for preset in ("candle_auto", "close_sweep", "safe_close", "flip_hunter"):
             assert _preset_allows(preset, "late_entry_v3") is True, preset
     finally:
-        job._GLOBALLY_DISABLED_STRATEGIES = frozenset()
+        job._GLOBALLY_DISABLED_STRATEGIES = _orig
 
 
 def test_late_entry_v3_off_blocks_only_late_entry_v3():
     """late_entry_v3=OFF → late_entry does NOT run; signal_following gate is
     unaffected (each toggle independent)."""
+    _orig = job._GLOBALLY_DISABLED_STRATEGIES
     job._GLOBALLY_DISABLED_STRATEGIES = frozenset({"late_entry_v3"})
     try:
         assert _preset_allows("candle_auto", "late_entry_v3") is False
         # Disabling late_entry_v3 must not implicitly disable signal_following.
         assert "signal_following" not in job._GLOBALLY_DISABLED_STRATEGIES
     finally:
-        job._GLOBALLY_DISABLED_STRATEGIES = frozenset()
+        job._GLOBALLY_DISABLED_STRATEGIES = _orig
 
 
 def test_candle_auto_never_routes_to_signal_following():
