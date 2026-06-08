@@ -1269,6 +1269,26 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
             raise HTTPException(
                 status_code=400, detail=f"invalid timeframe: {timeframe} (expected 5m or 15m)"
             )
+        # WARP-93 (Issue 2): candle_auto (Smart Strike) is the orchestrator-owned
+        # auto-router — the system owns its market window, and LIVE v1 trades the
+        # 5m crypto cells only. The Polymarket updown-15m series is discontinued,
+        # so a 15m candle_auto user gets ZERO trades. The web UI's timeframe
+        # toggle can persist a stale '15m' and re-POST it on a later activation,
+        # silently parking the user on a dead timeframe (observed: a manual 5m
+        # reset flipped back to 15m ~86s later from a stale client value). Pin
+        # candle_auto to 5m at this single write path so a stale client value can
+        # never strand the user; log the override so the drift stays observable.
+        # The single-rule crypto-short presets keep their toggle.
+        if body.preset_key == "candle_auto" and timeframe != "5m":
+            log.warning(
+                "activate_preset_candle_auto_timeframe_pinned",
+                extra={
+                    "user_id": str(user_id),
+                    "requested_timeframe": timeframe,
+                    "pinned_timeframe": "5m",
+                },
+            )
+            timeframe = "5m"
         # Normalize + silently drop assets that are no longer tradable
         # (e.g. legacy ["BNB","XRP","DOGE","HYPE"] from before the
         # universe was trimmed). Returning 400 here would lock the UI:
