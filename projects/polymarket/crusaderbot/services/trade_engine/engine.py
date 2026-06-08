@@ -328,4 +328,7 @@ class TradeEngine:
             capital_alloc_pct=signal.capital_alloc_pct,
             bypass_auto_trade_check=signal.bypass_auto_trade_check,
             module_live_eligible=signal.module_live_eligible,
+            # WARP-86: thread the user's active preset so the gate's AUTO entry
+            # constraint (step 4) sees it and fences AUTO to candle_auto only.
+            active_preset=signal.active_preset,
         )

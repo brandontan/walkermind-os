@@ -266,7 +266,9 @@ class CustomizeRequest(BaseModel):
 
 
 class RiskProfileRequest(BaseModel):
-    profile: str  # conservative | balanced | aggressive | custom
+    # WARP-86: 'auto' added — value membership is enforced server-side against
+    # router._VALID_RISK_PROFILES (single source of truth), not a schema enum.
+    profile: str  # conservative | balanced | aggressive | custom | auto
     capital_alloc_pct: Optional[float] = None  # required when profile='custom'
     tp_pct: Optional[float] = None             # required when profile='custom'
     sl_pct: Optional[float] = None             # required when profile='custom'

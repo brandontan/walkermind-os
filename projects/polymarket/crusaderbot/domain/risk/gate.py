@@ -100,6 +100,14 @@ class GateContext:
     # hit that path). Populate it with ``resolve_capital_alloc_pct`` so the value
     # carries the exact profile-default fallback + 80% clamp semantics.
     capital_alloc_pct: float | None = None
+    # WARP-86 (AUTO risk profile): the user's active strategy preset
+    # (user_settings.active_preset), threaded from TradeSignal.active_preset by
+    # engine._build_gate_context. The AUTO profile entry constraint (gate step 4)
+    # rejects any AUTO candidate whose preset is not 'candle_auto' so AUTO only
+    # ever trades the EV-driven candle_auto → late_entry_v3 path. Optional/
+    # defaulted so every existing GateContext construction site stays
+    # byte-compatible; None reads as "not candle_auto" for the AUTO check.
+    active_preset: str | None = None
 
 
 @dataclass
@@ -482,6 +490,20 @@ async def evaluate(ctx: GateContext) -> GateResult:
         await _log(ctx.user_id, ctx.market_id, 4, False,
                    f"strategy_{ctx.strategy_type}_not_for_{ctx.risk_profile}")
         return GateResult(False, "strategy_unavailable_for_profile", 4)
+    # WARP-86 AUTO entry constraint: the AUTO profile is a single EV-driven path
+    # that may ONLY trade the candle_auto preset (→ late_entry_v3). Any AUTO
+    # candidate produced under a different preset (e.g. safe_close / close_sweep /
+    # flip_hunter / None) is skipped here — a clean gate rejection, not an
+    # exception. Kelly (0.25) and TP/SL (strategy-owned 1.5/0.5) are unchanged;
+    # this only fences the ENTRY path so AUTO never books a non-candle_auto trade.
+    if ctx.risk_profile == "auto" and ctx.active_preset != "candle_auto":
+        logger.warning(
+            "auto profile requires candle_auto preset; skipping "
+            "(user_id=%s active_preset=%s strategy_type=%s)",
+            ctx.user_id, ctx.active_preset, ctx.strategy_type,
+        )
+        await _log(ctx.user_id, ctx.market_id, 4, False, "auto_requires_candle_auto")
+        return GateResult(False, "auto_requires_candle_auto", 4)
     # Custom profile requires capital_alloc_pct to be configured in user_settings.
     if ctx.risk_profile == "custom":
         pool = get_pool()
