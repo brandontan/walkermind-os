@@ -254,10 +254,10 @@ def _staging_settings() -> Any:
     #   USE_PYSDK_CLOB=1  -> polymarket-client backend (default when v2 is off).
     #   both 0            -> legacy py-clob-client v1 ClobAdapter (comparison run).
     _use_v2 = os.getenv("USE_CLOB_V2", "0").strip().lower() in (
-        "1", "true", "yes",
+        "1", "true", "yes", "on",
     )
     _use_pysdk = os.getenv("USE_PYSDK_CLOB", "1").strip().lower() not in (
-        "0", "false", "no", "",
+        "0", "false", "no", "off", "",
     )
     return get_settings().model_copy(update={
         "USE_REAL_CLOB": True,
