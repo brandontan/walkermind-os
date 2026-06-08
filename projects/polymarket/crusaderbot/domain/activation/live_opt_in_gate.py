@@ -41,6 +41,10 @@ class ModeChangeReason(str, Enum):
     USER_CONFIRMED = "USER_CONFIRMED"
     AUTO_FALLBACK = "AUTO_FALLBACK"
     OPERATOR_OVERRIDE = "OPERATOR_OVERRIDE"
+    # WARP-92: global (system-wide) live-trading master toggle flipped by an
+    # operator via PATCH /admin/settings/live-trading. user_id is NULL for
+    # this reason — it is a global event, not a per-user mode change.
+    ADMIN_GLOBAL_TOGGLE = "admin_global_toggle"
 
 
 # ── Live opt-in shared constants (single source of truth for BOTH surfaces) ──

@@ -209,6 +209,61 @@ async def kill(active: bool, reason: str | None = None,
     return {"kill_switch": await is_kill_switch_active()}
 
 
+@router.patch("/settings/live-trading")
+async def set_global_live_trading(
+    request: dict,
+    authorization: str | None = Header(default=None),
+):
+    """Flip the GLOBAL live-trading master toggle (WARP-92 Condition 2).
+
+    Body: ``{"enabled": true|false}``. This is the system-wide switch, distinct
+    from the per-user opt-in (which still runs through WebTrader /live/enable +
+    live_opt_in_gate). Writes ``global_live_trading_enabled`` to system_settings,
+    invalidates the in-process cache so the execution router sees the change
+    immediately, and records an immutable ``mode_change_events`` row
+    (reason=ADMIN_GLOBAL_TOGGLE, user_id=NULL). Bearer-protected like every
+    /admin route. NEVER touches ENABLE_LIVE_TRADING or the kill switch.
+    """
+    token = authorization.removeprefix("Bearer ").strip() if authorization else None
+    _check(token)
+
+    enabled = request.get("enabled")
+    if not isinstance(enabled, bool):
+        raise HTTPException(
+            status_code=400,
+            detail="body must be {\"enabled\": true|false} (boolean required)",
+        )
+
+    from ..domain.ops import global_live_gate
+    from ..domain.activation.live_opt_in_gate import (
+        write_mode_change_event,
+        ModeChangeReason,
+    )
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        prev_row = await conn.fetchrow(
+            "SELECT value FROM system_settings WHERE key=$1",
+            "global_live_trading_enabled",
+        )
+        prev = (prev_row["value"] if prev_row else None) or "false"
+        # WARP-92 review fix: reuse the single-source writer (UPSERT + cache
+        # invalidate) instead of duplicating the SQL here, so the two write
+        # paths cannot drift. set_global_live() also invalidates the in-process
+        # cache, so the 30s TTL never delays a global enable/disable.
+        await global_live_gate.set_global_live(enabled, conn=conn)
+
+    new_value = "true" if enabled else "false"
+    await write_mode_change_event(
+        user_id=None,
+        from_mode=prev,
+        to_mode=new_value,
+        reason=ModeChangeReason.ADMIN_GLOBAL_TOGGLE,
+    )
+
+    return {"global_live_trading_enabled": enabled}
+
+
 @router.post("/force-redeem")
 async def force_redeem(authorization: str | None = Header(default=None)):
     token = authorization.removeprefix("Bearer ").strip() if authorization else None

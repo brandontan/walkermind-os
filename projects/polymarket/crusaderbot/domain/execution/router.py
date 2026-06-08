@@ -15,6 +15,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from ... import audit
+from ..ops.global_live_gate import is_global_live_enabled
 from . import fallback
 from . import live as live_engine
 from . import paper as paper_engine
@@ -59,6 +60,24 @@ async def execute(*, chosen_mode: str, user_id: UUID, telegram_user_id: int,
                   active_preset: str | None = None,
                   strategy_metadata: dict | None = None) -> dict:
     if chosen_mode == "live":
+        # WARP-92 Condition 2 — GLOBAL operator toggle. Checked BEFORE the
+        # per-call guard assertion so the global master switch is a hard AND
+        # with every other activation guard. Cached (~30s TTL) so this adds no
+        # per-call DB hit beyond the cache window. Fail-safe to paper: a missing
+        # flag or any read error resolves to False inside is_global_live_enabled.
+        if not await is_global_live_enabled():
+            logger.debug("live_blocked: reason=global_disabled user=%s market=%s",
+                         user_id, market_id)
+            await audit.write(actor_role="bot",
+                              action="live_blocked_fallback_paper",
+                              user_id=user_id,
+                              payload={"market_id": market_id,
+                                       "reason": "global_live_trading_disabled"})
+            return await _paper(
+                user_id, telegram_user_id, market_id, market_question,
+                side, size_usdc, price, idempotency_key, strategy_type,
+                tp_pct, sl_pct, active_preset, strategy_metadata,
+            )
         try:
             live_engine.assert_live_guards(role, trading_mode)
         except Exception as exc:
