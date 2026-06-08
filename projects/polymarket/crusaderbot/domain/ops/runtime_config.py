@@ -95,6 +95,30 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
                     "Default OFF (orchestrator allowed). Flip ON to halt the "
                     "orchestrator if it misbehaves post-cutover.",
     ),
+    "MIN_COMPLETE_SET_EDGE": SettingSpec(
+        key="MIN_COMPLETE_SET_EDGE",
+        kind="float",
+        label="Complete-set min edge ($/pair)",
+        description="Base minimum locked net profit per complete-set pair, in USDC "
+                    "(e.g. 0.02 = 2c). 0 keeps the arb DORMANT (scans + logs quotes "
+                    "but books nothing). Any positive value is clamped UP to the 2% "
+                    "hard floor (fee/slippage-covered) — it can only TIGHTEN above "
+                    "2%, never relax below it. With adaptive margin ON this is the "
+                    "base floor a per-market slippage premium is added on top of.",
+        min_value=0.0,
+        max_value=0.5,
+    ),
+    "COMPLETE_SET_ADAPTIVE_MARGIN_ENABLED": SettingSpec(
+        key="COMPLETE_SET_ADAPTIVE_MARGIN_ENABLED",
+        kind="bool",
+        label="Complete-set adaptive margin",
+        description="When ON, the complete-set arb requires EXTRA edge on thin/steep "
+                    "books: a per-market premium = the execution slippage of filling "
+                    "the intended size above top-of-book (both legs), added on top of "
+                    "the MIN_COMPLETE_SET_EDGE base floor (capped, never below floor). "
+                    "Default OFF = static base only. Feature vector is logged each "
+                    "evaluation regardless, for future calibration.",
+    ),
 }
 
 

@@ -13,6 +13,7 @@ import asyncio
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -487,3 +488,77 @@ def test_gate_complete_set_rejects_over_cap(monkeypatch: pytest.MonkeyPatch):
     assert not res.approved
     assert res.reason == "complete_set_size_over_cap"
     assert res.failed_step == 13
+
+
+# --- WARP-95: admin-overlay base margin + adaptive per-market margin ----------
+
+def test_runtime_override_base_margin_wins_over_env():
+    """The base floor is resolved through the admin overlay (DB override wins).
+    A 0.05 override rejects a 0.03-margin pair that the env 0.02 would accept."""
+    booker = _Booker()
+
+    async def fetch(token_id: str) -> dict:
+        return _arb_book(0.485, 100.0)  # pair cost 0.97 -> margin 0.03
+
+    with patch.object(css._runtime_config, "resolve_float",
+                      AsyncMock(return_value=0.05)), \
+         patch.object(css._runtime_config, "resolve_bool",
+                      AsyncMock(return_value=False)):
+        res = _run(css.scan_complete_set_for_user(
+            _row(), [_market()], settings=_settings(edge=0.02),
+            book_fetcher=fetch, gate_evaluate=_approve,
+            booker=booker, balance_reader=_balance,
+        ))
+    # override 0.05 > available 0.03 margin -> threshold 0.95 < 0.97 pair cost.
+    assert res.quotes_found == 0
+    assert res.booked == 0
+    assert booker.calls == []
+
+
+def _steep_book(token_id: str) -> dict:
+    # 10 cheap shares @0.46 then a wall @0.50. Filling > 10 shares walks up.
+    return {"asks": [{"price": "0.46", "size": "10"}, {"price": "0.50", "size": "1000"}]}
+
+
+def test_adaptive_off_books_marginal_arb():
+    """Control: adaptive OFF -> static base 0.02 books the 0.92 top-of-book pair."""
+    booker = _Booker()
+
+    async def fetch(token_id: str) -> dict:
+        return _steep_book(token_id)
+
+    with patch.object(css._runtime_config, "resolve_float",
+                      AsyncMock(return_value=0.02)), \
+         patch.object(css._runtime_config, "resolve_bool",
+                      AsyncMock(return_value=False)):
+        res = _run(css.scan_complete_set_for_user(
+            _row(), [_market()], settings=_settings(edge=0.02),
+            book_fetcher=fetch, gate_evaluate=_approve,
+            booker=booker, balance_reader=_balance,
+        ))
+    assert res.quotes_found == 1
+    assert res.booked == 1
+
+
+def test_adaptive_on_rejects_marginal_arb_on_steep_book():
+    """Adaptive ON: filling the intended size walks into the 0.50 wall, so the
+    per-market premium raises the required margin above the 0.08 top-pair edge
+    and the arb no longer clears -> nothing books."""
+    booker = _Booker()
+
+    async def fetch(token_id: str) -> dict:
+        return _steep_book(token_id)
+
+    with patch.object(css._runtime_config, "resolve_float",
+                      AsyncMock(return_value=0.02)), \
+         patch.object(css._runtime_config, "resolve_bool",
+                      AsyncMock(return_value=True)):
+        res = _run(css.scan_complete_set_for_user(
+            _row(), [_market()], settings=_settings(edge=0.02),
+            book_fetcher=fetch, gate_evaluate=_approve,
+            booker=booker, balance_reader=_balance,
+        ))
+    assert res.markets_scanned == 1
+    assert res.quotes_found == 0
+    assert res.booked == 0
+    assert booker.calls == []

@@ -29,6 +29,7 @@ export function AdminPage() {
   const [savingStrat, setSavingStrat] = useState<string | null>(null);
   const [settings, setSettings] = useState<RuntimeSetting[]>([]);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [numDraft, setNumDraft] = useState<Record<string, string>>({});
   const [drawerUserId, setDrawerUserId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -84,6 +85,34 @@ export function AdminPage() {
     } catch (e) {
       // Full rollback: restore BOTH effective and the override marker, else a
       // failed write would leave a stale "● override" badge on an unchanged value.
+      if (original) {
+        setSettings((prev) => prev.map((s) =>
+          s.key === key
+            ? { ...s, effective: original.effective, overridden: original.overridden }
+            : s));
+      }
+      console.error("update setting failed", e);
+    } finally {
+      setSavingKey(null);
+    }
+  }
+
+  // Numeric (float) runtime setting — e.g. MIN_COMPLETE_SET_EDGE. The backend
+  // validates type + bounds (admin overlay whitelist); a bad value 400s and we
+  // roll back the optimistic update.
+  async function handleSettingNumber(key: string) {
+    const raw = numDraft[key];
+    if (raw === undefined || raw.trim() === "") return;
+    const value = Number(raw);
+    if (!Number.isFinite(value)) return;
+    const original = settings.find((s) => s.key === key);
+    setSavingKey(key);
+    setSettings((prev) => prev.map((s) =>
+      s.key === key ? { ...s, effective: value, overridden: true } : s));
+    try {
+      await api.updateAdminSetting(key, value);
+      setNumDraft((d) => { const n = { ...d }; delete n[key]; return n; });
+    } catch (e) {
       if (original) {
         setSettings((prev) => prev.map((s) =>
           s.key === key
@@ -265,6 +294,42 @@ export function AdminPage() {
                     ariaLabel={`Toggle ${s.key}`}
                     disabled={savingKey === s.key}
                   />
+                </div>
+              ))}
+              {settings.filter((s) => s.kind === "float").map((s) => (
+                <div key={s.key} className="flex items-center justify-between py-1.5 border-b border-surface-3 last:border-0">
+                  <div className="pr-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[12px] text-ink-1">{s.label}</span>
+                      <span className="font-mono text-[9px] text-gold">{String(s.effective)}</span>
+                      {s.overridden && (
+                        <span className="font-mono text-[8px] text-gold" title="Overridden in DB (vs Fly/env default)">● override</span>
+                      )}
+                    </div>
+                    <p className="text-[9px] font-mono text-ink-4 mt-0.5">{s.description}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.005"
+                      min={s.min_value ?? undefined}
+                      max={s.max_value ?? undefined}
+                      value={numDraft[s.key] ?? String(s.effective)}
+                      onChange={(e) => setNumDraft((d) => ({ ...d, [s.key]: e.target.value }))}
+                      className="w-20 bg-surface-1 border border-surface-3 rounded px-2 py-1 text-[12px] font-mono text-ink-1 text-right"
+                      aria-label={`Set ${s.key}`}
+                      disabled={savingKey === s.key}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleSettingNumber(s.key)}
+                      disabled={savingKey === s.key || numDraft[s.key] === undefined || numDraft[s.key].trim() === "" || Number(numDraft[s.key]) === Number(s.effective)}
+                      className="px-2 py-1 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[10px] font-bold uppercase disabled:opacity-40"
+                    >
+                      Save
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
