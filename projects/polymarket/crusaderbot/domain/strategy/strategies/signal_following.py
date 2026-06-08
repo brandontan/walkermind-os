@@ -59,6 +59,16 @@ class SignalFollowingStrategy(BaseStrategy):
     dedup is the responsibility of the downstream scan loop (P3d) - this
     strategy emits one SignalCandidate per publication that survives the
     filter envelope.
+
+    WARP-93 (Issue 3) audit — RETAIN, do NOT delete. This is a real, registered
+    BaseStrategy (StrategyRegistry bootstrap), wired to the Telegram `/signals`
+    command, the live crash-recovery reconciler (live_reconcile directional
+    prefix), DB enrollment migrations (012/031), and 70+ tests. It is currently
+    DORMANT, not dead: with no operator feeds publishing it emits 0 candidates,
+    so production shows 0 positions and the user-strategies row sits disabled.
+    Deleting the class/DB row would break imports, the registry lookup, the bot
+    command surface, and the test suite. Left in place, disabled, as planned
+    future capability — re-activates the moment a feed publishes.
     """
 
     name = "signal_following"
