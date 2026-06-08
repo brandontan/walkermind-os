@@ -2882,6 +2882,31 @@ async def admin_overview(user: _AdminUser) -> dict:
     }
 
 
+@router.get("/admin/pool-balance")
+async def admin_pool_balance(user: _AdminUser) -> dict:
+    """Lightweight on-chain hot-pool balance — no DB. Safe to call every 10 s."""
+    import asyncio as _asyncio
+    from ...wallet.vault import master_wallet
+    from ...integrations import polygon
+
+    pool_address: Optional[str] = None
+    try:
+        pool_address, _ = master_wallet()
+    except Exception:
+        pass
+    if not pool_address:
+        return {"address": None, "usdc": None, "matic": None}
+
+    results = await _asyncio.gather(
+        polygon.get_usdc_balance(pool_address),
+        polygon.get_native_balance(pool_address),
+        return_exceptions=True,
+    )
+    pool_usdc = results[0] if not isinstance(results[0], BaseException) else None
+    pool_matic = results[1] if not isinstance(results[1], BaseException) else None
+    return {"address": pool_address, "usdc": pool_usdc, "matic": pool_matic}
+
+
 @router.get("/admin/users")
 async def admin_users(user: _AdminUser, limit: int = 50, offset: int = 0) -> dict:
     """Paginated user roster."""
