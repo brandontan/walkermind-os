@@ -114,6 +114,14 @@ class OracleEdgeConfig:
     # stream is distinguishable from a normal cold-start/stale tick. Optional so
     # the metadata-only path still works without it.
     feed_down_provider: Optional[Callable[[], bool]] = None
+    # WARP/oracle-edge-entry-gate — when True, _evaluate_market promotes the
+    # advisory ``would_pass`` (distance-in-band AND edge>=min_edge) to a HARD
+    # entry reject: a candle whose oracle status is 'computed' and would_pass is
+    # False is skipped. Fail-open: only acts on a 'computed' verdict, so a dark /
+    # warming / feed_down / stale oracle never blocks a trade. Default False keeps
+    # every existing construction site (tests, advisory-only callers) observe-only;
+    # the scan orchestrator sets it from ORACLE_EDGE_HARD_REJECT_ENABLED.
+    hard_reject: bool = False
 
 
 def _candle_open_epoch(market: dict[str, Any], slug: str) -> Optional[float]:
@@ -278,6 +286,31 @@ def _observe_oracle_edge(
             slug=slug, err=str(exc),
         )
         return {"oracle_edge_status": "error"}
+
+
+def _oracle_edge_hard_rejects(
+    edge_cfg: "OracleEdgeConfig | None", edge_meta: dict[str, Any]
+) -> bool:
+    """Decide whether the oracle edge+distance gate should SKIP this candidate.
+
+    The verdict is the advisory ``oracle_edge_would_pass`` already computed by
+    ``_observe_oracle_edge`` (distance in [min_dist, max_dist] AND best edge >=
+    min_edge). This pure predicate only promotes it to a reject and is the single
+    source of the gate logic so it can be unit-tested without driving the whole
+    scan.
+
+    FAIL-OPEN: returns True ONLY when hard_reject is on AND the oracle produced a
+    'computed' verdict AND would_pass is explicitly False. Every other state — no
+    cfg, hard_reject off, status warming_up / feed_down / stale / error / absent,
+    or would_pass True/missing — returns False so a dark or degraded feed never
+    blocks a trade.
+    """
+    if edge_cfg is None or not getattr(edge_cfg, "hard_reject", False):
+        return False
+    if edge_meta.get("oracle_edge_status") != "computed":
+        return False
+    return edge_meta.get("oracle_edge_would_pass") is False
+
 
 # Window step seconds by timeframe — used to derive the candle close from the
 # slug ({coin}-updown-{tf}-{slot}) when the market dict carries no end date.
@@ -1090,6 +1123,33 @@ async def _evaluate_market(
     if fv is not None:
         await _persist_factor_vector(fv)
         _ev_comparator_shadow(fv, evaluated_rule=evaluated_rule)  # WARP-78 Phase 2
+
+    # Oracle edge + distance HARD gate (WARP/oracle-edge-entry-gate). When the
+    # operator has promoted the verdict to enforcement (edge_cfg.hard_reject,
+    # default ON) AND the oracle actually COMPUTED an edge/distance verdict for
+    # this candle, skip any candidate the advisory marks would_pass=False — i.e.
+    # the price move from candle-open is outside [min_dist, max_dist] (no
+    # conviction / already over-extended) OR the measured fair-value edge is below
+    # min_edge. This is what makes late_entry_v3 enter ONLY on markets that meet
+    # the edge/distance rules instead of every in-window candle.
+    #
+    # FAIL-OPEN on every other oracle status (cfg None / 'warming_up' / 'feed_down'
+    # / 'stale' / absent): a dark or degraded feed must NEVER halt trading — the
+    # structural gates below stay the floor, exactly as before this lane. The
+    # factor vector above is already persisted, so a rejected candle still
+    # produces its unbiased dataset row.
+    if _oracle_edge_hard_rejects(edge_cfg, edge_meta):
+        log.debug(
+            "late_entry_v3 skip oracle_edge_distance",
+            slug=slug,
+            distance=edge_meta.get("oracle_distance"),
+            edge_up=edge_meta.get("oracle_edge_up"),
+            edge_down=edge_meta.get("oracle_edge_down"),
+            min_dist=edge_cfg.min_dist,
+            max_dist=edge_cfg.max_dist,
+            min_edge=edge_cfg.min_edge,
+        )
+        return None, "oracle_edge_distance_reject"
 
     if ask_diff < min_ask_diff:
         log.debug(
