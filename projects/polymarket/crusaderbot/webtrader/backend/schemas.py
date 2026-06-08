@@ -3,7 +3,56 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+
+# ── TP/SL server-side bounds (WARP-90 / PR #1688 SENTINEL condition) ───────────
+#
+# Exit thresholds (tp_pct / sl_pct) are a STRATEGY-stage concern (CLAUDE.md
+# SYSTEM PIPELINE) and are stored raw on ``user_settings`` then consumed at
+# execution time by the scan job. Frontend hints are insufficient — any client
+# can POST arbitrary values straight to the API. These bounds are the
+# authoritative server-side guard enforced at the Pydantic schema layer, so they
+# fire on EVERY write path that accepts these fields (customize, risk-profile,
+# admin patch): an invalid present value raises a ValidationError -> FastAPI 422
+# before the handler runs.
+#
+# None/NULL is always allowed (means "use the strategy default", resolved by
+# ``signal_scan_job._strategy_default_tp_sl``). We validate present values only.
+#
+# sl_pct: a stop-loss fraction in (0, MAX_SL_PCT]. 0 or negative = "no stop-loss"
+#         / nonsense; > 1.0 has no meaning for a fractional stop. MIN_SL_PCT is
+#         the messaging floor; the hard reject is ``<= 0``.
+# tp_pct: a take-profit fraction in (0, MAX_TP_PCT] (0%-1000%). 0/negative is
+#         nonsense; > 10.0 is an absurd target.
+MIN_SL_PCT: float = 0.01
+MAX_SL_PCT: float = 1.0
+MAX_TP_PCT: float = 10.0
+
+
+def _validate_tp_pct(value: Optional[float]) -> Optional[float]:
+    """Reject a present tp_pct outside (0, MAX_TP_PCT]. None passes through."""
+    if value is None:
+        return value
+    if value <= 0 or value > MAX_TP_PCT:
+        raise ValueError(
+            f"tp_pct must be in (0, {MAX_TP_PCT}] (0%-1000%); got {value}"
+        )
+    return value
+
+
+def _validate_sl_pct(value: Optional[float]) -> Optional[float]:
+    """Reject a present sl_pct outside (0, MAX_SL_PCT]. None passes through.
+
+    MIN_SL_PCT (0.01) is the messaging floor; the hard rejection is ``<= 0``.
+    """
+    if value is None:
+        return value
+    if value <= 0 or value > MAX_SL_PCT:
+        raise ValueError(
+            f"sl_pct must be in (0, {MAX_SL_PCT}] (0%-100%); got {value}"
+        )
+    return value
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -212,12 +261,18 @@ class CustomizeRequest(BaseModel):
     max_drawdown_pct: Optional[float] = None      # 0 < x <= 0.08
     max_concurrent_override: Optional[int] = None  # 1..20 — stricter-only
 
+    _check_tp_pct = field_validator("tp_pct")(_validate_tp_pct)
+    _check_sl_pct = field_validator("sl_pct")(_validate_sl_pct)
+
 
 class RiskProfileRequest(BaseModel):
     profile: str  # conservative | balanced | aggressive | custom
     capital_alloc_pct: Optional[float] = None  # required when profile='custom'
     tp_pct: Optional[float] = None             # required when profile='custom'
     sl_pct: Optional[float] = None             # required when profile='custom'
+
+    _check_tp_pct = field_validator("tp_pct")(_validate_tp_pct)
+    _check_sl_pct = field_validator("sl_pct")(_validate_sl_pct)
 
 
 # ── Wallet ────────────────────────────────────────────────────────────────────
@@ -511,6 +566,9 @@ class AdminUserUpdate(BaseModel):
     selected_assets: Optional[list[str]] = None
     paused: Optional[bool] = None
     auto_trade_on: Optional[bool] = None
+
+    _check_tp_pct = field_validator("tp_pct")(_validate_tp_pct)
+    _check_sl_pct = field_validator("sl_pct")(_validate_sl_pct)
 
 
 class AdminPaperResetResult(BaseModel):
