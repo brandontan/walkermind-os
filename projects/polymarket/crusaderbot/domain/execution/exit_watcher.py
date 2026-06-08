@@ -634,6 +634,30 @@ async def _act_on_decision(
         await registry.reset_close_failure(position.id, position.user_id)
 
     payload = result.payload or {}
+
+    # Double-close dedup (no-op guard). A candle position is evaluated by BOTH
+    # the 30s `exit_watch` loop AND the 5s `check_candle_exits` fast loop
+    # (registry._CANDLE_PRESETS — candle_auto joined that set in WARP-93). The two
+    # loops can race the same position: the first close wins the atomic
+    # `WHERE status='open'` claim and records the REAL P&L + fires the correct
+    # alert; the racing second close finds the row already closed, so both
+    # paper.close_position and live.close_position return a NO-OP payload
+    # (exit_reason="already_closed", pnl_usdc=0). submit_close_with_retry wraps
+    # that as ok=True, so without this guard the watcher fired a SECOND,
+    # duplicate "[PAPER] TP/SL hit … P&L: $+0.00" alert for a position that
+    # already exited with real P&L (the user-reported "+0" regression). The
+    # winning close already notified + credited the wallet — treat the no-op as a
+    # silent dedup: no alert, no position.closed emit, no fake close audit.
+    if payload.get("exit_reason") == "already_closed":
+        log.info(
+            "exit_watcher: close was a no-op (position already closed by a "
+            "racing tick) — skipping duplicate $0 alert",
+            position_id=str(position.id),
+            reason=reason,
+            mode=position.mode,
+        )
+        return
+
     pnl_decimal = payload.get("pnl_usdc", Decimal("0"))
     try:
         pnl = float(pnl_decimal)

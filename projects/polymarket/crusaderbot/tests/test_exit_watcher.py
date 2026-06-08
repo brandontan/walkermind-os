@@ -916,6 +916,42 @@ def test_run_once_tp_hit_closes_and_alerts():
     update_price.assert_not_awaited()
 
 
+def test_run_once_already_closed_no_op_suppresses_duplicate_alert():
+    """Double-close dedup: a racing second close (the 5s candle fast loop vs the
+    30s exit_watch — candle_auto joined both in WARP-93) finds the row already
+    closed. paper/live close_position then return a NO-OP payload
+    (exit_reason="already_closed", pnl_usdc=0) which submit_close_with_retry
+    wraps as ok=True. The watcher must NOT fire a second, duplicate
+    "TP hit … P&L: $+0.00" alert — the winning close already notified.
+    """
+    captured = _Captured()
+    pos = _make_position(yes_price=0.50, applied_tp_pct=0.20)
+
+    async def _submitter(*, position, exit_price, exit_reason):
+        # Mirror paper.close_position / live.close_position no-op return.
+        return {"pnl_usdc": 0, "exit_price": exit_price,
+                "exit_reason": "already_closed"}
+
+    (record_failure, reset_failure, update_price, list_open,
+     reg_patches) = _patch_registry(positions=[pos])
+    patches = reg_patches + _patch_alerts(captured) + [_patch_audit_noop()]
+    for p_ in patches:
+        p_.start()
+    try:
+        result = _run(exit_watcher.run_once(close_submitter=_submitter))
+    finally:
+        for p_ in patches:
+            p_.stop()
+
+    # The TP decision still counts as a submitted close, but NO user alert fires
+    # for the no-op — that is the regression guard (no duplicate "+0").
+    assert result.submitted == 1
+    assert captured.tp_hit == []
+    assert captured.sl_hit == []
+    assert captured.strategy_exit == []
+    assert captured.force_close == []
+
+
 def test_run_once_sl_hit_alerts_user():
     captured = _Captured()
     pos = _make_position(yes_price=0.32, applied_sl_pct=0.10,
