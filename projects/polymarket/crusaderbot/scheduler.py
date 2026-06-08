@@ -390,6 +390,20 @@ async def _write_cursor(name: str, block_number: int) -> None:
 
 _strategies = {"copy_trade": CopyTradeStrategy()}
 
+# WARP-93 (Issue 4): presets owned by the new orchestrator (signal_scan_job).
+# These users route purely by active_preset (deny-by-default) to their preset's
+# strategy (late_entry_v3 / weather / playbook) — NONE route to copy_trade. The
+# legacy strategy_types -> copy_trade scan below predates presets and is for
+# pre-preset copy_trade users only. Without this guard a candle_auto user whose
+# stale strategy_types still carries 'copy_trade' would get copy_trade scans
+# firing concurrently with their orchestrator late_entry_v3 flow (unintended
+# cross-strategy bleed). Any non-null active_preset means orchestrator-owned, so
+# the legacy path must skip them regardless of the strategy_types array.
+_ORCHESTRATOR_MANAGED_PRESETS: frozenset[str] = frozenset({
+    "candle_auto", "close_sweep", "safe_close", "flip_hunter",
+    "weather_monitor", "playbook",
+})
+
 
 def _resolve_mode() -> str:
     """Paper/live label — delegates to the canonical ``config.resolve_trading_mode``."""
@@ -451,6 +465,13 @@ async def run_signal_scan() -> SignalScanMetrics:
     for u_row in users:
         user = dict(u_row)
         user["balance_usdc"] = float(user.get("balance_usdc") or 0)
+        # WARP-93 (Issue 4): orchestrator-managed preset users are owned by
+        # signal_scan_job (preset -> strategy). Skip them here so a stale
+        # strategy_types array can never bleed a legacy copy_trade scan onto a
+        # candle_auto / managed user. Pre-preset copy_trade users (active_preset
+        # NULL) still run normally.
+        if (user.get("active_preset") or "") in _ORCHESTRATOR_MANAGED_PRESETS:
+            continue
         for strat_name in (user.get("strategy_types") or []):
             strat = _strategies.get(strat_name)
             if not strat:
