@@ -62,6 +62,14 @@ async def create_withdrawal_request(
 
     The debit is atomic with the withdrawal row insert — if either fails
     the transaction rolls back and the user's balance is unchanged.
+
+    Overdraft guard (multi-user money-safety invariant): the wallet row is
+    locked ``FOR UPDATE`` and the request is refused with ValueError if the
+    balance can't cover it. This is the single chokepoint both surfaces
+    (WebTrader API + Telegram bot) route through, so no caller — present or
+    future — can drive ``balance_usdc`` negative and spend the pooled custody
+    funds of other users. The row lock serializes concurrent requests so two
+    in-flight withdrawals cannot both pass the check and double-spend.
     """
     mode = await get_approval_mode()
     initial_status = "approved" if mode == "auto" else "pending"
@@ -69,6 +77,17 @@ async def create_withdrawal_request(
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            balance = await conn.fetchval(
+                "SELECT balance_usdc FROM wallets WHERE user_id = $1 FOR UPDATE",
+                user_id,
+            )
+            if balance is None:
+                raise ValueError("Wallet not found")
+            if Decimal(str(balance)) < amount_usdc:
+                raise ValueError(
+                    f"Insufficient balance: have ${Decimal(str(balance)):.2f}, "
+                    f"requested ${amount_usdc:.2f}"
+                )
             row = await conn.fetchrow(
                 """
                 INSERT INTO withdrawals (user_id, amount_usdc, destination_address,

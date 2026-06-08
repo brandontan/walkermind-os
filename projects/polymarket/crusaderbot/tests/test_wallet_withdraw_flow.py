@@ -169,12 +169,17 @@ class _Txn:
 class _Conn:
     """Records executed SQL; returns scripted fetchval/fetchrow values."""
 
-    def __init__(self, fetchval=None, fetchrow=None) -> None:
+    def __init__(self, fetchval=None, fetchrow=None, balance=Decimal("1000000")) -> None:
         self._fetchval = fetchval
         self._fetchrow = fetchrow
+        self._balance = balance
         self.executed: list[tuple] = []
 
     async def fetchval(self, sql, *args):
+        # The withdrawal overdraft guard locks + reads the wallet balance; serve
+        # it from _balance so every other scripted fetchval keeps its meaning.
+        if "balance_usdc" in sql and "FOR UPDATE" in sql:
+            return self._balance
         return self._fetchval
 
     async def fetchrow(self, sql, *args):
@@ -361,6 +366,49 @@ async def test_post_broadcast_failure_does_not_refund() -> None:
 
     mock_credit.assert_not_awaited()
     assert any("'failed'" in sql for sql, _ in conn.executed)
+
+
+@pytest.mark.asyncio
+async def test_create_withdrawal_rejects_overdraft() -> None:
+    """A withdrawal exceeding balance is refused — no row insert, no debit."""
+    from projects.polymarket.crusaderbot.wallet import withdrawals
+
+    uid = _uuid.uuid4()
+    # balance 20 < requested 50 → must raise and never debit.
+    conn = _Conn(fetchrow={"id": _uuid.uuid4()}, balance=Decimal("20"))
+    debit = AsyncMock()
+    with patch.object(withdrawals, "get_approval_mode",
+                      AsyncMock(return_value="manual")), \
+         patch.object(withdrawals, "get_pool", return_value=_Pool(conn)), \
+         patch.object(withdrawals, "debit_in_conn", debit):
+        with pytest.raises(ValueError, match="Insufficient balance"):
+            await withdrawals.create_withdrawal_request(
+                uid, Decimal("50"), "0xAbCd1234567890EF1234567890abcdef12345678",
+            )
+    debit.assert_not_awaited()
+    # no withdrawals INSERT was executed
+    assert not any("INSERT INTO withdrawals" in sql for sql, _ in conn.executed)
+
+
+@pytest.mark.asyncio
+async def test_create_withdrawal_allows_within_balance() -> None:
+    """A withdrawal at/under balance proceeds and debits the ledger."""
+    from projects.polymarket.crusaderbot.wallet import withdrawals
+
+    uid = _uuid.uuid4()
+    row = {"id": _uuid.uuid4(), "user_id": uid, "status": "pending"}
+    conn = _Conn(fetchrow=row, balance=Decimal("100"))
+    debit = AsyncMock()
+    with patch.object(withdrawals, "get_approval_mode",
+                      AsyncMock(return_value="manual")), \
+         patch.object(withdrawals, "get_pool", return_value=_Pool(conn)), \
+         patch.object(withdrawals, "debit_in_conn", debit):
+        result = await withdrawals.create_withdrawal_request(
+            uid, Decimal("75"), "0xAbCd1234567890EF1234567890abcdef12345678",
+        )
+    assert result["id"] == row["id"]
+    debit.assert_awaited_once()
+    assert debit.await_args.args[2] == Decimal("75")
 
 
 @pytest.mark.asyncio
