@@ -176,15 +176,20 @@ async def scan_usdc_transfers(
         return []
     w3 = _get_w3()
     settings = get_settings()
-    contract = _usdc_contract()
     scan_addr = token_address or settings.USDC_POLYGON
+    scan_cs = AsyncWeb3.to_checksum_address(scan_addr)
+    # Decode with a contract bound to the SCANNED token address rather than the
+    # cached USDC.e instance. The Transfer ABI is identical across ERC-20s, so
+    # decoding succeeds either way, but binding the decoder to the actual
+    # address keeps it unambiguously correct for any token (e.g. native USDC).
+    contract = w3.eth.contract(address=scan_cs, abi=ERC20_ABI)
     to_topics = [_addr_to_topic(a) for a in addresses]
     async for attempt in _retry():
         with attempt:
             logs = await w3.eth.get_logs({
                 "fromBlock": from_block,
                 "toBlock": to_block,
-                "address": AsyncWeb3.to_checksum_address(scan_addr),
+                "address": scan_cs,
                 "topics": [TRANSFER_TOPIC, None, to_topics],
             })
     out = []
