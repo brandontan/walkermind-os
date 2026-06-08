@@ -70,12 +70,23 @@ def test_refresh_disabled_strategies_fail_safe():
         job._GLOBALLY_DISABLED_STRATEGIES = original
 
 
-def test_signal_following_loader_has_global_gate():
-    """The signal_following loader query must fail-safe gate on the strategies table."""
-    src = inspect.getsource(job)
-    assert "NOT EXISTS" in src
-    assert "FROM strategies st" in src
-    assert "st.enabled = FALSE" in src
+def test_operator_strategy_toggle_enforced_per_strategy_not_in_user_loader():
+    """WARP-95 (Issue 1): the operator on/off toggle is enforced PER-STRATEGY via
+    _refresh_disabled_strategies (reads the strategies table) + _preset_allows —
+    NOT by coupling the user-loader to signal_following. The old loader anti-join
+    on the strategies table let signal_following=OFF zero out every user and kill
+    Smart Strike, so it MUST be gone from _load_enrolled_users."""
+    # The per-strategy global toggle still reads the strategies table.
+    refresh_src = inspect.getsource(job._refresh_disabled_strategies)
+    assert "FROM strategies WHERE enabled = FALSE" in refresh_src
+    allows_src = inspect.getsource(job._preset_allows)
+    assert "_GLOBALLY_DISABLED_STRATEGIES" in allows_src
+    # The user-loader is decoupled: no strategies-table anti-join that could zero
+    # out the whole orchestrator when signal_following is disabled.
+    loader_src = inspect.getsource(job._load_enrolled_users)
+    assert "FROM strategies st" not in loader_src
+    assert "st.enabled = FALSE" not in loader_src
+    assert "auto_trade_on = TRUE" in loader_src
 
 
 def test_run_once_refreshes_toggle():
