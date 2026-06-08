@@ -1952,9 +1952,15 @@ def _build_trade_signal(
     _cell_raw = _meta.get("cell")
     _cell = str(_cell_raw) if _cell_raw else None
     _depth_raw = _meta.get("orderbook_depth_usdc")
-    _orderbook_depth_usdc = float(_depth_raw) if _depth_raw is not None else None
+    try:
+        _orderbook_depth_usdc = float(_depth_raw) if _depth_raw is not None else None
+    except (ValueError, TypeError):
+        _orderbook_depth_usdc = None
     _spread_raw = _meta.get("spread")
-    _candidate_spread = float(_spread_raw) if _spread_raw is not None else None
+    try:
+        _candidate_spread = float(_spread_raw) if _spread_raw is not None else None
+    except (ValueError, TypeError):
+        _candidate_spread = None
 
     # Bankroll dynamic sizing multiplier
     # (WARP/R00T/bankroll-dynamic-sizing, Lane 5/5).

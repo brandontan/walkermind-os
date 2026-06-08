@@ -35,7 +35,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from projects.polymarket.crusaderbot.domain.risk.slippage_gate import (
-    LIVE_SIZE_CAPS_USDC,
     evaluate_slippage_gate,
     live_size_cap_for_cell,
 )
@@ -44,8 +43,9 @@ from projects.polymarket.crusaderbot.services.trade_engine.engine import (
     TradeSignal,
 )
 
-# CMD-approved LIVE v1 cell set (WARP-87 follow-up): BTC + ETH + SOL, 5m.
-assert LIVE_SIZE_CAPS_USDC == {"btc/5m": 500.0, "eth/5m": 100.0, "sol/5m": 100.0}
+# LIVE_SIZE_CAPS_USDC locked values (incl. sol/5m=$100) are asserted in
+# tests/test_slippage_gate.py::test_live_size_caps_locked_values — no module-level
+# assert here (a top-level assert runs at import and would break test discovery).
 
 
 def _signal_ns(
