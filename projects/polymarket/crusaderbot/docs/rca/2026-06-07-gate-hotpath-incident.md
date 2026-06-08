@@ -128,7 +128,12 @@ Three process gaps contributed to this incident reaching production unreviewed:
   e.g. thread it onto `GateContext` at candidate construction, or a short-TTL
   in-process cache) so the invariant actually holds. Until then, Hypothesis A's
   trigger remains live.
-- **New migrations require WARP🔹CMD awareness before deploy.**
+- **New migrations require WARP🔹CMD awareness before deploy** — listed in correct
+  dependency order, with application deploy gated to run only AFTER all required
+  migrations have applied. The Fly `release_command`-before-serve ordering (#1676)
+  is the enforcing mechanism; this incident's #1694 code + migration 090 co-deploy
+  is exactly the code↔migration dependency that ordering protects (cf. the
+  load-bearing migration-before-code-read dependency in PR #1688 / migration 089).
 - **asyncio-only invariant:** no blocking or unbounded-await calls anywhere in the
   event loop (the #1699 bounded warm-ping/retry is the boot-path instance of this).
 
