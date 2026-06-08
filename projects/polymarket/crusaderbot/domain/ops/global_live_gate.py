@@ -110,6 +110,18 @@ async def is_global_live_enabled(
     Fail-safe to PAPER: a missing key OR any DB error resolves to ``False`` so
     an outage can never silently flip the system into live trading.
     """
+    # WARP-92 review fix: when the caller shares a transaction ``conn``, bypass
+    # the in-process cache entirely. Caching a value read inside an uncommitted
+    # transaction would pollute the global cache if that transaction later rolls
+    # back, and returning a cached value would ignore the caller's own
+    # uncommitted write — both break strict transaction isolation.
+    if conn is not None:
+        try:
+            return await _fetch_flag(conn, _SETTING_KEY)
+        except Exception as exc:
+            logger.error("global_live_gate read failed: %s", exc)
+            return False
+
     cached = _cache.read()
     if cached is not None:
         return cached
@@ -119,12 +131,9 @@ async def is_global_live_enabled(
         if cached is not None:
             return cached
         try:
-            if conn is not None:
-                value = await _fetch_flag(conn, _SETTING_KEY)
-            else:
-                pool = get_pool()
-                async with pool.acquire() as c:
-                    value = await _fetch_flag(c, _SETTING_KEY)
+            pool = get_pool()
+            async with pool.acquire() as c:
+                value = await _fetch_flag(c, _SETTING_KEY)
         except Exception as exc:
             # Fail SAFE toward paper: if we cannot read the flag we must NOT
             # assume live. Log loudly and let the next call try again. We do

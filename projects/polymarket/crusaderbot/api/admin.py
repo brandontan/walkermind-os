@@ -247,16 +247,11 @@ async def set_global_live_trading(
             "global_live_trading_enabled",
         )
         prev = (prev_row["value"] if prev_row else None) or "false"
-        await conn.execute(
-            "INSERT INTO system_settings (key, value, updated_at) "
-            "VALUES ($1, $2, NOW()) "
-            "ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, "
-            "updated_at=NOW()",
-            "global_live_trading_enabled", "true" if enabled else "false",
-        )
-    # Reflect the operator action immediately on this process — the 30s TTL
-    # cache must not delay a global enable/disable.
-    global_live_gate.invalidate_cache()
+        # WARP-92 review fix: reuse the single-source writer (UPSERT + cache
+        # invalidate) instead of duplicating the SQL here, so the two write
+        # paths cannot drift. set_global_live() also invalidates the in-process
+        # cache, so the 30s TTL never delays a global enable/disable.
+        await global_live_gate.set_global_live(enabled, conn=conn)
 
     new_value = "true" if enabled else "false"
     await write_mode_change_event(

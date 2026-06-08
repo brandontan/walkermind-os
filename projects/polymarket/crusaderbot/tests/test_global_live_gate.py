@@ -136,3 +136,22 @@ def test_set_global_live_upserts_and_invalidates():
         before = len(conn.fetchrow_calls)
         assert asyncio.run(glg.is_global_live_enabled()) is True
         assert len(conn.fetchrow_calls) > before
+
+
+def test_shared_conn_bypasses_cache_both_ways():
+    """WARP-92 review fix: a shared transaction ``conn`` bypasses the in-process
+    cache entirely — it reads directly every call (no caching of tx reads) and
+    never pollutes the global cache for the pooled path. Strict tx isolation."""
+    glg.invalidate_cache()
+    tx = FakeConn(settings={"global_live_trading_enabled": "true"})
+    # Two consecutive conn-shared reads each hit the conn (tx reads are not cached).
+    assert asyncio.run(glg.is_global_live_enabled(tx)) is True
+    assert asyncio.run(glg.is_global_live_enabled(tx)) is True
+    assert len(tx.fetchrow_calls) == 2
+    # The tx read did NOT populate the module cache: a subsequent pooled read
+    # still queries the DB and returns its own value (here 'false').
+    pooled = FakeConn(settings={"global_live_trading_enabled": "false"})
+    with patch.object(glg, "get_pool", return_value=FakePool(pooled)):
+        assert asyncio.run(glg.is_global_live_enabled()) is False
+        assert len(pooled.fetchrow_calls) == 1
+    glg.invalidate_cache()

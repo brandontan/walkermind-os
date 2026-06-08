@@ -58,8 +58,9 @@ async def is_live_execution_allowed(
     if not get_settings().ENABLE_LIVE_TRADING:
         return False
 
-    # [2] Global operator toggle (cached; fail-safe to False).
-    if not await is_global_live_enabled():
+    # [2] Global operator toggle (cached; fail-safe to False). Forward ``conn``
+    # so a caller sharing a transaction sees a consistent (cache-bypassed) read.
+    if not await is_global_live_enabled(conn):
         return False
 
     # [3] Per-user opt-in + funded cap.
