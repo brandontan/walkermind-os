@@ -50,8 +50,12 @@ on:
         description: "Set true ONLY if the staging market is neg-risk"
         type: boolean
         default: false
+      use_clob_v2:
+        description: "Validate the py-clob-client-v2 CUTOVER backend (WARP-97). Takes precedence over use_pysdk_clob. Check this to prove the v2 backend before flipping USE_CLOB_V2 in prod."
+        type: boolean
+        default: false
       use_pysdk_clob:
-        description: "Use the CLOB v2 polymarket-client backend (the migration under test). Uncheck to run the legacy py-clob-client backend."
+        description: "Use the polymarket-client backend (ignored if use_clob_v2 is checked). Uncheck to run the legacy py-clob-client backend."
         type: boolean
         default: true
       pin_market:
@@ -106,7 +110,8 @@ jobs:
       STAGING_SIGNATURE_TYPE: ${{ inputs.signature_type }}
       STAGING_NEG_RISK: ${{ inputs.neg_risk && 'true' || 'false' }}
       STAGING_ALLOW_FILLS: ${{ inputs.allow_fills && '1' || '0' }}
-      # CLOB v2 migration: select the polymarket-client backend for the proof.
+      # CLOB backend selection for the proof (factory precedence: v2 > pysdk).
+      USE_CLOB_V2: ${{ inputs.use_clob_v2 && '1' || '0' }}
       USE_PYSDK_CLOB: ${{ inputs.use_pysdk_clob && '1' || '0' }}
       CASE: ${{ inputs.case }}
       # Per-run nonce: tags the PROOF_RESULT sentinel so a stale PASS line that
@@ -195,7 +200,7 @@ jobs:
                    STAGING_POLYMARKET_API_KEY STAGING_POLYMARKET_API_SECRET \
                    STAGING_POLYMARKET_API_PASSPHRASE STAGING_FILLED_CLOSE_ID \
                    STAGING_SIGNATURE_TYPE STAGING_NEG_RISK STAGING_ALLOW_FILLS \
-                   USE_PYSDK_CLOB \
+                   USE_CLOB_V2 USE_PYSDK_CLOB \
                    TELEGRAM_BOT_TOKEN OPERATOR_CHAT_ID DATABASE_URL \
                    POLYGON_RPC_URL WALLET_HD_SEED WALLET_ENCRYPTION_KEY; do
             ENVARGS+=( --env "${v}=${!v}" )
@@ -273,6 +278,7 @@ jobs:
             echo "| Fills enabled (real USDC) | \`${{ inputs.allow_fills }}\` |"
             echo "| Signature type | \`${{ inputs.signature_type }}\` |"
             echo "| Neg-risk market | \`${{ inputs.neg_risk }}\` |"
+            echo "| CLOB backend | \`${{ inputs.use_clob_v2 && 'py-clob-client-v2 (USE_CLOB_V2)' || (inputs.use_pysdk_clob && 'polymarket-client (USE_PYSDK_CLOB)' || 'legacy py-clob-client v1') }}\` |"
             echo ""
             echo "<details><summary>Last 40 lines of Fly machine output</summary>"
             echo ""
