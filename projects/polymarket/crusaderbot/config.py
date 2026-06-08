@@ -353,6 +353,14 @@ class Settings(BaseSettings):
     # --- Polygon ---
     USDC_POLYGON: str = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
     USDC_DECIMALS: int = 6
+    # Native (Circle-issued) USDC on Polygon. NOT Polymarket's CTF collateral —
+    # that is USDC.e (USDC_POLYGON above). The deposit watcher scans this
+    # contract ONLY to DETECT-AND-ALERT wrong-token deposits; it NEVER credits
+    # native USDC (a distinct ERC-20, untradeable on Polymarket without a swap).
+    USDC_NATIVE_POLYGON: str = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+    # Toggle for the credit-neutral wrong-token (native USDC) alert pass. Default
+    # ON — the pass moves no capital, it only records + notifies the user.
+    WRONG_TOKEN_ALERTS_ENABLED: bool = True
 
     # --- Master / hot-pool wallet (derived from HD seed index 0 if not set) ---
     MASTER_WALLET_ADDRESS: Optional[str] = None
