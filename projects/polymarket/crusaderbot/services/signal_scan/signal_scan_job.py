@@ -62,6 +62,7 @@ from ...domain.ops import runtime_config as _runtime_config
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
 from ...domain.research import scan_observability as _scan_observability
 from ...domain.risk.constants import PROFILES
+from ...domain.risk.gate import resolve_capital_alloc_pct as _resolve_capital_alloc_pct
 from ...domain.risk.gate import resume_safety_check as _resume_safety_check
 from ...domain.strategy.registry import StrategyRegistry
 from ...domain.strategy.types import MarketFilters, SignalCandidate, UserContext
@@ -722,6 +723,13 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 -- sizes against this as the risk-profile CAP%. Falls back to the
                 -- enrolment weight, then 0.10, only for a legacy/NULL row.
                 COALESCE(s.capital_alloc_pct, us.weight, 0.10) AS capital_allocation_pct,
+                -- WARP-89 (gate-hotpath-db-fix): the RAW user_settings.capital_alloc_pct
+                -- (NULL preserved, NOT the us.weight/0.10 sizing fallback above) so the
+                -- gate's authoritative resolver (resolve_capital_alloc_pct) can apply the
+                -- exact profile-default fallback + 80% clamp. Preloaded once per user per
+                -- tick here and threaded into GateContext.capital_alloc_pct so the
+                -- per-candidate risk gate does ZERO asyncpg reads for the deployment cap.
+                s.capital_alloc_pct AS capital_alloc_pct_raw,
                 COALESCE(urp.profile_name, s.risk_profile, 'balanced') AS resolved_profile,
                 s.active_preset,
                 s.selected_timeframe,
@@ -1494,6 +1502,13 @@ async def _maybe_fire_fast_topup(
                 if row.get("max_concurrent_override") is not None
                 else None
             ),
+            # WARP-89 (gate-hotpath-db-fix): preload the authoritative CAP% from the
+            # per-tick row so the fast-topup trade's risk gate also reads it from the
+            # context instead of doing a per-candidate DB SELECT.
+            capital_alloc_pct=_resolve_capital_alloc_pct(
+                row.get("capital_alloc_pct_raw"),
+                str(row.get("resolved_profile") or "balanced"),
+            ),
         )
     except Exception as exc:
         log.warning("fast_topup_signal_build_failed", error=str(exc))
@@ -2050,6 +2065,16 @@ def _build_trade_signal(
             int(row["max_concurrent_override"])
             if row.get("max_concurrent_override") is not None
             else None
+        ),
+        # WARP-89 (gate-hotpath-db-fix): PRELOAD the authoritative risk-profile CAP%
+        # here from the per-user row already fetched once per tick by
+        # _load_enrolled_users (capital_alloc_pct_raw = the RAW user_settings value,
+        # NULL preserved). resolve_capital_alloc_pct applies the exact gate fallback
+        # (profile default → balanced 0.40) + 80% clamp, so the per-candidate risk
+        # gate reads GateContext.capital_alloc_pct instead of doing a DB SELECT.
+        capital_alloc_pct=_resolve_capital_alloc_pct(
+            row.get("capital_alloc_pct_raw"),
+            str(row.get("resolved_profile") or "balanced"),
         ),
         # Forward the strategy's opaque signal metadata (weather: city/bucket/
         # entry-forecast) so it persists on the position for the exit hook.
