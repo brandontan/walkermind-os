@@ -693,7 +693,13 @@ _engine: TradeEngine = TradeEngine()
 
 
 async def _load_enrolled_users() -> list[dict[str, Any]]:
-    """Active users enrolled in signal_following strategy with auto_trade_on."""
+    """Active auto-trading users (auto_trade_on, not paused) for the orchestrator.
+
+    WARP-95 (Issue 1): NO LONGER gated on signal_following enrolment / its operator
+    toggle — that coupling let signal_following=OFF kill candle_auto/late_entry_v3.
+    Per-strategy gating happens downstream in _preset_allows. The signal_following
+    enrolment row is LEFT-JOINed only for the legacy us.weight sizing fallback.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -740,21 +746,30 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 COALESCE(s.min_liquidity, 0)         AS min_liquidity_threshold,
                 COALESCE(s.strategy_params, '{}'::jsonb)      AS strategy_params,
                 COALESCE(s.category_filters, ARRAY[]::text[]) AS category_filters
-            FROM user_strategies us
-            JOIN users          u   ON u.id  = us.user_id
+            FROM users          u
             JOIN wallets        w   ON w.user_id = u.id
             JOIN user_settings  s   ON s.user_id = u.id
+            -- WARP-95 (Issue 1): LEFT JOIN (not INNER) the signal_following
+            -- enrolment row PURELY to keep the legacy us.weight sizing fallback
+            -- available — user-loading is NO LONGER gated on signal_following.
+            -- Previously this query INNER-JOINed user_strategies on
+            -- strategy_name='signal_following' AND us.enabled=TRUE and added an
+            -- anti-join against the disabled strategies table for signal_following,
+            -- so toggling the signal_following operator switch OFF (or a user
+            -- lacking the enrolment row) returned ZERO users and silently killed
+            -- the ENTIRE orchestrator — including candle_auto / late_entry_v3
+            -- (Smart Strike) and weather/playbook. Each strategy now gates itself
+            -- via _preset_allows, which still honours the per-strategy operator
+            -- toggle in _GLOBALLY_DISABLED_STRATEGIES (refreshed each tick from the
+            -- strategies table). signal_following's own Phase C remains gated by
+            -- _preset_allows(active_preset, 'signal_following').
+            LEFT JOIN user_strategies us
+                   ON us.user_id = u.id
+                  AND us.strategy_name = $1
+                  AND us.enabled = TRUE
             LEFT JOIN user_risk_profile urp ON urp.user_id = u.id
-            WHERE us.strategy_name = $1
-              AND us.enabled        = TRUE
-              AND u.auto_trade_on   = TRUE
-              AND u.paused          = FALSE
-              -- Global operator on/off (migration 067). FAIL-SAFE: ON unless a
-              -- row explicitly marks this strategy disabled.
-              AND NOT EXISTS (
-                    SELECT 1 FROM strategies st
-                     WHERE st.name = us.strategy_name AND st.enabled = FALSE
-              )
+            WHERE u.auto_trade_on = TRUE
+              AND u.paused        = FALSE
             """,
             _STRATEGY_NAME,
         )
