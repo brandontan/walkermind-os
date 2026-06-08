@@ -289,7 +289,7 @@ def _observe_oracle_edge(
 
 
 def _oracle_edge_hard_rejects(
-    edge_cfg: "OracleEdgeConfig | None", edge_meta: dict[str, Any]
+    edge_cfg: "OracleEdgeConfig | None", edge_meta: dict[str, Any] | None
 ) -> bool:
     """Decide whether the oracle edge+distance gate should SKIP this candidate.
 
@@ -307,7 +307,10 @@ def _oracle_edge_hard_rejects(
     """
     if edge_cfg is None or not getattr(edge_cfg, "hard_reject", False):
         return False
-    if edge_meta.get("oracle_edge_status") != "computed":
+    # Defensive None guard (Gemini #1726): _observe_oracle_edge always returns a
+    # dict today, but a future caller passing None must fail OPEN, not crash with
+    # AttributeError — the fail-open safety property is strict.
+    if edge_meta is None or edge_meta.get("oracle_edge_status") != "computed":
         return False
     return edge_meta.get("oracle_edge_would_pass") is False
 

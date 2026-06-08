@@ -120,6 +120,13 @@ def test_fail_open_when_status_absent():
     assert _oracle_edge_hard_rejects(_cfg(True), {}) is False
 
 
+def test_fail_open_when_edge_meta_none():
+    """Defensive None guard (Gemini #1726): a None edge_meta must fail OPEN, not
+    raise AttributeError — the fail-open safety property is strict even for a
+    future caller that does not go through _observe_oracle_edge."""
+    assert _oracle_edge_hard_rejects(_cfg(True), None) is False
+
+
 def test_would_pass_missing_does_not_reject():
     """A 'computed' verdict that somehow omits would_pass must not reject (only an
     explicit False blocks — guards against a partial metadata stamp)."""
