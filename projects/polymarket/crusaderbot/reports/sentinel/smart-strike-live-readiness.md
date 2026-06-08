@@ -146,10 +146,11 @@ This audit changed ZERO production code. The only file created is this report.
 1. Merge `WARP/smart-strike-cell-cap-binding` (per-cell cap binding) — engineering close.
 2. CMD decide SOL v1 scope; if in, add sol/5m cap; confirm first-user cap + go-live trigger.
 3. Owner: fund master wallet (USDC.e + MATIC), set POLYMARKET secrets, configure nonce lock + gas ceiling.
-4. Owner: push the HELD go-live-guards (5 flags + USE_REAL_CLOB).
-5. Owner: flip WARP-92 `global_live_trading_enabled` admin toggle.
-6. First user `/live/enable` with a small cap; pass 8-gate checklist + typed confirm.
-7. Monitor: reconcile sweep (orphan/drift pages), live_redemptions drift, infra-degraded pages, slippage WATCH breadcrumbs. Kill-switch tested reachable.
+4. Apply + verify ALL pending DB migrations are current on prod, in dependency order, BEFORE any guard flip — especially 091 live-activation (seeds `global_live_trading_enabled`); confirm 082-090 already applied (telemetry / live-path columns). The app deploy + guard flip MUST come after migrations, never before.
+5. Owner: push the HELD go-live-guards (5 flags + USE_REAL_CLOB) — only after step 4 confirms migrations current.
+6. Owner: flip WARP-92 `global_live_trading_enabled` admin toggle.
+7. First user `/live/enable` with a small cap; pass 8-gate checklist + typed confirm.
+8. Monitor: reconcile sweep (orphan/drift pages), live_redemptions drift, infra-degraded pages, slippage WATCH breadcrumbs. Kill-switch tested reachable.
 
 ---
 
