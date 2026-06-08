@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Awaitable, Callable
 from uuid import UUID
@@ -211,11 +212,29 @@ async def scan_complete_set_for_user(
             # net edge is never below 2%. When OFF, the static base is used.
             pair_margin = min_pair_margin
             if adaptive_enabled:
+                # Time-to-resolution for the shadow-log feature (not yet priced
+                # into the premium). Fail-safe: any parse issue -> None (-> -1.0).
+                _secs_to_res: float | None = None
+                try:
+                    _sl = _market_field(m, "seconds_left", "seconds_to_resolution")
+                    if _sl is not None:
+                        _secs_to_res = float(_sl)
+                    else:
+                        _ra = _market_field(m, "resolution_at")
+                        if _ra is not None:
+                            if isinstance(_ra, str):
+                                _ra = datetime.fromisoformat(_ra.replace("Z", "+00:00"))
+                            if _ra.tzinfo is None:
+                                _ra = _ra.replace(tzinfo=timezone.utc)
+                            _secs_to_res = (_ra - datetime.now(timezone.utc)).total_seconds()
+                except Exception:  # noqa: BLE001 — telemetry feature, never break scan
+                    _secs_to_res = None
                 _dec = adaptive_required_margin(
                     base_floor=min_pair_margin,
                     yes_book=yes_book,
                     no_book=no_book,
                     intended_shares=max_pos_size,
+                    seconds_to_resolution=_secs_to_res,
                 )
                 pair_margin = _dec.required_margin
                 # Shadow-log the feature vector + decision for future calibration.

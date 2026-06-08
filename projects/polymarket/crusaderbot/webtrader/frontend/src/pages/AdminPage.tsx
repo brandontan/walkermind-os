@@ -324,7 +324,7 @@ export function AdminPage() {
                     <button
                       type="button"
                       onClick={() => void handleSettingNumber(s.key)}
-                      disabled={savingKey === s.key || numDraft[s.key] === undefined || numDraft[s.key] === String(s.effective)}
+                      disabled={savingKey === s.key || numDraft[s.key] === undefined || numDraft[s.key].trim() === "" || Number(numDraft[s.key]) === Number(s.effective)}
                       className="px-2 py-1 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[10px] font-bold uppercase disabled:opacity-40"
                     >
                       Save

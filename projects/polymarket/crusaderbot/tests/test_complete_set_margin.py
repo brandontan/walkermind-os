@@ -93,6 +93,35 @@ def test_larger_intended_size_walks_deeper():
 
 # ── robustness: malformed / empty books never lower the bar or raise ────────
 
+def test_thin_book_adds_shortfall_premium():
+    # Intended 100 but each leg only has 10 shares -> partial fill -> shortfall.
+    yes = _book([(0.40, 10)])
+    no = _book([(0.55, 10)])
+    d = adaptive_required_margin(
+        base_floor=HARD_FLOOR, yes_book=yes, no_book=no, intended_shares=100,
+    )
+    # No walk impact (single level), but a thin-book shortfall on both legs.
+    assert d.features["impact_usdc_per_pair"] == 0.0
+    assert d.features["yes_shortfall_usdc"] > 0.0
+    assert d.features["no_shortfall_usdc"] > 0.0
+    assert d.premium > 0.0
+    assert d.required_margin > HARD_FLOOR
+
+
+def test_thinner_book_demands_more_than_deeper_book():
+    """Monotonic: a thinner book (smaller fill fraction) requires MORE edge than a
+    deeper book — fixes the under-penalised-thin-book anomaly."""
+    shallow = adaptive_required_margin(
+        base_floor=HARD_FLOOR, yes_book=_book([(0.40, 10)]), no_book=_book([(0.55, 10)]),
+        intended_shares=100,
+    )
+    deeper = adaptive_required_margin(
+        base_floor=HARD_FLOOR, yes_book=_book([(0.40, 60)]), no_book=_book([(0.55, 60)]),
+        intended_shares=100,
+    )
+    assert shallow.premium > deeper.premium  # thinner book -> higher required edge
+
+
 def test_empty_books_fall_back_to_base():
     d = adaptive_required_margin(
         base_floor=0.025, yes_book=None, no_book={"asks": []}, intended_shares=100,
@@ -131,6 +160,7 @@ def test_feature_vector_shape():
     )
     for k in (
         "intended_shares", "yes_impact_usdc", "no_impact_usdc", "impact_usdc_per_pair",
+        "yes_shortfall_usdc", "no_shortfall_usdc",
         "premium_usdc", "base_floor", "required_margin", "seconds_to_resolution",
     ):
         assert k in d.features

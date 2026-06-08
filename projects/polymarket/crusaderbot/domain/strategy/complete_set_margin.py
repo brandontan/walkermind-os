@@ -31,6 +31,12 @@ from .complete_set_arb import _asks_ascending  # ascending, cleaned (price,size)
 # Cap the adaptive premium so a pathological / near-empty book can never demand
 # an absurd edge (which would silently disable the arb instead of pricing it).
 ADAPTIVE_PREMIUM_CAP_USDC: float = 0.10  # $/pair on top of the base floor
+# Per-leg penalty (at zero fill) for a book too SHALLOW to fill the intended
+# size. A thin book is fragile (stale / evaporating depth), so it must demand
+# MORE edge, not less — scaled by the unfilled fraction. Only applied when the
+# leg has SOME takeable liquidity (filled > 0); a fully empty/malformed book
+# falls back to the base (no arb books on it anyway).
+ADAPTIVE_THIN_BOOK_PENALTY_USDC: float = 0.05
 # Floor on the reference size used to probe the book when the caller passes a
 # non-positive intended size (keeps the impact measure well-defined).
 _MIN_REF_SHARES: float = 1.0
@@ -101,7 +107,23 @@ def adaptive_required_margin(
     no_slip = no_avg - no_best if (no_avg == no_avg and no_best == no_best) else 0.0
     impact = max(0.0, yes_slip) + max(0.0, no_slip)
 
-    premium = min(max(0.0, impact), premium_cap)
+    # Thin-book shortfall: a leg with SOME liquidity but too shallow to supply the
+    # intended size is fragile (displayed depth likely stale / evaporating), so it
+    # must demand MORE edge — scaled by the unfilled fraction. Only when filled>0:
+    # a fully empty/malformed leg falls back to 0 (no arb books on it anyway, and a
+    # data glitch must not fabricate a premium). Deliberately NOT the worst-case
+    # "unfilled portion fills at $1.0" model — that would reject a legitimate
+    # partial-depth arb whose only fault is the user's size CAP exceeding depth.
+    yes_short = (
+        ADAPTIVE_THIN_BOOK_PENALTY_USDC * max(0.0, 1.0 - yes_filled / ref)
+        if yes_filled > 0.0 else 0.0
+    )
+    no_short = (
+        ADAPTIVE_THIN_BOOK_PENALTY_USDC * max(0.0, 1.0 - no_filled / ref)
+        if no_filled > 0.0 else 0.0
+    )
+
+    premium = min(max(0.0, impact) + yes_short + no_short, premium_cap)
     required = base_floor + premium
 
     features = {
@@ -109,6 +131,8 @@ def adaptive_required_margin(
         "yes_impact_usdc": round(max(0.0, yes_slip), 6),
         "no_impact_usdc": round(max(0.0, no_slip), 6),
         "impact_usdc_per_pair": round(impact, 6),
+        "yes_shortfall_usdc": round(yes_short, 6),
+        "no_shortfall_usdc": round(no_short, 6),
         "yes_filled_shares": round(yes_filled, 6),
         "no_filled_shares": round(no_filled, 6),
         "premium_usdc": round(premium, 6),
