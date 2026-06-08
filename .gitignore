@@ -13,3 +13,6 @@ graphify-out/
 
 # Claude Code personal local settings
 .claude/settings.local.json
+
+# Claude Code ephemeral agent worktrees (never tracked)
+.claude/worktrees/
