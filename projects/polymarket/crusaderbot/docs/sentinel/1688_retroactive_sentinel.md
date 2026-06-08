@@ -45,7 +45,11 @@ Full unified diff read (1,001 lines, 11 code/migration/test files). Checklist:
 - **Free-form TP/SL bypassing EV validation — FINDING (follow-up).**
   `services/signal_scan/signal_scan_job.py:_build_trade_signal` reads
   `row.get("tp_pct")` / `row.get("sl_pct")` and assigns them to the signal with only
-  a NULL→default fallback (`_DEFAULT_STRATEGY_TP_PCT=1.5` / `_SL=0.5`, both logged).
+  a NULL→default fallback. (As of #1688's merge the fallback constant was
+  `_DEFAULT_STRATEGY_TP_PCT=1.5` / `_SL=0.5`; WARP-85 — merged AFTER #1688 — later
+  refactored this to a strategy-resolved `_strategy_default_tp_sl()` with a logged
+  last-resort `_LAST_RESORT_TP_PCT` / `_LAST_RESORT_SL_PCT` = 1.5 / 0.5. The audit
+  finding is unchanged across both: neither clamps a non-NULL user value.)
   A non-NULL value is `float()`-cast and passed through with **no numeric clamp**:
   nothing rejects `sl_pct = 0` (no stop-loss), a negative value, or an absurd
   `tp_pct`. The entry EV/edge gate (step 12, `MIN_EDGE_BPS`) gates entry edge, NOT
