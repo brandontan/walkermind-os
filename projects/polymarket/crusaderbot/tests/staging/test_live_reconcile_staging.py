@@ -246,14 +246,22 @@ def _staging_settings() -> Any:
     """
     from projects.polymarket.crusaderbot.config import get_settings
 
-    # CLOB v2 migration: the proof validates the polymarket-client backend by
-    # default (USE_PYSDK_CLOB unset/1); set USE_PYSDK_CLOB=0 to fall back to the
-    # legacy py-clob-client backend for a comparison run.
+    # CLOB backend selection (3-way, matches the factory precedence in
+    # integrations/clob/__init__.py: v2 > pysdk > legacy):
+    #   USE_CLOB_V2=1     -> py-clob-client-v2 cutover backend (the WARP-97 lane;
+    #                        validate this before flipping USE_CLOB_V2 in prod).
+    #                        Takes precedence over USE_PYSDK_CLOB in the factory.
+    #   USE_PYSDK_CLOB=1  -> polymarket-client backend (default when v2 is off).
+    #   both 0            -> legacy py-clob-client v1 ClobAdapter (comparison run).
+    _use_v2 = os.getenv("USE_CLOB_V2", "0").strip().lower() in (
+        "1", "true", "yes",
+    )
     _use_pysdk = os.getenv("USE_PYSDK_CLOB", "1").strip().lower() not in (
         "0", "false", "no", "",
     )
     return get_settings().model_copy(update={
         "USE_REAL_CLOB": True,
+        "USE_CLOB_V2": _use_v2,
         "USE_PYSDK_CLOB": _use_pysdk,
         "POLYMARKET_PRIVATE_KEY": _WALLET,
         "POLYMARKET_FUNDER_ADDRESS": os.getenv("STAGING_FUNDER_ADDRESS"),

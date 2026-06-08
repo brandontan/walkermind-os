@@ -59,6 +59,8 @@ that drift detection sees a real orphan.
 | `STAGING_NEG_RISK` | no | `false` | Set `true` only for neg-risk markets. |
 | `STAGING_ALLOW_FILLS` | no | unset | `1` enables fill-burning sub-cases (finalize-once). |
 | `STAGING_FILLED_CLOSE_ID` | only for finalize | — | A terminally-FILLED close order id (operator-produced). |
+| `USE_CLOB_V2` | no | `0` | `1` ⇒ build the client through the **py-clob-client-v2** cutover backend (WARP-97). Takes precedence over `USE_PYSDK_CLOB`. **This is the backend the cutover validation run must use** (§7). |
+| `USE_PYSDK_CLOB` | no | `1` | `1` ⇒ polymarket-client backend; `0` ⇒ legacy py-clob-client v1. Ignored when `USE_CLOB_V2=1`. |
 
 > **Dry run first (no wallet):** `pytest tests/staging/ -q` with **no**
 > `STAGING_WALLET_KEY` must report **all skipped, zero failures**. This is the CI
@@ -221,3 +223,54 @@ dispatch with input **`runner: self-hosted`**. The `self-hosted` label is
 applied automatically. Requirements on the host: Python 3.11, `bash`, outbound
 network to Polymarket. For a Magic-link/proxy wallet use `signature_type: 1`
 (POLY_PROXY) plus the `STAGING_FUNDER_ADDRESS` (proxy address) secret.
+
+---
+
+## 7. CLOB v2 cutover validation (WARP-97 — gate before `USE_CLOB_V2=1` in prod)
+
+The py-clob-client-v2 backend (`ClobV2Client`, merged #1720) ships **default-OFF**
+(`USE_CLOB_V2=False`) so it has zero runtime effect until proven. This section is
+the gate: it reuses the SAME five acceptance cases above, but drives them through
+the **v2 backend** instead of the polymarket-client backend. The harness builds
+its client via the production factory `get_clob_client()`, so setting
+`USE_CLOB_V2=1` is all that is needed — the v2 client is exercised end-to-end
+(build → EIP-712 sign → POST → broker accept → readback), the one thing the
+hermetic `tests/test_clob_v2.py` (fake injected client) cannot show.
+
+**What this specifically proves about v2 (beyond the case assertions):**
+- `post_order` builds the **native v2 order struct** and the broker **accepts** it
+  (Case 3 precondition: a real resting GTC; Case 2 adopt/mismatch/halt) — i.e. no
+  `order_version_mismatch` / EIP-712 struct regression versus the prior backend.
+- `cancel_all_orders` / `cancel_order` route through the v2 client and a real
+  resting GTC is **pulled off-chain** (Case 3, Case 1 rollback).
+- `get_open_orders` / `get_order` / `get_fills` return the normalized dict shape
+  the reconciler relies on, against **real** broker truth (Cases 2, 4).
+- Builder attribution: if `POLYMARKET_BUILDER_CODE` + `POLYMARKET_BUILDER_ADDRESS`
+  are set on the staging app, the factory fail-fast and `BuilderConfig` path are
+  exercised on a real POST. Leave both unset to validate the no-builder path.
+
+### Run it
+
+**(Recommended) Fly dispatch:** Actions → *WARP-74 Staging Proof (Fly
+allowed-region…)* → check **`use_clob_v2`** → pick `case3` (headline) →
+`signature_type: 1` → Run. The job summary's **CLOB backend** row must read
+`py-clob-client-v2 (USE_CLOB_V2)` — that is the evidence the v2 backend (not the
+polymarket-client one) produced the result.
+
+**Local / self-hosted (allowed region):**
+```bash
+USE_CLOB_V2=1 \
+  pytest projects/polymarket/crusaderbot/tests/staging/test_live_reconcile_staging.py -v -s
+```
+
+> `USE_CLOB_V2=1` overrides `USE_PYSDK_CLOB` (factory precedence). Run case3 first;
+> then case2/case1/case4. The §4 evidence rules and §5 teardown apply unchanged.
+
+### Acceptance (v2 cutover)
+
+The cutover is **proven** when case3 + case2 (adopt/mismatch/halt) + case4 pass
+with the **CLOB backend = py-clob-client-v2**, with the same four artifacts as §4
+and the wallet confirmed flat (§5). Only then is it safe for WARP🔹CMD to set
+`USE_CLOB_V2=1` on the prod app. Live trading itself remains separately gated by
+`ENABLE_LIVE_TRADING` — flipping `USE_CLOB_V2` only changes *which client builds
+the order*, not whether live orders are permitted.
