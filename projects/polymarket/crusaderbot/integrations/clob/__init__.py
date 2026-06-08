@@ -335,6 +335,18 @@ def get_clob_client(
             raise ClobConfigError(
                 "USE_CLOB_V2=True but POLYMARKET_PRIVATE_KEY is unset"
             )
+        # Fail fast on a half-configured builder attribution: a non-zero builder
+        # code with no builder address yields invalid/zero-address attribution.
+        _zero32 = "0x" + ("00" * 32)
+        if (
+            s.POLYMARKET_BUILDER_CODE
+            and s.POLYMARKET_BUILDER_CODE != _zero32
+            and not s.POLYMARKET_BUILDER_ADDRESS
+        ):
+            raise ClobConfigError(
+                "POLYMARKET_BUILDER_CODE is set but POLYMARKET_BUILDER_ADDRESS "
+                "is unset — builder attribution needs both"
+            )
         return ClobV2Client(
             private_key=s.POLYMARKET_PRIVATE_KEY,
             funder_address=s.POLYMARKET_FUNDER_ADDRESS,

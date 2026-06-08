@@ -261,7 +261,17 @@ class ClobV2Client:
                 if isinstance(out, dict) and out:
                     return out
         data = getattr(obj, "__dict__", None)
-        return dict(data) if isinstance(data, dict) else {}
+        if isinstance(data, dict) and data:
+            return dict(data)
+        # ``__slots__`` / attrs instance (no usable ``__dict__``) -- mirror
+        # sdk_client._model_to_dict so a slots-based SDK model can never
+        # silently drop every field (the WARP-74 run-#11 defect class).
+        slots: dict = {}
+        for klass in type(obj).__mro__:
+            for name in getattr(klass, "__slots__", ()) or ():
+                if isinstance(name, str) and hasattr(obj, name):
+                    slots[name] = getattr(obj, name)
+        return slots
 
     _OID_KEYS = ("id", "order_id", "orderID", "orderId")
     _ASSET_KEYS = ("asset_id", "token_id", "tokenID", "tokenId")

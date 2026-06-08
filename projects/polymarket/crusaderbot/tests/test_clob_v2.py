@@ -173,3 +173,43 @@ def test_factory_selects_v2_when_enabled():
         client = clob.get_clob_client(_S())
     assert isinstance(client, ClobV2Client)
     clob.reset_clob_resilience()
+
+
+def test_factory_fails_fast_on_builder_code_without_address():
+    from projects.polymarket.crusaderbot.integrations import clob
+    from projects.polymarket.crusaderbot.integrations.clob.exceptions import (
+        ClobConfigError,
+    )
+
+    class _S:
+        USE_REAL_CLOB = True
+        USE_CLOB_V2 = True
+        USE_PYSDK_CLOB = False
+        POLYMARKET_PRIVATE_KEY = _PK
+        POLYMARKET_FUNDER_ADDRESS = "0xFUNDER"
+        POLYMARKET_SIGNATURE_TYPE = 2
+        POLYMARKET_BUILDER_CODE = "0x" + ("ab" * 32)  # non-zero, no address
+        POLYMARKET_BUILDER_ADDRESS = None
+        CIRCUIT_BREAKER_THRESHOLD = 5
+        CIRCUIT_BREAKER_RESET_SECONDS = 30
+        CLOB_RATE_LIMIT_RPS = 0
+
+    clob.reset_clob_resilience()
+    with patch.object(clob, "effective_credentials", return_value=("", "", "")):
+        with pytest.raises(ClobConfigError, match="BUILDER_ADDRESS"):
+            clob.get_clob_client(_S())
+    clob.reset_clob_resilience()
+
+
+def test_to_dict_handles_slots_model():
+    class _Slotted:
+        __slots__ = ("order_id", "asset_id")
+
+        def __init__(self) -> None:
+            self.order_id = "0xSLOT"
+            self.asset_id = "0xTOK"
+
+    c = _client(_FakeV2())
+    out = c._order_to_dict(_Slotted())
+    assert out["id"] == out["order_id"] == "0xSLOT"
+    assert out["asset_id"] == "0xTOK"
