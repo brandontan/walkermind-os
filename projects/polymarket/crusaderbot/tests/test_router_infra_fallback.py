@@ -58,11 +58,18 @@ def _wire(monkeypatch):
     async def _paper(**_kw):
         return {"mode": "paper", "_paper": True}
 
+    async def _global_live_enabled(*_a, **_k):
+        return True
+
     monkeypatch.setattr(_AUDIT, _audit)
     monkeypatch.setattr(_NOTIFY, _notify)
     monkeypatch.setattr(router.paper_engine, "execute", _paper)
     monkeypatch.setattr(router.live_engine, "assert_live_guards",
                         lambda role, mode: None)
+    # WARP-92: the router now pre-checks the GLOBAL live toggle before reaching
+    # the live engine. These tests exercise downstream live-engine fallback
+    # behavior, which only runs once the global gate is open — stub it True.
+    monkeypatch.setattr(router, "is_global_live_enabled", _global_live_enabled)
     return rec
 
 
