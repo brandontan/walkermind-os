@@ -1182,7 +1182,7 @@ async def _evaluate_market(
     # runs. It is NOT the directional MIN_EDGE_BPS edge (deliberately a separate
     # key from "edge"/"edge_bps") so gate step 12 stays unchanged for late_entry.
     slippage_gross_edge_bps: float | None = None
-    if edge_meta.get("oracle_edge_status") == "computed":
+    if edge_meta and edge_meta.get("oracle_edge_status") == "computed":
         _entry_edge = (
             edge_meta.get("oracle_edge_up") if entry_side == "YES"
             else edge_meta.get("oracle_edge_down")
