@@ -44,7 +44,7 @@ export function AdminPage() {
         api.getAdminUsers(100, 0),
         api.getAdminSettings(),
       ]);
-      setOverview(ov);
+      setOverview((prev) => prev ? { ...ov, pool: prev.pool } : ov);
       setStrategies(st.strategies);
       setUsers(us.users);
       setSettings(cfg.settings);

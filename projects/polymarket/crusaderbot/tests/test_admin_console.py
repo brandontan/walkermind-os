@@ -166,13 +166,34 @@ def test_admin_overview_exposes_polymarket_config():
     assert "effective_credentials" in src
 
 
-def test_admin_pool_balance_endpoint_exists():
-    """Pool-balance endpoint must call master_wallet + polygon balance reads."""
-    import inspect
-    src = inspect.getsource(r.admin_pool_balance)
-    assert "master_wallet" in src
-    assert "get_usdc_balance" in src
-    assert "get_native_balance" in src
+def test_admin_pool_balance_returns_correct_shape():
+    """Pool-balance endpoint returns address/usdc/matic from the two RPC calls."""
+    with (
+        patch(
+            "projects.polymarket.crusaderbot.wallet.vault.master_wallet",
+            return_value=("0xHotPool", "0xsecret"),
+        ),
+        patch(
+            "projects.polymarket.crusaderbot.integrations.polygon.get_usdc_balance",
+            AsyncMock(return_value=42.0),
+        ),
+        patch(
+            "projects.polymarket.crusaderbot.integrations.polygon.get_native_balance",
+            AsyncMock(return_value=1.5),
+        ),
+    ):
+        out = asyncio.run(r.admin_pool_balance({"user_id": "admin-id"}))
+    assert out == {"address": "0xHotPool", "usdc": 42.0, "matic": 1.5}
+
+
+def test_admin_pool_balance_no_address_returns_nulls():
+    """If master_wallet raises, all fields are None."""
+    with patch(
+        "projects.polymarket.crusaderbot.wallet.vault.master_wallet",
+        side_effect=RuntimeError("no key"),
+    ):
+        out = asyncio.run(r.admin_pool_balance({"user_id": "admin-id"}))
+    assert out == {"address": None, "usdc": None, "matic": None}
 
 
 def test_get_me_includes_role_and_is_admin():
