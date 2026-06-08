@@ -3042,16 +3042,22 @@ async def _process_candidate(
     # auto-HALT; an uncapped cell still HALTs. Admin can flip it ON (overlay, no
     # redeploy) to require a real measured edge. Resolved HERE in the async
     # orchestrator (30s-cached) and threaded into the signal → NEVER read inside
-    # the pure risk gate (the #1694 pool-wedge RCA). Fail-safe to the env default.
+    # the pure risk gate (the #1694 pool-wedge RCA). On a resolve fault, fall back
+    # to the operator's CONFIGURED env default — NOT a hardcoded False — so a
+    # configured True (require-edge) is never silently downgraded to permissive
+    # cap-only (a LIVE fail-open; Gemini review #1717).
+    _env_require_edge = False
     try:
         from ...config import get_settings as _gs_edge
-        _require_measured_edge = await _runtime_config.resolve_bool(
-            "SMART_STRIKE_REQUIRE_MEASURED_EDGE",
-            bool(getattr(_gs_edge(), "SMART_STRIKE_REQUIRE_MEASURED_EDGE", False)),
+        _env_require_edge = bool(
+            getattr(_gs_edge(), "SMART_STRIKE_REQUIRE_MEASURED_EDGE", False)
         )
-    except Exception as exc:  # noqa: BLE001 — fail-safe to the permissive env default
+        _require_measured_edge = await _runtime_config.resolve_bool(
+            "SMART_STRIKE_REQUIRE_MEASURED_EDGE", _env_require_edge,
+        )
+    except Exception as exc:  # noqa: BLE001 — fall back to the configured env default
         log.warning("smart_strike_require_edge_resolve_failed", error=str(exc))
-        _require_measured_edge = False
+        _require_measured_edge = _env_require_edge
 
     if _cb_enabled:
         _base_before_build = _bankroll_ema_baseline.get(_uid_str)
