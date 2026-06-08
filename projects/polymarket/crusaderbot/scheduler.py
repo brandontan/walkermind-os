@@ -451,6 +451,16 @@ async def run_signal_scan() -> SignalScanMetrics:
     for u_row in users:
         user = dict(u_row)
         user["balance_usdc"] = float(user.get("balance_usdc") or 0)
+        # WARP-93 (Issue 4): any non-null/non-empty active_preset means the user
+        # is owned by the new orchestrator (signal_scan_job: preset -> strategy)
+        # — and NO preset routes to copy_trade. This legacy strategy_types ->
+        # copy_trade scan predates presets and is for pre-preset copy_trade users
+        # (active_preset NULL) only. Skip any preset user so a stale strategy_types
+        # array can never bleed a copy_trade scan onto a candle_auto / managed
+        # user. Truthy-check (not a hardcoded preset set) keeps this future-proof:
+        # a newly-added preset is covered automatically.
+        if user.get("active_preset"):
+            continue
         for strat_name in (user.get("strategy_types") or []):
             strat = _strategies.get(strat_name)
             if not strat:

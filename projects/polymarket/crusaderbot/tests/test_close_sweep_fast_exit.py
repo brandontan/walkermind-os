@@ -39,7 +39,20 @@ def test_scoped_query_filters_candle_presets_and_near_window():
 
 
 def test_candle_presets_constant():
-    assert set(registry._CANDLE_PRESETS) == {"close_sweep", "safe_close", "flip_hunter"}
+    # WARP-93 (Issue 1): candle_auto (Smart Strike) MUST be scoped into the fast
+    # exit loop — otherwise its short-TTL positions only get the 30s watcher and
+    # an SL crossing near a 5m candle's expiry is missed (closes resolution_loss
+    # ~-100% instead of sl_hit ~-50%). This set is the fast-exit scoping set,
+    # distinct from signal_scan_job._CANDLE_PRESETS (the param-dispatch set).
+    assert set(registry._CANDLE_PRESETS) == {
+        "close_sweep", "safe_close", "flip_hunter", "candle_auto",
+    }
+
+
+def test_candle_auto_in_fast_exit_scope():
+    """Regression for WARP-93 Issue 1: candle_auto must ride the 5s fast loop so
+    its SL fires before resolution on a short-TTL entry."""
+    assert "candle_auto" in registry._CANDLE_PRESETS
 
 
 def test_check_candle_exits_scopes_loader_and_skips_resolved():

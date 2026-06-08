@@ -174,8 +174,21 @@ _OPEN_FOR_EXIT_COLS = """
               LEFT JOIN user_settings s ON s.user_id = p.user_id
 """
 
-# Candle presets whose positions the fast exit loop is scoped to.
-_CANDLE_PRESETS = ("close_sweep", "safe_close", "flip_hunter")
+# Candle presets whose positions the fast exit loop (CLOSE_SWEEP_EXIT_INTERVAL
+# ≈5s) is scoped to. These are the short-TTL 5-minute crypto markets where the
+# price can gap past the SL between two 30s exit_watch ticks, so they need the
+# tight near-resolution poll cadence.
+#
+# WARP-93 (Issue 1): ``candle_auto`` (Smart Strike — the auto-router preset)
+# MUST be in this set. It was previously omitted, so candle_auto positions only
+# got the 30s watcher; a position entered <90s before a 5m candle's expiry could
+# gap straight through its SL threshold to resolution before the next 30s tick
+# and close as ``resolution_loss`` (~-100%) instead of ``sl_hit`` (~-50%).
+# Adding it here routes candle_auto positions into the existing 5s fast loop near
+# resolution so the SL crossing is caught within ~5s. This is the fast-exit
+# *scoping* set ONLY — distinct from ``signal_scan_job._CANDLE_PRESETS`` (the
+# single-rule param-dispatch set, which must NOT include candle_auto).
+_CANDLE_PRESETS = ("close_sweep", "safe_close", "flip_hunter", "candle_auto")
 
 
 def _loads_jsonb(raw: Any) -> Optional[dict]:
