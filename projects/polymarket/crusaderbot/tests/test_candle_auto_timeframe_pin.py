@@ -1,11 +1,10 @@
-"""WARP-93 (Issue 2): activate_preset pins candle_auto (Smart Strike) to 5m.
+"""WARP-95 (Issue 2): activate_preset respects the user's selected_timeframe for
+candle_auto (Smart Strike) — no 5m hard-pin.
 
-The web UI timeframe toggle can persist a stale '15m' and re-POST it on a later
-preset activation. candle_auto is the orchestrator-owned auto-router and LIVE v1
-trades the 5m crypto cells only (the Polymarket updown-15m series is
-discontinued — 15m == zero trades), so the single write path must coerce
-candle_auto to 5m regardless of the client value. The single-rule crypto-short
-presets keep their toggle.
+WARP-93 had hard-pinned candle_auto to 5m at this write path; combined with the
+web UI re-POSTing the preset, that silently flipped every 15m user to 5m and
+stopped 15m scanning. Both 5m and 15m markets are live and tradable, so the
+write path must persist whichever timeframe the user picked (NULL -> 5m default).
 
 Hermetic — no network, no DB (pool/conn mocked).
 """
@@ -55,11 +54,17 @@ def _run_activate(preset_key: str, requested_tf):
     return out, captured
 
 
-def test_candle_auto_15m_request_pinned_to_5m():
-    """A stale '15m' from the client must NOT strand a candle_auto user."""
+def test_candle_auto_15m_request_persisted_as_15m():
+    """A candle_auto user choosing 15m must persist 15m (no 5m pin)."""
     out, captured = _run_activate("candle_auto", "15m")
     # $1 = preset_key, $2 = persisted selected_timeframe
     assert captured["args"][0] == "candle_auto"
+    assert captured["args"][1] == "15m"
+    assert out["selected_timeframe"] == "15m"
+
+
+def test_candle_auto_5m_request_persisted_as_5m():
+    out, captured = _run_activate("candle_auto", "5m")
     assert captured["args"][1] == "5m"
     assert out["selected_timeframe"] == "5m"
 
@@ -70,14 +75,8 @@ def test_candle_auto_none_request_defaults_5m():
     assert out["selected_timeframe"] == "5m"
 
 
-def test_candle_auto_5m_request_stays_5m():
-    out, captured = _run_activate("candle_auto", "5m")
-    assert captured["args"][1] == "5m"
-    assert out["selected_timeframe"] == "5m"
-
-
 def test_single_rule_preset_keeps_15m_toggle():
-    """The pin is candle_auto-only: close_sweep can still pick 15m."""
+    """Unchanged: close_sweep can still pick 15m."""
     out, captured = _run_activate("close_sweep", "15m")
     assert captured["args"][0] == "close_sweep"
     assert captured["args"][1] == "15m"
