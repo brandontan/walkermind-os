@@ -135,6 +135,12 @@ class TradeSignal:
     cell: Optional[str] = None
     orderbook_depth_usdc: Optional[float] = None
     spread: Optional[float] = None
+    # WARP (smart-strike-slippage-edge-gate, F1): LIVE step-14b edge policy for a
+    # candidate with no measured edge. Threaded into GateContext.require_measured_edge.
+    # Default True (back-compat: non-scan callers keep the prior HALT-on-no-edge);
+    # the scan path sets it from the resolved SMART_STRIKE_REQUIRE_MEASURED_EDGE
+    # toggle (env default False → per-cell cap is the sole control for a capped cell).
+    require_measured_edge: bool = True
 
 
 @dataclass(frozen=True)
@@ -348,4 +354,6 @@ class TradeEngine:
             cell=signal.cell,
             orderbook_depth_usdc=signal.orderbook_depth_usdc,
             spread=signal.spread,
+            # WARP (smart-strike-slippage-edge-gate, F1): LIVE no-edge policy.
+            require_measured_edge=signal.require_measured_edge,
         )

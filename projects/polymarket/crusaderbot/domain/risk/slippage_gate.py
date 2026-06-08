@@ -59,10 +59,20 @@ SLIPPAGE_WATCH_MAX_FRAC: float = 0.30
 # CMD-approved LIVE v1 cell set (BTC + ETH + SOL, 5m). sol/5m=$100 is a
 # conservative initial cap pending live-fill observation — flagged for final
 # CMD confirm; re-tune alongside btc/eth after the first LIVE week.
+#
+# WARP (smart-strike-slippage-edge-gate, F2): 15m cells added (CMD directive
+# 2026-06-08) so the 15m candle timeframe — restored to LIVE scanning by WARP-95
+# — is tradeable LIVE under a per-cell $ cap, not left uncapped. The 15m values
+# MIRROR 5m as a conservative initial cap: a 15m candle accrues book depth over a
+# 3x-longer window, so the 5m cap is a strict lower bound on 15m capacity. Flagged
+# for CMD confirm; re-tune from live-fill data alongside the 5m caps.
 LIVE_SIZE_CAPS_USDC: dict[str, float] = {
     "btc/5m": 500.0,
     "eth/5m": 100.0,
     "sol/5m": 100.0,
+    "btc/15m": 500.0,
+    "eth/15m": 100.0,
+    "sol/15m": 100.0,
 }
 
 
@@ -149,6 +159,7 @@ def evaluate_slippage_gate(
     proposed_size_usdc: float,
     slippage_bps: float,
     gross_edge_bps: float | None,
+    require_measured_edge: bool = True,
 ) -> SlippageGateDecision:
     """Pure tiered slippage verdict for one LIVE candidate.
 
@@ -158,22 +169,33 @@ def evaluate_slippage_gate(
          exceeds it, reject (``slippage_live_size_cap``). The sizing engine is
          expected to size within the cap; a breach here is a backstop against a
          misconfigured live size, mirroring the complete-set hard-cap reject.
-      2. **Slippage-of-edge tier** — classify ``slippage_bps / gross_edge_bps``:
-         HALT rejects (``slippage_halt``); WATCH and GREEN pass.
+      2. **Cap-only fallback for an unmeasured edge** — when the candidate carries
+         NO measurable edge (``gross_edge_bps`` is None / non-finite / ≤ 0), the
+         slippage-of-edge ratio is undefined. ``require_measured_edge`` decides:
+           * ``False`` (Smart Strike default, CMD pick 2026-06-08): if the cell
+             has an explicit per-cell $ cap (check 1 already enforced it) and the
+             slippage estimate is finite, that cap is the SOLE live control —
+             pass (``slippage_cap_only_no_edge``). This is what lets late_entry_v3
+             (book-imbalance, no measured EV) trade LIVE bounded by the per-cell
+             cap instead of being auto-HALTed. A cell WITHOUT a cap still HALTs.
+           * ``True`` (toggle ``SMART_STRIKE_REQUIRE_MEASURED_EDGE`` ON; future
+             real-edge posture): refuse — HALT (``slippage_halt``). No edge, no trade.
+      3. **Slippage-of-edge tier** — with a measured edge, classify
+         ``slippage_bps / gross_edge_bps``: HALT rejects; WATCH and GREEN pass.
 
     ``slippage_frac_of_edge`` is populated whenever ``gross_edge_bps`` is a
     positive finite number (so the caller can log it even on a HALT), else
     ``None``.
     """
     size_cap = live_size_cap_for_cell(cell)
+    edge_unmeasured = (
+        gross_edge_bps is None
+        or not math.isfinite(gross_edge_bps)
+        or gross_edge_bps <= 0.0
+    )
     frac: float | None = None
-    if (
-        gross_edge_bps is not None
-        and math.isfinite(gross_edge_bps)
-        and gross_edge_bps > 0.0
-        and math.isfinite(slippage_bps)
-    ):
-        frac = slippage_bps / gross_edge_bps
+    if not edge_unmeasured and math.isfinite(slippage_bps):
+        frac = slippage_bps / gross_edge_bps  # type: ignore[operator]
 
     # 1. Per-cell LIVE size cap (fail-closed backstop).
     if size_cap is not None and proposed_size_usdc > size_cap:
@@ -186,7 +208,31 @@ def evaluate_slippage_gate(
             size_cap_breached=True,
         )
 
-    # 2. Slippage-of-edge tier.
+    # 2. No measurable edge: cap-only pass (capped cell, finite slip) or HALT.
+    if edge_unmeasured:
+        if (
+            not require_measured_edge
+            and size_cap is not None
+            and math.isfinite(slippage_bps)
+        ):
+            return SlippageGateDecision(
+                tier=SlippageTier.GREEN,
+                rejected=False,
+                reason="slippage_cap_only_no_edge",
+                slippage_frac_of_edge=None,
+                size_cap_usdc=size_cap,
+                size_cap_breached=False,
+            )
+        return SlippageGateDecision(
+            tier=SlippageTier.HALT,
+            rejected=True,
+            reason="slippage_halt",
+            slippage_frac_of_edge=None,
+            size_cap_usdc=size_cap,
+            size_cap_breached=False,
+        )
+
+    # 3. Slippage-of-edge tier (measured edge present).
     tier = classify_slippage_tier(slippage_bps, gross_edge_bps)
     if tier is SlippageTier.HALT:
         return SlippageGateDecision(

@@ -213,6 +213,17 @@ class Settings(BaseSettings):
     # floor. Operator-flippable at runtime via the admin overlay (no redeploy).
     COMPLETE_SET_ADAPTIVE_MARGIN_ENABLED: bool = False
 
+    # --- Smart Strike LIVE slippage-gate edge policy (WARP smart-strike-slippage-
+    # edge-gate, F1) --- late_entry_v3 (book-imbalance) reports NO measured edge,
+    # so the LIVE step-14b slippage-of-edge tier (which fail-closes on a None edge)
+    # would HALT every live Smart Strike candidate. Default False (CMD pick
+    # 2026-06-08): for a cell with an explicit per-cell $ cap, that cap is the sole
+    # LIVE control when no edge is measured (cap-only) — an uncapped cell still
+    # HALTs. Flip True (admin overlay, no redeploy) to require a real measured edge
+    # once the real-edge lane lands (then a missing edge HALTs). PAPER is unaffected
+    # (step 14b runs only for chosen_mode='live').
+    SMART_STRIKE_REQUIRE_MEASURED_EDGE: bool = False
+
     # --- Multi-asset crypto oracle (WARP-62, candle edge engine foundation) ---
     # Foundation knobs for the candle oracle layer. Default OFF — even with the
     # client code present, the runtime factory
