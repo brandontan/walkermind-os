@@ -129,6 +129,9 @@ def _signal_ns(module_live_eligible: bool) -> SimpleNamespace:
         cell=None,
         orderbook_depth_usdc=None,
         spread=None,
+        # F1 (smart-strike-slippage-edge-gate): _build_gate_context now threads
+        # the LIVE no-edge slippage policy through.
+        require_measured_edge=True,
     )
     return SimpleNamespace(**fields)
 
