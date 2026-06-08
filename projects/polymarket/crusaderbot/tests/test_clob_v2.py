@@ -201,6 +201,21 @@ def test_factory_fails_fast_on_builder_code_without_address():
     clob.reset_clob_resilience()
 
 
+def test_builder_secret_alias_maps_to_api_secret():
+    """POLYMARKET_BUILDER_SECRET (operator/Fly naming) feeds *_API_SECRET."""
+    from projects.polymarket.crusaderbot.config import Settings
+
+    out = Settings._alias_builder_secret(
+        {"POLYMARKET_BUILDER_SECRET": "shh", "POLYMARKET_BUILDER_API_KEY": "k"}
+    )
+    assert out["POLYMARKET_BUILDER_API_SECRET"] == "shh"
+    # An explicit canonical value is never overwritten by the alias.
+    out2 = Settings._alias_builder_secret(
+        {"POLYMARKET_BUILDER_API_SECRET": "canon", "POLYMARKET_BUILDER_SECRET": "alias"}
+    )
+    assert out2["POLYMARKET_BUILDER_API_SECRET"] == "canon"
+
+
 def test_to_dict_handles_slots_model():
     class _Slotted:
         __slots__ = ("order_id", "asset_id")
