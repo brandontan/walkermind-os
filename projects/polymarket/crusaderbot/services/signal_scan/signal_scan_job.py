@@ -61,7 +61,7 @@ from ...domain.execution.router import execute as router_execute
 from ...domain.ops import runtime_config as _runtime_config
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
 from ...domain.research import scan_observability as _scan_observability
-from ...domain.risk.constants import PROFILES
+from ...domain.risk.constants import CORRELATED_CRYPTO_MAJORS, PROFILES
 from ...domain.risk.gate import resolve_capital_alloc_pct as _resolve_capital_alloc_pct
 from ...domain.risk.gate import resume_safety_check as _resume_safety_check
 from ...domain.strategy.registry import StrategyRegistry
@@ -580,6 +580,80 @@ def _safe_close_record_entry(user_id: str, side: str, now_ts: float) -> None:
 def _safe_close_reset_for_tests() -> None:
     """Clear the in-memory window. Tests use this to isolate runs."""
     _safe_close_direction_log.clear()
+
+
+# --- Correlated crypto-majors same-direction entry guard
+#     (WARP/correlated-majors-entry-guard) ---
+#
+# BTC/ETH/SOL move together intraday. late_entry_v3 evaluates each candle market
+# independently, so when the majors all favour the same side at one candle close
+# the bot opens three same-direction positions on what is effectively ONE
+# directional bet — and a single adverse move stops out the whole cluster at once
+# (observed prod: a user with BTC+ETH+SOL all "yes" on one candle taking three
+# simultaneous sl_hit). The per-user max_concurrent count cap (5/12/20) does not
+# catch this because three correlated entries are well under the count limit.
+#
+# This guard caps same-direction crypto-majors entries within one short
+# same-candle window. Modeled exactly on the safe_close direction limiter above:
+#   * Per (user, side) — concentration is a single-user, single-direction risk.
+#     Opposite sides (a YES and a NO major) partially hedge and are NOT capped
+#     together. Different users are independent.
+#   * In-memory — recorded on accepted entries only, so the gate does ZERO
+#     hot-path DB reads (the #1694 pool-wedge RCA: never add a per-candidate DB
+#     read to the scan path). A crash drops the counter; worst case is one extra
+#     correlated entry before it rebuilds — far cheaper than a per-tick DB hit.
+#   * Window is short (below) so it isolates a single candle's entry burst (all
+#     three majors enter within late_entry_v3's final ~35s window) and resets well
+#     before the next 5m/15m candle — it never bleeds a cap across candles.
+_CORRELATED_MAJORS_WINDOW_SEC = 120.0
+_correlated_majors_log: dict[tuple[str, str], list[float]] = {}
+
+
+def _correlated_majors_recent_count(user_id: str, side: str, now_ts: float) -> int:
+    """Count recorded same-direction crypto-majors entries for (user, side)
+    within the last ``_CORRELATED_MAJORS_WINDOW_SEC`` seconds. Prunes expired
+    entries in place; deletes the dict key entirely when pruning empties the
+    list (memory hygiene — mirrors the safe_close limiter)."""
+    key = (str(user_id), side.upper())
+    entries = _correlated_majors_log.get(key)
+    if entries is None:
+        return 0
+    cutoff = now_ts - _CORRELATED_MAJORS_WINDOW_SEC
+    if entries and entries[0] < cutoff:
+        entries[:] = [t for t in entries if t >= cutoff]
+    if not entries:
+        del _correlated_majors_log[key]
+        return 0
+    return len(entries)
+
+
+def _correlated_majors_record_entry(user_id: str, side: str, now_ts: float) -> None:
+    """Append a timestamp to the (user, side) window. Called ONLY on accepted
+    paper-mode crypto-majors entries (skip on duplicate / rejected / non-major)."""
+    key = (str(user_id), side.upper())
+    _correlated_majors_log.setdefault(key, []).append(now_ts)
+
+
+def _correlated_majors_reset_for_tests() -> None:
+    """Clear the in-memory window. Tests use this to isolate runs."""
+    _correlated_majors_log.clear()
+
+
+def _major_asset_from_candidate(cand: SignalCandidate) -> str | None:
+    """Resolve the correlated-majors cluster asset for a candidate, or None.
+
+    late_entry_v3 stamps ``metadata["cell"]`` as the canonical ``"ASSET/timeframe"``
+    key (e.g. ``"BTC/5m"`` — asset upper-cased, see scorer.normalize_cell_key).
+    Returns the asset ticker ONLY when it is a member of
+    ``CORRELATED_CRYPTO_MAJORS`` (BTC/ETH/SOL); None for any non-cluster asset, a
+    missing/malformed cell, or a non-candle candidate — so the correlation guard
+    never fires outside the majors cluster.
+    """
+    cell = (cand.metadata or {}).get("cell")
+    if not cell or not isinstance(cell, str):
+        return None
+    asset = cell.split("/", 1)[0].strip().upper()
+    return asset if asset in CORRELATED_CRYPTO_MAJORS else None
 
 
 @dataclass
@@ -2487,6 +2561,61 @@ def _gate_safe_close_direction(
     return "skipped_safe_close_direction_concentration"
 
 
+def _gate_correlated_majors(
+    *,
+    user_id: UUID,
+    side: str,
+    market_id: str,
+    asset: str | None,
+    log: Any,
+) -> str | None:
+    """Cap same-direction crypto-majors (BTC/ETH/SOL) entries within one
+    same-candle window.
+
+    Applies to ALL candle presets (the correlation is a market property, not a
+    preset property): unlike the safe_close direction limiter, a momentum-led
+    close_sweep / flip_hunter / candle_auto stack of correlated majors carries the
+    same cluster-stop-out risk. Returns the skip reason when the user is already
+    at the cap for this direction, else None. No-op (returns None) for a
+    non-cluster asset or when the cap is disabled (limit <= 0)."""
+    if asset is None:
+        return None
+    try:
+        from ...config import get_settings as _gs_corr
+        limit = int(_gs_corr().CORRELATED_MAJORS_SAME_DIR_LIMIT)
+    except Exception as exc:
+        log.warning(
+            "correlated_majors_limit_config_read_failed",
+            error=str(exc),
+            fallback=2,
+        )
+        limit = 2
+    if limit <= 0:
+        return None
+    now_ts = datetime.now(timezone.utc).timestamp()
+    recent = _correlated_majors_recent_count(str(user_id), side, now_ts)
+    if recent < limit:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_correlated_majors_concentration",
+        side=side,
+        asset=asset,
+        user_id=str(user_id),
+        market_id=market_id,
+        recent_count=recent,
+        limit=limit,
+        window_sec=_CORRELATED_MAJORS_WINDOW_SEC,
+        message=(
+            f"User already holds {recent} same-direction {side.upper()} "
+            f"crypto-majors entries this candle (limit {limit}); skipping "
+            f"{asset} to avoid correlated cluster concentration (BTC/ETH/SOL "
+            f"move together — three same-side entries stop out as one)."
+        ),
+    )
+    return "skipped_correlated_majors_concentration"
+
+
 async def _process_candidate(
     row: dict[str, Any],
     cand: SignalCandidate,
@@ -3023,6 +3152,19 @@ async def _process_candidate(
             telemetry.record_skip(_skip)
         return
 
+    # 3d-ii. Correlated crypto-majors same-direction cap (see
+    #        _gate_correlated_majors). Resolve the cluster asset once here; it is
+    #        reused at the accept-path record site below. No-op for non-majors.
+    _maj_asset = _major_asset_from_candidate(cand)
+    _skip = _gate_correlated_majors(
+        user_id=user_id, side=side, market_id=cand.market_id,
+        asset=_maj_asset, log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
+
     # Phase-2c-1b: robustness gate. When enabled, force an UNTRADEABLE module
     # (Monte Carlo OOS verdict) to PAPER — flows to GateContext.module_live_eligible,
     # AND-ed into the live guards (downgrade-only, never enables live). Default OFF →
@@ -3159,6 +3301,17 @@ async def _process_candidate(
         # bypasses the counter.
         if inserted and (row.get("active_preset") or "").lower() == "safe_close":
             _safe_close_record_entry(
+                str(user_id), side, datetime.now(timezone.utc).timestamp(),
+            )
+
+        # Record this entry for the correlated crypto-majors same-direction cap
+        # (WARP/correlated-majors-entry-guard). Same `inserted` + non-duplicate
+        # guard as the safe_close limiter above so a concurrent-tick ON CONFLICT
+        # skip never double-counts. Only records cluster majors (BTC/ETH/SOL) —
+        # `_maj_asset` was resolved once at gate 3d-ii above; a non-major is None
+        # and contributes nothing to the cluster window.
+        if inserted and _maj_asset is not None:
+            _correlated_majors_record_entry(
                 str(user_id), side, datetime.now(timezone.utc).timestamp(),
             )
 

@@ -19,6 +19,20 @@ MIN_EDGE_BPS = 200
 SIGNAL_STALE_SECONDS = 14400  # 4h: matches SIGNAL_EXPIRY_HOURS — gate uses expires_at as primary guard
 DEDUP_WINDOW_SECONDS = 300
 
+# Correlated crypto-majors cluster (WARP/correlated-majors-entry-guard).
+# BTC/ETH/SOL move together intraday: a single market-wide move pushes all three
+# candle "Up or Down" markets the same way. Opening same-direction positions on
+# all three at the same candle close therefore behaves like ONE 3x-leveraged
+# directional bet — when the move reverses, the whole cluster stops out together
+# (observed prod pattern: a user with BTC+ETH+SOL all "yes" on one candle taking
+# three simultaneous sl_hit). The per-user max_concurrent count cap (5/12/20)
+# does not catch this because three correlated entries are still well under the
+# count limit. The orchestrator's correlation guard caps how many of these may be
+# entered in the SAME direction within one short same-candle window. The cluster
+# membership is hard-wired (a risk constant); the per-window cap is the tunable
+# CORRELATED_MAJORS_SAME_DIR_LIMIT config knob.
+CORRELATED_CRYPTO_MAJORS: frozenset[str] = frozenset({"BTC", "ETH", "SOL"})
+
 # Slippage / market-impact guardrails (gate step 14).
 # MAX_MARKET_IMPACT_PCT: reject if size_usdc / market_liquidity exceeds this.
 # Prevents a single order from consuming more than 5% of visible depth.
