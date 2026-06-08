@@ -236,6 +236,24 @@ async def watch_deposits() -> None:
             reply_markup=deposit_kb,
         )
 
+    # Credit-neutral wrong-token pass: detect native-USDC deposits to the same
+    # addresses and warn the user. NEVER credits — native USDC is not USDC.e.
+    try:
+        wrong = await _alert_wrong_token_deposits(addr_by_lower)
+    except Exception as exc:
+        log.error("wrong_token alert pass failed", err=str(exc))
+        wrong = []
+    for tg_id, amt, tx in wrong:
+        await notifications.send(
+            tg_id,
+            "⚠️ <b>Wrong token received.</b> We detected "
+            f"${float(amt):.2f} of <b>native USDC</b> at your deposit address.\n\n"
+            "CrusaderBot only credits <b>USDC.e (bridged)</b> on Polygon, so this "
+            "transfer was <b>not credited</b> and cannot be traded here.\n"
+            f"<code>{html.escape(tx)}</code>\n\n"
+            "Please contact support to arrange a return or swap.",
+        )
+
 
 async def _record_pending_deposit(user_id, t: dict) -> None:
     """Insert a newly-seen transfer as ``pending`` — no ledger credit yet.
@@ -363,6 +381,98 @@ async def _confirm_ready_deposits(
         if u:
             notify.append((u["telegram_user_id"], amount, d["tx_hash"]))
     return notify
+
+
+async def _alert_wrong_token_deposits(
+    addr_by_lower: dict,
+) -> list[tuple[int, Decimal, str]]:
+    """Detect-and-alert pass for deposits of the WRONG token (native USDC).
+
+    Native USDC (``USDC_NATIVE_POLYGON``) is NOT Polymarket's CTF collateral
+    (USDC.e). A user who sends it to their deposit address must be told — we
+    NEVER credit it (distinct ERC-20, untradeable on Polymarket without a swap).
+    This pass moves no capital: it records each transfer in
+    ``wrong_token_deposits`` (idempotent on tx_hash+log_index) and returns the
+    telegram ids to notify. Its cursor is independent of the credit path's, so
+    it can never affect USDC.e crediting.
+
+    Returns ``(telegram_user_id, amount, tx_hash)`` tuples to notify.
+    """
+    settings = get_settings()
+    if not settings.WRONG_TOKEN_ALERTS_ENABLED:
+        return []
+    native = settings.USDC_NATIVE_POLYGON
+    addresses = list(addr_by_lower.keys())
+    if not addresses:
+        return []
+
+    cursor_start = await _read_cursor("usdc_native_deposits")
+    try:
+        transfers, scanned_to = await polygon.scan_from_cursor(
+            addresses, cursor_start, token_address=native,
+        )
+    except Exception as exc:
+        log.warning("wrong_token scan failed (no cursor advance)", err=str(exc))
+        return []
+
+    notify: list[tuple[int, Decimal, str]] = []
+    all_ok = True
+    for t in transfers:
+        if t.get("removed"):
+            continue  # orphaned by reorg — nothing was credited, nothing to warn
+        user_id = addr_by_lower.get(t["to"].lower())
+        if not user_id:
+            continue  # not ours — safe to skip and advance cursor
+        try:
+            tg_id = await _record_wrong_token_deposit(user_id, native, t)
+            if tg_id is not None:
+                notify.append((tg_id, Decimal(str(t["amount"])), t["tx_hash"]))
+        except Exception as exc:
+            log.error("wrong_token record failed — cursor will not advance",
+                      tx_hash=t.get("tx_hash"), err=str(exc))
+            all_ok = False
+
+    if all_ok:
+        await _write_cursor("usdc_native_deposits", scanned_to)
+    return notify
+
+
+async def _record_wrong_token_deposit(user_id, token_address: str, t: dict) -> int | None:
+    """Record a wrong-token (native USDC) transfer; return the telegram id to
+    alert, or ``None`` if it was already recorded (no re-alert).
+
+    Idempotent on ``(tx_hash, log_index)`` via ``ON CONFLICT DO NOTHING`` —
+    a transfer re-seen on an overlapping scan range is a no-op, so the user is
+    alerted at most once. Records only; never touches the ledger or balance.
+    """
+    log_index = int(t.get("log_index", 0))
+    amount = Decimal(str(t["amount"]))
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                INSERT INTO wrong_token_deposits
+                    (user_id, token_address, tx_hash, log_index, amount, block_number)
+                VALUES ($1,$2,$3,$4,$5,$6)
+                ON CONFLICT (tx_hash, log_index) DO NOTHING
+                RETURNING id
+                """,
+                user_id, token_address, t["tx_hash"], log_index, amount,
+                t["block_number"],
+            )
+            if row is None:
+                return None  # already recorded — alerted on an earlier tick
+            u = await conn.fetchrow(
+                "SELECT telegram_user_id FROM users WHERE id=$1", user_id,
+            )
+    await audit.write(
+        actor_role="bot", action="wrong_token_deposit_detected", user_id=user_id,
+        payload={"tx_hash": t["tx_hash"], "log_index": log_index,
+                 "amount": str(amount), "token_address": token_address,
+                 "block": t["block_number"]},
+    )
+    return u["telegram_user_id"] if u else None
 
 
 async def _read_cursor(name: str) -> int:
