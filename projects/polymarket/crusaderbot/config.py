@@ -207,6 +207,12 @@ class Settings(BaseSettings):
     # flag (LIVE additionally behind the existing activation guards, Lane 3).
     COMPLETE_SET_ARB_ENABLED: bool = False
 
+    # Adaptive per-market margin for the complete-set arb (heuristic). Default OFF
+    # (static MIN_COMPLETE_SET_EDGE base only). When ON, a per-market execution-
+    # slippage premium is added on top of the base floor — never below the 2% hard
+    # floor. Operator-flippable at runtime via the admin overlay (no redeploy).
+    COMPLETE_SET_ADAPTIVE_MARGIN_ENABLED: bool = False
+
     # --- Multi-asset crypto oracle (WARP-62, candle edge engine foundation) ---
     # Foundation knobs for the candle oracle layer. Default OFF — even with the
     # client code present, the runtime factory
