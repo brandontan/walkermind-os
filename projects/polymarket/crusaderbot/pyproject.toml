@@ -26,6 +26,12 @@ dependencies = [
     # wallet/safe import directly. Removed only in the legacy-retirement lane,
     # after the staging proof + SENTINEL flip USE_PYSDK_CLOB to default-on.
     "py-clob-client",
+    # CLOB v2 cutover (WARP/clob-v2-cutover): py-clob-client-v2 is the stable
+    # 1.x single-package successor (native v2 order struct + builder config),
+    # selected by USE_CLOB_V2 (default OFF until the staging proof). It replaces
+    # the polymarket-client + py-clob-client v1 hybrid once that flip is proven;
+    # both are RETAINED meanwhile as the active/fallback real path.
+    "py-clob-client-v2>=1.0.1",
     "tenacity>=8.2",
     # polymarket-client requires eth-account>=0.13,<1 (was >=0.10).
     "eth-account>=0.13,<1",
