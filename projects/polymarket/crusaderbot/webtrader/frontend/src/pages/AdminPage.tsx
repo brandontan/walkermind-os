@@ -6,6 +6,7 @@ import { TopBar } from "../components/TopBar";
 import {
   makeApi,
   type AdminOverview,
+  type AdminPoolBalance,
   type AdminStrategy,
   type AdminUser,
   type RuntimeSetting,
@@ -43,7 +44,7 @@ export function AdminPage() {
         api.getAdminUsers(100, 0),
         api.getAdminSettings(),
       ]);
-      setOverview(ov);
+      setOverview((prev) => prev ? { ...ov, pool: prev.pool } : ov);
       setStrategies(st.strategies);
       setUsers(us.users);
       setSettings(cfg.settings);
@@ -55,11 +56,24 @@ export function AdminPage() {
     }
   }, [api]);
 
+  const loadPool = useCallback(async () => {
+    try {
+      const p: AdminPoolBalance = await api.getAdminPoolBalance();
+      setOverview((prev) => prev ? { ...prev, pool: p } : prev);
+    } catch {
+      // best-effort — full overview poll covers initial load
+    }
+  }, [api]);
+
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     const id = setInterval(() => { if (allowed) void load(); }, 30_000);
     return () => clearInterval(id);
   }, [load, allowed]);
+  useEffect(() => {
+    const id = setInterval(() => { if (allowed) void loadPool(); }, 10_000);
+    return () => clearInterval(id);
+  }, [loadPool, allowed]);
 
   async function handleToggle(name: string, next: boolean) {
     setSavingStrat(name);

@@ -1,4 +1,5 @@
 <!-- gate-notify-verify-v3 -->
+2026-06-09 10:30 | WARP/admin-pool-balance-realtime | Admin hot-pool balance realtime update: new lightweight /admin/pool-balance endpoint (RPC-only, no DB) + AdminPage 10s poll for pool balance section. STANDARD.
 2026-06-09 03:10 | WARP/staging-proof-clob-v2 | WARP-97 follow-up: wired the WARP-74 live-broker staging harness to validate the py-clob-client-v2 cutover backend (USE_CLOB_V2). _staging_settings honours USE_CLOB_V2 (factory precedence v2>pysdk>legacy; v2 reuses the harness-provisioned _derived creds); staging-proof-fly.yml gains a use_clob_v2 dispatch input + CLOB-backend summary row; runbook §7 documents the v2 cutover validation run + acceptance. Test-harness + CI tooling only — ZERO runtime change, USE_CLOB_V2 stays default-OFF. STANDARD. Report: reports/forge/staging-proof-clob-v2.md
 2026-06-07 21:10 | WARP/risk-profile-tpsl-backtest | TP/SL calibration backtest report (E.1) — awaiting CMD sign-off
 2026-06-07 14:20 | WARP/slippage-estimator-model | slippage estimator model (Sub-Lane A) + synthetic tests

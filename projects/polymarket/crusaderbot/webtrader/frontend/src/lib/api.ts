@@ -151,6 +151,7 @@ export function makeApi(token: string | null) {
     startLinkTelegram: () => post<LinkTelegramStart>("/account/link-telegram/start"),
     // ── Admin console (role=admin only) ────────────────────────────────────
     getAdminOverview: () => get<AdminOverview>("/admin/overview"),
+    getAdminPoolBalance: () => get<AdminPoolBalance>("/admin/pool-balance"),
     getAdminUsers: (limit = 50, offset = 0) =>
       get<AdminUsersPage>(`/admin/users?limit=${limit}&offset=${offset}`),
     getAdminStrategies: () => get<{ strategies: AdminStrategy[] }>("/admin/strategies"),
@@ -208,6 +209,12 @@ export interface AdminOverview {
     open_positions_paper: number; open_positions_live: number; total_wallet_usdc: number;
   };
   last_scan: Record<string, unknown> | null;
+}
+
+export interface AdminPoolBalance {
+  address: string | null;
+  usdc: number | null;
+  matic: number | null;
 }
 
 export interface AdminUser {
