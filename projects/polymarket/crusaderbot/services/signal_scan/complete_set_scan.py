@@ -49,10 +49,12 @@ from ...domain.execution.complete_set_exec import (
     book_complete_set_live,
     book_complete_set_paper,
 )
+from ...domain.ops import runtime_config as _runtime_config
 from ...domain.risk import constants as K
 from ...domain.risk.gate import GateContext, GateResult
 from ...domain.risk.gate import evaluate as _gate_evaluate
 from ...domain.strategy.complete_set_arb import fillable_complete_set
+from ...domain.strategy.complete_set_margin import adaptive_required_margin
 from ...integrations import polymarket as _polymarket
 from ...wallet.ledger import get_balance
 
@@ -113,16 +115,35 @@ async def scan_complete_set_for_user(
     trading_mode = str(row.get("trading_mode") or "paper")
     ulog = log.bind(user_id=str(user_id), strategy="complete_set_arb")
 
-    # Per-pair margin floor — reuse MIN_COMPLETE_SET_EDGE. Default 0.0 keeps the
-    # path dormant: fillable_complete_set returns None for a non-positive margin,
-    # so no quote / no booking until the operator sets MIN_COMPLETE_SET_EDGE > 0.
+    # Per-pair margin floor — MIN_COMPLETE_SET_EDGE, resolved through the admin
+    # runtime overlay (DB override wins over the Fly/env default; no redeploy).
+    # Default 0.0 keeps the path dormant: fillable_complete_set returns None for a
+    # non-positive margin, so no quote / no booking until the operator sets a
+    # positive base. Fail-safe: any overlay error falls back to the env default.
     try:
-        min_pair_margin = float(getattr(settings, "MIN_COMPLETE_SET_EDGE", 0.0))
+        _env_base = float(getattr(settings, "MIN_COMPLETE_SET_EDGE", 0.0))
     except (TypeError, ValueError):
-        min_pair_margin = 0.0
+        _env_base = 0.0
+    try:
+        min_pair_margin = await _runtime_config.resolve_float(
+            "MIN_COMPLETE_SET_EDGE", _env_base,
+        )
+    except Exception:  # noqa: BLE001 — overlay must never break the scan
+        min_pair_margin = _env_base
     if not (min_pair_margin > 0.0):
         ulog.info("complete_set_scan_dormant_margin", min_pair_margin=min_pair_margin)
         return res
+
+    # Adaptive per-market margin (heuristic): when ON, a per-market execution-
+    # slippage premium is added on top of the base floor below. Resolved through
+    # the same overlay; fail-safe to the env default (default OFF = static base).
+    try:
+        adaptive_enabled = await _runtime_config.resolve_bool(
+            "COMPLETE_SET_ADAPTIVE_MARGIN_ENABLED",
+            bool(getattr(settings, "COMPLETE_SET_ADAPTIVE_MARGIN_ENABLED", False)),
+        )
+    except Exception:  # noqa: BLE001
+        adaptive_enabled = False
 
     # Hard-wire the AGENTS.md arbitrage invariant: a booked pair's locked net
     # edge must clear BOTH the 2% floor AND the explicit fee/slippage allowance.
@@ -183,6 +204,26 @@ async def scan_complete_set_for_user(
                 book_fetcher(str(yes_token)),
                 book_fetcher(str(no_token)),
             )
+            # Adaptive per-market required margin (heuristic): raises the bar on
+            # thin/steep books by the execution slippage of filling the intended
+            # size above top-of-book. base_floor (min_pair_margin) is already >=
+            # the 2% hard floor, and the premium only adds on top — so the booked
+            # net edge is never below 2%. When OFF, the static base is used.
+            pair_margin = min_pair_margin
+            if adaptive_enabled:
+                _dec = adaptive_required_margin(
+                    base_floor=min_pair_margin,
+                    yes_book=yes_book,
+                    no_book=no_book,
+                    intended_shares=max_pos_size,
+                )
+                pair_margin = _dec.required_margin
+                # Shadow-log the feature vector + decision for future calibration.
+                ulog.info(
+                    "complete_set_adaptive_margin",
+                    market_id=market_id,
+                    **_dec.features,
+                )
             quote = fillable_complete_set(
                 yes_book,
                 no_book,
@@ -190,7 +231,7 @@ async def scan_complete_set_for_user(
                 condition_id=condition_id,
                 yes_token_id=str(yes_token),
                 no_token_id=str(no_token),
-                min_pair_margin=min_pair_margin,
+                min_pair_margin=pair_margin,
                 max_shares=max_pos_size,
             )
             if quote is None:
