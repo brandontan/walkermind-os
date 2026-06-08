@@ -591,8 +591,6 @@ def test_admin_user_update_validates_risk_profile():
 @pytest.mark.parametrize("field,bad,good", [
     ("capital_alloc_pct", 0.90, 0.5),  # >MAX (0.80)
     ("capital_alloc_pct", 0.0, 0.5),   # <MIN
-    ("tp_pct", 15.0, 0.5),             # >MAX (10.0)
-    ("sl_pct", 2.0, 0.5),              # >MAX (1.0)
     ("max_per_trade_usdc", 999.0, 100.0),  # >MAX (500)
     ("max_per_trade_pct", 0.50, 0.05),     # >MAX (0.10)
 ])
@@ -607,6 +605,26 @@ def test_admin_user_update_validates_numeric_bounds(field, bad, good):
     assert exc.value.status_code == 400
     # Good value should NOT raise — validate-only (we test the patch path
     # E2E below; here just confirm the bounds gate accepts the in-range value).
+    r._validate_admin_user_patch(AdminUserUpdate(**{field: good}))
+
+
+@pytest.mark.parametrize("field,bad,good", [
+    ("tp_pct", 15.0, 0.5),  # >MAX_TP_PCT (10.0) — schema-rejected (WARP-90)
+    ("sl_pct", 2.0, 0.5),   # >MAX_SL_PCT (1.0)  — schema-rejected (WARP-90)
+])
+def test_admin_user_update_tpsl_rejected_at_schema_layer(field, bad, good):
+    # WARP-90 / PR #1688 SENTINEL condition A: out-of-range tp_pct / sl_pct is
+    # now rejected at the Pydantic schema layer (ValidationError -> FastAPI 422)
+    # before the router runs, so it cannot bypass the bounds via any write path.
+    from pydantic import ValidationError
+
+    from projects.polymarket.crusaderbot.webtrader.backend.schemas import (
+        AdminUserUpdate,
+    )
+
+    with pytest.raises(ValidationError):
+        AdminUserUpdate(**{field: bad})
+    # In-range value constructs + passes the router bounds gate cleanly.
     r._validate_admin_user_patch(AdminUserUpdate(**{field: good}))
 
 
