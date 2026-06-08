@@ -124,6 +124,11 @@ def _signal_ns(module_live_eligible: bool) -> SimpleNamespace:
         module_live_eligible=module_live_eligible,
         # WARP-86: _build_gate_context now threads the active preset through.
         active_preset=None,
+        # WARP-87 follow-up (smart-strike-cell-cap-binding): _build_gate_context
+        # now threads the trading cell + order-book depth/spread through.
+        cell=None,
+        orderbook_depth_usdc=None,
+        spread=None,
     )
     return SimpleNamespace(**fields)
 

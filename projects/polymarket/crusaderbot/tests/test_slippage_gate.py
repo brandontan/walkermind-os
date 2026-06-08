@@ -65,9 +65,16 @@ def test_classify_halt_on_nonfinite_inputs():
 
 # ── per-cell LIVE size caps ───────────────────────────────────────────────────
 def test_live_size_caps_locked_values():
-    assert LIVE_SIZE_CAPS_USDC == {"btc/5m": 500.0, "eth/5m": 100.0}
+    # CMD-approved LIVE v1 cell set (WARP-87 follow-up): BTC + ETH + SOL, 5m.
+    # sol/5m=$100 is a conservative initial cap pending live-fill observation.
+    assert LIVE_SIZE_CAPS_USDC == {
+        "btc/5m": 500.0,
+        "eth/5m": 100.0,
+        "sol/5m": 100.0,
+    }
     assert live_size_cap_for_cell("btc/5m") == 500.0
     assert live_size_cap_for_cell("eth/5m") == 100.0
+    assert live_size_cap_for_cell("sol/5m") == 100.0
 
 
 def test_live_size_cap_unknown_cell_returns_none():

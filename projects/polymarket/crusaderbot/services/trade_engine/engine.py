@@ -125,6 +125,16 @@ class TradeSignal:
     # effect. Flows into GateContext.module_live_eligible (downgrade-only: a live
     # trade becomes paper; never enables live).
     module_live_eligible: bool = True
+    # WARP-87 follow-up (smart-strike-cell-cap-binding): the trading cell
+    # ("{asset}/{timeframe}", e.g. "btc/5m"), live order-book depth (USDC) and
+    # complete-set spread the Smart Strike candidate measured at scan time. Threaded
+    # straight into GateContext so the LIVE-only step-14b slippage gate binds the
+    # per-cell size cap (ctx.cell) and estimates slippage from the REAL depth/spread.
+    # None (legacy / non-Smart-Strike / fast_topup candidate) → no per-cell cap and
+    # the gate's existing depth=market_liquidity / spread=1.0 fallback applies.
+    cell: Optional[str] = None
+    orderbook_depth_usdc: Optional[float] = None
+    spread: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -331,4 +341,11 @@ class TradeEngine:
             # WARP-86: thread the user's active preset so the gate's AUTO entry
             # constraint (step 4) sees it and fences AUTO to candle_auto only.
             active_preset=signal.active_preset,
+            # WARP-87 follow-up (smart-strike-cell-cap-binding): thread the trading
+            # cell + real order-book depth/spread so the LIVE-only step-14b slippage
+            # gate binds the per-cell size cap (ctx.cell) and estimates slippage from
+            # the candidate's measured depth/spread instead of the fallback inputs.
+            cell=signal.cell,
+            orderbook_depth_usdc=signal.orderbook_depth_usdc,
+            spread=signal.spread,
         )

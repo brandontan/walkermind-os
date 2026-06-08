@@ -460,6 +460,38 @@ def test_build_trade_signal_raises_without_live_price():
         )
 
 
+def test_build_trade_signal_threads_cell_depth_spread_from_metadata():
+    """WARP-87 follow-up (smart-strike-cell-cap-binding): the Smart Strike
+    candidate's measured cell + order-book depth/spread (stamped on cand.metadata
+    by late_entry_v3) must ride onto the TradeSignal so the engine threads them
+    into GateContext and the LIVE per-cell slippage cap binds on real flow."""
+    cand = _candidate()
+    cand.metadata.update(
+        {"cell": "BTC/5m", "orderbook_depth_usdc": 9876.0, "spread": 0.97}
+    )
+    sig = job._build_trade_signal(
+        row=_user_row(), cand=cand, market=_market_row(),
+        idempotency_key="k", live_price_override=0.55,
+    )
+    assert sig.cell == "BTC/5m"
+    assert sig.orderbook_depth_usdc == pytest.approx(9876.0)
+    assert sig.spread == pytest.approx(0.97)
+
+
+def test_build_trade_signal_cell_depth_spread_none_when_metadata_absent():
+    """None-safety: a non-Smart-Strike candidate omits these keys → the
+    TradeSignal carries None → the gate keeps its existing fallback (no per-cell
+    cap). No regression for legacy candidates."""
+    cand = _candidate()  # default metadata has no cell/depth/spread keys
+    sig = job._build_trade_signal(
+        row=_user_row(), cand=cand, market=_market_row(),
+        idempotency_key="k", live_price_override=0.55,
+    )
+    assert sig.cell is None
+    assert sig.orderbook_depth_usdc is None
+    assert sig.spread is None
+
+
 def test_process_candidate_handles_engine_exception_gracefully():
     """Engine exception is caught and logged; no _mark_failed since queue not pre-inserted."""
     bootstrap_default_strategies()
