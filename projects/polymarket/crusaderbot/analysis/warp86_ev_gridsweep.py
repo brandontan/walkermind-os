@@ -60,7 +60,7 @@ import argparse
 import csv
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -175,8 +175,9 @@ def load_from_db(scope: str) -> Rows:
 
 def _capped_win_return(p: np.ndarray, tp: float) -> np.ndarray:
     """Convention-B win return: min(TP, settlement ceiling (1-p)/p)."""
-    with np.errstate(divide="ignore", invalid="ignore"):
-        ceiling = np.where(p > 0.0, (1.0 - p) / p, np.inf)
+    # np.divide(where=) evaluates the division only where p > 0 — a p == 0 element
+    # keeps the preset +inf and never triggers a divide-by-zero warning.
+    ceiling = np.divide(1.0 - p, p, out=np.full_like(p, np.inf), where=p > 0.0)
     return np.minimum(tp, ceiling)
 
 
@@ -385,8 +386,7 @@ def main() -> None:
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     day = datetime.now(timezone.utc).strftime("%Y%m%d")
-    stamp = datetime.now(timezone(__import__("datetime").timedelta(hours=7))
-                         ).strftime("%Y-%m-%d %H:%M")
+    stamp = datetime.now(timezone(timedelta(hours=7))).strftime("%Y-%m-%d %H:%M")
     source_label = "DATABASE_URL (exact per-row)" if args.from_db else (
         f"binned snapshot {args.snapshot.name} (binwidth 0.05)")
     csv_path = args.out_dir / f"warp86_ev_gridsweep_{day}.csv"
