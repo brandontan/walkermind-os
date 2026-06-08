@@ -122,6 +122,8 @@ def _signal_ns(module_live_eligible: bool) -> SimpleNamespace:
         # WARP-89: _build_gate_context now threads the preloaded CAP% through.
         capital_alloc_pct=None,
         module_live_eligible=module_live_eligible,
+        # WARP-86: _build_gate_context now threads the active preset through.
+        active_preset=None,
     )
     return SimpleNamespace(**fields)
 

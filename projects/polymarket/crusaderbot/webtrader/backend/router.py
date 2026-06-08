@@ -1220,7 +1220,10 @@ _FLIP_HUNTER_TF_PARAMS: dict[str, dict[str, float]] = {
             "min_volume_24h": 0.0, "min_liquidity": 500.0},
 }
 
-_VALID_RISK_PROFILES: frozenset[str] = frozenset({"conservative", "balanced", "aggressive", "custom"})
+# WARP-86: 'auto' is the single EV-driven profile (Kelly 0.25 + candle_auto entry
+# + strategy-owned 1.5/0.5 TP/SL). Accepted on the risk-profile write paths; its
+# non-custom defaults come from PROFILE_TP_SL['auto'] (cap 0.40 / 1.5 / 0.5).
+_VALID_RISK_PROFILES: frozenset[str] = frozenset({"conservative", "balanced", "aggressive", "custom", "auto"})
 
 # WARP-83 E.2 (Path C): non-custom profile defaults source TP/SL from the
 # canonical domain PROFILE_TP_SL (single source of truth) — TP/SL is a

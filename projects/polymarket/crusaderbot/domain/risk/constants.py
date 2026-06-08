@@ -60,6 +60,19 @@ PROFILES: dict[str, dict] = {
         "daily_loss": -1_000.0, "min_edge_bps": 200,
         "min_liquidity": 10_000.0, "max_days": 90,
     },
+    # AUTO profile (WARP-86 Phase 0b): single EV-driven profile. Capital/loss/
+    # concurrency discipline MIRRORS 'balanced' (the directive specified only
+    # kelly=0.25 — see warp-86-auto-profile.md DESIGN DECISION) while sizing uses
+    # the maximum fractional Kelly (0.25, clamped by K.KELLY_FRACTION in gate.py).
+    # AUTO trades ONLY the candle_auto preset (gate.py enforces the entry
+    # constraint) → late_entry_v3, whose default_tp_sl() returns the locked
+    # strategy-owned 1.5/0.5. No manual TP/SL/capital config is required from the
+    # user; selecting risk_profile='auto' yields the EV-validated behaviour.
+    "auto": {
+        "kelly": 0.25, "max_pos_pct": 0.06, "max_concurrent": 12,
+        "daily_loss": -500.0, "min_edge_bps": 300,
+        "min_liquidity": 15_000.0, "max_days": 30,
+    },
     # Custom profile: user sets capital_pct / tp_pct / sl_pct in user_settings.
     # Gate risk limits fall back to balanced floor until custom values are confirmed.
     "custom": {
@@ -88,7 +101,11 @@ STRATEGY_AVAILABILITY: dict[str, list[str]] = {
     # Crypto Scalper -> confluence_scalper.
     "expiration_timing":  ["conservative", "balanced", "aggressive", "custom"],
     "confluence_scalper": ["balanced", "aggressive", "custom"],
-    "late_entry_v3":      ["conservative", "balanced", "aggressive", "custom"],
+    # 'auto' (WARP-86): the AUTO profile trades ONLY candle_auto → late_entry_v3
+    # (gate.py enforces the candle_auto entry constraint). candle_auto routes to
+    # late_entry_v3 alone (signal_scan_job _PRESET_ALLOWED["candle_auto"]), so
+    # 'auto' is added here ONLY — no other strategy_type accepts it.
+    "late_entry_v3":      ["conservative", "balanced", "aggressive", "custom", "auto"],
     # Weather domain strategy (weather_monitor preset). Emits candidates with
     # strategy_name="weather"; without this entry gate step 4 rejects every
     # weather candidate as unknown_strategy — the weather pipeline (mig 075/076,
@@ -224,6 +241,11 @@ PROFILE_TP_SL: dict[str, dict[str, float]] = {
     "conservative": {"capital_alloc_pct": 0.20, "tp_pct": STRATEGY_DEFAULT_TP_PCT, "sl_pct": STRATEGY_DEFAULT_SL_PCT},
     "balanced":     {"capital_alloc_pct": 0.40, "tp_pct": STRATEGY_DEFAULT_TP_PCT, "sl_pct": STRATEGY_DEFAULT_SL_PCT},
     "aggressive":   {"capital_alloc_pct": 0.60, "tp_pct": STRATEGY_DEFAULT_TP_PCT, "sl_pct": STRATEGY_DEFAULT_SL_PCT},
+    # AUTO (WARP-86): seeds bootstrap capital/TP/SL = balanced's entry. TP/SL here
+    # is ONLY the user_settings seed; the authoritative runtime exit thresholds
+    # come from the strategy hook (late_entry_v3.default_tp_sl() → 1.5/0.5),
+    # resolved + logged by signal_scan_job._strategy_default_tp_sl on NULL.
+    "auto":         {"capital_alloc_pct": 0.40, "tp_pct": STRATEGY_DEFAULT_TP_PCT, "sl_pct": STRATEGY_DEFAULT_SL_PCT},
 }
 
 
