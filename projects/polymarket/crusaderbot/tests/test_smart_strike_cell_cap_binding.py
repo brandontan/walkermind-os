@@ -67,6 +67,8 @@ def _signal_ns(
         # F1 (smart-strike-slippage-edge-gate): default back-compat value; the
         # threading test overrides it explicitly.
         require_measured_edge=True,
+        # Option 3 (smart-strike-real-edge): measured slippage gross-edge (bps).
+        slippage_gross_edge_bps=None,
         # WARP-87 follow-up: the fields this lane threads.
         cell=cell,
         orderbook_depth_usdc=orderbook_depth_usdc,
@@ -206,6 +208,26 @@ def test_require_measured_edge_threads_signal_to_gate_context():
     sig.require_measured_edge = False
     ctx = TradeEngine._build_gate_context(sig)
     assert ctx.require_measured_edge is False
+
+
+def test_slippage_gross_edge_bps_threads_signal_to_gate_context():
+    # Option 3: TradeSignal.slippage_gross_edge_bps → GateContext.slippage_gross_edge_bps.
+    sig = _signal_ns(cell="btc/5m", orderbook_depth_usdc=1000.0, spread=1.0)
+    sig.slippage_gross_edge_bps = 450.0
+    ctx = TradeEngine._build_gate_context(sig)
+    assert ctx.slippage_gross_edge_bps == 450.0
+
+
+def test_trade_signal_defaults_slippage_gross_edge_bps_none():
+    # Back-compat: legacy callers omit it → None (gate uses ctx.edge_bps).
+    sig = TradeSignal(
+        user_id="u", telegram_user_id=1, role="user", auto_trade_on=True,
+        paused=False, market_id="m", market_question=None, yes_token_id=None,
+        no_token_id=None, side="yes", proposed_size_usdc=10, price=0.5,
+        market_liquidity=1000.0, market_status="active", idempotency_key="k",
+        strategy_type="x", risk_profile="balanced", trading_mode="paper",
+    )
+    assert sig.slippage_gross_edge_bps is None
 
 
 def test_trade_signal_defaults_require_measured_edge_true():

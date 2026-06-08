@@ -119,6 +119,13 @@ class GateContext:
     # True so non-scan GateContext construction sites keep the prior fail-closed
     # behaviour; the scan path sets it from the resolved toggle (env default False).
     require_measured_edge: bool = True
+    # Option 3 (smart-strike-real-edge): the Smart Strike candidate's measured GROSS
+    # edge (bps) = the entry-side oracle fair-value edge. In real-edge mode
+    # (require_measured_edge True) step 14b uses this as the slippage-of-edge
+    # denominator (preferred over ctx.edge_bps, which late_entry leaves None). In the
+    # cap-only default it is IGNORED so Smart Strike stays cap-only. None for a
+    # non-Smart-Strike candidate / when the oracle gave no positive edge.
+    slippage_gross_edge_bps: float | None = None
 
 
 @dataclass
@@ -731,11 +738,19 @@ async def evaluate(ctx: GateContext) -> GateResult:
             spread=_spread,
             entry_price=float(ctx.proposed_price),
         )
+        # Option 3 (smart-strike-real-edge): in real-edge mode use the candidate's
+        # measured oracle fair-value edge as the slippage-of-edge denominator
+        # (late_entry leaves ctx.edge_bps None by design). In the cap-only default
+        # it is IGNORED so Smart Strike stays cap-only; other strategies keep
+        # ctx.edge_bps as the denominator either way.
+        _gross_edge = ctx.edge_bps
+        if ctx.require_measured_edge and ctx.slippage_gross_edge_bps is not None:
+            _gross_edge = ctx.slippage_gross_edge_bps
         _slip = SG.evaluate_slippage_gate(
             cell=ctx.cell,
             proposed_size_usdc=float(final_size),
             slippage_bps=_est.total_bps,
-            gross_edge_bps=ctx.edge_bps,
+            gross_edge_bps=_gross_edge,
             require_measured_edge=ctx.require_measured_edge,
         )
         if _slip.rejected:

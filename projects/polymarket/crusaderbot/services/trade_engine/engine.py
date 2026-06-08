@@ -141,6 +141,11 @@ class TradeSignal:
     # the scan path sets it from the resolved SMART_STRIKE_REQUIRE_MEASURED_EDGE
     # toggle (env default False → per-cell cap is the sole control for a capped cell).
     require_measured_edge: bool = True
+    # Option 3 (smart-strike-real-edge): the Smart Strike candidate's measured GROSS
+    # edge (bps) = the entry-side oracle fair-value edge, used as the step-14b
+    # slippage-of-edge denominator in real-edge mode (require_measured_edge True).
+    # None for a non-Smart-Strike candidate / when the oracle gave no positive edge.
+    slippage_gross_edge_bps: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -356,4 +361,6 @@ class TradeEngine:
             spread=signal.spread,
             # WARP (smart-strike-slippage-edge-gate, F1): LIVE no-edge policy.
             require_measured_edge=signal.require_measured_edge,
+            # Option 3 (smart-strike-real-edge): measured slippage gross-edge (bps).
+            slippage_gross_edge_bps=signal.slippage_gross_edge_bps,
         )

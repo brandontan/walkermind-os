@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Mapping, Optional
@@ -1171,6 +1172,28 @@ async def _evaluate_market(
     except Exception:  # noqa: BLE001 — metadata stamp must never break a scan
         cell_key = None
 
+    # Option 3 (smart-strike-real-edge): the measured per-trade GROSS edge for the
+    # LIVE slippage-of-edge tier = the advisory oracle fair-value edge for the
+    # ENTERED side (edge_up for YES, edge_down for NO; fair_prob − ask), in bps.
+    # Stamped ONLY when the oracle actually computed a positive, finite edge for
+    # that side; absent otherwise. The gate consumes it at step 14b ONLY when
+    # SMART_STRIKE_REQUIRE_MEASURED_EDGE is ON (real-edge mode → tier; no edge →
+    # HALT); in the cap-only default it is ignored, and in paper step 14b never
+    # runs. It is NOT the directional MIN_EDGE_BPS edge (deliberately a separate
+    # key from "edge"/"edge_bps") so gate step 12 stays unchanged for late_entry.
+    slippage_gross_edge_bps: float | None = None
+    if edge_meta.get("oracle_edge_status") == "computed":
+        _entry_edge = (
+            edge_meta.get("oracle_edge_up") if entry_side == "YES"
+            else edge_meta.get("oracle_edge_down")
+        )
+        try:
+            _entry_edge_f = float(_entry_edge) if _entry_edge is not None else None
+        except (TypeError, ValueError):
+            _entry_edge_f = None
+        if _entry_edge_f is not None and math.isfinite(_entry_edge_f) and _entry_edge_f > 0.0:
+            slippage_gross_edge_bps = _entry_edge_f * 10_000.0
+
     # WARP-64 Chunk 3 (ADVISORY) oracle fair-value/edge + WARP-72 factor vector are
     # computed earlier (before the directional gates) so they emit for every
     # evaluated candle; ``edge_meta`` / ``factor_meta`` are stamped here onto the
@@ -1208,6 +1231,10 @@ async def _evaluate_market(
             # (per the WARP-71 audit), surfaced under the gate's expected key name.
             "cell": cell_key,
             "orderbook_depth_usdc": clob_liquidity,
+            # Option 3 (smart-strike-real-edge): entry-side oracle fair-value edge
+            # in bps for the LIVE slippage-of-edge tier (None unless the oracle
+            # computed a positive edge). Read by signal_scan_job._build_trade_signal.
+            "slippage_gross_edge_bps": slippage_gross_edge_bps,
             # Entry-price band the candidate satisfied at scan time. Re-checked
             # in _process_candidate against the live fill price so candle drift
             # between scan and fill cannot place the trade outside the band.

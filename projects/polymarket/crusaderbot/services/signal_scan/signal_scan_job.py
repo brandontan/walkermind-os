@@ -1977,6 +1977,18 @@ def _build_trade_signal(
         _candidate_spread = float(_spread_raw) if _spread_raw is not None else None
     except (ValueError, TypeError):
         _candidate_spread = None
+    # Option 3 (smart-strike-real-edge): the entry-side oracle fair-value edge (bps)
+    # late_entry_v3 stamps when the oracle computed a positive edge. Threaded into
+    # the TradeSignal → GateContext as the step-14b slippage gross-edge denominator,
+    # consumed ONLY in real-edge mode (SMART_STRIKE_REQUIRE_MEASURED_EDGE ON). None
+    # for a non-Smart-Strike candidate or when the oracle gave no positive edge.
+    _slip_edge_raw = _meta.get("slippage_gross_edge_bps")
+    try:
+        _slippage_gross_edge_bps = (
+            float(_slip_edge_raw) if _slip_edge_raw is not None else None
+        )
+    except (ValueError, TypeError):
+        _slippage_gross_edge_bps = None
 
     # Bankroll dynamic sizing multiplier
     # (WARP/R00T/bankroll-dynamic-sizing, Lane 5/5).
@@ -2132,6 +2144,9 @@ def _build_trade_signal(
         # WARP (smart-strike-slippage-edge-gate, F1): LIVE no-edge policy resolved
         # by _process_candidate from the SMART_STRIKE_REQUIRE_MEASURED_EDGE overlay.
         require_measured_edge=require_measured_edge,
+        # Option 3 (smart-strike-real-edge): entry-side oracle fair-value edge (bps)
+        # = the step-14b slippage gross-edge denominator in real-edge mode.
+        slippage_gross_edge_bps=_slippage_gross_edge_bps,
     )
 
 
