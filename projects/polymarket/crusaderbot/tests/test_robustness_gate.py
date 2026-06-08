@@ -119,6 +119,8 @@ def _signal_ns(module_live_eligible: bool) -> SimpleNamespace:
         risk_profile="balanced", daily_loss_override=None, trading_mode="live",
         user_min_liquidity=0.0, max_drawdown_pct=None, live_capital_cap_usdc=0.0,
         max_concurrent_override=None, bypass_auto_trade_check=False,
+        # WARP-89: _build_gate_context now threads the preloaded CAP% through.
+        capital_alloc_pct=None,
         module_live_eligible=module_live_eligible,
     )
     return SimpleNamespace(**fields)

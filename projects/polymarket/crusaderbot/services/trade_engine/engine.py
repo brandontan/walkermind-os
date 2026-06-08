@@ -104,6 +104,12 @@ class TradeSignal:
     live_capital_cap_usdc: float = 0.0
     # Per-user concurrent-trades override (1..20). None = use profile default.
     max_concurrent_override: Optional[int] = None
+    # WARP-89 (gate-hotpath-db-fix): authoritative risk-profile CAP%
+    # (capital_alloc_pct) PRELOADED once per user per tick by the scan orchestrator
+    # and flowed into GateContext.capital_alloc_pct so the per-candidate risk gate
+    # does ZERO asyncpg reads for it. None = caller did not preload → the gate falls
+    # back to its one-shot DB loader (legacy construction sites only).
+    capital_alloc_pct: Optional[float] = None
     # Per-task opt-in bypass for global auto_trade_on (gate step 2). Copy-trade
     # tasks set this True because copy_trade_tasks.status='active' is the
     # explicit per-task opt-in. ctx.paused is still honoured.
@@ -317,6 +323,9 @@ class TradeEngine:
             max_drawdown_pct=signal.max_drawdown_pct,
             live_capital_cap_usdc=signal.live_capital_cap_usdc,
             max_concurrent_override=signal.max_concurrent_override,
+            # WARP-89: pass the preloaded CAP% straight through to the gate so the
+            # per-candidate evaluate() reads it instead of doing a DB SELECT.
+            capital_alloc_pct=signal.capital_alloc_pct,
             bypass_auto_trade_check=signal.bypass_auto_trade_check,
             module_live_eligible=signal.module_live_eligible,
         )

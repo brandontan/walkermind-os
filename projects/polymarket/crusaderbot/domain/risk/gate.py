@@ -88,6 +88,18 @@ class GateContext:
     cell: str | None = None
     orderbook_depth_usdc: float | None = None
     spread: float | None = None
+    # WARP-89 (gate-hotpath-db-fix): the user's authoritative risk-profile CAP%
+    # (capital_alloc_pct), PRELOADED once per user per tick by the orchestrator and
+    # passed in so the per-candidate ``evaluate`` hot path performs ZERO asyncpg
+    # calls for it. This replaced the per-candidate ``SELECT capital_alloc_pct FROM
+    # user_settings`` that caused the Jun-7 prod wedge (one pool acquire per
+    # candidate under a saturated pool). Optional/defaulted so every existing
+    # GateContext construction site stays byte-compatible: when None, ``evaluate``
+    # falls back to the one-shot DB loader ``load_user_capital_alloc`` (correct, but
+    # does a DB read — only construction sites OUTSIDE the per-candidate scan loop
+    # hit that path). Populate it with ``resolve_capital_alloc_pct`` so the value
+    # carries the exact profile-default fallback + 80% clamp semantics.
+    capital_alloc_pct: float | None = None
 
 
 @dataclass
@@ -170,24 +182,25 @@ async def _open_exposure(user_id: UUID) -> Decimal:
 _MAX_DEPLOYMENT_PCT: float = 0.80
 
 
-async def _capital_alloc_pct(user_id: UUID, profile: str) -> float:
-    """User's risk-profile CAP% — the authoritative total capital-deployment cap.
+def resolve_capital_alloc_pct(raw: object, profile: str) -> float:
+    """Pure resolver: raw ``user_settings.capital_alloc_pct`` value + profile -> CAP%.
 
-    Owner directive (2026-06-08): the risk-profile capital_alloc_pct (conservative
-    0.20 / balanced 0.40 / aggressive 0.60 / custom ≤0.80) governs how much of the
-    user's equity may sit in open positions, and SUPERSEDES the legacy system-wide
-    correlated-exposure ceiling (``MAX_CORRELATED_EXPOSURE`` = 0.40) so Aggressive
-    can deploy beyond 40%. The single source of truth is ``user_settings``
-    (written by ``set_risk_profile``); falls back to the profile default, then
-    balanced 0.40, for a legacy/NULL row. Clamped to ``_MAX_DEPLOYMENT_PCT`` so no
-    misconfiguration can push deployment past the absolute 80% ceiling.
+    The authoritative total capital-deployment cap. Owner directive (2026-06-08):
+    the risk-profile capital_alloc_pct (conservative 0.20 / balanced 0.40 /
+    aggressive 0.60 / custom ≤0.80) governs how much of the user's equity may sit in
+    open positions, and SUPERSEDES the legacy system-wide correlated-exposure
+    ceiling (``MAX_CORRELATED_EXPOSURE`` = 0.40) so Aggressive can deploy beyond 40%.
+    ``raw`` is the stored ``user_settings.capital_alloc_pct`` (or ``None`` for a
+    legacy/NULL row); falls back to the profile default, then balanced 0.40. Clamped
+    to ``_MAX_DEPLOYMENT_PCT`` so no misconfiguration can push deployment past the
+    absolute 80% ceiling.
+
+    WARP-89: extracted from the former ``_capital_alloc_pct`` so the per-tick
+    orchestrator can resolve the value from a row it already fetched (preloaded into
+    ``GateContext.capital_alloc_pct``) WITHOUT a per-candidate DB read, while the
+    one-shot DB loader (``load_user_capital_alloc``) and the resolver share one set
+    of fallback + clamp semantics.
     """
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        raw = await conn.fetchval(
-            "SELECT capital_alloc_pct FROM user_settings WHERE user_id = $1",
-            user_id,
-        )
     if raw is not None:
         try:
             val = float(raw)
@@ -197,6 +210,34 @@ async def _capital_alloc_pct(user_id: UUID, profile: str) -> float:
             pass
     prof = K.PROFILE_TP_SL.get((profile or "balanced").lower())
     return float(prof["capital_alloc_pct"]) if prof else 0.40
+
+
+async def load_user_capital_alloc(user_id: UUID, profile: str) -> float:
+    """One-shot DB loader for the user's authoritative risk-profile CAP%.
+
+    Reads ``user_settings.capital_alloc_pct`` ONCE and resolves it through
+    ``resolve_capital_alloc_pct``. WARP-89: this is the SINGLE source for the
+    preload — the orchestrator calls it (or resolves an already-fetched row) once
+    per user per tick BEFORE the candidate loop and passes the result into every
+    GateContext via ``capital_alloc_pct``. It must NOT be invoked inside the
+    per-candidate ``evaluate`` path (that was the Jun-7 prod-wedge DB hit). It
+    remains the fallback for legacy GateContext construction sites that do not yet
+    preload the value (those are outside the hot scan loop).
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        raw = await conn.fetchval(
+            "SELECT capital_alloc_pct FROM user_settings WHERE user_id = $1",
+            user_id,
+        )
+    return resolve_capital_alloc_pct(raw, profile)
+
+
+# Backward-compatible alias for the crash-recovery resume path and any caller that
+# still wants the one-shot DB loader by the old name. WARP-89 renamed the public
+# helper to ``load_user_capital_alloc``; the per-candidate hot path no longer calls
+# either (it reads the preloaded ``GateContext.capital_alloc_pct``).
+_capital_alloc_pct = load_user_capital_alloc
 
 
 async def _max_drawdown_breached(user_id: UUID,
@@ -504,7 +545,18 @@ async def evaluate(ctx: GateContext) -> GateResult:
     balance = await get_balance(ctx.user_id)
     open_exp = await _open_exposure(ctx.user_id)
     equity = balance + open_exp
-    deploy_cap = await _capital_alloc_pct(ctx.user_id, ctx.risk_profile)
+    # WARP-89: read the PRELOADED CAP% from the context — NO per-candidate DB read.
+    # The orchestrator resolves capital_alloc_pct once per user per tick (before the
+    # candidate loop) via ``load_user_capital_alloc`` / ``resolve_capital_alloc_pct``
+    # and threads it in. ``None`` only for legacy construction sites outside the hot
+    # scan loop, which fall back to the one-shot DB loader (correct, but a DB read).
+    if ctx.capital_alloc_pct is not None:
+        deploy_cap = ctx.capital_alloc_pct
+    else:
+        # Module-level name (alias of load_user_capital_alloc) so the fallback is
+        # monkeypatchable by name in tests of legacy non-preloaded construction
+        # sites; the per-candidate hot path never reaches this branch.
+        deploy_cap = await _capital_alloc_pct(ctx.user_id, ctx.risk_profile)
     if equity > 0 and (open_exp + ctx.proposed_size_usdc) / equity > Decimal(
         str(deploy_cap)
     ):
