@@ -44,10 +44,19 @@ message with `(body or '')[:200]` — slicing a dict raises
 violated at the call site and the sink did not defend against it.
 
 Fix (at the contract boundary, covering every caller): `ClobAPIError.__init__`
-now coerces `body` to text exactly once and stores/formats the coerced value:
+now coerces `body` to text exactly once and stores/formats the coerced value.
+A raw `bytes` body (HTTP response bodies are bytes) is decoded as UTF-8 with
+replacement rather than `str()`-wrapped (which would leave a literal `b'...'`
+excerpt in the operator-facing message) — adopted from the Gemini review on
+PR #1724:
 
 ```python
-body_text = "" if body is None else str(body)
+if isinstance(body, bytes):
+    body_text = body.decode("utf-8", errors="replace")
+elif body is None:
+    body_text = ""
+else:
+    body_text = str(body)
 self.body = body_text
 super().__init__(message or f"CLOB {status_code} on {path}: {body_text[:200]}")
 ```
@@ -100,7 +109,10 @@ classes) is unchanged. Only the body-formatting step inside the base
 
 - `python -m py_compile` clean on both touched source files.
 - `pytest tests/test_clob_v2.py tests/test_clob_error_classification.py` →
-  **28 passed** (warnings are pre-existing asyncio-marker noise, unrelated).
+  **29 passed** (warnings are pre-existing asyncio-marker noise, unrelated).
+  Includes `test_clob_api_error_decodes_bytes_body` (bytes body decoded, not
+  `str()`-wrapped; non-UTF-8 falls back to replacement, never raises).
+- `ruff check` clean on both touched source files.
 - The new regression test passes on the fixed code; the pre-fix formatter was
   characterised to crash on the identical dict input
   (`(body or '')[:200]` → `TypeError: unhashable type: 'slice'`), confirming

@@ -176,6 +176,22 @@ def test_error_mapping_dict_body_does_not_crash_formatter():
     assert "maker address not allowed" in str(ei.value)
 
 
+def test_clob_api_error_decodes_bytes_body():
+    """A raw bytes HTTP body (e.g. httpx .content) must be DECODED, not
+    str()-wrapped — str(b'...') would leave a literal b'...' excerpt in the
+    operator-facing message. Invalid UTF-8 falls back to replacement, never
+    raising (Gemini review on PR #1724)."""
+    err = ClobAPIError(status_code=400, path="/order",
+                       body=b'{"error":"maker address not allowed"}')
+    assert isinstance(err.body, str)
+    assert not err.body.startswith("b'") and not err.body.startswith('b"')
+    assert "maker address not allowed" in err.body
+    assert "maker address not allowed" in str(err)
+    # Non-UTF-8 bytes are replaced, not raised.
+    bad = ClobAPIError(status_code=500, path="/order", body=b"\xff\xfe bad")
+    assert isinstance(bad.body, str)
+
+
 def test_factory_selects_v2_when_enabled():
     from projects.polymarket.crusaderbot.integrations import clob
 

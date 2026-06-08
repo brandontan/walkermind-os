@@ -62,8 +62,15 @@ class ClobAPIError(ClobError):
         # (e.g. {"error": "maker address not allowed"}). Slicing that with
         # ``[:200]`` raised ``TypeError: unhashable type: 'slice'`` and masked
         # the real broker rejection. Coerce to text once so ``.body`` always
-        # honours its documented ``str`` contract for every call site.
-        body_text = "" if body is None else str(body)
+        # honours its documented ``str`` contract for every call site. A raw
+        # ``bytes`` body (HTTP responses are bytes) is decoded rather than
+        # ``str()``-wrapped, which would yield a literal ``b'...'`` excerpt.
+        if isinstance(body, bytes):
+            body_text = body.decode("utf-8", errors="replace")
+        elif body is None:
+            body_text = ""
+        else:
+            body_text = str(body)
         self.body = body_text
         super().__init__(
             message or f"CLOB {status_code} on {path}: {body_text[:200]}"
