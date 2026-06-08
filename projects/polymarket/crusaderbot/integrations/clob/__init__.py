@@ -59,6 +59,7 @@ from .market_data import MarketDataClient
 from .mock import MockClobClient
 from .rate_limiter import RateLimiter
 from .sdk_client import PolymarketSdkClient
+from .v2_client import ClobV2Client
 from .ws import ClobWebSocketClient
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "ClobAdapter",
     "PolymarketSdkClient",
+    "ClobV2Client",
     "MockClobClient",
     "MarketDataClient",
     "ClobClientProtocol",
@@ -324,6 +326,27 @@ def get_clob_client(
 
     # Resolve credentials: env vars take priority; fall back to auto-derived cache.
     api_key, api_secret, passphrase = effective_credentials(s)
+
+    # CLOB v2 cutover (WARP/clob-v2-cutover): py-clob-client-v2 single-package
+    # backend, native v2 order struct + builder attribution. Takes precedence
+    # over USE_PYSDK_CLOB when enabled. Default OFF until staging-proven.
+    if s.USE_CLOB_V2:
+        if not s.POLYMARKET_PRIVATE_KEY:
+            raise ClobConfigError(
+                "USE_CLOB_V2=True but POLYMARKET_PRIVATE_KEY is unset"
+            )
+        return ClobV2Client(
+            private_key=s.POLYMARKET_PRIVATE_KEY,
+            funder_address=s.POLYMARKET_FUNDER_ADDRESS,
+            signature_type=s.POLYMARKET_SIGNATURE_TYPE,
+            api_key=api_key or None,
+            api_secret=api_secret or None,
+            passphrase=passphrase or None,
+            builder_code=s.POLYMARKET_BUILDER_CODE,
+            builder_address=s.POLYMARKET_BUILDER_ADDRESS,
+            circuit_breaker=get_clob_breaker(s),
+            rate_limiter=get_clob_rate_limiter(s),
+        )
 
     # CLOB v2 backend (WARP/clob-v2-migration): delegate order build/sign/post
     # to the official polymarket-client so the v2 SignedOrder schema is used.
