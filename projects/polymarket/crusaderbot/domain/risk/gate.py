@@ -15,6 +15,7 @@ from ..execution import fallback as live_fallback
 from ..execution.slippage import check_market_impact
 from ..ops.kill_switch import is_active as kill_switch_is_active
 from . import constants as K
+from . import slippage_gate as SG
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,17 @@ class GateContext:
     # is on. Default True → no effect. AND-ed into the live guards, so it can only
     # DOWNGRADE a would-be live trade to paper — never enable live. Paper is unaffected.
     module_live_eligible: bool = True
+    # WARP-87 (Sub-Lane C slippage gate): the trading cell ("{asset}/{timeframe}",
+    # e.g. "btc/5m") plus the live order-book inputs the LIVE-only tiered slippage
+    # gate (domain/risk/slippage_gate.py) consumes. All optional/defaulted so the
+    # existing GateContext construction sites are unchanged — populating them at the
+    # candidate sources is the proposal's documented follow-up lane. When ``cell``
+    # is None no per-cell LIVE size cap applies; ``orderbook_depth_usdc`` falls back
+    # to ``market_liquidity`` and ``spread`` to the 1.0 fair complete-set value
+    # (zero spread cost) for the deterministic slippage estimate.
+    cell: str | None = None
+    orderbook_depth_usdc: float | None = None
+    spread: float | None = None
 
 
 @dataclass
@@ -606,6 +618,74 @@ async def evaluate(ctx: GateContext) -> GateResult:
         return GateResult(False, "market_impact_cap", 14)
     await _log(ctx.user_id, ctx.market_id, 14, True,
                f"impact_ok_{impact_result.impact_pct:.4f}")
+
+    # 14b. Tiered LIVE-cutover slippage gate (WARP-83 Sub-Lane C -> WARP-87).
+    #      RISK-stage only; runs ONLY for a trade about to route LIVE — paper
+    #      (~$7) leaves the size-dependent impact term dormant and paper accrual
+    #      still feeds the EV cutover analysis, so paper is intentionally
+    #      untouched. PURE hot path: the slippage magnitude comes from the
+    #      deterministic estimator and the tier / size-cap verdict is a pure
+    #      function — NO DB read here (the #1694 pool-wedge lesson; see
+    #      docs/rca/2026-06-07-gate-hotpath-incident.md). GREEN passes; WATCH
+    #      passes with a structured log + Sentry breadcrumb; HALT and a per-cell
+    #      LIVE size-cap breach reject cleanly (no exception).
+    if chosen_mode == "live":
+        # Lazy import: the estimator lives under domain/research, whose package
+        # __init__ pulls DB-backed modules. Deferring it to the live path keeps the
+        # risk-gate module-import light and DB-free (paper/CI never load research).
+        from ..research.slippage_estimator import estimate_slippage_bps
+        _depth = (
+            float(ctx.orderbook_depth_usdc)
+            if ctx.orderbook_depth_usdc is not None
+            else float(ctx.market_liquidity)
+        )
+        _spread = float(ctx.spread) if ctx.spread is not None else 1.0
+        _est = estimate_slippage_bps(
+            stake_usdc=float(final_size),
+            orderbook_depth_usdc=_depth,
+            spread=_spread,
+            entry_price=float(ctx.proposed_price),
+        )
+        _slip = SG.evaluate_slippage_gate(
+            cell=ctx.cell,
+            proposed_size_usdc=float(final_size),
+            slippage_bps=_est.total_bps,
+            gross_edge_bps=ctx.edge_bps,
+        )
+        if _slip.rejected:
+            await _log(
+                ctx.user_id, ctx.market_id, 14, False,
+                f"{_slip.reason} tier={_slip.tier.value} "
+                f"slip_bps={_est.total_bps:.1f} cell={ctx.cell}",
+            )
+            return GateResult(False, _slip.reason, 14)
+        if _slip.tier is SG.SlippageTier.WATCH:
+            _frac = _slip.slippage_frac_of_edge or 0.0
+            logger.warning(
+                "slippage_watch market_id=%s cell=%s slip_bps=%.1f "
+                "frac_of_edge=%.4f size=%.2f",
+                ctx.market_id, ctx.cell, _est.total_bps, _frac, float(final_size),
+            )
+            try:
+                import sentry_sdk
+                sentry_sdk.add_breadcrumb(
+                    category="risk.slippage",
+                    level="warning",
+                    message="slippage_watch",
+                    data={
+                        "market_id": ctx.market_id,
+                        "cell": ctx.cell,
+                        "slippage_bps": round(_est.total_bps, 1),
+                        "frac_of_edge": _slip.slippage_frac_of_edge,
+                        "size_usdc": float(final_size),
+                    },
+                )
+            except Exception:  # noqa: BLE001 — sentry optional, never break the gate
+                pass
+            await _log(ctx.user_id, ctx.market_id, 14, True,
+                       f"slippage_watch frac={_frac:.4f}")
+        else:
+            await _log(ctx.user_id, ctx.market_id, 14, True, "slippage_green")
 
     # 15. Per-user LIVE capital cap (Axis #3, WARP/ROOT-live-activation-flow).
     #     Fires only when the gate is about to approve a chosen_mode='live'
