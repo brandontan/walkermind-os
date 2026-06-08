@@ -166,6 +166,15 @@ def test_admin_overview_exposes_polymarket_config():
     assert "effective_credentials" in src
 
 
+def test_admin_pool_balance_endpoint_exists():
+    """Pool-balance endpoint must call master_wallet + polygon balance reads."""
+    import inspect
+    src = inspect.getsource(r.admin_pool_balance)
+    assert "master_wallet" in src
+    assert "get_usdc_balance" in src
+    assert "get_native_balance" in src
+
+
 def test_get_me_includes_role_and_is_admin():
     conn = MagicMock()
     async def fetchrow(q, *a):

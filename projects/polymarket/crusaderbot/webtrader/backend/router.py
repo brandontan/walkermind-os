@@ -2882,6 +2882,31 @@ async def admin_overview(user: _AdminUser) -> dict:
     }
 
 
+@router.get("/admin/pool-balance")
+async def admin_pool_balance(user: _AdminUser) -> dict:
+    """Lightweight on-chain hot-pool balance — no DB. Safe to call every 10 s."""
+    from ...wallet.vault import master_wallet
+    from ...integrations import polygon
+
+    pool_address: Optional[str] = None
+    pool_usdc: Optional[float] = None
+    pool_matic: Optional[float] = None
+    try:
+        pool_address, _ = master_wallet()
+    except Exception:
+        pool_address = None
+    if pool_address:
+        try:
+            pool_usdc = await polygon.get_usdc_balance(pool_address)
+        except Exception:
+            pool_usdc = None
+        try:
+            pool_matic = await polygon.get_native_balance(pool_address)
+        except Exception:
+            pool_matic = None
+    return {"address": pool_address, "usdc": pool_usdc, "matic": pool_matic}
+
+
 @router.get("/admin/users")
 async def admin_users(user: _AdminUser, limit: int = 50, offset: int = 0) -> dict:
     """Paginated user roster."""
