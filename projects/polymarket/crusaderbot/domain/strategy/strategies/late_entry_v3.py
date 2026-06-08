@@ -1157,6 +1157,20 @@ async def _evaluate_market(
     # reject the candidate when scan->fill latency exceeds TOB_STALE_MS.
     entry_price_ts = datetime.now(timezone.utc).timestamp()
 
+    # WARP-87 follow-up (smart-strike-cell-cap-binding): stamp the canonical
+    # trading cell ("{ASSET}/{timeframe}") on the candidate so the RISK-stage
+    # LIVE-only slippage gate (gate.py step 14b) can bind the per-cell size cap.
+    # Same authoritative slug→asset/timeframe derivation the factor vector uses;
+    # fail-soft to None (gate then applies no per-cell cap — safe default). NOT a
+    # trade-logic change: the candidate already passed every directional gate.
+    try:
+        from ..scorer import normalize_cell_key as _normalize_cell_key
+        cell_key = _normalize_cell_key(
+            _asset_base_from_slug(slug), _timeframe_from_slug(slug)
+        )
+    except Exception:  # noqa: BLE001 — metadata stamp must never break a scan
+        cell_key = None
+
     # WARP-64 Chunk 3 (ADVISORY) oracle fair-value/edge + WARP-72 factor vector are
     # computed earlier (before the directional gates) so they emit for every
     # evaluated candle; ``edge_meta`` / ``factor_meta`` are stamped here onto the
@@ -1187,6 +1201,13 @@ async def _evaluate_market(
             "seconds_to_close": seconds_left,
             "flip_stop_price": flip_stop,
             "clob_liquidity": clob_liquidity,
+            # WARP-87 follow-up (smart-strike-cell-cap-binding): canonical trading
+            # cell + live order-book depth read by signal_scan_job._build_trade_signal
+            # and threaded to GateContext for the LIVE per-cell slippage size cap.
+            # orderbook_depth_usdc shares the CLOB book-depth source as clob_liquidity
+            # (per the WARP-71 audit), surfaced under the gate's expected key name.
+            "cell": cell_key,
+            "orderbook_depth_usdc": clob_liquidity,
             # Entry-price band the candidate satisfied at scan time. Re-checked
             # in _process_candidate against the live fill price so candle drift
             # between scan and fill cannot place the trade outside the band.

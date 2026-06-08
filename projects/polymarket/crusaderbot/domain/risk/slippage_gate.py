@@ -26,6 +26,7 @@ Initial LIVE per-trade size caps (locked, owner pick WARP-87):
 
     btc/5m  $500
     eth/5m  $100
+    sol/5m  $100   (conservative initial cap — pending live-fill observation)
 
 PURE / DETERMINISTIC — no DB, no async, no network, no clock. Every input is
 caller-supplied from the ``GateContext`` already in hand. This is a hard
@@ -53,9 +54,15 @@ SLIPPAGE_WATCH_MAX_FRAC: float = 0.30
 # target cutover cells strictly GREEN at launch. eth/5m is the binding
 # constraint (shallower book, lower edge); btc/5m stays GREEN to large size.
 # Re-tuned after the first LIVE week.
+#
+# WARP-87 follow-up (smart-strike-cell-cap-binding): sol/5m added for the
+# CMD-approved LIVE v1 cell set (BTC + ETH + SOL, 5m). sol/5m=$100 is a
+# conservative initial cap pending live-fill observation — flagged for final
+# CMD confirm; re-tune alongside btc/eth after the first LIVE week.
 LIVE_SIZE_CAPS_USDC: dict[str, float] = {
     "btc/5m": 500.0,
     "eth/5m": 100.0,
+    "sol/5m": 100.0,
 }
 
 

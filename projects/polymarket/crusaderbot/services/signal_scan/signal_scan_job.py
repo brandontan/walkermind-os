@@ -1940,6 +1940,22 @@ def _build_trade_signal(
         else float(market.get("liquidity_usdc") or 0.0)
     )
 
+    # WARP-87 follow-up (smart-strike-cell-cap-binding): read the Smart Strike
+    # candidate's authoritative trading cell + live order-book depth/spread from
+    # its metadata (stamped by late_entry_v3). These ride into the TradeSignal →
+    # GateContext so the LIVE-only step-14b slippage gate binds the per-cell size
+    # cap (ctx.cell) and estimates slippage from the real depth/spread instead of
+    # the market_liquidity / 1.0 fallbacks. None-safe: a candidate that does not
+    # carry a key (legacy / non-Smart-Strike) yields None → the gate keeps its
+    # existing fallback behaviour (no per-cell cap), so there is no regression.
+    _meta = cand.metadata or {}
+    _cell_raw = _meta.get("cell")
+    _cell = str(_cell_raw) if _cell_raw else None
+    _depth_raw = _meta.get("orderbook_depth_usdc")
+    _orderbook_depth_usdc = float(_depth_raw) if _depth_raw is not None else None
+    _spread_raw = _meta.get("spread")
+    _candidate_spread = float(_spread_raw) if _spread_raw is not None else None
+
     # Bankroll dynamic sizing multiplier
     # (WARP/R00T/bankroll-dynamic-sizing, Lane 5/5).
     # Scales the candidate's base size by the user's bankroll deviation
@@ -2082,6 +2098,15 @@ def _build_trade_signal(
         strategy_metadata=(cand.metadata or None),
         # Robustness gate (Phase-2c-1b): False forces this trade to paper.
         module_live_eligible=module_live_eligible,
+        # WARP-87 follow-up (smart-strike-cell-cap-binding): forward the Smart
+        # Strike candidate's measured trading cell + live order-book depth/spread
+        # (stamped on cand.metadata by late_entry_v3) so the engine threads them
+        # into GateContext and the LIVE-only step-14b slippage gate binds the
+        # per-cell size cap on real flow. None-safe: a non-Smart-Strike candidate
+        # omits these keys → None → the gate's existing fallback applies (no cap).
+        cell=_cell,
+        orderbook_depth_usdc=_orderbook_depth_usdc,
+        spread=_candidate_spread,
     )
 
 
