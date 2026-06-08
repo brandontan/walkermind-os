@@ -4239,6 +4239,12 @@ async def _build_oracle_edge_cfg(preset: str | None):
         # WARP-76 H3 — feed-down probe bound to the configured timeout so a
         # dropped stream stamps oracle_edge_status='feed_down' (not warming_up).
         feed_down_provider=lambda: oracle.is_feed_down(_feed_timeout),
+        # WARP/oracle-edge-entry-gate — promote would_pass from advisory to a hard
+        # entry reject in late_entry_v3 (default ON; fail-open on any non-'computed'
+        # oracle status). Only reached when ORACLE_EDGE_GATE_ENABLED is already on,
+        # so this is the second, independent flip that turns observation into
+        # enforcement.
+        hard_reject=bool(getattr(cfg, "ORACLE_EDGE_HARD_REJECT_ENABLED", True)),
     )
 
 

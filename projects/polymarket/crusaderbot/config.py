@@ -281,6 +281,27 @@ class Settings(BaseSettings):
     # any effect (the lazy singleton oracle is built via oracle_from_settings).
     ORACLE_EDGE_GATE_ENABLED: bool = False
 
+    # WARP/oracle-edge-entry-gate — promote the advisory oracle edge+distance
+    # verdict from OBSERVE-only to a HARD entry reject in late_entry_v3. The
+    # verdict (edge_meta["oracle_edge_would_pass"]) is already computed per candle:
+    # would_pass = (min_dist <= |delta| <= max_dist) AND (max(edge_up, edge_down)
+    # >= min_edge), using the Kreo-aligned per-preset bands in signal_scan_job
+    # _CANDLE_PRESET_EDGE (close_sweep 0.05-2%/edge 2%, flip_hunter 0.05-5%/edge 3%,
+    # safe_close 0.03-1%/edge 1%). When True (default), a candle whose oracle status
+    # is 'computed' and would_pass is False is skipped (scan reason
+    # oracle_edge_distance_reject) instead of entering on the structural gates
+    # alone — this is what makes late_entry_v3 selective ("only enter when the
+    # edge/distance rules are met") rather than effectively time-gated.
+    #
+    # FAIL-OPEN by construction: it ONLY bites when the oracle actually produced a
+    # 'computed' verdict, so a dark feed (ORACLE_ENABLED=false), warmup, feed_down
+    # or stale tick never blocks a trade — the structural gates stay the floor,
+    # behaviour identical to today. REQUIRES ORACLE_ENABLED=true AND
+    # ORACLE_EDGE_GATE_ENABLED=true to have ANY effect (those build the edge_cfg +
+    # run the RTDS feed). Set False for advisory/observe-only mode (compute + log
+    # would_pass without enforcing it).
+    ORACLE_EDGE_HARD_REJECT_ENABLED: bool = True  # env: ORACLE_EDGE_HARD_REJECT_ENABLED
+
     # WARP-72 Phase 1 (WARP•R00T) — SMART STRIKE factor-vector SHADOW telemetry.
     # When ON, late_entry_v3 assembles + emits the full 7-factor scorable surface
     # (momentum / volatility / liquidity / spread / depth / TTL / oracle) plus the
