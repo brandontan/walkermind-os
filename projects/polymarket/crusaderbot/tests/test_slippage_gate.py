@@ -65,20 +65,30 @@ def test_classify_halt_on_nonfinite_inputs():
 
 # ── per-cell LIVE size caps ───────────────────────────────────────────────────
 def test_live_size_caps_locked_values():
-    # CMD-approved LIVE v1 cell set (WARP-87 follow-up): BTC + ETH + SOL, 5m.
-    # sol/5m=$100 is a conservative initial cap pending live-fill observation.
+    # CMD-approved LIVE v1 cell set: BTC + ETH + SOL on 5m AND 15m (F2,
+    # 2026-06-08). 15m mirrors 5m as a conservative initial cap (longer candle
+    # window → strictly deeper book), pending live-fill tuning.
     assert LIVE_SIZE_CAPS_USDC == {
         "btc/5m": 500.0,
         "eth/5m": 100.0,
         "sol/5m": 100.0,
+        "btc/15m": 500.0,
+        "eth/15m": 100.0,
+        "sol/15m": 100.0,
     }
     assert live_size_cap_for_cell("btc/5m") == 500.0
     assert live_size_cap_for_cell("eth/5m") == 100.0
     assert live_size_cap_for_cell("sol/5m") == 100.0
+    # F2: 15m cells now carry per-cell LIVE caps too.
+    assert live_size_cap_for_cell("btc/15m") == 500.0
+    assert live_size_cap_for_cell("eth/15m") == 100.0
+    assert live_size_cap_for_cell("sol/15m") == 100.0
 
 
 def test_live_size_cap_unknown_cell_returns_none():
-    assert live_size_cap_for_cell("sol/15m") is None
+    # A cell outside the CMD-approved v1 set (asset or timeframe) has no cap.
+    assert live_size_cap_for_cell("doge/5m") is None
+    assert live_size_cap_for_cell("btc/1m") is None
     assert live_size_cap_for_cell(None) is None
     assert live_size_cap_for_cell("") is None
 
@@ -151,7 +161,7 @@ def test_evaluate_size_cap_exact_boundary_passes():
 def test_evaluate_unknown_cell_has_no_size_cap():
     # No per-cell cap for an out-of-scope cell — size never rejects; tier still applies.
     d = evaluate_slippage_gate(
-        cell="sol/15m", proposed_size_usdc=10_000.0,
+        cell="doge/5m", proposed_size_usdc=10_000.0,
         slippage_bps=50.0, gross_edge_bps=1000.0,
     )
     assert d.size_cap_usdc is None
@@ -161,7 +171,7 @@ def test_evaluate_unknown_cell_has_no_size_cap():
 
 
 def test_evaluate_halt_on_missing_edge_even_under_size_cap():
-    # Live trade with no edge signal and within cap → HALT (cannot price slippage).
+    # Default (require_measured_edge=True, back-compat): no edge → HALT even under cap.
     d = evaluate_slippage_gate(
         cell="btc/5m", proposed_size_usdc=50.0,
         slippage_bps=20.0, gross_edge_bps=None,
@@ -170,6 +180,82 @@ def test_evaluate_halt_on_missing_edge_even_under_size_cap():
     assert d.rejected is True
     assert d.reason == "slippage_halt"
     assert d.slippage_frac_of_edge is None
+
+
+# ── F1: cap-only fallback for an unmeasured edge (Smart Strike default) ────────
+def test_cap_only_passes_capped_cell_with_no_edge():
+    # require_measured_edge=False + capped cell + finite slip + no edge → the
+    # per-cell $ cap is the sole LIVE control → pass (the late_entry_v3 case).
+    d = evaluate_slippage_gate(
+        cell="btc/5m", proposed_size_usdc=50.0,
+        slippage_bps=20.0, gross_edge_bps=None,
+        require_measured_edge=False,
+    )
+    assert d.rejected is False
+    assert d.tier is SlippageTier.GREEN
+    assert d.reason == "slippage_cap_only_no_edge"
+    assert d.size_cap_usdc == 500.0
+    assert d.slippage_frac_of_edge is None
+
+
+def test_cap_only_still_enforces_the_size_cap():
+    # Cap-only mode does NOT relax the per-cell $ cap: a size over the cap still
+    # rejects (the cap is the whole point of allowing a no-edge entry).
+    d = evaluate_slippage_gate(
+        cell="eth/5m", proposed_size_usdc=150.0,
+        slippage_bps=20.0, gross_edge_bps=None,
+        require_measured_edge=False,
+    )
+    assert d.rejected is True
+    assert d.reason == "slippage_live_size_cap"
+    assert d.size_cap_breached is True
+
+
+def test_cap_only_halts_uncapped_cell_with_no_edge():
+    # No edge + NO per-cell cap → fail-closed HALT even in cap-only mode (cap-only
+    # relies on the cap as the control; without one there is nothing bounding size).
+    d = evaluate_slippage_gate(
+        cell="doge/5m", proposed_size_usdc=50.0,
+        slippage_bps=20.0, gross_edge_bps=None,
+        require_measured_edge=False,
+    )
+    assert d.rejected is True
+    assert d.reason == "slippage_halt"
+
+
+def test_cap_only_halts_capped_cell_on_nonfinite_slip():
+    # A non-finite slippage estimate is a data fault → HALT even in cap-only mode.
+    d = evaluate_slippage_gate(
+        cell="btc/5m", proposed_size_usdc=50.0,
+        slippage_bps=float("nan"), gross_edge_bps=None,
+        require_measured_edge=False,
+    )
+    assert d.rejected is True
+    assert d.reason == "slippage_halt"
+
+
+def test_require_measured_edge_true_halts_capped_cell_no_edge():
+    # Toggle ON (future real-edge posture): no edge → HALT even on a capped cell.
+    d = evaluate_slippage_gate(
+        cell="btc/15m", proposed_size_usdc=50.0,
+        slippage_bps=20.0, gross_edge_bps=None,
+        require_measured_edge=True,
+    )
+    assert d.rejected is True
+    assert d.reason == "slippage_halt"
+
+
+def test_cap_only_does_not_affect_measured_edge_tiers():
+    # With a real measured edge, require_measured_edge=False changes nothing — the
+    # tier classifier still governs (HALT here at ~39.5% of edge).
+    d = evaluate_slippage_gate(
+        cell="eth/5m", proposed_size_usdc=50.0,
+        slippage_bps=242.0, gross_edge_bps=612.0,
+        require_measured_edge=False,
+    )
+    assert d.tier is SlippageTier.HALT
+    assert d.rejected is True
+    assert d.reason == "slippage_halt"
 
 
 # ── estimator → gate integration (realistic Sub-Lane C numbers) ───────────────

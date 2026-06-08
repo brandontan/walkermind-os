@@ -119,6 +119,18 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
                     "Default OFF = static base only. Feature vector is logged each "
                     "evaluation regardless, for future calibration.",
     ),
+    "SMART_STRIKE_REQUIRE_MEASURED_EDGE": SettingSpec(
+        key="SMART_STRIKE_REQUIRE_MEASURED_EDGE",
+        kind="bool",
+        label="Smart Strike: require measured edge (LIVE)",
+        description="LIVE slippage-gate edge policy for Smart Strike (late_entry_v3 "
+                    "has no measured edge). Default OFF = a capped cell (btc/eth/sol "
+                    "5m+15m) trades LIVE bounded by its per-cell $ cap when no edge is "
+                    "measured (cap-only); an uncapped cell still HALTs. Flip ON to "
+                    "require a real measured edge — a missing edge then HALTs every "
+                    "LIVE Smart Strike entry (enable only once the real-edge lane is "
+                    "live). PAPER is unaffected.",
+    ),
 }
 
 

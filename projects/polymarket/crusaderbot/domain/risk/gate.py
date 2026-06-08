@@ -108,6 +108,17 @@ class GateContext:
     # defaulted so every existing GateContext construction site stays
     # byte-compatible; None reads as "not candle_auto" for the AUTO check.
     active_preset: str | None = None
+    # WARP (smart-strike-slippage-edge-gate, F1): LIVE step-14b edge policy for a
+    # candidate with NO measured edge (e.g. late_entry_v3 book-imbalance). When
+    # False (default Smart Strike posture, CMD pick 2026-06-08), a capped cell with
+    # no edge passes step 14b under its per-cell $ cap alone (cap-only) instead of
+    # being auto-HALTed; an uncapped cell still HALTs. When True (admin toggle
+    # SMART_STRIKE_REQUIRE_MEASURED_EDGE, future real-edge posture) a missing edge
+    # HALTs. Resolved once per candidate in the async orchestrator and threaded
+    # here — NEVER read from the DB inside this pure gate (the #1694 RCA). Defaults
+    # True so non-scan GateContext construction sites keep the prior fail-closed
+    # behaviour; the scan path sets it from the resolved toggle (env default False).
+    require_measured_edge: bool = True
 
 
 @dataclass
@@ -725,6 +736,7 @@ async def evaluate(ctx: GateContext) -> GateResult:
             proposed_size_usdc=float(final_size),
             slippage_bps=_est.total_bps,
             gross_edge_bps=ctx.edge_bps,
+            require_measured_edge=ctx.require_measured_edge,
         )
         if _slip.rejected:
             await _log(
@@ -759,7 +771,9 @@ async def evaluate(ctx: GateContext) -> GateResult:
             await _log(ctx.user_id, ctx.market_id, 14, True,
                        f"slippage_watch frac={_frac:.4f}")
         else:
-            await _log(ctx.user_id, ctx.market_id, 14, True, "slippage_green")
+            # GREEN or the cap-only-no-edge pass — log the actual reason so a
+            # cap-only LIVE entry (no measured edge) is visible in the risk audit.
+            await _log(ctx.user_id, ctx.market_id, 14, True, _slip.reason)
 
     # 15. Per-user LIVE capital cap (Axis #3, WARP/ROOT-live-activation-flow).
     #     Fires only when the gate is about to approve a chosen_mode='live'

@@ -64,6 +64,9 @@ def _signal_ns(
         user_min_liquidity=0.0, max_drawdown_pct=None, live_capital_cap_usdc=0.0,
         max_concurrent_override=None, bypass_auto_trade_check=False,
         capital_alloc_pct=None, module_live_eligible=True, active_preset=None,
+        # F1 (smart-strike-slippage-edge-gate): default back-compat value; the
+        # threading test overrides it explicitly.
+        require_measured_edge=True,
         # WARP-87 follow-up: the fields this lane threads.
         cell=cell,
         orderbook_depth_usdc=orderbook_depth_usdc,
@@ -177,8 +180,41 @@ def test_none_cell_applies_no_size_cap_no_regression():
 
 
 def test_unknown_cell_outside_v1_set_applies_no_cap():
-    # A cell outside the CMD-approved v1 set (e.g. sol/15m) has no cap.
-    assert live_size_cap_for_cell("sol/15m") is None
-    d = _decide("sol/15m", 1_000_000.0)
+    # A cell outside the CMD-approved v1 set (asset or timeframe) has no cap.
+    # sol/15m is now IN the set (F2); use a genuinely out-of-scope cell.
+    assert live_size_cap_for_cell("doge/5m") is None
+    d = _decide("doge/5m", 1_000_000.0)
     assert d.size_cap_usdc is None
     assert d.rejected is False
+
+
+def test_15m_cell_cap_binds_after_f2():
+    # F2 (2026-06-08): 15m cells are now capped (btc/15m $500, eth/15m $100).
+    assert live_size_cap_for_cell("btc/15m") == 500.0
+    assert live_size_cap_for_cell("eth/15m") == 100.0
+    assert live_size_cap_for_cell("sol/15m") == 100.0
+    over = _decide("eth/15m", 150.0)
+    assert over.rejected is True
+    assert over.reason == "slippage_live_size_cap"
+    under = _decide("btc/15m", 500.0)
+    assert under.rejected is False
+
+
+def test_require_measured_edge_threads_signal_to_gate_context():
+    # F1: TradeSignal.require_measured_edge → GateContext.require_measured_edge.
+    sig = _signal_ns(cell="btc/5m", orderbook_depth_usdc=1000.0, spread=1.0)
+    sig.require_measured_edge = False
+    ctx = TradeEngine._build_gate_context(sig)
+    assert ctx.require_measured_edge is False
+
+
+def test_trade_signal_defaults_require_measured_edge_true():
+    # Back-compat: legacy callers that omit the field get the prior HALT-on-no-edge.
+    sig = TradeSignal(
+        user_id="u", telegram_user_id=1, role="user", auto_trade_on=True,
+        paused=False, market_id="m", market_question=None, yes_token_id=None,
+        no_token_id=None, side="yes", proposed_size_usdc=10, price=0.5,
+        market_liquidity=1000.0, market_status="active", idempotency_key="k",
+        strategy_type="x", risk_profile="balanced", trading_mode="paper",
+    )
+    assert sig.require_measured_edge is True

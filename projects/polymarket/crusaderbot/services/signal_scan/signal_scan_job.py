@@ -1925,6 +1925,7 @@ def _build_trade_signal(
     idempotency_key: str,
     live_price_override: float | None = None,
     module_live_eligible: bool = True,
+    require_measured_edge: bool = True,
 ) -> TradeSignal:
     """Build a typed TradeSignal from scan-loop data for TradeEngine.execute()."""
     _side = cand.side.lower()
@@ -2128,6 +2129,9 @@ def _build_trade_signal(
         cell=_cell,
         orderbook_depth_usdc=_orderbook_depth_usdc,
         spread=_candidate_spread,
+        # WARP (smart-strike-slippage-edge-gate, F1): LIVE no-edge policy resolved
+        # by _process_candidate from the SMART_STRIKE_REQUIRE_MEASURED_EDGE overlay.
+        require_measured_edge=require_measured_edge,
     )
 
 
@@ -3032,6 +3036,23 @@ async def _process_candidate(
         )
         return
 
+    # F1 (smart-strike-slippage-edge-gate): resolve the LIVE no-edge slippage
+    # policy. Default OFF (env False) → a capped Smart Strike cell with no measured
+    # edge passes step 14b under its per-cell $ cap (cap-only) instead of an
+    # auto-HALT; an uncapped cell still HALTs. Admin can flip it ON (overlay, no
+    # redeploy) to require a real measured edge. Resolved HERE in the async
+    # orchestrator (30s-cached) and threaded into the signal → NEVER read inside
+    # the pure risk gate (the #1694 pool-wedge RCA). Fail-safe to the env default.
+    try:
+        from ...config import get_settings as _gs_edge
+        _require_measured_edge = await _runtime_config.resolve_bool(
+            "SMART_STRIKE_REQUIRE_MEASURED_EDGE",
+            bool(getattr(_gs_edge(), "SMART_STRIKE_REQUIRE_MEASURED_EDGE", False)),
+        )
+    except Exception as exc:  # noqa: BLE001 — fail-safe to the permissive env default
+        log.warning("smart_strike_require_edge_resolve_failed", error=str(exc))
+        _require_measured_edge = False
+
     if _cb_enabled:
         _base_before_build = _bankroll_ema_baseline.get(_uid_str)
     try:
@@ -3039,6 +3060,7 @@ async def _process_candidate(
             row=row, cand=cand, market=market, idempotency_key=idem_key,
             live_price_override=_live_fill_price,
             module_live_eligible=_module_live_eligible,
+            require_measured_edge=_require_measured_edge,
         )
     except Exception as exc:
         log.warning("trade_signal_build_failed", error=str(exc))
