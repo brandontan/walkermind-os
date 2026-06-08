@@ -696,6 +696,24 @@ class Settings(BaseSettings):
     # rejected at config load (same trap as the other guardrail knobs).
     SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR: int = 8  # env: SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR
 
+    # --- Correlated crypto-majors same-direction entry cap
+    #     (WARP/correlated-majors-entry-guard) ---
+    # BTC/ETH/SOL are tightly correlated intraday: a market-wide move pushes all
+    # three candle "Up or Down" markets the same way. Opening same-direction
+    # positions on all three at one candle close = one 3x-leveraged directional
+    # bet that stops out as a cluster on reversal (observed prod loss pattern).
+    # The per-user max_concurrent count cap (5/12/20) does NOT catch this — three
+    # correlated entries are well under the count limit. This caps how many
+    # crypto-majors (domain.risk.constants.CORRELATED_CRYPTO_MAJORS) a user may
+    # enter in the SAME direction within one short same-candle window
+    # (signal_scan_job._CORRELATED_MAJORS_WINDOW_SEC).
+    #
+    # Default 2 (owner directive 2026-06-08): allow up to two correlated majors
+    # same-direction, block the third. Set to 0 to disable the gate entirely
+    # (escape hatch — runtime branches on `> 0`). Negative values rejected at
+    # config load (same silent-disable trap as the other guardrail knobs).
+    CORRELATED_MAJORS_SAME_DIR_LIMIT: int = 2  # env: CORRELATED_MAJORS_SAME_DIR_LIMIT
+
     # --- Safe-close inventory imbalance override
     #     (WARP/R00T/safe-close-imbalance-override, Polybot directive 1.2.1.c) ---
     # When a safe_close candidate fires on a market where the user
@@ -1172,6 +1190,20 @@ class Settings(BaseSettings):
                 f"SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR must be >= 0 (got {v}); "
                 f"use 0 to disable the gate, or a positive integer (e.g. 8) "
                 f"for the max entries per (user, side) per hour."
+            )
+        return v
+
+    @field_validator("CORRELATED_MAJORS_SAME_DIR_LIMIT")
+    @classmethod
+    def validate_correlated_majors_same_dir_limit(cls, v: int) -> int:
+        # Same silent-disable trap as the other guardrail knobs: runtime
+        # branches on `> 0`, so a negative value would behave identically
+        # to 0 (disabled). Fail fast at load with a clear error.
+        if v < 0:
+            raise ValueError(
+                f"CORRELATED_MAJORS_SAME_DIR_LIMIT must be >= 0 (got {v}); "
+                f"use 0 to disable the gate, or a positive integer (e.g. 2) "
+                f"for the max same-direction crypto-majors per candle window."
             )
         return v
 
