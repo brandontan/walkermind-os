@@ -1421,6 +1421,40 @@ async def _maybe_fire_fast_topup(
     # double-execute.
     topup_idem = f"fast_topup:{key}:{int(now_mono * 1000)}"
 
+    # TP/SL resolution — mirror the normal-mode _build_trade_signal fallback
+    # (WARP-90 / PR #1688 SENTINEL condition B). fast_topup is scoped to the
+    # safe_close / flip_hunter presets, which route to late_entry_v3. When the
+    # user_settings column is NULL (legacy / pre-089 row) the top-up must NOT
+    # emit a position with tp/sl = None — fall back to the active STRATEGY's
+    # default_tp_sl() hook and LOG it, never a silent default.
+    _topup_default_tp_pct, _topup_default_sl_pct = _strategy_default_tp_sl(
+        _LATE_ENTRY_V3_NAME
+    )
+    _topup_tp_raw = row.get("tp_pct")
+    _topup_sl_raw = row.get("sl_pct")
+    if _topup_tp_raw is not None:
+        _topup_tp_pct: float = float(_topup_tp_raw)
+    else:
+        _topup_tp_pct = _topup_default_tp_pct
+        log.warning(
+            "user_settings_tp_pct_missing_defensive_fallback",
+            user_id=str(user_id),
+            strategy_name=_LATE_ENTRY_V3_NAME,
+            mode="fast_topup",
+            fallback_tp_pct=_topup_default_tp_pct,
+        )
+    if _topup_sl_raw is not None:
+        _topup_sl_pct: float = float(_topup_sl_raw)
+    else:
+        _topup_sl_pct = _topup_default_sl_pct
+        log.warning(
+            "user_settings_sl_pct_missing_defensive_fallback",
+            user_id=str(user_id),
+            strategy_name=_LATE_ENTRY_V3_NAME,
+            mode="fast_topup",
+            fallback_sl_pct=_topup_default_sl_pct,
+        )
+
     # Build a TradeSignal directly. Bypassing _build_trade_signal +
     # _process_candidate gates is deliberate: the top-up is reactive,
     # not predictive (TOB freshness / complete-set edge / safe-close
@@ -1448,8 +1482,8 @@ async def _maybe_fire_fast_topup(
             risk_profile=str(row.get("resolved_profile") or "balanced"),
             trading_mode=str(row.get("trading_mode") or "paper"),
             signal_ts=datetime.now(timezone.utc),
-            tp_pct=float(row["tp_pct"]) if row.get("tp_pct") is not None else None,
-            sl_pct=float(row["sl_pct"]) if row.get("sl_pct") is not None else None,
+            tp_pct=_topup_tp_pct,
+            sl_pct=_topup_sl_pct,
             daily_loss_override=(
                 float(row["daily_loss_override"])
                 if row.get("daily_loss_override") is not None
@@ -2446,8 +2480,37 @@ async def _process_candidate(
             )
             _stale_idem = str(stale["idempotency_key"])
             _stale_size = Decimal(str(stale["final_size_usdc"]))
-            _tp = float(row["tp_pct"]) if row.get("tp_pct") is not None else None
-            _sl = float(row["sl_pct"]) if row.get("sl_pct") is not None else None
+            # TP/SL resolution — mirror the normal-mode _build_trade_signal
+            # fallback (WARP-90 / PR #1688 SENTINEL condition B). The stale-queue
+            # resume path (covers safe_close + the other candle presets) re-emits
+            # a queued entry; on a NULL user_settings row it must NOT resume with
+            # tp/sl = None. Fall back to the executed strategy's default_tp_sl()
+            # hook (strategy_type below is _STRATEGY_NAME) and LOG it.
+            _stale_default_tp_pct, _stale_default_sl_pct = _strategy_default_tp_sl(
+                _STRATEGY_NAME
+            )
+            if row.get("tp_pct") is not None:
+                _tp: float = float(row["tp_pct"])
+            else:
+                _tp = _stale_default_tp_pct
+                log.warning(
+                    "user_settings_tp_pct_missing_defensive_fallback",
+                    user_id=str(user_id),
+                    strategy_name=_STRATEGY_NAME,
+                    mode="safe_close_resume",
+                    fallback_tp_pct=_stale_default_tp_pct,
+                )
+            if row.get("sl_pct") is not None:
+                _sl: float = float(row["sl_pct"])
+            else:
+                _sl = _stale_default_sl_pct
+                log.warning(
+                    "user_settings_sl_pct_missing_defensive_fallback",
+                    user_id=str(user_id),
+                    strategy_name=_STRATEGY_NAME,
+                    mode="safe_close_resume",
+                    fallback_sl_pct=_stale_default_sl_pct,
+                )
             _stale_mode = str(stale["chosen_mode"])
             _stale_trading_mode = str(row.get("trading_mode") or "paper")
             # Capital-circuit-breaker re-check BEFORE resuming. The full gate is
