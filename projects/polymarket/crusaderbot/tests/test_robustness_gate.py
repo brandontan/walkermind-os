@@ -132,6 +132,8 @@ def _signal_ns(module_live_eligible: bool) -> SimpleNamespace:
         # F1 (smart-strike-slippage-edge-gate): _build_gate_context now threads
         # the LIVE no-edge slippage policy through.
         require_measured_edge=True,
+        # Option 3 (smart-strike-real-edge): measured slippage gross-edge (bps).
+        slippage_gross_edge_bps=None,
     )
     return SimpleNamespace(**fields)
 
