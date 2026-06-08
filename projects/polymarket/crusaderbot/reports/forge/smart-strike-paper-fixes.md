@@ -71,12 +71,13 @@ Four scoped fixes from the Jun-8 live paper-trade audit (one commit per issue):
   stale `strategy_types` still carries `'copy_trade'` would get copy_trade scans
   firing concurrently with their orchestrator late_entry_v3 flow (the
   "unintended fallback routing" the directive flagged). Fix (root cause): a guard
-  in the legacy loop skips any user whose `active_preset` is in
-  `_ORCHESTRATOR_MANAGED_PRESETS` (candle_auto + the 3 single-rule candle presets
-  + weather_monitor + playbook) — those users are orchestrator-owned and none of
-  their presets route to copy_trade; pre-preset copy_trade users (active_preset
-  NULL) are unaffected. Plus migration 092 collapses candle_auto users'
-  `strategy_types` to `['late_entry_v3']` so the stored array matches code truth.
+  in the legacy loop skips any user with a non-null/non-empty `active_preset` —
+  any preset means orchestrator-owned and NO preset routes to copy_trade, so the
+  truthy check is the precise ownership boundary and is future-proof to new
+  presets (no hardcoded preset set to maintain — adopted from the Gemini review).
+  Pre-preset copy_trade users (active_preset NULL) are unaffected. Plus migration
+  092 collapses candle_auto users' `strategy_types` to `['late_entry_v3']` so the
+  stored array matches code truth.
 
 ## 2. Current system architecture
 
@@ -89,8 +90,8 @@ DATA → STRATEGY → INTELLIGENCE → RISK → EXECUTION → MONITORING (unchan
   `exit_watcher.evaluate` are otherwise untouched.
 - STRATEGY routing: candle_auto → late_entry_v3 via `active_preset` in the new
   `signal_scan_job` (authoritative). The legacy `scheduler.run_signal_scan`
-  copy_trade path now explicitly excludes orchestrator-managed preset users
-  (Issue 4 guard) — the two scan paths no longer overlap on managed users.
+  copy_trade path now excludes any user with an active_preset (Issue 4 guard) —
+  the two scan paths no longer overlap on orchestrator-owned users.
 - API: `activate_preset` is the single auto-firing writer of `selected_timeframe`
   and now pins candle_auto to 5m (Issue 2).
 
@@ -100,7 +101,7 @@ Modified:
 - projects/polymarket/crusaderbot/domain/positions/registry.py — `_CANDLE_PRESETS` += `candle_auto` (Issue 1)
 - projects/polymarket/crusaderbot/webtrader/backend/router.py — candle_auto 5m pin in `activate_preset` (Issue 2)
 - projects/polymarket/crusaderbot/domain/strategy/strategies/signal_following.py — RETAIN audit docstring (Issue 3)
-- projects/polymarket/crusaderbot/scheduler.py — `_ORCHESTRATOR_MANAGED_PRESETS` + legacy-scan guard (Issue 4)
+- projects/polymarket/crusaderbot/scheduler.py — legacy-scan guard skips any active_preset user (Issue 4)
 - projects/polymarket/crusaderbot/tests/test_close_sweep_fast_exit.py — updated preset-constant pin + candle_auto-in-scope test (Issue 1)
 
 Created:

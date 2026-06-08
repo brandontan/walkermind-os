@@ -85,3 +85,17 @@ def test_preset_less_copy_trade_user_still_scanned():
     """Pre-preset legacy copy_trade users (active_preset NULL) keep working."""
     rows = [_user(None, ["copy_trade"])]
     assert _run_scan(rows) == ["00000000-0000-0000-0000-000000000001"]
+
+
+def test_unknown_future_preset_also_skipped():
+    """Future-proofing: ANY truthy active_preset (even a not-yet-known preset)
+    means orchestrator-owned, so the legacy copy_trade path must skip it without
+    a hardcoded preset list to maintain."""
+    rows = [_user("some_future_preset", ["copy_trade"])]
+    assert _run_scan(rows) == []
+
+
+def test_empty_string_preset_treated_as_no_preset():
+    """An empty-string active_preset is falsy -> NOT a managed user -> scanned."""
+    rows = [_user("", ["copy_trade"])]
+    assert _run_scan(rows) == ["00000000-0000-0000-0000-000000000001"]
