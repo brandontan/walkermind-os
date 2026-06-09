@@ -181,6 +181,47 @@ async def ensure_clob_credentials(
         logger.warning("clob: USE_REAL_CLOB=True but POLYMARKET_PRIVATE_KEY not set — cannot derive credentials")
         return
 
+    # POLY_1271 deposit wallets (EIP-7702 smart accounts): the v1/v2 SDK L1 auth
+    # binds the derived API key to the EOA, not the deposit wallet, so that key is
+    # rejected on order POST (401 Unauthorized/Invalid api key). Derive against the
+    # deposit wallet via the corrected ERC-7739-wrapped ClobAuth L1 auth instead.
+    if int(getattr(s, "POLYMARKET_SIGNATURE_TYPE", 0) or 0) == 3:
+        if not s.POLYMARKET_FUNDER_ADDRESS:
+            raise ClobConfigError(
+                "POLY_1271 auto-derive needs POLYMARKET_FUNDER_ADDRESS "
+                "(the deposit wallet address)"
+            )
+        import asyncio as _asyncio  # noqa: WPS433
+        import time as _time  # noqa: WPS433
+
+        from .deposit_wallet_auth import (  # noqa: WPS433
+            derive_or_create_deposit_wallet_creds,
+        )
+        from .v2_client import DEFAULT_CHAIN_ID, DEFAULT_HOST  # noqa: WPS433
+
+        logger.info(
+            "clob: deriving POLY_1271 deposit-wallet API credentials (funder=%s) …",
+            s.POLYMARKET_FUNDER_ADDRESS,
+        )
+        resolved = await _asyncio.to_thread(
+            derive_or_create_deposit_wallet_creds,
+            host=DEFAULT_HOST,
+            private_key=s.POLYMARKET_PRIVATE_KEY,
+            deposit_wallet=s.POLYMARKET_FUNDER_ADDRESS,
+            chain_id=DEFAULT_CHAIN_ID,
+            timestamp=int(_time.time()),
+        )
+        _derived = {
+            "api_key": resolved["api_key"],
+            "api_secret": resolved["api_secret"],
+            "passphrase": resolved["passphrase"],
+        }
+        logger.info(
+            "clob: POLY_1271 deposit-wallet creds derived (key=%.8s…)",
+            _derived["api_key"],
+        )
+        return
+
     logger.info("clob: deriving API credentials from POLYMARKET_PRIVATE_KEY …")
     tmp = ClobAdapter(
         api_key="",
