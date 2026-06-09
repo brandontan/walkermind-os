@@ -32,15 +32,25 @@ import logging
 from typing import Any, Optional
 
 from ..config import get_settings
+from .polygon_usdc import PreflightError
 
 logger = logging.getLogger(__name__)
 
 
-class BuilderRelayerUnavailable(RuntimeError):
+class BuilderRelayerUnavailable(PreflightError):
     """Raised when the relayer is asked for but credentials/flags are absent.
 
     Distinct from a relayer call failure: this means the relayer was never
     configured in this environment, so the caller is free to skip or fall back.
+
+    Subclass of :class:`PreflightError` so capital-path callers
+    (``wallet/withdrawals._settle_withdrawal``, ``scheduler._sweep_deposits_onchain``)
+    treat it as "transfer refused before broadcast, no capital moved" — the
+    withdrawal-refund and sweep-skip branches catch it via the ``PreflightError``
+    handler, which is the correct semantics: nothing moved, so the ledger debit
+    is safe to refund and the deposit is safe to retry on the next tick. Direct
+    ``except BuilderRelayerUnavailable`` paths still work — subclassing only
+    *widens* what ``except PreflightError`` catches.
     """
 
 

@@ -341,6 +341,22 @@ def reset_clob_resilience() -> None:
     _limiter = None
 
 
+def _is_zero_builder_code(code: str) -> bool:
+    """True if ``code`` parses as integer zero.
+
+    Robust to mixed-case hex prefix (``0X...``), variable zero-padding
+    (``0x0`` / ``0x00...00`` / ``0X0000``), bare ``0``, and mixed-case hex
+    digits in non-zero codes. Malformed hex returns False so the fail-fast
+    in ``get_clob_client`` / ``user_client._build_for_user`` treats it as a
+    non-zero (and therefore real) builder attribution — the caller-facing
+    SDK construction surface raises the actual config error in that case.
+    """
+    try:
+        return int(code, 16) == 0
+    except ValueError:
+        return False
+
+
 def effective_credentials(
     settings: Optional[Settings] = None,
 ) -> tuple[str, str, str]:
@@ -432,10 +448,9 @@ def get_clob_client(
             )
         # Fail fast on a half-configured builder attribution: a non-zero builder
         # code with no builder address yields invalid/zero-address attribution.
-        _zero32 = "0x" + ("00" * 32)
         if (
             s.POLYMARKET_BUILDER_CODE
-            and s.POLYMARKET_BUILDER_CODE != _zero32
+            and not _is_zero_builder_code(s.POLYMARKET_BUILDER_CODE)
             and not s.POLYMARKET_BUILDER_ADDRESS
         ):
             raise ClobConfigError(
