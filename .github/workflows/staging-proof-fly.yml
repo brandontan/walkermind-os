@@ -42,10 +42,18 @@ on:
         type: boolean
         default: false
       signature_type:
-        description: "Staging wallet signature type (0=EOA, 1=POLY_PROXY, 2=GNOSIS_SAFE)"
+        description: "Staging wallet signature type (0=EOA, 1=POLY_PROXY, 2=GNOSIS_SAFE, 3=POLY_1271 deposit wallet)"
         type: choice
         default: '1'
-        options: ['0', '1', '2']
+        options: ['0', '1', '2', '3']
+      funder_override:
+        description: "Override the funder/maker address (e.g. the EIP-7702 deposit wallet for sig type 3). Blank = use the STAGING_FUNDER_ADDRESS secret."
+        type: string
+        default: ''
+      git_ref:
+        description: "Branch/ref the in-machine proof clones (default main). Set to a WARP branch to validate an unmerged fix without merging to main."
+        type: string
+        default: 'main'
       neg_risk:
         description: "Set true ONLY if the staging market is neg-risk"
         type: boolean
@@ -102,7 +110,7 @@ jobs:
       STAGING_TOKEN_ID: ${{ inputs.pin_market && secrets.STAGING_TOKEN_ID || '' }}
       STAGING_MARKET_ID: ${{ inputs.pin_market && secrets.STAGING_MARKET_ID || '' }}
       STAGING_NO_TOKEN_ID: ${{ inputs.pin_market && secrets.STAGING_NO_TOKEN_ID || '' }}
-      STAGING_FUNDER_ADDRESS: ${{ secrets.STAGING_FUNDER_ADDRESS }}
+      STAGING_FUNDER_ADDRESS: ${{ inputs.funder_override != '' && inputs.funder_override || secrets.STAGING_FUNDER_ADDRESS }}
       STAGING_POLYMARKET_API_KEY: ${{ secrets.STAGING_POLYMARKET_API_KEY }}
       STAGING_POLYMARKET_API_SECRET: ${{ secrets.STAGING_POLYMARKET_API_SECRET }}
       STAGING_POLYMARKET_API_PASSPHRASE: ${{ secrets.STAGING_POLYMARKET_API_PASSPHRASE }}
@@ -114,6 +122,9 @@ jobs:
       USE_CLOB_V2: ${{ inputs.use_clob_v2 && '1' || '0' }}
       USE_PYSDK_CLOB: ${{ inputs.use_pysdk_clob && '1' || '0' }}
       CASE: ${{ inputs.case }}
+      # Branch/ref the in-machine proof clones. Default main; a WARP branch lets
+      # an unmerged fix be validated on the real broker before it touches main.
+      GIT_REF: ${{ inputs.git_ref }}
       # Per-run nonce: tags the PROOF_RESULT sentinel so a stale PASS line that
       # `flyctl logs` may stream from a PRIOR machine in the same app can never
       # be mistaken for THIS run's result (run_attempt distinguishes re-runs).
@@ -180,8 +191,9 @@ jobs:
           apt-get install -y --no-install-recommends git gcc libpq-dev >/dev/null 2>&1
           python -m pip install --quiet --upgrade pip
           python -m pip install --quiet pytest pytest-asyncio cffi
-          git clone --depth 1 https://github.com/bayuewalker/walkermind-os /repo
+          git clone --depth 1 --branch "${GIT_REF:-main}" https://github.com/bayuewalker/walkermind-os /repo
           cd /repo
+          echo "PROOF_REF=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?') @ $(git rev-parse --short HEAD 2>/dev/null || echo '?')"
           DEPS=$(python -c "import tomllib;print(' '.join(tomllib.load(open('projects/polymarket/crusaderbot/pyproject.toml','rb'))['project']['dependencies']))")
           python -m pip install --quiet --ignore-installed $DEPS
           python -m pip install --quiet --force-reinstall --no-cache-dir cffi
@@ -195,7 +207,7 @@ jobs:
 
           # ---- Env injected into the isolated machine ----
           ENVARGS=()
-          for v in CASE PROOF_NONCE STAGING_WALLET_KEY STAGING_TOKEN_ID STAGING_MARKET_ID \
+          for v in CASE PROOF_NONCE GIT_REF STAGING_WALLET_KEY STAGING_TOKEN_ID STAGING_MARKET_ID \
                    STAGING_NO_TOKEN_ID STAGING_FUNDER_ADDRESS \
                    STAGING_POLYMARKET_API_KEY STAGING_POLYMARKET_API_SECRET \
                    STAGING_POLYMARKET_API_PASSPHRASE STAGING_FILLED_CLOSE_ID \

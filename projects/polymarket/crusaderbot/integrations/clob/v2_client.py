@@ -38,9 +38,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any, Optional
 
 from .adapter import _trade_matches_order
+from .deposit_wallet_auth import derive_or_create_deposit_wallet_creds
 from .circuit_breaker import CircuitBreaker
 from .exceptions import (
     ClobAPIError,
@@ -61,6 +63,8 @@ DEFAULT_CHAIN_ID = 137
 # 32-byte zero sentinel py-clob-client-v2 uses for "no builder attribution".
 _ZERO_BYTES32 = "0x" + ("00" * 32)
 _SUPPORTED_ORDER_TYPES = frozenset({"GTC", "FOK", "FAK"})
+# SignatureTypeV2.POLY_1271 -- EIP-1271 smart-contract (deposit) wallets.
+_POLY_1271_SIGNATURE_TYPE = 3
 
 
 class ClobV2Client:
@@ -193,6 +197,43 @@ class ClobV2Client:
             funder=self._funder,
             builder_config=builder_config,
         )
+
+        # POLY_1271 deposit wallets (EIP-7702 smart accounts -- every Magic-Link /
+        # email account migrated after 2026-04-28). The SDK builds the *order*
+        # signature correctly (maker == signer == deposit wallet, ERC-7739 wrapped)
+        # but its L1 auth binds the API key to the EOA, so the CLOB rejects every
+        # order ("the order signer address has to be the address of the API KEY" /
+        # "maker address not allowed, please use the deposit wallet flow"). Fix:
+        # bind POLY_ADDRESS (L1 derive + L2 request headers) to the deposit wallet
+        # and derive creds with the ERC-7739-wrapped ClobAuth signature. Other
+        # wallet types (EOA/0, POLY_PROXY/1, GNOSIS_SAFE/2) keep the SDK path.
+        if int(self._signature_type) == _POLY_1271_SIGNATURE_TYPE:
+            if not self._funder:
+                raise ClobConfigError(
+                    "POLY_1271 (deposit wallet) requires POLYMARKET_FUNDER_ADDRESS "
+                    "= the deposit wallet address"
+                )
+            deposit_wallet = self._funder
+            # L2 request headers read signer.address() for POLY_ADDRESS; bind it to
+            # the deposit wallet (order signing still uses the EOA private key).
+            client.signer.address = lambda _a=deposit_wallet: _a  # type: ignore[assignment,method-assign]
+            if creds is None:
+                resolved = derive_or_create_deposit_wallet_creds(
+                    host=self._host,
+                    private_key=self._private_key,
+                    deposit_wallet=deposit_wallet,
+                    chain_id=self._chain_id,
+                    timestamp=int(time.time()),
+                )
+                client.set_api_creds(
+                    ApiCreds(
+                        api_key=resolved["api_key"],
+                        api_secret=resolved["api_secret"],
+                        api_passphrase=resolved["passphrase"],
+                    )
+                )
+            return client
+
         if creds is None:
             # Derive L2 creds from the signer and attach them for trade auth.
             client.set_api_creds(client.create_or_derive_api_key())

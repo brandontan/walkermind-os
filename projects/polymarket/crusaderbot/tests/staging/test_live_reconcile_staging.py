@@ -328,6 +328,19 @@ def _factory(_s: Any = None):
 async def _place_resting_buy(client, *, price: float = _REST_PRICE,
                              shares: float = _SHARES) -> str:
     """Place a tiny GTC BUY far below market so it RESTS (never fills). Returns id."""
+    import sys as _sys
+    try:
+        from eth_account import Account as _Acct
+        _eoa = _Acct.from_key(_WALLET).address
+    except Exception:  # noqa: BLE001 - diagnostic only
+        _eoa = "?"
+    # Printed BEFORE the order so the signer/funder/sig-type are visible even when
+    # post_order raises (e.g. deposit-wallet maker/auth rejects).
+    print(
+        f"DIAG preorder signer_eoa={_eoa} funder={getattr(client, 'funder', '?')} "
+        f"sig_type={getattr(client, 'signature_type', '?')} token={_TOKEN}",
+        file=_sys.stderr, flush=True,
+    )
     resp = await client.post_order(
         token_id=_TOKEN, side="buy", price=price, size=shares,
         order_type="GTC", tick_size=_TICK, neg_risk=_NEG_RISK,
