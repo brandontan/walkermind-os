@@ -214,24 +214,42 @@ class ClobV2Client:
                     "= the deposit wallet address"
                 )
             deposit_wallet = self._funder
-            # L2 request headers read signer.address() for POLY_ADDRESS; bind it to
-            # the deposit wallet (order signing still uses the EOA private key).
+            # L1 + L2 headers read signer.address() for POLY_ADDRESS; bind it to the
+            # deposit wallet (order signing still uses the EOA private key).
             client.signer.address = lambda *_a, **_k: deposit_wallet  # type: ignore[assignment,method-assign]
             if creds is None:
-                resolved = derive_or_create_deposit_wallet_creds(
-                    host=self._host,
-                    private_key=self._private_key,
-                    deposit_wallet=deposit_wallet,
-                    chain_id=self._chain_id,
-                    timestamp=int(time.time()),
-                )
-                client.set_api_creds(
-                    ApiCreds(
-                        api_key=resolved["api_key"],
-                        api_secret=resolved["api_secret"],
-                        api_passphrase=resolved["passphrase"],
+                # PLAIN first: with signer.address bound to the deposit wallet, the
+                # SDK's own L1 auth signs a STANDARD ClobAuth (address=deposit
+                # wallet) with the EOA key and sets POLY_ADDRESS=deposit wallet. The
+                # docs describe L1 as standard EIP-712 (no ERC-7739 path), and the
+                # deposit wallet's ERC-1271 isValidSignature accepts its owner's
+                # ECDSA — so this should suffice. Fall back to the ERC-7739-wrapped
+                # ClobAuth signature only if the server rejects the plain headers.
+                try:
+                    client.set_api_creds(client.create_or_derive_api_key())
+                    logger.info(
+                        "clob-v2: POLY_1271 creds via plain L1 (deposit-wallet "
+                        "POLY_ADDRESS=%s)", deposit_wallet,
                     )
-                )
+                except Exception as exc_plain:  # noqa: BLE001 - try wrapped fallback
+                    logger.warning(
+                        "clob-v2: plain POLY_1271 L1 derive failed (%s); trying "
+                        "ERC-7739-wrapped ClobAuth", exc_plain,
+                    )
+                    resolved = derive_or_create_deposit_wallet_creds(
+                        host=self._host,
+                        private_key=self._private_key,
+                        deposit_wallet=deposit_wallet,
+                        chain_id=self._chain_id,
+                        timestamp=int(time.time()),
+                    )
+                    client.set_api_creds(
+                        ApiCreds(
+                            api_key=resolved["api_key"],
+                            api_secret=resolved["api_secret"],
+                            api_passphrase=resolved["passphrase"],
+                        )
+                    )
             return client
 
         if creds is None:
