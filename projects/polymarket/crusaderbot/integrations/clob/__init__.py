@@ -58,12 +58,24 @@ from .exceptions import (
 from .market_data import MarketDataClient
 from .mock import MockClobClient
 from .rate_limiter import RateLimiter
+from .sdk_client import PolymarketSdkClient
+from .user_client import (
+    PerUserClobError,
+    PerUserClobIsolationError,
+    USER_CACHE_CAPACITY,
+    clear_user_clob_cache,
+    get_user_clob_client,
+    resolve_deposit_wallet_creds,
+)
+from .v2_client import ClobV2Client
 from .ws import ClobWebSocketClient
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     "ClobAdapter",
+    "PolymarketSdkClient",
+    "ClobV2Client",
     "MockClobClient",
     "MarketDataClient",
     "ClobClientProtocol",
@@ -93,6 +105,13 @@ __all__ = [
     "get_clob_breaker",
     "get_clob_rate_limiter",
     "reset_clob_resilience",
+    "ensure_clob_credentials",
+    "PerUserClobError",
+    "PerUserClobIsolationError",
+    "USER_CACHE_CAPACITY",
+    "clear_user_clob_cache",
+    "get_user_clob_client",
+    "resolve_deposit_wallet_creds",
 ]
 
 
@@ -140,6 +159,108 @@ class ClobClientProtocol(Protocol):
 # them.
 _breaker: Optional[CircuitBreaker] = None
 _limiter: Optional[RateLimiter] = None
+
+# Auto-derived credential cache (populated by ensure_clob_credentials at boot).
+# Only used when POLYMARKET_API_KEY is absent from env. Never persisted.
+_derived: Optional[dict] = None
+
+# POLY_1271 deposit wallet resolved by AsyncSecureClient from the signer key
+# (the SDK auto-derives the *current* deterministic deposit wallet — beacon vs
+# UUPS — via an on-chain factory check). Cached alongside ``_derived`` so the
+# order path can use it as the maker/funder without a hardcoded address.
+_derived_wallet: Optional[str] = None
+
+
+async def ensure_clob_credentials(
+    settings: Optional[Settings] = None,
+) -> None:
+    """Derive and cache Polymarket API credentials from POLYMARKET_PRIVATE_KEY.
+
+    Call once at application startup when USE_REAL_CLOB=True but
+    POLYMARKET_API_KEY/SECRET/PASSPHRASE are not set in the environment.
+    Credentials are stored in the module-level ``_derived`` dict and
+    consumed by ``get_clob_client()`` transparently.
+
+    No-op when:
+      * USE_REAL_CLOB=False (paper mode — credentials not needed)
+      * POLYMARKET_API_KEY already set in env (manual creds take priority)
+      * POLYMARKET_PRIVATE_KEY not set (nothing to derive from)
+
+    Raises ``ClobAuthError`` / ``ClobNetworkError`` on failure so the
+    operator sees the error immediately at boot rather than on the first
+    live order.
+    """
+    global _derived, _derived_wallet
+    s = settings or get_settings()
+    if not s.USE_REAL_CLOB:
+        return
+    # For POLY_1271 deposit wallets, an env-provided api key (e.g. a builder/EOA
+    # key) cannot authenticate the deposit-wallet maker — always derive via
+    # AsyncSecureClient below. Other wallet types honour an env-provided key.
+    _sig_type = int(getattr(s, "POLYMARKET_SIGNATURE_TYPE", 0) or 0)
+    if s.POLYMARKET_API_KEY and _sig_type != 3:
+        logger.info("clob: POLYMARKET_API_KEY set in env — skipping auto-derive")
+        return
+    if not s.POLYMARKET_PRIVATE_KEY:
+        logger.warning("clob: USE_REAL_CLOB=True but POLYMARKET_PRIVATE_KEY not set — cannot derive credentials")
+        return
+
+    # POLY_1271 deposit wallets (EIP-7702 smart accounts): py-clob-client-v2's L1
+    # auth cannot mint CLOB creds for them (upstream #70 — every L1 attempt returns
+    # "Invalid L1 Request headers"). The OFFICIAL polymarket SDK's AsyncSecureClient
+    # resolves the deposit wallet and derives valid L2 creds; we cache those so the
+    # proven ClobV2Client order path (correct 1271 order signing) authenticates.
+    if int(getattr(s, "POLYMARKET_SIGNATURE_TYPE", 0) or 0) == 3:
+        from polymarket import AsyncSecureClient  # noqa: WPS433
+
+        # Pass the configured funder if set (validated against the signer); else
+        # None so the SDK auto-derives the signer's current deposit wallet. Either
+        # way we cache the SDK-resolved wallet as the authoritative maker/funder.
+        _requested = s.POLYMARKET_FUNDER_ADDRESS or None
+        logger.info(
+            "clob: resolving POLY_1271 deposit wallet via AsyncSecureClient "
+            "(requested=%s) …", _requested or "auto-derive",
+        )
+        sc = await AsyncSecureClient.create(
+            private_key=s.POLYMARKET_PRIVATE_KEY,
+            wallet=_requested,
+        )
+        try:
+            creds = sc.credentials
+            _derived_wallet = sc.wallet
+        finally:
+            await sc.close()
+        _derived = {
+            "api_key": creds.key,
+            "api_secret": creds.secret,
+            "passphrase": creds.passphrase,
+        }
+        logger.info(
+            "clob: POLY_1271 deposit wallet resolved=%s, creds derived (key=%.8s…)",
+            _derived_wallet, _derived["api_key"],
+        )
+        return
+
+    logger.info("clob: deriving API credentials from POLYMARKET_PRIVATE_KEY …")
+    tmp = ClobAdapter(
+        api_key="",
+        api_secret="",
+        passphrase="",
+        private_key=s.POLYMARKET_PRIVATE_KEY,
+        funder_address=effective_funder(s),
+        signature_type=s.POLYMARKET_SIGNATURE_TYPE,
+        circuit_breaker=get_clob_breaker(s),
+        rate_limiter=get_clob_rate_limiter(s),
+    )
+    creds = await tmp.derive_api_credentials()
+    _derived = {
+        "api_key": creds.get("apiKey") or creds.get("api_key", ""),
+        "api_secret": creds.get("secret") or creds.get("api_secret", ""),
+        "passphrase": creds.get("passphrase", ""),
+    }
+    logger.info(
+        "clob: API credentials auto-derived (key=%.8s…)", _derived["api_key"]
+    )
 
 
 async def _on_circuit_open(name: str) -> None:
@@ -220,6 +341,51 @@ def reset_clob_resilience() -> None:
     _limiter = None
 
 
+def effective_credentials(
+    settings: Optional[Settings] = None,
+) -> tuple[str, str, str]:
+    """Resolve the CLOB API credentials the same way everywhere.
+
+    Env vars take priority; fall back to the auto-derived cache (`_derived`,
+    populated by ``ensure_clob_credentials`` when creds are not set in env).
+    Returns ``(api_key, api_secret, passphrase)``. Used by both the REST client
+    and the WebSocket subscribe frame so the WS does not silently send empty
+    auth when credentials were auto-derived (which the broker rejects, causing
+    an endless reconnect loop).
+    """
+    s = settings or get_settings()
+    d = _derived or {}
+    # POLY_1271 deposit wallets: the AsyncSecureClient-derived creds in ``_derived``
+    # are the ONLY ones bound to the deposit wallet, so they take priority over any
+    # env-provided api key (which for a deposit wallet would be a wrong builder/EOA
+    # key). Every other wallet type keeps env-first precedence.
+    if int(getattr(s, "POLYMARKET_SIGNATURE_TYPE", 0) or 0) == 3 and d.get("api_key"):
+        return d.get("api_key", ""), d.get("api_secret", ""), d.get("passphrase", "")
+    api_key = s.POLYMARKET_API_KEY or d.get("api_key", "")
+    api_secret = s.POLYMARKET_API_SECRET or d.get("api_secret", "")
+    passphrase = (
+        s.POLYMARKET_API_PASSPHRASE
+        or s.POLYMARKET_PASSPHRASE
+        or d.get("passphrase", "")
+    )
+    return api_key, api_secret, passphrase
+
+
+def effective_funder(settings: Optional[Settings] = None) -> Optional[str]:
+    """Resolve the maker/funder address.
+
+    For POLY_1271 deposit wallets, prefer the SDK-resolved deposit wallet
+    (``_derived_wallet``, set by ``ensure_clob_credentials`` via
+    ``AsyncSecureClient``) so the operator does not have to look up and hardcode
+    ``POLYMARKET_FUNDER_ADDRESS`` — the configured key alone is enough. Every
+    other wallet type keeps the env-configured funder.
+    """
+    s = settings or get_settings()
+    if int(getattr(s, "POLYMARKET_SIGNATURE_TYPE", 0) or 0) == 3 and _derived_wallet:
+        return _derived_wallet
+    return s.POLYMARKET_FUNDER_ADDRESS
+
+
 def get_clob_client(
     settings: Optional[Settings] = None,
 ) -> ClobClientProtocol:
@@ -240,12 +406,83 @@ def get_clob_client(
     if not s.USE_REAL_CLOB:
         return MockClobClient()
 
+    # POLY_1271 (deposit wallet) orders require a resolved maker/funder. Fail fast
+    # for ALL backends here rather than building any client with funder=None: a
+    # None funder fails opaquely at order-signing time (V2 / adapter) or forces a
+    # slow on-the-fly AsyncSecureClient derivation on the trading hot path (pysdk).
+    # effective_funder returns the AsyncSecureClient-resolved deposit wallet (cached
+    # by ensure_clob_credentials at startup) or the env POLYMARKET_FUNDER_ADDRESS.
+    if int(getattr(s, "POLYMARKET_SIGNATURE_TYPE", 0) or 0) == 3 and not effective_funder(s):
+        raise ClobConfigError(
+            "POLY_1271 (deposit wallet) maker unresolved: run "
+            "ensure_clob_credentials() at startup (it auto-derives the deposit "
+            "wallet via AsyncSecureClient) or set POLYMARKET_FUNDER_ADDRESS."
+        )
+
+    # Resolve credentials: env vars take priority; fall back to auto-derived cache.
+    api_key, api_secret, passphrase = effective_credentials(s)
+
+    # CLOB v2 cutover (WARP/clob-v2-cutover): py-clob-client-v2 single-package
+    # backend, native v2 order struct + builder attribution. Takes precedence
+    # over USE_PYSDK_CLOB when enabled. Default OFF until staging-proven.
+    if s.USE_CLOB_V2:
+        if not s.POLYMARKET_PRIVATE_KEY:
+            raise ClobConfigError(
+                "USE_CLOB_V2=True but POLYMARKET_PRIVATE_KEY is unset"
+            )
+        # Fail fast on a half-configured builder attribution: a non-zero builder
+        # code with no builder address yields invalid/zero-address attribution.
+        _zero32 = "0x" + ("00" * 32)
+        if (
+            s.POLYMARKET_BUILDER_CODE
+            and s.POLYMARKET_BUILDER_CODE != _zero32
+            and not s.POLYMARKET_BUILDER_ADDRESS
+        ):
+            raise ClobConfigError(
+                "POLYMARKET_BUILDER_CODE is set but POLYMARKET_BUILDER_ADDRESS "
+                "is unset — builder attribution needs both"
+            )
+        return ClobV2Client(
+            private_key=s.POLYMARKET_PRIVATE_KEY,
+            funder_address=effective_funder(s),
+            signature_type=s.POLYMARKET_SIGNATURE_TYPE,
+            api_key=api_key or None,
+            api_secret=api_secret or None,
+            passphrase=passphrase or None,
+            builder_code=s.POLYMARKET_BUILDER_CODE,
+            builder_address=s.POLYMARKET_BUILDER_ADDRESS,
+            circuit_breaker=get_clob_breaker(s),
+            rate_limiter=get_clob_rate_limiter(s),
+        )
+
+    # CLOB v2 backend (WARP/clob-v2-migration): delegate order build/sign/post
+    # to the official polymarket-client so the v2 SignedOrder schema is used.
+    # py-sdk derives L2 creds from the private key when none are supplied, so
+    # only POLYMARKET_PRIVATE_KEY is strictly required here.
+    if s.USE_PYSDK_CLOB:
+        if not s.POLYMARKET_PRIVATE_KEY:
+            raise ClobConfigError(
+                "USE_PYSDK_CLOB=True but POLYMARKET_PRIVATE_KEY is unset"
+            )
+        return PolymarketSdkClient(
+            private_key=s.POLYMARKET_PRIVATE_KEY,
+            funder_address=effective_funder(s),
+            signature_type=s.POLYMARKET_SIGNATURE_TYPE,
+            api_key=api_key or None,
+            api_secret=api_secret or None,
+            passphrase=passphrase or None,
+            builder_api_key=s.POLYMARKET_BUILDER_API_KEY,
+            builder_api_secret=s.POLYMARKET_BUILDER_API_SECRET,
+            builder_passphrase=s.POLYMARKET_BUILDER_PASSPHRASE,
+            circuit_breaker=get_clob_breaker(s),
+            rate_limiter=get_clob_rate_limiter(s),
+        )
+
     missing: list[str] = []
-    if not s.POLYMARKET_API_KEY:
-        missing.append("POLYMARKET_API_KEY")
-    if not s.POLYMARKET_API_SECRET:
+    if not api_key:
+        missing.append("POLYMARKET_API_KEY (or run ensure_clob_credentials() at startup)")
+    if not api_secret:
         missing.append("POLYMARKET_API_SECRET")
-    passphrase = s.POLYMARKET_API_PASSPHRASE or s.POLYMARKET_PASSPHRASE
     if not passphrase:
         missing.append("POLYMARKET_API_PASSPHRASE")
     if not s.POLYMARKET_PRIVATE_KEY:
@@ -257,11 +494,11 @@ def get_clob_client(
         )
 
     return ClobAdapter(
-        api_key=s.POLYMARKET_API_KEY,  # type: ignore[arg-type]
-        api_secret=s.POLYMARKET_API_SECRET,  # type: ignore[arg-type]
-        passphrase=passphrase,  # type: ignore[arg-type]
+        api_key=api_key,
+        api_secret=api_secret,
+        passphrase=passphrase,
         private_key=s.POLYMARKET_PRIVATE_KEY,  # type: ignore[arg-type]
-        funder_address=s.POLYMARKET_FUNDER_ADDRESS,
+        funder_address=effective_funder(s),
         signature_type=s.POLYMARKET_SIGNATURE_TYPE,
         builder_api_key=s.POLYMARKET_BUILDER_API_KEY,
         builder_api_secret=s.POLYMARKET_BUILDER_API_SECRET,

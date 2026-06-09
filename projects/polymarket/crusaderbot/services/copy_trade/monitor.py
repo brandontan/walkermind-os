@@ -34,7 +34,7 @@ Safety contract:
 from __future__ import annotations
 
 import hashlib
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -43,6 +43,7 @@ import structlog
 
 from ...core import event_bus
 from ...database import get_pool
+from ...integrations.polymarket import get_book
 from ...domain.copy_trade.models import CopyTradeTask
 from ...domain.copy_trade.repository import list_active_tasks
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
@@ -66,15 +67,40 @@ _notifier: TradeNotifier = TradeNotifier()
 # ---------------------------------------------------------------------------
 
 
+async def _is_globally_disabled() -> bool:
+    """Check the operator's admin toggle in the `strategies` table (mig 067).
+
+    FAIL-SAFE: a DB error or missing row means the strategy is ON (no behaviour
+    change), mirroring _refresh_disabled_strategies() in signal_scan_job.
+    """
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            enabled = await conn.fetchval(
+                "SELECT enabled FROM strategies WHERE name = $1", _STRATEGY_TYPE
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("copy_trade_admin_gate_db_error", error=str(exc))
+        return False
+    if enabled is None:
+        return False
+    return not bool(enabled)
+
+
 async def run_once() -> None:
     """Execute one copy-trade monitor tick.
 
     Safe to call concurrently with other scan loops — all DB writes use
-    ON CONFLICT DO NOTHING for idempotency. If the kill switch is active
-    the tick exits immediately without touching the execution path.
+    ON CONFLICT DO NOTHING for idempotency. If the kill switch is active or
+    the operator has globally disabled copy_trade via the Admin console, the
+    tick exits immediately without touching the execution path.
     """
     if await kill_switch_is_active():
         logger.warning("copy_trade_monitor: kill switch active — skipping tick")
+        return
+
+    if await _is_globally_disabled():
+        logger.info("copy_trade_monitor: globally disabled by admin — skipping tick")
         return
 
     tasks = await list_active_tasks()
@@ -270,6 +296,27 @@ async def _process_one(
 
     market_question: str | None = leader_trade.get("market_question") or leader_trade.get("title")
     price = _extract_price(leader_trade, side)
+    liquidity = _extract_liquidity(leader_trade)
+    # No fabricated price/liquidity: when the leader payload omits them, source
+    # the real live CLOB book for the mirrored market+side. Skip the mirror
+    # entirely if there is no real, interior, two-sided mark — never enter at a
+    # fake 0.50 / on fabricated 50k liquidity.
+    if price is None or liquidity is None:
+        _side_token = (
+            leader_trade.get("yes_token_id") if side == "yes"
+            else leader_trade.get("no_token_id")
+        )
+        _mid, _depth = await _live_book_mark_and_depth(_side_token)
+        if price is None:
+            price = _mid
+        if liquidity is None:
+            liquidity = _depth if _depth is not None else 0.0
+    if price is None or not (0.0 < price < 1.0):
+        log.info(
+            "copy_trade_monitor: SKIPPED — no real price for mirrored market",
+            reason="no_real_price", market_id=market_id, side=side,
+        )
+        return
     idempotency_key = _make_idempotency_key(task.id, leader_trade_id)
 
     # --- execution_mode filter (migration 035) ---
@@ -304,7 +351,7 @@ async def _process_one(
         side=side,
         proposed_size_usdc=Decimal(str(round(copy_size, 6))),
         price=price,
-        market_liquidity=_extract_liquidity(leader_trade),
+        market_liquidity=liquidity,
         market_status=leader_trade.get("market_status", "active"),
         idempotency_key=idempotency_key,
         strategy_type=_STRATEGY_TYPE,
@@ -312,7 +359,14 @@ async def _process_one(
         trading_mode=user_ctx.get("trading_mode", "paper"),
         tp_pct=float(task.tp_pct) if task.tp_pct else None,
         sl_pct=float(task.sl_pct) if task.sl_pct else None,
-        signal_ts=datetime.utcnow(),
+        # MUST be tz-aware: risk gate step 9 does datetime.now(timezone.utc) -
+        # signal_ts; a naive utcnow() raised TypeError that the caller caught
+        # and returned on — silently killing every copy-trade at the gate.
+        signal_ts=datetime.now(timezone.utc),
+        # copy_trade_tasks.status='active' is the per-task opt-in; bypass
+        # global auto_trade_on so users don't need /live_checklist arming
+        # to run copy-trade in paper mode. ctx.paused still halts everything.
+        bypass_auto_trade_check=True,
     )
 
     # --- route through TradeEngine (risk gate mandatory) ---
@@ -529,8 +583,30 @@ def _extract_trade_id(trade: dict[str, Any]) -> str | None:
 
 
 def _extract_size(trade: dict[str, Any]) -> float:
-    """Return trade notional in USDC from a leader trade dict."""
-    for key in ("usdcSize", "usdc_size", "size_usdc", "size", "amount", "notional"):
+    """Return trade notional in USDC from a leader trade dict.
+
+    Polymarket Data API /activity returns ``size`` in outcome tokens (shares),
+    not USDC.  Prefer explicit USDC fields; fall back to ``price × size`` so
+    the copy-size scaler always works in USDC terms, not share counts.
+    """
+    for key in ("usdcSize", "usdc_size", "size_usdc"):
+        v = trade.get(key)
+        if v is not None:
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                continue
+    # Compute USDC notional from shares × price when explicit field is absent.
+    # next() with is-not-None guard handles 0.0 correctly (falsy but valid).
+    raw_size = next((trade.get(k) for k in ("size", "amount") if trade.get(k) is not None), None)
+    raw_price = next((trade.get(k) for k in ("price", "avg_price", "avgPrice") if trade.get(k) is not None), None)
+    if raw_size is not None and raw_price is not None:
+        try:
+            return float(raw_size) * float(raw_price)
+        except (TypeError, ValueError):
+            pass
+    # Last resort: return raw size (caller floor will reject if too small).
+    for key in ("size", "amount", "notional"):
         v = trade.get(key)
         if v is not None:
             try:
@@ -540,21 +616,33 @@ def _extract_size(trade: dict[str, Any]) -> float:
     return 0.0
 
 
-def _extract_price(trade: dict[str, Any], side: str) -> float:
-    """Return the trade price from a leader trade dict."""
+def _extract_price(trade: dict[str, Any], side: str) -> float | None:
+    """Return the leader-trade price, or None when the payload carries none.
+
+    No fabricated 0.50: when the leader trade has no real price the caller
+    resolves the live CLOB mark for the mirrored market instead (and skips the
+    mirror if even that is unavailable) — a priceless mirror must never enter
+    at a fake midpoint.
+    """
     for key in ("price", "avg_price", "avgPrice", "outcome_price"):
         v = trade.get(key)
         if v is not None:
             try:
-                return float(v)
+                p = float(v)
             except (TypeError, ValueError):
                 continue
-    # Fallback: mid-market approximation based on side
-    return 0.5
+            if 0.0 < p < 1.0:
+                return p
+    return None
 
 
-def _extract_liquidity(trade: dict[str, Any]) -> float:
-    """Return market liquidity (USDC) from a leader trade dict, or fallback."""
+def _extract_liquidity(trade: dict[str, Any]) -> float | None:
+    """Return market liquidity (USDC) from a leader trade dict, or None.
+
+    No fabricated 50k: a missing field returns None so the caller can source
+    real two-sided book depth — fabricating "adequate" liquidity would let a
+    thin market bypass the risk gate's liquidity floor.
+    """
     for key in ("liquidity", "market_liquidity", "volume24h", "volume"):
         v = trade.get(key)
         if v is not None:
@@ -562,9 +650,38 @@ def _extract_liquidity(trade: dict[str, Any]) -> float:
                 return float(v)
             except (TypeError, ValueError):
                 continue
-    # Fallback: assume adequate liquidity so the risk gate market-liquidity
-    # check does not spuriously reject copy trades when the field is absent
-    return 50_000.0
+    return None
+
+
+async def _live_book_mark_and_depth(
+    token_id: str | None,
+) -> tuple[float | None, float | None]:
+    """Real (midpoint, two-sided USDC depth) from the live CLOB book, or (None, None).
+
+    Returns (None, None) for a missing token, a one-sided/crossed/empty book, or
+    any fetch error — the caller then skips the mirror rather than fabricate.
+    """
+    if not token_id:
+        return (None, None)
+    try:
+        book = await get_book(token_id)
+    except Exception as exc:  # network/parse — fail soft, never fabricate
+        logger.warning("copy_trade_monitor: live book fetch failed",
+                       token_id=token_id, error=str(exc))
+        return (None, None)
+    bids = book.get("bids") or []
+    asks = book.get("asks") or []
+    if not bids or not asks:
+        return (None, None)
+    try:
+        best_bid = max(float(b["price"]) for b in bids)
+        best_ask = min(float(a["price"]) for a in asks)
+        depth = sum(float(l["price"]) * float(l["size"]) for l in (*bids, *asks))
+    except (TypeError, ValueError, KeyError):
+        return (None, None)
+    if not (0.0 < best_bid <= best_ask < 1.0):
+        return (None, None)  # crossed / degenerate
+    return ((best_bid + best_ask) / 2.0, depth)
 
 
 def _resolve_side(raw_side: str, reverse_copy: bool, outcome: str | None = None) -> str:
@@ -597,7 +714,13 @@ def _compute_copy_size(
         # Fixed: use copy_amount directly, capped at remaining daily spend
         fixed = float(task.copy_amount)
         return fixed if fixed >= MIN_TRADE_SIZE_USDC else 0.0
-    # Proportional: compute base size, then scale by copy_pct if set
+    # Proportional: scale both leader_size and the position cap by copy_pct so
+    # the reduction applies whether the trade is below or above the cap.
+    # Use is-not-None so copy_pct=0.0 (explicit zero) is honoured, not
+    # collapsed to 1.0 by a falsy check.
+    pct_factor = float(task.copy_pct) if task.copy_pct is not None else 1.0
+    scaled_leader_size = leader_size * pct_factor
+    effective_position_pct = min(0.10 * pct_factor, 1.0)  # hard 10 % cap × user fraction, never > 1.0
     leader_bankroll = float(
         leader_trade.get("bankroll")
         or leader_trade.get("portfolioValue")
@@ -605,21 +728,17 @@ def _compute_copy_size(
         or 0.0
     )
     if leader_bankroll > 0.0:
-        base = scale_size(
-            leader_size=leader_size,
+        return scale_size(
+            leader_size=scaled_leader_size,
             leader_bankroll=leader_bankroll,
             user_available=remaining_spend,
-            max_position_pct=0.10,  # hard-coded 10% position cap per HARD RULES
+            max_position_pct=effective_position_pct,
         )
-    else:
-        base = mirror_size_direct(
-            leader_size=leader_size,
-            user_available=remaining_spend,
-            max_position_pct=0.10,
-        )
-    # Apply copy_pct scaling factor (0–1 fraction) if set by the user.
-    pct_factor = float(task.copy_pct) if task.copy_pct else 1.0
-    return base * pct_factor
+    return mirror_size_direct(
+        leader_size=scaled_leader_size,
+        user_available=remaining_spend,
+        max_position_pct=effective_position_pct,
+    )
 
 
 def _make_idempotency_key(task_id: UUID, leader_trade_id: str) -> str:

@@ -1,18 +1,53 @@
-"""Telegram Login Widget validation and JWT issuance for the WebTrader dashboard."""
+"""Telegram Login Widget + email/password auth and JWT issuance for WebTrader."""
 from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
+import re
 import time
 from typing import Optional
 
+import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from ...config import get_settings
-from ...users import upsert_user
-from .schemas import TelegramAuthPayload, TokenResponse
+from ...database import get_pool
+from ...users import _bootstrap_new_user, upsert_user
+
+logger = logging.getLogger(__name__)
+from .schemas import (
+    EmailLoginRequest,
+    EmailRegisterRequest,
+    LinkEmailRequest,
+    TelegramAuthPayload,
+    TokenResponse,
+)
+
+# Direct bcrypt instead of passlib: passlib's bcrypt backend self-test
+# (detect_wrap_bug) feeds a 73-byte password to the backend and crashes on
+# bcrypt>=4.0 which now strictly enforces the 72-byte limit. The hash format
+# is identical ($2b$...), so existing passlib-produced hashes remain valid.
+_BCRYPT_MAX_BYTES = 72
+
+
+def _hash_password(plain: str) -> str:
+    """Hash with bcrypt. Caller must enforce byte-length limit."""
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def _verify_password(plain: str, hashed: str) -> bool:
+    """Constant-time compare against a stored bcrypt hash."""
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except ValueError:
+        # bcrypt raises on malformed hash or oversize password — treat as mismatch.
+        return False
+
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 _MAX_AUTH_AGE = 86400  # 24 hours
 
@@ -85,7 +120,171 @@ async def get_current_user(
     raw = (creds.credentials if creds else None) or token
     if not raw:
         raise HTTPException(status_code=401, detail="not authenticated")
-    return decode_jwt(raw)
+    payload = decode_jwt(raw)
+    # SSE handshake tokens (scope='sse') are stream-only short-lived creds — they
+    # must NEVER authenticate an API request, so a leaked stream token cannot be
+    # replayed against the API.
+    if payload.get("scope") == "sse":
+        raise HTTPException(status_code=401, detail="invalid token")
+    return payload
+
+
+# Short-lived token minted for the SSE EventSource handshake. EventSource cannot
+# send an Authorization header, so the token rides in the URL — which lands in
+# proxy/access logs. Keeping it 'sse'-scoped + 60s makes a logged value useless
+# within moments and unusable against the API (rejected by get_current_user).
+_STREAM_TOKEN_TTL = 60  # seconds
+
+
+def mint_stream_token(user_id: str, telegram_id: Optional[int] = None) -> str:
+    settings = get_settings()
+    if not settings.WEBTRADER_JWT_SECRET:
+        raise HTTPException(status_code=503, detail="web dashboard not configured")
+    now = int(time.time())
+    payload: dict = {
+        "user_id": user_id,
+        "scope": "sse",
+        "iat": now,
+        "exp": now + _STREAM_TOKEN_TTL,
+    }
+    if telegram_id is not None:
+        payload["telegram_id"] = telegram_id
+    return jwt.encode(payload, settings.WEBTRADER_JWT_SECRET, algorithm="HS256")
+
+
+def decode_stream_token(raw: Optional[str]) -> dict:
+    """Decode + require scope='sse'. Used by the SSE endpoint only."""
+    if not raw:
+        raise HTTPException(status_code=401, detail="not authenticated")
+    payload = decode_jwt(raw)
+    if payload.get("scope") != "sse":
+        raise HTTPException(status_code=401, detail="invalid stream token")
+    return payload
+
+
+def _issue_token(user_id: str, first_name: str, telegram_id: Optional[int] = None) -> TokenResponse:
+    settings = get_settings()
+    if not settings.WEBTRADER_JWT_SECRET:
+        raise HTTPException(status_code=503, detail="web dashboard not configured — JWT_SECRET missing")
+    now = int(time.time())
+    payload: dict = {
+        "user_id": user_id,
+        "first_name": first_name,
+        "iat": now,
+        "exp": now + _MAX_AUTH_AGE,
+    }
+    if telegram_id is not None:
+        payload["telegram_id"] = telegram_id
+    token = jwt.encode(payload, settings.WEBTRADER_JWT_SECRET, algorithm="HS256")
+    return TokenResponse(access_token=token, user_id=user_id, first_name=first_name)
+
+
+async def register_email(data: EmailRegisterRequest) -> TokenResponse:
+    """Register a new account with email + password (no Telegram required)."""
+    if not _EMAIL_RE.match(data.email):
+        raise HTTPException(status_code=422, detail="invalid email address")
+    if len(data.password) < 8:
+        raise HTTPException(status_code=422, detail="password must be at least 8 characters")
+    if len(data.password.encode("utf-8")) > _BCRYPT_MAX_BYTES:
+        raise HTTPException(status_code=422, detail="password must be 72 bytes or fewer")
+    if not data.first_name.strip():
+        raise HTTPException(status_code=422, detail="first_name is required")
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow(
+            "SELECT id FROM users WHERE email = $1", data.email.lower()
+        )
+        if existing:
+            raise HTTPException(status_code=409, detail="email already registered")
+
+        pw_hash = _hash_password(data.password)
+        row = await conn.fetchrow(
+            """INSERT INTO users (email, password_hash, username, role)
+               VALUES ($1, $2, $3, 'user')
+               RETURNING id""",
+            data.email.lower(), pw_hash, data.first_name.strip(),
+        )
+        user_id = str(row["id"])
+
+        # PAPER-default invariant (F-MEDIUM-1): create user_settings in the
+        # same transaction as users INSERT, with trading_mode='paper'
+        # written explicitly. Mirrors users.upsert_user for the Telegram
+        # path so WebTrader-signup users get the same row at creation time
+        # (no lazy create in get_settings_for).
+        await conn.execute(
+            "INSERT INTO user_settings (user_id, trading_mode) "
+            "VALUES ($1, 'paper') ON CONFLICT (user_id) DO NOTHING",
+            row["id"],
+        )
+
+    # Bootstrap wallet + settings the same way upsert_user does for Telegram.
+    # F-LOW-1: log the exception instead of silently swallowing; bootstrap
+    # remains best-effort (user row already created), but a failure leaves
+    # the new user without a wallet seed and must be observable.
+    try:
+        await _bootstrap_new_user(row["id"])
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "webtrader signup: _bootstrap_new_user failed user_id=%s",
+            row["id"],
+        )
+
+    return _issue_token(user_id, data.first_name.strip())
+
+
+async def login_email(data: EmailLoginRequest) -> TokenResponse:
+    """Authenticate with email + password."""
+    if len(data.password.encode("utf-8")) > _BCRYPT_MAX_BYTES:
+        raise HTTPException(status_code=401, detail="invalid email or password")
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, password_hash, username, telegram_user_id FROM users WHERE email = $1",
+            data.email.lower(),
+        )
+    if not row or not row["password_hash"]:
+        raise HTTPException(status_code=401, detail="invalid email or password")
+    if not _verify_password(data.password, row["password_hash"]):
+        raise HTTPException(status_code=401, detail="invalid email or password")
+
+    first_name = str(row["username"] or data.email.split("@")[0])
+    return _issue_token(
+        str(row["id"]), first_name,
+        telegram_id=row["telegram_user_id"],
+    )
+
+
+async def link_email(user_id: str, data: LinkEmailRequest) -> dict:
+    """Add email + password to an existing Telegram account (from Settings)."""
+    if not _EMAIL_RE.match(data.email):
+        raise HTTPException(status_code=422, detail="invalid email address")
+    if len(data.password) < 8:
+        raise HTTPException(status_code=422, detail="password must be at least 8 characters")
+    if len(data.password.encode("utf-8")) > _BCRYPT_MAX_BYTES:
+        raise HTTPException(status_code=422, detail="password must be 72 bytes or fewer")
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        conflict = await conn.fetchrow(
+            "SELECT id FROM users WHERE email = $1 AND id != $2::uuid",
+            data.email.lower(), user_id,
+        )
+        if conflict:
+            raise HTTPException(status_code=409, detail="email already in use")
+
+        existing = await conn.fetchrow(
+            "SELECT email FROM users WHERE id = $1::uuid", user_id
+        )
+        if existing and existing["email"]:
+            raise HTTPException(status_code=409, detail="account already has an email linked")
+
+        pw_hash = _hash_password(data.password)
+        await conn.execute(
+            "UPDATE users SET email = $1, password_hash = $2 WHERE id = $3::uuid",
+            data.email.lower(), pw_hash, user_id,
+        )
+    return {"ok": True}
 
 
 async def require_admin(user: dict = Depends(get_current_user)) -> dict:

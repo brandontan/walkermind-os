@@ -1,7 +1,9 @@
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { AdvancedOnly } from "./AdvancedGate";
 import { useSSEStatus } from "../lib/sse";
-import { useAlertCenter, useScannerStatus } from "../App";
+import { useAuth } from "../lib/auth";
+import { makeApi } from "../lib/api";
+import { useAlertCenter, useScannerStatus, useTradingMode } from "../App";
 
 const TOPNAV = [
   { to: "/dashboard",  label: "Home" },
@@ -13,7 +15,9 @@ const TOPNAV = [
 ] as const;
 
 type Props = {
-  /** Actual trading mode from backend. Defaults to "paper" when not yet loaded. */
+  /** Actual trading mode from backend. When omitted, falls back to the
+   *  app-wide TradingMode context (fed from /me) instead of a hardcoded
+   *  "paper" — so pages that don't fetch the mode still show LIVE correctly. */
   tradingMode?: string;
   /** Kept for backward-compat; superseded by AlertCenterContext.unreadCount */
   notifCount?: number;
@@ -21,13 +25,31 @@ type Props = {
   onBellClick?: () => void;
 };
 
-export function TopBar({ tradingMode = "paper", notifCount: _notifCount, onBellClick: _onBellClick }: Props) {
+export function TopBar({ tradingMode, notifCount: _notifCount, onBellClick: _onBellClick }: Props) {
   const sseConnected = useSSEStatus();
   const { lastScanMs } = useScannerStatus();
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
+  // Hide the desktop "Copy" pill when the operator has globally disabled
+  // copy_trade. Mirrors DesktopSidebar + AutoTradePage; FAIL-SAFE shows the
+  // pill until the availability fetch resolves (or on fetch error).
+  const [copyTradeEnabled, setCopyTradeEnabled] = useState(true);
+  useEffect(() => {
+    if (!user?.token) return;
+    let cancelled = false;
+    void api.getPresetAvailability()
+      .then((avail) => { if (!cancelled) setCopyTradeEnabled(avail.strategies?.copy_trade !== false); })
+      .catch(() => { if (!cancelled) setCopyTradeEnabled(true); });
+    return () => { cancelled = true; };
+  }, [api, user?.token]);
   const { unreadCount, openAlertCenter } = useAlertCenter();
-  const isLive = tradingMode === "live";
+  const ctxMode = useTradingMode();
+  // Explicit prop (freshest, from a page that fetched it) wins; otherwise fall
+  // back to the app-wide mode so the LIVE/PAPER pill is never falsely "PAPER".
+  const mode = tradingMode ?? ctxMode;
+  const isLive = mode === "live";
   const lastScanLabel = lastScanMs
     ? new Date(lastScanMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : null;
@@ -54,12 +76,12 @@ export function TopBar({ tradingMode = "paper", notifCount: _notifCount, onBellC
       />
 
       {/* Brand — left, never shrinks */}
-      <div className="flex items-center gap-2.5 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0">
         <img
-          src="/crusaderbot-logo.png"
+          src={`${import.meta.env.BASE_URL}crusaderbot-emblem.png`}
           alt="CrusaderBot"
-          width={44}
-          height={50}
+          width={29}
+          height={35}
           className="flex-shrink-0 object-contain"
           style={{ filter: "drop-shadow(0 0 10px rgba(245,200,66,0.45))" }}
           onError={(e) => {
@@ -70,23 +92,15 @@ export function TopBar({ tradingMode = "paper", notifCount: _notifCount, onBellC
           <div className="font-display text-[18px] tracking-[1.5px] text-ink-1 uppercase">
             CRUSADER<span className="text-gold">BOT</span>
           </div>
-          <AdvancedOnly>
-            <div
-              className="font-mono text-[8px] tracking-[2.5px] text-ink-3 uppercase mt-[3px]"
-              style={{ marginTop: "3px" }}
-            >
-              <span className="text-gold">◢ </span>TACTICAL · POLYMARKET
-            </div>
-          </AdvancedOnly>
         </div>
       </div>
 
       {/* Desktop center topnav pills — flex-1 keeps it between brand and right cluster, never overlaps */}
       <div className="hidden md:flex flex-1 items-center justify-center gap-0.5 px-2">
-        {TOPNAV.map(({ to, label }) => {
+        {TOPNAV.filter(({ to }) => to !== "/copy-trade" || copyTradeEnabled).map(({ to, label }) => {
           const active = location.pathname === to || location.pathname.startsWith(to + "/");
           return (
-            <button
+            <button type="button"
               key={to}
               onClick={() => navigate(to)}
               className={[
@@ -133,14 +147,14 @@ export function TopBar({ tradingMode = "paper", notifCount: _notifCount, onBellC
         ) : (
           <StatusPill kind="paper">PAPER</StatusPill>
         )}
-        <button
+        <button type="button"
           onClick={() => navigate("/discover")}
           className="w-8 h-8 rounded-[4px] bg-surface border border-border-2 flex items-center justify-center text-[13px] transition-colors hover:border-gold hover:bg-surface-2"
           aria-label="Discover Markets"
         >
           🔍
         </button>
-        <button
+        <button type="button"
           onClick={openAlertCenter}
           className="relative w-8 h-8 rounded-[4px] bg-surface border border-border-2 flex items-center justify-center text-[13px] transition-colors hover:border-gold hover:bg-surface-2"
           aria-label="Alert Center"

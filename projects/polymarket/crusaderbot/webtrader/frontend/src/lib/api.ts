@@ -1,5 +1,12 @@
 const BASE = "/api/web";
 
+// Fired when the server returns 401 — clears persisted auth so the next
+// render redirects to the login page instead of looping on expired tokens.
+let _onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: () => void): void {
+  _onUnauthorized = fn;
+}
+
 async function request<T>(
   path: string,
   token: string | null,
@@ -11,10 +18,39 @@ async function request<T>(
   };
   const res = await fetch(`${BASE}${path}`, { ...opts, headers });
   if (!res.ok) {
+    if (res.status === 401) {
+      _onUnauthorized?.();
+    }
     const text = await res.text().catch(() => "unknown error");
     throw new Error(`${res.status}: ${text}`);
   }
   return res.json() as Promise<T>;
+}
+
+// ── Unauthenticated auth calls ────────────────────────────────────────────────
+
+export interface TokenResponse {
+  access_token: string;
+  user_id: string;
+  first_name: string;
+}
+
+export async function apiRegisterEmail(
+  email: string, password: string, first_name: string,
+): Promise<TokenResponse> {
+  return request<TokenResponse>("/auth/register", null, {
+    method: "POST",
+    body: JSON.stringify({ email, password, first_name }),
+  });
+}
+
+export async function apiLoginEmail(
+  email: string, password: string,
+): Promise<TokenResponse> {
+  return request<TokenResponse>("/auth/login", null, {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
 }
 
 export function makeApi(token: string | null) {
@@ -25,6 +61,7 @@ export function makeApi(token: string | null) {
     request<T>(path, token, { method: "PATCH", body: body ? JSON.stringify(body) : undefined });
 
   return {
+    getMe: () => get<MeResponse>("/me"),
     getRuntimeStatus: () => get<RuntimeStatus>("/status"),
     getDashboard: () => get<DashboardSummary>("/dashboard"),
     getPositions: (status?: string, limit?: number, offset?: number) => {
@@ -51,11 +88,24 @@ export function makeApi(token: string | null) {
     getWallet: () => get<WalletInfo>("/wallet"),
     getLedger: (offset: number, limit = 20) =>
       get<LedgerPage>(`/wallet/ledger?offset=${offset}&limit=${limit}`),
+    requestWithdrawal: (amount_usdc: number, destination_address: string) =>
+      post<WithdrawResponse>("/wallet/withdraw", { amount_usdc, destination_address }),
     getSettings: () => get<UserSettings>("/settings"),
     updateSettings: (data: Partial<UserSettings>) => patch<{ updated: boolean }>("/settings", data),
+    getNotificationPrefs: () => get<{ prefs: NotificationPrefs }>("/settings/notification-prefs"),
+    updateNotificationPrefs: (prefs: NotificationPrefs) =>
+      patch<{ updated: boolean }>("/settings/notification-prefs", { prefs }),
+    linkEmail: (email: string, password: string) =>
+      post<{ ok: boolean }>("/auth/link-email", { email, password }),
     getAlerts: () => get<AlertItem[]>("/alerts"),
+    /** Persist the "Mark all read" click server-side. Returns the new
+     *  watermark (ISO-8601 with offset, or null on a never-acked account). */
+    ackAllAlerts: () => post<{ alerts_ack_at: string | null }>("/alerts/ack-all", {}),
     getKillSwitch: () => get<{ active: boolean }>("/killswitch"),
-    postKill: () => post<{ ok: boolean }>("/kill"),
+    postKill: () => post<{ ok: boolean; user_paused: boolean }>("/kill"),
+    postResume: () => post<{ ok: boolean; user_paused: boolean }>("/resume"),
+    postEmergencyStop: () =>
+      post<{ positions_marked: number; user_paused: boolean }>("/emergency-stop"),
     listCopyTasks: () => get<CopyTask[]>("/copy-trade/tasks"),
     createCopyTask: (body: CopyTaskCreate) =>
       post<{ id: string; status: string }>("/copy-trade/tasks", body),
@@ -85,10 +135,210 @@ export function makeApi(token: string | null) {
       get<Wallet360>(`/copy-trade/wallet-360/${address}`),
     getRecentSignals: (limit = 10, offset = 0) =>
       get<FeedSignal[]>(`/signals/recent?limit=${limit}&offset=${offset}`),
+    // ── Live-trading activation (per-user opt-in) ──────────────────────────
+    getLiveStatus: () => get<LiveStatus>("/live/status"),
+    enableLive: (live_capital_cap_usdc: number, confirm_phrase: string) =>
+      post<LiveEnableResponse>("/live/enable", { live_capital_cap_usdc, confirm_phrase }),
+    disableLive: () => post<{ trading_mode: string }>("/live/disable"),
+    // ── Strategy picker availability (mirrors operator admin toggle) ───────
+    getPresetAvailability: () =>
+      get<{
+        presets: { key: string; strategy: string; enabled: boolean }[];
+        strategies: Record<string, boolean>;
+      }>("/autotrade/preset-availability"),
+    // ── Account unification — reverse Telegram-link ────────────────────────
+    getLinkTelegramStatus: () => get<{ linked: boolean }>("/account/link-telegram/status"),
+    startLinkTelegram: () => post<LinkTelegramStart>("/account/link-telegram/start"),
+    // ── Admin console (role=admin only) ────────────────────────────────────
+    getAdminOverview: () => get<AdminOverview>("/admin/overview"),
+    getAdminPoolBalance: () => get<AdminPoolBalance>("/admin/pool-balance"),
+    getAdminUsers: (limit = 50, offset = 0) =>
+      get<AdminUsersPage>(`/admin/users?limit=${limit}&offset=${offset}`),
+    getAdminStrategies: () => get<{ strategies: AdminStrategy[] }>("/admin/strategies"),
+    toggleStrategy: (name: string, enabled: boolean) =>
+      post<{ name: string; enabled: boolean }>("/admin/strategies/toggle", { name, enabled }),
+    getAdminUserDetail: (userId: string) =>
+      get<AdminUserDetail>(`/admin/users/${encodeURIComponent(userId)}`),
+    updateAdminUser: (userId: string, body: AdminUserPatch) =>
+      patch<AdminUserDetail>(`/admin/users/${encodeURIComponent(userId)}`, body),
+    paperResetUser: (userId: string) =>
+      post<AdminPaperResetResult>(`/admin/users/${encodeURIComponent(userId)}/paper-reset`, {}),
+    // ── Runtime config (system_settings overlay) ───────────────────────────
+    getAdminSettings: () => get<{ settings: RuntimeSetting[] }>("/admin/settings"),
+    updateAdminSetting: (key: string, value: boolean | number | string) =>
+      patch<{ key: string; value: string; overridden: boolean }>(
+        `/admin/settings/${encodeURIComponent(key)}`,
+        { value },
+      ),
+    clearAdminSetting: (key: string) =>
+      request<{ key: string; overridden: boolean }>(
+        `/admin/settings/${encodeURIComponent(key)}`,
+        token,
+        { method: "DELETE" },
+      ),
   };
 }
 
+// ── Runtime config types ──────────────────────────────────────────────────
+export interface RuntimeSetting {
+  key: string;
+  kind: "bool" | "float";
+  label: string;
+  description: string;
+  min_value: number | null;
+  max_value: number | null;
+  env_default: boolean | number | null;
+  overridden: boolean;
+  effective: boolean | number;
+}
+
+// ── Admin console types ───────────────────────────────────────────────────
+export interface AdminOverview {
+  pool: { address: string | null; usdc: number | null; matic: number | null };
+  polymarket: {
+    funder_address: string | null;
+    signature_type: number;
+    use_real_clob: boolean;
+    creds_source: string;   // "env" | "derived" | "none"
+    creds_ready: boolean;
+  };
+  guards: Record<string, boolean>;
+  kill_switch_active: boolean;
+  counts: {
+    users: number; admins: number; auto_trade_on: number; live_users: number;
+    open_positions_paper: number; open_positions_live: number; total_wallet_usdc: number;
+  };
+  last_scan: Record<string, unknown> | null;
+}
+
+export interface AdminPoolBalance {
+  address: string | null;
+  usdc: number | null;
+  matic: number | null;
+}
+
+export interface AdminUser {
+  user_id: string;
+  username: string | null;
+  email: string | null;
+  role: string;
+  trading_mode: string;
+  active_preset: string | null;
+  balance_usdc: number;
+  auto_trade_on: boolean;
+  paused: boolean;
+  open_positions: number;
+  created_at: string | null;
+}
+
+export interface AdminUsersPage {
+  total: number;
+  limit: number;
+  offset: number;
+  users: AdminUser[];
+}
+
+export interface AdminStrategy {
+  name: string;
+  enabled: boolean;
+}
+
+export interface AdminRecentTrade {
+  id: string;
+  status: string;
+  side: string | null;
+  size_usdc: number | null;
+  entry_price: number | null;
+  pnl_usdc: number | null;
+  exit_reason: string | null;
+  strategy_type: string | null;
+  market_question: string;
+  ts: string;
+}
+
+export interface AdminRecentAudit {
+  ts: string;
+  actor_role: string;
+  action: string;
+}
+
+export interface AdminUserDetail {
+  user_id: string;
+  username: string | null;
+  email: string | null;
+  telegram_user_id: number | null;
+  wallet_address: string | null;
+  role: string;
+  created_at: string | null;
+  trading_mode: string;
+  auto_trade_on: boolean;
+  paused: boolean;
+  open_positions: number;
+  balance_usdc: number;
+  active_preset: string | null;
+  risk_profile: string;
+  capital_alloc_pct: number;
+  tp_pct: number | null;
+  sl_pct: number | null;
+  max_per_trade_mode: string;
+  max_per_trade_usdc: number | null;
+  max_per_trade_pct: number | null;
+  selected_timeframe: string | null;
+  selected_assets: string[] | null;
+  recent_trades: AdminRecentTrade[];
+  recent_audit: AdminRecentAudit[];
+}
+
+export interface AdminUserPatch {
+  active_preset?: string;
+  risk_profile?: string;
+  capital_alloc_pct?: number;
+  tp_pct?: number | null;
+  sl_pct?: number | null;
+  max_per_trade_mode?: string;
+  max_per_trade_usdc?: number | null;
+  max_per_trade_pct?: number | null;
+  selected_timeframe?: string | null;
+  selected_assets?: string[] | null;
+  paused?: boolean;
+  auto_trade_on?: boolean;
+}
+
+export interface AdminPaperResetResult {
+  user_id: string;
+  positions_deleted: number;
+  orders_deleted: number;
+  ledger_entries_deleted: number;
+  balance_reset_usdc: number;
+}
+
+export interface LinkTelegramStart {
+  code: string;            // display form, e.g. "ABCD-EFGH"
+  link_command: string;    // "/link ABCD-EFGH"
+  expires_minutes: number;
+  bot_username: string;    // "" when not configured
+}
+
+// Exact phrase the user must type to flip into live mode. MUST match the
+// backend constant (domain/activation/live_opt_in_gate.LIVE_ENABLE_CONFIRM_PHRASE)
+// and the Telegram flow — single source of truth across all three surfaces.
+export const LIVE_ENABLE_CONFIRM_PHRASE = "ENABLE LIVE TRADING FOR MY ACCOUNT";
+// Per-user live capital cap bounds (mirrors LIVE_CAP_MIN/MAX_USDC on the backend).
+export const LIVE_CAP_MIN_USDC = 0;
+export const LIVE_CAP_MAX_USDC = 10000;
+
 // ── Types mirroring backend schemas ──────────────────────────────────────────
+
+export interface MeResponse {
+  user_id: string;
+  first_name: string;
+  username: string | null;
+  email: string | null;        // null when no real email linked (tombstones excluded)
+  telegram_linked: boolean;
+  role: string;                // "user" | "admin"
+  is_admin: boolean;
+  trading_mode: string;        // "paper" | "live" — canonical per-user mode
+}
 
 export interface DashboardSummary {
   balance_usdc: number;
@@ -103,6 +353,20 @@ export interface DashboardSummary {
   kill_switch_active: boolean;
   trading_mode: string;
   active_preset: string | null;
+  risk_profile: string;
+  pnl_alltime: number;
+  signals_today: number;
+  /** True when the strategy backing the active preset is globally enabled by
+   *  the operator. False ≙ scanner emits no candidates regardless of the
+   *  user's auto_trade_on flag. Optional for back-compat with older
+   *  payloads — undefined is treated as enabled (FAIL-SAFE). */
+  active_preset_globally_enabled?: boolean;
+  /** Server-side "Mark all read" watermark — ISO-8601 with offset, or null
+   *  on a never-acked account. Frontend folds it into markAllReadAt so the
+   *  closed-position alert stream (fetched via /positions, not /alerts)
+   *  honours the same cut-off as the server-filtered /alerts payload.
+   *  Optional for back-compat with older payloads. */
+  alerts_ack_at?: string | null;
 }
 
 export interface PositionItem {
@@ -119,6 +383,12 @@ export interface PositionItem {
   opened_at: string;
   closed_at: string | null;
   exit_reason: string | null;
+  strategy_type?: string | null;
+  active_preset?: string | null;
+  tp_pct?: number | null;
+  sl_pct?: number | null;
+  tp_price?: number | null;
+  sl_price?: number | null;
   awaiting_redeem?: boolean;
 }
 
@@ -137,6 +407,7 @@ export interface PortfolioSummary {
   unrealized_pnl: number;
   equity_usdc: number;
   balance_usdc: number;
+  total_closed: number;
 }
 
 export interface ChartPoint {
@@ -149,8 +420,8 @@ export interface AutoTradeState {
   active_preset: string | null;
   risk_profile: string;
   capital_alloc_pct: number;
-  tp_pct: number;
-  sl_pct: number;
+  tp_pct: number | null;   // null when custom SL-only
+  sl_pct: number | null;   // null when custom TP-only
   market_categories: string[];
   min_liquidity: number;
   max_resolution_days: number | null;
@@ -158,6 +429,16 @@ export interface AutoTradeState {
   slippage_tolerance_pct: number | null;
   selected_timeframe: string | null;
   selected_assets: string[] | null;
+  equity_usdc?: number | null;
+  effective_max_per_trade_usdc?: number | null;
+  max_per_trade_mode?: "auto" | "fixed" | "pct";
+  max_per_trade_usdc?: number | null;
+  max_per_trade_pct?: number | null;
+  daily_loss_override?: number | null;   // negative $, e.g. -300
+  max_drawdown_pct?: number | null;      // 0–0.08
+  max_concurrent_override?: number | null;  // 1–20, user can only tighten profile cap
+  // False when the active preset's strategy is globally disabled by the operator.
+  active_preset_globally_enabled?: boolean;
 }
 
 export interface CustomizeParams {
@@ -167,6 +448,12 @@ export interface CustomizeParams {
   max_position_pct?: number;
   auto_redeem_mode?: string;
   category_filters?: string[];
+  max_per_trade_mode?: "auto" | "fixed" | "pct";
+  max_per_trade_usdc?: number | null;
+  max_per_trade_pct?: number | null;
+  daily_loss_override?: number | null;   // negative $ value
+  max_drawdown_pct?: number | null;      // 0 < x <= 0.08
+  max_concurrent_override?: number | null;  // integer 1..20
 }
 
 export interface RiskProfileParams {
@@ -240,13 +527,62 @@ export interface MarketFilterSettings {
   min_volume_24h: number;
 }
 
+// Discriminator strings the backend writes into system_alerts.alert_kind.
+// See monitoring/alerts.py + services/trade_notifications/notifier.py.
+export type AlertKind =
+  | "trade_opened"
+  | "copy_trade_opened"
+  | "tp_hit"
+  | "sl_hit"
+  | "resolution_win"
+  | "resolution_loss"
+  | "force_close"
+  | "strategy_exit"
+  | "manual_close"
+  | "emergency_close"
+  | "market_expired"
+  | "close_failed"
+  | "risk"
+  | "system";
+
+// Structured event metadata mirrored from notifier.notify_*. Every field is
+// optional — legacy rows (pre-072 migration) have an empty {} so the typed
+// card components fall back to the body text path.
+export interface AlertMetadata {
+  market_id?: string;
+  market_label?: string;
+  side?: string;
+  size_usdc?: number;
+  entry_price?: number;
+  exit_price?: number;
+  tp_pct?: number;
+  sl_pct?: number;
+  pnl_usdc?: number;
+  strategy?: string;
+  strategy_type?: string | null;
+  mode?: string;
+  position_id?: string | null;
+  signal_reason?: string | null;
+  copy_wallet?: string | null;
+  copy_win_rate?: number | null;
+  trade_id?: string | null;
+  error?: string;
+}
+
 export interface AlertItem {
   id: string;
   severity: string;
   title: string;
   body: string | null;
   created_at: string;
+  alert_kind?: AlertKind | string | null;
+  metadata?: AlertMetadata;
 }
+
+// Per-alert × per-channel notification preferences. Missing keys / channels
+// on the client default to true (fail-open) — matches the backend gate.
+export type NotificationChannelPrefs = { web?: boolean; tg?: boolean };
+export type NotificationPrefs = Record<string, NotificationChannelPrefs>;
 
 export interface CopyTask {
   id: string;
@@ -270,6 +606,8 @@ export interface CopyTaskCreate {
   execution_mode?: string;
   slippage_pct?: number;
   allow_topups?: boolean;
+  max_daily_spend?: number;
+  min_trade_size?: number;
 }
 
 export interface CopyTaskPatch {
@@ -318,11 +656,32 @@ export interface RuntimeStatus {
   paper_mode: boolean;
   active_preset: string | null;
   risk_profile: string;
+  /** Global operator kill switch — informational only. Toggled by the
+   * operator via /api/ops/kill or Telegram /kill, never by a normal
+   * WebTrader user. */
   kill_switch_active: boolean;
+  /** Per-user paused flag. Toggled by /api/web/kill, /api/web/resume,
+   * and /api/web/emergency-stop. Independent of the global switch. */
+  user_paused: boolean;
   open_positions: number;
   scanner_scanned: number;
   scanner_published: number;
   scanner_last_tick: number | null;
+}
+
+// ── Live-trading activation (mirrors backend schemas.LiveStatus/LiveEnable*) ──
+export interface LiveStatus {
+  trading_mode: string;            // "paper" | "live"
+  live_capital_cap_usdc: number;   // 0 = not opted in
+  open_live_exposure_usdc: number; // aggregate open live size
+  operator_guards_open: boolean;   // system-level live unlock (all 5 env guards)
+  checklist_passed: boolean;       // 8-gate per-user readiness
+  failed_gates: string[];          // human-readable gate names that aren't passing
+}
+
+export interface LiveEnableResponse {
+  trading_mode: string;
+  live_capital_cap_usdc: number;
 }
 
 export interface FeedSignal {
@@ -332,6 +691,18 @@ export interface FeedSignal {
   target_price: number | null;
   signal_type: string;
   published_at: string;
+}
+
+export interface WithdrawRequest {
+  amount_usdc: number;
+  destination_address: string;
+}
+
+export interface WithdrawResponse {
+  id: string;
+  status: string;
+  approval_mode: string;
+  amount_usdc: number;
 }
 
 export interface Wallet360 {

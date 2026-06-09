@@ -18,6 +18,7 @@ without submitting real orders.
 from __future__ import annotations
 
 import html
+import json
 import logging
 from decimal import Decimal
 from uuid import UUID
@@ -29,6 +30,7 @@ from ...integrations.clob import (
     ClobAuthError,
     ClobClientProtocol,
     ClobConfigError,
+    MarketDataClient,
     MockClobClient,
     get_clob_client,
 )
@@ -66,6 +68,10 @@ def assert_live_guards(role: str, trading_mode: str) -> None:
         raise LivePreSubmitError("EXECUTION_PATH_VALIDATED=false")
     if not s.CAPITAL_MODE_CONFIRMED:
         raise LivePreSubmitError("CAPITAL_MODE_CONFIRMED=false")
+    if not s.RISK_CONTROLS_VALIDATED:
+        raise LivePreSubmitError("RISK_CONTROLS_VALIDATED=false")
+    if not s.SECURITY_HARDENING_VALIDATED:
+        raise LivePreSubmitError("SECURITY_HARDENING_VALIDATED=false")
     if s.ENABLE_LIVE_TRADING and not s.USE_REAL_CLOB:
         raise LivePreSubmitError(
             "USE_REAL_CLOB must be True when ENABLE_LIVE_TRADING is set"
@@ -93,6 +99,8 @@ async def execute(
     strategy_type: str,
     tp_pct: float | None,
     sl_pct: float | None,
+    active_preset: str | None = None,
+    strategy_metadata: dict | None = None,
     order_type: str = "GTC",
     best_ask: float | None = None,
     best_bid: float | None = None,
@@ -146,13 +154,56 @@ async def execute(
     if not token_id:
         raise LivePreSubmitError("missing token_id for live order")
 
+    # Fast-path duplicate check before hitting external APIs.
+    # The INSERT ON CONFLICT below is the true idempotency claim (handles races);
+    # this early read ensures a replay on a temporarily unavailable MDC returns
+    # the correct duplicate no-op instead of being routed to paper fallback.
+    pool = get_pool()
+    try:
+        async with pool.acquire() as conn:
+            _dup = await conn.fetchval(
+                "SELECT id FROM orders WHERE idempotency_key = $1",
+                idempotency_key,
+            )
+    except Exception as exc:
+        logger.exception(
+            "live.execute idempotency precheck failed key=%s", idempotency_key,
+        )
+        raise LivePreSubmitError(f"idempotency precheck failed: {exc}") from exc
+    if _dup is not None:
+        logger.info("live.execute idempotent skip (early) key=%s", idempotency_key)
+        return {"status": "duplicate", "mode": "live"}
+
+    # Fetch tick_size + neg_risk from the CLOB market data API.
+    # tick_size: required for price rounding in the signed order.
+    # neg_risk: selects the correct Exchange contract for signing.
+    # Fail pre-submit so the router can paper-fallback cleanly rather than
+    # hitting a post-submit ambiguous rejection on 0.001-tick or neg-risk markets.
+    _tick_size: str = "0.01"
+    _tick_size_f: float = 0.01
+    _neg_risk: bool = False
+    try:
+        async with MarketDataClient() as _mdc:
+            _raw_tick = await _mdc.get_tick_size(token_id)
+            if not _raw_tick:
+                raise ValueError(f"empty tick_size from CLOB API (token={token_id})")
+            _tick_size = _raw_tick
+            _tick_size_f = float(_tick_size)
+            _neg_risk = await _mdc.get_neg_risk(token_id) or False
+    except Exception as _exc:
+        raise LivePreSubmitError(
+            f"CLOB market metadata unavailable — refusing entry without tick_size/neg_risk "
+            f"(token={token_id}): {_exc}"
+        ) from _exc
+
     # Compute aggressive limit price if market-depth params supplied.
     # Uses best_ask + 1 tick for buys, best_bid - 1 tick for sells to
     # cross the spread aggressively and improve fill probability.
     # Falls back to the signal price when market-depth is unavailable.
     limit_price = (
         compute_aggressive_limit_price(
-            side, best_ask=best_ask, best_bid=best_bid, offset_ticks=1
+            side, best_ask=best_ask, best_bid=best_bid, offset_ticks=1,
+            tick_size=_tick_size_f,
         )
         if best_ask is not None and best_bid is not None
         else price
@@ -183,7 +234,6 @@ async def execute(
     except (ClobConfigError, ClobAuthError) as exc:
         raise LivePreSubmitError(f"CLOB client config error: {exc}") from exc
 
-    pool = get_pool()
     # Step 1: claim idempotency by inserting order as 'pending' BEFORE submit.
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -221,6 +271,8 @@ async def execute(
             price=limit_price,
             size=shares,
             order_type=order_type,
+            tick_size=_tick_size,
+            neg_risk=_neg_risk,
         )
     except ClobAuthError as exc:
         async with pool.acquire() as conn:
@@ -281,12 +333,17 @@ async def execute(
                     """
                     INSERT INTO positions (user_id, market_id, order_id, side,
                                            size_usdc, entry_price, current_price,
-                                           tp_pct, sl_pct, mode, status, strategy_type)
-                    VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,'live','open',$9)
+                                           tp_pct, sl_pct, mode, status, strategy_type,
+                                           market_question, active_preset,
+                                           strategy_metadata)
+                    VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,'live','open',$9,$10,$11,
+                            $12::jsonb)
                     RETURNING id
                     """,
                     user_id, market_id, order_id, side,
                     size_usdc, limit_price, tp_pct, sl_pct, strategy_type,
+                    market_question, active_preset,
+                    json.dumps(strategy_metadata) if strategy_metadata else None,
                 )
                 position_id = pos_row["id"]
                 await ledger.debit_in_conn(
@@ -352,6 +409,20 @@ async def close_position(
     if not token_id:
         raise RuntimeError("missing token_id for live close")
 
+    _tick_size: str = "0.01"
+    _neg_risk: bool = False
+    try:
+        async with MarketDataClient() as _mdc:
+            _tick_size = await _mdc.get_tick_size(token_id) or "0.01"
+            _neg_risk = await _mdc.get_neg_risk(token_id) or False
+    except Exception as _exc:
+        _tick_size = "0.01"
+        logger.warning(
+            "live.close_position: CLOB tick_size/neg_risk fetch failed — using defaults "
+            "token=%s err=%s",
+            token_id, str(_exc),
+        )
+
     # Close exactly the share count we acquired at open. Computing this from
     # the persisted size_usdc + entry_price guarantees open/close parity:
     # the close SELL submits the SAME quantity regardless of exit_price.
@@ -388,12 +459,14 @@ async def close_position(
             )
         raise RuntimeError(f"CLOB client error during close: {exc}") from exc
     try:
-        await client.post_order(
+        sell_result = await client.post_order(
             token_id=token_id,
             side="SELL",
             price=exit_price,
             size=shares_to_sell,
             order_type="GTC",
+            tick_size=_tick_size,
+            neg_risk=_neg_risk,
         )
     except Exception:
         async with pool.acquire() as conn:
@@ -403,13 +476,45 @@ async def close_position(
             )
         raise
 
+    # Persist the close SELL's broker order id + the closing timestamp BEFORE the
+    # finalize txn. A crash in the (millisecond) window between this submit and the
+    # 'closed' finalize strands the row in 'closing'; without the order id the
+    # closing-position reconciler (WARP-74) cannot tell whether the SELL filled and
+    # must page for a manual reconcile. Persisting them here shrinks that blind
+    # window to the gap between post_order returning and this UPDATE.
+    #
+    # Deliberately BEST-EFFORT and kept OUT of the atomic 'closing' claim above:
+    # closing_at / close_order_id are WARP-74 telemetry columns (migration 082). If
+    # the code deploys before the migration, a missing column here only logs — the
+    # core close (claim → SELL → finalize) never references the new columns and so
+    # can never be bricked by deploy ordering. The reconciler treats a NULL
+    # closing_at as reconcilable, so a skipped stamp loses no recovery coverage.
+    close_order_id = str(
+        (sell_result or {}).get("orderID")
+        or (sell_result or {}).get("order_id")
+        or (sell_result or {}).get("id")
+        or (sell_result or {}).get("orderId")
+        or ""
+    )
+    try:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE positions SET close_order_id=$2, closing_at=NOW() "
+                "WHERE id=$1 AND user_id=$3 AND status='closing'",
+                position["id"], (close_order_id or None), position["user_id"],
+            )
+    except Exception as _exc:  # noqa: BLE001 — telemetry write must not break close
+        logger.error(
+            "live close: persisting close_order_id/closing_at failed (non-fatal) "
+            "position=%s err=%s", position["id"], str(_exc),
+        )
+
     size = Decimal(str(position["size_usdc"]))
-    if position["side"] == "yes":
-        ret_pct = (exit_price - entry) / max(entry, 1e-6)
-    else:
-        comp_entry = 1 - entry
-        comp_exit = 1 - exit_price
-        ret_pct = (comp_exit - comp_entry) / max(comp_entry, 1e-6)
+    # Side-own price frame: exit_price/entry are the position's OWN outcome-token
+    # price, so return = (exit - entry)/entry for BOTH sides (matches paper.py +
+    # exit_watcher._return_pct). YES unchanged; corrected NO frame —
+    # WARP/ROOT/no-side-pnl-frame.
+    ret_pct = (exit_price - entry) / max(entry, 1e-6)
     pnl = size * Decimal(str(ret_pct))
     proceeds = size + pnl
 

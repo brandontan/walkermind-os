@@ -22,10 +22,11 @@ from __future__ import annotations
 
 import datetime
 import json
-import logging
 from decimal import Decimal
 from typing import Any, Awaitable, Callable, Optional
 from uuid import UUID
+
+import structlog
 
 from ... import audit as audit_module
 from ... import notifications as notifications_module
@@ -35,11 +36,12 @@ from ...integrations.clob import (
     ClobAuthError,
     ClobClientProtocol,
     ClobConfigError,
+    MarketDataClient,
     get_clob_client,
 )
 from ...wallet import ledger
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 
 # Status values tracked on the orders row. Kept in sync with
@@ -114,6 +116,8 @@ class OrderLifecycleManager:
                   FROM orders
                  WHERE mode = 'live'
                    AND status = ANY($1::text[])
+                   AND (strategy_type IS NULL
+                        OR strategy_type NOT LIKE 'complete_set_arb%')
                 """,
                 list(STATUS_OPEN),
             )
@@ -129,7 +133,7 @@ class OrderLifecycleManager:
             try:
                 client = self._clob_factory(s)
             except (ClobConfigError, ClobAuthError) as exc:
-                logger.error("lifecycle poll: CLOB client unavailable: %s", exc)
+                log.error("lifecycle poll: CLOB client unavailable", err=str(exc))
                 outcome["errors"] = len(rows)
                 return outcome
 
@@ -146,9 +150,9 @@ class OrderLifecycleManager:
                     )
                 except Exception as exc:  # noqa: BLE001
                     outcome["errors"] += 1
-                    logger.error(
-                        "lifecycle poll: order %s resolve failed: %s",
-                        order["id"], exc, exc_info=True,
+                    log.exception(
+                        "lifecycle poll: order resolve failed",
+                        order_id=str(order["id"]), err=str(exc),
                     )
                     continue
                 outcome[resolution] = outcome.get(resolution, 0) + 1
@@ -157,7 +161,7 @@ class OrderLifecycleManager:
                 try:
                     await client.aclose()
                 except Exception as exc:  # noqa: BLE001
-                    logger.warning("lifecycle poll: client.aclose failed: %s", exc)
+                    log.warning("lifecycle poll: client.aclose failed", err=str(exc))
 
         return outcome
 
@@ -323,9 +327,9 @@ class OrderLifecycleManager:
                 )
                 if updated is None:
                     # Already terminal — another poll cycle won the race.
-                    logger.info(
-                        "lifecycle on_fill: order %s already terminal, skipping",
-                        order["id"],
+                    log.info(
+                        "lifecycle on_fill: order already terminal, skipping",
+                        order_id=str(order["id"]),
                     )
                     return
                 await self._record_fills_in_conn(
@@ -522,9 +526,9 @@ class OrderLifecycleManager:
                     0.0,
                 )
                 if updated is None:
-                    logger.info(
-                        "lifecycle %s: order %s already terminal",
-                        audit_action, order["id"],
+                    log.info(
+                        "lifecycle: order already terminal",
+                        audit_action=audit_action, order_id=str(order["id"]),
                     )
                     return
 
@@ -626,39 +630,25 @@ class OrderLifecycleManager:
                 " last_polled_at=NOW() WHERE id=$1",
                 order["id"],
             )
-            logger.info(
-                "lifecycle slippage_retry deferred: gate inactive, counter advanced order=%s",
-                order["id"],
+            log.info(
+                "lifecycle slippage_retry deferred: gate inactive, counter advanced",
+                order_id=str(order["id"]),
             )
             return
-        broker_id = str(order.get("polymarket_order_id") or "")
-        if broker_id:
-            try:
-                await client.cancel_order(broker_id)
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(
-                    "lifecycle slippage_retry: cancel failed order=%s broker=%s: %s",
-                    order["id"], broker_id, exc,
-                )
-
-        # Widen by one extra tick in the aggressive direction.
+        # Resolve token_id and fetch CLOB metadata BEFORE cancelling the live order.
+        # If metadata is unavailable, the original order stays live on the broker
+        # and DB state is unchanged — the next tick retries cleanly.
         original_price = float(order.get("price") or 0)
         side = str(order.get("side") or "yes").lower()
-        tick_size = 0.01
-        if side in {"yes", "buy"}:
-            new_limit = round(min(0.99, original_price + tick_size), 4)
-        else:
-            new_limit = round(max(0.01, original_price - tick_size), 4)
-        shares = float(order["size_usdc"]) / max(new_limit, 0.0001)
         async with pool.acquire() as conn:
             mkt = await conn.fetchrow(
                 "SELECT yes_token_id, no_token_id FROM markets WHERE id=$1",
                 order["market_id"],
             )
         if mkt is None:
-            logger.error(
-                "lifecycle slippage_retry: market %s not found — cannot re-submit order %s",
-                order["market_id"], order["id"],
+            log.error(
+                "lifecycle slippage_retry: market not found — cannot re-submit",
+                market_id=order["market_id"], order_id=str(order["id"]),
             )
             return
 
@@ -666,11 +656,45 @@ class OrderLifecycleManager:
             mkt["yes_token_id"] if side in {"yes", "buy"} else mkt["no_token_id"]
         )
         if not token_id:
-            logger.error(
-                "lifecycle slippage_retry: missing token_id for order %s side=%s",
-                order["id"], side,
+            log.error(
+                "lifecycle slippage_retry: missing token_id",
+                order_id=str(order["id"]), side=side,
             )
             return
+
+        _tick_size: str = "0.01"
+        _tick_size_f: float = 0.01
+        _neg_risk: bool = False
+        try:
+            async with MarketDataClient() as _mdc:
+                _raw_tick = await _mdc.get_tick_size(token_id)
+                if not _raw_tick:
+                    raise ValueError(f"empty tick_size from CLOB API (token={token_id})")
+                _tick_size = _raw_tick
+                _tick_size_f = float(_tick_size)
+                _neg_risk = await _mdc.get_neg_risk(token_id) or False
+        except Exception as _exc:
+            log.error(
+                "lifecycle slippage_retry: CLOB metadata unavailable — skipping re-submit",
+                order_id=str(order["id"]), token_id=token_id, err=str(_exc),
+            )
+            return
+
+        # Metadata confirmed — safe to cancel the live GTC order and replace it.
+        broker_id = str(order.get("polymarket_order_id") or "")
+        if broker_id:
+            try:
+                await client.cancel_order(broker_id)
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "lifecycle slippage_retry: cancel failed",
+                    order_id=str(order["id"]), broker=broker_id, err=str(exc),
+                )
+        if side in {"yes", "buy"}:
+            new_limit = round(min(0.99, original_price + _tick_size_f), 4)
+        else:
+            new_limit = round(max(0.01, original_price - _tick_size_f), 4)
+        shares = float(order["size_usdc"]) / max(new_limit, 0.0001)
 
         new_broker_id = ""
         try:
@@ -680,14 +704,16 @@ class OrderLifecycleManager:
                 price=new_limit,
                 size=shares,
                 order_type="GTC",
+                tick_size=_tick_size,
+                neg_risk=_neg_risk,
             )
             new_broker_id = (
                 result.get("orderID") or result.get("order_id") or result.get("id") or ""
             )
         except Exception as exc:  # noqa: BLE001
-            logger.error(
-                "lifecycle slippage_retry: re-submit failed order=%s: %s",
-                order["id"], exc,
+            log.error(
+                "lifecycle slippage_retry: re-submit failed",
+                order_id=str(order["id"]), err=str(exc),
             )
             return
 
@@ -716,10 +742,10 @@ class OrderLifecycleManager:
                 "new_broker_id": new_broker_id,
             },
         )
-        logger.info(
-            "lifecycle slippage_retry: order=%s re-submitted at %.4f (was %.4f) "
-            "broker=%s",
-            order["id"], new_limit, original_price, new_broker_id,
+        log.info(
+            "lifecycle slippage_retry: order re-submitted",
+            order_id=str(order["id"]), new_limit=new_limit,
+            was=original_price, broker=new_broker_id,
         )
 
     async def _on_slippage_cancel(
@@ -741,9 +767,9 @@ class OrderLifecycleManager:
             try:
                 await client.cancel_order(broker_id)
             except Exception as exc:  # noqa: BLE001
-                logger.warning(
-                    "lifecycle slippage_cancel: cancel failed order=%s broker=%s: %s",
-                    order["id"], broker_id, exc,
+                log.warning(
+                    "lifecycle slippage_cancel: cancel failed",
+                    order_id=str(order["id"]), broker=broker_id, err=str(exc),
                 )
 
         await self._safe_audit(
@@ -792,7 +818,7 @@ class OrderLifecycleManager:
                 "Reconcile via Polymarket dashboard."
             )
         except Exception as exc:  # noqa: BLE001
-            logger.error("lifecycle stale notify failed: %s", exc)
+            log.error("lifecycle stale notify failed", err=str(exc))
 
     async def _touch(self, order_id: UUID, attempts: int) -> None:
         pool = self._pool_override or get_pool()
@@ -854,11 +880,10 @@ class OrderLifecycleManager:
             # always whole-share discrepancies, well outside this band.
             EPSILON = 1e-6
             if existing_total + EPSILON >= incoming_total:
-                logger.debug(
-                    "lifecycle: skipping aggregate fills insert; "
-                    "per-trade sum %.6f already covers incoming "
-                    "aggregate %.6f for order %s",
-                    existing_total, incoming_total, order_id,
+                log.debug(
+                    "lifecycle: skipping aggregate fills insert; per-trade sum covers incoming aggregate",
+                    per_trade_sum=existing_total, incoming=incoming_total,
+                    order_id=str(order_id),
                 )
                 return
 
@@ -875,9 +900,9 @@ class OrderLifecycleManager:
                 price = float(fill.get("price", 0) or 0)
                 size = float(fill.get("size", 0) or 0)
             except (TypeError, ValueError):
-                logger.warning(
-                    "lifecycle: dropping fill with non-numeric price/size: %s",
-                    fill,
+                log.warning(
+                    "lifecycle: dropping fill with non-numeric price/size",
+                    fill=fill,
                 )
                 continue
             # ON CONFLICT DO UPDATE so synthetic ``agg-*`` rows
@@ -943,22 +968,22 @@ class OrderLifecycleManager:
         broker_id = event.get("broker_order_id")
         fill_id = event.get("fill_id")
         if not broker_id or not fill_id:
-            logger.debug(
-                "lifecycle ws_fill: dropping event missing ids: %s", event,
+            log.debug(
+                "lifecycle ws_fill: dropping event missing ids", payload=event,
             )
             return
 
         order_row = await self._lookup_order_by_broker_id(broker_id)
         if order_row is None:
-            logger.info(
-                "lifecycle ws_fill: no local order matches broker_id=%s",
-                broker_id,
+            log.info(
+                "lifecycle ws_fill: no local order matches broker_id",
+                broker_id=broker_id,
             )
             return
         if order_row["status"] not in STATUS_OPEN:
-            logger.debug(
-                "lifecycle ws_fill: order %s already terminal (%s)",
-                order_row["id"], order_row["status"],
+            log.debug(
+                "lifecycle ws_fill: order already terminal",
+                order_id=str(order_row["id"]), status=order_row["status"],
             )
             return
 
@@ -966,9 +991,9 @@ class OrderLifecycleManager:
             price = float(event["price"])
             size = float(event["size"])
         except (TypeError, ValueError, KeyError) as exc:
-            logger.warning(
-                "lifecycle ws_fill: dropping non-numeric event %s: %s",
-                event, exc,
+            log.warning(
+                "lifecycle ws_fill: dropping non-numeric event",
+                payload=event, err=str(exc),
             )
             return
         side = str(event.get("side") or order_row["side"]).lower()
@@ -1155,7 +1180,7 @@ class OrderLifecycleManager:
         try:
             await self._audit_write(**kwargs)
         except Exception as exc:  # noqa: BLE001
-            logger.error("lifecycle audit write failed: %s", exc)
+            log.error("lifecycle audit write failed", err=str(exc))
 
     async def _safe_notify_user(self, *, user_id: UUID, text: str) -> None:
         pool = self._pool_override or get_pool()
@@ -1168,7 +1193,7 @@ class OrderLifecycleManager:
         try:
             await self._notify_user(int(tg_id), text)
         except Exception as exc:  # noqa: BLE001
-            logger.error("lifecycle user notify failed: %s", exc)
+            log.error("lifecycle user notify failed", err=str(exc))
 
 
 # ---------------------------------------------------------------------------

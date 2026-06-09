@@ -33,6 +33,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 
 from ... import notifications
+from ...webtrader.backend import notification_prefs as _notif_prefs
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -85,6 +86,31 @@ class NotificationEvent(str, enum.Enum):
     COPY_TRADE = "copy_trade"
 
 
+# Map each canonical NotificationEvent → the user-pref alert_key surfaced in
+# the WebTrader Notification Preferences card. Keep ENTRY + COPY_TRADE under
+# ``trade_opened`` (single TRADING toggle in the UI) and all close variants
+# under ``trade_closed``.
+_EVENT_PREF_KEY: dict[NotificationEvent, str] = {
+    NotificationEvent.ENTRY:      "trade_opened",
+    NotificationEvent.COPY_TRADE: "trade_opened",
+    NotificationEvent.TP_HIT:     "trade_closed",
+    NotificationEvent.SL_HIT:     "trade_closed",
+    NotificationEvent.MANUAL:     "trade_closed",
+    NotificationEvent.EMERGENCY:  "trade_closed",
+}
+
+# Short titles shown in the WebTrader AlertCenter card header. The full
+# message body (already-rendered Telegram text) goes into the body field.
+_EVENT_WEB_TITLE: dict[NotificationEvent, str] = {
+    NotificationEvent.ENTRY:      "Trade opened",
+    NotificationEvent.COPY_TRADE: "Copy trade opened",
+    NotificationEvent.TP_HIT:     "Take-profit hit",
+    NotificationEvent.SL_HIT:     "Stop-loss hit",
+    NotificationEvent.MANUAL:     "Manual close",
+    NotificationEvent.EMERGENCY:  "Emergency close",
+}
+
+
 def _market_label(market_question: Optional[str], market_id: str) -> str:
     """Short label: prefer human-readable question, fall back to raw market ID."""
     if market_question:
@@ -116,17 +142,17 @@ def _fmt_pnl(pnl_usdc: float) -> str:
 
 _SEP = "━━━━━━━━━━━━━━━━━━━━"
 
-_STRAT_LABELS = {
-    "whale_mirror":  "🐋 Whale Mirror",
-    "signal_sniper": "📡 Signal Sniper",
-    "hybrid":        "🐋📡 Hybrid",
-    "value_hunter":  "🎯 Value Hunter",
-    "full_auto":     "🚀 Full Auto",
-    "confluence_scalper": "🚀 Crypto Scalper",
-    "copy_trade":    "🐋 Copy Trade",
-    "signal":        "📡 Signal",
-    "value":         "🎯 Value",
-    "manual":        "Manual",
+_STRAT_LABELS: dict[str, str] = {
+    "copy_trade":       "🐋 Copy Trade",
+    "signal":           "📡 Signal",
+    "manual":           "Manual",
+    # Strategy class names (stored as strategy_type on positions)
+    "late_entry_v3":    "Late Entry",
+    "signal_following": "Signal Following",
+    # Preset keys (fallback if preset key stored directly)
+    "close_sweep":      "Close Sweep",
+    "flip_hunter":      "Flip Hunter",
+    "safe_close":       "Safe Close",
 }
 
 # Human-readable reasoning labels for signal_reason values
@@ -220,6 +246,23 @@ class TradeNotifier:
             event=NotificationEvent.ENTRY,
             market_id=market_id,
             reply_markup=kb,
+            alert_kind="trade_opened",
+            metadata={
+                "market_id": market_id,
+                "market_label": label,
+                "side": side_upper,
+                "size_usdc": float(size_usdc),
+                "entry_price": float(price),
+                "tp_pct": float(tp_pct) if tp_pct is not None else None,
+                "sl_pct": float(sl_pct) if sl_pct is not None else None,
+                "strategy": strat,
+                "strategy_type": strategy_type,
+                "mode": mode,
+                "position_id": position_id,
+                "signal_reason": signal_reason,
+                "copy_wallet": copy_wallet,
+                "copy_win_rate": copy_win_rate,
+            },
         )
 
     async def animated_entry_sequence(
@@ -326,6 +369,16 @@ class TradeNotifier:
             telegram_user_id, text,
             event=NotificationEvent.TP_HIT, market_id=market_id,
             reply_markup=reply_markup,
+            alert_kind="tp_hit",
+            metadata={
+                "market_id": market_id,
+                "market_label": label,
+                "side": side.upper(),
+                "exit_price": float(exit_price),
+                "pnl_usdc": float(pnl_usdc),
+                "mode": mode,
+                "trade_id": trade_id,
+            },
         )
 
     async def notify_sl_hit(
@@ -361,6 +414,15 @@ class TradeNotifier:
             telegram_user_id, text,
             event=NotificationEvent.SL_HIT, market_id=market_id,
             reply_markup=reply_markup,
+            alert_kind="sl_hit",
+            metadata={
+                "market_id": market_id,
+                "market_label": label,
+                "side": side.upper(),
+                "exit_price": float(exit_price),
+                "pnl_usdc": float(pnl_usdc),
+                "mode": mode,
+            },
         )
 
     async def notify_manual_close(
@@ -392,6 +454,15 @@ class TradeNotifier:
             telegram_user_id, text,
             event=NotificationEvent.MANUAL, market_id=market_id,
             reply_markup=reply_markup,
+            alert_kind="manual_close",
+            metadata={
+                "market_id": market_id,
+                "market_label": label,
+                "side": side.upper(),
+                "exit_price": float(exit_price),
+                "pnl_usdc": float(pnl_usdc),
+                "mode": mode,
+            },
         )
 
     async def notify_emergency_close(
@@ -421,6 +492,15 @@ class TradeNotifier:
             telegram_user_id, text,
             event=NotificationEvent.EMERGENCY, market_id=market_id,
             reply_markup=emergency_kb,
+            alert_kind="emergency_close",
+            metadata={
+                "market_id": market_id,
+                "market_label": label,
+                "side": side.upper(),
+                "exit_price": float(exit_price),
+                "pnl_usdc": float(pnl_usdc),
+                "mode": mode,
+            },
         )
 
     async def notify_copy_trade_entry(
@@ -478,6 +558,22 @@ class TradeNotifier:
             telegram_user_id, text,
             event=NotificationEvent.COPY_TRADE, market_id=market_id,
             reply_markup=InlineKeyboardMarkup(kb_rows),
+            alert_kind="copy_trade_opened",
+            metadata={
+                "market_id": market_id,
+                "market_label": label,
+                "side": side.upper(),
+                "size_usdc": float(size_usdc),
+                "entry_price": float(price),
+                "tp_pct": float(tp_pct) if tp_pct is not None else None,
+                "sl_pct": float(sl_pct) if sl_pct is not None else None,
+                "strategy": "Copy Trade",
+                "strategy_type": "copy_trade",
+                "mode": mode,
+                "position_id": position_id,
+                "copy_wallet": target_wallet,
+                "copy_task_id": copy_task_id,
+            },
         )
 
     # ------------------------------------------------------------------
@@ -492,9 +588,39 @@ class TradeNotifier:
         event: NotificationEvent,
         market_id: str,
         reply_markup: Optional[InlineKeyboardMarkup] = None,
+        alert_kind: Optional[str] = None,
+        metadata: Optional[dict] = None,
     ) -> None:
-        """Send text to user. Catches all failures — runtime must not be interrupted."""
+        """Send text to user. Catches all failures — runtime must not be interrupted.
+
+        Honors notification_prefs (web/tg channels): mirrors to the user's
+        WebTrader AlertCenter when web is enabled, only fires TG send when tg
+        is enabled. The legacy ``notifications_enabled_by_telegram_id`` flag
+        still gates the TG channel as a global kill switch.
+
+        ``alert_kind`` and ``metadata`` are forwarded to the web mirror so the
+        AlertCenter can render typed cards (entry / closed / TP / SL) instead
+        of dumping the Telegram ASCII text body. Telegram delivery is unchanged.
+        """
         from ...users import notifications_enabled_by_telegram_id
+
+        alert_key = _EVENT_PREF_KEY.get(event, "trade_opened")
+        web_title = _EVENT_WEB_TITLE.get(event, "Trade update")
+        try:
+            send_tg = await _notif_prefs.route_outgoing_alert(
+                telegram_user_id=telegram_user_id,
+                alert_key=alert_key,
+                web_title=web_title,
+                web_body=text,
+                severity="info",
+                dedup_key=market_id,
+                alert_kind=alert_kind,
+                metadata=metadata,
+            )
+        except Exception:
+            send_tg = True
+        if not send_tg:
+            return
 
         if not await notifications_enabled_by_telegram_id(telegram_user_id):
             logging.getLogger(__name__).info(

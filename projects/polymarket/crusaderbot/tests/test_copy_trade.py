@@ -1183,14 +1183,14 @@ class _AtomicConn:
 
     async def fetchrow(self, sql, *args):
         self.sql_log.append(("fetchrow", sql, args))
-        if "FROM copy_targets" in sql and "WHERE user_id" in sql \
-                and "target_wallet_address" in sql:
+        if "FROM copy_trade_tasks" in sql and "WHERE user_id" in sql \
+                and "wallet_address" in sql:
             return self._existing
         return None
 
     async def fetchval(self, sql, *args):
         self.sql_log.append(("fetchval", sql, args))
-        if "COUNT(*)" in sql and "FROM copy_targets" in sql:
+        if "COUNT(*)" in sql and "FROM copy_trade_tasks" in sql:
             return self._active_count
         return 0
 
@@ -1262,8 +1262,8 @@ def test_insert_active_target_returns_cap_exceeded_at_or_above_cap():
     write_calls = [
         e for e in conn.sql_log
         if e[0] == "execute"
-        and ("INSERT INTO copy_targets" in e[1]
-             or "UPDATE copy_targets" in e[1])
+        and ("INSERT INTO copy_trade_tasks" in e[1]
+             or "UPDATE copy_trade_tasks" in e[1])
     ]
     assert write_calls == []
 
@@ -1304,7 +1304,7 @@ def test_insert_active_target_reactivates_inactive_row_under_lock():
     assert result == "added"
     update_calls = [
         e for e in conn.sql_log
-        if e[0] == "execute" and "UPDATE copy_targets" in e[1]
+        if e[0] == "execute" and "UPDATE copy_trade_tasks" in e[1]
     ]
     assert len(update_calls) == 1
 

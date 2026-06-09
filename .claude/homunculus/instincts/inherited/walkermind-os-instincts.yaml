@@ -1,0 +1,299 @@
+# Instincts generated from https://github.com/bayuewalker/walkermind-os
+# Generated: 2026-06-09T00:34:04.513Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: walkermind-os-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/bayuewalker/walkermind-os
+---
+
+# Walkermind Os Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: fix
+
+## Evidence
+
+- 1 commits analyzed
+- Detected conventional commit pattern
+- Examples: fix(clob): corrected POLY_1271 deposit-wallet L1 auth + staging-proof branch validation
+
+---
+id: walkermind-os-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/bayuewalker/walkermind-os
+---
+
+# Walkermind Os Commit Length
+
+## Action
+
+Write moderate-length commit messages (~87 characters)
+
+## Evidence
+
+- Average commit message length: 87 chars
+- Based on 1 commits
+
+---
+id: walkermind-os-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/bayuewalker/walkermind-os
+---
+
+# Walkermind Os Naming Files
+
+## Action
+
+Use snake_case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: snake_case
+
+---
+id: walkermind-os-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/bayuewalker/walkermind-os
+---
+
+# Walkermind Os Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: walkermind-os-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/bayuewalker/walkermind-os
+---
+
+# Walkermind Os Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: walkermind-os-instinct-file-naming
+trigger: "When creating a new Python file"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: bayuewalker/walkermind-os
+---
+
+# Walkermind Os Instinct File Naming
+
+## Action
+
+Name the file using snake_case
+
+## Evidence
+
+- Pattern in namingConventions.files: snake_case
+
+---
+id: walkermind-os-instinct-function-naming
+trigger: "When defining a new function"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: bayuewalker/walkermind-os
+---
+
+# Walkermind Os Instinct Function Naming
+
+## Action
+
+Name the function using camelCase
+
+## Evidence
+
+- Pattern in namingConventions.functions: camelCase
+
+---
+id: walkermind-os-instinct-class-naming
+trigger: "When defining a new class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: bayuewalker/walkermind-os
+---
+
+# Walkermind Os Instinct Class Naming
+
+## Action
+
+Name the class using PascalCase
+
+## Evidence
+
+- Pattern in namingConventions.classes: PascalCase
+
+---
+id: walkermind-os-instinct-constant-naming
+trigger: "When defining a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: bayuewalker/walkermind-os
+---
+
+# Walkermind Os Instinct Constant Naming
+
+## Action
+
+Name the constant using SCREAMING_SNAKE_CASE
+
+## Evidence
+
+- Pattern in namingConventions.constants: SCREAMING_SNAKE_CASE
+
+---
+id: walkermind-os-instinct-import-style
+trigger: "When importing modules in Python"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: bayuewalker/walkermind-os
+---
+
+# Walkermind Os Instinct Import Style
+
+## Action
+
+Use relative imports
+
+## Evidence
+
+- Pattern in importStyle: relative
+
+---
+id: walkermind-os-instinct-export-style
+trigger: "When exporting symbols from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: bayuewalker/walkermind-os
+---
+
+# Walkermind Os Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in exportStyle: named
+
+---
+id: walkermind-os-instinct-test-location
+trigger: "When adding new tests"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: bayuewalker/walkermind-os
+---
+
+# Walkermind Os Instinct Test Location
+
+## Action
+
+Place test files in both source and dedicated test directories as appropriate (mixed location)
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation: mixed
+
+---
+id: walkermind-os-instinct-git-commit-format
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: bayuewalker/walkermind-os
+---
+
+# Walkermind Os Instinct Git Commit Format
+
+## Action
+
+Use the conventional commit format with a prefix (e.g., fix(scope): message)
+
+## Evidence
+
+- Pattern in commits.type: conventional
+- Pattern in commits.prefixes: ["fix"]
+- Seen in commit: fix(clob): corrected POLY_1271 deposit-wallet L1 auth + staging-proof branch validation
+
+---
+id: walkermind-os-instinct-git-commit-length
+trigger: "When writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: bayuewalker/walkermind-os
+---
+
+# Walkermind Os Instinct Git Commit Length
+
+## Action
+
+Write commit messages averaging around 87 characters
+
+## Evidence
+
+- Pattern in commits.averageLength: 87
+
+---
+id: walkermind-os-instinct-github-workflow-location
+trigger: "When adding or modifying CI/CD workflows"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: bayuewalker/walkermind-os
+---
+
+# Walkermind Os Instinct Github Workflow Location
+
+## Action
+
+Place workflow YAML files in the .github/workflows directory
+
+## Evidence
+
+- Pattern in architecture.configFiles: .github/workflows/staging-proof-fly.yml
+

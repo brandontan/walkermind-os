@@ -2,7 +2,7 @@
 
 Fires every hour on the hour via APScheduler cron. Assembles a system snapshot
 covering the last 60 minutes: scan count, signals found, trades opened/closed,
-realized P&L, error count from job_runs, and uptime percentage.
+realized P&L, error count from the in-memory job ring, and uptime percentage.
 
 A single Telegram send failure for one user does NOT abort the batch.
 """
@@ -15,6 +15,7 @@ from decimal import Decimal
 
 from .. import notifications
 from ..database import get_pool
+from ..domain.ops import job_tracker
 from ..services.tiers import TIER_ADMIN
 
 logger = logging.getLogger(__name__)
@@ -23,12 +24,14 @@ JOB_ID = "hourly_report"
 
 
 async def _fetch_stats(since: datetime) -> dict:
+    # Job-run figures come from the in-memory ring (job_runs dropped — WARP
+    # follow-up to WARP-82); signals/trades/PnL stay in the DB.
+    scans = await job_tracker.count_runs_since(since, job_id="market_signal_scanner")
+    total_jobs = await job_tracker.count_runs_since(since)
+    error_jobs = await job_tracker.count_runs_since(since, only_failed=True)
+
     pool = get_pool()
     async with pool.acquire() as conn:
-        scans = await conn.fetchval(
-            "SELECT count(*) FROM job_runs WHERE job_name='market_signal_scanner' "
-            "AND started_at > $1", since,
-        ) or 0
         signals = await conn.fetchval(
             "SELECT count(*) FROM signal_publications WHERE published_at > $1", since,
         ) or 0
@@ -43,13 +46,6 @@ async def _fetch_stats(since: datetime) -> dict:
             "FROM positions WHERE closed_at > $1", since,
         )
         hourly_pnl: Decimal = Decimal(str(pnl_row["pnl"] if pnl_row else 0))
-        total_jobs = await conn.fetchval(
-            "SELECT count(*) FROM job_runs WHERE started_at > $1", since,
-        ) or 0
-        error_jobs = await conn.fetchval(
-            "SELECT count(*) FROM job_runs WHERE status='error' AND started_at > $1",
-            since,
-        ) or 0
     uptime_pct = (
         round((1 - error_jobs / total_jobs) * 100, 1) if total_jobs > 0 else 100.0
     )

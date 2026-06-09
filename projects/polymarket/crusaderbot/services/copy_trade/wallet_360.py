@@ -14,12 +14,12 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-import aiohttp
+import httpx
 
 log = logging.getLogger(__name__)
 
 _FALCON_URL = "https://narrative.agent.heisenberg.so/api/v2/semantic/retrieve/parameterized"
-_TIMEOUT = aiohttp.ClientTimeout(total=15)
+_TIMEOUT = httpx.Timeout(15.0)
 _CACHE_TTL = 600  # 10 minutes
 
 # {cache_key: (monotonic_ts, Wallet360)}
@@ -126,15 +126,15 @@ async def _fetch(address: str, window_days: str) -> Wallet360:
     }
 
     try:
-        async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
-            async with session.post(_FALCON_URL, json=payload, headers=headers) as resp:
-                if resp.status != 200:
-                    log.warning(
-                        "wallet_360: Falcon API status=%d addr=%s", resp.status, address
-                    )
-                    return _unavailable(address)
-                data = await resp.json()
-    except (aiohttp.ClientError, TimeoutError) as exc:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.post(_FALCON_URL, json=payload, headers=headers)
+            if resp.status_code != 200:
+                log.warning(
+                    "wallet_360: Falcon API status=%d addr=%s", resp.status_code, address
+                )
+                return _unavailable(address)
+            data = resp.json()
+    except (httpx.HTTPError, httpx.TimeoutException) as exc:
         log.warning("wallet_360: Falcon API request failed addr=%s: %s", address, exc)
         return _unavailable(address)
     except Exception:

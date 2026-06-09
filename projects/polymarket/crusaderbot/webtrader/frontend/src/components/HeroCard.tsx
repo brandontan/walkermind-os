@@ -17,6 +17,10 @@ type Props = {
   metaItems?: ReactNode;
   /** Status pill (ACTIVE, IDLE etc.) on left. */
   statusLabel?: string;
+  /** Tone for the status dot + label. "active" pulses green/gold (default),
+      "paused" renders muted ink so the admin-pause state can't be mistaken
+      for a live system, "idle" is ink-3 with no pulse. */
+  statusTone?: "active" | "paused" | "idle";
   /** Strategy code shown next to status, advanced only — caller can wrap in <AdvancedOnly>. */
   statusCode?: ReactNode;
   /** Risk tag pill on right of meta row. */
@@ -27,6 +31,8 @@ type Props = {
   ctaSecondary?: { label: string; onClick: () => void };
   /** Full-width danger CTA (replaces the two CTAs above). */
   ctaDanger?: { label: string; onClick: () => void };
+  /** Flash direction on PnL event — "up" = green, "down" = red, null = none. */
+  flashDir?: "up" | "down" | null;
 };
 
 const RISK_LABEL: Record<RiskLevel, string> = {
@@ -43,16 +49,32 @@ export function HeroCard({
   valueFontSize = 58,
   metaItems,
   statusLabel,
+  statusTone = "active",
   statusCode,
   risk,
   ctaPrimary,
   ctaSecondary,
   ctaDanger,
+  flashDir = null,
 }: Props) {
   const numeric = typeof value === "number";
   // Hook must run unconditionally; ignore the value when `value` is a string.
   const counted = useCountUp(numeric ? value : 0);
   const display = numeric ? counted : value;
+
+  // Flash overlay — brief radial pulse on PnL event.
+  const [flashing, setFlashing] = useState(false);
+  const flashColor = flashDir === "up" ? "rgba(0,255,156,0.12)" : "rgba(255,45,85,0.12)";
+  const prevFlashDir = useRef(flashDir);
+  useEffect(() => {
+    if (flashDir && flashDir !== prevFlashDir.current) {
+      setFlashing(true);
+      const t = setTimeout(() => setFlashing(false), 600);
+      prevFlashDir.current = flashDir;
+      return () => clearTimeout(t);
+    }
+    prevFlashDir.current = flashDir;
+  }, [flashDir]);
 
   return (
     <div
@@ -62,6 +84,17 @@ export function HeroCard({
           "radial-gradient(circle at 80% 0%, rgba(245,200,66,0.10) 0%, transparent 50%), linear-gradient(170deg, #0E1830 0%, #0A1322 50%, #060B16 100%)",
       }}
     >
+      {/* PnL flash overlay */}
+      {flashing && (
+        <span
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `radial-gradient(circle at 50% 50%, ${flashColor} 0%, transparent 70%)`,
+            transition: "opacity 600ms ease-out",
+          }}
+          aria-hidden
+        />
+      )}
       {/* HUD corner crosses */}
       <Cross className="top-2 left-2" pos="tl" />
       <Cross className="top-2 right-2" pos="tr" />
@@ -84,11 +117,27 @@ export function HeroCard({
           {statusLabel && (
             <div className="flex items-center gap-2">
               <span
-                className="w-[7px] h-[7px] rounded-full bg-grn animate-status-pulse"
-                style={{ boxShadow: "0 0 10px var(--grn,#00FF9C)" }}
+                className={[
+                  "w-[7px] h-[7px] rounded-full",
+                  statusTone === "active" ? "bg-grn animate-status-pulse" :
+                  statusTone === "paused" ? "bg-ink-3" :
+                                            "bg-ink-4",
+                ].join(" ")}
+                style={
+                  statusTone === "active"
+                    ? { boxShadow: "0 0 10px var(--grn,#00FF9C)" }
+                    : undefined
+                }
                 aria-hidden
               />
-              <span className="font-mono text-[9px] font-bold tracking-[2.5px] text-gold uppercase">
+              <span
+                className={[
+                  "font-mono text-[9px] font-bold tracking-[2.5px] uppercase",
+                  statusTone === "active" ? "text-gold" :
+                  statusTone === "paused" ? "text-ink-3" :
+                                            "text-ink-4",
+                ].join(" ")}
+              >
                 {statusLabel}
               </span>
               {statusCode && (
@@ -143,7 +192,7 @@ export function HeroCard({
       {(ctaPrimary || ctaSecondary || ctaDanger) && (
         <div className={ctaDanger ? "mt-4" : "grid grid-cols-[1.4fr_1fr] gap-2 mt-4"}>
           {ctaPrimary && !ctaDanger && (
-            <button
+            <button type="button"
               onClick={ctaPrimary.onClick}
               className="clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-3 px-2.5 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               style={{
@@ -158,7 +207,7 @@ export function HeroCard({
             </button>
           )}
           {ctaSecondary && !ctaDanger && (
-            <button
+            <button type="button"
               onClick={ctaSecondary.onClick}
               className="clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-3 px-2.5 transition-colors flex items-center justify-center gap-1.5 cursor-pointer bg-surface-2 text-ink-1 border border-border-2 hover:border-gold hover:text-gold hover:bg-surface-3"
             >
@@ -166,7 +215,7 @@ export function HeroCard({
             </button>
           )}
           {ctaDanger && (
-            <button
+            <button type="button"
               onClick={ctaDanger.onClick}
               className="clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-3 px-2.5 transition-colors flex items-center justify-center gap-1.5 cursor-pointer w-full text-red border"
               style={{
@@ -199,19 +248,26 @@ function Cross({ pos, className }: { pos: "tl" | "tr" | "bl" | "br"; className?:
   );
 }
 
+const RISK_COLOR: Record<RiskLevel, { bg: string; text: string; border: string }> = {
+  safe:       { bg: "rgba(0,229,255,0.10)",  text: "var(--cyan,#00E5FF)", border: "rgba(0,229,255,0.30)" },
+  balanced:   { bg: "rgba(245,200,66,0.10)", text: "var(--gold,#F5C842)", border: "rgba(245,200,66,0.30)" },
+  aggressive: { bg: "rgba(255,45,85,0.10)",  text: "var(--red,#FF2D55)",  border: "rgba(255,45,85,0.30)" },
+};
+
 function RiskTag({ risk }: { risk: RiskLevel }) {
+  // `risk` comes from a backend string cast to RiskLevel; values outside the
+  // {safe,balanced,aggressive} map (e.g. "custom") would make RISK_COLOR[risk]
+  // undefined and crash the whole screen on `c.bg`. Fall back to balanced.
+  const c = RISK_COLOR[risk] ?? RISK_COLOR.balanced;
+  const label = RISK_LABEL[risk] ?? String(risk).toUpperCase();
   return (
     <span
       className="inline-flex items-baseline gap-1.5 font-mono text-[9px] font-bold tracking-[2px] py-1 px-2.5 uppercase clip-tab"
-      style={{
-        background: "rgba(245,200,66,0.10)",
-        color: "var(--gold,#F5C842)",
-        border: "1px solid rgba(245,200,66,0.3)",
-      }}
+      style={{ background: c.bg, color: c.text, border: `1px solid ${c.border}` }}
     >
-      <span className="text-ink-3 mr-0.5">[</span>
-      {RISK_LABEL[risk]}
-      <span className="text-ink-3 ml-0.5">]</span>
+      <span className="opacity-50 mr-0.5">[</span>
+      {label}
+      <span className="opacity-50 ml-0.5">]</span>
     </span>
   );
 }

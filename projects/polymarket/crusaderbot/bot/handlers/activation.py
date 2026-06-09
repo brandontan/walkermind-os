@@ -64,9 +64,9 @@ async def summary_on_command(
     )
     await daily_pnl_summary.set_summary_enabled(user["id"], True)
     await update.message.reply_text(
-        "✅ Daily P&L summary <b>enabled</b>. You'll receive a one-message "
-        "summary at 23:00 Asia/Jakarta each day.",
-        parse_mode=ParseMode.HTML,
+        "✅ Daily P&L summary *enabled*\\. You'll receive a one\\-message "
+        "summary at 23:00 Asia/Jakarta each day\\.",
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
 
 
@@ -80,23 +80,27 @@ async def summary_off_command(
     )
     await daily_pnl_summary.set_summary_enabled(user["id"], False)
     await update.message.reply_text(
-        "🔕 Daily P&L summary <b>disabled</b>. Use /summary_on to turn it "
-        "back on.",
-        parse_mode=ParseMode.HTML,
+        "🔕 Daily P&L summary *disabled*\\. Use /summary\\_on to turn it "
+        "back on\\.",
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
 
 
 # ---------------- LIVE auto-trade confirmation ------------------------------
 
 
-async def _reply(update: Update, text: str) -> None:
-    """Send an HTML reply onto whichever surface the update came in on."""
+async def _reply(
+    update: Update,
+    text: str,
+    parse_mode: str = ParseMode.MARKDOWN_V2,
+) -> None:
+    """Send a reply onto whichever surface the update came in on."""
     if update.callback_query is not None and update.callback_query.message:
         await update.callback_query.message.reply_text(
-            text, parse_mode=ParseMode.HTML,
+            text, parse_mode=parse_mode,
         )
     elif update.message is not None:
-        await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+        await update.message.reply_text(text, parse_mode=parse_mode)
 
 
 async def autotrade_toggle_pending_confirm(
@@ -135,16 +139,16 @@ async def autotrade_toggle_pending_confirm(
     # any gate fails so the checklist is a hard pre-activation gate.
     result = await live_checklist.evaluate(user["id"])
     if not result.ready_for_live:
-        await _reply(update, live_checklist.render_telegram(result))
+        await _reply(update, live_checklist.render_telegram(result), parse_mode=ParseMode.HTML)
         return True
     if ctx.user_data is not None:
         ctx.user_data[AWAITING_KEY] = AWAITING_LIVE_CONFIRM
     await _reply(
         update,
-        "⚠️ <b>You are enabling LIVE trading with real capital.</b>\n"
-        "All activation gates have passed.\n\n"
-        "Type <b>CONFIRM</b> (in capitals) to proceed, or anything else to "
-        "cancel.",
+        "⚠️ *You are enabling LIVE trading with real capital\\.* \n"
+        "All activation gates have passed\\.\n\n"
+        "Type *CONFIRM* \\(in capitals\\) to proceed, or anything else to "
+        "cancel\\.",
     )
     return True
 
@@ -169,18 +173,18 @@ async def trading_mode_live_pending_confirm(
     )
     result = await live_checklist.evaluate(user["id"])
     if not result.ready_for_live:
-        await _reply(update, live_checklist.render_telegram(result))
+        await _reply(update, live_checklist.render_telegram(result), parse_mode=ParseMode.HTML)
         return True
     if ctx.user_data is not None:
         ctx.user_data[AWAITING_KEY] = AWAITING_TRADING_MODE_LIVE_CONFIRM
     await _reply(
         update,
-        "⚠️ <b>You are switching trading mode to LIVE — real capital.</b>\n"
-        "All activation gates have passed.\n\n"
-        "If your auto-trade is already ON, the next signal will route "
-        "as a real Polymarket order.\n\n"
-        "Type <b>CONFIRM</b> (in capitals) to proceed, or anything else to "
-        "cancel.",
+        "⚠️ *You are switching trading mode to LIVE — real capital\\.* \n"
+        "All activation gates have passed\\.\n\n"
+        "If your auto\\-trade is already ON, the next signal will route "
+        "as a real Polymarket order\\.\n\n"
+        "Type *CONFIRM* \\(in capitals\\) to proceed, or anything else to "
+        "cancel\\.",
     )
     return True
 
@@ -209,12 +213,12 @@ async def text_input(
         ctx.user_data.pop(AWAITING_KEY, None)
     if text != "CONFIRM":
         cancelled_msg = (
-            "Cancelled. Auto-trade remains <b>OFF</b>."
+            "Cancelled\\. Auto\\-trade remains *OFF*\\."
             if awaiting == AWAITING_LIVE_CONFIRM
-            else "Cancelled. Trading mode unchanged."
+            else "Cancelled\\. Trading mode unchanged\\."
         )
         await update.message.reply_text(
-            cancelled_msg, parse_mode=ParseMode.HTML,
+            cancelled_msg, parse_mode=ParseMode.MARKDOWN_V2,
         )
         return True
     user = await upsert_user(
@@ -235,22 +239,22 @@ async def text_input(
     if awaiting == AWAITING_LIVE_CONFIRM:
         if user.get("locked", False):
             await update.message.reply_text(
-                "🔒 Account locked. Contact admin.",
-                parse_mode=ParseMode.HTML,
+                "🔒 Account locked\\. Contact admin\\.",
+                parse_mode=ParseMode.MARKDOWN_V2,
             )
             return True
         await set_auto_trade(user["id"], True)
         await update.message.reply_text(
-            "🟢 Auto-trade is now <b>ON</b> in <b>LIVE</b> mode. Existing risk "
-            "gates still apply on every signal.",
-            parse_mode=ParseMode.HTML,
+            "🟢 Auto\\-trade is now *ON* in *LIVE* mode\\. Existing risk "
+            "gates still apply on every signal\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return True
     # AWAITING_TRADING_MODE_LIVE_CONFIRM
     await update_settings(user["id"], trading_mode="live")
     await update.message.reply_text(
-        "🟢 Trading mode set to <b>LIVE</b>. Existing risk gates still apply "
-        "on every signal. Toggle auto-trade to engage.",
-        parse_mode=ParseMode.HTML,
+        "🟢 Trading mode set to *LIVE*\\. Existing risk gates still apply "
+        "on every signal\\. Toggle auto\\-trade to engage\\.",
+        parse_mode=ParseMode.MARKDOWN_V2,
     )
     return True

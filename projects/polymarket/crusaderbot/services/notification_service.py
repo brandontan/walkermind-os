@@ -25,6 +25,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from .. import notifications
 from ..core.event_bus import subscribe
 from ..users import notifications_enabled_by_telegram_id
+from ..webtrader.backend import notification_prefs as _notif_prefs
 
 logger = logging.getLogger(__name__)
 
@@ -39,16 +40,16 @@ _CLOSE_REASON_LABELS: dict[str, str] = {
 }
 
 _STRAT_LABELS: dict[str, str] = {
-    "whale_mirror":  "🐋 Whale Mirror",
-    "signal_sniper": "📡 Signal Sniper",
-    "hybrid":        "🐋📡 Hybrid",
-    "value_hunter":  "🎯 Value Hunter",
-    "full_auto":     "🚀 Full Auto",
-    "confluence_scalper": "🚀 Crypto Scalper",
-    "copy_trade":    "🐋 Copy Trade",
-    "signal":        "📡 Signal",
-    "value":         "🎯 Value",
-    "manual":        "Manual",
+    "copy_trade":      "🐋 Copy Trade",
+    "signal":          "📡 Signal",
+    "manual":          "Manual",
+    # Strategy class names (stored as strategy_type on positions)
+    "late_entry_v3":   "Late Entry",
+    "signal_following": "Signal Following",
+    # Preset keys (fallback if preset key stored directly)
+    "close_sweep":     "Close Sweep",
+    "flip_hunter":        "Flip Hunter",
+    "safe_close":         "Safe Close",
 }
 
 
@@ -148,13 +149,51 @@ def _copy_trade_kb(
 # Delivery helper
 # ---------------------------------------------------------------------------
 
+_EVENT_PREF_KEY: dict[str, str] = {
+    "position.opened":     "trade_opened",
+    "position.closed":     "trade_closed",
+    "copy_trade.executed": "trade_opened",
+}
+
+_EVENT_WEB_TITLE: dict[str, str] = {
+    "position.opened":     "Position opened",
+    "position.closed":     "Position closed",
+    "copy_trade.executed": "Copy trade executed",
+}
+
+
 async def _send_safe(
     telegram_user_id: int,
     text: str,
     event_name: str,
     kb: Optional[InlineKeyboardMarkup] = None,
+    *,
+    market_id: str | None = None,
 ) -> None:
-    """Send Telegram message; catch all failures — MUST NOT propagate."""
+    """Send Telegram message; catch all failures — MUST NOT propagate.
+
+    Honors notification_prefs: mirrors to the per-user system_alerts row when
+    the web channel is enabled, and only fires the Telegram send when the tg
+    channel is enabled. Existing legacy `notifications_enabled_by_telegram_id`
+    global flag is checked AFTER per-key prefs so it still acts as a kill
+    switch for the whole TG channel.
+    """
+    alert_key = _EVENT_PREF_KEY.get(event_name, "trade_opened")
+    web_title = _EVENT_WEB_TITLE.get(event_name, event_name.replace("_", " ").title())
+    try:
+        send_tg = await _notif_prefs.route_outgoing_alert(
+            telegram_user_id=telegram_user_id,
+            alert_key=alert_key,
+            web_title=web_title,
+            web_body=text,
+            severity="info",
+            dedup_key=market_id,
+        )
+    except Exception:
+        send_tg = True  # fail-open
+    if not send_tg:
+        return
+
     try:
         if not await notifications_enabled_by_telegram_id(telegram_user_id):
             return
@@ -206,7 +245,7 @@ async def _on_position_opened(
         f"Market: {html.escape(label)}\n"
         f"Price: {price:.4f} | Strategy: {html.escape(strat)}"
     )
-    await _send_safe(telegram_user_id, text, "position.opened", _auto_trade_kb(position_id))
+    await _send_safe(telegram_user_id, text, "position.opened", _auto_trade_kb(position_id), market_id=market_id)
 
 
 async def _on_position_closed(
@@ -240,7 +279,7 @@ async def _on_position_closed(
         f"Reason  │ {html.escape(reason_display)}</pre>\n"
         f"{_SEP}"
     )
-    await _send_safe(telegram_user_id, text, "position.closed", _portfolio_trades_kb())
+    await _send_safe(telegram_user_id, text, "position.closed", _portfolio_trades_kb(), market_id=market_id)
 
 
 async def _on_copy_trade_executed(
@@ -273,6 +312,7 @@ async def _on_copy_trade_executed(
     await _send_safe(
         telegram_user_id, text, "copy_trade.executed",
         _copy_trade_kb(position_id, copy_task_id),
+        market_id=market_id,
     )
 
 

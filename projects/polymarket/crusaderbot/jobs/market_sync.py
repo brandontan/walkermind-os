@@ -69,14 +69,24 @@ async def run_job() -> int:
                     m.get("side_a_implied")
                     or m.get("yes_price")
                     or (outcome_prices[0] if outcome_prices else None),
-                    default=0.50,
+                    default=None,
                 )
                 no_price = _safe_float(
                     m.get("side_b_implied")
                     or m.get("no_price")
                     or (outcome_prices[1] if len(outcome_prices) > 1 else None),
-                    default=0.50,
+                    default=None,
                 )
+                # Skip markets without real prices on BOTH sides. Fabricating
+                # 0.50 fallbacks poisons every downstream signal that reads
+                # markets.yes_price/no_price — a market with no on-chain
+                # activity should be absent, not pretended to be 50/50 fair.
+                if yes_price is None or no_price is None:
+                    logger.debug(
+                        "market_sync: skipped condition_id=%s (no valid prices)",
+                        condition_id,
+                    )
+                    continue
                 yes_token_id = _str_or_none(
                     m.get("side_a_token_id") or m.get("yes_token_id"), maxlen=100
                 )

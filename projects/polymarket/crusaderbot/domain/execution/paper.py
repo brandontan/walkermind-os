@@ -1,6 +1,7 @@
 """Paper execution engine — fully atomic open / close in a single DB transaction."""
 from __future__ import annotations
 
+import json
 import logging
 import structlog
 from decimal import Decimal
@@ -31,6 +32,8 @@ async def execute(
     strategy_type: str,
     tp_pct: float | None,
     sl_pct: float | None,
+    active_preset: str | None = None,
+    strategy_metadata: dict | None = None,
 ) -> dict:
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -54,12 +57,17 @@ async def execute(
                 """
                 INSERT INTO positions (user_id, market_id, order_id, side,
                                        size_usdc, entry_price, current_price,
-                                       tp_pct, sl_pct, mode, status, strategy_type)
-                VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,'paper','open',$9)
+                                       tp_pct, sl_pct, mode, status, strategy_type,
+                                       market_question, active_preset,
+                                       strategy_metadata)
+                VALUES ($1,$2,$3,$4,$5,$6,$6,$7,$8,'paper','open',$9,$10,$11,
+                        $12::jsonb)
                 RETURNING id
                 """,
                 user_id, market_id, order_id, side,
                 size_usdc, price, tp_pct, sl_pct, strategy_type,
+                market_question, active_preset,
+                json.dumps(strategy_metadata) if strategy_metadata else None,
             )
             position_id = pos_row["id"]
             await ledger.debit_in_conn(
@@ -67,7 +75,7 @@ async def execute(
                 ref_id=position_id, note=f"paper open {side} {market_id}",
             )
 
-    log.info("paper_trade_open", user_id=str(user_id), market_id=market_id, side=side, size_usdc=str(size_usdc), price=price)
+    log.info("paper_trade_open", user_id=str(user_id), market_id=market_id, rule=strategy_type, side=side, size_usdc=str(size_usdc), price=price)
     await audit.write(actor_role="bot", action="paper_open", user_id=user_id,
                       payload={
                           "order_id": str(order_id),
@@ -100,12 +108,11 @@ async def close_position(*, position: dict, exit_price: float,
     size = Decimal(str(position["size_usdc"]))
     entry = float(position["entry_price"])
     side = position["side"]
-    if side == "yes":
-        ret_pct = (exit_price - entry) / max(entry, 1e-6)
-    else:
-        comp_entry = 1 - entry
-        comp_exit = 1 - exit_price
-        ret_pct = (comp_exit - comp_entry) / max(comp_entry, 1e-6)
+    # Side-own price frame: entry_price and exit_price are the position's OWN
+    # outcome-token price, so the return on the bought token is (exit - entry)/entry
+    # for BOTH sides (matches exit_watcher._return_pct). YES unchanged; corrected
+    # NO frame — WARP/ROOT/no-side-pnl-frame.
+    ret_pct = (exit_price - entry) / max(entry, 1e-6)
     pnl = size * Decimal(str(ret_pct))
     proceeds = size + pnl
 
@@ -130,7 +137,7 @@ async def close_position(*, position: dict, exit_price: float,
                 conn, position["user_id"], proceeds, ledger.T_TRADE_CLOSE,
                 ref_id=position["id"], note=f"paper close {exit_reason}",
             )
-    log.info("paper_trade_close", user_id=str(position["user_id"]), position_id=str(position["id"]), exit_reason=exit_reason, pnl=str(pnl))
+    log.info("paper_trade_close", user_id=str(position["user_id"]), market_id=position.get("market_id"), rule=position.get("strategy_type"), position_id=str(position["id"]), exit_reason=exit_reason, pnl=str(pnl))
     await audit.write(actor_role="bot", action="paper_close",
                       user_id=position["user_id"],
                       payload={"position_id": str(position["id"]),

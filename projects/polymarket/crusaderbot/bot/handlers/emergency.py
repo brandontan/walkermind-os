@@ -45,11 +45,11 @@ async def _render_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if q is not None and q.message is not None:
         await _safe_edit(
             q, EMERGENCY_TEXT,
-            parse_mode=ParseMode.HTML, reply_markup=emergency_p5_kb(),
+            parse_mode=ParseMode.MARKDOWN_V2, reply_markup=emergency_p5_kb(),
         )
     elif update.message is not None:
         await update.message.reply_text(
-            EMERGENCY_TEXT, parse_mode=ParseMode.HTML, reply_markup=emergency_p5_kb(),
+            EMERGENCY_TEXT, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=emergency_p5_kb(),
         )
 
 
@@ -79,7 +79,7 @@ async def emergency_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> 
         text = emergency_confirm_text(action)
         await _safe_edit(
             q, text,
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=emergency_confirm_p5_kb(action),
         )
         return
@@ -111,7 +111,7 @@ async def _system_status_text(user_id: UUID | str) -> str:
             )
     except Exception as exc:
         logger.error("system_status query failed: %s", exc)
-        return "⚠️ Could not retrieve system status."
+        return "⚠️ Could not retrieve system status\\."
 
     auto_on = row["auto_trade_on"] if row else False
     paused = row["paused"] if row else False
@@ -145,11 +145,11 @@ async def _execute_action(
         text = await _system_status_text(user["id"])
         if q is not None and q.message is not None:
             await _safe_edit(
-                q, text, parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
+                q, text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=emergency_done_p5_kb(),
             )
         elif update.message is not None:
             await update.message.reply_text(
-                text, parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
+                text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=emergency_done_p5_kb(),
             )
         return
 
@@ -214,19 +214,19 @@ async def _execute_action(
         logger.error("emergency action=%s failed: %s", action, exc)
         if q is not None and q.message is not None:
             await _safe_edit(
-                q, "⚠️ Action failed. Please try again.",
-                parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
+                q, "⚠️ Action failed\\. Please try again\\.",
+                parse_mode=ParseMode.MARKDOWN_V2, reply_markup=emergency_done_p5_kb(),
             )
         return
 
     text = emergency_feedback_text(action)
     if q is not None and q.message is not None:
         await _safe_edit(
-            q, text, parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
+            q, text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=emergency_done_p5_kb(),
         )
     elif update.message is not None:
         await update.message.reply_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=emergency_done_p5_kb(),
+            text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=emergency_done_p5_kb(),
         )
 
 
@@ -242,9 +242,9 @@ async def _handle_legacy_emergency(
         if q is not None and q.message is not None:
             await _safe_edit(
                 q,
-                "⚠️ <b>Additional Emergency Actions</b>\n\n"
-                "These are high-impact actions. Use with caution.",
-                parse_mode=ParseMode.HTML, reply_markup=emergency_more_kb(),
+                "⚠️ *Additional Emergency Actions*\n\n"
+                "These are high\\-impact actions\\. Use with caution\\.",
+                parse_mode=ParseMode.MARKDOWN_V2, reply_markup=emergency_more_kb(),
             )
         return
     if sub in ("home", "back", "cancel"):
@@ -259,7 +259,7 @@ async def _handle_legacy_emergency(
         text = emergency_confirm_text(action)
         if q is not None and q.message is not None:
             await _safe_edit(
-                q, text, parse_mode=ParseMode.HTML,
+                q, text, parse_mode=ParseMode.MARKDOWN_V2,
                 reply_markup=emergency_confirm_p5_kb(action),
             )
         return
@@ -272,7 +272,7 @@ async def _handle_legacy_emergency(
         text = emergency_confirm_text(sub)
         if q is not None and q.message is not None:
             await _safe_edit(
-                q, text, parse_mode=ParseMode.HTML,
+                q, text, parse_mode=ParseMode.MARKDOWN_V2,
                 reply_markup=emergency_confirm_p5_kb(sub),
             )
 

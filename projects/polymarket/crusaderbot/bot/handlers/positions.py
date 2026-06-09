@@ -30,7 +30,6 @@ next tick and drives the close pipeline via the priority chain
 from __future__ import annotations
 
 import asyncio
-import html
 import logging
 from decimal import Decimal
 from typing import Optional
@@ -51,6 +50,7 @@ from ..keyboards.portfolio import (
     positions_close_list_kb as positions_list_kb,
 )
 
+from ..ui.tree import md_v2_escape as _md
 from .emergency import mark_force_close_intent_for_position
 
 logger = logging.getLogger(__name__)
@@ -97,22 +97,22 @@ async def _fetch_mark_price(token_id: Optional[str]) -> Optional[float]:
     return best_bid if best_bid is not None else best_ask
 
 
-def _unrealized_pnl(side: str, entry: float, mark: float, size: float) -> tuple[float, float]:
+def _unrealized_pnl(side: str, entry: float, mark: float | None, size: float) -> tuple[float, float]:
     """Return (pnl_usdc, pnl_pct).
 
-    YES: pnl = (mark - entry) * size_in_shares
-    NO : pnl = (entry - mark) * size_in_shares
-
-    ``size`` is stored as USDC notional at entry, so size_in_shares = size / entry.
+    Side-own price frame: ``entry`` and ``mark`` are the position's OWN
+    outcome-token price (YES token for YES, NO token for NO), so a position
+    profits when its own token rises: pnl = (mark - entry) * size_in_shares for
+    BOTH sides. ``size`` is USDC notional at entry, so size_in_shares = size/entry.
+    YES unchanged; corrected NO frame — WARP/ROOT/no-side-pnl-frame.
     Pct uses ``size`` (USDC notional) as the denominator.
     """
-    if entry <= 0:
+    # The caller already shows "price unavailable" for a None mark; this guard
+    # keeps the helper crash-safe for any other caller (mark - entry would raise).
+    if mark is None or entry <= 0:
         return 0.0, 0.0
     shares = size / entry
-    if side == "yes":
-        pnl = (mark - entry) * shares
-    else:
-        pnl = (entry - mark) * shares
+    pnl = (mark - entry) * shares
     pct = (pnl / size) * 100.0 if size > 0 else 0.0
     return pnl, pct
 
@@ -185,34 +185,33 @@ async def show_portfolio(update: Update, ctx: ContextTypes.DEFAULT_TYPE, refresh
         footer = "Tap Positions for full details."
 
     pnl_today_str = _pnl_fmt(pnl_today)
+    footer_md = footer.replace(".", "\\.")
     stats = (
-        "<b>💼 Portfolio</b>\n\n"
-        "<blockquote>"
-        f"Balance   ${bal:.2f} USDC\n"
-        f"Today     {html.escape(pnl_today_str)}\n"
-        f"Open      {open_count} position{'s' if open_count != 1 else ''}"
-        "</blockquote>\n\n"
-        f"{html.escape(footer)}"
+        "*💼 Portfolio*\n\n"
+        f"> Balance   `${bal:.2f}` USDC\n"
+        f"> Today     `{pnl_today_str}`\n"
+        f"> Open      {open_count} position{'s' if open_count != 1 else ''}\n\n"
+        + footer_md
     )
 
     if is_cb:
         try:
             await update.callback_query.edit_message_text(
                 stats,
-                parse_mode=ParseMode.HTML,
+                parse_mode=ParseMode.MARKDOWN_V2,
                 reply_markup=portfolio_kb(),
             )
         except BadRequest as exc:
             if "Message is not modified" not in str(exc):
                 await update.callback_query.message.reply_text(
                     stats,
-                    parse_mode=ParseMode.HTML,
+                    parse_mode=ParseMode.MARKDOWN_V2,
                     reply_markup=portfolio_kb(),
                 )
     else:
         await update.message.reply_text(
             stats,
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=portfolio_kb(),
         )
 
@@ -288,12 +287,12 @@ async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return_exceptions=False,
     )
 
-    lines = ["<b>📌 Open Positions</b>\n"]
+    lines = ["*📌 Open Positions*\n"]
     n = len(positions)
     for i, (pos, mark) in enumerate(zip(positions, marks)):
         connector = "└─" if i == n - 1 else "├─"
-        title = html.escape(_truncate(pos["question"] or pos["market_id"], MARKET_TITLE_MAX))
-        side = html.escape(pos["side"].upper())
+        title = _md(_truncate(str(pos["question"] or pos["market_id"]), MARKET_TITLE_MAX))
+        side = pos["side"].upper()
         entry = float(pos["entry_price"])
         size = float(pos["size_usdc"])
         if mark is None:
@@ -301,13 +300,13 @@ async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             mark_str = "N/A"
         else:
             pnl, pct = _unrealized_pnl(pos["side"], entry, mark, size)
-            pnl_str = html.escape(_format_pnl(pnl, pct))
+            pnl_str = _format_pnl(pnl, pct)
             mark_str = f"{mark:.3f}"
-        tp_sl = html.escape(_format_tp_sl(pos["applied_tp_pct"], pos["applied_sl_pct"]))
+        tp_sl = _format_tp_sl(pos["applied_tp_pct"], pos["applied_sl_pct"])
         lines.append(
-            f"{connector} <code>{str(pos['id'])[:8]}</code> <b>{side}</b> — <i>{title}</i>\n"
-            f"  size ${size:.2f} · entry {entry:.3f} · mark {mark_str}\n"
-            f"  P&amp;L {pnl_str} · {tp_sl}"
+            f"{connector} `{str(pos['id'])[:8]}` *{side}* — _{title}_\n"
+            f"  size `${size:.2f}` · entry `{entry:.3f}` · mark `{mark_str}`\n"
+            f"  P&L `{pnl_str}` · `{tp_sl}`"
         )
 
     text = "\n\n".join(lines)
@@ -316,16 +315,16 @@ async def show_positions(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     if is_cb:
         try:
             await update.callback_query.edit_message_text(
-                text, parse_mode=ParseMode.HTML, reply_markup=kb,
+                text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb,
             )
         except BadRequest as exc:
             if "Message is not modified" not in str(exc):
                 await update.callback_query.message.reply_text(
-                    text, parse_mode=ParseMode.HTML, reply_markup=kb,
+                    text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb,
                 )
     else:
         await update.message.reply_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=kb,
+            text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=kb,
         )
 
 
@@ -367,31 +366,31 @@ async def my_trades(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         )
     lines: list[str] = []
     if pos_rows:
-        lines.append(f"<b>📈 Open Positions ({len(pos_rows)})</b>\n")
+        lines.append(f"*📈 Open Positions \\({len(pos_rows)}\\)*\n")
         for r in pos_rows:
-            title = html.escape(_truncate(r["question"] or r["market_id"], MARKET_TITLE_MAX))
+            title = _md(_truncate(str(r["question"] or r["market_id"]), MARKET_TITLE_MAX))
             lines.append(
-                f"<code>{str(r['id'])[:8]}</code> <b>{html.escape(r['side'].upper())}</b> @ "
-                f"{float(r['entry_price']):.3f} · ${float(r['size_usdc']):.2f} "
-                f"[{html.escape(r['mode'])}]\n<i>{title}</i>"
+                f"`{str(r['id'])[:8]}` *{r['side'].upper()}* @ "
+                f"`{float(r['entry_price']):.3f}` · `${float(r['size_usdc']):.2f}` "
+                f"\\[{r['mode']}\\]\n_{title}_"
             )
-        lines.append("\n<i>/positions for live P&amp;L + force-close.</i>")
+        lines.append("\n_/positions for live P&L \\+ force\\-close\\._")
     else:
-        lines.append("<b>📈 Positions:</b> No open positions.")
+        lines.append("*📈 Positions:* No open positions\\.")
     lines.append("")
     if ord_rows:
-        lines.append("<b>📋 Recent Activity</b>\n")
+        lines.append("*📋 Recent Activity*\n")
         for r in ord_rows:
-            title = html.escape(_truncate(r["question"] or r["market_id"], 40))
+            title = _md(_truncate(str(r["question"] or r["market_id"]), 40))
             lines.append(
-                f"{r['created_at'].strftime('%m-%d %H:%M')} · "
-                f"<b>{html.escape(r['side'].upper())}</b> @ {float(r['price']):.3f} · "
-                f"${float(r['size_usdc']):.2f} [{html.escape(r['mode'])}/{html.escape(r['status'])}]\n<i>{title}</i>"
+                f"`{r['created_at'].strftime('%m-%d %H:%M')}` · "
+                f"*{r['side'].upper()}* @ `{float(r['price']):.3f}` · "
+                f"`${float(r['size_usdc']):.2f}` \\[{r['mode']}/{r['status']}\\]\n_{title}_"
             )
     else:
-        lines.append("<b>📋 Recent Activity:</b> No activity yet.")
+        lines.append("*📋 Recent Activity:* No activity yet\\.")
     await update.message.reply_text(
-        "\n\n".join(lines), parse_mode=ParseMode.HTML,
+        "\n\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2,
     )
 
 
@@ -428,10 +427,10 @@ async def force_close_ask(update: Update,
     if row is None:
         await q.message.reply_text("Position not found or already closed.")
         return
-    title = html.escape(_truncate(row["question"] or row["market_id"], MARKET_TITLE_MAX))
+    title = _md(_truncate(str(row["question"] or row["market_id"]), MARKET_TITLE_MAX))
     await q.message.reply_text(
-        f"Close <b>{title}</b>?\nThis cannot be undone.",
-        parse_mode=ParseMode.HTML,
+        f"Close *{title}*?\nThis cannot be undone\.",
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=force_close_confirm_kb(position_id),
     )
 

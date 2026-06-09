@@ -43,10 +43,13 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import math as _math
+import random
+import time as _time
 import uuid as _uuid_mod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as _dc_replace
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 from typing import Any
 from uuid import UUID
 
@@ -55,14 +58,18 @@ import structlog
 from ...core import event_bus as _event_bus
 from ...database import get_pool
 from ...domain.execution.router import execute as router_execute
+from ...domain.ops import runtime_config as _runtime_config
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
-from ...domain.risk.constants import PROFILES
+from ...domain.research import scan_observability as _scan_observability
+from ...domain.risk.constants import CORRELATED_CRYPTO_MAJORS, PROFILES
+from ...domain.risk.gate import resolve_capital_alloc_pct as _resolve_capital_alloc_pct
+from ...domain.risk.gate import resume_safety_check as _resume_safety_check
 from ...domain.strategy.registry import StrategyRegistry
 from ...domain.strategy.types import MarketFilters, SignalCandidate, UserContext
 from ...integrations import polymarket as _polymarket
 from ...integrations.polymarket import get_live_market_price
 from ..trade_engine import TradeEngine, TradeResult, TradeSignal
-from .lib_strategy_runner import ENABLED_STRATEGIES, DEFERRED_STRATEGIES, run_lib_strategy
+from .lib_strategy_runner import DEFERRED_STRATEGIES, ENABLED_STRATEGIES
 from ..signal_feed.signal_evaluator import evaluate_publications_for_user
 
 logger = structlog.get_logger(__name__)
@@ -72,6 +79,47 @@ logger = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 _STRATEGY_NAME = "signal_following"
+
+# WARP-85 — STRATEGY-owned exit default (CLAUDE.md SYSTEM PIPELINE: exit
+# thresholds are a STRATEGY-stage concern, not a scan-job constant). TP/SL is a
+# STRATEGY-LEVEL property that is the SAME for every risk profile; the risk
+# profile governs CAPITAL SIZING only (capital_alloc_pct + max_position_pct),
+# never the exit thresholds. The source of truth the strategy reads at entry is
+# ``user_settings.tp_pct / sl_pct``. When that is NULL/missing the default is
+# resolved (and logged) from the active strategy's ``default_tp_sl()`` hook via
+# ``_strategy_default_tp_sl`` — never a silent default. Migration 089 backfills
+# user_settings to the same Balanced baseline, so the fallback is a safety net,
+# not the normal path.
+#
+# The constants below are the LAST-RESORT guard used ONLY when no strategy can be
+# resolved for the row (registry miss / unknown strategy_name) — NOT the normal
+# default path. They match the E.1/E.2 Balanced production baseline so an
+# unresolvable row still degrades to the proven value, never a nonsense one.
+_LAST_RESORT_TP_PCT: float = 1.5
+_LAST_RESORT_SL_PCT: float = 0.5
+
+
+def _strategy_default_tp_sl(strategy_name: str) -> tuple[float, float]:
+    """Resolve the default ``(tp_pct, sl_pct)`` from the active strategy's
+    ``default_tp_sl()`` hook (STRATEGY-stage ownership, CLAUDE.md SYSTEM
+    PIPELINE).
+
+    Falls back to the last-resort guard — logged, never silent — only when the
+    strategy cannot be resolved (unknown name / malformed hook return).
+    """
+    try:
+        strat = StrategyRegistry.instance().get(strategy_name)
+        tp_pct, sl_pct = strat.default_tp_sl()
+        return float(tp_pct), float(sl_pct)
+    except (KeyError, ValueError, TypeError) as exc:
+        logger.warning(
+            "strategy_default_tp_sl_unresolved_last_resort",
+            strategy_name=strategy_name,
+            error=str(exc),
+            last_resort_tp_pct=_LAST_RESORT_TP_PCT,
+            last_resort_sl_pct=_LAST_RESORT_SL_PCT,
+        )
+        return _LAST_RESORT_TP_PCT, _LAST_RESORT_SL_PCT
 
 # Maximum age of a signal_publication before it is rejected for execution.
 # Signals older than this window have stale entry prices — the market has
@@ -90,42 +138,522 @@ _MAX_TARGET_DRIFT_PCT: float = 0.25  # 25%
 # Preset → lib strategy name mapping
 # ---------------------------------------------------------------------------
 
+# lib/strategies/* were archived in WARP/R00T/strategy-system-cleanup — none
+# had a reachable user-facing preset. ENABLED_STRATEGIES / DEFERRED_STRATEGIES
+# are now empty tuples; this frozenset stays empty until a future strategy is
+# wired with a real preset path.
 _LIB_STRATEGY_NAMES: frozenset[str] = frozenset(ENABLED_STRATEGIES) | frozenset(DEFERRED_STRATEGIES)
 
-# Domain strategies wired into the scan loop alongside lib/ strategies.
-# These live in domain/strategy/strategies/ and are registered via
-# bootstrap_default_strategies(). The scan loop runs them explicitly per user
-# when the active_preset permits. Crypto-only eligibility for the scalper
-# lives in domain/strategy/eligibility.py and is enforced INSIDE
-# ConfluenceScalperStrategy.scan(), so emitted candidates already satisfy
-# the asset whitelist when they reach this loop.
-_CONFLUENCE_SCALPER_NAME = "confluence_scalper"
 _LATE_ENTRY_V3_NAME = "late_entry_v3"
+_WEATHER_STRATEGY_NAME = "weather"
+_PLAYBOOK_STRATEGY_NAME = "playbook"
 
 # Domain strategies the scan loop invokes explicitly (registered via
-# bootstrap_default_strategies()). Each runs its own crypto-only eligibility
-# gate inside scan(), so emitted candidates already satisfy the asset whitelist.
+# bootstrap_default_strategies()). Each runs its own eligibility gate inside
+# scan(), so emitted candidates already satisfy their universe constraints.
 _DOMAIN_STRATEGY_NAMES: frozenset[str] = frozenset(
-    {_CONFLUENCE_SCALPER_NAME, _LATE_ENTRY_V3_NAME}
+    {_LATE_ENTRY_V3_NAME, _WEATHER_STRATEGY_NAME, _PLAYBOOK_STRATEGY_NAME}
 )
 
+# Preset → strategies it may fire. Deny-by-default: unknown/NULL presets
+# return frozenset() and fire nothing.
 _PRESET_ALLOWED: dict[str | None, frozenset[str]] = {
-    "whale_mirror":        frozenset({"whale_tracking"}),
-    "trend_breakout":      frozenset({"trend_breakout"}),
-    "contrarian":          frozenset({"momentum"}),
-    "value_hunter":        frozenset({"value_investor"}),
-    "close_sweep":         frozenset({_LATE_ENTRY_V3_NAME}),
-    "pair_arb":            frozenset({"pair_arb"}),
-    "ensemble":            frozenset({"ensemble", "trend_breakout", "momentum", "value_investor"}),
-    "confluence_scalper":  frozenset({_CONFLUENCE_SCALPER_NAME}),
-    "full_auto":           _LIB_STRATEGY_NAMES | _DOMAIN_STRATEGY_NAMES,
-    None:                  _LIB_STRATEGY_NAMES | _DOMAIN_STRATEGY_NAMES,  # no preset set → full_auto behaviour
+    "candle_auto":     frozenset({_LATE_ENTRY_V3_NAME}),
+    "close_sweep":     frozenset({_LATE_ENTRY_V3_NAME}),
+    "safe_close":      frozenset({_LATE_ENTRY_V3_NAME}),
+    "flip_hunter":     frozenset({_LATE_ENTRY_V3_NAME}),
+    "weather_monitor": frozenset({_WEATHER_STRATEGY_NAME}),
+    "playbook":        frozenset({_PLAYBOOK_STRATEGY_NAME}),
 }
 
 
 # ---------------------------------------------------------------------------
 # Scan run telemetry
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Monitor-only asset hygiene (WARP/R00T/bnb-monitor-only, ref Polybot
+# directive Part 4 Tier 3). Assets listed here are NOT tradable — the
+# webtrader router validator rejects them at preset-activation time, but
+# existing user rows persisted before this lane was shipped can still
+# carry them in their `selected_assets` JSONB array. We strip those
+# entries here so the scanner never includes monitor-only markets in
+# any user's signal universe, even on legacy data. The user's next
+# preset re-activation through the router normalises the DB column.
+#
+# Add to this set when an asset graduates to monitor-only; remove when
+# 30-day edge stats validate re-enabling (directive Part 4 Phase 2).
+# ---------------------------------------------------------------------------
+_MONITOR_ONLY_ASSETS: frozenset[str] = frozenset({"BNB"})
+
+
+def _filter_monitor_only_assets(assets: Any) -> list[str]:
+    """Drop monitor-only assets from a persisted ``selected_assets`` row.
+
+    Returns a list (not tuple) so call sites can keep the existing
+    ``selected_assets: list[str]`` typing. Empty / None input yields
+    an empty list. Comparison is case-insensitive — DB rows may have
+    been written before the router normalised to uppercase.
+
+    Defensive type handling: the ``selected_assets`` column is currently
+    ``TEXT[]`` so asyncpg returns a Python list, but if it ever migrates
+    to JSONB (or some upstream caller hands us a JSON-encoded string),
+    iterating the raw string would walk characters one-by-one and
+    produce nonsense. Parse stringified JSON first; reject any other
+    non-sequence type rather than crashing.
+    """
+    if assets is None:
+        return []
+    if isinstance(assets, str):
+        # Empty string short-circuits without touching json.loads.
+        if not assets.strip():
+            return []
+        try:
+            parsed = json.loads(assets)
+        except Exception:
+            return []
+        # Only accept the parsed value if it's actually a list (a JSON
+        # string like '"BTC"' decodes to a bare string — reject that).
+        if not isinstance(parsed, list):
+            return []
+        assets = parsed
+    if not isinstance(assets, (list, tuple, set, frozenset)):
+        return []
+    out: list[str] = []
+    for a in assets:
+        sym = str(a).strip().upper()
+        if not sym:
+            continue
+        if sym in _MONITOR_ONLY_ASSETS:
+            continue
+        out.append(sym)
+    return out
+
+
+# =====================================================================
+# Bankroll dynamic sizing multiplier
+# (WARP/R00T/bankroll-dynamic-sizing, Lane 5/5 Polybot directive)
+# =====================================================================
+#
+# Per-user EMA-smoothed bankroll baseline. The multiplier compares the
+# user's current balance to its slow-moving baseline and scales the
+# proposed trade size proportionally, bounded by [MIN, MAX]. Effect:
+#   - Recent winners get slightly larger entries (up to MAX)
+#   - Recent losers get slightly smaller entries (down to MIN)
+#   - First observation seeds the baseline → multiplier = 1.0 (no change)
+#
+# In-process state (same lifecycle as Lane 4 direction window): a Fly
+# restart re-seeds baselines on next scan, briefly returning all users
+# to multiplier=1.0 — acceptable soft-reset, far cheaper than a DB
+# write per scan tick. Disable entirely via
+# BANKROLL_DYNAMIC_SIZING_ENABLED=false (escape hatch).
+_bankroll_ema_baseline: dict[str, float] = {}
+_bankroll_ema_baseline_active: dict[str, float] = {}  # frozen pre-update baseline for current tick
+_bankroll_ema_last_update: dict[str, float] = {}  # monotonic timestamp
+
+
+def _bankroll_multiplier(
+    user_id: str,
+    current_balance: float,
+    *,
+    multiplier_min: float,
+    multiplier_max: float,
+    ema_alpha: float,
+    min_update_interval_sec: float = 0.0,
+) -> float:
+    """Return the sizing multiplier for (user, current_balance) and
+    conditionally update the EMA-smoothed baseline as a side effect.
+
+    ``min_update_interval_sec``: throttle the baseline update so that
+    multiple candidates processed for the same user within a single
+    scan tick (e.g. several markets for the same late_entry_v3 user)
+    do NOT each drift the baseline toward `current_balance`. Without
+    the throttle, N intra-tick candidates collapse the baseline to ~=
+    current, defeating the multiplier. Set to 0 to update on every
+    call (test convenience).
+
+    Fail-safe: returns 1.0 (no scaling) when current_balance is not a
+    positive finite number, when no prior baseline exists (first
+    observation seeds it), or when the multiplier evaluates non-finite.
+    """
+    if not _math.isfinite(current_balance) or current_balance <= 0:
+        return 1.0
+    key = str(user_id)
+    baseline = _bankroll_ema_baseline.get(key)
+    now_mono = _time.monotonic()
+    if baseline is None or baseline <= 0:
+        # First observation: seed both dicts; multiplier neutral.
+        _bankroll_ema_baseline[key] = current_balance
+        _bankroll_ema_baseline_active[key] = current_balance
+        _bankroll_ema_last_update[key] = now_mono
+        return 1.0
+    # Throttle the EMA update: only refresh baseline when sufficient
+    # time has elapsed since the last update. Inside a single scan tick
+    # all candidates for the same user share the prior (active) baseline,
+    # so each candidate's multiplier reflects the true deviation, not the
+    # already-dragged-toward-current intra-tick artifact.
+    # _bankroll_ema_baseline_active freezes the pre-update baseline so
+    # subsequent intra-tick calls use the same reference even after the
+    # EMA dict has been advanced.
+    last_update = _bankroll_ema_last_update.get(key, 0.0)
+    if (now_mono - last_update) >= min_update_interval_sec:
+        _bankroll_ema_baseline_active[key] = baseline  # freeze pre-update value
+        _bankroll_ema_baseline[key] = (
+            ema_alpha * current_balance + (1.0 - ema_alpha) * baseline
+        )
+        _bankroll_ema_last_update[key] = now_mono
+    active_baseline = _bankroll_ema_baseline_active.get(key, baseline)
+    raw_multiplier = current_balance / active_baseline
+    if not _math.isfinite(raw_multiplier):
+        return 1.0
+    # Clamp to operator-configured bounds. Default [0.5, 1.5] caps both
+    # the upside (don't blow up on a recent win streak) and the downside
+    # (don't shrink positions so small they hit min-size gates).
+    return max(multiplier_min, min(multiplier_max, raw_multiplier))
+
+
+# --------------------------------------------------------------------
+# Bankroll circuit breaker (WARP/R00T/bankroll-circuit-breaker, ref
+# Polybot directive 1.4 + #6). Per-user latch: trips when current
+# balance falls below `baseline * threshold`, resumes only after
+# climbing back to `baseline * threshold * (1 + hysteresis)`. The
+# baseline is the slow-moving _bankroll_ema_baseline maintained by
+# Lane 5 — same source of truth, no duplicate state.
+#
+# Default OFF (config-gated dark launch). When the latch is True the
+# gate in _process_candidate returns early with
+# scan_outcome="skipped_circuit_breaker". Existing open positions and
+# TP/SL exits are unaffected — the gate blocks NEW entries only.
+# --------------------------------------------------------------------
+_bankroll_circuit_tripped: dict[str, bool] = {}
+
+# --------------------------------------------------------------------
+# Fast top-up state (WARP/R00T/flip-hunter-fast-topup, Polybot directive
+# 1.5 + 1.3.2). Per-(user, market) monotonic timestamp of the last
+# top-up fired so we can enforce the FAST_TOPUP_COOLDOWN_SECONDS gate.
+# In-process state; a Fly restart clears it (acceptable — the next
+# eligible safe_close/flip_hunter entry simply re-arms the cooldown).
+# --------------------------------------------------------------------
+_fast_topup_last_at: dict[str, float] = {}
+
+
+def _fast_topup_reset_for_tests() -> None:
+    """Clear the per-(user, market) cooldown tracker. Tests use this
+    to isolate runs."""
+    _fast_topup_last_at.clear()
+
+
+def _fast_topup_key(user_id: Any, market_id: str) -> str:
+    return f"{str(user_id)}:{market_id}"
+
+
+def _ensure_bankroll_baseline_seeded(user_id: str, current_balance: float) -> None:
+    """Seed the per-user EMA baseline with ``current_balance`` if absent.
+
+    Decouples the circuit breaker from Lane 5's dynamic-sizing knob:
+    when ``BANKROLL_DYNAMIC_SIZING_ENABLED=false`` the multiplier path
+    never seeds ``_bankroll_ema_baseline``, leaving the breaker without
+    a reference to measure deviation against. This helper seeds on
+    first observation (multiplier-neutral; current_balance becomes the
+    reference) so the breaker has something to compare against even
+    when sizing is off.
+
+    Does NOT advance the EMA — only seeds. Advancement remains the
+    multiplier's job so Lane 5's throttle semantics are preserved.
+    No-op when a baseline already exists.
+    """
+    if not _math.isfinite(current_balance) or current_balance <= 0:
+        return
+    key = str(user_id)
+    if key in _bankroll_ema_baseline:
+        return
+    _bankroll_ema_baseline[key] = current_balance
+    _bankroll_ema_baseline_active[key] = current_balance
+    _bankroll_ema_last_update[key] = _time.monotonic()
+
+
+def _evaluate_bankroll_circuit_breaker(
+    user_id: str,
+    current_balance: float,
+    *,
+    threshold: float,
+    hysteresis: float,
+) -> bool:
+    """Update the per-user circuit-breaker latch and return its new state.
+
+    State transitions (per directive 1.4 + #6):
+      - Tripped when ``current_balance < baseline * threshold``
+      - Resumes when ``current_balance > baseline * threshold * (1 + hysteresis)``
+      - Below the resume bound but above the trip bound: latch holds
+        whatever state it had — that's the hysteresis cushion that
+        prevents the "circuit breaker loop" failure mode (Appendix C).
+
+    Fail-safe: returns False (NOT tripped) when no baseline exists yet
+    (first observation — can't measure deviation against an unknown
+    reference), when current balance is non-positive / non-finite, or
+    when threshold computation evaluates non-finite.
+    """
+    if not _math.isfinite(current_balance) or current_balance <= 0:
+        return False
+    key = str(user_id)
+    # Use the latest computed baseline (not the per-tick frozen
+    # `_bankroll_ema_baseline_active`): the breaker compares against
+    # the user's current EMA reference, and the log payload should
+    # reflect the same value so an operator debugging a trip sees the
+    # exact denominator the gate used.
+    baseline = _bankroll_ema_baseline.get(key)
+    if baseline is None or baseline <= 0:
+        return False
+    trip_bound = baseline * threshold
+    resume_bound = trip_bound * (1.0 + hysteresis)
+    if not (_math.isfinite(trip_bound) and _math.isfinite(resume_bound)):
+        return False
+    was_tripped = _bankroll_circuit_tripped.get(key, False)
+    if was_tripped:
+        # Latched: only release if balance has climbed past the resume bound.
+        if current_balance > resume_bound:
+            _bankroll_circuit_tripped[key] = False
+            return False
+        return True
+    # Not yet tripped: trip if balance has fallen below the trip bound.
+    if current_balance < trip_bound:
+        _bankroll_circuit_tripped[key] = True
+        return True
+    return False
+
+
+def _bankroll_reset_for_tests() -> None:
+    """Clear the in-memory EMA state. Tests use this to isolate runs."""
+    _bankroll_ema_baseline.clear()
+    _bankroll_ema_baseline_active.clear()
+    _bankroll_ema_last_update.clear()
+    _bankroll_circuit_tripped.clear()
+
+
+# =====================================================================
+# Bankroll circuit-breaker persistence
+# (WARP/ROOT/bankroll-cb-persistence-impl, closes audit F19/F4)
+# =====================================================================
+#
+# The breaker's baseline (peak high-water reference) and tripped latch live in
+# the in-memory dicts above. Without persistence they reset on every restart /
+# redeploy: a TRIPPED breaker would silently un-trip, and the peak baseline
+# would reset to the current (possibly drawn-down) balance. This module
+# persists both to the `bankroll_circuit_state` table (migration 073) so the
+# state is restart-durable.
+#
+# DARK: every function here is a no-op unless BANKROLL_CIRCUIT_BREAKER_ENABLED
+# is true (the callers gate on it), so this has zero production effect until the
+# breaker is enabled via the directive validate track.
+#
+# FAIL-OPEN: a persistence error must NEVER halt the scan or lock users out.
+# Restore failures leave the in-memory dicts empty (breaker measures from the
+# next observed balance — same as today's restart behaviour). Persist failures
+# are logged and swallowed (the in-memory latch still governs the live tick).
+
+
+async def _restore_bankroll_circuit_state() -> None:
+    """Load persisted baseline + tripped latch into the in-memory dicts.
+
+    Called once at scan-job start (gated on BANKROLL_CIRCUIT_BREAKER_ENABLED by
+    the caller). Idempotent: only seeds keys not already present, so it never
+    clobbers fresher in-process state on a re-run within the same process.
+
+    Fail-open: any error leaves the dicts as-is and is logged at WARNING — the
+    breaker then behaves exactly as it does today on a cold start.
+    """
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT user_id, baseline, tripped FROM bankroll_circuit_state"
+            )
+    except Exception as exc:  # noqa: BLE001 — fail-open, never block the scan
+        logger.warning("bankroll_circuit_restore_failed", error=str(exc))
+        return
+
+    restored = 0
+    for r in rows:
+        key = str(r["user_id"])
+        try:
+            baseline = float(r["baseline"])
+        except (TypeError, ValueError):
+            continue
+        if not _math.isfinite(baseline) or baseline <= 0:
+            continue
+        # Do not overwrite state already warmed this process.
+        if key not in _bankroll_ema_baseline:
+            _bankroll_ema_baseline[key] = baseline
+            _bankroll_ema_baseline_active[key] = baseline
+            _bankroll_ema_last_update[key] = _time.monotonic()
+        if key not in _bankroll_circuit_tripped:
+            _bankroll_circuit_tripped[key] = bool(r["tripped"])
+        restored += 1
+    if restored:
+        logger.info("bankroll_circuit_restored", users=restored)
+
+
+async def _persist_bankroll_circuit_state(user_id: str) -> None:
+    """UPSERT the current baseline + tripped latch for one user.
+
+    Called after every state change (baseline seed/ratchet, trip, resume) by the
+    circuit-breaker gate — gated on BANKROLL_CIRCUIT_BREAKER_ENABLED by the
+    caller. Fail-open: a persistence error is logged and swallowed so the live
+    in-memory latch still governs the current tick.
+    """
+    key = str(user_id)
+    baseline = _bankroll_ema_baseline.get(key)
+    if baseline is None or not _math.isfinite(baseline) or baseline <= 0:
+        return
+    tripped = bool(_bankroll_circuit_tripped.get(key, False))
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO bankroll_circuit_state (user_id, baseline, tripped, updated_at)
+                VALUES ($1::uuid, $2, $3, now())
+                ON CONFLICT (user_id) DO UPDATE
+                    SET baseline = EXCLUDED.baseline,
+                        tripped = EXCLUDED.tripped,
+                        updated_at = now()
+                """,
+                key,
+                baseline,
+                tripped,
+            )
+    except Exception as exc:  # noqa: BLE001 — fail-open, never block the scan
+        logger.warning(
+            "bankroll_circuit_persist_failed", user_id=key, error=str(exc)
+        )
+
+
+# =====================================================================
+# Safe-close direction concentration window
+# (WARP/R00T/safe-close-direction-limit, Lane 4/5 Polybot directive)
+# =====================================================================
+#
+# Per-user, per-side rolling 1h log of accepted safe_close entries. Used
+# to skip new safe_close entries on a side the user is already
+# over-concentrated on — defends against the trending-market case where
+# the dynamic `fav_side = "YES" if yes_ask > no_ask else "NO"` filter
+# repeatedly leans the same direction across many candles (e.g. BTC
+# downtrend Dec 14-18 2025 produced 55.9% NO win-rate in Polybot
+# research, which is sample-period bias, not edge).
+#
+# Per-user — concentration is a single-user risk, not a global one.
+# In-memory — the window is 1h, eviction is O(n_entries_for_user); a
+# crash drops the counter (acceptable: worst case is a single extra
+# entry before the limiter rebuilds, much smaller than a stuck DB hit
+# per scan tick).
+_SAFE_CLOSE_DIRECTION_WINDOW_SEC = 3600.0
+_safe_close_direction_log: dict[tuple[str, str], list[float]] = {}
+
+
+def _safe_close_recent_count(user_id: str, side: str, now_ts: float) -> int:
+    """Return the count of recorded safe_close entries for (user, side)
+    within the last `_SAFE_CLOSE_DIRECTION_WINDOW_SEC` seconds. Prunes
+    expired entries in-place as a side effect; deletes the dict key
+    entirely if pruning empties the list (memory hygiene — avoids
+    monotonic growth of the dict from inactive-user keys)."""
+    key = (str(user_id), side.upper())
+    entries = _safe_close_direction_log.get(key)
+    if entries is None:
+        return 0
+    cutoff = now_ts - _SAFE_CLOSE_DIRECTION_WINDOW_SEC
+    if entries and entries[0] < cutoff:
+        entries[:] = [t for t in entries if t >= cutoff]
+    if not entries:
+        del _safe_close_direction_log[key]
+        return 0
+    return len(entries)
+
+
+def _safe_close_record_entry(user_id: str, side: str, now_ts: float) -> None:
+    """Append a timestamp to the (user, side) window. Called on accepted
+    paper-mode safe_close entries (skip on duplicate / rejected)."""
+    key = (str(user_id), side.upper())
+    _safe_close_direction_log.setdefault(key, []).append(now_ts)
+
+
+def _safe_close_reset_for_tests() -> None:
+    """Clear the in-memory window. Tests use this to isolate runs."""
+    _safe_close_direction_log.clear()
+
+
+# --- Correlated crypto-majors same-direction entry guard
+#     (WARP/correlated-majors-entry-guard) ---
+#
+# BTC/ETH/SOL move together intraday. late_entry_v3 evaluates each candle market
+# independently, so when the majors all favour the same side at one candle close
+# the bot opens three same-direction positions on what is effectively ONE
+# directional bet — and a single adverse move stops out the whole cluster at once
+# (observed prod: a user with BTC+ETH+SOL all "yes" on one candle taking three
+# simultaneous sl_hit). The per-user max_concurrent count cap (5/12/20) does not
+# catch this because three correlated entries are well under the count limit.
+#
+# This guard caps same-direction crypto-majors entries within one short
+# same-candle window. Modeled exactly on the safe_close direction limiter above:
+#   * Per (user, side) — concentration is a single-user, single-direction risk.
+#     Opposite sides (a YES and a NO major) partially hedge and are NOT capped
+#     together. Different users are independent.
+#   * In-memory — recorded on accepted entries only, so the gate does ZERO
+#     hot-path DB reads (the #1694 pool-wedge RCA: never add a per-candidate DB
+#     read to the scan path). A crash drops the counter; worst case is one extra
+#     correlated entry before it rebuilds — far cheaper than a per-tick DB hit.
+#   * Window is short (below) so it isolates a single candle's entry burst (all
+#     three majors enter within late_entry_v3's final ~35s window) and resets well
+#     before the next 5m/15m candle — it never bleeds a cap across candles.
+_CORRELATED_MAJORS_WINDOW_SEC = 120.0
+_correlated_majors_log: dict[tuple[str, str], list[float]] = {}
+
+
+def _correlated_majors_recent_count(user_id: str, side: str, now_ts: float) -> int:
+    """Count recorded same-direction crypto-majors entries for (user, side)
+    within the last ``_CORRELATED_MAJORS_WINDOW_SEC`` seconds. Prunes expired
+    entries in place; deletes the dict key entirely when pruning empties the
+    list (memory hygiene — mirrors the safe_close limiter)."""
+    key = (str(user_id), side.upper())
+    entries = _correlated_majors_log.get(key)
+    if entries is None:
+        return 0
+    cutoff = now_ts - _CORRELATED_MAJORS_WINDOW_SEC
+    if entries and entries[0] < cutoff:
+        entries[:] = [t for t in entries if t >= cutoff]
+    if not entries:
+        del _correlated_majors_log[key]
+        return 0
+    return len(entries)
+
+
+def _correlated_majors_record_entry(user_id: str, side: str, now_ts: float) -> None:
+    """Append a timestamp to the (user, side) window. Called ONLY on accepted
+    paper-mode crypto-majors entries (skip on duplicate / rejected / non-major)."""
+    key = (str(user_id), side.upper())
+    _correlated_majors_log.setdefault(key, []).append(now_ts)
+
+
+def _correlated_majors_reset_for_tests() -> None:
+    """Clear the in-memory window. Tests use this to isolate runs."""
+    _correlated_majors_log.clear()
+
+
+def _major_asset_from_candidate(cand: SignalCandidate) -> str | None:
+    """Resolve the correlated-majors cluster asset for a candidate, or None.
+
+    late_entry_v3 stamps ``metadata["cell"]`` as the canonical ``"ASSET/timeframe"``
+    key (e.g. ``"BTC/5m"`` — asset upper-cased, see scorer.normalize_cell_key).
+    Returns the asset ticker ONLY when it is a member of
+    ``CORRELATED_CRYPTO_MAJORS`` (BTC/ETH/SOL); None for any non-cluster asset, a
+    missing/malformed cell, or a non-candle candidate — so the correlation guard
+    never fires outside the majors cluster.
+    """
+    cell = (cand.metadata or {}).get("cell")
+    if not cell or not isinstance(cell, str):
+        return None
+    asset = cell.split("/", 1)[0].strip().upper()
+    return asset if asset in CORRELATED_CRYPTO_MAJORS else None
 
 
 @dataclass
@@ -163,9 +691,46 @@ class ScanTelemetry:
         self.positions_created += 1
 
 
+# Global operator on/off switch (migration 067 `strategies` table). FAIL-SAFE:
+# a strategy is ON unless its name appears here (set to disabled). Refreshed
+# once per scan tick; an empty set = nothing disabled = no behaviour change.
+_GLOBALLY_DISABLED_STRATEGIES: frozenset[str] = frozenset()
+
+
+async def _refresh_disabled_strategies() -> None:
+    """Reload the globally-disabled strategy set from the `strategies` table.
+
+    Never raises — on any error the previous set is kept (fail-safe: a DB blip
+    must not silently disable or enable strategies). Called once per tick.
+    """
+    global _GLOBALLY_DISABLED_STRATEGIES
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT name FROM strategies WHERE enabled = FALSE"
+            )
+        _GLOBALLY_DISABLED_STRATEGIES = frozenset(str(r["name"]) for r in rows)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("strategy_toggle_refresh_failed", error=str(exc))
+
+
 def _preset_allows(active_preset: str | None, strategy_name: str) -> bool:
-    """Return True if user's active_preset permits signals from strategy_name."""
-    return strategy_name in _PRESET_ALLOWED.get(active_preset, _LIB_STRATEGY_NAMES)
+    """Return True if user's active_preset permits signals from strategy_name.
+
+    Deny-by-default: any ``active_preset`` not explicitly mapped in
+    ``_PRESET_ALLOWED`` (unknown, removed, legacy, or NULL) permits NO strategy.
+    This is the single runtime guarantee that only the 3 canonical candle
+    presets can trade. The fallback MUST stay ``frozenset()`` and must NEVER
+    widen to ``_LIB_STRATEGY_NAMES`` — a legacy row such as
+    ``active_preset='contrarian'`` would otherwise immediately start firing lib
+    strategies the moment any are re-registered (ref WARP/ROOT/prelaunch-
+    system-audit F2). A globally-disabled strategy (operator Admin toggle) is
+    never allowed, regardless of preset.
+    """
+    if strategy_name in _GLOBALLY_DISABLED_STRATEGIES:
+        return False
+    return strategy_name in _PRESET_ALLOWED.get(active_preset, frozenset())
 
 
 def _coerce_jsonb(val: object, fallback: dict | list | None = None) -> dict | list:
@@ -202,7 +767,13 @@ _engine: TradeEngine = TradeEngine()
 
 
 async def _load_enrolled_users() -> list[dict[str, Any]]:
-    """Active users enrolled in signal_following strategy with auto_trade_on."""
+    """Active auto-trading users (auto_trade_on, not paused) for the orchestrator.
+
+    WARP-95 (Issue 1): NO LONGER gated on signal_following enrolment / its operator
+    toggle — that coupling let signal_following=OFF kill candle_auto/late_entry_v3.
+    Per-strategy gating happens downstream in _preset_allows. The signal_following
+    enrolment row is LEFT-JOINed only for the legacy us.weight sizing fallback.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -214,32 +785,101 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 u.auto_trade_on,
                 u.paused,
                 COALESCE(w.balance_usdc, 0)   AS balance_usdc,
+                COALESCE((SELECT SUM(p.size_usdc) FROM positions p
+                          WHERE p.user_id = u.id AND p.status = 'open'), 0) AS open_cost_usdc,
                 COALESCE(s.risk_profile, 'balanced') AS risk_profile,
                 COALESCE(s.trading_mode, 'paper')    AS trading_mode,
+                COALESCE(s.live_capital_cap_usdc, 0) AS live_capital_cap_usdc,
                 s.tp_pct,
                 s.sl_pct,
                 s.daily_loss_override,
-                us.weight                AS capital_allocation_pct,
+                s.max_drawdown_pct,
+                s.max_concurrent_override,
+                -- Per-trade sizing scales with the user's RISK-PROFILE capital %
+                -- (capital_alloc_pct: conservative 0.20 / balanced 0.40 /
+                -- aggressive 0.60 / custom), NOT the strategy enrolment weight.
+                -- Previously aliased us.weight (≈0.10 for everyone) so the risk
+                -- profile had no effect on size; the late_entry_v3 engine already
+                -- sizes against this as the risk-profile CAP%. Falls back to the
+                -- enrolment weight, then 0.10, only for a legacy/NULL row.
+                COALESCE(s.capital_alloc_pct, us.weight, 0.10) AS capital_allocation_pct,
+                -- WARP-89 (gate-hotpath-db-fix): the RAW user_settings.capital_alloc_pct
+                -- (NULL preserved, NOT the us.weight/0.10 sizing fallback above) so the
+                -- gate's authoritative resolver (resolve_capital_alloc_pct) can apply the
+                -- exact profile-default fallback + 80% clamp. Preloaded once per user per
+                -- tick here and threaded into GateContext.capital_alloc_pct so the
+                -- per-candidate risk gate does ZERO asyncpg reads for the deployment cap.
+                s.capital_alloc_pct AS capital_alloc_pct_raw,
                 COALESCE(urp.profile_name, s.risk_profile, 'balanced') AS resolved_profile,
                 s.active_preset,
                 s.selected_timeframe,
                 s.selected_assets,
+                s.max_per_trade_mode,
+                s.max_per_trade_usdc,
+                s.max_per_trade_pct,
                 COALESCE(s.min_liquidity, 0)         AS min_liquidity_threshold,
                 COALESCE(s.strategy_params, '{}'::jsonb)      AS strategy_params,
                 COALESCE(s.category_filters, ARRAY[]::text[]) AS category_filters
-            FROM user_strategies us
-            JOIN users          u   ON u.id  = us.user_id
+            FROM users          u
             JOIN wallets        w   ON w.user_id = u.id
             JOIN user_settings  s   ON s.user_id = u.id
+            -- WARP-95 (Issue 1): LEFT JOIN (not INNER) the signal_following
+            -- enrolment row PURELY to keep the legacy us.weight sizing fallback
+            -- available — user-loading is NO LONGER gated on signal_following.
+            -- Previously this query INNER-JOINed user_strategies on
+            -- strategy_name='signal_following' AND us.enabled=TRUE and added an
+            -- anti-join against the disabled strategies table for signal_following,
+            -- so toggling the signal_following operator switch OFF (or a user
+            -- lacking the enrolment row) returned ZERO users and silently killed
+            -- the ENTIRE orchestrator — including candle_auto / late_entry_v3
+            -- (Smart Strike) and weather/playbook. Each strategy now gates itself
+            -- via _preset_allows, which still honours the per-strategy operator
+            -- toggle in _GLOBALLY_DISABLED_STRATEGIES (refreshed each tick from the
+            -- strategies table). signal_following's own Phase C remains gated by
+            -- _preset_allows(active_preset, 'signal_following').
+            LEFT JOIN user_strategies us
+                   ON us.user_id = u.id
+                  AND us.strategy_name = $1
+                  AND us.enabled = TRUE
             LEFT JOIN user_risk_profile urp ON urp.user_id = u.id
-            WHERE us.strategy_name = $1
-              AND us.enabled        = TRUE
-              AND u.auto_trade_on   = TRUE
-              AND u.paused          = FALSE
+            WHERE u.auto_trade_on = TRUE
+              AND u.paused        = FALSE
             """,
             _STRATEGY_NAME,
         )
     return [dict(r) for r in rows]
+
+
+async def _count_optedin_unenrolled() -> int:
+    """WARP-75 (F3 — coverage): count users who explicitly opted in
+    (``auto_trade_on=TRUE``, not paused) but are MISSING the ``signal_following``
+    enrolment row that ``_load_enrolled_users`` joins on — they would be silently
+    excluded from every scan and never trade. Returns the count for an actionable
+    operator warning; the enrolment self-heals on the user's next ``/start``
+    (``users.upsert_user`` → ``_enroll_signal_following``, idempotent). Fail-soft:
+    returns -1 on any error (incl. pool-not-ready) so coverage telemetry can
+    never break a scan."""
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            return int(await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM users u
+                JOIN user_settings s ON s.user_id = u.id
+                WHERE u.auto_trade_on = TRUE
+                  AND u.paused        = FALSE
+                  AND NOT EXISTS (
+                        SELECT 1 FROM user_strategies us
+                         WHERE us.user_id = u.id
+                           AND us.strategy_name = $1
+                           AND us.enabled = TRUE
+                  )
+                """,
+                _STRATEGY_NAME,
+            ))
+    except Exception as exc:  # noqa: BLE001 — coverage telemetry must never break a scan
+        logger.warning("optedin_unenrolled_check_failed", error=str(exc))
+        return -1
 
 
 async def _load_market(market_id: str) -> dict[str, Any] | None:
@@ -263,6 +903,22 @@ def _coerce_str_list(val: Any) -> list[str]:
     if isinstance(val, list):
         return [str(x) for x in val]
     return []
+
+
+def _opt_price(v: Any) -> float | None:
+    """Parse an outcome price to a float, or None when absent/unparseable.
+
+    No fabricated 0.50: a market the Gamma payload did not price is stored with
+    a NULL price. The trading path requires a live mark before it fills (see
+    _build_trade_signal), so a NULL never executes; the display freshness guard
+    shows "awaiting" instead of a fake 50/50; and the markets table stops
+    accumulating placeholder 0.50/0.50 rows (the systemic fake-data source the
+    WARP•R00T audit surfaced — 155 crypto + 400 weather rows in prod).
+    """
+    try:
+        return float(v) if v is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 async def _upsert_crypto_window_markets(markets: list[dict[str, Any]]) -> None:
@@ -294,8 +950,8 @@ async def _upsert_crypto_window_markets(markets: list[dict[str, Any]]) -> None:
                         return float(v)
                     except (TypeError, ValueError):
                         return d
-                yes_price = _f(prices[0] if prices else None, 0.5)
-                no_price = _f(prices[1] if len(prices) > 1 else None, 0.5)
+                yes_price = _opt_price(prices[0] if prices else None)
+                no_price = _opt_price(prices[1] if len(prices) > 1 else None)
                 yes_token = tokens[0] if tokens else None
                 no_token = tokens[1] if len(tokens) > 1 else None
                 liquidity = _f(m.get("liquidity"), 0.0)
@@ -335,6 +991,206 @@ async def _upsert_crypto_window_markets(markets: list[dict[str, Any]]) -> None:
                 logger.warning("crypto_window_upsert_failed", error=str(exc))
 
 
+async def _upsert_sports_markets(markets: list[dict[str, Any]]) -> None:
+    """Upsert near-event sports markets (keyed by condition_id) so PLAYBOOK
+    candidates resolve in _load_market.
+
+    market_sync (Heisenberg, min_volume>=50k) misses lower-liquidity near-event
+    sports markets that PLAYBOOK trades, so without this their candidates skip as
+    ``skipped_market_not_synced``. Mirrors _upsert_crypto_window_markets but keeps
+    each market's real category. Idempotent ON CONFLICT; fail-soft per market.
+    (Codex P1, PR #1572.)
+    """
+    if not markets:
+        return
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        for m in markets:
+            try:
+                condition_id = str(m.get("conditionId") or m.get("condition_id") or "")
+                if not condition_id:
+                    continue
+                slug = str(m.get("slug") or "")[:80]
+                question = str(m.get("question") or m.get("title") or "")[:500]
+                category = (str(m.get("category") or "sports")[:50]) or "sports"
+                prices = _coerce_str_list(m.get("outcomePrices"))
+                tokens = _coerce_str_list(m.get("clobTokenIds"))
+
+                def _f(v: Any, d: float) -> float:
+                    try:
+                        return float(v)
+                    except (TypeError, ValueError):
+                        return d
+                yes_price = _opt_price(prices[0] if prices else None)
+                no_price = _opt_price(prices[1] if len(prices) > 1 else None)
+                yes_token = tokens[0] if tokens else None
+                no_token = tokens[1] if len(tokens) > 1 else None
+                liquidity = _f(m.get("liquidity"), 0.0)
+                end_iso = (
+                    m.get("gameStartTime") or m.get("game_start_time")
+                    or m.get("endDate") or m.get("end_date_iso")
+                )
+                resolution_at = None
+                if end_iso:
+                    try:
+                        resolution_at = datetime.fromisoformat(
+                            str(end_iso).replace("Z", "+00:00")
+                        )
+                    except (ValueError, TypeError):
+                        resolution_at = None
+                await conn.execute(
+                    """
+                    INSERT INTO markets
+                        (id, slug, question, category, status,
+                         yes_price, no_price, yes_token_id, no_token_id,
+                         liquidity_usdc, resolution_at, condition_id, is_demo, synced_at)
+                    VALUES ($1,$2,$3,$4,'active',$5,$6,$7,$8,$9,$10,$1,FALSE,NOW())
+                    ON CONFLICT (id) DO UPDATE SET
+                        slug           = EXCLUDED.slug,
+                        question       = EXCLUDED.question,
+                        category       = EXCLUDED.category,
+                        status         = 'active',
+                        yes_price      = EXCLUDED.yes_price,
+                        no_price       = EXCLUDED.no_price,
+                        yes_token_id   = EXCLUDED.yes_token_id,
+                        no_token_id    = EXCLUDED.no_token_id,
+                        liquidity_usdc = EXCLUDED.liquidity_usdc,
+                        resolution_at  = EXCLUDED.resolution_at,
+                        synced_at      = NOW()
+                    """,
+                    condition_id, slug, question, category,
+                    yes_price, no_price, yes_token, no_token,
+                    liquidity, resolution_at,
+                )
+            except Exception as exc:
+                logger.warning("sports_market_upsert_failed", error=str(exc))
+
+
+async def _sync_playbook_sports_markets() -> int:
+    """Fetch Gamma sports markets in the pre-event window and upsert them.
+
+    Run once per scan (before the user loop) when PLAYBOOK is enabled, so every
+    user on the playbook preset sees resolvable markets. Cached Gamma fetch +
+    shared window selector keep this cheap. Returns the count upserted.
+    """
+    from ...domain.strategy.strategies.playbook import select_sports_markets_in_window
+    try:
+        events_markets = await _polymarket.get_events_with_markets(limit=200)
+        game_markets = await _polymarket.get_sports_game_markets(limit=500)
+    except Exception as exc:
+        logger.warning("playbook_sports_fetch_failed", error=str(exc))
+        return 0
+    # Game markets (today's individual games) first, then season futures.
+    markets = (game_markets or []) + (events_markets or [])
+    seen_ids: set[str] = set()
+    rows = []
+    for mkt, mid, _cat, _ttl in select_sports_markets_in_window(markets):
+        if mid in seen_ids:
+            continue
+        seen_ids.add(mid)
+        rows.append(mkt)
+    await _upsert_sports_markets(rows)
+    return len(rows)
+
+
+async def _upsert_weather_markets(markets: list[Any]) -> None:
+    """Upsert live weather markets (keyed by market_id, category='Weather')
+    so the WebTrader market-feed can surface them on the weather preset.
+
+    Weather markets are fetched live from Gamma during the scan but — unlike
+    crypto/sports — were never persisted to the ``markets`` table, so
+    /market-feed had no weather rows to show (it fell back to crypto). Mirrors
+    _upsert_sports_markets; reads token ids / liquidity from each market's raw
+    Gamma payload. Idempotent ON CONFLICT; fail-soft per market.
+
+    The row PK is ``wm.market_id`` (Gamma id) — NOT condition_id — because
+    WeatherDomainStrategy emits SignalCandidate.market_id=wm.market_id and
+    _process_candidate resolves it via _load_market(... WHERE id = $1); keying
+    by condition_id would leave weather candidates skipped as not-synced.
+    condition_id is still stored in its own column. (Codex P1, PR #1575.)
+    """
+    if not markets:
+        return
+
+    def _f(v: Any, d: float) -> float:
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return d
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        for wm in markets:
+            try:
+                market_id = str(getattr(wm, "market_id", "") or "")
+                condition_id = str(getattr(wm, "condition_id", "") or "")
+                row_id = market_id or condition_id
+                if not row_id:
+                    continue
+                raw = getattr(wm, "raw", {}) or {}
+                slug = str(raw.get("slug") or "")[:80]
+                question = str(getattr(wm, "question", "") or "")[:500]
+                tokens = _coerce_str_list(raw.get("clobTokenIds"))
+                yes_token = tokens[0] if tokens else None
+                no_token = tokens[1] if len(tokens) > 1 else None
+                liquidity = _f(raw.get("liquidity") or raw.get("liquidityNum"), 0.0)
+                end_iso = getattr(wm, "end_date_iso", "") or ""
+                resolution_at = None
+                if end_iso:
+                    try:
+                        resolution_at = datetime.fromisoformat(
+                            str(end_iso).replace("Z", "+00:00")
+                        )
+                    except (ValueError, TypeError):
+                        resolution_at = None
+                await conn.execute(
+                    """
+                    INSERT INTO markets
+                        (id, slug, question, category, status,
+                         yes_price, no_price, yes_token_id, no_token_id,
+                         liquidity_usdc, resolution_at, condition_id, is_demo, synced_at)
+                    VALUES ($1,$2,$3,'Weather','active',$4,$5,$6,$7,$8,$9,$10,FALSE,NOW())
+                    ON CONFLICT (id) DO UPDATE SET
+                        slug           = EXCLUDED.slug,
+                        question       = EXCLUDED.question,
+                        category       = 'Weather',
+                        status         = 'active',
+                        yes_price      = EXCLUDED.yes_price,
+                        no_price       = EXCLUDED.no_price,
+                        yes_token_id   = EXCLUDED.yes_token_id,
+                        no_token_id    = EXCLUDED.no_token_id,
+                        liquidity_usdc = EXCLUDED.liquidity_usdc,
+                        resolution_at  = EXCLUDED.resolution_at,
+                        synced_at      = NOW()
+                    """,
+                    row_id, slug, question,
+                    _opt_price(getattr(wm, "yes_price", None)),
+                    _opt_price(getattr(wm, "no_price", None)),
+                    yes_token, no_token, liquidity, resolution_at,
+                    condition_id or row_id,
+                )
+            except Exception as exc:
+                logger.warning("weather_market_upsert_failed", error=str(exc))
+
+
+async def _sync_weather_markets() -> int:
+    """Fetch live Gamma weather markets and upsert them once per scan.
+
+    User-independent; run before the user loop when WEATHER is enabled so every
+    user on the weather preset sees resolvable markets + a populated feed. One
+    Gamma call (city=None returns all weather markets). Returns count upserted.
+    """
+    from ...strategies.weather.market import fetch_weather_markets
+    try:
+        markets = await fetch_weather_markets(limit=200)
+    except Exception as exc:
+        logger.warning("weather_markets_fetch_failed", error=str(exc))
+        return 0
+    if not markets:
+        return 0
+    await _upsert_weather_markets(markets)
+    return len(markets)
+
 
 async def _publication_already_queued(user_id: UUID, publication_id: UUID) -> bool:
     """Return True when (user_id, publication_id) already in execution_queue."""
@@ -367,12 +1223,455 @@ async def _load_stale_queued_row(
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT market_id, side, final_size_usdc, suggested_size_usdc, "
-            "       idempotency_key, chosen_mode "
+            "       idempotency_key, chosen_mode, strategy_name "
             "  FROM execution_queue "
             " WHERE user_id = $1 AND publication_id = $2 AND status = 'queued'",
             user_id, publication_id,
         )
     return dict(row) if row else None
+
+
+async def _fetch_market_inventory_for_override(
+    user_id: UUID, market_id: str,
+):
+    """Fetch the per-market inventory for the safe-close override gate.
+
+    Wraps pool acquisition + `compute_market_inventory` + error
+    handling so the gate path stays small and tests have a single
+    patch target (rather than mocking the whole connection pool).
+    Returns ``None`` on any failure — the caller treats None the
+    same as "no inventory data; do not override".
+    """
+    try:
+        from ...domain.strategy.inventory import compute_market_inventory
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            return await compute_market_inventory(conn, user_id, market_id)
+    except Exception as exc:
+        logger.warning(
+            "safe_close_inventory_compute_failed",
+            error=str(exc),
+            market_id=market_id,
+        )
+        return None
+
+
+_FAST_TOPUP_ELIGIBLE_PRESETS: frozenset[str] = frozenset({"flip_hunter", "safe_close"})
+# Extended set when CLOSE_SWEEP_DUAL_LEG_ENABLED is on. close_sweep is
+# tracked separately so an operator can enable D-3 (safe_close +
+# flip_hunter top-up) without enabling D-4 (close_sweep dual-leg), or
+# vice versa. See _resolve_eligible_topup_presets below for the
+# runtime resolution.
+_CLOSE_SWEEP_DUAL_LEG_PRESETS: frozenset[str] = frozenset({"close_sweep"})
+
+
+def _resolve_eligible_topup_presets(cfg: Any) -> frozenset[str]:
+    """Compute the runtime-eligible preset set from the two flags.
+
+    Returns the union of base D-3 presets (when
+    ``FLIP_HUNTER_FAST_TOPUP_ENABLED``) and D-4 presets (when
+    ``CLOSE_SWEEP_DUAL_LEG_ENABLED``). When neither flag is on the
+    result is empty and ``_maybe_fire_fast_topup`` bails immediately.
+
+    Defensive: a ``None`` config (e.g. from a config-init failure
+    upstream) returns an empty frozenset rather than raising
+    ``AttributeError`` — the caller is expected to log + bail
+    on the empty result, not crash the scan loop.
+
+    Kept as a small named helper so tests can pin the resolution
+    contract without duplicating the boolean-soup in the hot path.
+    """
+    if cfg is None:
+        return frozenset()
+    presets: set[str] = set()
+    if getattr(cfg, "FLIP_HUNTER_FAST_TOPUP_ENABLED", False):
+        presets |= _FAST_TOPUP_ELIGIBLE_PRESETS
+    if getattr(cfg, "CLOSE_SWEEP_DUAL_LEG_ENABLED", False):
+        presets |= _CLOSE_SWEEP_DUAL_LEG_PRESETS
+    return frozenset(presets)
+
+
+async def _maybe_fire_fast_topup(
+    *,
+    row: dict[str, Any],
+    market: dict[str, Any],
+    just_filled_side: str,
+    just_filled_size_usdc: Decimal,
+    log,
+) -> None:
+    """Optionally fire an opposite-leg top-up after a successful entry.
+
+    Implements Polybot directive 1.5 + 1.3.2 (fast top-up after partial
+    fill). For our paper engine fills are always complete so the
+    "partial fill" condition collapses to "after every successful
+    entry" — the helper recomputes inventory, identifies the lagging
+    leg, and synthesises a TradeSignal for it. Risk gate inside
+    TradeEngine.execute applies (Kelly, position caps, daily loss).
+
+    Default OFF; controlled by `config.FLIP_HUNTER_FAST_TOPUP_ENABLED`.
+    Scoped to users whose `active_preset` is `safe_close` or
+    `flip_hunter`. Per-(user, market) cooldown prevents the same pair
+    spinning top-ups within `FAST_TOPUP_COOLDOWN_SECONDS`.
+
+    Returns None on every path (fire-and-forget from the caller's
+    perspective). Exceptions are caught + logged — a top-up failure
+    must never crash the originating entry's success branch.
+    """
+    try:
+        from ...config import get_settings as _gs_ft
+        _cfg = _gs_ft()
+        _eligible_presets = _resolve_eligible_topup_presets(_cfg)
+        if not _eligible_presets:
+            # Neither D-3 (FLIP_HUNTER_FAST_TOPUP_ENABLED) nor D-4
+            # (CLOSE_SWEEP_DUAL_LEG_ENABLED) is on. Fully bypass.
+            return
+        preset = str(row.get("active_preset") or "").lower()
+        if preset not in _eligible_presets:
+            return
+        _min_usdc = float(_cfg.FAST_TOPUP_MIN_USDC)
+        _cooldown = float(_cfg.FAST_TOPUP_COOLDOWN_SECONDS)
+    except Exception as exc:
+        log.warning("fast_topup_config_read_failed", error=str(exc))
+        return
+
+    user_id = UUID(str(row["user_id"]))
+    market_id = str(market.get("id") or "")
+    if not market_id:
+        return
+
+    # Cooldown check — per-(user, market). Skip without DB hit.
+    key = _fast_topup_key(user_id, market_id)
+    last_at = _fast_topup_last_at.get(key, 0.0)
+    now_mono = _time.monotonic()
+    if (now_mono - last_at) < _cooldown:
+        log.info(
+            "fast_topup_skipped",
+            reason="cooldown",
+            market_id=market_id,
+            cooldown_remaining_sec=round(_cooldown - (now_mono - last_at), 2),
+        )
+        return
+
+    # Compute inventory AFTER the lead entry has committed — includes
+    # the position just created.
+    inventory = await _fetch_market_inventory_for_override(user_id, market_id)
+    if inventory is None or inventory.is_empty:
+        return
+    imb = float(inventory.imbalance_usdc)
+    if abs(imb) < _min_usdc:
+        log.info(
+            "fast_topup_skipped",
+            reason="below_threshold",
+            market_id=market_id,
+            imbalance_usdc=round(imb, 4),
+            threshold_usdc=_min_usdc,
+        )
+        return
+
+    # Lagging side: imb > 0 → YES-heavy → lag is NO.
+    lagging_side_upper = "NO" if imb > 0 else "YES"
+    lagging_side_lower = lagging_side_upper.lower()
+    just_filled_lower = str(just_filled_side).lower()
+    if just_filled_lower == lagging_side_lower:
+        # The lead entry already targeted the lagging leg — nothing
+        # to top up. Possible when the imbalance override flipped the
+        # side or when the strategy just happened to pick lagging.
+        return
+
+    # Choose top-up size: |imbalance| capped to the lead entry size so
+    # we never over-shoot the original commitment. Subject to the
+    # engine's Kelly + per-trade caps downstream.
+    topup_usdc = min(Decimal(str(abs(imb))), just_filled_size_usdc)
+    if topup_usdc <= Decimal("0"):
+        return
+
+    # Resolve a fill price for the lagging leg: prefer the live mark
+    # so the top-up reflects current orderbook state. Fall back to
+    # 1 - (lead price) when the live fetch fails (binary market
+    # invariant). The TradeEngine risk gate will sanity-check.
+    try:
+        _topup_price = await get_live_market_price(market_id, lagging_side_lower)
+    except Exception as exc:
+        log.warning(
+            "fast_topup_price_fetch_failed", error=str(exc),
+            market_id=market_id, side=lagging_side_lower,
+        )
+        _topup_price = None
+    if _topup_price is None or not (0.0 < _topup_price < 1.0):
+        # Binary settlement invariant: YES + NO = 1. Use the
+        # market_row's stored prices as a defensive fallback. Skip
+        # entirely when prices are absent — a fabricated 0.50 would
+        # execute at a fake midpoint and distort paper P&L.
+        _yes_raw = market.get("yes_price")
+        _no_raw = market.get("no_price")
+        if _yes_raw is None and _no_raw is None:
+            log.info(
+                "scan_outcome",
+                outcome="fast_topup_skipped",
+                reason="no_market_price",
+                market_id=market_id,
+                side=lagging_side_lower,
+            )
+            return
+        _yes_p = float(_yes_raw) if _yes_raw is not None else (1.0 - float(_no_raw))
+        _no_p = float(_no_raw) if _no_raw is not None else (1.0 - _yes_p)
+        _topup_price = _no_p if lagging_side_lower == "no" else _yes_p
+        # Candle markets use a 0.01 CLOB tick; a Gamma-seed price that
+        # is not on the tick (e.g. 0.505) means no real CLOB activity
+        # has occurred for this leg yet. Executing at a stale midpoint
+        # distorts paper P&L and would cost real slippage in LIVE.
+        # Mirrors the step 3b-i guard on the lead entry path.
+        _slug = str(market.get("slug") or "")
+        if "updown" in _slug:
+            _cents = _topup_price * 100.0
+            if abs(_cents - round(_cents)) > 1e-6:
+                log.info(
+                    "scan_outcome",
+                    outcome="fast_topup_skipped",
+                    reason="stale_fallback_price",
+                    market_id=market_id,
+                    side=lagging_side_lower,
+                    topup_price=_topup_price,
+                    slug=_slug,
+                )
+                return
+
+    # close_sweep top-up must honour the per-leg spread limit that the
+    # close-sweep-spread-gate enforces on the lead scan path.
+    # _maybe_fire_fast_topup bypasses _process_candidate so the gate in
+    # late_entry_v3._evaluate_market never runs for the top-up leg.
+    # close_sweep fires in the final ~35s where thin-book spread = real
+    # taker slippage in LIVE.
+    if preset == "close_sweep":
+        try:
+            _max_spread = getattr(_cfg, "CLOSE_SWEEP_MAX_LEG_SPREAD", 0.02)
+            if _max_spread > 0:
+                _lag_token = (
+                    market.get("yes_token_id")
+                    if lagging_side_lower == "yes"
+                    else market.get("no_token_id")
+                )
+                if not _lag_token:
+                    log.info(
+                        "scan_outcome",
+                        outcome="fast_topup_skipped",
+                        reason="leg_spread_missing_token",
+                        market_id=market_id,
+                        side=lagging_side_lower,
+                    )
+                    return
+                _lag_book = await _polymarket.get_book(str(_lag_token))
+                _asks = sorted(
+                    float(e["price"])
+                    for e in (_lag_book.get("asks") or [])
+                    if e.get("price") and float(e["price"]) > 0
+                )
+                _bids = sorted(
+                    (
+                        float(e["price"])
+                        for e in (_lag_book.get("bids") or [])
+                        if e.get("price") and float(e["price"]) > 0
+                    ),
+                    reverse=True,
+                )
+                _lag_ask = _asks[0] if _asks else None
+                _lag_bid = _bids[0] if _bids else None
+                if _lag_ask is None or _lag_bid is None:
+                    log.info(
+                        "scan_outcome",
+                        outcome="fast_topup_skipped",
+                        reason="leg_spread_missing_bid",
+                        market_id=market_id,
+                        side=lagging_side_lower,
+                    )
+                    return
+                _leg_spread = round(_lag_ask - _lag_bid, 4)
+                if _leg_spread > _max_spread:
+                    log.info(
+                        "scan_outcome",
+                        outcome="fast_topup_skipped",
+                        reason="leg_spread_too_wide",
+                        market_id=market_id,
+                        side=lagging_side_lower,
+                        leg_spread=_leg_spread,
+                        max_spread=_max_spread,
+                    )
+                    return
+        except Exception as exc:
+            log.warning(
+                "fast_topup_spread_check_failed",
+                error=str(exc),
+                market_id=market_id,
+            )
+            return  # fail closed — skip top-up on spread-check error
+
+    # Synthesise an idempotency key — distinct from the lead entry's
+    # so the engine's duplicate guard doesn't reject the top-up as a
+    # double-execute.
+    topup_idem = f"fast_topup:{key}:{int(now_mono * 1000)}"
+
+    # TP/SL resolution — mirror the normal-mode _build_trade_signal fallback
+    # (WARP-90 / PR #1688 SENTINEL condition B). fast_topup is scoped to the
+    # safe_close / flip_hunter presets, which route to late_entry_v3. When the
+    # user_settings column is NULL (legacy / pre-089 row) the top-up must NOT
+    # emit a position with tp/sl = None — fall back to the active STRATEGY's
+    # default_tp_sl() hook and LOG it, never a silent default.
+    _topup_default_tp_pct, _topup_default_sl_pct = _strategy_default_tp_sl(
+        _LATE_ENTRY_V3_NAME
+    )
+    _topup_tp_raw = row.get("tp_pct")
+    _topup_sl_raw = row.get("sl_pct")
+    if _topup_tp_raw is not None:
+        _topup_tp_pct: float = float(_topup_tp_raw)
+    else:
+        _topup_tp_pct = _topup_default_tp_pct
+        log.warning(
+            "user_settings_tp_pct_missing_defensive_fallback",
+            user_id=str(user_id),
+            strategy_name=_LATE_ENTRY_V3_NAME,
+            mode="fast_topup",
+            fallback_tp_pct=_topup_default_tp_pct,
+        )
+    if _topup_sl_raw is not None:
+        _topup_sl_pct: float = float(_topup_sl_raw)
+    else:
+        _topup_sl_pct = _topup_default_sl_pct
+        log.warning(
+            "user_settings_sl_pct_missing_defensive_fallback",
+            user_id=str(user_id),
+            strategy_name=_LATE_ENTRY_V3_NAME,
+            mode="fast_topup",
+            fallback_sl_pct=_topup_default_sl_pct,
+        )
+
+    # Build a TradeSignal directly. Bypassing _build_trade_signal +
+    # _process_candidate gates is deliberate: the top-up is reactive,
+    # not predictive (TOB freshness / complete-set edge / safe-close
+    # direction limit don't apply). The 13-step risk gate inside
+    # TradeEngine.execute still runs.
+    try:
+        from ..trade_engine import TradeSignal
+        signal = TradeSignal(
+            user_id=user_id,
+            telegram_user_id=int(row["telegram_user_id"]),
+            role=str(row.get("role") or "user"),
+            auto_trade_on=bool(row.get("auto_trade_on", False)),
+            paused=bool(row.get("paused", False)),
+            market_id=market_id,
+            market_question=str(market.get("question") or "") or None,
+            yes_token_id=market.get("yes_token_id"),
+            no_token_id=market.get("no_token_id"),
+            side=lagging_side_lower,
+            proposed_size_usdc=topup_usdc,
+            price=_topup_price,
+            market_liquidity=float(market.get("liquidity_usdc") or 0.0),
+            market_status=str(market.get("status") or "active"),
+            idempotency_key=topup_idem,
+            strategy_type="fast_topup",
+            risk_profile=str(row.get("resolved_profile") or "balanced"),
+            trading_mode=str(row.get("trading_mode") or "paper"),
+            signal_ts=datetime.now(timezone.utc),
+            tp_pct=_topup_tp_pct,
+            sl_pct=_topup_sl_pct,
+            daily_loss_override=(
+                float(row["daily_loss_override"])
+                if row.get("daily_loss_override") is not None
+                else None
+            ),
+            user_min_liquidity=float(row.get("min_liquidity_threshold") or 0.0),
+            max_drawdown_pct=(
+                float(row["max_drawdown_pct"])
+                if row.get("max_drawdown_pct") is not None
+                else None
+            ),
+            active_preset=preset,
+            live_capital_cap_usdc=float(row.get("live_capital_cap_usdc") or 0.0),
+            max_concurrent_override=(
+                int(row["max_concurrent_override"])
+                if row.get("max_concurrent_override") is not None
+                else None
+            ),
+            # WARP-89 (gate-hotpath-db-fix): preload the authoritative CAP% from the
+            # per-tick row so the fast-topup trade's risk gate also reads it from the
+            # context instead of doing a per-candidate DB SELECT.
+            capital_alloc_pct=_resolve_capital_alloc_pct(
+                row.get("capital_alloc_pct_raw"),
+                str(row.get("resolved_profile") or "balanced"),
+            ),
+        )
+    except Exception as exc:
+        log.warning("fast_topup_signal_build_failed", error=str(exc))
+        return
+
+    try:
+        result = await _engine.execute(signal)
+    except Exception as exc:
+        log.warning(
+            "fast_topup_engine_failed", error=str(exc),
+            market_id=market_id, side=lagging_side_lower,
+        )
+        return
+
+    # Stamp cooldown regardless of approval — a rejected top-up still
+    # tried to fire; we don't want the rejection feedback loop to
+    # immediately re-trigger the same attempt on the next inventory
+    # check.
+    _fast_topup_last_at[key] = now_mono
+
+    if result.approved:
+        log.info(
+            "scan_outcome",
+            outcome="fast_topup_fired",
+            market_id=market_id,
+            side=lagging_side_lower,
+            size_usdc=str(topup_usdc),
+            price=_topup_price,
+            imbalance_usdc=round(imb, 4),
+            preset=preset,
+        )
+    else:
+        log.info(
+            "scan_outcome",
+            outcome="fast_topup_rejected",
+            market_id=market_id,
+            side=lagging_side_lower,
+            reason=result.rejection_reason,
+            failed_step=result.failed_gate_step,
+        )
+
+
+async def _has_open_position_for_side(
+    user_id: UUID, market_id: str, side: str,
+) -> bool:
+    """Side-aware variant of `_has_open_position_for_market`.
+
+    Used ONLY by the safe-close imbalance override path
+    (WARP/R00T/safe-close-imbalance-override). When the override fires,
+    the candidate is rebalancing toward the lagging leg so the broad
+    market-wide dedup is wrong — it would block the rebalance even
+    though the opposite leg is what we actually want to enter.
+
+    Returns True if the user already holds a live position on
+    ``(market_id, side)``. Does NOT include the 24h closed-position
+    window — the override is specifically opening a NEW opposite-side
+    position, and a recently-closed same-side position is no reason
+    to block.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT 1 FROM positions
+             WHERE user_id = $1 AND market_id = $2
+               AND LOWER(side) = $3
+               AND status IN ('open', 'pending_settlement')
+             LIMIT 1
+            """,
+            user_id,
+            market_id,
+            side.lower(),
+        )
+    return row is not None
 
 
 async def _has_open_position_for_market(user_id: UUID, market_id: str) -> bool:
@@ -589,29 +1888,49 @@ def _build_user_context(row: dict[str, Any]) -> UserContext:
     allocation = max(0.0, min(1.0, allocation))
     sub_account_id = str(row.get("sub_account_id") or row["user_id"])
     _tf = row.get("selected_timeframe")
-    _assets = tuple(str(a) for a in (row.get("selected_assets") or []))
+    _assets = tuple(_filter_monitor_only_assets(row.get("selected_assets")))
+    balance = float(row.get("balance_usdc") or 0.0)
+    # Equity = free balance + capital already deployed in open positions (cost
+    # basis). Sizing is based on equity so the deployable pool reflects the
+    # whole account rather than only the idle cash.
+    equity = balance + float(row.get("open_cost_usdc") or 0.0)
     return UserContext(
         user_id=str(row["user_id"]),
         sub_account_id=sub_account_id,
         risk_profile=str(row.get("resolved_profile") or "balanced"),
         capital_allocation_pct=allocation,
-        available_balance_usdc=float(row.get("balance_usdc") or 0.0),
+        available_balance_usdc=balance,
+        equity_usdc=equity,
         selected_timeframe=str(_tf) if _tf else None,
         selected_assets=_assets,
+        max_per_trade_mode=str(row.get("max_per_trade_mode") or "auto"),
+        max_per_trade_usdc=(
+            float(row["max_per_trade_usdc"]) if row.get("max_per_trade_usdc") is not None else None
+        ),
+        max_per_trade_pct=(
+            float(row["max_per_trade_pct"]) if row.get("max_per_trade_pct") is not None else None
+        ),
     )
 
 
-def _build_market_filters(profile: str) -> MarketFilters:
+def _build_market_filters(profile: str, row: dict | None = None) -> MarketFilters:
     # Resolution-horizon and liquidity floor are derived from the user's risk
     # profile (PROFILES in domain/risk/constants). Conservative=7d / Balanced=30d
-    # / Aggressive=90d. This stops the scanner from entering far-dated futures
-    # (e.g. championship winners resolving months out) that never hit TP/SL and
-    # permanently occupy a concurrent-trade slot. Category filter and blacklist
-    # remain opt-in extensions reserved for a future lane.
+    # / Aggressive=90d. User settings (min_liquidity_threshold, category_filters)
+    # override the profile defaults when set — this is what the WebTrader
+    # Market Filter UI saves to user_settings.
     preset = PROFILES.get((profile or "balanced").lower(), PROFILES["balanced"])
+
+    # User-configured liquidity floor overrides profile default when > 0.
+    user_min_liq = float((row or {}).get("min_liquidity_threshold") or 0.0)
+    min_liq = user_min_liq if user_min_liq > 0 else float(preset["min_liquidity"])
+
+    # User-configured category filter overrides empty default when set.
+    user_cats = list((row or {}).get("category_filters") or [])
+
     return MarketFilters(
-        categories=[],
-        min_liquidity=float(preset["min_liquidity"]),
+        categories=user_cats,
+        min_liquidity=min_liq,
         max_time_to_resolution_days=int(preset["max_days"]),
         blacklisted_market_ids=[],
     )
@@ -633,6 +1952,45 @@ def _build_idempotency_key(
     return f"sf:{digest}"
 
 
+def _edge_bps_from_metadata(metadata: object) -> float | None:
+    """Extract a measured per-trade edge from a candidate's metadata, in bps.
+
+    Resolves the long-standing `edge_bps=None` hardcode that left risk gate
+    step 12 (the directional MIN_EDGE_BPS floor) structurally inert. Strategies
+    that compute a real edge stamp it into candidate metadata as either:
+
+      * ``"edge_bps"`` — already in basis points, or
+      * ``"edge"`` — a fraction vs fair price (e.g. playbook closing-edge module
+        stamps ``metadata["edge"] = fair - price``); converted ×10_000 to bps.
+
+    Returns ``None`` when no finite edge is present — heuristic strategies that
+    do NOT measure EV (e.g. late_entry_v3's book-imbalance `ask_diff`) therefore
+    stay honestly ungated by step 12 rather than having a fabricated edge
+    injected. This wires the floor for any strategy that supplies a real edge
+    without inventing one for those that do not (consistent with the WARP-58
+    OOS finding that late_entry_v3 edge is UNPROVEN).
+    """
+    if not isinstance(metadata, dict):
+        return None
+    raw_bps = metadata.get("edge_bps")
+    if raw_bps is not None:
+        try:
+            val = float(raw_bps)
+        except (TypeError, ValueError):
+            val = None
+        if val is not None and _math.isfinite(val):
+            return val
+    raw_edge = metadata.get("edge")
+    if raw_edge is not None:
+        try:
+            frac = float(raw_edge)
+        except (TypeError, ValueError):
+            return None
+        if _math.isfinite(frac):
+            return frac * 10_000.0
+    return None
+
+
 def _build_trade_signal(
     *,
     row: dict[str, Any],
@@ -640,6 +1998,8 @@ def _build_trade_signal(
     market: dict[str, Any],
     idempotency_key: str,
     live_price_override: float | None = None,
+    module_live_eligible: bool = True,
+    require_measured_edge: bool = True,
 ) -> TradeSignal:
     """Build a typed TradeSignal from scan-loop data for TradeEngine.execute()."""
     _side = cand.side.lower()
@@ -650,13 +2010,14 @@ def _build_trade_signal(
         # is-not-None (not > 0) so a live price of exactly 0.0 is honoured.
         _price = live_price_override
     else:
-        # Fallback: cached DB price when live fetch unavailable.
-        if _side == "no":
-            _primary, _fallback = market.get("no_price"), market.get("yes_price")
-        else:
-            _primary, _fallback = market.get("yes_price"), market.get("no_price")
-        _price = float(
-            _primary if _primary is not None else (_fallback if _fallback is not None else 0.5)
+        # No live mark. The scan caller already skips candidates with no live
+        # price (scan_outcome reason=no_live_price) before reaching here — this
+        # is a backstop. Refuse to fill off the cached DB price (which may be a
+        # Gamma 0.50 seed) or fabricate a 0.50 midpoint: raise so the caller
+        # catches and skips the candidate. No fabricated fill, ever.
+        raise ValueError(
+            f"_build_trade_signal: no live price for {cand.market_id} "
+            f"side {_side}; refusing cached/fabricated fill"
         )
     # Use CLOB-derived liquidity when the candidate carries it (late_entry_v3
     # computes live bid depth from both token books). Candle markets have
@@ -669,6 +2030,113 @@ def _build_trade_signal(
         else float(market.get("liquidity_usdc") or 0.0)
     )
 
+    # WARP-87 follow-up (smart-strike-cell-cap-binding): read the Smart Strike
+    # candidate's authoritative trading cell + live order-book depth/spread from
+    # its metadata (stamped by late_entry_v3). These ride into the TradeSignal →
+    # GateContext so the LIVE-only step-14b slippage gate binds the per-cell size
+    # cap (ctx.cell) and estimates slippage from the real depth/spread instead of
+    # the market_liquidity / 1.0 fallbacks. None-safe: a candidate that does not
+    # carry a key (legacy / non-Smart-Strike) yields None → the gate keeps its
+    # existing fallback behaviour (no per-cell cap), so there is no regression.
+    _meta = cand.metadata or {}
+    _cell_raw = _meta.get("cell")
+    _cell = str(_cell_raw) if _cell_raw else None
+    _depth_raw = _meta.get("orderbook_depth_usdc")
+    try:
+        _orderbook_depth_usdc = float(_depth_raw) if _depth_raw is not None else None
+    except (ValueError, TypeError):
+        _orderbook_depth_usdc = None
+    _spread_raw = _meta.get("spread")
+    try:
+        _candidate_spread = float(_spread_raw) if _spread_raw is not None else None
+    except (ValueError, TypeError):
+        _candidate_spread = None
+    # Option 3 (smart-strike-real-edge): the entry-side oracle fair-value edge (bps)
+    # late_entry_v3 stamps when the oracle computed a positive edge. Threaded into
+    # the TradeSignal → GateContext as the step-14b slippage gross-edge denominator,
+    # consumed ONLY in real-edge mode (SMART_STRIKE_REQUIRE_MEASURED_EDGE ON). None
+    # for a non-Smart-Strike candidate or when the oracle gave no positive edge.
+    _slip_edge_raw = _meta.get("slippage_gross_edge_bps")
+    try:
+        _slippage_gross_edge_bps = (
+            float(_slip_edge_raw) if _slip_edge_raw is not None else None
+        )
+    except (ValueError, TypeError):
+        _slippage_gross_edge_bps = None
+
+    # Bankroll dynamic sizing multiplier
+    # (WARP/R00T/bankroll-dynamic-sizing, Lane 5/5).
+    # Scales the candidate's base size by the user's bankroll deviation
+    # from its EMA-smoothed baseline. Fail-safe = 1.0 (no scaling) when
+    # the knob is off, the user has no baseline yet (first observation),
+    # the current balance is non-positive / non-finite, or the config
+    # read raises. Risk gate (Kelly etc.) inside the engine still
+    # applies to the scaled value, so position caps remain authoritative.
+    _base_size = Decimal(str(cand.suggested_size_usdc))
+    _proposed_size = _base_size
+    try:
+        from ...config import get_settings as _gs_bankroll
+        _cfg_b = _gs_bankroll()
+        if getattr(_cfg_b, "BANKROLL_DYNAMIC_SIZING_ENABLED", False):
+            _mult = _bankroll_multiplier(
+                str(row["user_id"]),
+                float(row.get("balance_usdc") or 0.0),
+                multiplier_min=float(_cfg_b.BANKROLL_MULTIPLIER_MIN),
+                multiplier_max=float(_cfg_b.BANKROLL_MULTIPLIER_MAX),
+                ema_alpha=float(_cfg_b.BANKROLL_EMA_ALPHA),
+                min_update_interval_sec=float(
+                    getattr(_cfg_b, "BANKROLL_BASELINE_UPDATE_MIN_INTERVAL_SEC", 5.0)
+                ),
+            )
+            if _mult != 1.0:
+                _proposed_size = (
+                    _base_size * Decimal(str(_mult))
+                ).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    except Exception as exc:
+        # AGENTS.md hard rule: zero silent failures. Log the diagnostic
+        # context and fall back to the unscaled base size. `logger`
+        # (not `log`) — _build_trade_signal is module-level scope, the
+        # per-call `log = logger.bind(...)` only exists in
+        # _process_candidate.
+        logger.warning(
+            "bankroll_dynamic_sizing_failed",
+            error=str(exc),
+            fallback_size_usdc=str(_base_size),
+        )
+
+    # WARP-83 E.2 (Path C) + WARP-85 — resolve TP/SL from user_settings (single
+    # source of truth). The strategy reads the user's configured exit thresholds
+    # LITERALLY; there is no per-rule TP/SL bundle and no risk-profile-driven
+    # TP/SL. When a user_settings value is NULL/missing (legacy row, pre-089
+    # backfill, schema gap) we fall back to the active STRATEGY's own
+    # default_tp_sl() hook — exit thresholds are a STRATEGY-stage concern
+    # (CLAUDE.md SYSTEM PIPELINE), not a scan-job constant — and LOG it, never a
+    # silent default. Migration 089 backfills every row to the same Balanced
+    # baseline so in steady state the fallback never fires.
+    _default_tp_pct, _default_sl_pct = _strategy_default_tp_sl(cand.strategy_name)
+    _tp_raw = row.get("tp_pct")
+    _sl_raw = row.get("sl_pct")
+    if _tp_raw is not None:
+        _resolved_tp_pct: float = float(_tp_raw)
+    else:
+        _resolved_tp_pct = _default_tp_pct
+        logger.warning(
+            "user_settings_tp_pct_missing_defensive_fallback",
+            user_id=str(row["user_id"]),
+            strategy_name=cand.strategy_name,
+            fallback_tp_pct=_default_tp_pct,
+        )
+    if _sl_raw is not None:
+        _resolved_sl_pct: float = float(_sl_raw)
+    else:
+        _resolved_sl_pct = _default_sl_pct
+        logger.warning(
+            "user_settings_sl_pct_missing_defensive_fallback",
+            user_id=str(row["user_id"]),
+            strategy_name=cand.strategy_name,
+            fallback_sl_pct=_default_sl_pct,
+        )
+
     return TradeSignal(
         user_id=UUID(str(row["user_id"])),
         telegram_user_id=int(row["telegram_user_id"]),
@@ -680,7 +2148,7 @@ def _build_trade_signal(
         yes_token_id=market.get("yes_token_id"),
         no_token_id=market.get("no_token_id"),
         side=_side,
-        proposed_size_usdc=Decimal(str(cand.suggested_size_usdc)),
+        proposed_size_usdc=_proposed_size,
         price=_price,
         market_liquidity=_market_liquidity,
         market_status=str(market.get("status") or ""),
@@ -689,20 +2157,463 @@ def _build_trade_signal(
         risk_profile=str(row.get("resolved_profile") or "balanced"),
         trading_mode=str(row.get("trading_mode") or "paper"),
         signal_ts=cand.signal_ts,
-        edge_bps=None,
-        tp_pct=float(row["tp_pct"]) if row.get("tp_pct") is not None else None,
-        sl_pct=float(row["sl_pct"]) if row.get("sl_pct") is not None else None,
+        # Derive a measured edge from candidate metadata when the strategy
+        # supplies one (playbook closing-edge stamps metadata["edge"]); gate
+        # step 12's MIN_EDGE_BPS floor then actually fires. Heuristic strategies
+        # that do not measure EV return None and stay ungated by step 12.
+        edge_bps=_edge_bps_from_metadata(cand.metadata),
+        # WARP-83 E.2 (Path C): TP/SL is sourced from user_settings (single
+        # source of truth), resolved above with a logged defensive fallback to
+        # the Balanced strategy default when the column is NULL. No per-rule /
+        # per-profile TP/SL bundle is applied — risk profile governs capital
+        # sizing only.
+        tp_pct=_resolved_tp_pct,
+        sl_pct=_resolved_sl_pct,
         daily_loss_override=(
             float(row["daily_loss_override"])
             if row.get("daily_loss_override") is not None
             else None
         ),
+        user_min_liquidity=float(row.get("min_liquidity_threshold") or 0.0),
+        max_drawdown_pct=(
+            float(row["max_drawdown_pct"])
+            if row.get("max_drawdown_pct") is not None
+            else None
+        ),
+        active_preset=str(row["active_preset"]) if row.get("active_preset") else None,
+        # Per-user live capital cap (Axis #3, migration 064). Missing column
+        # on a stale schema → defaults to 0 → gate step 15 rejects live mode
+        # (safe-by-default).
+        live_capital_cap_usdc=float(row.get("live_capital_cap_usdc") or 0.0),
+        max_concurrent_override=(
+            int(row["max_concurrent_override"])
+            if row.get("max_concurrent_override") is not None
+            else None
+        ),
+        # WARP-89 (gate-hotpath-db-fix): PRELOAD the authoritative risk-profile CAP%
+        # here from the per-user row already fetched once per tick by
+        # _load_enrolled_users (capital_alloc_pct_raw = the RAW user_settings value,
+        # NULL preserved). resolve_capital_alloc_pct applies the exact gate fallback
+        # (profile default → balanced 0.40) + 80% clamp, so the per-candidate risk
+        # gate reads GateContext.capital_alloc_pct instead of doing a DB SELECT.
+        capital_alloc_pct=_resolve_capital_alloc_pct(
+            row.get("capital_alloc_pct_raw"),
+            str(row.get("resolved_profile") or "balanced"),
+        ),
+        # Forward the strategy's opaque signal metadata (weather: city/bucket/
+        # entry-forecast) so it persists on the position for the exit hook.
+        # None when the candidate carries no metadata (keeps the column NULL).
+        strategy_metadata=(cand.metadata or None),
+        # Robustness gate (Phase-2c-1b): False forces this trade to paper.
+        module_live_eligible=module_live_eligible,
+        # WARP-87 follow-up (smart-strike-cell-cap-binding): forward the Smart
+        # Strike candidate's measured trading cell + live order-book depth/spread
+        # (stamped on cand.metadata by late_entry_v3) so the engine threads them
+        # into GateContext and the LIVE-only step-14b slippage gate binds the
+        # per-cell size cap on real flow. None-safe: a non-Smart-Strike candidate
+        # omits these keys → None → the gate's existing fallback applies (no cap).
+        cell=_cell,
+        orderbook_depth_usdc=_orderbook_depth_usdc,
+        spread=_candidate_spread,
+        # WARP (smart-strike-slippage-edge-gate, F1): LIVE no-edge policy resolved
+        # by _process_candidate from the SMART_STRIKE_REQUIRE_MEASURED_EDGE overlay.
+        require_measured_edge=require_measured_edge,
+        # Option 3 (smart-strike-real-edge): entry-side oracle fair-value edge (bps)
+        # = the step-14b slippage gross-edge denominator in real-edge mode.
+        slippage_gross_edge_bps=_slippage_gross_edge_bps,
     )
 
 
 # ---------------------------------------------------------------------------
 # Per-candidate processing
 # ---------------------------------------------------------------------------
+
+
+# C-4 decomposition (WARP/ROOT/decompose-process-candidate): each gate below
+# returns None to continue or a skip-reason string to short-circuit. Pure
+# helpers, no side effects beyond their documented logging. _process_candidate
+# remains the orchestrator and owns telemetry + early-return wiring.
+
+
+def _gate_signal_freshness(
+    *,
+    pub_uuid: UUID | None,
+    signal_ts: datetime,
+    log: Any,
+) -> str | None:
+    """Reject publication-backed signals older than _MAX_SIGNAL_AGE_SECONDS."""
+    if pub_uuid is None:
+        return None
+    now = datetime.now(timezone.utc) if signal_ts.tzinfo else datetime.now(timezone.utc).replace(tzinfo=None)
+    age = (now - signal_ts).total_seconds()
+    if age <= _MAX_SIGNAL_AGE_SECONDS:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_signal_stale",
+        age_seconds=round(age),
+        threshold=_MAX_SIGNAL_AGE_SECONDS,
+        message=f"Signal too old ({round(age)}s > {_MAX_SIGNAL_AGE_SECONDS}s threshold)",
+    )
+    return "skipped_signal_stale"
+
+
+def _gate_target_price_drift(
+    *,
+    pub_uuid: UUID | None,
+    side: str,
+    market: dict[str, Any],
+    metadata: dict[str, Any],
+    log: Any,
+) -> str | None:
+    """Reject when cached DB price has drifted > _MAX_TARGET_DRIFT_PCT from signal target."""
+    if pub_uuid is None:
+        return None
+    try:
+        target = float(metadata.get("target_price") or 0.0)
+    except (TypeError, ValueError):
+        return None
+    if target <= 0:
+        return None
+    price_primary = market.get(f"{side}_price")
+    price_fallback = market.get("no_price" if side == "yes" else "yes_price")
+    try:
+        current = float(
+            price_primary if price_primary is not None
+            else (price_fallback if price_fallback is not None else 0.5)
+        )
+    except (TypeError, ValueError):
+        return None
+    drift = abs(current - target) / target
+    if drift <= _MAX_TARGET_DRIFT_PCT:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_price_drifted",
+        side=side,
+        target_price=target,
+        current_price=current,
+        drift_pct=round(drift * 100, 1),
+        threshold_pct=round(_MAX_TARGET_DRIFT_PCT * 100, 1),
+        message=(
+            f"Price drifted {round(drift * 100, 1)}% "
+            f"(target={target:.4f} current={current:.4f}) "
+            f"> {round(_MAX_TARGET_DRIFT_PCT * 100)}% threshold"
+        ),
+    )
+    return "skipped_price_drifted"
+
+
+def _gate_liquidity_filter(
+    *,
+    market: dict[str, Any],
+    min_liquidity_threshold: float,
+    log: Any,
+) -> str | None:
+    """Skip markets below the user's configured liquidity threshold."""
+    if min_liquidity_threshold <= 0:
+        return None
+    try:
+        market_liquidity = float(market.get("liquidity_usdc") or 0.0)
+    except (TypeError, ValueError):
+        return None
+    if market_liquidity >= min_liquidity_threshold:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_liquidity",
+        market_liquidity=market_liquidity,
+        threshold=min_liquidity_threshold,
+        message=(
+            f"Skipped: liquidity ${market_liquidity:.0f} below threshold "
+            f"${min_liquidity_threshold:.0f}"
+        ),
+    )
+    return "skipped_liquidity"
+
+
+def _gate_tob_freshness(
+    *,
+    metadata: dict[str, Any],
+    side: str,
+    market_id: str,
+    strategy_name: str,
+    log: Any,
+) -> str | None:
+    """Reject when the orderbook snapshot age exceeds TOB_STALE_MS."""
+    meta_ts = metadata.get("entry_price_ts")
+    if meta_ts is None:
+        return None
+    try:
+        from ...config import get_settings as _get_settings_tob
+        tob_stale_ms = int(_get_settings_tob().TOB_STALE_MS)
+    except Exception as exc:
+        log.warning(
+            "tob_stale_ms_config_read_failed",
+            error=str(exc),
+            fallback_ms=2000,
+        )
+        tob_stale_ms = 2000
+    if tob_stale_ms <= 0:
+        return None
+    try:
+        tob_age_ms = (
+            datetime.now(timezone.utc).timestamp() - float(meta_ts)
+        ) * 1000.0
+    except (TypeError, ValueError):
+        return None
+    if tob_age_ms <= tob_stale_ms:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_stale_tob",
+        side=side,
+        market_id=market_id,
+        strategy=strategy_name,
+        age_ms=round(tob_age_ms, 1),
+        threshold_ms=tob_stale_ms,
+        message=(
+            f"Orderbook snapshot age {tob_age_ms:.0f}ms exceeds "
+            f"TOB_STALE_MS={tob_stale_ms}; rejecting to avoid "
+            f"firing on stale CLOB data."
+        ),
+    )
+    return "skipped_stale_tob"
+
+
+def _gate_complete_set_edge(
+    *,
+    metadata: dict[str, Any],
+    side: str,
+    market_id: str,
+    strategy_name: str,
+    log: Any,
+) -> str | None:
+    """Reject when complete-set edge < MIN_COMPLETE_SET_EDGE."""
+    meta_edge = metadata.get("complete_set_edge")
+    if meta_edge is None:
+        return None
+    try:
+        from ...config import get_settings as _get_settings_edge
+        min_edge = float(_get_settings_edge().MIN_COMPLETE_SET_EDGE)
+    except Exception as exc:
+        log.warning(
+            "min_complete_set_edge_config_read_failed",
+            error=str(exc),
+            fallback=0.005,
+        )
+        min_edge = 0.005
+    if min_edge <= 0:
+        return None
+    try:
+        candidate_edge = float(meta_edge)
+    except (TypeError, ValueError) as exc:
+        log.warning(
+            "complete_set_edge_parse_failed",
+            market_id=market_id,
+            strategy=strategy_name,
+            raw=repr(meta_edge),
+            error=str(exc),
+            message=(
+                "Candidate carried a non-numeric complete_set_edge "
+                "stamp; bypassing the gate for this candidate but "
+                "the producer should be fixed."
+            ),
+        )
+        return None
+    if candidate_edge >= min_edge:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_negative_arb",
+        side=side,
+        market_id=market_id,
+        strategy=strategy_name,
+        complete_set_edge=round(candidate_edge, 4),
+        threshold=min_edge,
+        message=(
+            f"Complete-set edge {candidate_edge:.4f} below "
+            f"MIN_COMPLETE_SET_EDGE={min_edge}; rejecting "
+            f"to avoid directional entry into market priced at or "
+            f"above the $1.00 settlement bound."
+        ),
+    )
+    return "skipped_negative_arb"
+
+
+def _gate_candle_tick_alignment(
+    *,
+    live_fill_price: float | None,
+    market: dict[str, Any],
+    side: str,
+    strategy_name: str,
+    market_id: str,
+    log: Any,
+) -> str | None:
+    """Reject candle-market live prices not aligned to the 0.01 CLOB tick."""
+    if live_fill_price is None:
+        return None
+    slug = str(market.get("slug") or "")
+    if "updown" not in slug:
+        return None
+    cents = live_fill_price * 100.0
+    if abs(cents - round(cents)) <= 1e-6:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_sub_cent_price",
+        side=side,
+        live_fill_price=live_fill_price,
+        market_id=market_id,
+        slug=slug,
+        strategy=strategy_name,
+        message=(
+            f"Candle market live price {live_fill_price} not on "
+            f"0.01 tick — Gamma seed/midpoint fallback, not real "
+            f"CLOB activity"
+        ),
+    )
+    return "skipped_sub_cent_price"
+
+
+def _gate_fill_band(
+    *,
+    live_fill_price: float | None,
+    metadata: dict[str, Any],
+    side: str,
+    strategy_name: str,
+    log: Any,
+) -> str | None:
+    """Reject fill prices outside the strategy's [fav_price_min, fav_price_max) band."""
+    if live_fill_price is None:
+        return None
+    raw_min = metadata.get("fav_price_min")
+    raw_max = metadata.get("fav_price_max")
+    if raw_min is None or raw_max is None:
+        return None
+    try:
+        f_min = float(raw_min)
+        f_max = float(raw_max)
+    except (TypeError, ValueError):
+        return None
+    if f_min <= live_fill_price < f_max:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_fill_drifted",
+        side=side,
+        candidate_entry_price=metadata.get("entry_price"),
+        live_fill_price=live_fill_price,
+        fav_price_min=f_min,
+        fav_price_max=f_max,
+        strategy=strategy_name,
+        message=(
+            f"Fill price {live_fill_price:.4f} drifted outside band "
+            f"[{f_min:.2f}, {f_max:.2f}) — candle moved between scan and fill"
+        ),
+    )
+    return "skipped_fill_drifted"
+
+
+def _gate_safe_close_direction(
+    *,
+    user_id: UUID,
+    side: str,
+    market_id: str,
+    active_preset: str | None,
+    log: Any,
+) -> str | None:
+    """Cap safe_close per-(user,side) entries within the rolling 1h window."""
+    if (active_preset or "").lower() != "safe_close":
+        return None
+    try:
+        from ...config import get_settings as _gs_safe_close
+        limit = int(_gs_safe_close().SAFE_CLOSE_DIRECTION_LIMIT_PER_HOUR)
+    except Exception as exc:
+        log.warning(
+            "safe_close_direction_limit_config_read_failed",
+            error=str(exc),
+            fallback=8,
+        )
+        limit = 8
+    if limit <= 0:
+        return None
+    now_ts = datetime.now(timezone.utc).timestamp()
+    recent = _safe_close_recent_count(str(user_id), side, now_ts)
+    if recent < limit:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_safe_close_direction_concentration",
+        side=side,
+        user_id=str(user_id),
+        market_id=market_id,
+        recent_count=recent,
+        limit=limit,
+        window_sec=_SAFE_CLOSE_DIRECTION_WINDOW_SEC,
+        message=(
+            f"User has {recent} safe_close {side.upper()} "
+            f"entries in the last hour (limit "
+            f"{limit}); skipping to avoid "
+            f"directional concentration in trending markets."
+        ),
+    )
+    return "skipped_safe_close_direction_concentration"
+
+
+def _gate_correlated_majors(
+    *,
+    user_id: UUID,
+    side: str,
+    market_id: str,
+    asset: str | None,
+    log: Any,
+) -> str | None:
+    """Cap same-direction crypto-majors (BTC/ETH/SOL) entries within one
+    same-candle window.
+
+    Applies to ALL candle presets (the correlation is a market property, not a
+    preset property): unlike the safe_close direction limiter, a momentum-led
+    close_sweep / flip_hunter / candle_auto stack of correlated majors carries the
+    same cluster-stop-out risk. Returns the skip reason when the user is already
+    at the cap for this direction, else None. No-op (returns None) for a
+    non-cluster asset or when the cap is disabled (limit <= 0)."""
+    if asset is None:
+        return None
+    try:
+        from ...config import get_settings as _gs_corr
+        limit = int(_gs_corr().CORRELATED_MAJORS_SAME_DIR_LIMIT)
+    except Exception as exc:
+        log.warning(
+            "correlated_majors_limit_config_read_failed",
+            error=str(exc),
+            fallback=2,
+        )
+        limit = 2
+    if limit <= 0:
+        return None
+    now_ts = datetime.now(timezone.utc).timestamp()
+    recent = _correlated_majors_recent_count(str(user_id), side, now_ts)
+    if recent < limit:
+        return None
+    log.info(
+        "scan_outcome",
+        outcome="skipped_correlated_majors_concentration",
+        side=side,
+        asset=asset,
+        user_id=str(user_id),
+        market_id=market_id,
+        recent_count=recent,
+        limit=limit,
+        window_sec=_CORRELATED_MAJORS_WINDOW_SEC,
+        message=(
+            f"User already holds {recent} same-direction {side.upper()} "
+            f"crypto-majors entries this candle (limit {limit}); skipping "
+            f"{asset} to avoid correlated cluster concentration (BTC/ETH/SOL "
+            f"move together — three same-side entries stop out as one)."
+        ),
+    )
+    return "skipped_correlated_majors_concentration"
 
 
 async def _process_candidate(
@@ -723,6 +2634,7 @@ async def _process_candidate(
     log = logger.bind(
         user_id=str(user_id),
         market_id=cand.market_id,
+        rule=cand.strategy_name,
         side=side,
         strategy=_STRATEGY_NAME,
         publication_id=str(pub_uuid) if pub_uuid else None,
@@ -762,8 +2674,94 @@ async def _process_candidate(
             )
             _stale_idem = str(stale["idempotency_key"])
             _stale_size = Decimal(str(stale["final_size_usdc"]))
-            _tp = float(row["tp_pct"]) if row.get("tp_pct") is not None else None
-            _sl = float(row["sl_pct"]) if row.get("sl_pct") is not None else None
+            # Resolve the ORIGINATING strategy for this queued row (WARP-91).
+            # execution_queue.strategy_name stores the strategy that queued the
+            # row at INSERT time (signal_following / late_entry_v3 / ...). The
+            # resume path must execute under THAT strategy — routing a
+            # late_entry_v3-origin row as signal_following would skip
+            # strategy-specific exit/force-exit evaluation. Legacy rows missing
+            # the column fall back to the historical constant (backward-compat).
+            _stale_strategy: str = str(stale.get("strategy_name") or _STRATEGY_NAME)
+            # TP/SL resolution — mirror the normal-mode _build_trade_signal
+            # fallback (WARP-90 / PR #1688 SENTINEL condition B). The stale-queue
+            # resume path (covers safe_close + the other candle presets) re-emits
+            # a queued entry; on a NULL user_settings row it must NOT resume with
+            # tp/sl = None. Fall back to the originating strategy's default_tp_sl()
+            # hook (strategy_type below is _stale_strategy) and LOG it.
+            _stale_default_tp_pct, _stale_default_sl_pct = _strategy_default_tp_sl(
+                _stale_strategy
+            )
+            if row.get("tp_pct") is not None:
+                _tp: float = float(row["tp_pct"])
+            else:
+                _tp = _stale_default_tp_pct
+                log.warning(
+                    "user_settings_tp_pct_missing_defensive_fallback",
+                    user_id=str(user_id),
+                    strategy_name=_stale_strategy,
+                    mode="safe_close_resume",
+                    fallback_tp_pct=_stale_default_tp_pct,
+                )
+            if row.get("sl_pct") is not None:
+                _sl: float = float(row["sl_pct"])
+            else:
+                _sl = _stale_default_sl_pct
+                log.warning(
+                    "user_settings_sl_pct_missing_defensive_fallback",
+                    user_id=str(user_id),
+                    strategy_name=_stale_strategy,
+                    mode="safe_close_resume",
+                    fallback_sl_pct=_stale_default_sl_pct,
+                )
+            _stale_mode = str(stale["chosen_mode"])
+            _stale_trading_mode = str(row.get("trading_mode") or "paper")
+            # Capital-circuit-breaker re-check BEFORE resuming. The full gate is
+            # skipped on resume (staleness/idempotency would self-reject), but the
+            # account circuit breakers must still hold: a user who breached their
+            # daily-loss cap, drawdown halt, concurrent limit, exposure cap, or
+            # live capital cap between the crash and recovery must NOT have a
+            # pending entry resumed. On breach the row is marked failed (abandoned)
+            # — a halted account does not resume queued entries. (Kill switch is
+            # handled above and intentionally leaves the row queued for retry.)
+            _resume_check = await _resume_safety_check(
+                user_id=user_id,
+                market_id=str(stale["market_id"]),
+                risk_profile=str(row.get("resolved_profile") or "balanced"),
+                proposed_size_usdc=_stale_size,
+                trading_mode=_stale_trading_mode,
+                chosen_mode=_stale_mode,
+                daily_loss_override=(
+                    float(row["daily_loss_override"])
+                    if row.get("daily_loss_override") is not None else None
+                ),
+                max_drawdown_pct=(
+                    float(row["max_drawdown_pct"])
+                    if row.get("max_drawdown_pct") is not None else None
+                ),
+                live_capital_cap_usdc=float(row.get("live_capital_cap_usdc") or 0.0),
+                max_concurrent_override=(
+                    int(row["max_concurrent_override"])
+                    if row.get("max_concurrent_override") is not None else None
+                ),
+            )
+            if not _resume_check.approved:
+                log.info(
+                    "scan_outcome",
+                    outcome="skipped_resume_circuit_breaker",
+                    reason=_resume_check.reason,
+                    failed_step=_resume_check.failed_step,
+                    mode=_stale_mode,
+                )
+                if telemetry is not None:
+                    telemetry.record_skip("skipped_resume_circuit_breaker")
+                try:
+                    await _mark_failed(
+                        user_id, pub_uuid, _stale_idem,
+                        f"resume_circuit_breaker:{_resume_check.reason}",
+                    )
+                except Exception as mark_exc:
+                    log.warning("exec_queue_mark_failed_error", error=str(mark_exc))
+                return
             try:
                 await router_execute(
                     chosen_mode=str(stale["chosen_mode"]),
@@ -778,7 +2776,7 @@ async def _process_candidate(
                     size_usdc=_stale_size,
                     price=_stale_price,
                     idempotency_key=_stale_idem,
-                    strategy_type=_STRATEGY_NAME,
+                    strategy_type=_stale_strategy,
                     tp_pct=_tp,
                     sl_pct=_sl,
                     trading_mode=str(row.get("trading_mode") or "paper"),
@@ -799,6 +2797,100 @@ async def _process_candidate(
                     log.warning("exec_queue_mark_failed_error", error=str(mark_exc))
             return
 
+    # 0a. Bankroll circuit breaker (WARP/R00T/bankroll-circuit-breaker,
+    #     ref Polybot directive 1.4 + #6). Per-user latch checked BEFORE
+    #     dedup / open-position / strategy gates so a tripped user does
+    #     not consume any work for net new entries. The crash-recovery
+    #     branch (step 0) runs FIRST so an already-approved-but-
+    #     interrupted trade still completes — the breaker only blocks
+    #     NEW entries, never the recovery of in-flight ones.
+    #
+    #     Reference: _bankroll_ema_baseline maintained by Lane 5
+    #     (bankroll-dynamic-sizing). Trip at `baseline * THRESHOLD`,
+    #     resume at `baseline * THRESHOLD * (1 + HYSTERESIS)`.
+    #     Operator escape hatch: BANKROLL_CIRCUIT_BREAKER_ENABLED=false
+    #     (default) disables the gate entirely.
+    try:
+        from ...config import get_settings as _gs_cb
+        _cfg_cb = _gs_cb()
+        _cb_enabled = bool(getattr(_cfg_cb, "BANKROLL_CIRCUIT_BREAKER_ENABLED", False))
+    except Exception as exc:
+        # AGENTS.md hard rule: zero silent failures. Log the diagnostic
+        # context and fail closed — disable the gate rather than risk a
+        # crashed config read silently locking every user out.
+        log.warning(
+            "bankroll_circuit_breaker_config_read_failed",
+            error=str(exc),
+            fallback_enabled=False,
+        )
+        _cb_enabled = False
+    if _cb_enabled:
+        try:
+            _cb_threshold = float(_cfg_cb.BANKROLL_CIRCUIT_BREAKER_THRESHOLD)
+            _cb_hysteresis = float(_cfg_cb.BANKROLL_CIRCUIT_BREAKER_HYSTERESIS)
+        except Exception as exc:
+            log.warning(
+                "bankroll_circuit_breaker_params_read_failed",
+                error=str(exc),
+                fallback_threshold=0.20,
+                fallback_hysteresis=0.10,
+            )
+            _cb_threshold = 0.20
+            _cb_hysteresis = 0.10
+        try:
+            _cb_balance = float(row.get("balance_usdc") or 0.0)
+        except (TypeError, ValueError):
+            _cb_balance = 0.0
+        # Decouple from Lane 5: warm the baseline ourselves so the
+        # breaker works even when BANKROLL_DYNAMIC_SIZING_ENABLED=false.
+        # No-op when a baseline already exists (Lane 5 path seeds it on
+        # first multiplier call) so this never overwrites Lane 5 state.
+        # Capture prev state BEFORE seeding so the first-ever seed is
+        # detected as a transition (_prev_baseline=None → _new_baseline=X).
+        _uid_str = str(row["user_id"])
+        _prev_baseline = _bankroll_ema_baseline.get(_uid_str)
+        _prev_tripped = _bankroll_circuit_tripped.get(_uid_str, False)
+        _ensure_bankroll_baseline_seeded(_uid_str, _cb_balance)
+        _cb_tripped = _evaluate_bankroll_circuit_breaker(
+            _uid_str,
+            _cb_balance,
+            threshold=_cb_threshold,
+            hysteresis=_cb_hysteresis,
+        )
+        # Persist only on state transition (baseline ratchet or latch flip) to
+        # avoid a spurious UPSERT on every evaluation. Both trip and hysteresis-
+        # resume transitions are captured because either changes _new_tripped.
+        # Fail-open: a persistence error never blocks the gate decision below.
+        _new_baseline = _bankroll_ema_baseline.get(_uid_str)
+        _new_tripped = _bankroll_circuit_tripped.get(_uid_str, False)
+        if (_new_baseline != _prev_baseline) or (_new_tripped != _prev_tripped):
+            await _persist_bankroll_circuit_state(_uid_str)
+        if _cb_tripped:
+            # Mirror the helper's baseline source so the log payload
+            # surfaces the exact denominator the gate used.
+            _cb_baseline = _bankroll_ema_baseline.get(_uid_str)
+            log.info(
+                "scan_outcome",
+                outcome="skipped_circuit_breaker",
+                side=side,
+                market_id=cand.market_id,
+                strategy=cand.strategy_name,
+                balance_usdc=_cb_balance,
+                baseline_usdc=_cb_baseline,
+                threshold=_cb_threshold,
+                hysteresis=_cb_hysteresis,
+                message=(
+                    f"Bankroll circuit breaker tripped: balance "
+                    f"{_cb_balance:.2f} below baseline "
+                    f"{_cb_baseline if _cb_baseline is not None else 'N/A'} "
+                    f"* threshold {_cb_threshold}; resume requires balance "
+                    f"> baseline * threshold * (1 + {_cb_hysteresis})."
+                ),
+            )
+            if telemetry is not None:
+                telemetry.record_skip("skipped_circuit_breaker")
+            return
+
     # 1. Permanent dedup — skip if execution_queue already has this row.
     if pub_uuid is not None:
         try:
@@ -812,15 +2904,126 @@ async def _process_candidate(
                 telemetry.record_skip("skipped_dedup")
             return
 
+    # 1a-2. Safe-close inventory imbalance override
+    #       (WARP/R00T/safe-close-imbalance-override, Polybot directive 1.2.1.c).
+    #       Default OFF (dark launch). When ON it ONLY fires for
+    #       late_entry_v3 candidates whose user has active_preset =
+    #       'safe_close' AND has imbalanced existing exposure on the
+    #       market. The override:
+    #         - mutates cand.side to the lagging leg
+    #         - stamps metadata["imbalance_override"] for audit
+    #         - sets `_imbalance_override_active` so the open-position
+    #           dedup below switches to the side-aware variant
+    #       Other strategies / presets keep the broad open-position
+    #       dedup unchanged.
+    _imbalance_override_active = False
+    _override_log: dict[str, Any] = {}
+    try:
+        from ...config import get_settings as _gs_imb
+        _cfg_imb = _gs_imb()
+        _imb_enabled = bool(getattr(_cfg_imb, "SAFE_CLOSE_IMBALANCE_OVERRIDE_ENABLED", False))
+    except Exception as exc:
+        # Fail CLOSED — disable the override path on config-read failure
+        # so a broken config never silently lets us into the dedup-relax
+        # branch. Matches the bankroll-circuit-breaker pattern.
+        log.warning(
+            "safe_close_imbalance_override_config_read_failed",
+            error=str(exc),
+            fallback_enabled=False,
+        )
+        _imb_enabled = False
+    if (
+        _imb_enabled
+        and cand.strategy_name == "late_entry_v3"
+        and (row.get("active_preset") or "").lower() == "safe_close"
+    ):
+        try:
+            _threshold = float(_cfg_imb.SAFE_CLOSE_IMBALANCE_THRESHOLD_USDC)
+        except Exception as exc:
+            log.warning(
+                "safe_close_imbalance_threshold_read_failed",
+                error=str(exc),
+                fallback_usdc=5.0,
+            )
+            _threshold = 5.0
+        _inventory = await _fetch_market_inventory_for_override(
+            user_id, cand.market_id,
+        )
+        _imb = float(_inventory.imbalance_usdc) if _inventory is not None else 0.0
+        if _inventory is not None and not _inventory.is_empty and abs(_imb) > _threshold:
+            # Activate the side-aware dedup whenever a significant
+            # imbalance exists — even if the candidate naturally
+            # targets the lagging leg (no flip required). Otherwise
+            # the broad market-wide dedup would block a correctly-
+            # directed rebalance entry because the heavy-leg position
+            # is already open. Gemini-flagged inconsistency.
+            _imbalance_override_active = True
+            # Lagging leg is the side with LESS exposure: imb > 0 means
+            # YES-heavy → lagging is NO. imb < 0 → lagging is YES.
+            # SignalCandidate.side validator enforces uppercase
+            # ('YES' / 'NO'); the lowercase `side` local is the
+            # execution-engine-facing convention. Track both.
+            lagging_side_upper = "NO" if _imb > 0 else "YES"
+            lagging_side_lower = lagging_side_upper.lower()
+            current_side_lower = (cand.side or "").lower()
+            if current_side_lower != lagging_side_lower:
+                _override_log = {
+                    "original_side": current_side_lower,
+                    "new_side": lagging_side_lower,
+                    "imbalance_usdc": round(_imb, 4),
+                    "threshold_usdc": _threshold,
+                    "yes_size_usdc": str(_inventory.yes_size_usdc),
+                    "no_size_usdc": str(_inventory.no_size_usdc),
+                }
+                log.info(
+                    "scan_outcome",
+                    outcome="imbalance_override_applied",
+                    market_id=cand.market_id,
+                    strategy=cand.strategy_name,
+                    **_override_log,
+                    message=(
+                        f"Safe-close imbalance override: "
+                        f"{current_side_lower} → {lagging_side_lower} "
+                        f"(imbalance ${_imb:.2f} > ${_threshold:.2f})"
+                    ),
+                )
+                # SignalCandidate is a frozen dataclass with an
+                # uppercase-side validator. `dataclasses.replace`
+                # requires the uppercase form; the local `side`
+                # variable stays lowercase for the rest of the function.
+                _new_md = dict(cand.metadata)
+                _new_md["imbalance_override"] = _override_log
+                cand = _dc_replace(
+                    cand, side=lagging_side_upper, metadata=_new_md,
+                )
+                side = lagging_side_lower
+                # _imbalance_override_active was already set True above
+                # when |imbalance| > threshold; the side-flip is a
+                # subset of that condition.
+
     # 1b. Open-position market dedup — skip if user already holds an open
     #     position on this market_id. Closes the race window between concurrent
     #     ticks that both clear gate step 10 (orders-table dedup) before either
     #     has committed its position row. Crash-recovery resumes above this
     #     check so stale 'queued' rows are not blocked.
+    #
+    #     Override-aware: when the imbalance override above mutated
+    #     cand.side, switch to the side-aware variant so we only block
+    #     if the user already holds a position on the NEW (lagging)
+    #     side. Otherwise the broad market-wide dedup would defeat the
+    #     rebalance — the whole point of the override is to enter the
+    #     opposite leg.
     try:
-        if await _has_open_position_for_market(user_id, cand.market_id):
+        if _imbalance_override_active:
+            _is_dup = await _has_open_position_for_side(
+                user_id, cand.market_id, side,
+            )
+        else:
+            _is_dup = await _has_open_position_for_market(user_id, cand.market_id)
+        if _is_dup:
             log.info("scan_outcome", outcome="skipped_open_position_exists",
                      market_id=cand.market_id,
+                     side_aware=_imbalance_override_active,
                      message="duplicate skipped — open position exists for market")
             if telemetry is not None:
                 telemetry.record_skip("skipped_open_position_exists")
@@ -829,26 +3032,12 @@ async def _process_candidate(
         log.warning("open_position_market_check_failed", error=str(exc))
         # On DB error fall through — gate step 10 remains the safety net.
 
-    # 1c. Signal freshness gate — reject publication-backed signals older than
-    #     _MAX_SIGNAL_AGE_SECONDS. signal_publications.expires_at allows 4h for
-    #     feed UI history; the execution engine enforces a tighter window so it
-    #     never fills at a 3-hour-old market price that has already moved past
-    #     the TP target. Gate is skipped for lib-strategy candidates (pub_uuid
-    #     is None) because those always carry signal_ts=now (see
-    #     lib_strategy_runner.py) and must not be affected by user processing order.
-    if pub_uuid is not None:
-        _signal_age = (datetime.now(timezone.utc) - cand.signal_ts).total_seconds()
-        if _signal_age > _MAX_SIGNAL_AGE_SECONDS:
-            log.info(
-                "scan_outcome",
-                outcome="skipped_signal_stale",
-                age_seconds=round(_signal_age),
-                threshold=_MAX_SIGNAL_AGE_SECONDS,
-                message=f"Signal too old ({round(_signal_age)}s > {_MAX_SIGNAL_AGE_SECONDS}s threshold)",
-            )
-            if telemetry is not None:
-                telemetry.record_skip("skipped_signal_stale")
-            return
+    # 1c. Signal freshness gate (see _gate_signal_freshness).
+    _skip = _gate_signal_freshness(pub_uuid=pub_uuid, signal_ts=cand.signal_ts, log=log)
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
 
     # 2. Market lookup.
     market = await _load_market(cand.market_id)
@@ -858,79 +3047,189 @@ async def _process_candidate(
             telemetry.record_skip("skipped_market_not_synced")
         return
 
-    # 2b. Target price drift guard — compare signal's target_price against
-    #     current cached DB price for this side. If drift exceeds
-    #     _MAX_TARGET_DRIFT_PCT the market has moved too far since the
-    #     signal was published; executing would produce an unrealistic fill.
-    #     Guard only applies to feed signals (pub_uuid is not None) because
-    #     lib-strategy candidates always carry fresh prices (signal_ts=now).
-    #     Uses same primary→fallback→0.5 resolution as _build_trade_signal so
-    #     the guard evaluates the identical price the trade engine will use.
-    if pub_uuid is not None:
-        _target = float(cand.metadata.get("target_price") or 0.0)
-        _price_primary = market.get(f"{side}_price")
-        _price_fallback = market.get("no_price" if side == "yes" else "yes_price")
-        _current = float(
-            _price_primary if _price_primary is not None
-            else (_price_fallback if _price_fallback is not None else 0.5)
-        )
-        if _target > 0:
-            _drift = abs(_current - _target) / _target
-            if _drift > _MAX_TARGET_DRIFT_PCT:
-                log.info(
-                    "scan_outcome",
-                    outcome="skipped_price_drifted",
-                    side=side,
-                    target_price=_target,
-                    current_price=_current,
-                    drift_pct=round(_drift * 100, 1),
-                    threshold_pct=round(_MAX_TARGET_DRIFT_PCT * 100, 1),
-                    message=(
-                        f"Price drifted {round(_drift * 100, 1)}% "
-                        f"(target={_target:.4f} current={_current:.4f}) "
-                        f"> {round(_MAX_TARGET_DRIFT_PCT * 100)}% threshold"
-                    ),
-                )
-                if telemetry is not None:
-                    telemetry.record_skip("skipped_price_drifted")
-                return
+    # 2b. Target price drift guard (see _gate_target_price_drift).
+    _skip = _gate_target_price_drift(
+        pub_uuid=pub_uuid, side=side, market=market,
+        metadata=cand.metadata, log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
 
-    # 2c. Liquidity filter — skip markets below the user's configured threshold.
-    min_liquidity = float(row.get("min_liquidity_threshold") or 0.0)
-    if min_liquidity > 0:
-        market_liquidity = float(market.get("liquidity_usdc") or 0.0)
-        if market_liquidity < min_liquidity:
-            log.info(
-                "scan_outcome",
-                outcome="skipped_liquidity",
-                market_liquidity=market_liquidity,
-                threshold=min_liquidity,
-                message=f"Skipped: liquidity ${market_liquidity:.0f} below threshold ${min_liquidity:.0f}",
-            )
-            if telemetry is not None:
-                telemetry.record_skip("skipped_liquidity")
-            return
+    # 2c. Liquidity filter (see _gate_liquidity_filter).
+    _skip = _gate_liquidity_filter(
+        market=market,
+        min_liquidity_threshold=float(row.get("min_liquidity_threshold") or 0.0),
+        log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
 
     # 3. Build TradeSignal — typed contract for TradeEngine (gate + paper fill).
     idem_key = _build_idempotency_key(user_id, cand.market_id, side, pub_uuid)
 
-    # 3b. Fetch live price so paper fill uses same source as exit_watcher.
-    #     Falls back to DB cached price silently on any API error so a
-    #     Gamma outage does not block all trading.
+    # 3b. Resolve the live fill price. Two sources, in priority order:
+    #
+    #     (a) Candidate metadata `entry_price` — for late_entry_v3 candidates,
+    #         this is the favored-side best ASK from CLOB /book at scan time
+    #         (computed by `_evaluate_market._best_ask`). Already tick-aligned
+    #         + interior because /book returns the real orderbook ladder.
+    #         The scan→fill latency is sub-second, so the orderbook hasn't
+    #         materially moved; using it eliminates the get_live_market_price
+    #         round trip AND the Gamma `outcomePrices` seed/midpoint fallback
+    #         that contaminated 200 flip_hunter positions on 2026-05-28.
+    #
+    #     (b) get_live_market_price fallback for candidates that DON'T carry
+    #         metadata["entry_price"] (signal_following, momentum, etc., which
+    #         enter on Gamma-aware longshot markets where sub-cent last-trade
+    #         prices are legitimate — see WARP-38).
     _live_fill_price: float | None = None
-    try:
-        _live_fill_price = await get_live_market_price(cand.market_id, side)
-    except Exception as exc:
-        log.warning("live_price_fetch_failed", market_id=cand.market_id, error=str(exc))
+    _meta_entry = cand.metadata.get("entry_price")
+    if _meta_entry is not None:
+        try:
+            _candidate_entry = float(_meta_entry)
+            if 0.0 < _candidate_entry < 1.0:
+                _live_fill_price = _candidate_entry
+        except (TypeError, ValueError):
+            _live_fill_price = None
 
+    # 3b-0. TOB freshness gate (see _gate_tob_freshness).
+    _skip = _gate_tob_freshness(
+        metadata=cand.metadata, side=side, market_id=cand.market_id,
+        strategy_name=cand.strategy_name, log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
+
+    # 3b-0a. Complete-set edge gate (see _gate_complete_set_edge).
+    _skip = _gate_complete_set_edge(
+        metadata=cand.metadata, side=side, market_id=cand.market_id,
+        strategy_name=cand.strategy_name, log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
+
+    if _live_fill_price is None:
+        try:
+            _live_fill_price = await get_live_market_price(cand.market_id, side)
+        except Exception as exc:
+            log.warning("live_price_fetch_failed", market_id=cand.market_id, error=str(exc))
+
+    # 3b-i. Candle-market tick-alignment gate (see _gate_candle_tick_alignment).
+    _skip = _gate_candle_tick_alignment(
+        live_fill_price=_live_fill_price, market=market, side=side,
+        strategy_name=cand.strategy_name, market_id=cand.market_id, log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
+
+    # 3c. Fill-time price-band re-check (see _gate_fill_band).
+    _skip = _gate_fill_band(
+        live_fill_price=_live_fill_price, metadata=cand.metadata,
+        side=side, strategy_name=cand.strategy_name, log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
+
+    # 3d. Safe-close direction concentration gate (see _gate_safe_close_direction).
+    _skip = _gate_safe_close_direction(
+        user_id=user_id, side=side, market_id=cand.market_id,
+        active_preset=row.get("active_preset"), log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
+
+    # 3d-ii. Correlated crypto-majors same-direction cap (see
+    #        _gate_correlated_majors). Resolve the cluster asset once here; it is
+    #        reused at the accept-path record site below. No-op for non-majors.
+    _maj_asset = _major_asset_from_candidate(cand)
+    _skip = _gate_correlated_majors(
+        user_id=user_id, side=side, market_id=cand.market_id,
+        asset=_maj_asset, log=log,
+    )
+    if _skip is not None:
+        if telemetry is not None:
+            telemetry.record_skip(_skip)
+        return
+
+    # Phase-2c-1b: robustness gate. When enabled, force an UNTRADEABLE module
+    # (Monte Carlo OOS verdict) to PAPER — flows to GateContext.module_live_eligible,
+    # AND-ed into the live guards (downgrade-only, never enables live). Default OFF →
+    # eligible. Fail-soft: any error → eligible (never blocks trading on its own fault).
+    _module_live_eligible = True
+    try:
+        from ...config import get_settings as _gs_rg
+        if bool(getattr(_gs_rg(), "ROBUSTNESS_GATE_ENABLED", False)):
+            from ...domain.research.robustness import untradeable_set
+            _mod = str((cand.metadata or {}).get("selected_module") or cand.strategy_name)
+            _prof = str(row.get("resolved_profile") or "balanced")
+            _module_live_eligible = (_mod, _prof) not in await untradeable_set(mode="paper")
+    except Exception as exc:  # noqa: BLE001 — gate fault must never block trading
+        log.warning("robustness_gate_eval_failed", error=str(exc))
+        _module_live_eligible = True
+
+    # 3e. No live mark -> skip (never fabricate a fill). _live_fill_price is the
+    #     candidate metadata entry (late_entry_v3) or the get_live_market_price
+    #     fetch (weather / playbook / signal_following / copy). When both are
+    #     unavailable we refuse to trade off the cached DB seed price (possibly a
+    #     Gamma 0.50 placeholder) — an honest skip, no fake fill.
+    if _live_fill_price is None or not (0.0 < _live_fill_price < 1.0):
+        log.info(
+            "scan_outcome", outcome="skipped", reason="no_live_price",
+            market_id=cand.market_id, side=side, strategy=cand.strategy_name,
+        )
+        return
+
+    # F1 (smart-strike-slippage-edge-gate): resolve the LIVE no-edge slippage
+    # policy. Default OFF (env False) → a capped Smart Strike cell with no measured
+    # edge passes step 14b under its per-cell $ cap (cap-only) instead of an
+    # auto-HALT; an uncapped cell still HALTs. Admin can flip it ON (overlay, no
+    # redeploy) to require a real measured edge. Resolved HERE in the async
+    # orchestrator (30s-cached) and threaded into the signal → NEVER read inside
+    # the pure risk gate (the #1694 pool-wedge RCA). On a resolve fault, fall back
+    # to the operator's CONFIGURED env default — NOT a hardcoded False — so a
+    # configured True (require-edge) is never silently downgraded to permissive
+    # cap-only (a LIVE fail-open; Gemini review #1717).
+    _env_require_edge = False
+    try:
+        from ...config import get_settings as _gs_edge
+        _env_require_edge = bool(
+            getattr(_gs_edge(), "SMART_STRIKE_REQUIRE_MEASURED_EDGE", False)
+        )
+        _require_measured_edge = await _runtime_config.resolve_bool(
+            "SMART_STRIKE_REQUIRE_MEASURED_EDGE", _env_require_edge,
+        )
+    except Exception as exc:  # noqa: BLE001 — fall back to the configured env default
+        log.warning("smart_strike_require_edge_resolve_failed", error=str(exc))
+        _require_measured_edge = _env_require_edge
+
+    if _cb_enabled:
+        _base_before_build = _bankroll_ema_baseline.get(_uid_str)
     try:
         signal = _build_trade_signal(
             row=row, cand=cand, market=market, idempotency_key=idem_key,
             live_price_override=_live_fill_price,
+            module_live_eligible=_module_live_eligible,
+            require_measured_edge=_require_measured_edge,
         )
     except Exception as exc:
         log.warning("trade_signal_build_failed", error=str(exc))
         return
+    if _cb_enabled and _bankroll_ema_baseline.get(_uid_str) != _base_before_build:
+        await _persist_bankroll_circuit_state(_uid_str)
 
     # 4. Execute through TradeEngine — risk gate (13 steps) is mandatory inside
     #    the engine; router_execute is never called directly on this path.
@@ -993,6 +3292,45 @@ async def _process_candidate(
         )
         if telemetry is not None:
             telemetry.record_approved()
+        # Record this entry for the safe_close direction-concentration
+        # limiter (Lane 4). Guard on `inserted` so a concurrent-tick
+        # ON CONFLICT skip (another tick already won and recorded) does
+        # not double-count toward the user's directional cap. Also
+        # guard on result.mode != "duplicate" (implicit — we're already
+        # inside that branch) so engine-level idempotency dedup also
+        # bypasses the counter.
+        if inserted and (row.get("active_preset") or "").lower() == "safe_close":
+            _safe_close_record_entry(
+                str(user_id), side, datetime.now(timezone.utc).timestamp(),
+            )
+
+        # Record this entry for the correlated crypto-majors same-direction cap
+        # (WARP/correlated-majors-entry-guard). Same `inserted` + non-duplicate
+        # guard as the safe_close limiter above so a concurrent-tick ON CONFLICT
+        # skip never double-counts. Only records cluster majors (BTC/ETH/SOL) —
+        # `_maj_asset` was resolved once at gate 3d-ii above; a non-major is None
+        # and contributes nothing to the cluster window.
+        if inserted and _maj_asset is not None:
+            _correlated_majors_record_entry(
+                str(user_id), side, datetime.now(timezone.utc).timestamp(),
+            )
+
+        # Fast top-up (WARP/R00T/flip-hunter-fast-topup, directive 1.5
+        # + 1.3.2). Fire-and-forget — failures inside the helper are
+        # caught + logged, never propagated. Only attempts after a
+        # genuinely-new fill (gated on `inserted`); a duplicate /
+        # concurrent-tick skip doesn't trigger a top-up.
+        if inserted:
+            try:
+                await _maybe_fire_fast_topup(
+                    row=row,
+                    market=market,
+                    just_filled_side=side,
+                    just_filled_size_usdc=Decimal(str(final_size)),
+                    log=log,
+                )
+            except Exception as exc:
+                log.warning("fast_topup_unexpected_error", error=str(exc))
     else:
         log.info("scan_outcome", outcome="duplicate", mode=result.chosen_mode)
 
@@ -1071,10 +3409,41 @@ async def run_once() -> None:
     from ...domain.strategy.registry import StrategyRegistry as _Registry
 
     try:
-        _live_trading: bool = bool(_get_settings().ENABLE_LIVE_TRADING)
+        _s = _get_settings()
+        _live_trading: bool = bool(
+            _s.ENABLE_LIVE_TRADING
+            and _s.EXECUTION_PATH_VALIDATED
+            and _s.CAPITAL_MODE_CONFIRMED
+        )
     except Exception:
         _live_trading = False
     _mode: str = "LIVE" if _live_trading else "PAPER"
+
+    # Restore restart-durable bankroll circuit-breaker state once per scan tick
+    # (WARP/ROOT/bankroll-cb-persistence-impl, F19/F4). Idempotent + only seeds
+    # keys not already warmed this process, so the per-tick cost is a single
+    # cheap SELECT after the first populated run. Gated on the breaker flag so
+    # it is a no-op (zero DB work) while the breaker is dark. Reads settings
+    # independently of the _live_trading try above (where _s may be unbound on a
+    # config-read failure). Fail-open: any error skips restore, never blocks.
+    try:
+        _cb_on = bool(getattr(_get_settings(), "BANKROLL_CIRCUIT_BREAKER_ENABLED", False))
+        if _cb_on:
+            await _restore_bankroll_circuit_state()
+    except Exception as exc:  # noqa: BLE001 — never let restore block the scan
+        logger.warning("bankroll_circuit_restore_gate_failed", error=str(exc))
+
+    # Refresh the operator on/off switch once per tick (fail-safe).
+    await _refresh_disabled_strategies()
+
+    # WARP-76 H3 — feed-loss fail-safe. If the RTDS oracle feed has gone silent
+    # past ORACLE_FEED_TIMEOUT_SEC, halt this tick (no new market evaluation) and
+    # page the operator; the next tick after the feed recovers auto-resumes and
+    # pages "restored". Protective halt only — no gate is bypassed. No-op unless
+    # ORACLE_ENABLED.
+    if await _oracle_feed_halts_scan():
+        logger.warning("scan_outcome", outcome="skipped_oracle_feed_down")
+        return
 
     # Count all strategies known to the process (lib + domain registry).
     _lib_count = len(ENABLED_STRATEGIES) + len(DEFERRED_STRATEGIES)
@@ -1100,6 +3469,18 @@ async def run_once() -> None:
         await _finish_scan_run(run_id, tel)
         return
 
+    # WARP-75 (F3 — coverage): surface opted-in users the enrolment join would
+    # silently drop, so a missing signal_following row never hides a user who
+    # asked to trade. Observability only; never blocks the scan.
+    _unenrolled = await _count_optedin_unenrolled()
+    if _unenrolled > 0:
+        logger.warning(
+            "scan_optedin_unenrolled",
+            count=_unenrolled,
+            reason="users opted in (auto_trade_on) but missing signal_following "
+                   "enrolment — not trading; re-run /start to self-heal",
+        )
+
     await _event_bus.emit("pipeline.strategy_scan_started", user_count=len(users))
 
     if not users:
@@ -1107,18 +3488,38 @@ async def run_once() -> None:
         return
 
     markets = await _fetch_markets_for_lib_strategies()
-    strategies_to_run = list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES)
 
     tel.users_evaluated = len(users)
     tel.markets_seen = len(markets)
 
-    # Hoist the domain confluence_scalper instance once per tick — registry
-    # state is process-wide and the lookup does not depend on per-user data.
+    # Phase-2c-2: snapshot the raw full-universe market state for the future
+    # walk-forward replay. Gated (default OFF) + fully fail-soft — never breaks
+    # the scan loop. Captured before any strategy filtering → no selection bias.
+    # Runtime-config wired (mirrors PLAYBOOK/WEATHER): DB overlay wins over the
+    # static env/Fly default, so the PAPER flip is a no-redeploy operator toggle.
     try:
-        confluence_strat = StrategyRegistry.instance().get(_CONFLUENCE_SCALPER_NAME)
-    except KeyError:
-        confluence_strat = None
-        logger.debug("confluence_scalper_not_registered")
+        _snap_enabled = await _runtime_config.resolve_bool(
+            "SCAN_SNAPSHOT_ENABLED",
+            bool(getattr(_get_settings(), "SCAN_SNAPSHOT_ENABLED", False)),
+        )
+    except Exception:
+        _snap_enabled = False
+    if _snap_enabled:
+        from ...domain.research.snapshots import record_market_snapshots
+        # Feed the count into telemetry so scan_runs.snapshots_written reflects
+        # reality for the observability paths (recorder is fail-soft → 0 on error).
+        tel.snapshots_written += await record_market_snapshots(run_id, markets)
+
+    # WARP-80 1a: open a per-tick observation sink so weather + playbook can
+    # record near-miss / abstain readings (distance-to-threshold, would-pass-at-
+    # relaxed-threshold, feed state). Gated (default ON) + fully fail-soft. The
+    # sink is drained and persisted once, just before _finish_scan_run below.
+    _obs_token = None
+    try:
+        if bool(getattr(_get_settings(), "SCAN_OBSERVABILITY_ENABLED", True)):
+            _obs_token = _scan_observability.begin_sink()
+    except Exception:  # noqa: BLE001 — observability must never break the scan loop
+        _obs_token = None
 
     try:
         late_entry_strat = StrategyRegistry.instance().get(_LATE_ENTRY_V3_NAME)
@@ -1126,29 +3527,99 @@ async def run_once() -> None:
         late_entry_strat = None
         logger.debug("late_entry_v3_not_registered")
 
+    try:
+        weather_strat = StrategyRegistry.instance().get(_WEATHER_STRATEGY_NAME)
+    except KeyError:
+        weather_strat = None
+        logger.debug("weather_not_registered")
+
+    try:
+        playbook_strat = StrategyRegistry.instance().get(_PLAYBOOK_STRATEGY_NAME)
+    except KeyError:
+        playbook_strat = None
+        logger.debug("playbook_not_registered")
+
+    # PLAYBOOK: upsert near-event sports markets ONCE per scan (user-independent)
+    # so candidates resolve in _load_market. Gated by the operator flag; fail-soft.
+    if playbook_strat is not None:
+        try:
+            _pb_enabled_global = await _runtime_config.resolve_bool(
+                "PLAYBOOK_STRATEGY_ENABLED",
+                bool(getattr(_get_settings(), "PLAYBOOK_STRATEGY_ENABLED", False)),
+            )
+        except Exception:
+            _pb_enabled_global = False
+        if _pb_enabled_global:
+            try:
+                await _sync_playbook_sports_markets()
+            except Exception as exc:
+                logger.warning("playbook_sports_sync_failed", error=str(exc))
+
+    # WEATHER: upsert live Gamma weather markets ONCE per scan (user-independent)
+    # so candidates resolve in _load_market AND the WebTrader feed shows weather
+    # rows on the weather preset. Gated by the operator flag; fail-soft.
+    if weather_strat is not None:
+        try:
+            _wx_enabled_global = await _runtime_config.resolve_bool(
+                "WEATHER_STRATEGY_ENABLED",
+                bool(getattr(_get_settings(), "WEATHER_STRATEGY_ENABLED", False)),
+            )
+        except Exception:
+            _wx_enabled_global = False
+        if _wx_enabled_global:
+            try:
+                await _sync_weather_markets()
+            except Exception as exc:
+                logger.warning("weather_markets_sync_failed", error=str(exc))
+
     candidates_processed = 0
     candidates_errored = 0
-    lib_total_signals = 0
-    confluence_signals = 0
     late_entry_signals = 0
+    weather_signals = 0
+    playbook_signals = 0
+    complete_set_signals = 0
 
     for row in users:
         active_preset = row.get("active_preset")
+        # Safety guard: skip users who have not yet configured a strategy preset.
+        # _preset_allows is deny-by-default for unknown/NULL presets (returns
+        # False), so this is defense-in-depth — it also avoids wasted scan work
+        # and emits an actionable warning for an unconfigured user.
+        if active_preset is None:
+            logger.warning(
+                "scan_skipped_no_preset",
+                user_id=str(row["user_id"]),
+                reason="active_preset is NULL — user must configure a strategy before trading",
+            )
+            continue
+        # WARP-75 (F3 — coverage): a non-NULL preset that maps to NO strategy
+        # (deny-by-default: renamed / legacy / typo presets such as 'contrarian'
+        # or 'full_auto') would fire nothing SILENTLY for an opted-in user. Surface
+        # it as an actionable warning instead of an invisible skip.
+        if not _PRESET_ALLOWED.get(active_preset):
+            logger.warning(
+                "scan_skipped_unmapped_preset",
+                user_id=str(row["user_id"]),
+                active_preset=active_preset,
+                reason="active_preset maps to no enabled strategy — opted-in user "
+                       "will not trade until the preset is reconfigured",
+            )
+            continue
         category_filters: list[str] = list(row.get("category_filters") or [])
         strategy_params: dict = _coerce_jsonb(row.get("strategy_params"), {})
         _tf = row.get("selected_timeframe")
         selected_timeframe: str | None = str(_tf) if _tf else None
-        selected_assets: list[str] = [str(a) for a in (row.get("selected_assets") or [])]
+        selected_assets: list[str] = _filter_monitor_only_assets(row.get("selected_assets"))
         user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
 
         # Filter market list to user's chosen categories (empty = all markets).
         user_markets = _filter_markets_by_category(markets, category_filters)
 
-        # Crypto-short presets target the currently-live candle window directly
+        # Candle presets target the currently-live candle window directly
         # (by deterministic slug), so they see the in-window markets with real
         # liquidity instead of the far-future batch a broad list fetch returns.
         crypto_window_markets: list[dict] = []
-        if active_preset in ("close_sweep", "confluence_scalper"):
+        if active_preset in _ALL_CANDLE_PRESETS:
             try:
                 crypto_window_markets = await _polymarket.get_crypto_window_markets(
                     selected_timeframe or "5m", selected_assets or None
@@ -1161,103 +3632,7 @@ async def run_once() -> None:
                 user_log.warning("crypto_window_fetch_failed", error=str(exc))
                 crypto_window_markets = []
 
-        for lib_name in strategies_to_run:
-            if not _preset_allows(active_preset, lib_name):
-                continue
-            # Per-strategy params come from user_settings.strategy_params (JSONB,
-            # user-controlled). _coerce_jsonb guarantees the top-level value is a
-            # dict, but a malformed row (e.g. {"momentum_reversal": "balanced"})
-            # can still hold a non-dict sub-value. Passing that into the lib
-            # strategy as config would raise ValueError: dictionary update
-            # sequence element #0 has length 1; 2 is required. Drop to {} + log.
-            lib_params = strategy_params.get(lib_name, {})
-            if not isinstance(lib_params, dict):
-                user_log.warning(
-                    "signal_scan_strategy_params_not_dict",
-                    strategy=lib_name,
-                    got=type(lib_params).__name__,
-                )
-                lib_params = {}
-            config = {"strategy_params": lib_params}
-
-            # close_sweep now runs the late_entry_v3 domain strategy (Phase B),
-            # not a lib strategy, so the lib loop only handles full_auto/default
-            # presets here. Those scan the general market universe.
-            scan_markets = user_markets
-
-            try:
-                cands: list[SignalCandidate] = await asyncio.get_running_loop().run_in_executor(
-                    None, run_lib_strategy, lib_name, scan_markets, config
-                )
-            except Exception as exc:
-                user_log.warning("lib_strategy_run_failed", strategy=lib_name, error=str(exc))
-                cands = []
-
-            user_log.info(
-                "strategy_run",
-                strategy=lib_name,
-                candidates_emitted=len(cands),
-                zero_reason="filter_or_no_match" if not cands else None,
-            )
-            if not cands:
-                tel.record_zero_reason(lib_name, "filter_or_no_match")
-
-            lib_total_signals += len(cands)
-            tel.candidates_emitted += len(cands)
-            for cand in _diversify_lib_candidates(cands, row["user_id"]):
-                try:
-                    await _process_candidate(row, cand, tel)
-                    candidates_processed += 1
-                except Exception as exc:
-                    candidates_errored += 1
-                    user_log.error(
-                        "signal_scan_candidate_unhandled",
-                        market_id=cand.market_id,
-                        strategy=lib_name,
-                        error=str(exc),
-                    )
-
-        # Phase B: run domain confluence_scalper strategy when the active
-        # preset permits. The strategy applies the crypto-only asset whitelist
-        # inside its own market loop (see domain/strategy/eligibility.py +
-        # strategies/confluence_scalper.py), so emitted candidates already
-        # satisfy the gate. Non-crypto markets self-skip without affecting
-        # other strategies on the same scan tick.
-        if confluence_strat is not None and _preset_allows(
-            active_preset, _CONFLUENCE_SCALPER_NAME
-        ):
-            try:
-                user_ctx = _build_user_context(row)
-                market_filters = _build_market_filters(user_ctx.risk_profile)
-                domain_cands = await confluence_strat.scan(market_filters, user_ctx)
-            except Exception as exc:
-                user_log.warning("confluence_scalper_run_failed", error=str(exc))
-                domain_cands = []
-
-            confluence_signals += len(domain_cands)
-            user_log.info(
-                "strategy_run",
-                strategy=_CONFLUENCE_SCALPER_NAME,
-                candidates_emitted=len(domain_cands),
-                zero_reason="filter_or_no_match" if not domain_cands else None,
-            )
-            if not domain_cands:
-                tel.record_zero_reason(_CONFLUENCE_SCALPER_NAME, "filter_or_no_match")
-            tel.candidates_emitted += len(domain_cands)
-            for cand in _diversify_lib_candidates(domain_cands, row["user_id"]):
-                try:
-                    await _process_candidate(row, cand, tel)
-                    candidates_processed += 1
-                except Exception as exc:
-                    candidates_errored += 1
-                    user_log.error(
-                        "signal_scan_candidate_unhandled",
-                        market_id=cand.market_id,
-                        strategy=_CONFLUENCE_SCALPER_NAME,
-                        error=str(exc),
-                    )
-
-        # Phase B2: run domain late_entry_v3 strategy when the active preset
+        # Run domain late_entry_v3 strategy when the active preset
         # permits (close_sweep + full_auto/default). Like confluence_scalper it
         # applies its crypto-candle eligibility + entry-window gates inside
         # scan(), so emitted candidates already satisfy the asset whitelist and
@@ -1268,8 +3643,15 @@ async def run_once() -> None:
         ):
             try:
                 user_ctx = _build_user_context(row)
-                market_filters = _build_market_filters(user_ctx.risk_profile)
-                late_entry_cands = await late_entry_strat.scan(market_filters, user_ctx)
+                market_filters = _build_market_filters(user_ctx.risk_profile, row)
+                # Pass preset-specific params when the user is on a candle preset
+                # (candle_auto runs the lifecycle router internally). Non-candle
+                # presets pass None so scan() falls back to global config. Same
+                # resolver path as run_close_sweep_fast via _scan_late_entry_for_preset.
+                late_entry_cands = await _scan_late_entry_for_preset(
+                    late_entry_strat, active_preset, row.get("selected_timeframe"),
+                    market_filters, user_ctx,
+                )
             except Exception as exc:
                 user_log.warning("late_entry_v3_run_failed", error=str(exc))
                 late_entry_cands = []
@@ -1297,21 +3679,187 @@ async def run_once() -> None:
                         error=str(exc),
                     )
 
+        # Phase B2: run weather domain strategy when the active preset permits.
+        if weather_strat is not None and _preset_allows(active_preset, _WEATHER_STRATEGY_NAME):
+            # Runtime overlay: DB override (web admin) wins over the Fly/env default.
+            _wx_disabled = not await _runtime_config.resolve_bool(
+                "WEATHER_STRATEGY_ENABLED",
+                bool(getattr(_get_settings(), "WEATHER_STRATEGY_ENABLED", False)),
+            )
+            if _wx_disabled:
+                weather_cands = []
+            else:
+                try:
+                    user_ctx = _build_user_context(row)
+                    market_filters = _build_market_filters(user_ctx.risk_profile, row)
+                    weather_cands = await weather_strat.scan(market_filters, user_ctx)
+                except Exception as exc:
+                    user_log.warning("weather_strategy_run_failed", error=str(exc))
+                    weather_cands = []
+
+            weather_signals += len(weather_cands)
+            _zero_reason = (
+                "strategy_disabled" if _wx_disabled
+                else ("filter_or_no_match" if not weather_cands else None)
+            )
+            user_log.info(
+                "strategy_run",
+                strategy=_WEATHER_STRATEGY_NAME,
+                candidates_emitted=len(weather_cands),
+                zero_reason=_zero_reason,
+            )
+            if not weather_cands:
+                tel.record_zero_reason(_WEATHER_STRATEGY_NAME, _zero_reason or "filter_or_no_match")
+            tel.candidates_emitted += len(weather_cands)
+            for cand in weather_cands:
+                try:
+                    await _process_candidate(row, cand, tel)
+                    candidates_processed += 1
+                except Exception as exc:
+                    candidates_errored += 1
+                    user_log.error(
+                        "signal_scan_candidate_unhandled",
+                        market_id=cand.market_id,
+                        strategy=_WEATHER_STRATEGY_NAME,
+                        error=str(exc),
+                    )
+
+        # Phase B4: PLAYBOOK sports strategy router (WARP/ROOT/playbook-live-dispatch).
+        # Gated behind the `playbook` preset AND the PLAYBOOK_STRATEGY_ENABLED operator
+        # flag (runtime overlay wins over the Fly/env default) — mirrors weather B2.
+        # PAPER-only; emitted candidates flow through the same _process_candidate +
+        # risk-gate path as every other strategy. Fail-soft: a scan error logs and
+        # the user loop continues.
+        if playbook_strat is not None and _preset_allows(active_preset, _PLAYBOOK_STRATEGY_NAME):
+            _pb_disabled = not await _runtime_config.resolve_bool(
+                "PLAYBOOK_STRATEGY_ENABLED",
+                bool(getattr(_get_settings(), "PLAYBOOK_STRATEGY_ENABLED", False)),
+            )
+            if _pb_disabled:
+                playbook_cands = []
+            else:
+                try:
+                    user_ctx = _build_user_context(row)
+                    market_filters = _build_market_filters(user_ctx.risk_profile, row)
+                    playbook_cands = await playbook_strat.scan(market_filters, user_ctx)
+                except Exception as exc:
+                    user_log.warning("playbook_strategy_run_failed", error=str(exc))
+                    playbook_cands = []
+
+            playbook_signals += len(playbook_cands)
+            _pb_zero_reason = (
+                "strategy_disabled" if _pb_disabled
+                else ("filter_or_no_match" if not playbook_cands else None)
+            )
+            user_log.info(
+                "strategy_run",
+                strategy=_PLAYBOOK_STRATEGY_NAME,
+                candidates_emitted=len(playbook_cands),
+                zero_reason=_pb_zero_reason,
+            )
+            if not playbook_cands:
+                tel.record_zero_reason(_PLAYBOOK_STRATEGY_NAME, _pb_zero_reason or "filter_or_no_match")
+            tel.candidates_emitted += len(playbook_cands)
+            for cand in playbook_cands:
+                try:
+                    await _process_candidate(row, cand, tel)
+                    candidates_processed += 1
+                except Exception as exc:
+                    candidates_errored += 1
+                    user_log.error(
+                        "signal_scan_candidate_unhandled",
+                        market_id=cand.market_id,
+                        strategy=_PLAYBOOK_STRATEGY_NAME,
+                        error=str(exc),
+                    )
+
+        # Phase B3: complete-set arbitrage scan (WARP/ROOT/complete-set-arb,
+        # Lane 2C-2b). Gated behind COMPLETE_SET_ARB_ENABLED (default OFF) — the
+        # whole branch is dark until the operator flips the flag. Scoped to candle
+        # presets because the crypto-window markets (binary YES/NO candle markets
+        # where the MM-vig dislocation appears) are only fetched + upserted for
+        # those presets above; the normalized rows are reloaded here so the scan
+        # sees real token ids + liquidity. PAPER-only; books a hedged pair via
+        # book_complete_set_paper. Fail-soft: any error is logged and never blocks
+        # the rest of the user loop.
+        # Cheap preconditions first (candle preset + markets present), then the
+        # settings read last and fail-safe — a config-read error must default to
+        # disabled, never raise out of the user loop.
+        if active_preset in _ALL_CANDLE_PRESETS and crypto_window_markets:
+            try:
+                # Runtime overlay: DB override (web admin) wins over Fly/env default.
+                _cset_enabled = await _runtime_config.resolve_bool(
+                    "COMPLETE_SET_ARB_ENABLED",
+                    bool(getattr(_get_settings(), "COMPLETE_SET_ARB_ENABLED", False)),
+                )
+            except Exception:
+                _cset_enabled = False
+        else:
+            _cset_enabled = False
+        if _cset_enabled:
+            from .complete_set_scan import scan_complete_set_for_user
+            try:
+                _mids = [
+                    _mid for _mid in (
+                        str(_m.get("id") or _m.get("conditionId") or "")
+                        for _m in crypto_window_markets
+                    ) if _mid
+                ]
+                # Normalized rows are independent PK lookups — load concurrently.
+                _loaded = await asyncio.gather(*(_load_market(_mid) for _mid in _mids))
+                _cset_rows = [_norm for _norm in _loaded if _norm is not None]
+                _cset_res = await scan_complete_set_for_user(
+                    row, _cset_rows, settings=_get_settings(),
+                )
+                complete_set_signals += _cset_res.quotes_found
+                tel.candidates_emitted += _cset_res.booked
+                user_log.info(
+                    "strategy_run",
+                    strategy="complete_set_arb",
+                    markets_scanned=_cset_res.markets_scanned,
+                    quotes_found=_cset_res.quotes_found,
+                    booked=_cset_res.booked,
+                    rejected=_cset_res.rejected,
+                    errors=_cset_res.errors,
+                    zero_reason=("no_fillable_arb" if _cset_res.quotes_found == 0 else None),
+                )
+            except Exception as exc:
+                user_log.warning("complete_set_scan_failed", error=str(exc))
+
         # Phase C: evaluate signal_publications feed for this user.
         # Uses signal_evaluator which reads user's subscribed feeds and
         # returns SignalCandidates with metadata["publication_id"] set.
         # _process_candidate handles dedup via (user_id, publication_id) unique key.
-        try:
-            user_ctx = _build_user_context(row)
-            market_filters = _build_market_filters(user_ctx.risk_profile)
-            feed_candidates = await evaluate_publications_for_user(
-                user_context=user_ctx,
-                market_filters=market_filters,
-                strategy_name=_STRATEGY_NAME,
+        #
+        # _preset_allows enforces BOTH the operator's global on/off toggle AND
+        # the user's preset → strategy mapping. After WARP/R00T cleanup the only
+        # visible presets are candle presets (close_sweep/safe_close/flip_hunter)
+        # which route exclusively to late_entry_v3 — so this short-circuits for
+        # every candle-preset user even when signal_following is globally ON.
+        # That stops Phase C from silently producing signal-feed trades a user
+        # picking a candle preset never asked for. Telemetry distinguishes the
+        # two reasons so operators can see at a glance whether the gate fired
+        # because of the global toggle or the preset restriction.
+        feed_candidates: list[SignalCandidate] = []
+        if not _preset_allows(active_preset, _STRATEGY_NAME):
+            tel.record_zero_reason(
+                "signal_feed",
+                "globally_disabled"
+                if _STRATEGY_NAME in _GLOBALLY_DISABLED_STRATEGIES
+                else "preset_blocks_signal_following",
             )
-        except Exception as exc:
-            user_log.warning("signal_feed_eval_failed", error=str(exc))
-            feed_candidates = []
+        else:
+            try:
+                user_ctx = _build_user_context(row)
+                market_filters = _build_market_filters(user_ctx.risk_profile, row)
+                feed_candidates = await evaluate_publications_for_user(
+                    user_context=user_ctx,
+                    market_filters=market_filters,
+                    strategy_name=_STRATEGY_NAME,
+                )
+            except Exception as exc:
+                user_log.warning("signal_feed_eval_failed", error=str(exc))
+                feed_candidates = []
 
         if not feed_candidates:
             tel.record_zero_reason("signal_feed", "no_publications_eligible")
@@ -1338,10 +3886,11 @@ async def run_once() -> None:
     logger.info(
         "lib_strategy_scan_done",
         scan_run_id=run_id,
-        strategies=len(strategies_to_run),
-        total_signals=lib_total_signals,
-        confluence_signals=confluence_signals,
+        strategies=4,  # late_entry_v3 + weather + playbook + complete_set_arb
         late_entry_signals=late_entry_signals,
+        weather_signals=weather_signals,
+        playbook_signals=playbook_signals,
+        complete_set_signals=complete_set_signals,
         candidates_emitted=tel.candidates_emitted,
         risk_approved=tel.risk_approved,
         risk_rejected=tel.risk_rejected,
@@ -1350,11 +3899,21 @@ async def run_once() -> None:
         zero_reason_breakdown=tel.zero_reason_breakdown,
         rejection_breakdown=tel.rejection_breakdown,
     )
+    # WARP-80 1a: drain the per-tick observation sink and persist it (one batched,
+    # append-only INSERT). Fail-soft — a write error never affects the scan run.
+    if _obs_token is not None:
+        try:
+            _obs = _scan_observability.drain_sink(_obs_token)
+            if _obs:
+                await _scan_observability.record_scan_observations(run_id, _obs)
+        except Exception:  # noqa: BLE001 — observability is fail-soft
+            pass
+
     await _finish_scan_run(run_id, tel)
     await _event_bus.emit(
         "pipeline.strategy_scan_done",
-        strategy_count=len(strategies_to_run) + 1,  # +1 for confluence_scalper
-        total_signals=lib_total_signals + confluence_signals,
+        strategy_count=1,
+        total_signals=late_entry_signals,
     )
     await _event_bus.emit(
         "pipeline.scan_completed",
@@ -1364,13 +3923,578 @@ async def run_once() -> None:
     )
 
 
-async def run_close_sweep_fast() -> None:
-    """High-frequency scan dedicated to the close_sweep / late_entry_v3 preset.
+_CANDLE_PRESETS: frozenset[str] = frozenset({"close_sweep", "safe_close", "flip_hunter"})
 
-    Late Entry V3 only enters in the final ~35s of a crypto candle. The main
+# Per-preset scan params for late_entry_v3. Kreo-aligned (post WARP/ROOT/safe-close-flip-hunter-kreo-parity).
+# close_sweep : final 35s, moderate lean, fav ≥0.55 — holds to candle resolution
+# safe_close  : enter rem 30–60s (elapsed 240–270s 5m / 840–870s 15m), Min Edge 1%, force-exit rem 30s
+# flip_hunter : Directive Mode A (Pure Arb) — enter cheap side (0.10–0.35) in final 60–180s,
+#               underdog_mode=True, min_arb_edge=1%, hold to settlement (force_exit=0)
+# Static fallback when get_settings() fails (import / test edge cases).
+# Runtime path always goes through _resolve_preset_params for live env override.
+_CANDLE_PRESET_STATIC: dict[str, dict[str, object]] = {
+    "close_sweep": {
+        "min_ask_diff":    0.05,
+        "entry_window_sec": 35.0,
+        "fav_price_min":   0.55,
+        "fav_price_max":   0.70,
+        "size_time_decay": True,             # Directive 1.4: <10s=0.5x, 10–35s=0.75x
+    },
+    "safe_close": {
+        "min_ask_diff":    0.01,                # Kreo Min Edge 1%
+        "entry_window_sec": 60.0,
+        "fav_price_min":   0.60,
+        "fav_price_max":   0.70,
+        "min_entry_sec":   30.0,
+        "force_exit_at_rem_sec": 30.0,          # exit BEFORE noisy final 30s
+    },
+    "flip_hunter": {
+        "min_ask_diff":    0.01,                # Directive min_arb_edge=1%
+        "entry_window_sec": 180.0,              # Directive: max 180s before close (5m default)
+        "fav_price_min":   0.10,                # Directive cheap_side_min_price=0.10
+        "fav_price_max":   0.36,                # Directive cheap_side_max_price=0.35 (excl)
+        "min_entry_sec":   60.0,                # Directive entry_window_min_seconds=60
+        "underdog_mode":   True,                # Directive Mode A: enter cheap side
+        "force_exit_at_rem_sec": 0.0,           # Mode A: hold to settlement (0=no time-exit)
+    },
+}
+# Back-compat alias kept so any external test imports still resolve.
+_CANDLE_PRESET_PARAMS: dict[str, dict[str, object]] = _CANDLE_PRESET_STATIC
+
+
+def _random_close_sweep_min_edge(cfg) -> float:
+    """Per-scan randomized close_sweep min_ask_diff in [MIN, MAX] (Kreo ~2%).
+
+    Returns the lower bound when MIN >= MAX (pinned/deterministic) so tests can
+    fix the value via config. Never raises — falls back to the fixed default.
+    """
+    try:
+        lo = float(cfg.PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MIN)
+        hi = float(cfg.PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MAX)
+    except Exception:
+        return 0.02
+    if lo >= hi:
+        return lo
+    return round(random.uniform(lo, hi), 4)
+
+
+def _resolve_preset_params(
+    active_preset: str | None,
+    timeframe: str | None,
+) -> dict[str, object]:
+    """Return the late_entry_v3 scan params for (preset, timeframe).
+
+    Reads live config so Fly secrets can override per-preset values without a
+    code change. Falls back to ``_CANDLE_PRESET_STATIC`` on any config error.
+
+    flip_hunter is the only timeframe-aware preset (Kreo splits elapsed-time
+    windows per candle length: 0–140s for 5m, 0–420s for 15m). safe_close +
+    close_sweep use rem-time semantics that are identical across timeframes.
+    """
+    if active_preset not in _CANDLE_PRESETS:
+        return _CANDLE_PRESET_STATIC.get(
+            active_preset or "close_sweep", _CANDLE_PRESET_STATIC["close_sweep"]
+        )
+    tf = (timeframe or "5m").lower()
+    try:
+        from ...config import get_settings as _gs
+        cfg = _gs()
+    except Exception:
+        # Static fallback — flip_hunter 15m uses same Directive Mode A window as
+        # 5m (60-180s before close); tf-invariant for safe_close + close_sweep.
+        if active_preset == "flip_hunter" and tf == "15m":
+            base = dict(_CANDLE_PRESET_STATIC["flip_hunter"])
+            base["entry_window_sec"] = 180.0   # Directive: max 180s before close
+            base["min_entry_sec"] = 60.0       # Directive: min 60s before close
+            base["force_exit_at_rem_sec"] = 0.0  # Mode A: hold to settlement
+            return base
+        return _CANDLE_PRESET_STATIC[active_preset]
+    if active_preset == "close_sweep":
+        return {
+            # Kreo "Min Edge" ~2%: randomize the entry lean threshold per scan
+            # in [MIN, MAX] (2–4%) so entries are not pinned to one fixed value.
+            "min_ask_diff":    _random_close_sweep_min_edge(cfg),
+            "entry_window_sec": cfg.PRESET_CLOSE_SWEEP_WINDOW_SEC,
+            "fav_price_min":   cfg.PRESET_CLOSE_SWEEP_FAV_PRICE_MIN,
+            "fav_price_max":   0.70,
+            # WARP/R00T/close-sweep-spread-gate: per-leg bid-ask spread guard
+            # scoped to close_sweep (final-candle illiquidity → high slippage).
+            # safe_close + flip_hunter omit this key → max_leg_spread=None → no-op.
+            # `getattr` defensive so partial-mock cfg objects in tests don't break.
+            "max_leg_spread":  getattr(cfg, "CLOSE_SWEEP_MAX_LEG_SPREAD", 0.02),
+            "size_time_decay": True,             # Directive 1.4: <10s=0.5x, 10–35s=0.75x
+            # close_sweep force-exit (~8s before resolution) is applied on the
+            # EXIT path via force_exit_at_rem_sec_for, not seeded here.
+        }
+    if active_preset == "safe_close":
+        return {
+            "min_ask_diff":    cfg.PRESET_SAFE_CLOSE_MIN_ASK_DIFF,
+            "entry_window_sec": cfg.PRESET_SAFE_CLOSE_WINDOW_SEC,
+            "fav_price_min":   cfg.PRESET_SAFE_CLOSE_FAV_PRICE_MIN,
+            "fav_price_max":   0.70,
+            "min_entry_sec":   cfg.PRESET_SAFE_CLOSE_MIN_ENTRY_SEC,
+            "force_exit_at_rem_sec": cfg.PRESET_SAFE_CLOSE_FORCE_EXIT_REM_SEC,
+        }
+    # flip_hunter — Kreo Early Flip Hunter, timeframe-aware
+    if tf == "15m":
+        min_rem = cfg.PRESET_FLIP_HUNTER_15M_MIN_REM_SEC
+        max_rem = cfg.PRESET_FLIP_HUNTER_15M_MAX_REM_SEC
+        force_exit = cfg.PRESET_FLIP_HUNTER_15M_FORCE_EXIT_REM_SEC
+    else:
+        min_rem = cfg.PRESET_FLIP_HUNTER_5M_MIN_REM_SEC
+        max_rem = cfg.PRESET_FLIP_HUNTER_5M_MAX_REM_SEC
+        force_exit = cfg.PRESET_FLIP_HUNTER_5M_FORCE_EXIT_REM_SEC
+    return {
+        "min_ask_diff":    cfg.PRESET_FLIP_HUNTER_MIN_ASK_DIFF,
+        "entry_window_sec": max_rem,
+        "fav_price_min":   cfg.PRESET_FLIP_HUNTER_FAV_PRICE_MIN,
+        "fav_price_max":   cfg.PRESET_FLIP_HUNTER_FAV_PRICE_MAX,
+        "min_entry_sec":   min_rem,
+        "underdog_mode":   True,            # Directive Mode A: enter cheap side
+        "force_exit_at_rem_sec": 0.0,       # Mode A: hold to settlement (0=no time-exit)
+    }
+
+
+# candle_auto — lifecycle router preset. Routes to the SAME late_entry_v3 engine
+# as the three single-rule candle presets, but per market picks whichever rule
+# matches the candle's current stage (flip_hunter early underdog → safe_close mid
+# favorite → close_sweep final favorite). It is NOT a member of _CANDLE_PRESETS
+# (that set drives _resolve_preset_params' single-rule dispatch); use
+# _ALL_CANDLE_PRESETS for window-fetch + fast-loop gating.
+_CANDLE_AUTO_PRESET: str = "candle_auto"
+_ALL_CANDLE_PRESETS: frozenset[str] = _CANDLE_PRESETS | {_CANDLE_AUTO_PRESET}
+
+# Dedup precedence for the router: process the LATEST-stage rule first so it
+# claims a market when windows overlap. The only real overlap is close_sweep
+# (final 35s) vs safe_close (~30-60s) at ~30-35s, where close_sweep (force-exit
+# 8s) is the correct match. flip_hunter is the opposite (underdog) side and is
+# time-disjoint from the two favorite rules, so it never conflicts on side.
+_CANDLE_AUTO_RULE_ORDER: tuple[str, ...] = ("close_sweep", "safe_close", "flip_hunter")
+
+# WARP-83 E.2 (Path C): the former ``_candle_auto_rule_tpsl`` helper (which
+# sourced per-rule TP/SL from PRESETS and stamped it into candidate metadata)
+# was REMOVED. Per-rule TP/SL bundles were the UX-deception bug — they silently
+# overrode user_settings.tp_pct / sl_pct. TP/SL is now a strategy-level property
+# sourced exclusively from user_settings in _build_trade_signal. The PRESETS
+# tp_pct / sl_pct fields remain only as display/sizing metadata for the picker.
+
+
+# --- WARP-64 Chunk 3: advisory oracle-edge wiring -----------------------------
+# Per-preset Distance / Min Edge / Trend (Kreo-aligned, fractions). Feeds ONLY
+# the advisory ``would_pass`` observation in late_entry_v3 — nothing here blocks a
+# trade this chunk (owner directive). Distance band is abs(delta); min_edge is a
+# fraction (2.0% = 0.02); trend is the Kreo align flag (advisory, not yet enforced).
+_CANDLE_PRESET_EDGE: dict[str, dict[str, float | bool]] = {
+    "close_sweep": {"min_dist": 0.0005, "max_dist": 0.020, "min_edge": 0.020, "trend": False},
+    "safe_close":  {"min_dist": 0.0003, "max_dist": 0.010, "min_edge": 0.010, "trend": False},
+    "flip_hunter": {"min_dist": 0.0005, "max_dist": 0.050, "min_edge": 0.030, "trend": True},
+}
+
+# Lazily-started RTDS oracle singleton (WARP-62 Chunk 1). Owns its own run-loop
+# task: started once on first use, REUSED across scans (no per-scan reconnect),
+# stopped best-effort at app shutdown (main.lifespan -> stop_candle_oracle). The
+# first get_price() after start may return None until the first tick lands — that
+# warmup is normal (late_entry_v3 logs "oracle warming up"), never an error.
+_candle_oracle = None
+_candle_oracle_lock = asyncio.Lock()
+
+# WARP-76 H3 — feed-loss fail-safe latch. Tracks whether the last scan tick saw
+# the RTDS oracle feed as DOWN, so the operator is paged exactly once on the
+# down→up and up→down transitions (not every tick) and the scan auto-resumes.
+_oracle_feed_down = False
+
+
+async def _page_feed_alert(text: str) -> None:
+    """Best-effort operator page for the feed-loss fail-safe. Never raises."""
+    try:
+        from ... import notifications
+        await notifications.notify_operator(text)
+    except Exception as exc:  # noqa: BLE001 — page is best-effort
+        logger.error("oracle_feed_alert_failed", error=str(exc))
+
+
+async def _oracle_feed_halts_scan() -> bool:
+    """WARP-76 H3 — return True (halt the scan) when the RTDS feed is DOWN.
+
+    Engages only when ORACLE_ENABLED. Pages the operator once on each
+    transition: "RTDS feed lost — scan halted" on down, "RTDS feed restored —
+    scan resumed" on the first tick after recovery. PROTECTIVE only: it halts
+    evaluation, never opens a permissive path. Fully fail-soft — any error
+    returns False so a monitoring fault can never freeze trading (per-evaluation
+    staleness guards still protect against stale data).
+    """
+    global _oracle_feed_down
+    try:
+        from ...config import get_settings as _get_settings
+        cfg = _get_settings()
+        if not getattr(cfg, "ORACLE_ENABLED", False):
+            return False
+        timeout = float(getattr(cfg, "ORACLE_FEED_TIMEOUT_SEC", 120))
+        from ...domain.strategy.oracle import OracleDisabledError
+        try:
+            oracle = await get_candle_oracle()
+        except OracleDisabledError:
+            return False
+        down = bool(oracle.is_feed_down(timeout))
+    except Exception as exc:  # noqa: BLE001 — monitoring must never freeze the scan
+        logger.warning("oracle_feed_gate_error", error=str(exc))
+        return False
+    if down and not _oracle_feed_down:
+        _oracle_feed_down = True
+        logger.error("oracle_feed_lost_scan_halted")
+        await _page_feed_alert(
+            "🚨 <b>RTDS feed lost — scan halted</b>\n"
+            "No oracle tick within ORACLE_FEED_TIMEOUT_SEC; new market "
+            "evaluation is paused until the feed recovers."
+        )
+    elif not down and _oracle_feed_down:
+        _oracle_feed_down = False
+        logger.info("oracle_feed_restored_scan_resumed")
+        await _page_feed_alert(
+            "✅ <b>RTDS feed restored — scan resumed</b>\n"
+            "Oracle ticks are fresh again; market evaluation has resumed."
+        )
+    return down
+
+
+async def get_candle_oracle():
+    """Return the started RTDS oracle singleton (start once, reuse across scans).
+
+    Requires ORACLE_ENABLED=true (``oracle_from_settings`` raises
+    OracleDisabledError otherwise). The run-loop task lives on the singleton until
+    ``stop_candle_oracle()`` at shutdown — this never reconnects per scan.
+    """
+    global _candle_oracle
+    if _candle_oracle is not None:
+        return _candle_oracle
+    async with _candle_oracle_lock:
+        if _candle_oracle is None:
+            from ...domain.strategy.oracle import oracle_from_settings
+            oracle = oracle_from_settings()
+            await oracle.start()
+            _candle_oracle = oracle
+            logger.info("candle_oracle_started", symbols=oracle.symbols)
+    return _candle_oracle
+
+
+async def stop_candle_oracle() -> None:
+    """Best-effort stop of the oracle singleton (app shutdown). Never raises.
+
+    Acquires the init lock so a stop racing with an in-flight get_candle_oracle()
+    (mid ``oracle.start()``) cannot leave a started-but-orphaned oracle: the stop
+    waits for the pending init to finish, then stops and clears it.
+    """
+    global _candle_oracle
+    async with _candle_oracle_lock:
+        oracle = _candle_oracle
+        _candle_oracle = None
+    if oracle is not None:
+        try:
+            await oracle.stop()
+            logger.info("candle_oracle_stopped")
+        except Exception as exc:  # noqa: BLE001 — shutdown must not raise
+            logger.warning("candle_oracle_stop_error", error=str(exc))
+
+
+async def _build_oracle_edge_cfg(preset: str | None):
+    """Build the advisory ``OracleEdgeConfig`` for a preset, or None when off.
+
+    Gated by BOTH ``ORACLE_EDGE_GATE_ENABLED`` (wire the advisory observation) and
+    ``ORACLE_ENABLED`` (the RTDS feed actually runs). Fully fail-soft — any problem
+    yields None (no observation), never affecting the scan or the capital path.
+    """
+    from ...config import get_settings as _get_settings
+    try:
+        cfg = _get_settings()
+    except Exception:
+        return None
+    if not getattr(cfg, "ORACLE_EDGE_GATE_ENABLED", False):
+        return None
+    try:
+        from ...domain.strategy.oracle import OracleDisabledError
+        try:
+            oracle = await get_candle_oracle()
+        except OracleDisabledError:
+            # Edge gate on but the oracle client itself is disabled — advisory
+            # stays inert until the operator also sets ORACLE_ENABLED=true.
+            logger.info("oracle_edge_gate_on_but_oracle_disabled")
+            return None
+    except Exception as exc:  # noqa: BLE001 — advisory only, never break the scan
+        logger.warning("oracle_edge_cfg_unavailable", error=str(exc))
+        return None
+    from ...domain.strategy.strategies.late_entry_v3 import OracleEdgeConfig
+    e = _CANDLE_PRESET_EDGE.get(preset or "", {})
+    _feed_timeout = float(getattr(cfg, "ORACLE_FEED_TIMEOUT_SEC", 120))
+    return OracleEdgeConfig(
+        enabled=True,
+        price_provider=oracle.get_price,
+        # WARP-68: derive price_to_beat from the Chainlink history at candle open.
+        price_at_provider=oracle.price_at,
+        ptb_tolerance_sec=float(getattr(cfg, "ORACLE_PTB_TOLERANCE_SEC", 2.0)),
+        sigma_map=getattr(cfg, "oracle_sigma_per_sqrt_sec", None),
+        min_dist=float(e.get("min_dist", 0.0)),
+        max_dist=float(e.get("max_dist", 1.0)),
+        min_edge=float(e.get("min_edge", 0.0)),
+        trend=bool(e.get("trend", False)),
+        # WARP-76 H3 — feed-down probe bound to the configured timeout so a
+        # dropped stream stamps oracle_edge_status='feed_down' (not warming_up).
+        feed_down_provider=lambda: oracle.is_feed_down(_feed_timeout),
+        # WARP/oracle-edge-entry-gate — promote would_pass from advisory to a hard
+        # entry reject in late_entry_v3 (default ON; fail-open on any non-'computed'
+        # oracle status). Only reached when ORACLE_EDGE_GATE_ENABLED is already on,
+        # so this is the second, independent flip that turns observation into
+        # enforcement.
+        hard_reject=bool(getattr(cfg, "ORACLE_EDGE_HARD_REJECT_ENABLED", True)),
+    )
+
+
+async def _scan_one_late_entry(strat, pp, market_filters, user_ctx, preset=None):
+    """Call ``late_entry_v3.scan()`` with a resolved preset-param dict.
+
+    ``pp`` may be ``None`` → scan() falls back to global config (legacy default).
+    Centralises the kwarg unpacking that run_once and run_close_sweep_fast share.
+    ``preset`` selects the advisory oracle-edge params (no-op when the edge gate
+    or the oracle is off).
+    """
+    _force = pp.get("force_exit_at_rem_sec") if pp else None
+    edge_cfg = await _build_oracle_edge_cfg(preset)
+    return await strat.scan(
+        market_filters, user_ctx,
+        min_ask_diff=float(pp["min_ask_diff"]) if pp else None,
+        entry_window_sec=float(pp["entry_window_sec"]) if pp else None,
+        fav_price_min=float(pp["fav_price_min"]) if pp else None,
+        fav_price_max=float(pp["fav_price_max"]) if pp else None,
+        min_entry_sec=float(pp["min_entry_sec"]) if pp and "min_entry_sec" in pp else None,
+        underdog_mode=bool(pp.get("underdog_mode", False)) if pp else False,
+        force_exit_at_rem_sec=float(_force) if _force is not None else None,
+        max_leg_spread=float(pp["max_leg_spread"]) if pp and "max_leg_spread" in pp else None,
+        size_time_decay=bool(pp.get("size_time_decay", False)) if pp else False,
+        edge_cfg=edge_cfg,
+        # WARP-72 Phase 1: tag the factor-vector dataset with the rule that
+        # produced this read (shadow telemetry; selection unchanged).
+        evaluated_rule=preset,
+    )
+
+
+async def _persist_factor_router_selection(condition_id: str, rule: str | None) -> None:
+    """Stamp the router-selected rule onto the factor_vectors row. Shadow, fail-soft.
+
+    The recorder writes the candle row in ``_evaluate_market`` BEFORE the precedence
+    router picks a winner, so this best-effort UPDATE backfills which rule was
+    actually selected. Gated by FACTOR_DATASET_PERSIST_ENABLED; never blocks a scan.
+    """
+    try:
+        from ...config import get_settings as _gs
+        if not getattr(_gs(), "FACTOR_DATASET_PERSIST_ENABLED", True):
+            return
+    except Exception:
+        return
+    try:
+        from ...domain.research.factor_dataset import mark_router_selection_row
+        await mark_router_selection_row(condition_id, rule)
+    except Exception as exc:  # noqa: BLE001 — shadow telemetry, never break the scan
+        logger.debug("factor_router_persist_skipped", error=str(exc))
+
+
+def _scorer_shadow_observe(shadow: dict[str, dict[str, Any]], cand: Any, rule: str) -> None:
+    """Record one candle's factor surface + firing rules for the scorer shadow.
+
+    WARP-72 Phase 2 — pure bookkeeping. The first rule to fire for a market is the
+    precedence router's pick (``_CANDLE_AUTO_RULE_ORDER`` IS the precedence ladder,
+    and the merge keeps the first), so it is stamped as ``router_rule``. Never
+    touches the candidate or the merge — selection is unchanged.
+    """
+    try:
+        mid = cand.market_id
+        entry = shadow.get(mid)
+        if entry is None:
+            entry = {
+                "metadata": cand.metadata or {},
+                "condition_id": cand.condition_id,
+                "firing_rules": [],
+                "router_rule": rule,  # first to fire = precedence winner
+            }
+            shadow[mid] = entry
+        if rule not in entry["firing_rules"]:
+            entry["firing_rules"].append(rule)
+    except Exception as exc:  # noqa: BLE001 — shadow telemetry, never break the scan
+        logger.debug("scorer_shadow_observe_failed", error=str(exc))
+
+
+async def _maybe_emit_scorer_shadow(shadow: dict[str, dict[str, Any]]) -> None:
+    """Run the scorer in shadow and log its pick vs the router's, per candle.
+
+    Gated by SCORER_SHADOW_ENABLED. Emits a structured ``scorer_shadow`` event with
+    ``scorer_selected_rule`` alongside ``router_selected_rule`` for every evaluated
+    candle. Fully fail-soft and decoupled from execution: the scorer's pick is
+    logged only — the router still controls selection (SCORER_ACTIVE stays False
+    until a WARP🔹CMD-gated cutover).
+    """
+    if not shadow:
+        return
+    try:
+        from ...domain.strategy import scorer as _scorer_mod
+        if not _scorer_mod.shadow_enabled():
+            return
+        sc = _scorer_mod.get_scorer()
+        scorer_is_active = _scorer_mod.active()
+    except Exception as exc:  # noqa: BLE001 — never break the scan on a shadow path
+        logger.debug("scorer_shadow_unavailable", error=str(exc))
+        return
+    for mid, entry in shadow.items():
+        try:
+            md = entry["metadata"]
+            cell = _scorer_mod.normalize_cell_key(
+                md.get("factor_asset"), md.get("factor_timeframe")
+            )
+            factors = _scorer_mod.factors_from_metadata(md)
+            firing = entry["firing_rules"]
+            ranked = sc.rank(
+                cell, factors, firing,
+                oracle_edge=md.get("factor_oracle_edge"),
+                oracle_edge_status=md.get("factor_oracle_edge_status"),
+            )
+            scorer_rule = next((s.rule for s in ranked if not s.denied), None)
+            logger.info(
+                "scorer_shadow",
+                market_id=mid,
+                condition_id=entry.get("condition_id"),
+                cell=cell,
+                firing_rules=firing,
+                router_selected_rule=entry["router_rule"],
+                scorer_selected_rule=scorer_rule,
+                scores={s.rule: round(s.score, 6) for s in ranked},
+                denied=[s.rule for s in ranked if s.denied],
+                agree=(scorer_rule == entry["router_rule"]),
+                # Always False today — proves selection is router-controlled.
+                scorer_active=scorer_is_active,
+            )
+        except Exception as exc:  # noqa: BLE001 — one market never aborts the rest
+            logger.debug("scorer_shadow_emit_failed", market_id=mid, error=str(exc))
+
+
+async def _scan_late_entry_for_preset(strat, active_preset, timeframe, market_filters, user_ctx):
+    """Resolve preset params and scan late_entry_v3 for a user's active preset.
+
+    Single candle preset (close_sweep/safe_close/flip_hunter) or non-candle:
+    one scan() call with that preset's params (or global-config fallback).
+
+    ``candle_auto`` (lifecycle router): scan EACH single rule, stamp the matched
+    rule's tag + per-rule TP/SL into each candidate's metadata so the per-rule
+    exit survives to the position via ``strategy_metadata`` (the scan() call
+    already stamps ``force_exit_at_rem_sec`` + ``fav_price_min/max`` per rule).
+    Dedup by market_id with close_sweep > safe_close > flip_hunter precedence.
+    One sub-rule's scan failure never kills the others.
+    """
+    from ...domain.signal.factors import mark_router_selection
+
+    if active_preset == _CANDLE_AUTO_PRESET:
+        merged: list = []
+        seen: set[str] = set()
+        # WARP-72 Phase 2 — per-market factor surface + firing rules for the scorer
+        # shadow comparison emitted after the merge (does NOT affect dedup/merge).
+        shadow: dict[str, dict[str, Any]] = {}
+        for rule in _CANDLE_AUTO_RULE_ORDER:
+            try:
+                pp = _resolve_preset_params(rule, timeframe)
+                cands = await _scan_one_late_entry(strat, pp, market_filters, user_ctx, preset=rule)
+            except Exception as exc:
+                logger.warning("candle_auto_subrule_scan_failed", rule=rule, error=str(exc))
+                continue
+            for c in cands:
+                _scorer_shadow_observe(shadow, c, rule)
+                if c.market_id in seen:
+                    continue
+                seen.add(c.market_id)
+                # SignalCandidate is frozen, but .metadata is a mutable dict —
+                # these keys ride to positions.strategy_metadata and are read
+                # back at exit (force_exit via the exit_watcher's
+                # strategy_metadata fallback). The per-rule exit *timing*
+                # (force_exit_at_rem_sec / fav_price_min/max) is stamped inside
+                # scan(); the per-rule *candle_rule* tag stays for audit/exit.
+                c.metadata["candle_rule"] = rule
+                # WARP-72 Phase 1: stamp WHICH rule the precedence router picked
+                # for this market (shadow label; first to claim by dedup wins).
+                # Advisory only — does NOT change selection.
+                mark_router_selection(c.metadata, rule)
+                await _persist_factor_router_selection(c.condition_id, rule)
+                # WARP-83 E.2 (Path C): the candle_auto router NO LONGER stamps
+                # applied_tp_pct / applied_sl_pct. TP/SL is a strategy-level
+                # property sourced from user_settings.tp_pct / sl_pct (single
+                # source of truth) in _build_trade_signal — NOT a per-rule
+                # bundle. Stamping per-rule TP/SL here was the UX-deception bug:
+                # it silently overrode the user's configured exit thresholds
+                # (e.g. forced flip_hunter 150/50 onto every candle_auto entry
+                # regardless of the user's UI setting).
+                merged.append(c)
+        await _maybe_emit_scorer_shadow(shadow)
+        return merged
+    pp = _resolve_preset_params(active_preset, timeframe) if active_preset in _CANDLE_PRESETS else None
+    cands = await _scan_one_late_entry(strat, pp, market_filters, user_ctx, preset=active_preset)
+    # Single-rule preset: the active preset IS the selected rule (no dedup).
+    shadow_single: dict[str, dict[str, Any]] = {}
+    for c in cands:
+        mark_router_selection(c.metadata, active_preset)
+        await _persist_factor_router_selection(c.condition_id, active_preset)
+        _scorer_shadow_observe(shadow_single, c, active_preset)
+    await _maybe_emit_scorer_shadow(shadow_single)
+    return cands
+
+
+async def run_factor_settlement_backfill() -> None:
+    """Resolve realized open->close labels for closed factor_vectors rows (shadow).
+
+    WARP-72 Phase 2 prep. Scheduled job: reads the oracle ring at each unsettled
+    candle's open + close epoch and writes the settled ``open_to_close`` label so
+    the Phase-2 scorer trains on real outcomes. Pure telemetry — no capital effect.
+    Fully fail-soft; a no-op when persistence is off or the oracle is unavailable.
+    """
+    from ...config import get_settings as _get_settings
+    try:
+        cfg = _get_settings()
+    except Exception:
+        return
+    if not getattr(cfg, "FACTOR_DATASET_PERSIST_ENABLED", True):
+        return
+    try:
+        from ...domain.strategy.oracle import OracleDisabledError
+        try:
+            oracle = await get_candle_oracle()
+        except OracleDisabledError:
+            # No oracle feed -> open/close prices are unavailable; rows stay
+            # unsettled until the operator enables ORACLE_ENABLED (then resolve,
+            # or age out to 'unresolved' past the ring window).
+            return
+    except Exception as exc:  # noqa: BLE001 — never break the scheduler tick
+        logger.warning("factor_settlement_oracle_unavailable", error=str(exc))
+        return
+
+    tol = float(getattr(cfg, "ORACLE_PTB_TOLERANCE_SEC", 2.0))
+
+    def _price_at(symbol: str, epoch: float):
+        try:
+            return oracle.price_at(symbol, epoch, tolerance_sec=tol)
+        except Exception:  # noqa: BLE001 — one lookup failure must not abort the pass
+            return None
+
+    from ...domain.research.factor_dataset import backfill_factor_settlement
+    ring = float(getattr(cfg, "ORACLE_HISTORY_WINDOW_SEC", 1800.0))
+    try:
+        n = await backfill_factor_settlement(_price_at, ring_window_sec=ring)
+    except Exception as exc:  # noqa: BLE001 — fail-soft
+        logger.warning("factor_settlement_backfill_failed", error=str(exc))
+        return
+    if n:
+        logger.info("factor_settlement_backfilled", settled=n)
+
+
+async def run_close_sweep_fast() -> None:
+    """High-frequency scan for all candle-preset users (close_sweep, safe_close, flip_hunter).
+
+    Late Entry V3 only enters in a specific window before candle close. The main
     run_once loop fires every SIGNAL_SCAN_INTERVAL (180s) and would step over
     that window, so this lighter loop runs every CLOSE_SWEEP_SCAN_INTERVAL
-    (~15s) and scans ONLY close_sweep users with ONLY the late_entry_v3 domain
+    (~15s) and scans ONLY candle-preset users with ONLY the late_entry_v3 domain
     strategy. It does not write a scan_runs row (telemetry is in-memory) to
     avoid flooding the table at this cadence; _process_candidate's idempotency
     + open-position dedup make the overlap with run_once's Phase-B2 harmless.
@@ -1385,20 +4509,46 @@ async def run_close_sweep_fast() -> None:
         logger.debug("close_sweep_fast: late_entry_v3 not registered")
         return
 
+    # Honour the operator's global on/off switch in THIS loop too — run_once
+    # gates via _preset_allows, but the fast candle loop has its own dispatch
+    # and would otherwise keep trading a globally-disabled strategy. All candle
+    # presets (close_sweep/safe_close/flip_hunter) route to late_entry_v3, so a
+    # global disable of late_entry_v3 stops every candle entry here. Fail-safe:
+    # a DB blip keeps the previous set (see _refresh_disabled_strategies).
+    await _refresh_disabled_strategies()
+    if _LATE_ENTRY_V3_NAME in _GLOBALLY_DISABLED_STRATEGIES:
+        logger.info("close_sweep_fast: late_entry_v3 globally disabled — skipping tick")
+        return
+
+    # WARP-76 H3 — feed-loss fail-safe. This high-frequency loop evaluates the
+    # oracle-dependent candle presets, so it gets the SAME halt gate as run_once:
+    # a silent RTDS feed halts evaluation here too. The down/restored latch is
+    # shared with run_once, so the operator is paged exactly once per transition
+    # regardless of which loop detects it first. No-op unless ORACLE_ENABLED.
+    if await _oracle_feed_halts_scan():
+        logger.warning("scan_outcome", outcome="skipped_oracle_feed_down", loop="close_sweep_fast")
+        return
+
     try:
         users = await _load_enrolled_users()
     except Exception as exc:
         logger.error("close_sweep_fast_load_users_failed", error=str(exc))
         return
 
-    tel = ScanTelemetry()  # in-memory only — never persisted to scan_runs
+    tel = ScanTelemetry()
+    fast_run_id: str = str(_uuid_mod.uuid4())
+    candle_users_evaluated = 0
+    _candle_markets_seen: int = 0  # max candle markets available across users in this tick
     for row in users:
-        if row.get("active_preset") != "close_sweep":
+        active_preset = row.get("active_preset")
+        if active_preset not in _ALL_CANDLE_PRESETS:
             continue
+        candle_users_evaluated += 1
+
         _tf = row.get("selected_timeframe")
         selected_timeframe: str | None = str(_tf) if _tf else None
-        selected_assets: list[str] = [str(a) for a in (row.get("selected_assets") or [])]
-        user_log = logger.bind(user_id=str(row["user_id"]), preset="close_sweep")
+        selected_assets: list[str] = _filter_monitor_only_assets(row.get("selected_assets"))
+        user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
 
         # Upsert the live candle window so _process_candidate's _load_market
         # gate resolves the markets (market_sync never pulls these micro candles).
@@ -1407,13 +4557,20 @@ async def run_close_sweep_fast() -> None:
                 selected_timeframe or "5m", selected_assets or None
             )
             await _upsert_crypto_window_markets(crypto_window_markets)
+            _candle_markets_seen = max(_candle_markets_seen, len(crypto_window_markets))
         except Exception as exc:
             user_log.warning("close_sweep_fast_window_fetch_failed", error=str(exc))
 
         try:
             user_ctx = _build_user_context(row)
-            market_filters = _build_market_filters(user_ctx.risk_profile)
-            cands = await late_entry_strat.scan(market_filters, user_ctx)
+            market_filters = _build_market_filters(user_ctx.risk_profile, row)
+            # candle_auto runs the lifecycle router internally (scans all three
+            # single rules + stamps per-rule exit/TP-SL); single candle presets
+            # resolve one param set. Shared with run_once via this helper.
+            cands = await _scan_late_entry_for_preset(
+                late_entry_strat, active_preset, selected_timeframe,
+                market_filters, user_ctx,
+            )
         except Exception as exc:
             user_log.warning("close_sweep_fast_run_failed", error=str(exc))
             cands = []
@@ -1422,6 +4579,7 @@ async def run_close_sweep_fast() -> None:
             user_log.info(
                 "close_sweep_fast_tick",
                 candidates=0,
+                preset=active_preset,
                 note="scan ran but no candidates passed gates — check late_entry_v3 scan_summary logs",
             )
 
@@ -1434,6 +4592,22 @@ async def run_close_sweep_fast() -> None:
                     market_id=cand.market_id,
                     error=str(exc),
                 )
+
+    # Persist a scan_runs row only when this tick actually created paper orders.
+    # Skipping zero-order ticks keeps the table clean at 15s cadence.
+    if tel.paper_orders_created > 0:
+        tel.users_evaluated = candle_users_evaluated
+        tel.markets_seen = _candle_markets_seen
+        from ...config import get_settings as _get_settings
+        _cfg_live = _get_settings()
+        _is_live = _cfg_live.ENABLE_LIVE_TRADING and _cfg_live.EXECUTION_PATH_VALIDATED and _cfg_live.CAPITAL_MODE_CONFIRMED
+        await _insert_scan_run(
+            fast_run_id,
+            strategies_loaded=1,
+            live_trading=_is_live,
+            mode="LIVE" if _is_live else "PAPER",
+        )
+        await _finish_scan_run(fast_run_id, tel)
 
 
 __all__ = [

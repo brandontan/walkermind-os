@@ -42,6 +42,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from structlog.testing import capture_logs
 from telegram.error import BadRequest
 
 from projects.polymarket.crusaderbot import notifications
@@ -268,11 +269,11 @@ def test_send_returns_false_when_plain_text_also_fails(monkeypatch, caplog):
 # ---------------------------------------------------------------------------
 
 
-def test_log_resumed_open_positions_emits_count(caplog):
-    """log_resumed_open_positions must log
-    'startup_recovery: Resumed monitoring N open positions' with the count,
-    and return a dict with {resumed_paper, resumed_live} so APScheduler
-    listener writes the count into job_runs.metadata.
+def test_log_resumed_open_positions_emits_count():
+    """log_resumed_open_positions must log the structured
+    'startup_recovery: Resumed monitoring open positions' event with the
+    paper/live counts, and return a dict with {resumed_paper, resumed_live}
+    so APScheduler listener writes the count into job_runs.metadata.
     """
     scheduler = _try_import_scheduler()
 
@@ -284,15 +285,17 @@ def test_log_resumed_open_positions_emits_count(caplog):
     pool, _conn = _make_pool(fetchval_side_effect=_fetchval)
 
     with patch.object(scheduler, "get_pool", return_value=pool), \
-         caplog.at_level(logging.INFO, logger=scheduler.logger.name):
+         capture_logs() as logs:
         result = _run(scheduler.log_resumed_open_positions())
 
     assert result == {"resumed_paper": 3, "resumed_live": 1}
     assert any(
-        "Resumed monitoring 4 open positions" in r.getMessage()
-        and "(3 paper, 1 live)" in r.getMessage()
-        for r in caplog.records
-    ), [r.getMessage() for r in caplog.records]
+        entry.get("event") == "startup_recovery: Resumed monitoring open positions"
+        and entry.get("total") == 4
+        and entry.get("paper") == 3
+        and entry.get("live") == 1
+        for entry in logs
+    ), logs
 
 
 def test_log_resumed_open_positions_swallows_db_error():

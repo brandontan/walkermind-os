@@ -58,7 +58,7 @@ class _FakePool:
     def __init__(self, *, conn: _FakeConn | None = None):
         self._conn = conn or _FakeConn()
 
-    def acquire(self) -> _FakeAcquire:
+    def acquire(self, *, timeout: float | None = None) -> _FakeAcquire:
         return _FakeAcquire(self._conn)
 
     async def close(self) -> None:
@@ -114,9 +114,12 @@ def test_init_pool_passes_statement_cache_size_zero():
         "Found kwargs=%r" % kwargs
     )
     # Defence-in-depth: the rest of the pool contract must remain intact.
-    assert kwargs.get("min_size") == 1
+    # min_size=2 keeps a warm spare so the /health ping can acquire a connection
+    # even when the scan loop holds one (WARP/root-db-boot-resilience).
+    assert kwargs.get("min_size") == 2
     assert kwargs.get("max_size") == 5
     assert kwargs.get("command_timeout") == 30
+    assert kwargs.get("max_inactive_connection_lifetime") == 300.0
     assert kwargs.get("dsn") == "postgresql://example/db"
 
 
@@ -382,4 +385,103 @@ def test_check_database_surfaces_exception_class_in_health_reason():
     assert db_reason.startswith("error: database reported unhealthy")
     assert "FakePostgresConnectionError" in db_reason, (
         f"expected exception class in reason, got {db_reason!r}"
+    )
+
+
+# ---------- boot resilience: connect-retry + bounded warm-ping --------------
+# WARP/root-db-boot-resilience — the 2026-06-07 incident: a transient boot-time
+# Supabase/Supavisor connect stall wedged the event loop and froze /health.
+
+
+def test_init_connection_times_out_on_hung_backend(monkeypatch):
+    """A new backend whose warm ``SELECT 1`` never returns must fail FAST
+    (bounded by _INIT_PING_TIMEOUT) so asyncpg discards it, instead of hanging
+    the acquiring coroutine."""
+    monkeypatch.setattr(db_module, "_INIT_PING_TIMEOUT", 0.05)
+
+    class _HangConn:
+        async def execute(self, _query: str) -> None:
+            await asyncio.sleep(1.0)  # never returns within the budget
+
+    with pytest.raises(asyncio.TimeoutError):
+        _run(db_module._init_connection(_HangConn()))
+
+
+def test_init_connection_passes_through_when_backend_healthy():
+    class _OkConn:
+        async def execute(self, _query: str) -> str:
+            return "SELECT 1"
+
+    # No raise == healthy warm-ping.
+    _run(db_module._init_connection(_OkConn()))
+
+
+def test_init_pool_retries_transient_connect_failure_then_succeeds():
+    """A transient connect error retries (with backoff) and the next attempt
+    that succeeds wins — the pool is established, not abandoned."""
+    fake_pool = _FakePool()
+    create_pool_mock = AsyncMock(side_effect=[OSError("connection refused"), fake_pool])
+    sleep_mock = AsyncMock()
+    fake_settings = MagicMock(DATABASE_URL="postgresql://example/db", DB_POOL_MAX=5)
+    with patch.object(db_module.asyncpg, "create_pool", new=create_pool_mock), \
+         patch.object(db_module.asyncio, "sleep", new=sleep_mock), \
+         patch.object(db_module, "get_settings", return_value=fake_settings):
+        pool = _run(db_module.init_pool())
+    assert pool is fake_pool
+    assert create_pool_mock.await_count == 2
+    sleep_mock.assert_awaited()  # backed off once between the two attempts
+
+
+def test_init_pool_reraises_after_exhausting_attempts():
+    """When every attempt fails, init_pool re-raises (no silent failure) so the
+    process exits and Fly restarts it cleanly rather than running DB-blind."""
+    create_pool_mock = AsyncMock(side_effect=OSError("connection refused"))
+    sleep_mock = AsyncMock()
+    fake_settings = MagicMock(DATABASE_URL="postgresql://example/db", DB_POOL_MAX=5)
+    with patch.object(db_module.asyncpg, "create_pool", new=create_pool_mock), \
+         patch.object(db_module.asyncio, "sleep", new=sleep_mock), \
+         patch.object(db_module, "get_settings", return_value=fake_settings):
+        with pytest.raises(OSError):
+            _run(db_module.init_pool())
+    assert create_pool_mock.await_count == db_module._POOL_CONNECT_ATTEMPTS
+    # Slept between each failed attempt, but never after the final one.
+    assert sleep_mock.await_count == db_module._POOL_CONNECT_ATTEMPTS - 1
+
+
+def test_init_pool_clamps_min_size_when_max_is_one():
+    """A DB_POOL_MAX of 1 must NOT crash create_pool with min_size > max_size:
+    min_size is clamped to min(2, DB_POOL_MAX)."""
+    create_pool_mock = AsyncMock(return_value=_FakePool())
+    fake_settings = MagicMock(DATABASE_URL="postgresql://example/db", DB_POOL_MAX=1)
+    with patch.object(db_module.asyncpg, "create_pool", new=create_pool_mock), \
+         patch.object(db_module, "get_settings", return_value=fake_settings):
+        _run(db_module.init_pool())
+    kwargs = create_pool_mock.await_args.kwargs
+    assert kwargs.get("min_size") == 1
+    assert kwargs.get("max_size") == 1
+
+
+def test_init_pool_concurrent_calls_create_single_pool():
+    """Concurrent first-callers must serialize on _pool_lock and build exactly
+    one pool — no leaked second pool."""
+    fake_pool = _FakePool()
+
+    async def _slow_create_pool(*_a: Any, **_k: Any) -> _FakePool:
+        await asyncio.sleep(0.01)  # widen the race window
+        return fake_pool
+
+    create_pool_mock = AsyncMock(side_effect=_slow_create_pool)
+    fake_settings = MagicMock(DATABASE_URL="postgresql://example/db", DB_POOL_MAX=5)
+
+    async def _race() -> tuple:
+        return await asyncio.gather(db_module.init_pool(), db_module.init_pool())
+
+    with patch.object(db_module.asyncpg, "create_pool", new=create_pool_mock), \
+         patch.object(db_module, "get_settings", return_value=fake_settings):
+        p1, p2 = _run(_race())
+
+    assert p1 is fake_pool and p2 is fake_pool
+    assert create_pool_mock.await_count == 1, (
+        "init_pool must serialize on _pool_lock so concurrent callers build "
+        f"exactly one pool; created {create_pool_mock.await_count}"
     )

@@ -6,7 +6,6 @@ Handles tgnotif:* callback_data emitted by notification_service.py keyboard buil
 """
 from __future__ import annotations
 
-import html
 import logging
 from uuid import UUID
 
@@ -30,11 +29,11 @@ async def _send_or_answer(update: Update, text: str, show_alert: bool = False) -
             logger.debug("tg_power_mode: q.answer() failed (harmless): %s", exc)
         if not show_alert and update.effective_chat:
             try:
-                await update.effective_chat.send_message(text, parse_mode=ParseMode.HTML)
+                await update.effective_chat.send_message(text, parse_mode=ParseMode.MARKDOWN_V2)
             except Exception as exc:
                 logger.error("tg_power_mode send failed: %s", exc)
     elif update.message is not None:
-        await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2)
 
 
 async def pause_copy_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -70,9 +69,9 @@ async def pause_copy_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if updated:
         await _send_or_answer(
             update,
-            "⏸ <b>Copy trade paused.</b>\n"
-            "No new trades will be copied for this leader.\n"
-            "Resume via /copytrade.",
+            "⏸ *Copy trade paused\\.*\n"
+            "No new trades will be copied for this leader\\.\n"
+            "Resume via /copytrade\\.",
         )
     else:
         await _send_or_answer(
@@ -92,13 +91,13 @@ async def dashboard_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     settings = get_settings()
     url = settings.WEBTRADER_URL
     if url:
-        text = f"🌐 <b>Dashboard</b>\n<a href=\"{html.escape(url)}\">{html.escape(url)}</a>"
+        text = f"🌐 *Dashboard*\n`{url}`"
     else:
-        text = "🌐 <b>Dashboard</b>\nWeb dashboard URL not configured."
+        text = "🌐 *Dashboard*\nWeb dashboard URL not configured\\."
 
     if update.effective_chat:
         try:
-            await update.effective_chat.send_message(text, parse_mode=ParseMode.HTML)
+            await update.effective_chat.send_message(text, parse_mode=ParseMode.MARKDOWN_V2)
         except Exception as exc:
             logger.error("dashboard_cb send failed: %s", exc)
 

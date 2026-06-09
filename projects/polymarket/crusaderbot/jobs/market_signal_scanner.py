@@ -13,6 +13,7 @@ Both write to signal_publications for the signal_following pipeline to consume.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import time
@@ -47,6 +48,8 @@ DEDUP_WINDOW_HOURS: int = 2
 SIGNAL_EXPIRY_HOURS: int = 4
 DEFAULT_SIGNAL_SIZE_USDC: float = 10.0
 DEFAULT_CONFIDENCE: float = 0.65
+SOCIAL_MOMENTUM_CONFIDENCE_BOOST: float = 0.05
+SOCIAL_MOMENTUM_CONFIDENCE_CEIL: float = 0.90
 LIVE_MARKETS_PER_CYCLE: int = 20
 
 # Heisenberg agent IDs
@@ -342,6 +345,13 @@ async def _run_heisenberg_signals() -> tuple[int, int]:
                             and float(s.get("author_diversity_pct") or 0) > 40
                         ):
                             payload["social_momentum"] = True
+                            # Confidence boost: aligned social chatter elevates
+                            # the signal's position-sizing footprint downstream
+                            # (consumed by signal_scan_job._resolve_size_usdc).
+                            payload["confidence"] = min(
+                                payload["confidence"] + SOCIAL_MOMENTUM_CONFIDENCE_BOOST,
+                                SOCIAL_MOMENTUM_CONFIDENCE_CEIL,
+                            )
                 except Exception as exc:
                     log.debug("social_pulse_failed", market_id=market_id, error=str(exc))
 
@@ -400,12 +410,16 @@ async def run_job() -> tuple[int, int]:
             # demo feed surfaces liquid, near-dated markets instead of a narrow
             # set of far-dated futures (championship winners months out) that
             # never resolve and permanently lock concurrency slots.
-            markets = await polymarket.get_markets(
-                limit=fetch_limit,
-                order="volume24hr",
-                ascending=False,
-                end_date_max=horizon_cutoff.isoformat(),
-            )
+            async with asyncio.timeout(30):
+                markets = await polymarket.get_markets(
+                    limit=fetch_limit,
+                    order="volume24hr",
+                    ascending=False,
+                    end_date_max=horizon_cutoff.isoformat(),
+                )
+        except TimeoutError:
+            log.warning("polymarket_fetch_timeout")
+            markets = []
         except Exception as exc:
             log.warning("polymarket_fetch_failed", error=str(exc))
             markets = []

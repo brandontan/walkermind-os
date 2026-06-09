@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AdvancedOnly } from "../components/AdvancedGate";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
+import { LiveActivationModal } from "../components/LiveActivationModal";
+import { NotificationPrefsCard } from "../components/NotificationPrefsCard";
 import { SettingsGroup, SettingsRow } from "../components/SettingsGroup";
 import { Toggle } from "../components/Toggle";
 import { TopBar } from "../components/TopBar";
-import { makeApi, type UserSettings } from "../lib/api";
+import { makeApi, type LinkTelegramStart, type LiveStatus, type MeResponse, type UserSettings } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useSSE } from "../lib/sse";
 import { useUiMode } from "../lib/uiMode";
 
 export function SettingsPage() {
@@ -16,6 +19,50 @@ export function SettingsPage() {
   const { advanced, toggle: toggleAdvanced } = useUiMode();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [tradingMode, setTradingMode] = useState<string>("paper");
+  const [account, setAccount] = useState<MeResponse | null>(null);
+
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Live-trading activation
+  const [liveStatus, setLiveStatus] = useState<LiveStatus | null>(null);
+  const [showLiveModal, setShowLiveModal] = useState(false);
+  const [disablingLive, setDisablingLive] = useState(false);
+
+  // Reverse Telegram-link (account unification)
+  const [telegramLinked, setTelegramLinked] = useState<boolean | null>(null);
+  const [linkTg, setLinkTg] = useState<LinkTelegramStart | null>(null);
+  const [linkTgError, setLinkTgError] = useState<string | null>(null);
+  const [linkTgLoading, setLinkTgLoading] = useState(false);
+
+  // Link email state
+  const [showLinkEmail, setShowLinkEmail] = useState(false);
+  const [linkEmail, setLinkEmail] = useState("");
+  const [linkPassword, setLinkPassword] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [linkSuccess, setLinkSuccess] = useState(false);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const linkFormRef = useRef<HTMLFormElement>(null);
+
+  async function handleLinkEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setLinkError(null);
+    setLinkLoading(true);
+    try {
+      await api.linkEmail(linkEmail.trim(), linkPassword);
+      setLinkSuccess(true);
+      setShowLinkEmail(false);
+      setLinkEmail("");
+      setLinkPassword("");
+      // Refresh persisted identity so the "Email — connected" row shows and
+      // the link form stays hidden across refreshes.
+      void load();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to link email";
+      setLinkError(msg.replace(/^\d+:\s*/, ""));
+    } finally {
+      setLinkLoading(false);
+    }
+  }
 
   // Auto-redeem local state
   const [autoRedeem, setAutoRedeem] = useState(false);
@@ -23,30 +70,42 @@ export function SettingsPage() {
   const [savingRedeem, setSavingRedeem] = useState(false);
 
   const load = useCallback(async () => {
-    const [s, dash] = await Promise.all([
-      api.getSettings(),
-      api.getDashboard(),
-    ]);
-    setSettings(s);
-    setTradingMode(dash.trading_mode);
-    if (s.auto_redeem != null) setAutoRedeem(s.auto_redeem);
-    if (s.redeem_mode) setRedeemMode(s.redeem_mode);
+    try {
+      const [s, dash, live, tgLink, me] = await Promise.all([
+        api.getSettings(),
+        api.getDashboard(),
+        // Live status + link status + identity are non-critical to the page —
+        // never let them block the rest of Settings from rendering.
+        api.getLiveStatus().catch(() => null),
+        api.getLinkTelegramStatus().catch(() => null),
+        api.getMe().catch(() => null),
+      ]);
+      setSettings(s);
+      setTradingMode(dash.trading_mode);
+      setLiveStatus(live);
+      setTelegramLinked(tgLink ? tgLink.linked : null);
+      setAccount(me);
+      if (s.auto_redeem != null) setAutoRedeem(s.auto_redeem);
+      if (s.redeem_mode) setRedeemMode(s.redeem_mode);
+      setLoadError(null);
+    } catch (err) {
+      // getSettings / getDashboard are critical — on failure surface an error
+      // with a retry instead of spinning on the loading state forever.
+      const msg = err instanceof Error ? err.message : "Failed to load settings";
+      setLoadError(msg.replace(/^\d+:\s*/, ""));
+    }
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
 
-  // All three notification toggles bind to the single `notifications_on` flag.
-  async function handleNotifToggle(next: boolean) {
-    if (!settings) return;
-    const optimistic = { ...settings, notifications_on: next };
-    setSettings(optimistic);
-    try {
-      await api.updateSettings({ notifications_on: next });
-    } catch (e) {
-      setSettings({ ...optimistic, notifications_on: !next });
-      console.error("notif toggle failed", e);
-    }
-  }
+  // SSE: reflect settings changes made via Telegram bot without manual refresh.
+  useSSE(user?.token ?? null, { settings: load });
+
+  // 30s polling fallback.
+  useEffect(() => {
+    const id = setInterval(load, 30_000);
+    return () => clearInterval(id);
+  }, [load]);
 
   async function handleRedeemToggle(next: boolean) {
     setAutoRedeem(next);
@@ -75,6 +134,32 @@ export function SettingsPage() {
     }
   }
 
+  async function handleStartLinkTelegram() {
+    setLinkTgError(null);
+    setLinkTgLoading(true);
+    try {
+      const data = await api.startLinkTelegram();
+      setLinkTg(data);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to start linking";
+      setLinkTgError(msg.replace(/^\d+:\s*/, ""));
+    } finally {
+      setLinkTgLoading(false);
+    }
+  }
+
+  async function handleDisableLive() {
+    setDisablingLive(true);
+    try {
+      await api.disableLive();
+      await load();
+    } catch (e) {
+      console.error("disable live failed", e);
+    } finally {
+      setDisablingLive(false);
+    }
+  }
+
   function handleLogout() {
     logout();
     navigate("/auth", { replace: true });
@@ -83,11 +168,21 @@ export function SettingsPage() {
   if (!settings) return (
     <>
       <TopBar />
-      <div className="p-4 text-ink-3 text-sm font-mono">Loading…</div>
+      {loadError ? (
+        <div className="p-4 text-sm space-y-3">
+          <div className="text-red font-mono">Couldn’t load settings: {loadError}</div>
+          <button type="button"
+            onClick={() => { setLoadError(null); void load(); }}
+            className="px-3 py-1.5 clip-card-sm border border-border-1 text-ink-1 text-xs hover:bg-white/5"
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <div className="p-4 text-ink-3 text-sm font-mono">Loading…</div>
+      )}
     </>
   );
-
-  const notifOn = settings.notifications_on;
 
   return (
     <>
@@ -99,6 +194,18 @@ export function SettingsPage() {
           title={<>CON<span className="text-gold">FIG</span></>}
           subtitle="DISPLAY · NOTIFICATIONS · TRADING · ACCOUNT"
         />
+
+        {/* Ops Console — admins only, shown prominently at top */}
+        {account?.is_admin && (
+          <button
+            type="button"
+            onClick={() => navigate("/admin")}
+            className="clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-3 px-2.5 transition-colors w-full text-gold border cursor-pointer mb-3"
+            style={{ background: "rgba(245,200,66,0.08)", borderColor: "rgba(245,200,66,0.3)" }}
+          >
+            🛡 Open Ops Console
+          </button>
+        )}
 
         <div className="md:grid md:grid-cols-2 md:gap-4 md:items-start">
           {/* Left column — trading safety first */}
@@ -149,23 +256,7 @@ export function SettingsPage() {
             </SettingsGroup>
 
             {/* Notifications */}
-            <SettingsGroup title="Notifications">
-              <SettingsRow
-                name="Trade Opened"
-                desc="Alert when a position opens"
-                control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle trade-opened alerts" />}
-              />
-              <SettingsRow
-                name="Trade Closed"
-                desc="Alert on TP / SL / expiry"
-                control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle trade-closed alerts" />}
-              />
-              <SettingsRow
-                name="Daily Report"
-                desc="End-of-day P&L summary"
-                control={<Toggle checked={notifOn} onChange={handleNotifToggle} ariaLabel="Toggle daily report" />}
-              />
-            </SettingsGroup>
+            <NotificationPrefsCard />
 
             {/* Display — advanced diagnostics last */}
             <SettingsGroup title="Display">
@@ -186,6 +277,74 @@ export function SettingsPage() {
 
           {/* Right column */}
           <div>
+            {/* Live Trading — per-user opt-in into real-money execution */}
+            <SettingsGroup title="Live Trading">
+              <div className="px-3 py-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-ink-1">Trading mode</p>
+                    <p className="text-[10px] text-ink-3 mt-0.5">
+                      {tradingMode === "live"
+                        ? "Real USDC is at risk on new trades."
+                        : "Practice money — no real funds at risk."}
+                    </p>
+                  </div>
+                  <ModePill mode={tradingMode} />
+                </div>
+
+                {tradingMode === "live" ? (
+                  <>
+                    {liveStatus && (
+                      <div
+                        className="p-2.5 clip-card-sm space-y-1.5"
+                        style={{ background: "rgba(0,255,156,0.05)", border: "1px solid rgba(0,255,156,0.18)" }}
+                      >
+                        <InfoRow
+                          label="Capital cap"
+                          value={`$${liveStatus.live_capital_cap_usdc.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDC`}
+                        />
+                        <InfoRow
+                          label="Open live exposure"
+                          value={`$${liveStatus.open_live_exposure_usdc.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDC`}
+                        />
+                      </div>
+                    )}
+                    <p className="text-[10px] text-ink-3 leading-relaxed">
+                      The cap is the most open live exposure the bot will hold for you. Switching
+                      back to paper stops new real-money trades; open live positions resolve as-is.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleDisableLive()}
+                      disabled={disablingLive}
+                      className="w-full clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors disabled:opacity-50"
+                      style={{ background: "rgba(245,200,66,0.08)", border: "1px solid rgba(245,200,66,0.3)", color: "#F5C842" }}
+                    >
+                      {disablingLive ? "…" : "Switch back to Paper"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[10px] text-ink-3 leading-relaxed">
+                      Switch from practice to real-money trading. You'll set a capital cap (your
+                      max live exposure) and type a confirmation phrase. All risk controls stay on.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowLiveModal(true)}
+                      disabled={!liveStatus}
+                      className="w-full clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ background: "rgba(0,255,156,0.1)", border: "1px solid rgba(0,255,156,0.35)", color: "#00FF9C" }}
+                    >
+                      {liveStatus && !liveStatus.operator_guards_open
+                        ? "🔒 Live locked by operator"
+                        : "Enable Live Trading →"}
+                    </button>
+                  </>
+                )}
+              </div>
+            </SettingsGroup>
+
             {/* Account */}
             <SettingsGroup title="Account">
               <SettingsRow
@@ -196,7 +355,16 @@ export function SettingsPage() {
               <SettingsRow
                 name="Username"
                 desc="Telegram"
-                control={`@${user?.firstName ?? "—"}`}
+                control={`@${account?.username ?? user?.firstName ?? "—"}`}
+              />
+              <SettingsRow
+                name="Email"
+                desc={account?.email ? "Login email — connected" : "Login email"}
+                control={
+                  account?.email
+                    ? <span className="text-grn">{account.email}</span>
+                    : <span className="text-ink-3">Not linked</span>
+                }
               />
               <AdvancedOnly>
                 <SettingsRow
@@ -212,9 +380,117 @@ export function SettingsPage() {
                 <SettingsRow
                   name="Activation Guards"
                   desc="Live trading enabled when all guards pass"
-                  control={<span className="text-gold">🔒 LOCKED</span>}
+                  control={
+                    liveStatus?.operator_guards_open
+                      ? <span className="text-emerald-400">🔓 OPEN</span>
+                      : <span className="text-gold">🔒 LOCKED</span>
+                  }
                 />
               </AdvancedOnly>
+
+              {/* Link Email — only when this account has no real email yet.
+                  Once linked, the persistent "Email — connected" row above
+                  reflects it (survives refresh) and this block stays hidden. */}
+              {!account?.email && (
+              <div className="pt-2 border-t border-surface-3 mt-2">
+                {linkSuccess ? (
+                  <p className="text-grn text-[11px] font-mono py-1">✅ Email linked — you can now log in with email + password.</p>
+                ) : !showLinkEmail ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowLinkEmail(true)}
+                    className="text-[11px] text-gold font-hud tracking-widest uppercase hover:underline"
+                  >
+                    + Link Email Login
+                  </button>
+                ) : (
+                  <form ref={linkFormRef} onSubmit={(e) => void handleLinkEmail(e)} className="space-y-2 pt-1">
+                    <p className="text-ink-3 text-[11px] font-mono mb-2">
+                      Add email + password so you can log in without Telegram.
+                    </p>
+                    <input
+                      type="email"
+                      value={linkEmail}
+                      onChange={(e) => setLinkEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      required
+                      className="w-full bg-surface-2 border border-border-2 rounded px-3 py-1.5 text-[12px] text-ink-1 placeholder:text-ink-4 focus:outline-none focus:border-gold"
+                    />
+                    <input
+                      type="password"
+                      value={linkPassword}
+                      onChange={(e) => setLinkPassword(e.target.value)}
+                      placeholder="Min 8 characters"
+                      required
+                      minLength={8}
+                      className="w-full bg-surface-2 border border-border-2 rounded px-3 py-1.5 text-[12px] text-ink-1 placeholder:text-ink-4 focus:outline-none focus:border-gold"
+                    />
+                    {linkError && <p className="text-red-400 text-[11px] font-mono">{linkError}</p>}
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        disabled={linkLoading}
+                        className="flex-1 py-1.5 bg-gold text-black font-hud text-[10px] tracking-widest uppercase rounded hover:bg-gold/90 disabled:opacity-50"
+                      >
+                        {linkLoading ? "…" : "Link Email"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowLinkEmail(false); setLinkError(null); }}
+                        className="px-3 py-1.5 border border-surface-3 text-ink-3 font-hud text-[10px] tracking-widest uppercase rounded hover:border-ink-3"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+              )}
+
+              {/* Link Telegram — only when this account has no Telegram yet */}
+              {telegramLinked === false && (
+                <div className="pt-2 border-t border-surface-3 mt-2">
+                  {!linkTg ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void handleStartLinkTelegram()}
+                        disabled={linkTgLoading}
+                        className="text-[11px] text-gold font-hud tracking-widest uppercase hover:underline disabled:opacity-50"
+                      >
+                        {linkTgLoading ? "…" : "+ Link Telegram"}
+                      </button>
+                      <p className="text-ink-4 text-[10px] font-mono mt-1 leading-relaxed">
+                        Connect the Telegram bot to this account so both apps share one
+                        wallet, mode (LIVE/PAPER) and trade history.
+                      </p>
+                      {linkTgError && <p className="text-red-400 text-[11px] font-mono mt-1">{linkTgError}</p>}
+                    </>
+                  ) : (
+                    <div className="space-y-2 pt-1">
+                      <p className="text-ink-3 text-[11px] font-mono">
+                        Open the Telegram bot and send this command (valid {linkTg.expires_minutes} min):
+                      </p>
+                      <p className="text-gold font-mono text-[13px] text-center select-all bg-surface-2 border border-border-2 rounded py-2">
+                        {linkTg.link_command}
+                      </p>
+                      {linkTg.bot_username && (
+                        <a
+                          href={`https://t.me/${linkTg.bot_username}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block text-center text-[11px] text-gold font-hud tracking-widest uppercase hover:underline"
+                        >
+                          Open @{linkTg.bot_username} →
+                        </a>
+                      )}
+                      <p className="text-ink-4 text-[10px] font-mono">
+                        After sending it in Telegram, this page updates automatically.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </SettingsGroup>
           </div>
         </div>
@@ -233,10 +509,30 @@ export function SettingsPage() {
         </button>
 
         <p className="text-ink-4 text-xs text-center mt-6 font-mono tracking-[0.5px]">
-          System in paper trading mode. No real capital deployed.
+          {tradingMode === "live"
+            ? "Live mode — real capital deployed. Trade responsibly."
+            : "System in paper trading mode. No real capital deployed."}
         </p>
       </div>
+
+      {showLiveModal && liveStatus && (
+        <LiveActivationModal
+          status={liveStatus}
+          onClose={() => setShowLiveModal(false)}
+          onEnable={(capValue, confirmPhrase) => api.enableLive(capValue, confirmPhrase)}
+          onSuccess={() => { void load(); }}
+        />
+      )}
     </>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between items-center">
+      <span className="font-hud text-[9px] font-bold tracking-[1.5px] uppercase text-ink-3">{label}</span>
+      <span className="font-mono text-[11px] text-ink-2">{value}</span>
+    </div>
   );
 }
 

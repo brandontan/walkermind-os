@@ -30,18 +30,19 @@ async def fetch_user(telegram_user_id: int, username: Optional[str] = None) -> O
 
 async def fetch_settings(user_uuid) -> dict:
     """Read user_settings columns (active_preset, risk_profile, etc.)."""
-    out: dict = {"active_preset": None, "risk_profile": "balanced"}
+    out: dict = {"active_preset": None, "risk_profile": "balanced", "trading_mode": "paper"}
     try:
         from ....database import get_pool  # type: ignore
         pool = get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT active_preset, risk_profile FROM user_settings WHERE user_id=$1",
+                "SELECT active_preset, risk_profile, trading_mode FROM user_settings WHERE user_id=$1",
                 user_uuid,
             )
             if row is not None:
                 out["active_preset"] = row["active_preset"]
                 out["risk_profile"] = row["risk_profile"] or "balanced"
+                out["trading_mode"] = row["trading_mode"] or "paper"
     except Exception as exc:  # noqa: BLE001
         log.debug("user_settings read failed: %s", exc)
     return out
@@ -71,12 +72,29 @@ async def fetch_open_position_count(user_uuid) -> int:
         pool = get_pool()
         async with pool.acquire() as conn:
             n = await conn.fetchval(
-                "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status='open'",
+                "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status IN ('open','pending_settlement')",
                 user_uuid,
             )
             return int(n or 0)
     except Exception as exc:  # noqa: BLE001
         log.debug("open position count failed: %s", exc)
+        return 0
+
+
+async def fetch_today_trade_count(user_uuid) -> int:
+    try:
+        from ....database import get_pool  # type: ignore
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            n = await conn.fetchval(
+                """SELECT COUNT(*) FROM positions
+                   WHERE user_id=$1
+                     AND opened_at >= NOW() - INTERVAL '24 hours'""",
+                user_uuid,
+            )
+            return int(n or 0)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("today_trade_count failed: %s", exc)
         return 0
 
 

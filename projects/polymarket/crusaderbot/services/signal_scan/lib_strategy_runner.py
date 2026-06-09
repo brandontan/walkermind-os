@@ -30,20 +30,13 @@ logger = logging.getLogger(__name__)
 _PKG_ROOT = (__package__ or "").rsplit(".services.", 1)[0]
 _LIB_PKG = f"{_PKG_ROOT}.lib" if _PKG_ROOT else "lib"
 
-# Strategies that are enabled for execution. whale_tracking is deferred because
-# it requires an external prob.trade API that may not be reachable.
-ENABLED_STRATEGIES: tuple[str, ...] = (
-    "trend_breakout",
-    "momentum",
-    "value_investor",
-    "expiration_timing",
-    "pair_arb",
-    "ensemble",
-)
-
-# whale_tracking is deferred but still part of the preset system — when it does
-# produce signals they will be filtered per-user by the preset map.
-DEFERRED_STRATEGIES: tuple[str, ...] = ("whale_tracking",)
+# Lib strategies were archived in WARP/R00T/strategy-system-cleanup — none had
+# a reachable user-facing preset, so every admin toggle for them was cosmetic.
+# The two tuples are kept (empty) for forward compatibility: the signal scan
+# loop and tests still import them, and a future strategy can be re-introduced
+# by appending its name here once it ships with a real preset path.
+ENABLED_STRATEGIES: tuple[str, ...] = ()
+DEFERRED_STRATEGIES: tuple[str, ...] = ()
 
 
 # Module-level cache: strategy name → strategy instance.

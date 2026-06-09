@@ -9,11 +9,10 @@ Covers:
 """
 from __future__ import annotations
 
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+import logging
+from unittest.mock import MagicMock, patch
 from uuid import UUID
 
-import asyncpg
 import pytest
 
 from projects.polymarket.crusaderbot.domain.risk import gate as gate_mod
@@ -89,72 +88,42 @@ def test_coerce_jsonb_dict_get_does_not_raise_after_string_input():
 
 
 # --------------------------------------------------------------------------
-# Bug 3: _log catches ForeignKeyViolationError silently
+# Bug 3 (WARP-82): _log no longer writes to the DB — pure stdout/Sentry sink
+# (risk_log is dropped). It must never acquire the pool / execute SQL / raise.
 # --------------------------------------------------------------------------
 
 
-def _fk_violation():
-    """Construct an asyncpg ForeignKeyViolationError without a real DB."""
-    return asyncpg.exceptions.ForeignKeyViolationError(
-        "insert or update on table \"risk_log\" violates foreign key constraint "
-        "\"risk_log_user_id_fkey\""
+@pytest.mark.asyncio
+async def test_log_does_no_db_write_and_never_raises():
+    """_log must never acquire the pool (risk_log dropped) and never raise —
+    for both a rejection and an approval."""
+    mock_pool = MagicMock()
+    with patch.object(gate_mod, "get_pool", return_value=mock_pool):
+        await gate_mod._log(
+            UUID("22222222-2222-2222-2222-222222222222"),
+            "0xmarket", 7, False, "max_concurrent_trades",
+        )
+        await gate_mod._log(
+            UUID("22222222-2222-2222-2222-222222222222"),
+            "0xmarket", 1, True, "ok",
+        )
+    mock_pool.acquire.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_log_rejection_warns_and_approval_infos(caplog):
+    """Rejection → WARNING stdout (+ Sentry separately); approval → INFO.
+    Neither happy path logs at ERROR (which would page Sentry's breadcrumb)."""
+    caplog.set_level(logging.INFO)
+    await gate_mod._log(
+        UUID("11111111-1111-1111-1111-111111111111"),
+        "0xmarket", 7, False, "max_concurrent_trades",
     )
-
-
-@pytest.mark.asyncio
-async def test_log_swallows_foreign_key_violation_for_synthetic_user(caplog):
-    """dry-run uses a fake user_id — FK violation must not surface to Sentry."""
-    fake_user = UUID("00000000-0000-0000-0000-000000000001")
-
-    mock_conn = MagicMock()
-    mock_conn.execute = AsyncMock(side_effect=_fk_violation())
-    mock_pool = MagicMock()
-    mock_pool.acquire.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
-    mock_pool.acquire.return_value.__aexit__ = AsyncMock(return_value=None)
-
-    with patch.object(gate_mod, "get_pool", return_value=mock_pool):
-        # Must not raise — the FK violation is expected for synthetic users.
-        await gate_mod._log(fake_user, "0xmarket", 0, True, "ok")
-
-    # ERROR records would trigger Sentry's logging breadcrumb integration.
-    # Confirm no ERROR was emitted (only DEBUG).
-    error_records = [r for r in caplog.records if r.levelname == "ERROR"]
-    assert error_records == [], (
-        f"FK violation must not log at ERROR (Sentry-tracked). Got: "
-        f"{[r.getMessage() for r in error_records]}"
+    await gate_mod._log(
+        UUID("11111111-1111-1111-1111-111111111111"),
+        "0xmarket", 1, True, "ok",
     )
-
-
-@pytest.mark.asyncio
-async def test_log_still_errors_on_unexpected_exception(caplog):
-    """Non-FK exceptions must still log at ERROR so real bugs reach Sentry."""
-    fake_user = UUID("11111111-1111-1111-1111-111111111111")
-
-    mock_conn = MagicMock()
-    mock_conn.execute = AsyncMock(side_effect=RuntimeError("unexpected DB error"))
-    mock_pool = MagicMock()
-    mock_pool.acquire.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
-    mock_pool.acquire.return_value.__aexit__ = AsyncMock(return_value=None)
-
-    with patch.object(gate_mod, "get_pool", return_value=mock_pool):
-        await gate_mod._log(fake_user, "0xmarket", 0, True, "ok")
-
-    error_records = [r for r in caplog.records if r.levelname == "ERROR"]
-    assert any("risk_log insert failed" in r.getMessage() for r in error_records)
-
-
-@pytest.mark.asyncio
-async def test_log_succeeds_on_valid_insert():
-    """Sanity: a successful INSERT path completes without exception."""
-    real_user = UUID("22222222-2222-2222-2222-222222222222")
-
-    mock_conn = MagicMock()
-    mock_conn.execute = AsyncMock(return_value="INSERT 0 1")
-    mock_pool = MagicMock()
-    mock_pool.acquire.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
-    mock_pool.acquire.return_value.__aexit__ = AsyncMock(return_value=None)
-
-    with patch.object(gate_mod, "get_pool", return_value=mock_pool):
-        await gate_mod._log(real_user, "0xmarket", 7, False, "max_concurrent_trades")
-
-    mock_conn.execute.assert_awaited_once()
+    msgs = [(r.levelname, r.getMessage()) for r in caplog.records]
+    assert any(lvl == "WARNING" and "risk_event approved=False" in m for lvl, m in msgs)
+    assert any(lvl == "INFO" and "risk_event approved=True" in m for lvl, m in msgs)
+    assert not [r for r in caplog.records if r.levelname == "ERROR"]

@@ -1,0 +1,11 @@
+-- 088_drop_job_runs.sql
+-- WARP follow-up to WARP-82 (kill-realtime-persistence): drop job_runs.
+--
+-- WARP-82 already killed the writer — the APScheduler listener routes job
+-- outcomes to an in-memory ring (domain/ops/job_tracker.py), not the DB — but
+-- left job_runs in place because three operator surfaces still read it via raw
+-- SQL: bot/handlers/health.py, jobs/hourly_report.py, bot/handlers/settings.py.
+-- With the writer dead those readers were returning a frozen snapshot (false
+-- "0 scans" / "scanner DOWN"). This lane repoints all three at the ring, so
+-- job_runs is now fully unreferenced and safe to drop.
+DROP TABLE IF EXISTS job_runs CASCADE;

@@ -86,6 +86,9 @@ class FakeConn:
             return self.close_claim
         if "status='closed'" in query and "RETURNING id" in query:
             return self.close_finalize
+        # Early duplicate check in execute(): return existing id when simulating duplicate
+        if "SELECT id FROM orders WHERE idempotency_key" in query:
+            return ORDER_ID if not self.insert_returns else None
         return None
 
     async def execute(self, query: str, *args: Any) -> str:
@@ -132,12 +135,16 @@ def _settings(
     enable_live: bool = True,
     exec_validated: bool = True,
     capital_confirmed: bool = True,
+    risk_controls_validated: bool = True,
+    security_hardening_validated: bool = True,
     use_real_clob: bool = True,
 ) -> Any:
     class _S:
         ENABLE_LIVE_TRADING = enable_live
         EXECUTION_PATH_VALIDATED = exec_validated
         CAPITAL_MODE_CONFIRMED = capital_confirmed
+        RISK_CONTROLS_VALIDATED = risk_controls_validated
+        SECURITY_HARDENING_VALIDATED = security_hardening_validated
         USE_REAL_CLOB = use_real_clob
 
     return _S()
@@ -166,6 +173,15 @@ _EXEC_KWARGS: dict[str, Any] = dict(
 )
 
 
+def _make_mdc_mock(tick_size: str = "0.01", neg_risk: bool = False) -> Any:
+    mdc = MagicMock()
+    mdc.get_tick_size = AsyncMock(return_value=tick_size)
+    mdc.get_neg_risk = AsyncMock(return_value=neg_risk)
+    mdc.__aenter__ = AsyncMock(return_value=mdc)
+    mdc.__aexit__ = AsyncMock(return_value=False)
+    return mdc
+
+
 def _run_execute(conn: FakeConn, settings_obj: Any, client: Any, **overrides: Any) -> dict:
     pool = FakePool(conn)
     with (
@@ -173,6 +189,8 @@ def _run_execute(conn: FakeConn, settings_obj: Any, client: Any, **overrides: An
               return_value=settings_obj),
         patch("projects.polymarket.crusaderbot.domain.execution.live.get_pool",
               return_value=pool),
+        patch("projects.polymarket.crusaderbot.domain.execution.live.MarketDataClient",
+              return_value=_make_mdc_mock()),
         patch("projects.polymarket.crusaderbot.domain.execution.live.audit.write",
               new=AsyncMock()),
         patch("projects.polymarket.crusaderbot.domain.execution.live.notifications.send",
@@ -221,6 +239,24 @@ class TestAssertLiveGuards:
             patch("projects.polymarket.crusaderbot.domain.execution.live.get_settings",
                   return_value=s),
             pytest.raises(LivePreSubmitError, match="CAPITAL_MODE_CONFIRMED"),
+        ):
+            assert_live_guards(role="admin", trading_mode="live")
+
+    def test_risk_controls_not_validated_raises(self) -> None:
+        s = _settings(risk_controls_validated=False)
+        with (
+            patch("projects.polymarket.crusaderbot.domain.execution.live.get_settings",
+                  return_value=s),
+            pytest.raises(LivePreSubmitError, match="RISK_CONTROLS_VALIDATED"),
+        ):
+            assert_live_guards(role="admin", trading_mode="live")
+
+    def test_security_hardening_not_validated_raises(self) -> None:
+        s = _settings(security_hardening_validated=False)
+        with (
+            patch("projects.polymarket.crusaderbot.domain.execution.live.get_settings",
+                  return_value=s),
+            pytest.raises(LivePreSubmitError, match="SECURITY_HARDENING_VALIDATED"),
         ):
             assert_live_guards(role="admin", trading_mode="live")
 
@@ -353,6 +389,44 @@ class TestOrderTypeDispatch:
         assert orders[0]["orderType"] == "GTC"
 
 
+class TestStrategyMetadataPersisted:
+    """Lane 3A: the live position INSERT now carries strategy_metadata (the
+    pre-LIVE blocker — live positions previously had no quote/pairing snapshot)."""
+
+    class _CapConn(FakeConn):
+        def __init__(self, **kw: Any) -> None:
+            super().__init__(**kw)
+            self.pos_insert: tuple[str, tuple] | None = None
+
+        async def fetchrow(self, query: str, *args: Any) -> dict | None:
+            if "INSERT INTO positions" in query:
+                self.pos_insert = (query, args)
+            return await super().fetchrow(query, *args)
+
+    def test_metadata_and_preset_passed_to_position_insert(self) -> None:
+        import json
+        meta = {"complete_set": True, "condition_id": "0xabc", "net_margin_usdc": 1.5}
+        conn = self._CapConn()
+        _run_execute(conn, _settings(), MockClobClient(),
+                     strategy_metadata=meta, active_preset="close_sweep")
+        assert conn.pos_insert is not None
+        query, args = conn.pos_insert
+        assert "active_preset" in query
+        assert "strategy_metadata" in query
+        assert "$12::jsonb" in query
+        # ...active_preset, strategy_metadata) — preset is second-to-last, json last.
+        assert args[-2] == "close_sweep"
+        assert args[-1] == json.dumps(meta)
+
+    def test_none_metadata_and_preset_insert_null(self) -> None:
+        conn = self._CapConn()
+        _run_execute(conn, _settings(), MockClobClient())  # neither supplied
+        assert conn.pos_insert is not None
+        _query, args = conn.pos_insert
+        assert args[-2] is None  # active_preset
+        assert args[-1] is None  # strategy_metadata
+
+
 # ---------------------------------------------------------------------------
 # Idempotency key
 # ---------------------------------------------------------------------------
@@ -477,6 +551,8 @@ def _run_close(
               return_value=settings_obj),
         patch("projects.polymarket.crusaderbot.domain.execution.live.get_pool",
               return_value=pool),
+        patch("projects.polymarket.crusaderbot.domain.execution.live.MarketDataClient",
+              return_value=_make_mdc_mock()),
         patch("projects.polymarket.crusaderbot.domain.execution.live.audit.write",
               new=AsyncMock()),
         patch("projects.polymarket.crusaderbot.domain.execution.live.ledger.credit_in_conn",
@@ -654,10 +730,10 @@ class TestClosePosition:
         )
         s = _settings()
         client = MockClobClient()
-        # No side: entry comp = 1-0.6 = 0.4, exit comp = 1-0.8 = 0.2
-        # ret = (0.2 - 0.4) / 0.4 = -0.5 → loss
+        # Side-own frame: the NO token is bought at entry 0.6 and the exit mark
+        # is 0.8, so ret = (0.8 - 0.6)/0.6 = +33% → profit.
         result = _run_close(conn, s, client, position=no_position)
-        assert result["pnl_usdc"] < Decimal("0")
+        assert result["pnl_usdc"] > Decimal("0")
 
     def test_close_clob_auth_error_during_construction_rolls_back_claim(self) -> None:
         """ClobAuthError from get_clob_client() during close → RuntimeError + rollback.

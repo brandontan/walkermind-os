@@ -10,6 +10,7 @@ import { WalletCard } from "../components/WalletCard";
 import { WithdrawModal } from "../components/WithdrawModal";
 import { makeApi, type LedgerEntry, type WalletInfo } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useSSE } from "../lib/sse";
 
 export function WalletPage() {
   const { user } = useAuth();
@@ -36,6 +37,19 @@ export function WalletPage() {
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // SSE: refresh balance + ledger when trades open/close or balance changes.
+  useSSE(user?.token ?? null, {
+    position_opened:  load,
+    position_closed:  load,
+    portfolio_update: load,
+  });
+
+  // 30s polling fallback for SSE stalls.
+  useEffect(() => {
+    const id = setInterval(load, 30_000);
+    return () => clearInterval(id);
+  }, [load]);
 
   const loadMore = useCallback(async () => {
     setLoadingMore(true);
@@ -172,19 +186,27 @@ export function WalletPage() {
           paperMode={paperMode}
           balance={info.balance_usdc}
           onClose={() => setShowWithdraw(false)}
+          onWithdraw={api.requestWithdrawal}
+          onSuccess={() => { setShowWithdraw(false); void load(); }}
         />
       )}
     </>
   );
 }
 
+/** Replace any bare 0x hex address in a ledger note with a short form. */
+function formatNote(note: string): string {
+  return note.replace(/(0x[0-9a-fA-F]{8})[0-9a-fA-F]+([0-9a-fA-F]{4})/g, "$1…$2");
+}
+
 function LedgerCard({ entry }: { entry: LedgerEntry }) {
   const isCredit = entry.amount_usdc >= 0;
   const tone: "up" | "dn" = isCredit ? "up" : "dn";
   const sign = isCredit ? "+" : "−";
+  const label = entry.note ? formatNote(entry.note) : entry.type;
   return (
     <PositionCard
-      market={entry.note ?? entry.type}
+      market={label}
       positionValue={
         Math.abs(entry.amount_usdc) < 0.005
           ? { value: "$0.00", tone: "zero" }

@@ -105,12 +105,23 @@ class UserContext:
     risk_profile: str
     capital_allocation_pct: float
     available_balance_usdc: float
+    # Total account equity (free balance + open-position value). Position sizing
+    # is based on equity, not free cash, so the deployable pool reflects the
+    # whole account. Defaults to 0.0; callers that omit it fall back to
+    # available_balance_usdc at sizing time (backward-compatible).
+    equity_usdc: float = 0.0
     # Crypto short-duration timeframe ('5m' | '15m') for confluence_scalper /
     # close_sweep presets. None when the active preset is not a crypto-short one.
     selected_timeframe: str | None = None
     # Crypto assets to trade for crypto-short presets (e.g. ['BTC','ETH']).
     # None/empty means all whitelisted assets.
     selected_assets: tuple[str, ...] = ()
+    # User-configurable per-trade $ ceiling. mode 'auto' (default) uses the
+    # system $25 cap; 'fixed' uses max_per_trade_usdc; 'pct' uses
+    # max_per_trade_pct of equity. Bounded by hard system limits at sizing time.
+    max_per_trade_mode: str = "auto"
+    max_per_trade_usdc: float | None = None
+    max_per_trade_pct: float | None = None
 
     def __post_init__(self) -> None:
         if self.risk_profile not in VALID_RISK_PROFILES:
@@ -127,6 +138,10 @@ class UserContext:
             raise ValueError(
                 "UserContext.available_balance_usdc must be >= 0, "
                 f"got {self.available_balance_usdc}"
+            )
+        if self.equity_usdc < 0.0:
+            raise ValueError(
+                f"UserContext.equity_usdc must be >= 0, got {self.equity_usdc}"
             )
         if not self.user_id:
             raise ValueError("UserContext.user_id must be non-empty")

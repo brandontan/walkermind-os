@@ -161,8 +161,9 @@ class _FakePool:
 
 
 def test_signal_following_default_tp_sl_matches_spec():
+    # WARP-85: aligned to the E.1/E.2 Balanced production baseline (150% / 50%).
     tp, sl = SignalFollowingStrategy().default_tp_sl()
-    assert (tp, sl) == (DEFAULT_TP_PCT, DEFAULT_SL_PCT) == (0.20, 0.08)
+    assert (tp, sl) == (DEFAULT_TP_PCT, DEFAULT_SL_PCT) == (1.5, 0.5)
 
 
 def test_signal_following_strategy_attributes():
@@ -1309,8 +1310,8 @@ def test_handler_and_service_share_slug_pattern():
 
 
 def test_signals_catalog_escapes_feed_name_and_description():
-    """Feed name + description rendered via html.escape() in HTML mode.
-    Underscores, asterisks, and brackets are safe in HTML — no backslash escaping."""
+    """Feed name + description are MD2-escaped by _md() in MarkdownV2 mode.
+    Underscores, asterisks, and brackets require backslash escaping in MD2."""
     update, reply = _fake_update_message()
     ctx = _fake_ctx(["catalog"])
     user_ok = {"id": uuid4()}
@@ -1326,9 +1327,9 @@ def test_signals_catalog_escapes_feed_name_and_description():
          patch.object(sf_handler, "list_active_feeds", return_value=feeds):
         asyncio.run(sf_handler.signals_command(update, ctx))
     text = reply.call_args[0][0]
-    assert "Alpha_Beta" in text
-    assert "[brackets]" in text
-    assert "*stars*" in text
+    assert "Alpha\\_Beta" in text
+    assert "\\[brackets\\]" in text
+    assert "\\*stars\\*" in text
 
 
 def test_signals_list_escapes_feed_name():
@@ -1344,7 +1345,7 @@ def test_signals_list_escapes_feed_name():
                        return_value=subs):
         asyncio.run(sf_handler.signals_command(update, ctx))
     text = reply.call_args[0][0]
-    assert "Alpha_Beta" in text
+    assert "Alpha\\_Beta" in text
 
 
 def test_signals_command_accessible_for_any_registered_user():

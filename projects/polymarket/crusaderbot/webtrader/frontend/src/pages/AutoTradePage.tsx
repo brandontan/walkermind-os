@@ -1,113 +1,196 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { CopyTradePage, PageTabs } from "./CopyTradePage";
 import { CollapsibleSection } from "../components/CollapsibleSection";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { HeroCard } from "../components/HeroCard";
 import { TopBar } from "../components/TopBar";
-import { makeApi, type AutoTradeState, type MarketFilterSettings, type RiskProfileParams, type TradingSettings } from "../lib/api";
+import { makeApi, type AutoTradeState, type CustomizeParams, type MarketFilterSettings, type RiskProfileParams, type TradingSettings } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 
 const ALL_CATEGORIES = ["Politics","Sports","Crypto","Finance","Science","Entertainment","World","Weather","Other"];
 
-// ── Section A: Strategy Presets (mapped to lib/strategies/ classes) ───────────
+// ── Section A: Strategy Presets ───────────────────────────────────────────────
+// Mirrors VISIBLE_PRESET_ORDER in domain/preset/presets.py.
+// Only presets validated in production are selectable. Hidden presets are shown
+// as "coming soon" cards for visibility but cannot be activated.
 
 const STRATEGY_PRESETS = [
   {
-    key: "trend_breakout",
-    name: "Trend Breakout",
-    emoji: "📈",
-    engine: "TrendBreakoutStrategy",
-    signal: "Price rise ≥8% in 24h + volume spike",
+    key: "candle_auto",
+    name: "Smart Strike",
+    emoji: "🔥",
+    engine: "W.A.R.P_STRIKE_AUTO",
+    signal: "Auto-router: picks Flip / Safe / Close per candle stage. Set-and-forget.",
     risk: "balanced" as const,
     freq: "Medium",
-  },
-  {
-    key: "contrarian",
-    name: "Contrarian",
-    emoji: "🔄",
-    engine: "MomentumStrategy",
-    signal: "Price drop ≥10% in 24h + liquidity OK",
-    risk: "balanced" as const,
-    freq: "Medium",
-  },
-  {
-    key: "value_hunter",
-    name: "Value Hunter",
-    emoji: "🎯",
-    engine: "ValueInvestorStrategy",
-    signal: "Fair value gap ≥15% vs market price",
-    risk: "advanced" as const,
-    freq: "Low",
+    features: ["🤖 Auto rule-switch", "🎯 Flip→Safe→Close", "⏱ Picks per candle stage"],
+    detail: [
+      "One preset that runs all three candle rules on the same BTC/ETH/SOL engine — you don't have to choose.",
+      "Per market it picks the rule that fits the candle's stage: Flip Hunter early (underdog, 60–180s out), Safe Close mid (favorite, 30–60s), Close Sweep final (favorite, last 35s).",
+      "Each entry keeps its own exit — Flip holds to settlement, Safe exits before the noisy final 30s, Close force-exits ~8s out.",
+      "A market is only ever taken by one rule per candle, so the rules never fight each other.",
+      "Prefer one rule? Use the Rule selector to pin Close Sweep, Safe Close, or Flip Hunter instead of Auto.",
+    ],
   },
   {
     key: "close_sweep",
     name: "Close Sweep",
-    emoji: "⏰",
-    engine: "ExpirationTimingStrategy",
-    signal: "Near-expiry + momentum direction",
-    risk: "advanced" as const,
-    freq: "Low",
-  },
-  {
-    key: "pair_arb",
-    name: "Pair Arb",
-    emoji: "💰",
-    engine: "PairArbStrategy",
-    signal: "YES + NO price < $0.95 (guaranteed spread)",
+    emoji: "🧹",
+    engine: "W.A.R.P_STRIKE",
+    signal: "Final 35s entry on BTC/ETH/SOL candles. Strong lean required.",
     risk: "safe" as const,
     freq: "Medium",
+    features: ["⚡ Time-decay sizing", "🛡 Spread-guarded", "↔ Dual-leg arb"],
+    detail: [
+      "Enters in the last 35s before candle close when one side shows a strong lean.",
+      "Size auto-scales down near close — 75% inside 35s, 50% inside 10s — so bets shrink when there's less time to be right.",
+      "A spread guard blocks the entry when the order book is too wide to fill cleanly.",
+      "Dual-leg (operator option): once the lead side fills, the opposite side is bought to lock a complete-set arb toward $1.00 settlement.",
+    ],
   },
   {
-    key: "ensemble",
-    name: "Smart Mix",
-    emoji: "🤖",
-    engine: "EnsembleStrategy",
-    signal: "3/5 strategy consensus voting",
+    key: "safe_close",
+    name: "Safe Close",
+    emoji: "🔒",
+    engine: "W.A.R.P_STRIKE",
+    signal: "Entry 30–60s before close. Tighter lean filter, fewer but cleaner entries.",
+    risk: "safe" as const,
+    freq: "Low",
+    features: ["🎯 Tighter lean filter", "🔒 Fewer, cleaner entries"],
+    detail: [
+      "Enters 30–60s before close — earlier than Close Sweep, with a stricter lean threshold.",
+      "Trades less often, but each entry clears a higher-conviction bar.",
+      "Imbalance override (operator option) can still take a strong late skew when the book confirms it.",
+    ],
+  },
+  {
+    key: "flip_hunter",
+    name: "Flip Hunter",
+    emoji: "🎯",
+    engine: "W.A.R.P_STRIKE",
+    signal: "Arb: buy the cheap side 0.10–0.36, 60–180s out. Holds to settlement.",
     risk: "advanced" as const,
-    freq: "High",
+    freq: "Low",
+    features: ["🎯 Arbitrage mode", "💎 Cheap-side entry", "⏳ Holds to $1"],
+    detail: [
+      "Targets the underdog side priced 0.10–0.36, entering 60–180s before close.",
+      "Pure arbitrage stance — needs at least a 1% complete-set edge to enter.",
+      "No mid-candle exit: holds the position through to settlement to capture the full payout.",
+    ],
   },
   {
-    key: "confluence_scalper",
-    name: "Crypto Scalper",
-    emoji: "🚀",
-    engine: "ConfluenceScalperStrategy",
-    signal: "Fast crypto momentum (BTC/ETH/SOL/XRP/DOGE/BNB/HYPE)",
-    risk: "advanced" as const,
-    freq: "High",
+    key: "weather_monitor",
+    name: "Weather Monitor",
+    emoji: "🌤",
+    engine: "W.A.R.P_FORECAST",
+    signal: "Daily temperature markets across 20 cities. Ensemble forecast edge.",
+    risk: "balanced" as const,
+    freq: "Low",
+    features: ["🌡 Ensemble forecast", "📉 Trailing-stop exit"],
+    detail: [
+      "Scans daily high-temperature markets across 20 cities.",
+      "Enters when the ensemble forecast disagrees with the market-implied temperature bucket.",
+      "Protects gains with a trailing stop and re-checks the position on forecast shifts.",
+    ],
   },
   {
-    key: "full_auto",
-    name: "Full Auto",
-    emoji: "🚀",
-    engine: "All strategies",
-    signal: "Maximum signal coverage",
-    risk: "aggressive" as const,
-    freq: "High",
+    key: "playbook",
+    name: "Playbook",
+    emoji: "🏟",
+    engine: "W.A.R.P_PLAYBOOK",
+    signal: "Autonomous sports orchestration. Auto-routes to the highest-EV module.",
+    risk: "balanced" as const,
+    freq: "Adaptive",
+    features: ["⚡ Auto rule-switch", "📰 News-aware", "🦈 Sharp-money aware", "🎯 Market adaptive"],
+    detail: [
+      "Evaluates each sports market and auto-routes it to the highest expected-value module.",
+      "Current modules: Closing Edge (live). Sharp Money, Public Fade, and Injury Alpha activate as their data feeds come online.",
+      "Set-and-forget — you don't manage internal routing; the engine shows the current active module and its confidence.",
+    ],
   },
 ] as const;
 
-// Presets restricted to short-duration crypto markets — selecting one locks the
-// market category to Crypto and surfaces the 5m/15m timeframe toggle.
-const CRYPTO_SHORT_PRESETS: readonly string[] = ["confluence_scalper", "close_sweep"];
+// No presets currently locked — all candle presets are active.
+const COMING_SOON_PRESETS: readonly {
+  key: string;
+  name: string;
+  emoji: string;
+  signal: string;
+  risk: "safe" | "balanced" | "advanced" | "aggressive";
+}[] = [];
+
+// All candle presets route to W.A.R.P_STRIKE engine on short-duration crypto markets.
+// Selecting one locks the market category to Crypto and surfaces the 5m/15m toggle.
+const CRYPTO_SHORT_PRESETS: readonly string[] = ["candle_auto", "close_sweep", "safe_close", "flip_hunter"];
+
+// Top-level picker only shows the two strategy *families*: Smart Strike (the
+// candle auto-router) and Weather. The three single candle rules
+// (close_sweep / safe_close / flip_hunter) are no longer standalone cards —
+// they live inside Smart Strike as a manual "Rule" sub-picker, so the main page
+// stays uncluttered while power users can still pin one rule.
+// `playbook` re-enabled in WARP/ROOT/playbook-live-dispatch once its scan dispatch
+// (Phase B4) went live — it renders as a top-level family card alongside Smart Strike
+// and Weather. (Dispatch itself is operator-gated by PLAYBOOK_STRATEGY_ENABLED.)
+const TOP_LEVEL_PRESET_KEYS: readonly string[] = ["candle_auto", "weather_monitor", "playbook"];
+
+// Manual rules nested under Smart Strike. "Auto" (candle_auto) is the default —
+// the router picks per candle stage; the three below pin a single rule.
+const SMART_STRIKE_RULES: readonly { key: string; emoji: string; name: string }[] = [
+  { key: "candle_auto", emoji: "🔥", name: "Auto" },
+  { key: "close_sweep", emoji: "🧹", name: "Close Sweep" },
+  { key: "safe_close",  emoji: "🔒", name: "Safe Close" },
+  { key: "flip_hunter", emoji: "🎯", name: "Flip Hunter" },
+];
+
+// Preset → market category that activation auto-locks. Mirrors the backend
+// router _PRESET_LOCKED_CATEGORY. Crypto-short presets lock to Crypto;
+// weather_monitor locks to Weather. Presets absent here leave the filter free.
+const PRESET_LOCKED_CATEGORY: Record<string, string> = {
+  candle_auto:     "Crypto",
+  close_sweep:     "Crypto",
+  safe_close:      "Crypto",
+  flip_hunter:     "Crypto",
+  weather_monitor: "Weather",
+  playbook:        "Sports",
+};
 const TIMEFRAMES = ["5m", "15m"] as const;
 type Timeframe = (typeof TIMEFRAMES)[number];
-const CRYPTO_ASSETS = ["BTC", "ETH", "SOL", "BNB"] as const;
+const CRYPTO_ASSETS = ["BTC", "ETH", "SOL"] as const;
+// Default active: BTC + ETH. SOL is available but opt-in — its candle
+// book is thinner so it defaults inactive to avoid "selected but never
+// fills" on lower-liquidity tickers. BNB moved to MONITOR-ONLY in
+// WARP/R00T/bnb-monitor-only (Polybot directive Part 4 Tier 3) —
+// re-evaluate after 30-day edge stats.
+const CRYPTO_ASSETS_DEFAULT: readonly string[] = ["BTC", "ETH"];
 
 // ── Section B: Risk Profiles ──────────────────────────────────────────────────
 
+// WARP-83 E.2 (Path C): risk profiles govern CAPITAL SIZING ONLY (capital % +
+// max position %). TP/SL is a STRATEGY-LEVEL property — the SAME for every
+// profile (Balanced 150% / 50%) — sourced from user_settings.tp_pct / sl_pct.
+// Conservative "risks fewer dollars, it does not exit faster": it uses a smaller
+// capital allocation but the same TP/SL as Balanced. The per-profile tp/sl
+// numbers shown previously were a UX-deception bug (they implied a per-profile
+// exit bundle that the strategy never actually applied). Cards now display TP/SL
+// as informational strategy-level values; the advanced Custom Risk block below
+// is the only place an override can be entered (with an explicit warning).
+const STRATEGY_TP_PCT = 150;
+const STRATEGY_SL_PCT = 50;
+
 const RISK_PROFILES = [
-  { key: "conservative" as const, name: "Conservative", emoji: "🟢", capital: 20, tp: 10,  sl: 5  },
-  { key: "balanced"     as const, name: "Balanced",     emoji: "🟡", capital: 40, tp: 20,  sl: 15 },
-  { key: "aggressive"   as const, name: "Aggressive",   emoji: "🔴", capital: 60, tp: 30,  sl: 20 },
-  { key: "custom"       as const, name: "Custom Risk",  emoji: "⚙️", capital: null, tp: null, sl: null },
+  { key: "conservative" as const, name: "Conservative", emoji: "🟢", capital: 20 },
+  { key: "balanced"     as const, name: "Balanced",     emoji: "🟡", capital: 40 },
+  { key: "aggressive"   as const, name: "Aggressive",   emoji: "🔴", capital: 60 },
+  { key: "custom"       as const, name: "Custom Risk",  emoji: "⚙️", capital: null },
 ];
 
 const riskColor: Record<string, string> = {
   safe:       "text-grn",
-  balanced:   "text-amber-400",
-  advanced:   "text-amber-500",
-  aggressive: "text-red-400",
+  balanced:   "text-blue",
+  advanced:   "text-gold",
+  aggressive: "text-red",
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -116,6 +199,8 @@ export function AutoTradePage() {
   const { user } = useAuth();
   const api = useMemo(() => makeApi(user?.token ?? null), [user?.token]);
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const tab = searchParams.get("tab") ?? "auto";
   const marketName = searchParams.get("market_name") ?? null;
   const [state, setState] = useState<AutoTradeState | null>(null);
   const [tradingMode, setTradingMode] = useState<string>("paper");
@@ -123,10 +208,21 @@ export function AutoTradePage() {
 
   // Custom risk inputs
   const [customCapital, setCustomCapital] = useState("20");
-  const [customTp, setCustomTp]           = useState("15");
-  const [customSl, setCustomSl]           = useState("10");
+  // WARP-83 E.2 (Path C): seed the advanced override inputs with the strategy
+  // default TP/SL (150% / 50%) so the starting point matches what the strategy
+  // actually applies, not a misleading lower value.
+  const [customTp, setCustomTp]           = useState(String(STRATEGY_TP_PCT));
+  const [customSl, setCustomSl]           = useState(String(STRATEGY_SL_PCT));
   const [customErr, setCustomErr]         = useState<string | null>(null);
   const [savingRisk, setSavingRisk]       = useState(false);
+  // Surface preset/timeframe/asset toggle errors so a 400 from the
+  // backend doesn't silently swallow the user's tap. Cleared on next
+  // successful preset change.
+  const [presetErr, setPresetErr]         = useState<string | null>(null);
+  const [presetSaving, setPresetSaving]   = useState<string | null>(null);
+  // Which preset's "How it works" detail panel is expanded (null = all collapsed).
+  // Opening one collapses any other so only a single explanation shows at a time.
+  const [expandedDetail, setExpandedDetail] = useState<string | null>(null);
 
   // Market filter state
   const [filterCats, setFilterCats]           = useState<string[]>(ALL_CATEGORIES);
@@ -137,21 +233,37 @@ export function AutoTradePage() {
   const [savingFilters, setSavingFilters]     = useState(false);
   const [filterSaved, setFilterSaved]         = useState(false);
   // Crypto-short preset config (assets shown inline inside the active card)
-  const [selectedAssets, setSelectedAssets]   = useState<string[]>([...CRYPTO_ASSETS]);
+  const [selectedAssets, setSelectedAssets]   = useState<string[]>([...CRYPTO_ASSETS_DEFAULT]);
+  // Operator's global on/off per preset — refreshed alongside autotrade state.
+  // Default empty → all presets are treated as enabled (FAIL-SAFE) until the
+  // first fetch completes so the picker is never silently hidden on a slow API.
+  const [presetEnabled, setPresetEnabled] = useState<Record<string, boolean>>({});
+  // Same FAIL-SAFE for raw strategy keys. Used to gate the Copy Trade tab —
+  // copy_trade has its own pipeline (not a preset) so it would not otherwise
+  // appear in presetEnabled.
+  const [strategyEnabled, setStrategyEnabled] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
-    const [autotradeResult, dashResult] = await Promise.allSettled([
+    const [autotradeResult, dashResult, availResult] = await Promise.allSettled([
       api.getAutotrade(),
       api.getDashboard(),
+      api.getPresetAvailability(),
     ]);
     if (autotradeResult.status === "rejected") throw autotradeResult.reason;
     const s = autotradeResult.value;
     setState(s);
     if (dashResult.status === "fulfilled") setTradingMode(dashResult.value.trading_mode);
+    if (availResult.status === "fulfilled") {
+      const map: Record<string, boolean> = {};
+      for (const p of availResult.value.presets) map[p.key] = p.enabled;
+      setPresetEnabled(map);
+      setStrategyEnabled(availResult.value.strategies ?? {});
+    }
     if (s.risk_profile === "custom") {
-      setCustomCapital(String(Math.round(s.capital_alloc_pct * 100)));
-      setCustomTp(String(Math.round(s.tp_pct * 100)));
-      setCustomSl(String(Math.round(s.sl_pct * 100)));
+      setCustomCapital(String(Math.round((s.capital_alloc_pct ?? 0) * 100)));
+      // TP/SL may be null (custom TP-only or SL-only) — show blank, not "0".
+      setCustomTp(s.tp_pct != null ? String(Math.round(s.tp_pct * 100)) : "");
+      setCustomSl(s.sl_pct != null ? String(Math.round(s.sl_pct * 100)) : "");
     }
     if (s.market_categories) setFilterCats(s.market_categories);
     if (s.min_liquidity != null) setFilterLiquidity(String(s.min_liquidity));
@@ -159,7 +271,7 @@ export function AutoTradePage() {
     if (s.min_volume_24h != null) setFilterVolume(String(s.min_volume_24h));
     if (s.slippage_tolerance_pct != null) setFilterSlippage(String(Math.round(s.slippage_tolerance_pct * 100)));
     if (s.selected_assets && s.selected_assets.length > 0) setSelectedAssets(s.selected_assets);
-    else setSelectedAssets([...CRYPTO_ASSETS]);
+    else setSelectedAssets([...CRYPTO_ASSETS_DEFAULT]);
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
@@ -183,35 +295,86 @@ export function AutoTradePage() {
   }
 
   async function handleActivatePreset(key: string) {
-    if (CRYPTO_SHORT_PRESETS.includes(key)) {
-      // Crypto-short presets carry a timeframe + asset selection.
-      const tf = (state?.selected_timeframe as Timeframe) ?? "5m";
-      const assets = selectedAssets.length > 0 ? selectedAssets : [...CRYPTO_ASSETS];
-      await api.activatePreset(key, tf, assets);
-    } else {
-      await api.activatePreset(key);
+    if (presetSaving) return;  // ignore double-taps while a request is in flight
+    setPresetErr(null);
+    setPresetSaving(key);
+    try {
+      if (CRYPTO_SHORT_PRESETS.includes(key)) {
+        // Crypto-short presets carry a timeframe + asset selection.
+        // Filter `selectedAssets` against the UI's current asset
+        // universe so a stale persisted entry (e.g. legacy BNB before
+        // the universe trim) doesn't get re-submitted and 400 the
+        // backend. The backend ALSO drops + heals stale entries, but
+        // a clean payload makes the round-trip predictable.
+        const cleanAssets = selectedAssets.filter(
+          (a) => (CRYPTO_ASSETS as readonly string[]).includes(a),
+        );
+        const tf = (state?.selected_timeframe as Timeframe) ?? "5m";
+        const assets = cleanAssets.length > 0 ? cleanAssets : [...CRYPTO_ASSETS_DEFAULT];
+        await api.activatePreset(key, tf, assets);
+      } else {
+        await api.activatePreset(key);
+      }
+      await load();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // Trim the leading "HTTP 400: " prefix common to api.ts errors so
+      // the visible message reads as the operator-facing reason.
+      setPresetErr(msg.replace(/^HTTP \d+:\s*/, ""));
+    } finally {
+      setPresetSaving(null);
     }
-    await load();
   }
 
   async function handleSelectTimeframe(tf: Timeframe) {
     if (!state?.active_preset) return;
-    const assets = selectedAssets.length > 0 ? selectedAssets : [...CRYPTO_ASSETS];
-    await api.activatePreset(state.active_preset, tf, assets);
-    await load();
+    if (presetSaving) return;
+    setPresetErr(null);
+    setPresetSaving(state.active_preset);
+    try {
+      const cleanAssets = selectedAssets.filter(
+        (a) => (CRYPTO_ASSETS as readonly string[]).includes(a),
+      );
+      const assets = cleanAssets.length > 0 ? cleanAssets : [...CRYPTO_ASSETS_DEFAULT];
+      await api.activatePreset(state.active_preset, tf, assets);
+      await load();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setPresetErr(msg.replace(/^HTTP \d+:\s*/, ""));
+    } finally {
+      setPresetSaving(null);
+    }
   }
 
   async function handleToggleAsset(asset: string) {
     if (!state?.active_preset) return;
+    if (presetSaving) return;
     // Keep at least one asset selected.
     const next = selectedAssets.includes(asset)
       ? selectedAssets.filter(a => a !== asset)
       : [...selectedAssets, asset];
     if (next.length === 0) return;
-    setSelectedAssets(next);
-    const tf = (state.selected_timeframe as Timeframe) ?? "5m";
-    await api.activatePreset(state.active_preset, tf, next);
-    await load();
+    // Filter against current asset universe so a stale persisted
+    // entry (e.g. legacy BNB) doesn't get re-submitted.
+    const cleanNext = next.filter(
+      (a) => (CRYPTO_ASSETS as readonly string[]).includes(a),
+    );
+    if (cleanNext.length === 0) return;
+    const prevAssets = selectedAssets;
+    setSelectedAssets(cleanNext);
+    setPresetErr(null);
+    setPresetSaving(state.active_preset);
+    try {
+      const tf = (state.selected_timeframe as Timeframe) ?? "5m";
+      await api.activatePreset(state.active_preset, tf, cleanNext);
+      await load();
+    } catch (e) {
+      setSelectedAssets(prevAssets);
+      const msg = e instanceof Error ? e.message : String(e);
+      setPresetErr(msg.replace(/^HTTP \d+:\s*/, ""));
+    } finally {
+      setPresetSaving(null);
+    }
   }
 
   async function handleActivateRisk(profile: RiskProfileParams["profile"]) {
@@ -256,23 +419,39 @@ export function AutoTradePage() {
   async function handleSaveCustomRisk() {
     setCustomErr(null);
     const cap = parseFloat(customCapital) / 100;
-    const tp  = parseFloat(customTp) / 100;
-    const sl  = parseFloat(customSl) / 100;
-    if (isNaN(cap) || isNaN(tp) || isNaN(sl)) {
-      setCustomErr("Enter valid numbers for all fields.");
+    // TP and SL are each OPTIONAL — leave one blank to disable that side
+    // (TP-only or SL-only). At least one is required.
+    const tpRaw = customTp.trim();
+    const slRaw = customSl.trim();
+    const tp = tpRaw === "" ? null : parseFloat(tpRaw) / 100;
+    const sl = slRaw === "" ? null : parseFloat(slRaw) / 100;
+    if (isNaN(cap)) {
+      setCustomErr("Enter a valid Capital %.");
       return;
     }
     if (cap > 0.80) {
       setCustomErr("Capital may not exceed 80%.");
       return;
     }
-    if (tp <= sl) {
+    if (tp === null && sl === null) {
+      setCustomErr("Set at least one of Take Profit or Stop Loss.");
+      return;
+    }
+    if (tp !== null && isNaN(tp)) { setCustomErr("Take Profit must be a number or blank."); return; }
+    if (sl !== null && isNaN(sl)) { setCustomErr("Stop Loss must be a number or blank."); return; }
+    // Only enforce ordering when BOTH are set.
+    if (tp !== null && sl !== null && tp <= sl) {
       setCustomErr("Take Profit must be greater than Stop Loss.");
       return;
     }
     setSavingRisk(true);
     try {
-      await api.setRiskProfile({ profile: "custom", capital_alloc_pct: cap, tp_pct: tp, sl_pct: sl });
+      await api.setRiskProfile({
+        profile: "custom",
+        capital_alloc_pct: cap,
+        tp_pct: tp ?? undefined,
+        sl_pct: sl ?? undefined,
+      });
       await load();
     } catch (e: unknown) {
       setCustomErr(e instanceof Error ? e.message : "Save failed.");
@@ -280,6 +459,25 @@ export function AutoTradePage() {
       setSavingRisk(false);
     }
   }
+
+  // All hooks declared above — safe to early-return here
+  const copyTradeEnabled = strategyEnabled.copy_trade !== false;
+  // When the operator has turned copy_trade OFF we hide the tab AND short-
+  // circuit anyone landing on /autotrade?tab=copy directly (bookmark, deep
+  // link, stale router state) back to the Auto tab. FAIL-SAFE: until the
+  // availability fetch completes (strategyEnabled.copy_trade === undefined)
+  // we leave the tab visible so a slow API doesn't briefly hide it.
+  //
+  // navigate() must NOT run during render (React anti-pattern) — using
+  // useEffect schedules the redirect after commit and avoids the
+  // "Cannot update a component while rendering" warning.
+  useEffect(() => {
+    if (tab === "copy" && !copyTradeEnabled) {
+      navigate("/autotrade", { replace: true });
+    }
+  }, [tab, copyTradeEnabled, navigate]);
+  if (tab === "copy" && !copyTradeEnabled) return null;
+  if (tab === "copy") return <CopyTradePage />;
 
   if (!state) return (
     <>
@@ -290,14 +488,22 @@ export function AutoTradePage() {
 
   const activeStrategy = STRATEGY_PRESETS.find(p => p.key === state.active_preset);
   const heroValue = activeStrategy ? activeStrategy.name.toUpperCase() : "IDLE";
-  const isCryptoShortActive =
-    !!state.active_preset && CRYPTO_SHORT_PRESETS.includes(state.active_preset);
+  // Category the active preset locks the market filter to (Crypto / Weather /
+  // none). Mirrors backend _PRESET_LOCKED_CATEGORY. Drives the disabled +
+  // "Locked to X" treatment on the category checkboxes below.
+  const lockedCategory: string | undefined =
+    state.active_preset ? PRESET_LOCKED_CATEGORY[state.active_preset] : undefined;
   const activeTimeframe = (state.selected_timeframe as Timeframe | null) ?? "5m";
 
   return (
     <>
       <TopBar tradingMode={tradingMode} />
-      <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
+      <PageTabs
+        active="auto"
+        showCopy={copyTradeEnabled}
+        onSwitch={(t) => navigate(t === "copy" ? "/autotrade?tab=copy" : "/autotrade")}
+      />
+      <div className="px-3.5 pt-2 pb-6 animate-page-in">
 
         {/* Market context banner — shown when navigated from Discover page */}
         {marketName && (
@@ -331,33 +537,107 @@ export function AutoTradePage() {
           subtitle="SELECT STRATEGY · RISK PROFILE · MARKET FILTER"
         />
 
-        {/* Hero */}
-        <HeroCard
-          label="Auto Trade"
-          value={heroValue}
-          valueFontSize={38}
-          prefix=""
-          statusLabel={state.auto_trade_on ? "STRATEGY ACTIVE" : "STRATEGY PAUSED"}
-          metaItems={
+        {/* Hero — admin pause takes precedence over user auto-trade toggle.
+            If the active preset's backing strategy is globally disabled the
+            scanner will not emit any candidates, so showing RUNNING would
+            mislead the user even though state.auto_trade_on is true. The dot
+            tone, label colour, AND CTA all collapse to a passive paused state
+            in that case — previously the green dot + "Stop Auto Trade" red
+            button were hardcoded on, so the admin pause was only visible via
+            the text label and could be mistaken for an active system. */}
+        {(() => {
+          const adminPaused = state.active_preset_globally_enabled === false;
+          const tone: "active" | "paused" | "idle" = adminPaused
+            ? "paused"
+            : state.auto_trade_on
+              ? "active"
+              : "idle";
+          const statusLabel = adminPaused
+            ? "PAUSED (ADMIN)"
+            : state.auto_trade_on
+              ? "STRATEGY ACTIVE"
+              : "STRATEGY PAUSED";
+          const metaItems = (
             <>
-              <span className={state.auto_trade_on ? "text-grn font-bold" : "text-ink-2 font-bold"}>
-                {state.auto_trade_on ? "● RUNNING" : "● PAUSED"}
+              <span
+                className={
+                  adminPaused
+                    ? "text-ink-3 font-bold"
+                    : state.auto_trade_on
+                      ? "text-grn font-bold"
+                      : "text-ink-2 font-bold"
+                }
+              >
+                {adminPaused
+                  ? "● PAUSED (ADMIN)"
+                  : state.auto_trade_on
+                    ? "● RUNNING"
+                    : "● PAUSED"}
               </span>
               <span className="text-ink-4">│</span>
               <span className="text-ink-3">
                 {state.risk_profile.toUpperCase()} RISK
               </span>
             </>
+          );
+          // When admin-paused, do NOT offer a "Stop Auto Trade" CTA — the
+          // user toggle is moot while the scanner is disabled, and clicking
+          // it would just flip a flag with no visible effect. Surface a
+          // passive info banner instead (rendered below the hero).
+          if (adminPaused) {
+            return (
+              <HeroCard
+                label="Auto Trade"
+                value={heroValue}
+                valueFontSize={38}
+                prefix=""
+                statusLabel={statusLabel}
+                statusTone="paused"
+                metaItems={metaItems}
+              />
+            );
           }
-          {...(state.auto_trade_on
-            ? { ctaDanger: { label: "🛑 Stop Auto Trade", onClick: () => void handleToggle() } }
-            : {
-                ctaPrimary: {
-                  label: loading ? "Starting…" : "▶ Start Auto Trade",
-                  onClick: () => void handleToggle(),
-                },
-              })}
-        />
+          return (
+            <HeroCard
+              label="Auto Trade"
+              value={heroValue}
+              valueFontSize={38}
+              prefix=""
+              statusLabel={statusLabel}
+              statusTone={tone}
+              metaItems={metaItems}
+              {...(state.auto_trade_on
+                ? { ctaDanger: { label: "🛑 Stop Auto Trade", onClick: () => void handleToggle() } }
+                : {
+                    ctaPrimary: {
+                      label: loading ? "Starting…" : "▶ Start Auto Trade",
+                      onClick: () => void handleToggle(),
+                    },
+                  })}
+            />
+          );
+        })()}
+
+        {/* Admin-pause info banner — shown right below the hero so the user
+            understands why their bot is idle even though they had auto-trade
+            on. Replaces the misleading red Stop CTA above. */}
+        {state.active_preset_globally_enabled === false && (
+          <div
+            className="mb-3 px-3 py-2.5 clip-card border flex items-start gap-2 text-[11px] font-mono"
+            style={{
+              background: "rgba(120, 140, 170, 0.06)",
+              borderColor: "rgba(120, 140, 170, 0.25)",
+              color: "var(--ink-2)",
+            }}
+            role="status"
+          >
+            <span className="text-base leading-none" aria-hidden>🔒</span>
+            <span className="leading-snug">
+              The <span className="font-bold">{activeStrategy?.name ?? state.active_preset}</span> strategy
+              is currently paused by the operator. New entries will resume automatically once it&apos;s re-enabled.
+            </span>
+          </div>
+        )}
 
         {/* ── SECTION A: Strategy Preset ── */}
         <SectionTitle>Strategy Preset</SectionTitle>
@@ -365,97 +645,270 @@ export function AutoTradePage() {
           Select the algorithm to drive your trades. Independent of risk sizing.
         </p>
 
+        {presetErr && (
+          <div className="mb-3 px-3 py-2 clip-card border border-red/40 bg-red/10 text-red text-xs font-mono">
+            {presetErr}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          {STRATEGY_PRESETS.map((p) => {
-            const isActive = state.active_preset === p.key;
+          {STRATEGY_PRESETS.filter((p) => {
+            // Only the two strategy families render at top level — the single
+            // candle rules are folded into Smart Strike's Rule sub-picker below.
+            // EXCEPTION: a preset that is the user's *currently active* one still
+            // renders so they can see it + switch away — even if it's no longer in
+            // the top-level set (e.g. `playbook`, hidden pending Phase-2 dispatch).
+            // Candle single-rules are NOT exempted: an active pinned rule shows on
+            // the Smart Strike card, not as a standalone card. (Gemini, PR #1570.)
+            const activeNonCandle =
+              state.active_preset === p.key && !CRYPTO_SHORT_PRESETS.includes(p.key);
+            if (!TOP_LEVEL_PRESET_KEYS.includes(p.key) && !activeNonCandle) return false;
+            // FAIL-SAFE: hide a family ONLY if the operator explicitly disabled
+            // it. Unknown keys (no row yet, or fetch failed) stay visible so a
+            // transient API blip never wipes the picker.
+            //
+            // Exception: the active family stays visible even when admin-OFF, so
+            // the "PAUSED (ADMIN)" badge has somewhere to render. Smart Strike
+            // also stays visible whenever ANY single candle rule is pinned.
+            if (state.active_preset === p.key) return true;
+            if (p.key === "candle_auto" && CRYPTO_SHORT_PRESETS.includes(state.active_preset ?? "")) return true;
+            return presetEnabled[p.key] !== false;
+          }).map((p) => {
+            const isCandleAuto = p.key === "candle_auto";
+            // Smart Strike is "active" for ANY candle rule — the Auto router or a
+            // pinned single rule (close_sweep / safe_close / flip_hunter).
+            const isActive = isCandleAuto
+              ? CRYPTO_SHORT_PRESETS.includes(state.active_preset ?? "")
+              : state.active_preset === p.key;
+            // When the operator has globally disabled this strategy, the preset
+            // is still "selected" but fires no new trades → show PAUSED (Admin).
+            const isGloballyPaused = isActive && state.active_preset_globally_enabled === false;
             const showConfig = isActive && CRYPTO_SHORT_PRESETS.includes(p.key);
+            const isDetailOpen = expandedDetail === p.key;
+            // If a single candle rule is pinned, surface which one in the card.
+            const pinnedRule = isCandleAuto
+              ? SMART_STRIKE_RULES.find((r) => r.key !== "candle_auto" && r.key === state.active_preset)
+              : undefined;
             return (
               <Fragment key={p.key}>
-                <button
-                  onClick={() => void handleActivatePreset(p.key)}
+                {/* Card container — non-interactive, visual wrapper only */}
+                <div
                   className={[
-                    "w-full text-left p-3 rounded-lg border transition-all",
-                    showConfig ? "rounded-b-none" : "",
+                    "w-full clip-card border transition-all",
                     isActive
-                      ? "border-gold bg-surface-2 shadow-[0_0_8px_rgba(191,155,48,0.25)]"
+                      ? "border-gold bg-surface-2 shadow-[0_0_8px_rgba(191,155,48,0.22)]"
                       : "border-surface-3 bg-surface-1 hover:border-ink-3",
                   ].join(" ")}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-lg">{p.emoji}</span>
-                      <div className="min-w-0">
-                        <div className="font-hud text-sm font-bold text-ink-1 flex items-center gap-2">
-                          {p.name}
-                          {isActive && (
-                            <span className="text-[9px] font-bold tracking-widest text-gold uppercase px-1.5 py-0.5 rounded border border-gold/40 bg-gold/10">
-                              ACTIVE
-                            </span>
-                          )}
+                  {/* Activation area — no interactive descendants */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      // For Smart Strike, the body click selects the family with
+                      // its Auto default — but only when no candle rule is active
+                      // yet, so it never clobbers a rule the user pinned below.
+                      if (isCandleAuto && isActive) return;
+                      void handleActivatePreset(p.key);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        if (isCandleAuto && isActive) return;
+                        void handleActivatePreset(p.key);
+                      }
+                    }}
+                    className="w-full text-left p-3 pb-2 cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-lg">{p.emoji}</span>
+                        <div className="min-w-0">
+                          <div className="font-hud text-sm font-bold text-ink-1 flex items-center gap-2">
+                            {p.name}
+                            {isActive && (
+                              <span
+                                className={[
+                                  "text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 clip-tab border",
+                                  isGloballyPaused
+                                    ? "text-ink-4 border-ink-3 bg-surface-2"
+                                    : "text-gold border-gold/40 bg-gold/10",
+                                ].join(" ")}
+                              >
+                                {isGloballyPaused ? "PAUSED (ADMIN)" : "ACTIVE"}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-ink-3 truncate mt-0.5">
+                            {isCandleAuto && isActive
+                              ? (pinnedRule
+                                  ? `Manual rule: ${pinnedRule.emoji} ${pinnedRule.name}`
+                                  : "Auto — picks the rule per candle stage")
+                              : p.signal}
+                          </div>
                         </div>
-                        <div className="text-xs text-ink-3 truncate mt-0.5">{p.signal}</div>
+                      </div>
+                      <div className="text-right shrink-0 text-xs text-ink-3">
+                        <div className={`font-bold ${riskColor[p.risk]} uppercase`}>{p.risk}</div>
+                        <div className="text-ink-4">{p.freq} freq</div>
                       </div>
                     </div>
-                    <div className="text-right shrink-0 text-xs text-ink-3">
-                      <div className={`font-bold ${riskColor[p.risk]} uppercase`}>{p.risk}</div>
-                      <div className="text-ink-4">{p.freq} freq</div>
+                    {/* Feature chips */}
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {p.features.map((f) => (
+                        <span
+                          key={f}
+                          className="text-[9px] font-mono font-bold tracking-wide text-ink-2 px-1.5 py-0.5 clip-card-sm border border-border-2 bg-surface-1"
+                        >
+                          {f}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                  <div className="mt-1.5 text-[10px] text-ink-4 font-mono">
-                    Engine: {p.engine}
+
+                  {/* Smart Strike Rule sub-picker — Auto (router) or pin a single
+                      rule. Sibling to the activation area (has its own buttons),
+                      so its clicks never bubble into card activation. */}
+                  {isCandleAuto && (
+                    <div className="px-3 pb-2.5">
+                      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-1.5">
+                        Rule — Auto routes for you, or pin one
+                      </p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {SMART_STRIKE_RULES.map((r) => {
+                          const on = state.active_preset === r.key;
+                          const ruleDisabled = presetEnabled[r.key] === false;
+                          const busy = presetSaving === r.key;
+                          return (
+                            <button
+                              key={r.key}
+                              type="button"
+                              disabled={ruleDisabled || presetSaving !== null}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!ruleDisabled) void handleActivatePreset(r.key);
+                              }}
+                              className={[
+                                "flex items-center justify-center gap-1 py-1.5 clip-card-sm border text-[11px] font-hud font-bold transition-all",
+                                on
+                                  ? "border-gold bg-gold/10 text-gold shadow-[0_0_6px_rgba(191,155,48,0.2)]"
+                                  : "border-surface-3 bg-surface-1 text-ink-3 hover:border-ink-3",
+                                ruleDisabled || presetSaving !== null ? "cursor-not-allowed" : "cursor-pointer",
+                                ruleDisabled ? "opacity-40" : "",
+                              ].join(" ")}
+                              title={ruleDisabled ? "Disabled by operator" : undefined}
+                            >
+                              <span aria-hidden>{r.emoji}</span>
+                              <span>{busy ? "…" : r.name}</span>
+                              {ruleDisabled && <span className="text-[8px] uppercase tracking-wide">off</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Footer row — sibling to activation area, never nested inside it */}
+                  <div className="px-3 pb-3 flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-ink-4 font-mono">
+                      Engine: {p.engine}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedDetail(isDetailOpen ? null : p.key);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.stopPropagation();
+                          setExpandedDetail(isDetailOpen ? null : p.key);
+                        }
+                      }}
+                      className="text-[10px] font-mono font-bold text-gold/80 hover:text-gold cursor-pointer select-none"
+                    >
+                      {isDetailOpen ? "Hide details ▲" : "ⓘ How it works ▾"}
+                    </button>
                   </div>
-                </button>
+                </div>
+
+                {/* "How it works" detail — joined directly under the card.
+                    Square bottom when the asset/timeframe config follows. */}
+                {isDetailOpen && (
+                  <div
+                    className="md:col-span-3 p-3 border border-t-0 border-gold/40 bg-surface-2"
+                  >
+                    <ul className="space-y-1.5">
+                      {p.detail.map((line, i) => (
+                        <li key={i} className="flex gap-2 text-[11px] font-mono text-ink-2 leading-snug">
+                          <span className="text-gold shrink-0" aria-hidden>·</span>
+                          <span>{line}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {/* Inline config for crypto-short presets: assets + timeframe */}
                 {showConfig && (
-                  <div className="md:col-span-3 p-3 rounded-lg rounded-t-none border border-t-0 border-gold/40 bg-surface-2">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono">Assets</p>
-                      <span className="text-[9px] font-bold tracking-widest text-gold uppercase px-1.5 py-0.5 rounded border border-gold/40 bg-gold/10">
-                        Crypto only
+                  <div className="md:col-span-3 p-3 border border-t-0 border-gold/40 bg-surface-2 space-y-2.5">
+                    {/* Assets — compact 3-up chips (BTC/ETH/SOL), dot marks active */}
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono">Markets</p>
+                      <span className="text-[8px] font-bold tracking-widest text-gold/80 uppercase">
+                        Crypto · short-duration
                       </span>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 mb-3">
+                    <div className="grid grid-cols-3 gap-1.5">
                       {CRYPTO_ASSETS.map((asset) => {
                         const on = selectedAssets.includes(asset);
                         return (
                           <button
                             key={asset}
+                            type="button"
+                            aria-pressed={on}
                             onClick={() => void handleToggleAsset(asset)}
                             className={[
-                              "py-2 rounded-lg border text-xs font-hud font-bold transition-all",
+                              "flex items-center justify-center gap-1 py-1.5 clip-card-sm border text-[11px] font-hud font-bold tracking-wide transition-all",
                               on
                                 ? "border-gold bg-gold/10 text-gold"
                                 : "border-surface-3 bg-surface-1 text-ink-3 hover:border-ink-3",
                             ].join(" ")}
                           >
+                            {on && <span className="text-[7px]" aria-hidden>●</span>}
                             {asset}
                           </button>
                         );
                       })}
                     </div>
-                    <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-2">Timeframe</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {TIMEFRAMES.map((tf) => {
-                        const tfActive = activeTimeframe === tf;
-                        return (
-                          <button
-                            key={tf}
-                            onClick={() => void handleSelectTimeframe(tf)}
-                            className={[
-                              "py-2 rounded-lg border text-sm font-hud font-bold transition-all",
-                              tfActive
-                                ? "border-gold bg-gold/10 text-gold shadow-[0_0_8px_rgba(191,155,48,0.25)]"
-                                : "border-surface-3 bg-surface-1 text-ink-2 hover:border-ink-3",
-                            ].join(" ")}
-                          >
-                            {tf}
-                          </button>
-                        );
-                      })}
+                    {/* Timeframe — inset segmented control */}
+                    <div className="flex items-center gap-2">
+                      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono shrink-0">Candle</p>
+                      <div className="flex-1 grid grid-cols-2 gap-1 p-0.5 clip-card-sm border border-surface-3 bg-surface-1">
+                        {TIMEFRAMES.map((tf) => {
+                          const tfActive = activeTimeframe === tf;
+                          return (
+                            <button
+                              key={tf}
+                              type="button"
+                              aria-pressed={tfActive}
+                              onClick={() => void handleSelectTimeframe(tf)}
+                              className={[
+                                "py-1.5 rounded text-[12px] font-hud font-bold transition-all",
+                                tfActive
+                                  ? "bg-gold/15 text-gold"
+                                  : "text-ink-3 hover:text-ink-1",
+                              ].join(" ")}
+                            >
+                              {tf}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <p className="text-[10px] text-ink-4 font-mono mt-2">
-                      Trades only {selectedAssets.join("/")} short-duration markets ({activeTimeframe}). Category locked to Crypto.
+                    {/* One-line summary */}
+                    <p className="text-[9px] text-ink-4 font-mono leading-snug">
+                      {selectedAssets.length > 0 ? selectedAssets.join(" · ") : "No assets selected"} — {activeTimeframe} candles only · category locked to Crypto.
                     </p>
                   </div>
                 )}
@@ -463,89 +916,178 @@ export function AutoTradePage() {
             );
           })}
 
+          {/* Coming-soon presets — locked, not selectable */}
+          {COMING_SOON_PRESETS.map((p) => (
+            <div
+              key={p.key}
+              className="w-full text-left p-3 clip-card border border-surface-3 bg-surface-1 opacity-50 cursor-not-allowed select-none"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-lg">{p.emoji}</span>
+                  <div className="min-w-0">
+                    <div className="font-hud text-sm font-bold text-ink-2 flex items-center gap-2">
+                      {p.name}
+                      <span className="text-[9px] font-bold tracking-widest text-ink-4 uppercase px-1.5 py-0.5 clip-tab border border-surface-3 bg-surface-2">
+                        SOON
+                      </span>
+                    </div>
+                    <div className="text-xs text-ink-4 truncate mt-0.5">{p.signal}</div>
+                  </div>
+                </div>
+                <div className="text-right shrink-0 text-xs text-ink-4">
+                  <div className={`font-bold ${riskColor[p.risk]} uppercase opacity-60`}>{p.risk}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+
         </div>
 
         {/* ── SECTION B: Risk Profile ── */}
         <SectionTitle>Risk Profile</SectionTitle>
         <p className="text-ink-3 text-xs font-mono mb-3 mx-0.5">
-          Controls capital %, take profit, and stop loss. Applies to all trade types.
+          Controls how much capital is deployed. Take profit / stop loss are set by
+          the strategy ({STRATEGY_TP_PCT}% / {STRATEGY_SL_PCT}%) and are the same for
+          every profile — a tighter profile risks fewer dollars, it does not exit faster.
         </p>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {RISK_PROFILES.map((rp) => {
+        {/* Profile picker comes first — pick the profile, then fine-tune the
+            limits below. 3 preset cards — equal width row. */}
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          {RISK_PROFILES.filter(rp => rp.key !== "custom").map((rp) => {
             const isActive = state.risk_profile === rp.key;
             return (
-              <button
+              <button type="button"
                 key={rp.key}
                 onClick={() => void handleActivateRisk(rp.key)}
                 className={[
-                  "text-left p-3 rounded-lg border transition-all",
+                  "text-left p-2.5 clip-card border transition-all",
                   isActive
-                    ? "border-gold bg-surface-2 shadow-[0_0_8px_rgba(191,155,48,0.2)]"
-                    : "border-surface-3 bg-surface-1 hover:border-ink-3",
-                  rp.key === "custom" ? "col-span-2 md:col-span-1" : "",
+                    ? "border-gold bg-surface-2 shadow-[0_0_10px_rgba(245,200,66,0.15)]"
+                    : "border-border-1 bg-surface-1 hover:border-border-3",
                 ].join(" ")}
               >
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span>{rp.emoji}</span>
-                  <span className="font-hud text-xs font-bold text-ink-1">{rp.name}</span>
-                  {isActive && (
-                    <span className="ml-auto text-[9px] font-bold tracking-widest text-gold uppercase px-1 py-0.5 rounded border border-gold/40 bg-gold/10">
+                <div className="flex items-center gap-1 mb-1.5">
+                  <span className="text-[13px]">{rp.emoji}</span>
+                  <span className="font-hud text-[9px] font-bold text-ink-1 leading-none">{rp.name}</span>
+                </div>
+                {isActive && (
+                  <div className="mb-1.5">
+                    <span className="text-[8px] font-bold tracking-widest text-gold uppercase px-1 py-0.5 clip-tab border border-gold/40 bg-gold/10">
                       ACTIVE
                     </span>
-                  )}
-                </div>
-                {rp.key !== "custom" ? (
-                  <div className="grid grid-cols-3 gap-1 text-center mt-1">
-                    {[
-                      { label: "Cap", val: `${rp.capital}%` },
-                      { label: "TP",  val: `+${rp.tp}%` },
-                      { label: "SL",  val: `-${rp.sl}%` },
-                    ].map(({ label, val }) => (
-                      <div key={label} className="bg-surface-2 rounded px-1 py-0.5">
-                        <div className="text-[9px] text-ink-4 uppercase">{label}</div>
-                        <div className="text-xs font-mono font-bold text-ink-1">{val}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-2 space-y-1.5" onClick={e => e.stopPropagation()}>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { label: "Capital %", val: customCapital, set: setCustomCapital, max: 80 },
-                        { label: "TP %",      val: customTp,      set: setCustomTp,      max: 99 },
-                        { label: "SL %",      val: customSl,      set: setCustomSl,      max: 99 },
-                      ].map(({ label, val, set }) => (
-                        <div key={label}>
-                          <label className="text-[9px] text-ink-4 uppercase block mb-0.5">{label}</label>
-                          <input
-                            type="number"
-                            min={1}
-                            max={99}
-                            value={val}
-                            onChange={e => set(e.target.value)}
-                            className="w-full bg-surface-3 border border-surface-3 rounded px-1.5 py-1 text-xs font-mono text-ink-1 placeholder:text-ink-3 focus:border-gold focus:outline-none"
-                            style={{ color: "white" }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    {customErr && (
-                      <p className="text-xs text-red-400">{customErr}</p>
-                    )}
-                    <button
-                      onClick={() => void handleSaveCustomRisk()}
-                      disabled={savingRisk}
-                      className="w-full mt-1 py-1.5 rounded bg-gold/20 border border-gold/40 text-gold text-xs font-bold hover:bg-gold/30 disabled:opacity-50"
-                    >
-                      {savingRisk ? "Saving…" : "Save Custom Profile"}
-                    </button>
                   </div>
                 )}
+                <div className="space-y-1">
+                  {/* CAP is the per-profile sizing control (it differs by
+                      profile). TP/SL are INFORMATIONAL strategy-level values —
+                      identical across profiles (Path C) — shown so the user
+                      knows the exit behaviour without implying a per-profile
+                      bundle. */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-[8px] text-ink-4 font-mono uppercase">CAP</span>
+                    <span className="text-[10px] font-mono font-bold text-ink-1">{rp.capital}%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[8px] text-ink-4 font-mono uppercase">TP</span>
+                    <span className="text-[10px] font-mono font-bold text-ink-3">+{STRATEGY_TP_PCT}%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[8px] text-ink-4 font-mono uppercase">SL</span>
+                    <span className="text-[10px] font-mono font-bold text-ink-3">-{STRATEGY_SL_PCT}%</span>
+                  </div>
+                  <div className="text-[7px] text-ink-4 font-mono leading-tight pt-0.5">
+                    Strategy TP/SL · same for all profiles
+                  </div>
+                </div>
               </button>
             );
           })}
         </div>
+
+        {/* Custom Risk — full-width, separate block */}
+        {(() => {
+          const rp = RISK_PROFILES.find(r => r.key === "custom")!;
+          const isActive = state.risk_profile === "custom";
+          return (
+            <div
+              className={[
+                "p-3 clip-card border transition-all",
+                isActive
+                  ? "border-gold/60 bg-surface-2"
+                  : "border-border-1 bg-surface-1",
+              ].join(" ")}
+            >
+              <div className="flex items-center gap-2 mb-2.5">
+                <span className="text-[14px]">{rp.emoji}</span>
+                <span className="font-hud text-[10px] font-bold text-ink-1">{rp.name}</span>
+                {isActive && (
+                  <span className="ml-auto text-[8px] font-bold tracking-widest text-gold uppercase px-1.5 py-0.5 clip-tab border border-gold/40 bg-gold/10">
+                    ACTIVE
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-2 mb-1" onClick={e => e.stopPropagation()}>
+                {[
+                  { label: "Capital %", val: customCapital, set: setCustomCapital, ph: "20" },
+                  { label: "TP % (opt)", val: customTp,      set: setCustomTp,      ph: "—"  },
+                  { label: "SL % (opt)", val: customSl,      set: setCustomSl,      ph: "—"  },
+                ].map(({ label, val, set, ph }) => (
+                  <div key={label}>
+                    <label className="text-[9px] text-ink-4 uppercase block mb-0.5 font-mono">{label}</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={val}
+                      placeholder={ph}
+                      onChange={e => set(e.target.value)}
+                      className="w-full bg-surface border border-border-2 px-2 py-1.5 text-xs font-mono text-ink-1 placeholder:text-ink-4 focus:border-gold focus:outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-[8px] text-ink-4 font-mono mb-1.5">Leave TP or SL blank to use only one. At least one required.</p>
+              {/* WARP-83 E.2 (Path C): advanced override path. The strategy was
+                  tuned for the default TP/SL (150% / 50%); custom exit values are
+                  honoured but not validated by backtest. Warn explicitly. */}
+              <p className="text-[8px] text-gold font-mono mb-2 leading-tight">
+                ⚠ Advanced: custom TP/SL override the strategy default
+                ({STRATEGY_TP_PCT}% / {STRATEGY_SL_PCT}%). Non-default values are not backtested.
+              </p>
+              {customErr && <p className="text-xs text-red mb-2">{customErr}</p>}
+              <button type="button"
+                onClick={() => void handleSaveCustomRisk()}
+                disabled={savingRisk}
+                className="w-full py-2 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[10px] font-bold tracking-[1.5px] uppercase hover:bg-gold/20 disabled:opacity-50 transition-colors"
+              >
+                {savingRisk ? "Saving…" : "Save Custom Profile"}
+              </button>
+            </div>
+          );
+        })()}
+
+        {/* CAP% is the deployable POOL, not the per-trade size. Surface the real
+            max-per-trade so users don't read "60%" as "$600 per trade". */}
+        {state.effective_max_per_trade_usdc != null && (
+          <p className="text-[11px] font-mono mt-3 mb-2 mx-0.5 px-2 py-1.5 clip-card-sm border border-gold/30 bg-gold/5 text-ink-2">
+            <span className="text-gold font-bold">Max per trade: ${state.effective_max_per_trade_usdc.toFixed(2)}</span>
+            {state.equity_usdc != null && (
+              <span className="text-ink-3"> · CAP {Math.round(state.capital_alloc_pct * 100)}% of ${state.equity_usdc.toFixed(2)} equity is the deployable pool, not one trade</span>
+            )}
+          </p>
+        )}
+
+        {/* Fine-tune limits — collapsed by default so the profile picker stays
+            the focus. Caps the per-trade size, daily loss, and drawdown halt
+            within the system-enforced bounds. */}
+        <CollapsibleSection id="autotrade_finetune_limits" label="Fine-tune Limits" defaultOpen={false}>
+          <MaxPerTradeControl state={state} api={api} onSaved={() => void load()} />
+          <DailyLossControl state={state} api={api} onSaved={() => void load()} />
+          <MaxDrawdownControl state={state} api={api} onSaved={() => void load()} />
+          <MaxConcurrentControl state={state} api={api} onSaved={() => void load()} />
+        </CollapsibleSection>
 
         {/* ── SECTION C: Market Filter ── */}
         <CollapsibleSection id="autotrade_market_filter" label="Market Filter" defaultOpen={true}>
@@ -553,13 +1095,13 @@ export function AutoTradePage() {
           Choose which market categories and liquidity thresholds the bot scans.
         </p>
 
-        <div className="p-3 rounded-lg border border-surface-3 bg-surface-1 space-y-3">
+        <div className="p-3 clip-card border border-surface-3 bg-surface-1 space-y-3">
           {/* Categories */}
           <div>
             <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-2">Categories</p>
-            {isCryptoShortActive && (
+            {lockedCategory && (
               <p className="text-[10px] text-gold font-mono mb-2">
-                Locked to Crypto by the active {activeStrategy?.name ?? "strategy"} preset.
+                Locked to {lockedCategory} by the active {activeStrategy?.name ?? "strategy"} preset.
               </p>
             )}
             <div className="grid grid-cols-3 gap-1.5">
@@ -569,8 +1111,8 @@ export function AutoTradePage() {
                   <label
                     key={cat}
                     className={[
-                      "flex items-center gap-1.5 px-2 py-1.5 rounded border text-[10px] font-mono transition-colors",
-                      isCryptoShortActive
+                      "flex items-center gap-1.5 px-2 py-1.5 clip-card-sm border text-[10px] font-mono transition-colors",
+                      lockedCategory
                         ? "cursor-not-allowed opacity-50"
                         : "cursor-pointer",
                       on
@@ -581,7 +1123,7 @@ export function AutoTradePage() {
                     <input
                       type="checkbox"
                       checked={on}
-                      disabled={isCryptoShortActive}
+                      disabled={!!lockedCategory}
                       onChange={() => toggleCategory(cat)}
                       className="accent-gold w-3 h-3 shrink-0"
                     />
@@ -599,7 +1141,7 @@ export function AutoTradePage() {
               <select
                 value={filterLiquidity}
                 onChange={e => setFilterLiquidity(e.target.value)}
-                className="w-full bg-surface-3 border border-surface-3 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                className="w-full bg-surface-3 border border-surface-3 px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
               >
                 <option value="1000">$1k</option>
                 <option value="5000">$5k</option>
@@ -612,7 +1154,7 @@ export function AutoTradePage() {
               <select
                 value={filterResolution}
                 onChange={e => setFilterResolution(e.target.value)}
-                className="w-full bg-surface-3 border border-surface-3 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                className="w-full bg-surface-3 border border-surface-3 px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
               >
                 <option value="0">Any</option>
                 <option value="1">1 day</option>
@@ -626,7 +1168,7 @@ export function AutoTradePage() {
               <select
                 value={filterVolume}
                 onChange={e => setFilterVolume(e.target.value)}
-                className="w-full bg-surface-3 border border-surface-3 rounded px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
+                className="w-full bg-surface-3 border border-surface-3 px-2 py-1.5 text-xs font-mono text-ink-1 focus:border-gold focus:outline-none"
               >
                 <option value="100">$100</option>
                 <option value="500">$500</option>
@@ -662,7 +1204,7 @@ export function AutoTradePage() {
             </div>
           </div>
 
-          <button
+          <button type="button"
             onClick={() => void handleSaveFilters()}
             disabled={savingFilters}
             className="w-full py-1.5 rounded bg-gold/20 border border-gold/40 text-gold text-xs font-bold hover:bg-gold/30 disabled:opacity-50 transition-colors"
@@ -679,10 +1221,368 @@ export function AutoTradePage() {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between mt-4 mb-2 mx-0.5">
+    <div className="flex items-center justify-between mt-6 mb-2.5 mx-0.5">
       <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
         <span className="w-3 h-px bg-gold" aria-hidden />
         {children}
+      </div>
+    </div>
+  );
+}
+
+// ── Max per trade control ─────────────────────────────────────────────────────
+// Lets a user cap the $ size of any single trade in one of two modes (or leave
+// it on the system default). Hard system limits ($1–$500 / 0.5–10% of equity)
+// are re-enforced server-side at sizing time, so this can only tighten risk
+// within those bounds. CAP% remains the deployable pool, not the trade size.
+function MaxPerTradeControl({ state, api, onSaved }: {
+  state: AutoTradeState;
+  api: ReturnType<typeof makeApi>;
+  onSaved: () => void;
+}) {
+  const [mode, setMode] = useState<"auto" | "fixed" | "pct">(state.max_per_trade_mode ?? "auto");
+  const [usd, setUsd] = useState(state.max_per_trade_usdc != null ? String(state.max_per_trade_usdc) : "");
+  const [pct, setPct] = useState(state.max_per_trade_pct != null ? String(Math.round(state.max_per_trade_pct * 100)) : "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const params: CustomizeParams = { max_per_trade_mode: mode };
+      if (mode === "fixed") params.max_per_trade_usdc = Math.max(1, Math.min(500, Number(usd) || 0));
+      if (mode === "pct") params.max_per_trade_pct = Math.max(0.005, Math.min(0.10, (Number(pct) || 0) / 100));
+      await api.customizeStrategy(params);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const MODES: { key: "auto" | "fixed" | "pct"; label: string }[] = [
+    { key: "auto", label: "Auto ($25)" },
+    { key: "fixed", label: "Fixed $" },
+    { key: "pct", label: "% Equity" },
+  ];
+
+  return (
+    <div className="mb-3 mx-0.5 p-2.5 clip-card border border-surface-3 bg-surface-1">
+      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-2">Max per trade</p>
+      <div className="grid grid-cols-3 gap-2 mb-2">
+        {MODES.map((m) => (
+          <button type="button"
+            key={m.key}
+            onClick={() => setMode(m.key)}
+            className={[
+              "py-1.5 clip-card-sm border text-[11px] font-hud font-bold transition-all",
+              mode === m.key ? "border-gold bg-gold/10 text-gold" : "border-surface-3 bg-surface-2 text-ink-3 hover:border-ink-3",
+            ].join(" ")}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+      {mode === "fixed" && (
+        <input
+          type="number" inputMode="decimal" min={1} max={500} value={usd}
+          onChange={(e) => setUsd(e.target.value)}
+          placeholder="$ per trade (1–500)"
+          className="w-full mb-2 px-2 py-1.5 bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono focus:border-gold focus:outline-none"
+        />
+      )}
+      {mode === "pct" && (
+        <input
+          type="number" inputMode="decimal" min={0.5} max={10} step={0.5} value={pct}
+          onChange={(e) => setPct(e.target.value)}
+          placeholder="% of equity (0.5–10)"
+          className="w-full mb-2 px-2 py-1.5 bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono focus:border-gold focus:outline-none"
+        />
+      )}
+      <button type="button"
+        onClick={() => void save()}
+        disabled={saving}
+        className="w-full py-1.5 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
+      >
+        {saved ? "Saved ✓" : saving ? "Saving…" : "Save Max Per Trade"}
+      </button>
+    </div>
+  );
+}
+
+
+// ── DailyLossControl ──────────────────────────────────────────────────────────
+// Exposes user_settings.daily_loss_override. The effective cap is the most
+// restrictive of: system -$2000, profile default, and user override.
+function DailyLossControl({ state, api, onSaved }: {
+  state: AutoTradeState;
+  api: ReturnType<typeof makeApi>;
+  onSaved: () => void;
+}) {
+  const PROFILE_DEFAULTS: Record<string, number> = {
+    conservative: -200, balanced: -500, aggressive: -1000, custom: -500,
+  };
+  const profileFloor = PROFILE_DEFAULTS[state.risk_profile] ?? -500;
+  const current = state.daily_loss_override ?? null;
+  const [val, setVal] = useState(current != null ? String(Math.abs(current)) : "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setVal(current != null ? String(Math.abs(current)) : "");
+  }, [current]);
+
+  async function save() {
+    const raw = Number(val);
+    if (!val || isNaN(raw) || raw <= 0) return;
+    const override = -Math.min(raw, 2000);  // always negative, bounded to -$2000
+    setSaving(true);
+    try {
+      await api.customizeStrategy({ daily_loss_override: override });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clear() {
+    setSaving(true);
+    try {
+      await api.customizeStrategy({ daily_loss_override: null });
+      setVal("");
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const effective = current != null
+    ? Math.max(profileFloor, current)   // most restrictive (less negative wins)
+    : profileFloor;
+
+  return (
+    <div className="mb-3 mx-0.5 p-2.5 clip-card border border-surface-3 bg-surface-1">
+      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-1">Daily Loss Limit</p>
+      <p className="text-[10px] text-ink-3 font-mono mb-2">
+        Halt trading when daily P&amp;L drops below this. Profile default: <span className="text-ink-1">${Math.abs(profileFloor)}</span>.
+        Effective: <span className="text-grn font-bold">${Math.abs(effective)}</span>
+        {current != null && current > profileFloor && (
+          <span className="text-ink-4"> (your override)</span>
+        )}
+      </p>
+      <div className="flex gap-2 mb-2">
+        <span className="flex items-center text-xs text-ink-3 font-mono">-$</span>
+        <input
+          type="number" inputMode="decimal" min={1} max={2000} value={val}
+          onChange={(e) => setVal(e.target.value)}
+          placeholder={`e.g. ${Math.abs(profileFloor)} (profile default)`}
+          className="flex-1 px-2 py-1.5 bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono focus:border-gold focus:outline-none"
+        />
+      </div>
+      <div className="flex gap-2">
+        <button type="button"
+          onClick={() => void save()}
+          disabled={saving || !val}
+          className="flex-1 py-1.5 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
+        >
+          {saved ? "Saved ✓" : saving ? "Saving…" : "Set Limit"}
+        </button>
+        {current != null && (
+          <button type="button"
+            onClick={() => void clear()}
+            disabled={saving}
+            className="px-3 py-1.5 clip-card-sm border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"
+          >
+            Reset
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+// ── MaxDrawdownControl ────────────────────────────────────────────────────────
+// Exposes user_settings.max_drawdown_pct (0, 0.08]. System 8% applies regardless;
+// this only lets users halt *earlier* (stricter drawdown fence).
+function MaxDrawdownControl({ state, api, onSaved }: {
+  state: AutoTradeState;
+  api: ReturnType<typeof makeApi>;
+  onSaved: () => void;
+}) {
+  const current = state.max_drawdown_pct ?? null;
+  const [val, setVal] = useState(current != null ? String(Math.round(current * 100)) : "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setVal(current != null ? String(Math.round(current * 100)) : "");
+  }, [current]);
+
+  async function save() {
+    const raw = Number(val);
+    if (!val || isNaN(raw) || raw <= 0 || raw > 8) return;
+    const pct = Math.min(raw / 100, 0.08);
+    setSaving(true);
+    try {
+      await api.customizeStrategy({ max_drawdown_pct: pct });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clear() {
+    setSaving(true);
+    try {
+      await api.customizeStrategy({ max_drawdown_pct: null });
+      setVal("");
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const effectivePct = current != null ? Math.min(current, 0.08) : 0.08;
+
+  return (
+    <div className="mb-3 mx-0.5 p-2.5 clip-card border border-surface-3 bg-surface-1">
+      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-1">Max Drawdown Halt</p>
+      <p className="text-[10px] text-ink-3 font-mono mb-2">
+        Auto-halt when account drawdown exceeds this. System max: <span className="text-ink-1">8%</span>.
+        Effective: <span className="text-grn font-bold">{(effectivePct * 100).toFixed(0)}%</span>
+        {current != null && current < 0.08 && (
+          <span className="text-ink-4"> (your override)</span>
+        )}
+      </p>
+      <div className="flex gap-2 mb-2">
+        <input
+          type="number" inputMode="decimal" min={1} max={8} step={1} value={val}
+          onChange={(e) => setVal(e.target.value)}
+          placeholder="% (1–8, system max 8%)"
+          className="flex-1 px-2 py-1.5 bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono focus:border-gold focus:outline-none"
+        />
+        <span className="flex items-center text-xs text-ink-3 font-mono">%</span>
+      </div>
+      <div className="flex gap-2">
+        <button type="button"
+          onClick={() => void save()}
+          disabled={saving || !val}
+          className="flex-1 py-1.5 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
+        >
+          {saved ? "Saved ✓" : saving ? "Saving…" : "Set Drawdown Halt"}
+        </button>
+        {current != null && (
+          <button type="button"
+            onClick={() => void clear()}
+            disabled={saving}
+            className="px-3 py-1.5 clip-card-sm border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"
+          >
+            Reset
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── MaxConcurrentControl ──────────────────────────────────────────────────────
+// Exposes user_settings.max_concurrent_override (1..20). Gate step 7 takes
+// min(profile_cap, override) — users can only tighten the profile default.
+// Profile defaults: conservative=5, balanced/custom=12, aggressive=20.
+const PROFILE_MAX_CONCURRENT: Record<string, number> = {
+  conservative: 5,
+  balanced: 12,
+  custom: 12,
+  aggressive: 20,
+};
+
+function MaxConcurrentControl({ state, api, onSaved }: {
+  state: AutoTradeState;
+  api: ReturnType<typeof makeApi>;
+  onSaved: () => void;
+}) {
+  const current = state.max_concurrent_override ?? null;
+  const profileCap = PROFILE_MAX_CONCURRENT[state.risk_profile] ?? 12;
+  const [val, setVal] = useState(current != null ? String(current) : "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setVal(current != null ? String(current) : "");
+  }, [current]);
+
+  async function save() {
+    const raw = Number(val);
+    if (!val || !Number.isFinite(raw) || raw < 1 || raw > 20) return;
+    const n = Math.max(1, Math.min(20, Math.round(raw)));
+    setSaving(true);
+    try {
+      await api.customizeStrategy({ max_concurrent_override: n });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clear() {
+    setSaving(true);
+    try {
+      await api.customizeStrategy({ max_concurrent_override: null });
+      setVal("");
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const effective = current != null ? Math.min(current, profileCap) : profileCap;
+
+  return (
+    <div className="mb-3 mx-0.5 p-2.5 clip-card border border-surface-3 bg-surface-1">
+      <p className="text-[9px] text-ink-4 uppercase tracking-[1.5px] font-mono mb-1">Max Concurrent Trades</p>
+      <p className="text-[10px] text-ink-3 font-mono mb-2">
+        Cap on open positions at once. Profile cap: <span className="text-ink-1">{profileCap}</span>.
+        Effective: <span className="text-grn font-bold">{effective}</span>
+        {current != null && current < profileCap && (
+          <span className="text-ink-4"> (your override)</span>
+        )}
+        {current != null && current >= profileCap && (
+          <span className="text-ink-4"> (profile cap wins — override looser)</span>
+        )}
+      </p>
+      <div className="flex gap-2 mb-2">
+        <input
+          type="number" inputMode="numeric" min={1} max={20} step={1} value={val}
+          onChange={(e) => setVal(e.target.value)}
+          placeholder={`1–20 (profile ${profileCap})`}
+          className="flex-1 px-2 py-1.5 bg-surface-2 border border-surface-3 text-ink-1 text-xs font-mono focus:border-gold focus:outline-none"
+        />
+      </div>
+      <div className="flex gap-2">
+        <button type="button"
+          onClick={() => void save()}
+          disabled={saving || !val}
+          className="flex-1 py-1.5 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[11px] font-hud font-bold tracking-[1.5px] uppercase disabled:opacity-50"
+        >
+          {saved ? "Saved ✓" : saving ? "Saving…" : "Set Concurrent Cap"}
+        </button>
+        {current != null && (
+          <button type="button"
+            onClick={() => void clear()}
+            disabled={saving}
+            className="px-3 py-1.5 clip-card-sm border border-surface-3 bg-surface-2 text-ink-3 text-[11px] font-hud disabled:opacity-50"
+          >
+            Reset
+          </button>
+        )}
       </div>
     </div>
   );

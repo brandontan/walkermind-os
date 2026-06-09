@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { CollapsibleSection } from "../components/CollapsibleSection";
 import { FilterTabs, type FilterTab } from "../components/FilterTabs";
 import { TopBar } from "../components/TopBar";
 import { TxHash } from "../components/TxHash";
 import { makeApi, type LeaderboardEntry, type Wallet360 } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useSSE } from "../lib/sse";
 
 type CopyTab = "manual" | "leaderboard";
 
@@ -19,6 +21,53 @@ interface CopyTask {
   execution_mode: string;
   allow_topups: boolean;
   created_at: string;
+}
+
+export function PageTabs({
+  active,
+  onSwitch,
+  showCopy = true,
+}: {
+  active: "auto" | "copy";
+  onSwitch: (tab: "auto" | "copy") => void;
+  // When the operator has globally disabled copy_trade we still want the
+  // Auto Trade tab strip to render (so the page layout stays consistent),
+  // but the Copy Trade tab itself is hidden. Default true = legacy behaviour.
+  showCopy?: boolean;
+}) {
+  const tabs = (showCopy ? ["auto", "copy"] : ["auto"]) as ("auto" | "copy")[];
+  return (
+    <div
+      className="flex gap-2 px-3.5 py-2.5 border-b border-border-1"
+      style={{ background: "rgba(6,11,22,0.85)" }}
+    >
+      {tabs.map((t) => {
+        const isActive = active === t;
+        const isAuto = t === "auto";
+        return (
+          <button type="button"
+            key={t}
+            onClick={() => onSwitch(t)}
+            className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors"
+            style={isAuto
+              ? {
+                  background: isActive ? "rgba(0,255,156,0.10)" : "rgba(0,255,156,0.02)",
+                  border: `1px solid rgba(0,255,156,${isActive ? "0.40" : "0.12"})`,
+                  color: isActive ? "#00FF9C" : "rgba(0,255,156,0.30)",
+                }
+              : {
+                  background: isActive ? "rgba(245,200,66,0.10)" : "rgba(245,200,66,0.02)",
+                  border: `1px solid rgba(245,200,66,${isActive ? "0.40" : "0.12"})`,
+                  color: isActive ? "rgba(245,200,66,1)" : "rgba(245,200,66,0.30)",
+                }
+            }
+          >
+            {t === "auto" ? "Auto Trade" : "Copy Trade"}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function FieldHelper({ text }: { text: string }) {
@@ -49,6 +98,8 @@ export function CopyTradePage() {
   const [execMode, setExecMode] = useState<"auto" | "manual">("auto");
   const [slippage, setSlippage] = useState<"5" | "10">("5");
   const [allowTopups, setAllowTopups] = useState(true);
+  const [maxDailySpend, setMaxDailySpend] = useState("100");
+  const [minTradeSize, setMinTradeSize] = useState("1");
   const [formErr, setFormErr] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -79,6 +130,19 @@ export function CopyTradePage() {
   }, [api]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // SSE: refresh copy tasks when a copy trade executes or a position changes.
+  useSSE(user?.token ?? null, {
+    copy_trade_executed: load,
+    position_opened: load,
+    position_closed: load,
+  });
+
+  // 15s polling fallback for SSE stalls.
+  useEffect(() => {
+    const id = setInterval(load, 15_000);
+    return () => clearInterval(id);
+  }, [load]);
 
   const loadLeaderboard = useCallback(async () => {
     setLbLoading(true);
@@ -147,6 +211,20 @@ export function CopyTradePage() {
       setFormErr("Amount must be a positive number.");
       return;
     }
+    const maxDaily = parseFloat(maxDailySpend);
+    const minTrade = parseFloat(minTradeSize);
+    if (isNaN(maxDaily) || maxDaily < 1) {
+      setFormErr("Max daily spend must be at least $1.");
+      return;
+    }
+    if (isNaN(minTrade) || minTrade < 1) {
+      setFormErr("Min trade size must be at least $1.");
+      return;
+    }
+    if (maxDaily < minTrade) {
+      setFormErr("Max daily spend cannot be less than the minimum trade size.");
+      return;
+    }
     setSaving(true);
     try {
       await api.createCopyTask({
@@ -158,8 +236,11 @@ export function CopyTradePage() {
         execution_mode: execMode,
         slippage_pct: parseFloat(slippage) / 100,
         allow_topups: allowTopups,
+        max_daily_spend: maxDaily,
+        min_trade_size: minTrade,
       });
       setWallet(""); setNickname(""); setAmount("10");
+      setMaxDailySpend("100"); setMinTradeSize("1");
       setShowForm(false);
       await load();
     } catch (e: unknown) {
@@ -174,10 +255,13 @@ export function CopyTradePage() {
     { key: "leaderboard", label: "Leaderboard" },
   ];
 
+  const navigate = useNavigate();
+
   return (
     <>
       <TopBar />
-      <div className="px-3.5 pt-3.5 pb-6 animate-page-in">
+      <PageTabs active="copy" onSwitch={(t) => navigate(t === "auto" ? "/autotrade" : "/autotrade?tab=copy")} />
+      <div className="px-3.5 pt-2 pb-6 animate-page-in">
 
         {/* Page header */}
         <div className="mb-3 mx-0.5">
@@ -211,13 +295,13 @@ export function CopyTradePage() {
         <>
         {/* Active Targets */}
         {tasks.length === 0 && !showForm ? (
-          <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+          <div className="my-6 p-4 clip-card border border-surface-3 bg-surface-1 text-center">
             <div className="text-2xl mb-2">🐋</div>
             <p className="font-hud text-sm font-bold text-ink-2 mb-1">No copy targets yet.</p>
             <p className="text-ink-3 text-xs font-mono leading-relaxed">
               Add a Polymarket wallet address below<br />to start mirroring their trades.
             </p>
-            <button
+            <button type="button"
               onClick={() => setShowForm(true)}
               className="mt-3 font-hud text-[9px] font-bold tracking-widest text-gold uppercase px-3 py-1.5 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
             >
@@ -233,7 +317,7 @@ export function CopyTradePage() {
                 return (
                   <div
                     key={t.id}
-                    className="p-3 rounded-lg border border-surface-3 bg-surface-1"
+                    className="p-3 clip-card border border-surface-3 bg-surface-1"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
@@ -275,14 +359,14 @@ export function CopyTradePage() {
                         )}
                       </div>
                       <div className="shrink-0 flex flex-col gap-1">
-                        <button
+                        <button type="button"
                           disabled={loading}
                           onClick={() => void handleToggle(t.id, t.status)}
                           className="text-[9px] font-bold text-ink-2 px-2 py-0.5 rounded border border-surface-3 hover:border-ink-3 disabled:opacity-40"
                         >
                           {t.status === "active" ? "⏸ Pause" : "▶ Resume"}
                         </button>
-                        <button
+                        <button type="button"
                           disabled={loading}
                           onClick={() => void handleDelete(t.id)}
                           className="text-[9px] font-bold text-red-400 px-2 py-0.5 rounded border border-red-900/40 hover:border-red-400/60 disabled:opacity-40"
@@ -296,7 +380,7 @@ export function CopyTradePage() {
               })}
             </div>
             {!showForm && (
-              <button
+              <button type="button"
                 onClick={() => setShowForm(true)}
                 className="w-full py-2 rounded border border-gold/30 bg-gold/5 text-gold text-xs font-bold hover:bg-gold/10 font-hud tracking-widest uppercase"
               >
@@ -309,13 +393,13 @@ export function CopyTradePage() {
 
         {/* Add Form */}
         {showForm && (
-          <div className="mt-4 p-3 rounded-lg border border-surface-3 bg-surface-1 space-y-3">
+          <div className="mt-4 p-3 clip-card border border-surface-3 bg-surface-1 space-y-3">
             <div className="flex items-center justify-between">
               <div className="font-hud text-[10px] font-bold tracking-[3px] text-ink-2 uppercase flex items-center gap-2">
                 <span className="w-3 h-px bg-gold" aria-hidden />
                 Add Copy Target
               </div>
-              <button
+              <button type="button"
                 onClick={() => setShowForm(false)}
                 className="text-[9px] font-bold text-ink-3 hover:text-ink-1"
               >
@@ -435,11 +519,69 @@ export function CopyTradePage() {
                 </select>
                 <FieldHelper text="Follow if the trader buys MORE of the same market later." />
               </div>
+
+              <div>
+                <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Max Daily Spend ($)</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={maxDailySpend}
+                  onChange={e => setMaxDailySpend(e.target.value)}
+                  className={INPUT_CLS}
+                />
+                <FieldHelper text="Hard cap on total USDC spent copying this wallet per day." />
+              </div>
+
+              <div>
+                <label className="text-[9px] text-ink-4 uppercase block mb-0.5">Min Leader Trade ($)</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={0.5}
+                  value={minTradeSize}
+                  onChange={e => setMinTradeSize(e.target.value)}
+                  className={INPUT_CLS}
+                />
+                <FieldHelper text="Skip leader trades smaller than this — avoids noise from micro-positions." />
+              </div>
             </div>
+
+            {/* Live copy preview */}
+            {(() => {
+              const amt = parseFloat(amount);
+              const maxD = parseFloat(maxDailySpend);
+              const minT = parseFloat(minTradeSize);
+              const effectiveMin = isNaN(minT) || minT < 1 ? 1.0 : minT;
+              if (copyType === "fixed" && !isNaN(amt) && amt > 0) {
+                return (
+                  <div className="rounded border border-gold/20 bg-gold/5 px-3 py-2 text-[9px] font-mono text-gold/80">
+                    Each copied trade will use <span className="text-gold font-bold">${amt.toFixed(2)}</span> · max{" "}
+                    <span className="text-gold font-bold">${isNaN(maxD) ? "—" : maxD.toFixed(0)}</span>/day
+                    {amt < effectiveMin && (
+                      <span className="ml-2 text-red-400">⚠ below ${effectiveMin.toFixed(2)} floor — increase amount</span>
+                    )}
+                  </div>
+                );
+              }
+              if (copyType === "percentage" && !isNaN(amt) && !isNaN(maxD) && amt > 0 && maxD > 0) {
+                const perTrade = Math.min((maxD * 0.10 * amt) / 100, maxD);
+                return (
+                  <div className="rounded border border-gold/20 bg-gold/5 px-3 py-2 text-[9px] font-mono text-gold/80">
+                    ~<span className="text-gold font-bold">${perTrade.toFixed(2)}</span> per trade · max{" "}
+                    <span className="text-gold font-bold">${maxD.toFixed(0)}</span>/day
+                    {perTrade < effectiveMin && (
+                      <span className="ml-2 text-red-400">⚠ below ${effectiveMin.toFixed(2)} floor — increase % or daily budget</span>
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {formErr && <p className="text-xs text-red-400">{formErr}</p>}
 
-            <button
+            <button type="button"
               onClick={() => void handleAdd()}
               disabled={saving}
               className="w-full py-2 rounded bg-gold/20 border border-gold/40 text-gold text-xs font-bold hover:bg-gold/30 disabled:opacity-50"
@@ -503,7 +645,7 @@ function Wallet360Panel({
     return (
       <div className="mt-2 p-2 rounded border border-surface-3 bg-surface text-[10px] font-mono text-ink-3">
         Profile data unavailable. You can still copy this wallet.
-        <button
+        <button type="button"
           onClick={onCopy}
           className="ml-2 text-[9px] font-bold text-gold px-2 py-0.5 rounded border border-gold/40 bg-gold/10 hover:bg-gold/20"
         >
@@ -562,7 +704,7 @@ function Wallet360Panel({
           </div>
         )}
       </div>
-      <button
+      <button type="button"
         onClick={onCopy}
         className="w-full py-1 rounded border border-gold/40 bg-gold/10 text-gold text-[9px] font-bold hover:bg-gold/20"
       >
@@ -616,7 +758,7 @@ function LeaderboardPanel({
     return (
       <div className="space-y-2 mt-2">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-16 rounded-lg border border-surface-3 bg-surface-1 animate-pulse" />
+          <div key={i} className="h-16 clip-card border border-surface-3 bg-surface-1 animate-pulse" />
         ))}
       </div>
     );
@@ -624,7 +766,7 @@ function LeaderboardPanel({
 
   if (entries.length === 0) {
     return (
-      <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+      <div className="my-6 p-4 clip-card border border-surface-3 bg-surface-1 text-center">
         <div className="text-2xl mb-2">📊</div>
         <p className="font-hud text-sm font-bold text-ink-2 mb-1">No leaderboard data yet.</p>
         <p className="text-ink-3 text-xs font-mono">Trader rankings appear here as copy data accumulates.</p>
@@ -635,14 +777,14 @@ function LeaderboardPanel({
   return (
     <div className="space-y-2 mt-2">
       <div
-        className="px-2.5 py-1.5 text-[8.5px] font-mono text-ink-4 tracking-[1px] border rounded"
+        className="px-2.5 py-1.5 text-[8.5px] font-mono text-ink-4 tracking-[1px] border clip-card-sm"
         style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.02)" }}
       >
         Realtime Polymarket data · null fields shown as — · badges from backend only
       </div>
       {entries.map((e) => (
-        <div key={e.wallet} className="rounded-lg border border-surface-3 bg-surface-1 overflow-hidden">
-          <button
+        <div key={e.wallet} className="clip-card border border-surface-3 bg-surface-1 overflow-hidden">
+          <button type="button"
             className="w-full p-3 text-left"
             onClick={() => void handleExpand(e.wallet)}
           >

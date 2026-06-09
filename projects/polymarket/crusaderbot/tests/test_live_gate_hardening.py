@@ -85,6 +85,26 @@ class TestAuditRiskConstants:
         names = [v.constant for v in report.violations]
         assert any("aggressive" in n for n in names)
 
+    def test_fails_on_profile_max_concurrent_zero(self, monkeypatch):
+        bad_profiles = {
+            "balanced": dict(K.PROFILES["balanced"]) | {"max_concurrent": 0},
+        }
+        monkeypatch.setattr(K, "PROFILES", bad_profiles)
+        report = audit_risk_constants()
+        assert not report.passed
+        names = [v.constant for v in report.violations]
+        assert any("max_concurrent" in n for n in names)
+
+    def test_fails_on_profile_max_concurrent_too_high(self, monkeypatch):
+        bad_profiles = {
+            "aggressive": dict(K.PROFILES["aggressive"]) | {"max_concurrent": 100},
+        }
+        monkeypatch.setattr(K, "PROFILES", bad_profiles)
+        report = audit_risk_constants()
+        assert not report.passed
+        names = [v.constant for v in report.violations]
+        assert any("max_concurrent" in n for n in names)
+
     def test_assert_passes_with_valid_constants(self):
         assert_risk_constants()  # must not raise
 

@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import html
-import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TypedDict
 
+import structlog
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 import asyncio
@@ -16,6 +16,7 @@ from apscheduler.events import (
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from . import audit, notifications
+from .monitoring import alerts as monitoring_alerts
 from .config import get_settings, resolve_trading_mode
 from .database import get_pool
 from .domain.execution import exit_watcher
@@ -31,17 +32,29 @@ from .domain.activation.auto_fallback import (
     LOOKBACK_SECONDS as AUTO_FALLBACK_INTERVAL,
     run_auto_fallback_check,
 )
-from .jobs import daily_pnl_summary, hourly_report, market_signal_scanner, market_sync, weekly_insights
+from .jobs import (
+    daily_pnl_summary,
+    db_retention,
+    disk_monitor,
+    heisenberg_realtime_sync,
+    hourly_report,
+    market_signal_scanner,
+    market_sync,
+    operator_daily_summary,
+    weekly_insights,
+)
 from .services.daily_report_service import daily_pnl_report_job, JOB_ID as DAILY_REPORT_JOB_ID
 from .services.signal_scan import signal_scan_job as sf_scan_job
 from .services.copy_trade import monitor as copy_trade_monitor
+from .services.copy_trade import realtime_fast_track as copy_trade_fast_track
 from .services.copy_trade import leaderboard_sync
+from .domain.research import robustness as robustness_classifier
 from .services.redeem import hourly_worker as redeem_hourly_worker
 from .services.redeem import redeem_router
 from .services import portfolio_snapshots
 from .wallet import ledger
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 
 # ---------------- Market sync ----------------
@@ -50,7 +63,7 @@ async def sync_markets() -> None:
     try:
         markets = await polymarket.get_markets(limit=100)
     except Exception as exc:
-        logger.warning("sync_markets fetch failed: %s", exc)
+        log.warning("sync_markets fetch failed", err=str(exc))
         return
     if not markets:
         return
@@ -112,12 +125,33 @@ async def sync_markets() -> None:
                 )
                 upserts += 1
             except Exception as exc:
-                logger.warning("market upsert failed for %s: %s",
-                               m.get("id"), exc)
-    logger.info("sync_markets: upserted %d", upserts)
+                log.warning("market upsert failed", market_id=m.get("id"), err=str(exc))
+    log.info("sync_markets: upserted", count=upserts)
 
 
 # ---------------- Deposit watcher ----------------
+
+def _build_watched_addresses(wallet_rows) -> tuple[list[str], dict[str, object]]:
+    """Return the address scan list + a lowercase→user_id lookup map.
+
+    Each wallet contributes its EOA ``deposit_address`` and, when set, its
+    pre-computed ``safe_address`` (migration 061). Both addresses route to
+    the same user, so transfers into either credit that user without any
+    custody-mode flip. NULL ``safe_address`` rows (pre-backfill or pre-Chunk 2
+    wallets) silently fall back to EOA-only — no behavior change for them.
+    """
+    addresses: list[str] = []
+    addr_by_lower: dict = {}
+    for r in wallet_rows:
+        eoa = r["deposit_address"]
+        addresses.append(eoa)
+        addr_by_lower[eoa.lower()] = r["user_id"]
+        safe = r.get("safe_address") if isinstance(r, dict) else r["safe_address"]
+        if safe:
+            addresses.append(safe)
+            addr_by_lower[safe.lower()] = r["user_id"]
+    return addresses, addr_by_lower
+
 
 async def watch_deposits() -> None:
     """Confirmation-depth deposit watcher with reorg guard (H6).
@@ -138,17 +172,20 @@ async def watch_deposits() -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT user_id, deposit_address FROM wallets",
+            # safe_address comes from migration 061; partial-unique index ensures
+            # one user per address. Safe addresses route to the same user_id as
+            # the EOA so Polymarket Magic-link / Safe-flow deposits credit the
+            # correct user without any custody-mode flip.
+            "SELECT user_id, deposit_address, safe_address FROM wallets",
         )
     if not rows:
         return
-    addr_by_lower = {r["deposit_address"].lower(): r["user_id"] for r in rows}
-    addresses = [r["deposit_address"] for r in rows]
+    addresses, addr_by_lower = _build_watched_addresses(rows)
 
     try:
         head = await polygon.latest_block()
     except Exception as exc:
-        logger.warning("watch_deposits head read failed (no cursor advance): %s", exc)
+        log.warning("watch_deposits head read failed (no cursor advance)", err=str(exc))
         return
 
     cursor_start = await _read_cursor("usdc_deposits")
@@ -157,7 +194,7 @@ async def watch_deposits() -> None:
             addresses, cursor_start,
         )
     except Exception as exc:
-        logger.warning("watch_deposits scan failed (no cursor advance): %s", exc)
+        log.warning("watch_deposits scan failed (no cursor advance)", err=str(exc))
         return
 
     all_ok = True
@@ -171,8 +208,8 @@ async def watch_deposits() -> None:
             else:
                 await _record_pending_deposit(user_id, t)
         except Exception as exc:
-            logger.error("deposit record failed for %s: %s — cursor will not advance",
-                         t.get("tx_hash"), exc)
+            log.error("deposit record failed — cursor will not advance",
+                      tx_hash=t.get("tx_hash"), err=str(exc))
             all_ok = False
 
     if all_ok:
@@ -184,7 +221,7 @@ async def watch_deposits() -> None:
             head, settings.DEPOSIT_CONFIRMATION_DEPTH,
         )
     except Exception as exc:
-        logger.error("deposit confirm pass failed: %s", exc)
+        log.error("deposit confirm pass failed", err=str(exc))
         notify_after = []
 
     deposit_kb = InlineKeyboardMarkup([[
@@ -197,6 +234,24 @@ async def watch_deposits() -> None:
             f"✅ <b>Deposit confirmed:</b> ${float(amt):.2f} USDC\n"
             f"<code>{html.escape(tx)}</code>",
             reply_markup=deposit_kb,
+        )
+
+    # Credit-neutral wrong-token pass: detect native-USDC deposits to the same
+    # addresses and warn the user. NEVER credits — native USDC is not USDC.e.
+    try:
+        wrong = await _alert_wrong_token_deposits(addr_by_lower)
+    except Exception as exc:
+        log.error("wrong_token alert pass failed", err=str(exc))
+        wrong = []
+    for tg_id, amt, tx in wrong:
+        await notifications.send(
+            tg_id,
+            "⚠️ <b>Wrong token received.</b> We detected "
+            f"${float(amt):.2f} of <b>native USDC</b> at your deposit address.\n\n"
+            "CrusaderBot only credits <b>USDC.e (bridged)</b> on Polygon, so this "
+            "transfer was <b>not credited</b> and cannot be traded here.\n"
+            f"<code>{html.escape(tx)}</code>\n\n"
+            "Please contact support to arrange a return or swap.",
         )
 
 
@@ -328,6 +383,98 @@ async def _confirm_ready_deposits(
     return notify
 
 
+async def _alert_wrong_token_deposits(
+    addr_by_lower: dict,
+) -> list[tuple[int, Decimal, str]]:
+    """Detect-and-alert pass for deposits of the WRONG token (native USDC).
+
+    Native USDC (``USDC_NATIVE_POLYGON``) is NOT Polymarket's CTF collateral
+    (USDC.e). A user who sends it to their deposit address must be told — we
+    NEVER credit it (distinct ERC-20, untradeable on Polymarket without a swap).
+    This pass moves no capital: it records each transfer in
+    ``wrong_token_deposits`` (idempotent on tx_hash+log_index) and returns the
+    telegram ids to notify. Its cursor is independent of the credit path's, so
+    it can never affect USDC.e crediting.
+
+    Returns ``(telegram_user_id, amount, tx_hash)`` tuples to notify.
+    """
+    settings = get_settings()
+    if not settings.WRONG_TOKEN_ALERTS_ENABLED:
+        return []
+    native = settings.USDC_NATIVE_POLYGON
+    addresses = list(addr_by_lower.keys())
+    if not addresses:
+        return []
+
+    cursor_start = await _read_cursor("usdc_native_deposits")
+    try:
+        transfers, scanned_to = await polygon.scan_from_cursor(
+            addresses, cursor_start, token_address=native,
+        )
+    except Exception as exc:
+        log.warning("wrong_token scan failed (no cursor advance)", err=str(exc))
+        return []
+
+    notify: list[tuple[int, Decimal, str]] = []
+    all_ok = True
+    for t in transfers:
+        if t.get("removed"):
+            continue  # orphaned by reorg — nothing was credited, nothing to warn
+        user_id = addr_by_lower.get(t["to"].lower())
+        if not user_id:
+            continue  # not ours — safe to skip and advance cursor
+        try:
+            tg_id = await _record_wrong_token_deposit(user_id, native, t)
+            if tg_id is not None:
+                notify.append((tg_id, Decimal(str(t["amount"])), t["tx_hash"]))
+        except Exception as exc:
+            log.error("wrong_token record failed — cursor will not advance",
+                      tx_hash=t.get("tx_hash"), err=str(exc))
+            all_ok = False
+
+    if all_ok:
+        await _write_cursor("usdc_native_deposits", scanned_to)
+    return notify
+
+
+async def _record_wrong_token_deposit(user_id, token_address: str, t: dict) -> int | None:
+    """Record a wrong-token (native USDC) transfer; return the telegram id to
+    alert, or ``None`` if it was already recorded (no re-alert).
+
+    Idempotent on ``(tx_hash, log_index)`` via ``ON CONFLICT DO NOTHING`` —
+    a transfer re-seen on an overlapping scan range is a no-op, so the user is
+    alerted at most once. Records only; never touches the ledger or balance.
+    """
+    log_index = int(t.get("log_index", 0))
+    amount = Decimal(str(t["amount"]))
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                """
+                INSERT INTO wrong_token_deposits
+                    (user_id, token_address, tx_hash, log_index, amount, block_number)
+                VALUES ($1,$2,$3,$4,$5,$6)
+                ON CONFLICT (tx_hash, log_index) DO NOTHING
+                RETURNING id
+                """,
+                user_id, token_address, t["tx_hash"], log_index, amount,
+                t["block_number"],
+            )
+            if row is None:
+                return None  # already recorded — alerted on an earlier tick
+            u = await conn.fetchrow(
+                "SELECT telegram_user_id FROM users WHERE id=$1", user_id,
+            )
+    await audit.write(
+        actor_role="bot", action="wrong_token_deposit_detected", user_id=user_id,
+        payload={"tx_hash": t["tx_hash"], "log_index": log_index,
+                 "amount": str(amount), "token_address": token_address,
+                 "block": t["block_number"]},
+    )
+    return u["telegram_user_id"] if u else None
+
+
 async def _read_cursor(name: str) -> int:
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -414,6 +561,16 @@ async def run_signal_scan() -> SignalScanMetrics:
     for u_row in users:
         user = dict(u_row)
         user["balance_usdc"] = float(user.get("balance_usdc") or 0)
+        # WARP-93 (Issue 4): any non-null/non-empty active_preset means the user
+        # is owned by the new orchestrator (signal_scan_job: preset -> strategy)
+        # — and NO preset routes to copy_trade. This legacy strategy_types ->
+        # copy_trade scan predates presets and is for pre-preset copy_trade users
+        # (active_preset NULL) only. Skip any preset user so a stale strategy_types
+        # array can never bleed a copy_trade scan onto a candle_auto / managed
+        # user. Truthy-check (not a hardcoded preset set) keeps this future-proof:
+        # a newly-added preset is covered automatically.
+        if user.get("active_preset"):
+            continue
         for strat_name in (user.get("strategy_types") or []):
             strat = _strategies.get(strat_name)
             if not strat:
@@ -421,8 +578,8 @@ async def run_signal_scan() -> SignalScanMetrics:
             try:
                 candidates = await strat.scan(user, user)
             except Exception as exc:
-                logger.warning("strategy %s scan failed for user %s: %s",
-                               strat_name, user["id"], exc)
+                log.warning("strategy scan failed",
+                            strategy=strat_name, user_id=str(user["id"]), err=str(exc))
                 continue
             for cand in candidates:
                 candidates_emitted += 1
@@ -431,7 +588,7 @@ async def run_signal_scan() -> SignalScanMetrics:
                 try:
                     outcome = await _process_candidate(user, cand)
                 except Exception as exc:
-                    logger.error("candidate processing failed: %s", exc)
+                    log.error("candidate processing failed", err=str(exc))
                     errors += 1
                     continue
                 if outcome == "executed":
@@ -500,8 +657,9 @@ async def _process_candidate(user: dict, cand) -> str:
     )
     result = await evaluate(ctx_g)
     if not result.approved:
-        logger.info("trade rejected user=%s market=%s reason=%s step=%s",
-                    user["id"], cand.market_id, result.reason, result.failed_step)
+        log.info("trade rejected",
+                 user_id=str(user["id"]), market_id=cand.market_id,
+                 reason=result.reason, step=result.failed_step)
         return "rejected"
     try:
         await router_execute(
@@ -523,8 +681,9 @@ async def _process_candidate(user: dict, cand) -> str:
             sl_pct=float(user["sl_pct"]) if user["sl_pct"] is not None else None,
         )
     except Exception as exc:
-        logger.error("router execute failed user=%s market=%s mode=%s: %s",
-                     user["id"], cand.market_id, result.chosen_mode, exc)
+        log.error("router execute failed",
+                  user_id=str(user["id"]), market_id=cand.market_id,
+                  mode=result.chosen_mode, err=str(exc))
         return "error"
     return "executed"
 
@@ -539,6 +698,32 @@ async def check_exits() -> dict:
     (submitted/expired/held/errors) directly from the DB.
     """
     result = await exit_watcher.run_once()
+    return {
+        "submitted": result.submitted,
+        "expired": result.expired,
+        "held": result.held,
+        "errors": result.errors,
+    }
+
+
+async def check_candle_exits() -> dict:
+    """Fast exit tick scoped to candle-preset positions near resolution.
+
+    Runs every CLOSE_SWEEP_EXIT_INTERVAL (≈5s) so close_sweep force-exits ~1–8s
+    before a 5-minute candle resolves (Kreo "exit at 299s") via a CLOB sell at
+    the live price — instead of falling into the on-chain resolution gap. TP/SL
+    still exit earlier if they hit. Skips Phase B (the global resolved-market
+    sweep stays owned by the 30s `exit_watch`). The 30s watcher remains the
+    backstop; double-close is race-safe (atomic status claim in live.close).
+    """
+    from .domain.positions import registry
+    s = get_settings()
+    result = await exit_watcher.run_once(
+        position_loader=lambda: registry.list_open_candle_positions_for_exit(
+            s.CLOSE_SWEEP_EXIT_NEAR_SEC
+        ),
+        run_resolved_phase=False,
+    )
     return {
         "submitted": result.submitted,
         "expired": result.expired,
@@ -569,15 +754,15 @@ async def log_resumed_open_positions() -> dict:
                 "SELECT COUNT(*) FROM positions WHERE status='open' AND mode='live'"
             ) or 0)
     except Exception as exc:
-        logger.error(
-            "startup_recovery: open-position count query failed: %s",
-            exc, exc_info=True,
+        log.exception(
+            "startup_recovery: open-position count query failed",
+            err=str(exc),
         )
         return {"resumed_paper": None, "resumed_live": None, "error": str(exc)[:300]}
 
-    logger.info(
-        "startup_recovery: Resumed monitoring %d open positions (%d paper, %d live)",
-        paper_open + live_open, paper_open, live_open,
+    log.info(
+        "startup_recovery: Resumed monitoring open positions",
+        total=paper_open + live_open, paper=paper_open, live=live_open,
     )
     return {"resumed_paper": paper_open, "resumed_live": live_open}
 
@@ -607,6 +792,107 @@ async def poll_order_lifecycle() -> None:
     point so job_runs traces stay stable.
     """
     await order_lifecycle.poll_once()
+
+
+async def reconcile_complete_set() -> None:
+    """Drive one complete-set crash-recovery reconcile sweep (Lane 3C-2).
+
+    Resolves complete-set order rows left 'pending'/'unknown' by a crash against
+    broker truth (or halts + pages on uncertainty). No-op in paper / non-live; the
+    reconciler contains its own per-order errors so the sweep never raises.
+    """
+    from .domain.execution import complete_set_exec
+    from .integrations.clob import get_clob_client
+    await complete_set_exec.reconcile_complete_set_orders(clob_factory=get_clob_client)
+
+
+async def reconcile_live_orders_job() -> None:
+    """WARP-74 Chunk A — reconcile directional live orders orphaned in 'unknown'
+    by a crash (the state neither the lifecycle poller nor the complete-set
+    reconciler owns). No-op in paper / non-live; never raises.
+    """
+    from .domain.execution import live_reconcile
+    from .integrations.clob import get_clob_client
+    await live_reconcile.reconcile_live_orders(clob_factory=get_clob_client)
+
+
+async def reconcile_closing_positions_job() -> None:
+    """WARP-74 Chunk A — periodic recovery of live positions stranded in
+    'closing' past the stale window (close crashed between SELL and finalize).
+    """
+    from .domain.execution import live_reconcile
+    from .integrations.clob import get_clob_client
+    await live_reconcile.reconcile_closing_positions(clob_factory=get_clob_client)
+
+
+async def reconcile_closing_positions_startup() -> None:
+    """WARP-74 Chunk A — one-shot startup recovery of ALL live 'closing' rows.
+    A fresh process has nothing legitimately mid-close, so any 'closing' row at
+    boot is a crash leftover and is reconciled against broker truth immediately.
+    """
+    from .domain.execution import live_reconcile
+    from .integrations.clob import get_clob_client
+    await live_reconcile.reconcile_closing_positions(
+        clob_factory=get_clob_client, startup=True)
+
+
+async def detect_order_drift_job() -> None:
+    """WARP-74 Chunk C — periodic broker<->DB open-order drift detector
+    (alert-only). No-op in paper / non-live; never raises.
+    """
+    from .domain.execution import drift_detector
+    from .integrations.clob import get_clob_client
+    await drift_detector.detect_order_drift(clob_factory=get_clob_client)
+
+
+async def reconcile_live_orders() -> dict:
+    """Drive one live-order broker-reconcile sweep (WARP-74 Chunk A, #1612).
+
+    Pulls the broker's open orders and diffs against the DB to surface orphan /
+    drift. Detection-only — never cancels or mutates an order; no-op in
+    paper/non-live. The reconciler contains its own errors so the sweep never
+    raises. Returns the sweep's counters dict, captured into ``job_runs.metadata``
+    via the APScheduler listener.
+    """
+    from .domain.execution import reconcile as live_reconcile
+    return await live_reconcile.reconcile_once()
+
+
+async def clob_data_feed_heartbeat_job() -> None:
+    """WARP-77 Phase 1.2 — periodic real-CLOB-data feed staleness check.
+
+    Pages the operator + Sentry once if the MarketDataClient read feed goes stale
+    while USE_PYSDK_CLOB is on; fully dormant (immediate no-op) on the legacy
+    adapter. Fail-soft — monitoring must never break the scheduler.
+    """
+    try:
+        from .monitoring.clob_heartbeat import check_clob_feed_and_alert
+
+        await check_clob_feed_and_alert()
+    except Exception:  # noqa: BLE001 — monitoring must never break the scheduler
+        pass
+
+
+async def clob_data_feed_ping_job() -> None:
+    """WARP-84 — proactive CLOB REST ping to keep the data-feed heartbeat fresh.
+
+    Runs every 30 s regardless of strategy activity so the heartbeat stamp
+    never goes stale during quiet periods (all positions closed, no exit-watcher
+    polling). Dormant when USE_PYSDK_CLOB is False — identical guard to the
+    staleness-check job. Fail-soft: any error is logged and swallowed.
+    """
+    from .config import get_settings
+
+    s = get_settings()
+    if not s.USE_PYSDK_CLOB:
+        return
+    try:
+        from .integrations.clob import MarketDataClient
+
+        async with MarketDataClient() as client:
+            await client.get_markets()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("clob_ping_failed", error=str(exc))
 
 
 # ---------------- CLOB WebSocket (Phase 4D) ----------------
@@ -656,12 +942,12 @@ async def ws_watchdog() -> None:
         return
     global _ws_client
     if _ws_client is None or not _ws_client.is_alive():
-        logger.warning("ws_watchdog: client not alive, reconnecting")
+        log.warning("ws_watchdog: client not alive, reconnecting")
         if _ws_client is not None:
             try:
                 await _ws_client.stop()
             except Exception as exc:  # noqa: BLE001
-                logger.warning("ws_watchdog: stale client stop failed: %s", exc)
+                log.warning("ws_watchdog: stale client stop failed", err=str(exc))
             _ws_client = None
         await ws_connect()
 
@@ -704,13 +990,21 @@ async def redeem_hourly() -> None:
 
 
 async def sweep_deposits() -> None:
-    """Nightly logical deposit sweep — marks confirmed deposits swept.
+    """Nightly deposit sweep.
 
-    Accounting-only: flips ``deposits.swept`` so per-user balances are
-    reconciled. The on-chain hot-pool transfer is intentionally deferred
-    behind ``EXECUTION_PATH_VALIDATED`` (no real capital moves in paper
-    mode). Idempotent: a re-run only touches rows still ``swept=FALSE``.
+    Logical mode (paper / default): flips ``deposits.swept`` so per-user
+    balances are reconciled — no capital moves. Idempotent: a re-run only
+    touches rows still ``swept=FALSE``.
+
+    On-chain mode (EXECUTION_PATH_VALIDATED AND SWEEP_ONCHAIN_ENABLED):
+    consolidates each user's EOA deposit wallet into the master hot-pool, then
+    marks that user's confirmed deposits swept only after a confirmed transfer.
     """
+    settings = get_settings()
+    if settings.EXECUTION_PATH_VALIDATED and settings.SWEEP_ONCHAIN_ENABLED:
+        await _sweep_deposits_onchain()
+        return
+
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -719,12 +1013,109 @@ async def sweep_deposits() -> None:
                 " UPDATE deposits SET swept=TRUE WHERE swept=FALSE RETURNING 1"
                 ") SELECT COUNT(*) FROM u"
             )
-    logger.info("sweep_deposits: %s deposits marked swept", count)
+    log.info("sweep_deposits: deposits marked swept", count=int(count))
     await audit.write(
         actor_role="bot",
         action="deposit_sweep",
         payload={"count": int(count)},
     )
+
+
+async def _sweep_deposits_onchain() -> None:
+    """Per-user on-chain consolidation into the master hot-pool.
+
+    Runs sequentially (the cron job is max_instances=1) so the master wallet's
+    gas-top-up nonces never race. A per-user failure is logged and skipped —
+    one bad wallet never aborts the rest, and deposits are marked swept ONLY
+    after that user's transfer confirms on-chain.
+    """
+    # Custody-mode dispatcher routes per-user sweep to either polygon_usdc
+    # (EOA: master-funded gas top-up) or SafeCustody (gasless via relayer).
+    # PreflightError is re-exported from custody so the typed error stays
+    # uniform regardless of which custody backend handled the call.
+    from .wallet.custody import PreflightError, sweep_usdc_to_master
+    from .wallet.vault import get_decrypted_pk
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        users = await conn.fetch(
+            "SELECT DISTINCT d.user_id, w.deposit_address "
+            "FROM deposits d JOIN wallets w ON w.user_id = d.user_id "
+            "WHERE d.swept = FALSE AND d.status = 'confirmed'"
+        )
+
+    swept_users = 0
+    for u in users:
+        try:
+            pk = await get_decrypted_pk(u["user_id"])
+            if pk is None:
+                log.error("sweep_skip: no wallet key", user_id=str(u["user_id"]))
+                continue
+            result = await sweep_usdc_to_master(u["deposit_address"], pk)
+        except PreflightError as exc:
+            log.warning("sweep_skip", user_id=str(u["user_id"]), err=str(exc))
+            continue
+        except Exception as exc:
+            log.error("sweep_failed", user_id=str(u["user_id"]), err=str(exc))
+            continue
+        if result.get("skipped"):
+            continue
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE deposits SET swept=TRUE "
+                "WHERE user_id=$1 AND swept=FALSE AND status='confirmed'",
+                u["user_id"],
+            )
+        swept_users += 1
+        await audit.write(
+            actor_role="bot",
+            action="deposit_sweep_onchain",
+            payload={"user_id": str(u["user_id"]),
+                     "tx_hash": result.get("tx_hash"),
+                     "amount_usdc": result.get("amount_usdc"),
+                     "gas_topup_matic": result.get("gas_topup_matic")},
+        )
+    log.info("sweep_deposits_onchain: user wallets swept", count=swept_users)
+
+
+async def check_balance_alerts() -> None:
+    """Emit low_balance alerts for users whose wallet balance is below threshold.
+
+    Skips when LOW_BALANCE_THRESHOLD_USDC=0 (feature disabled). The per-user
+    1-hour cooldown inside alert_user_low_balance prevents spam on sustained
+    low balance. Runs hourly via the scheduler.
+    """
+    s = get_settings()
+    threshold = s.LOW_BALANCE_THRESHOLD_USDC
+    if threshold <= 0:
+        return
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT u.telegram_user_id, COALESCE(w.balance_usdc, 0) AS balance_usdc
+              FROM users u
+              JOIN wallets w ON w.user_id = u.id
+             WHERE u.telegram_user_id IS NOT NULL
+               AND u.paused = FALSE
+            """
+        )
+
+    for row in rows:
+        tg_id = row["telegram_user_id"]
+        balance = float(row["balance_usdc"])
+        try:
+            await monitoring_alerts.alert_user_low_balance(
+                telegram_user_id=tg_id,
+                current_balance=balance,
+                threshold=threshold,
+            )
+        except Exception as exc:
+            log.warning(
+                "check_balance_alerts: alert failed",
+                tg_id=tg_id, balance=balance, err=str(exc),
+            )
 
 
 def _job_tracker_listener(event) -> None:
@@ -772,7 +1163,7 @@ def _job_tracker_listener(event) -> None:
         try:
             asyncio.run(coro)
         except Exception as exc:  # noqa: BLE001
-            logger.error("job_runs sync write failed: %s", exc)
+            log.error("job_runs sync write failed", err=str(exc))
         return
     loop.create_task(coro)
 
@@ -802,6 +1193,22 @@ def setup_scheduler() -> AsyncIOScheduler:
                   id=market_signal_scanner.JOB_ID, max_instances=1, coalesce=True,
                   replace_existing=True,
                   next_run_time=datetime.now(timezone.utc))
+    # WARP-82 disk-usage safeguard — alert at 70%/85% of the DB-size cap before
+    # the next near-miss. 5-min cadence; fully fail-soft (never crashes the loop).
+    sched.add_job(disk_monitor.run_job, "interval", seconds=300,
+                  id=disk_monitor.JOB_ID, max_instances=1, coalesce=True)
+    # WARP•R00T DB retention — daily prune of operational time-series tables so the
+    # DB self-limits (disk_monitor only alerts; it never frees space). Off-peak 04:00.
+    sched.add_job(db_retention.run_job, "cron", hour=4,
+                  id=db_retention.JOB_ID, max_instances=1, coalesce=True)
+    # WARP-72 Phase 2 prep — settle the factor_vectors labeled dataset: resolve the
+    # realized open->close outcome for closed candle rows from the oracle ring.
+    # Shadow telemetry only; gated by FACTOR_DATASET_PERSIST_ENABLED.
+    if getattr(s, "FACTOR_DATASET_PERSIST_ENABLED", True):
+        sched.add_job(sf_scan_job.run_factor_settlement_backfill, "interval",
+                      seconds=int(getattr(s, "FACTOR_SETTLEMENT_INTERVAL_SEC", 60)),
+                      id="factor_settlement_backfill", max_instances=1, coalesce=True,
+                      replace_existing=True)
     sched.add_job(market_sync.run_job, "interval",
                   seconds=300,   # was 1800 — 5 min for price freshness
                   id=market_sync.JOB_ID, max_instances=1, coalesce=True)
@@ -812,8 +1219,48 @@ def setup_scheduler() -> AsyncIOScheduler:
                   seconds=1800,
                   id="leaderboard_sync", max_instances=1, coalesce=True,
                   next_run_time=datetime.now(timezone.utc))
+    # Heisenberg agent 556 (real-time trades) buffer sync — triple-gated.
+    # Scheduler only registers the job when the feature flag is ON; the job
+    # itself also checks HEISENBERG_API_TOKEN at every tick and is a no-op
+    # when the token is unset (defence-in-depth for the staged-rollout case
+    # where the flag is on but the token hasn't been provisioned yet).
+    if getattr(s, "HEISENBERG_REALTIME_TRADES_ENABLED", False):
+        sched.add_job(
+            heisenberg_realtime_sync.run_job, "interval",
+            seconds=int(getattr(s, "HEISENBERG_REALTIME_TRADES_INTERVAL_SEC", 60)),
+            id=heisenberg_realtime_sync.JOB_ID,
+            max_instances=1, coalesce=True,
+        )
+    # Copy-trade fast-track consumer — sub-minute mirror evaluation on top of
+    # the agent 556 buffer. Same triple-gating pattern as the producer above:
+    # registered only when the flag is on; dedup via the existing
+    # copy_trade_idempotency table prevents double-fires with the slower
+    # wallet-watcher path that copy_trade_monitor.run_once still drives.
+    if getattr(s, "HEISENBERG_FAST_TRACK_ENABLED", False):
+        sched.add_job(
+            copy_trade_fast_track.run_once, "interval",
+            seconds=int(getattr(s, "HEISENBERG_FAST_TRACK_INTERVAL_SEC", 30)),
+            id=copy_trade_fast_track.JOB_ID,
+            max_instances=1, coalesce=True,
+        )
+    # Phase-2c-1b: periodic Monte Carlo robustness classification (module_robustness).
+    # Registered only when the flag is on; pure read-side analytics over closed
+    # positions, fail-soft. No effect on trading — the live-eligibility gate it
+    # feeds is a separate, deliberately-scoped follow-up.
+    if getattr(s, "ROBUSTNESS_CLASSIFY_ENABLED", False):
+        sched.add_job(
+            robustness_classifier.run_job, "interval",
+            seconds=int(getattr(s, "ROBUSTNESS_CLASSIFY_INTERVAL_SEC", 3600)),
+            id=robustness_classifier.ROBUSTNESS_JOB_ID,
+            max_instances=1, coalesce=True,
+        )
     sched.add_job(check_exits, "interval", seconds=s.EXIT_WATCH_INTERVAL,
                   id="exit_watch", max_instances=1, coalesce=True)
+    # Dedicated fast exit loop for candle-preset positions near resolution so
+    # close_sweep force-exits ~1–8s before the candle closes (Kreo "299s").
+    sched.add_job(check_candle_exits, "interval", seconds=s.CLOSE_SWEEP_EXIT_INTERVAL,
+                  id="close_sweep_exit_fast", max_instances=1, coalesce=True,
+                  next_run_time=datetime.now(timezone.utc))
     # Portfolio snapshots tick — drives the dormant `cb_portfolio` NOTIFY
     # channel so WebTrader SSE receives live equity updates even without
     # a trade close in the window (handles open-position mark-to-market
@@ -824,6 +1271,57 @@ def setup_scheduler() -> AsyncIOScheduler:
     sched.add_job(poll_order_lifecycle, "interval",
                   seconds=s.ORDER_POLL_INTERVAL_SECONDS,
                   id="order_lifecycle", max_instances=1, coalesce=True)
+    # Lane 3C-2 complete-set crash-recovery reconciler — only registered when the
+    # complete-set path is enabled; the reconciler itself no-ops in paper/non-live.
+    if bool(getattr(s, "COMPLETE_SET_ARB_ENABLED", False)):
+        sched.add_job(reconcile_complete_set, "interval",
+                      seconds=s.COMPLETE_SET_RECONCILE_INTERVAL_SEC,
+                      id="complete_set_reconcile", max_instances=1, coalesce=True)
+    # WARP-74 Chunk A — generalized live reconciler (directional 'unknown' orders
+    # + stranded 'closing' positions). Gated by LIVE_RECONCILE_ENABLED; each sweep
+    # no-ops in paper/non-live so registration is safe regardless of mode. The
+    # closing-position recovery also runs ONCE at startup (every 'closing' row at
+    # boot is a crash leftover).
+    if bool(getattr(s, "LIVE_RECONCILE_ENABLED", True)):
+        # Job id is intentionally distinct from the WARP-74 Chunk-A detection-only
+        # sweep (#1612 uses 'live_order_reconcile') so the two can coexist without
+        # an APScheduler duplicate-id clash if both lanes ever run together.
+        sched.add_job(reconcile_live_orders_job, "interval",
+                      seconds=int(getattr(s, "LIVE_RECONCILE_INTERVAL_SEC", 300)),
+                      id="live_unknown_order_reconcile", max_instances=1, coalesce=True)
+        sched.add_job(reconcile_closing_positions_job, "interval",
+                      seconds=int(getattr(s, "LIVE_RECONCILE_INTERVAL_SEC", 300)),
+                      id="live_closing_reconcile", max_instances=1, coalesce=True)
+        sched.add_job(reconcile_closing_positions_startup, "date",
+                      id="live_closing_reconcile_startup",
+                      max_instances=1, coalesce=True, replace_existing=True)
+    # WARP-74 Chunk C — broker<->DB open-order drift detector (alert-only).
+    if bool(getattr(s, "ORDER_DRIFT_DETECT_ENABLED", True)):
+        sched.add_job(detect_order_drift_job, "interval",
+                      seconds=int(getattr(s, "ORDER_DRIFT_INTERVAL_SEC", 600)),
+                      id="order_drift_detect", max_instances=1, coalesce=True)
+    # WARP-74 Chunk A (#1612) — detection-only live-order broker reconcile sweep
+    # (orphan + db-only drift surfacing); no-op in paper/non-live. Gated so an
+    # operator can unregister it without a redeploy via RECONCILE_LIVE_ORDERS_ENABLED.
+    # Distinct job id from the generalized reconciler above so both coexist.
+    if bool(getattr(s, "RECONCILE_LIVE_ORDERS_ENABLED", True)):
+        sched.add_job(reconcile_live_orders, "interval",
+                      seconds=int(getattr(s, "RECONCILE_INTERVAL_SEC", 120)),
+                      id="live_order_reconcile", max_instances=1, coalesce=True)
+    # WARP-77 Phase 1.2 — real-CLOB-data feed heartbeat. Pages the operator +
+    # Sentry if the MarketDataClient read feed goes stale while USE_PYSDK_CLOB is
+    # on. The check is internally gated on USE_PYSDK_CLOB → fully dormant (and
+    # cannot page) on the legacy adapter in current prod.
+    if bool(getattr(s, "CLOB_DATA_FEED_HEARTBEAT_ENABLED", True)):
+        sched.add_job(clob_data_feed_heartbeat_job, "interval",
+                      seconds=int(getattr(s, "CLOB_DATA_FEED_CHECK_INTERVAL_SEC", 60)),
+                      id="clob_data_feed_heartbeat", max_instances=1, coalesce=True)
+        # WARP-84 — proactive REST ping keeps the heartbeat stamp fresh every 30 s
+        # so quiet strategy periods (all positions closed) no longer trip a false
+        # "CLOB data feed lost" alarm. Internally gated on USE_PYSDK_CLOB.
+        sched.add_job(clob_data_feed_ping_job, "interval",
+                      seconds=30,
+                      id="clob_feed_ping", max_instances=1, coalesce=True)
     # WebSocket fill streaming (Phase 4D). The client itself enforces the
     # USE_REAL_CLOB=False guard; jobs are still registered so a runtime
     # toggle flip + watchdog tick brings the socket up without a redeploy.
@@ -845,6 +1343,14 @@ def setup_scheduler() -> AsyncIOScheduler:
         daily_pnl_summary.run_job, "cron",
         hour=23, minute=0,
         id=daily_pnl_summary.JOB_ID, max_instances=1, coalesce=True,
+    )
+    # Operator-facing aggregate paper-P&L summary (WARP-76 H2) — 23:05
+    # Asia/Jakarta, just after the per-user push. Single page to the operator
+    # channel with positions opened/closed/net delta across all paper users.
+    sched.add_job(
+        operator_daily_summary.run_job, "cron",
+        hour=23, minute=5,
+        id=operator_daily_summary.JOB_ID, max_instances=1, coalesce=True,
     )
     # Weekly insights — Monday 08:00 Asia/Jakarta.
     sched.add_job(
@@ -883,6 +1389,28 @@ def setup_scheduler() -> AsyncIOScheduler:
         id="startup_recovery_log", max_instances=1, coalesce=True,
         replace_existing=True,
     )
+    sched.add_job(
+        check_balance_alerts, "interval", hours=1,
+        id="check_balance_alerts", max_instances=1, coalesce=True,
+    )
+    # WeatherStrategy jobs (WARP-49). ALWAYS registered so the runtime overlay
+    # (web admin WEATHER_STRATEGY_ENABLED) can enable weather with no redeploy.
+    # Each cycle self-guards on the effective flag (runtime_config.resolve_bool):
+    # when disabled it's a cheap no-op (cached flag check + early return), so the
+    # idle cost is negligible and ON/OFF both take effect at runtime.
+    # Scan cycle runs hourly; monitor cycle runs every 10 minutes.
+    from .strategies.weather import WeatherStrategy as _WeatherStrategy
+    _weather_strategy = _WeatherStrategy()
+    sched.add_job(
+        _weather_strategy.scan_cycle, "interval", hours=1,
+        id="weather_scan", max_instances=1, coalesce=True,
+        next_run_time=datetime.now(timezone.utc),
+    )
+    sched.add_job(
+        _weather_strategy.monitor_cycle, "interval", minutes=10,
+        id="weather_monitor", max_instances=1, coalesce=True,
+    )
+    log.info("WeatherStrategy registered (always-on; runtime-flag gated): scan=hourly, monitor=10min")
     sched.add_listener(
         _job_tracker_listener,
         EVENT_JOB_SUBMITTED | EVENT_JOB_EXECUTED | EVENT_JOB_ERROR,

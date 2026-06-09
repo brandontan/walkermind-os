@@ -4,31 +4,53 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, Optional
+from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
+from uuid import UUID
+
 from ...database import get_pool
+from ... import audit
+from ...api.per_user_rate_limit import per_ip_rate_limit, per_user_rate_limit
 from ...domain.execution import router as exec_router
 from ...domain.ops import kill_switch
+from ...domain.positions import mark_force_close_intent_for_user
+from ...domain.strategy.strategies.late_entry_v3 import (
+    resolve_per_trade_ceiling,
+    suggested_trade_size,
+)
 from ... import notifications as notif_module
 from ...integrations import polymarket as _polymarket
 from . import sse as webtrader_sse
-from .auth import authenticate_telegram, get_current_user, require_admin
+from .auth import (
+    authenticate_telegram, decode_stream_token, get_current_user, link_email,
+    login_email, mint_stream_token, register_email,
+)
+from . import notification_prefs as _notif_prefs
 from .schemas import (
+    AdminRecentAudit,
+    AdminRecentTrade,
+    AdminPaperResetResult,
+    AdminUserDetail,
+    AdminUserUpdate,
     AlertItem,
     AutoTradeState,
     AutoTradeToggleRequest,
     ChartPoint,
     ClosePositionResponse,
     CustomizeRequest,
+    EmergencyStopResponse,
     DashboardSummary,
     KillSwitchStatus,
     LeaderboardEntry,
     LedgerEntry,
     LedgerPage,
+    LiveEnableRequest,
+    LiveEnableResponse,
+    LiveStatus,
     MarketFeedItem,
     MarketFilterUpdate,
     OrderItem,
@@ -37,8 +59,13 @@ from .schemas import (
     PositionItem,
     PresetActivateRequest,
     RiskProfileRequest,
+    RuntimeSettingUpdate,
     RuntimeStatus,
     StrategyPnl,
+    StrategyToggleRequest,
+    EmailLoginRequest,
+    EmailRegisterRequest,
+    LinkEmailRequest,
     TelegramAuthPayload,
     TokenResponse,
     TradeHighlight,
@@ -46,6 +73,8 @@ from .schemas import (
     TradingSettingsUpdate,
     UserSettingsUpdate,
     WalletInfo,
+    WithdrawRequest,
+    WithdrawResponse,
 )
 
 log = logging.getLogger(__name__)
@@ -62,15 +91,37 @@ async def web_health():
 @router.get("/markets")
 async def get_markets_list(
     category: str | None = None,
+    q: str | None = None,
     limit: int = 50,
 ):
-    """Proxy Gamma API market list — avoids browser CORS restriction."""
+    """Proxy Polymarket Gamma — Discover Markets search + category filter.
+
+    Uses the events-with-markets endpoint so each row carries a usable
+    ``category`` string (built from event tag labels). Filtering happens
+    server-side here:
+      * ``category`` — case-insensitive substring match against the tag
+        labels string Gamma returns per event.
+      * ``q`` — case-insensitive substring match against the market
+        question. Both filters compose (AND).
+    """
+    cap = min(limit, 200)
     try:
-        markets = await _polymarket.get_markets(
-            category=category,
-            limit=min(limit, 200),
-        )
-        return markets
+        # Fetch a wider page than the cap so client filters still find ~cap rows.
+        raw = await _polymarket.get_events_with_markets(limit=max(cap * 4, 200))
+        cat_needle = category.strip().lower() if category else ""
+        q_needle = q.strip().lower() if q else ""
+        out: list[dict] = []
+        for m in raw:
+            row_cat = str(m.get("category") or "").lower()
+            row_q = str(m.get("question") or "").lower()
+            if cat_needle and cat_needle not in row_cat:
+                continue
+            if q_needle and q_needle not in row_q:
+                continue
+            out.append(m)
+            if len(out) >= cap:
+                break
+        return out
     except Exception as exc:
         log.warning("get_markets_list failed: %s", exc)
         return []
@@ -81,14 +132,83 @@ async def auth_telegram(data: TelegramAuthPayload) -> TokenResponse:
     return await authenticate_telegram(data)
 
 
+@router.post(
+    "/auth/register",
+    response_model=TokenResponse,
+    dependencies=[Depends(per_ip_rate_limit("auth_register", limit=5))],
+)
+async def auth_register(data: EmailRegisterRequest) -> TokenResponse:
+    """Register a new account with email + password (no Telegram required)."""
+    return await register_email(data)
+
+
+@router.post(
+    "/auth/login",
+    response_model=TokenResponse,
+    dependencies=[Depends(per_ip_rate_limit("auth_login", limit=10))],
+)
+async def auth_login(data: EmailLoginRequest) -> TokenResponse:
+    """Authenticate with email + password."""
+    return await login_email(data)
+
+
+@router.post("/auth/link-email")
+async def auth_link_email(
+    data: LinkEmailRequest,
+    user: dict = Depends(get_current_user),
+) -> dict:
+    """Link an email + password to an existing Telegram account."""
+    return await link_email(user["user_id"], data)
+
+
 @router.get("/me")
 async def get_me(user: _CurrentUser):
-    return {"user_id": user["user_id"], "first_name": user["first_name"]}
+    """Current account identity for the Settings page. Includes persisted
+    email/telegram link state so the UI renders "connected" rows instead of
+    re-showing the link forms after a refresh."""
+    user_id = user["user_id"]
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT email, username, telegram_user_id, role FROM users WHERE id = $1::uuid",
+            user_id,
+        )
+        # trading_mode is the canonical per-user mode in user_settings; surface
+        # it here so the app-wide TopBar pill shows LIVE/PAPER on every page
+        # without each page making its own mode call.
+        settings_row = await conn.fetchrow(
+            "SELECT trading_mode FROM user_settings WHERE user_id = $1::uuid",
+            user_id,
+        )
+    email = row["email"] if row else None
+    # Synthetic tombstone emails (merged-<uuid>@telegram.local) are not real
+    # user logins — never surface them as a "linked email".
+    if email and email.endswith("@telegram.local"):
+        email = None
+    return {
+        "user_id": user_id,
+        "first_name": user["first_name"],
+        "username": (row["username"] if row else None),
+        "email": email,
+        "telegram_linked": bool(row and row["telegram_user_id"] is not None),
+        "role": (row["role"] if row else "user") or "user",
+        "is_admin": bool(row and row["role"] == "admin"),
+        "trading_mode": (settings_row["trading_mode"] if settings_row else "paper") or "paper",
+    }
 
 
 @router.get("/signals/recent")
 async def get_recent_signals(user: _CurrentUser, limit: int = 10):
-    """Recent signal publications for the live market feed on dashboard."""
+    """Recent signal publications for the live market feed on dashboard.
+
+    WARP-76 H4 — scoped to the authenticated user's ACTIVE feed subscriptions.
+    Previously this returned every feed's signals to every user (cross-cohort
+    information leak: a user saw signals from feeds they never subscribed to).
+    Mirrors the strategy-plane read contract (signal_evaluator._load_active_*):
+    active subscription + active feed + entry signals published AFTER the user
+    subscribed and not yet expired.
+    """
+    user_id = user["user_id"]
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -97,13 +217,22 @@ async def get_recent_signals(user: _CurrentUser, limit: int = 10):
                    sp.signal_type, sp.published_at,
                    m.question AS market_question
             FROM signal_publications sp
+            JOIN user_signal_subscriptions s
+              ON s.feed_id = sp.feed_id
+             AND s.user_id = $1::uuid
+             AND s.unsubscribed_at IS NULL
+            JOIN signal_feeds f
+              ON f.id = sp.feed_id AND f.status = 'active'
             LEFT JOIN markets m ON m.id = sp.market_id
             WHERE sp.exit_signal = FALSE
               AND sp.published_at >= NOW() - INTERVAL '4 hours'
+              AND sp.published_at > s.subscribed_at
+              AND (sp.expires_at IS NULL OR sp.expires_at > NOW())
             ORDER BY sp.published_at DESC
-            LIMIT $1
+            LIMIT $2
             """,
-            min(limit, 20),
+            user_id,
+            max(1, min(limit, 20)),  # clamp: a negative LIMIT errors in Postgres
         )
     return [
         {
@@ -128,12 +257,12 @@ async def get_activity(user: _CurrentUser, limit: int = 10):
             """
             SELECT p.id, p.status, p.side, p.size_usdc,
                    p.entry_price, p.pnl_usdc, p.exit_reason,
-                   p.strategy_type, p.created_at, p.closed_at,
-                   m.question AS market_question
+                   p.strategy_type, p.opened_at, p.closed_at,
+                   COALESCE(m.question, p.market_question) AS market_question
               FROM positions p
               LEFT JOIN markets m ON m.id = p.market_id
              WHERE p.user_id = $1::uuid
-             ORDER BY COALESCE(p.closed_at, p.created_at) DESC
+             ORDER BY COALESCE(p.closed_at, p.opened_at) DESC
              LIMIT $2
             """,
             user_id,
@@ -151,7 +280,7 @@ async def get_activity(user: _CurrentUser, limit: int = 10):
             "exit_reason": r["exit_reason"],
             "strategy_type": r["strategy_type"],
             "market_question": r["market_question"] or "",
-            "ts": (r["closed_at"] or r["created_at"]).isoformat(),
+            "ts": (r["closed_at"] or r["opened_at"]).isoformat(),
         }
         for r in rows
     ]
@@ -168,7 +297,7 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
         )
         settings_row = await conn.fetchrow(
             """SELECT risk_profile, capital_alloc_pct, tp_pct, sl_pct,
-                      active_preset, trading_mode
+                      active_preset, trading_mode, alerts_ack_at
                FROM user_settings WHERE user_id = $1::uuid""",
             user_id,
         )
@@ -176,7 +305,7 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
             "SELECT balance_usdc FROM wallets WHERE user_id = $1::uuid", user_id
         )
         open_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND status='open'",
+            "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND status IN ('open','pending_settlement')",
             user_id,
         )
         pnl_today = await conn.fetchval(
@@ -191,6 +320,10 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
                  AND closed_at >= NOW() - INTERVAL '7 days'""",
             user_id,
         )
+        pnl_alltime = await conn.fetchval(
+            "SELECT COALESCE(SUM(pnl_usdc),0) FROM positions WHERE user_id=$1::uuid AND status='closed'",
+            user_id,
+        )
         # settled YES = pnl_usdc > 0 (win), settled NO = pnl_usdc <= 0 (loss).
         # Expired markets (exit_reason='market_expired') are excluded — expiry ≠ settled outcome.
         totals = await conn.fetchrow(
@@ -201,7 +334,25 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
                FROM positions WHERE user_id=$1::uuid AND status='closed'""",
             user_id,
         )
+        signals_today = await conn.fetchval(
+            """SELECT COUNT(*) FROM positions
+               WHERE user_id=$1::uuid
+                 AND opened_at >= NOW() - INTERVAL '24 hours'""",
+            user_id,
+        )
         ks_active = await kill_switch.is_active()
+
+        # Same global-pause lookup as /autotrade — the System Status sidebar
+        # and topbar consume DashboardSummary, so SCANNER would still read
+        # RUNNING during an admin pause if we relied on auto_trade_on alone.
+        _active_preset = settings_row["active_preset"] if settings_row else None
+        _strategy_name = _PRESET_TO_STRATEGY.get(str(_active_preset)) if _active_preset else None
+        preset_globally_enabled = True
+        if _strategy_name:
+            _se = await conn.fetchval(
+                "SELECT enabled FROM strategies WHERE name = $1", _strategy_name
+            )
+            preset_globally_enabled = True if _se is None else bool(_se)
 
     balance = float(wallet_row["balance_usdc"]) if wallet_row else 0.0
     trading_mode = settings_row["trading_mode"] if settings_row else "paper"
@@ -219,17 +370,70 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
         kill_switch_active=ks_active,
         trading_mode=trading_mode,
         active_preset=settings_row["active_preset"] if settings_row else None,
+        risk_profile=str(settings_row["risk_profile"] or "balanced") if settings_row else "balanced",
+        pnl_alltime=float(pnl_alltime or 0),
+        signals_today=int(signals_today or 0),
+        active_preset_globally_enabled=preset_globally_enabled,
+        alerts_ack_at=settings_row["alerts_ack_at"] if settings_row else None,
     )
 
 
-@router.get("/market-feed")
-async def get_market_feed(user: _CurrentUser) -> list[MarketFeedItem]:
-    """Live crypto up/down candle markets — nearest close per asset.
+# Short display codes for the weather market feed, keyed by canonical city name
+# (LOCATIONS.city). The feed shows one row per city; the asset column is narrow,
+# so these are compact airport-style codes.
+_WX_CITY_CODE: dict[str, str] = {
+    "New York City": "NYC", "Chicago": "CHI", "San Francisco": "SF",
+    "Los Angeles": "LA", "Miami": "MIA", "Dallas": "DAL", "Toronto": "TOR",
+    "London": "LON", "Paris": "PAR", "Munich": "MUC", "Berlin": "BER",
+    "Madrid": "MAD", "Amsterdam": "AMS", "Dubai": "DXB", "Jeddah": "JED",
+    "Tokyo": "TYO", "Seoul": "SEL", "Beijing": "PEK", "Shanghai": "SHA",
+    "Shenzhen": "SZX", "Wuhan": "WUH", "Hong Kong": "HKG", "Singapore": "SIN",
+    "Kuala Lumpur": "KUL", "Bangkok": "BKK",
+}
 
-    Reads the already-synced ``markets`` table (Polymarket CLOB prices); no
-    external spot-price dependency. Powers the Home auto-slide market feed.
+
+def _lean_from_prob(up_prob: float) -> str:
+    """UP/DOWN/EVEN lean from the YES probability (shared by all feeds)."""
+    if up_prob >= 0.52:
+        return "UP"
+    if up_prob <= 0.48:
+        return "DOWN"
+    return "EVEN"
+
+
+def _weather_asset_code(question: str) -> str:
+    """Derive a compact city code from a weather market question by matching the
+    LOCATIONS roster (canonical name or alias substring). Falls back to ``WX``."""
+    import re
+    from ...strategies.weather.locations import LOCATIONS
+    q = (question or "").lower()
+    for loc in LOCATIONS:
+        city = getattr(loc, "city", "") or ""
+        aliases = getattr(loc, "match_aliases", None) or ()
+        for name in (city, *aliases):
+            n = (name or "").lower().strip()
+            # Word-boundary match so short aliases ("la", "sf", "kl", "hk")
+            # don't match INSIDE another city (e.g. "la" inside "dallas") and
+            # mislabel/dedupe it — mirrors the strategy's boundary-aware match.
+            if n and re.search(rf"\b{re.escape(n)}\b", q):
+                return _WX_CITY_CODE.get(city, (city[:3].upper() or "WX"))
+    return "WX"
+
+
+async def _crypto_market_feed(pool: Any, assets: list[str]) -> list[MarketFeedItem]:
+    """Nearest up/down candle market per crypto asset, scoped to the user's
+    selected assets (e.g. BTC/ETH/SOL) and returned in that selection order —
+    so the feed mirrors exactly what the preset trades, not the whole universe.
     """
-    pool = get_pool()
+    asset_keys = [a.lower() for a in assets] or [
+        a.lower() for a in _DEFAULT_CRYPTO_SHORT_ASSETS
+    ]
+    # Freshness guard: only surface rows the scan refreshed in the last 5 min.
+    # The per-scan sync sets synced_at=NOW() every tick (15s fast / 180s main) for
+    # candle-preset users; if it stalls (e.g. no candle user active) we'd otherwise
+    # keep showing a frozen last-synced snapshot that reads as fake data. Stale
+    # rows are dropped → the panel shows "awaiting signal" instead of frozen
+    # liquidity. WARP/ROOT/crypto-feed-freshness.
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """SELECT DISTINCT ON (split_part(slug, '-updown-', 1))
@@ -237,39 +441,294 @@ async def get_market_feed(user: _CurrentUser) -> list[MarketFeedItem]:
                       yes_price, liquidity_usdc, resolution_at
                FROM markets
                WHERE slug LIKE '%updown%'
-                 AND split_part(slug, '-updown-', 1) IN ('btc', 'eth', 'sol', 'bnb')
+                 AND split_part(slug, '-updown-', 1) = ANY($1::text[])
                  AND resolved = false
                  AND resolution_at > now()
                  AND yes_price IS NOT NULL
                  AND liquidity_usdc > 0
-               ORDER BY split_part(slug, '-updown-', 1), resolution_at ASC"""
+                 AND synced_at > now() - interval '5 minutes'
+               ORDER BY split_part(slug, '-updown-', 1), resolution_at ASC""",
+            asset_keys,
         )
-
     now = datetime.now(timezone.utc)
-    asset_labels = {"btc": "BTC", "eth": "ETH", "sol": "SOL", "bnb": "BNB"}
+    asset_labels = {"btc": "BTC", "eth": "ETH", "sol": "SOL"}
+    order = {k: i for i, k in enumerate(asset_keys)}
     feed: list[MarketFeedItem] = []
     for r in rows:
         asset_key = str(r["asset"] or "").lower()
         up_prob = float(r["yes_price"] or 0.0)
-        if up_prob >= 0.52:
-            lean = "UP"
-        elif up_prob <= 0.48:
-            lean = "DOWN"
-        else:
-            lean = "EVEN"
         secs = int((r["resolution_at"] - now).total_seconds())
         label = asset_labels.get(asset_key, asset_key.upper())
         feed.append(
             MarketFeedItem(
-                asset=label,
-                label=label,
-                up_prob=up_prob,
-                lean=lean,
+                asset=label, label=label, up_prob=up_prob,
+                lean=_lean_from_prob(up_prob),
+                seconds_to_close=max(0, secs),
+                liquidity_usdc=float(r["liquidity_usdc"] or 0.0),
+            )
+        )
+    feed.sort(key=lambda it: order.get(it.asset.lower(), len(order)))
+    return feed
+
+
+
+async def _weather_market_feed(pool: Any) -> list[MarketFeedItem]:
+    """Nearest-resolution weather markets, one row per city (synced by the scan's
+    _sync_weather_markets). No liquidity floor — Gamma weather books are thin."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT question, yes_price, liquidity_usdc, resolution_at
+               FROM markets
+               WHERE category = 'Weather'
+                 AND resolved = false
+                 AND resolution_at > now()
+                 AND yes_price IS NOT NULL
+                 AND synced_at > now() - interval '5 minutes'
+               ORDER BY resolution_at ASC
+               LIMIT 40"""
+        )
+    now = datetime.now(timezone.utc)
+    feed: list[MarketFeedItem] = []
+    seen: set[str] = set()
+    for r in rows:
+        code = _weather_asset_code(r["question"])
+        if code in seen:
+            continue
+        seen.add(code)
+        up_prob = float(r["yes_price"] or 0.0)
+        secs = int((r["resolution_at"] - now).total_seconds())
+        feed.append(
+            MarketFeedItem(
+                asset=code, label=str(r["question"] or "")[:48],
+                up_prob=up_prob, lean=_lean_from_prob(up_prob),
+                seconds_to_close=max(0, secs),
+                liquidity_usdc=float(r["liquidity_usdc"] or 0.0),
+            )
+        )
+        if len(feed) >= 6:
+            break
+    return feed
+
+
+# Filler tokens dropped when deriving a short market code from a slug, so a
+# question slugged "will-the-lakers-beat-the-celtics-2026" reads "LAKERS" rather
+# than "WILL" (every Polymarket question starts "will-the-…", so the raw first
+# token is useless). Pure-digit tokens (years) are skipped too.
+_SLUG_FILLER: frozenset[str] = frozenset({
+    "will", "the", "a", "an", "is", "are", "be", "to", "of", "in", "on", "by",
+    "and", "or", "at", "for", "this", "that", "does", "do", "did", "can", "who",
+    "what", "when", "vs", "win", "wins", "beat", "have", "has", "than", "with",
+})
+
+
+def _short_market_code(slug: str, question: str) -> str:
+    """A meaningful short code for a market row — the first non-filler slug token
+    (falls back to the question, then ``MKT``). Keeps the scanner from rendering a
+    column of identical ``WILL`` labels for sports/other markets."""
+    def _first_meaningful(text: str, sep: str) -> str:
+        for tok in str(text or "").lower().split(sep):
+            tok = tok.strip(".,?!;:()\"'[]{}*- ")
+            if tok and not tok.isdigit() and tok not in _SLUG_FILLER:
+                return tok
+        return ""
+    tok = _first_meaningful(slug, "-") or _first_meaningful(question.replace("?", " "), " ")
+    return (tok[:8].upper() or "MKT") if tok else "MKT"
+
+
+async def _category_market_feed(pool: Any, category: str) -> list[MarketFeedItem]:
+    """Generic nearest-resolution markets in a category (e.g. Sports)."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT slug, question, yes_price, liquidity_usdc, resolution_at
+               FROM markets
+               WHERE category ILIKE $1
+                 AND resolved = false
+                 AND resolution_at > now()
+                 AND yes_price IS NOT NULL
+               ORDER BY resolution_at ASC
+               LIMIT 6""",
+            f"%{category}%",
+        )
+    now = datetime.now(timezone.utc)
+    feed: list[MarketFeedItem] = []
+    for r in rows:
+        up_prob = float(r["yes_price"] or 0.0)
+        secs = int((r["resolution_at"] - now).total_seconds())
+        label = str(r["question"] or r["slug"] or "")[:80]
+        asset = _short_market_code(str(r["slug"] or ""), str(r["question"] or ""))
+        feed.append(
+            MarketFeedItem(
+                asset=asset, label=label, up_prob=up_prob,
+                lean=_lean_from_prob(up_prob),
                 seconds_to_close=max(0, secs),
                 liquidity_usdc=float(r["liquidity_usdc"] or 0.0),
             )
         )
     return feed
+
+
+# Sports markets for the dashboard scanner are sourced LIVE from Polymarket Gamma
+# rather than the narrowly-synced ``markets`` table. The scan job only upserts
+# sports markets inside the (0,2h] / (24h,72h] *trade* windows, so the DB-backed
+# feed starved to 1-2 rows and the panel looked empty. This display feed shows the
+# real upcoming sports board (any future event), nearest-event first — decoupled
+# from the trade window, read-only, fail-soft, zero trading impact.
+# WARP/ROOT/dashboard-ux. Cached to spare Gamma on the dashboard's frequent polls.
+_SPORTS_FEED_TTL_SEC: float = 45.0
+_SPORTS_FEED_CACHE: dict[str, Any] = {"at": 0.0, "items": []}
+# Single-flight guard: holds the one in-flight Gamma fetch so concurrent
+# cold-cache requests await it instead of each firing a duplicate call.
+_SPORTS_FEED_IN_PROGRESS: dict[str, Any] = {}
+
+
+def _coerce_price_list(raw: Any) -> list[str]:
+    """Gamma ``outcomePrices`` arrives as a JSON string or a list — normalise to a
+    list of strings either way; ``[]`` when neither."""
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (ValueError, TypeError):
+            return []
+    return [str(x) for x in raw] if isinstance(raw, (list, tuple)) else []
+
+
+async def _sports_market_feed_live(limit: int = 12) -> list[MarketFeedItem]:
+    """Real upcoming Polymarket sports markets for the dashboard scanner panel.
+
+    Sourced from Gamma (events-with-markets), filtered to sports categories with a
+    future resolution, nearest-event first. Independent of the trade-window sync so
+    the panel reflects the live sports board. 45s in-process cache; fail-soft to the
+    last-known list (or empty) on any Gamma error — never raises into the request.
+    """
+    import asyncio
+    import time as _time
+    from ...domain.strategy.strategies.playbook import SPORTS_CATEGORIES
+
+    now_mono = _time.monotonic()
+    cached = _SPORTS_FEED_CACHE
+    if cached["items"] and (now_mono - float(cached["at"])) < _SPORTS_FEED_TTL_SEC:
+        return cached["items"]
+
+    # Single-flight: when several requests miss the cache at once, share ONE Gamma
+    # fetch rather than stampeding the API. Whoever finds no live task starts it;
+    # the rest await the same task. The task is dropped once settled so the next
+    # cold fetch (after TTL) starts fresh; fail-soft to cache on any error.
+    task = _SPORTS_FEED_IN_PROGRESS.get("fetch")
+    if task is None or task.done():
+        task = asyncio.ensure_future(_polymarket.get_events_with_markets(limit=200))
+        _SPORTS_FEED_IN_PROGRESS["fetch"] = task
+    try:
+        raw = await task
+    except Exception as exc:  # noqa: BLE001 — display feed, fail-soft to cache
+        log.warning("sports_market_feed_live fetch failed: %s", exc)
+        return cached["items"]
+    finally:
+        if _SPORTS_FEED_IN_PROGRESS.get("fetch") is task and task.done():
+            _SPORTS_FEED_IN_PROGRESS.pop("fetch", None)
+
+    now = datetime.now(timezone.utc)
+    feed: list[MarketFeedItem] = []
+    for m in raw:
+        cat = str(m.get("category") or "").lower()
+        if not any(tok in cat for tok in SPORTS_CATEGORIES):
+            continue
+        prices = _coerce_price_list(m.get("outcomePrices"))
+        if not prices:
+            continue
+        try:
+            up_prob = float(prices[0])
+        except (TypeError, ValueError):
+            continue
+        end_iso = (
+            m.get("gameStartTime") or m.get("game_start_time")
+            or m.get("endDate") or m.get("end_date_iso")
+        )
+        if not end_iso:
+            continue
+        try:
+            resolution_at = datetime.fromisoformat(str(end_iso).replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            continue
+        if resolution_at.tzinfo is None:
+            resolution_at = resolution_at.replace(tzinfo=timezone.utc)
+        secs = int((resolution_at - now).total_seconds())
+        if secs <= 0:
+            continue  # already started / closed — not "upcoming"
+        try:
+            liquidity = float(m.get("liquidity") or 0.0)
+        except (TypeError, ValueError):
+            liquidity = 0.0
+        slug = str(m.get("slug") or "")
+        question = str(m.get("question") or m.get("title") or slug)
+        asset = _short_market_code(slug, question)
+        feed.append(
+            MarketFeedItem(
+                asset=asset,
+                label=question[:80],
+                up_prob=up_prob,
+                lean=_lean_from_prob(up_prob),
+                seconds_to_close=secs,
+                liquidity_usdc=liquidity,
+            )
+        )
+    feed.sort(key=lambda it: it.seconds_to_close)
+    feed = feed[:limit]
+    if feed:
+        _SPORTS_FEED_CACHE["at"] = now_mono
+        _SPORTS_FEED_CACHE["items"] = feed
+    return feed
+
+
+@router.get("/market-feed")
+async def get_market_feed(user: _CurrentUser) -> list[MarketFeedItem]:
+    """Live market feed — scoped to the user's active-preset category.
+
+    Crypto presets → nearest up/down candle per asset; Weather → nearest weather
+    market per city; other categories → nearest in-category markets. Reads the
+    already-synced ``markets`` table (no external dependency). Powers the Home
+    scanner panel so the feed reflects the strategy actually in use.
+    """
+    pool = get_pool()
+    user_id = user["user_id"]
+    async with pool.acquire() as conn:
+        preset_row = await conn.fetchrow(
+            "SELECT active_preset, selected_assets FROM user_settings"
+            " WHERE user_id = $1::uuid",
+            user_id,
+        )
+    active_preset = (preset_row["active_preset"] if preset_row else None) or ""
+    category = _PRESET_LOCKED_CATEGORY.get(active_preset, "Crypto")
+
+    if category == "Weather":
+        return await _weather_market_feed(pool)
+    if category == "Sports":
+        # Live Gamma sports board (real upcoming markets), not the trade-window DB.
+        return await _sports_market_feed_live()
+    if category and category != "Crypto":
+        return await _category_market_feed(pool, category)
+    assets = (
+        _sanitize_selected_assets(preset_row["selected_assets"] if preset_row else None)
+        or list(_DEFAULT_CRYPTO_SHORT_ASSETS)
+    )
+    return await _crypto_market_feed(pool, assets)
+
+
+def _tp_sl_price(entry: float, side: str, pct, *, is_tp: bool) -> Optional[float]:
+    """Derive the TP/SL trigger price in the position's OWN-token price units.
+
+    Mirrors the PnL formula in domain/execution/paper.close_position: a position
+    profits when its OWN outcome token rises, so TP = entry*(1+p) and
+    SL = entry*(1-p) for BOTH sides (entry is the side's own token price).
+    YES unchanged; corrected NO frame — WARP/ROOT/no-side-pnl-frame. Returns None
+    when no TP/SL fraction is set. Result clamped to (0, 1).
+    """
+    if pct is None:
+        return None
+    p = float(pct)
+    if p <= 0:
+        return None
+    price = entry * (1.0 + p) if is_tp else entry * (1.0 - p)
+    return max(0.001, min(0.999, price))
 
 
 @router.get("/positions")
@@ -283,21 +742,26 @@ async def get_positions(
     user_id = user["user_id"]
     where = "WHERE p.user_id = $1::uuid"
     params: list = [user_id]
-    if status:
+    if status == "open":
+        # Include pending_settlement so won-positions awaiting payout are visible
+        where += " AND p.status IN ('open', 'pending_settlement')"
+    elif status:
         where += f" AND p.status = ${len(params)+1}"
         params.append(status)
 
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            f"""SELECT p.id, p.market_id, m.question AS market_question,
+            f"""SELECT p.id, p.market_id, COALESCE(m.question, p.market_question) AS market_question,
                        p.side, p.size_usdc, p.entry_price, p.current_price,
                        p.pnl_usdc, p.status, p.mode, p.opened_at, p.closed_at,
-                       p.exit_reason, m.resolved AS market_resolved,
-                       m.winning_side
+                       p.exit_reason, p.strategy_type, p.active_preset,
+                       m.resolved AS market_resolved, m.winning_side,
+                       COALESCE(p.applied_tp_pct, p.tp_pct) AS tp_pct,
+                       COALESCE(p.applied_sl_pct, p.sl_pct) AS sl_pct
                 FROM positions p
                 LEFT JOIN markets m ON m.id = p.market_id
                 {where}
-                ORDER BY p.opened_at DESC
+                ORDER BY COALESCE(p.closed_at, p.opened_at) DESC
                 LIMIT ${len(params)+1} OFFSET ${len(params)+2}""",
             *params, limit, offset,
         )
@@ -310,15 +774,21 @@ async def get_positions(
             side=r["side"],
             size_usdc=float(r["size_usdc"]),
             entry_price=float(r["entry_price"]),
-            current_price=float(r["current_price"]) if r["current_price"] else None,
-            pnl_usdc=float(r["pnl_usdc"]) if r["pnl_usdc"] else None,
+            current_price=float(r["current_price"]) if r["current_price"] is not None else None,
+            pnl_usdc=float(r["pnl_usdc"]) if r["pnl_usdc"] is not None else None,
             status=r["status"],
             mode=r["mode"],
             opened_at=r["opened_at"],
             closed_at=r["closed_at"],
             exit_reason=r["exit_reason"],
+            strategy_type=r["strategy_type"],
+            active_preset=r["active_preset"],
+            tp_pct=float(r["tp_pct"]) if r["tp_pct"] is not None else None,
+            sl_pct=float(r["sl_pct"]) if r["sl_pct"] is not None else None,
+            tp_price=_tp_sl_price(float(r["entry_price"]), r["side"], r["tp_pct"], is_tp=True),
+            sl_price=_tp_sl_price(float(r["entry_price"]), r["side"], r["sl_pct"], is_tp=False),
             awaiting_redeem=(
-                r["status"] == "open"
+                r["status"] in ("open", "pending_settlement")
                 and bool(r["market_resolved"])
                 and r["winning_side"] is not None
                 and str(r["winning_side"]) == str(r["side"])
@@ -328,7 +798,10 @@ async def get_positions(
     ]
 
 
-@router.post("/positions/{position_id}/redeem")
+@router.post(
+    "/positions/{position_id}/redeem",
+    dependencies=[Depends(per_user_rate_limit("position_action", limit=30))],
+)
 async def force_redeem_position(position_id: str, user: _CurrentUser) -> JSONResponse:
     """Manually trigger redemption of a resolved winning position.
 
@@ -406,7 +879,11 @@ async def get_orders(
     ]
 
 
-@router.post("/positions/{position_id}/close", response_model=ClosePositionResponse)
+@router.post(
+    "/positions/{position_id}/close",
+    response_model=ClosePositionResponse,
+    dependencies=[Depends(per_user_rate_limit("position_action", limit=30))],
+)
 async def close_position_endpoint(
     position_id: str,
     user: _CurrentUser,
@@ -419,7 +896,8 @@ async def close_position_endpoint(
         pos_row = await conn.fetchrow(
             """SELECT p.id, p.user_id, p.market_id, p.side, p.size_usdc,
                       p.entry_price, p.current_price, p.status, p.mode,
-                      m.yes_token_id, m.no_token_id, m.question,
+                      m.yes_token_id, m.no_token_id,
+                      COALESCE(m.question, p.market_question) AS question,
                       u.telegram_user_id
                FROM positions p
                LEFT JOIN markets m ON m.id = p.market_id
@@ -482,26 +960,78 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         s_row = await conn.fetchrow(
             """SELECT risk_profile, capital_alloc_pct, tp_pct, sl_pct, active_preset,
                       category_filters, min_liquidity, max_resolution_days, min_volume_24h,
-                      slippage_tolerance_pct, selected_timeframe, selected_assets
+                      slippage_tolerance_pct, selected_timeframe, selected_assets,
+                      max_per_trade_mode, max_per_trade_usdc, max_per_trade_pct,
+                      daily_loss_override, max_drawdown_pct, max_concurrent_override
                FROM user_settings WHERE user_id=$1::uuid""",
             user_id,
         )
+        eq_row = await conn.fetchrow(
+            """SELECT COALESCE(w.balance_usdc, 0)
+                     + COALESCE((SELECT SUM(p.size_usdc) FROM positions p
+                                 WHERE p.user_id = $1::uuid AND p.status = 'open'), 0)
+                       AS equity_usdc
+                 FROM wallets w WHERE w.user_id = $1::uuid""",
+            user_id,
+        )
+        # Is the strategy backing the active preset globally enabled (operator
+        # Ops-Console on/off)? When OFF, no new trades fire even though the
+        # user's preset selection is unchanged — the dashboard reflects this as
+        # "PAUSED (Admin)" instead of "ACTIVE". Default True (missing row = ON).
+        _active_preset = s_row["active_preset"] if s_row else None
+        _strategy_name = _PRESET_TO_STRATEGY.get(str(_active_preset)) if _active_preset else None
+        preset_globally_enabled = True
+        if _strategy_name:
+            _se = await conn.fetchval(
+                "SELECT enabled FROM strategies WHERE name = $1", _strategy_name
+            )
+            preset_globally_enabled = True if _se is None else bool(_se)
 
     cats: list[str] = list(s_row["category_filters"]) if s_row and s_row["category_filters"] else []
+    cap_pct = float(s_row["capital_alloc_pct"]) if s_row else 0.5
+    equity = float(eq_row["equity_usdc"]) if eq_row and eq_row["equity_usdc"] is not None else 0.0
+    mpt_mode = (s_row["max_per_trade_mode"] if s_row and s_row["max_per_trade_mode"] else "auto")
+    mpt_usdc = (float(s_row["max_per_trade_usdc"]) if s_row and s_row["max_per_trade_usdc"] is not None else None)
+    mpt_pct = (float(s_row["max_per_trade_pct"]) if s_row and s_row["max_per_trade_pct"] is not None else None)
+    ceiling = resolve_per_trade_ceiling(equity, mpt_mode, mpt_usdc, mpt_pct)
     return AutoTradeState(
         auto_trade_on=bool(u_row["auto_trade_on"]) if u_row else False,
         active_preset=s_row["active_preset"] if s_row else None,
         risk_profile=s_row["risk_profile"] if s_row else "balanced",
         capital_alloc_pct=float(s_row["capital_alloc_pct"]) if s_row else 0.5,
-        tp_pct=float(s_row["tp_pct"]) if s_row and s_row["tp_pct"] else 0.0,
-        sl_pct=float(s_row["sl_pct"]) if s_row and s_row["sl_pct"] else 0.0,
+        tp_pct=float(s_row["tp_pct"]) if s_row and s_row["tp_pct"] is not None else None,
+        sl_pct=float(s_row["sl_pct"]) if s_row and s_row["sl_pct"] is not None else None,
         market_categories=cats,
         min_liquidity=float(s_row["min_liquidity"]) if s_row and s_row["min_liquidity"] is not None else 1000.0,
         max_resolution_days=int(s_row["max_resolution_days"]) if s_row and s_row["max_resolution_days"] is not None else None,
         min_volume_24h=float(s_row["min_volume_24h"]) if s_row and s_row["min_volume_24h"] is not None else 100.0,
         slippage_tolerance_pct=float(s_row["slippage_tolerance_pct"]) if s_row and s_row["slippage_tolerance_pct"] is not None else None,
         selected_timeframe=s_row["selected_timeframe"] if s_row else None,
-        selected_assets=list(s_row["selected_assets"]) if s_row and s_row["selected_assets"] else None,
+        # noqa next line: ruff F821 false-positive — _sanitize_selected_assets
+        # is defined at module level a few hundred lines below; Python
+        # resolves the name at request time, not at module-load time.
+        selected_assets=_sanitize_selected_assets(s_row["selected_assets"]) if s_row else None,  # noqa: F821
+        equity_usdc=round(equity, 2),
+        effective_max_per_trade_usdc=round(suggested_trade_size(equity, cap_pct, ceiling_usdc=ceiling), 2),
+        max_per_trade_mode=mpt_mode,
+        max_per_trade_usdc=mpt_usdc,
+        max_per_trade_pct=mpt_pct,
+        daily_loss_override=(
+            float(s_row["daily_loss_override"])
+            if s_row and s_row["daily_loss_override"] is not None
+            else None
+        ),
+        max_drawdown_pct=(
+            float(s_row["max_drawdown_pct"])
+            if s_row and s_row["max_drawdown_pct"] is not None
+            else None
+        ),
+        max_concurrent_override=(
+            int(s_row["max_concurrent_override"])
+            if s_row and s_row["max_concurrent_override"] is not None
+            else None
+        ),
+        active_preset_globally_enabled=preset_globally_enabled,
     )
 
 
@@ -513,6 +1043,15 @@ async def toggle_autotrade(body: AutoTradeToggleRequest, user: _CurrentUser):
     pool = get_pool()
     user_id = user["user_id"]
     async with pool.acquire() as conn:
+        if body.enabled:
+            preset_row = await conn.fetchrow(
+                "SELECT active_preset FROM user_settings WHERE user_id=$1::uuid", user_id,
+            )
+            if not preset_row or not preset_row["active_preset"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="select a strategy preset before enabling auto-trade",
+                )
         await conn.execute(
             "UPDATE users SET auto_trade_on=$1 WHERE id=$2::uuid",
             body.enabled, user_id,
@@ -520,63 +1059,204 @@ async def toggle_autotrade(body: AutoTradeToggleRequest, user: _CurrentUser):
     return {"auto_trade_on": body.enabled}
 
 
+# Preset key → the strategy it routes to, for the global on/off (strategies
+# table) lookup. Mirrors signal_scan_job._PRESET_ALLOWED. Used so the dashboard
+# can show "PAUSED (Admin)" when the active preset's strategy is globally off.
+# Only contains presets that point to a real, reachable strategy.
+_PRESET_TO_STRATEGY: dict[str, str] = {
+    "candle_auto":     "late_entry_v3",
+    "close_sweep":     "late_entry_v3",
+    "safe_close":      "late_entry_v3",
+    "flip_hunter":     "late_entry_v3",
+    "weather_monitor": "weather",
+    "playbook":        "playbook",
+}
+
+
+@router.get("/autotrade/preset-availability")
+async def get_preset_availability(user: _CurrentUser) -> dict:
+    """Per-preset + per-strategy availability for the authenticated user.
+
+    Returns:
+      ``{
+         "presets": [{"key": "...", "strategy": "...", "enabled": bool}, ...],
+         "strategies": {"<strategy_name>": bool, ...}
+      }``
+
+    The picker (WebTrader AutoTradePage + Telegram preset_tier_kb) MUST hide
+    presets whose backing strategy is disabled. The ``strategies`` map covers
+    every entry in ``_ADMIN_STRATEGIES`` so the frontend can also gate features
+    that are not preset-backed (e.g. the Copy Trade tab — copy_trade has its
+    own pipeline, not a preset, so it would not otherwise appear in
+    ``presets``).
+
+    FAIL-SAFE: a missing row in ``strategies`` defaults to enabled=True. A DB
+    error is logged at WARNING and the endpoint returns every preset / strategy
+    as enabled (consistent with the scanner-side fail-safe: a transient blip
+    must never silently wipe the user's picker).
+    """
+    state: dict[str, bool] = {}
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT name, enabled FROM strategies")
+        state = {str(r["name"]): bool(r["enabled"]) for r in rows}
+    except Exception as exc:  # noqa: BLE001
+        log.warning("preset_availability_db_error: %s", exc)
+    presets = [
+        {"key": preset, "strategy": strat, "enabled": state.get(strat, True)}
+        for preset, strat in _PRESET_TO_STRATEGY.items()
+    ]
+    strategies = {name: state.get(name, True) for name in _ADMIN_STRATEGIES}
+    return {"presets": presets, "strategies": strategies}
+
 # Preset key → default risk parameters applied when preset is activated.
 # Risk profile (capital/TP/SL) can be overridden separately via /autotrade/risk-profile.
+#
+# Narrowed to the 3 candle presets after WARP/R00T/strategy-system-cleanup. The
+# scanner's _PRESET_ALLOWED only routes these three to a strategy
+# (late_entry_v3); accepting any other key here would let a stale client /
+# direct API call persist active_preset=<archived> → scanner emits no
+# candidates and the dashboard "PAUSED (Admin)" indicator can't fire because
+# the key is absent from _PRESET_TO_STRATEGY. activate_preset() rejects 400
+# anything not in this map.
 _PRESET_PARAMS: dict[str, dict[str, str | float]] = {
-    # Legacy preset keys — kept for backward compatibility with existing users.
-    "signal_sniper": {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
-    "full_auto":     {"risk_profile": "aggressive",   "capital_alloc_pct": 0.60, "tp_pct": 0.30, "sl_pct": 0.20},
-    "value_hunter":  {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
-    "whale_mirror":  {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
-    "hybrid":        {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.15, "sl_pct": 0.10},
-    # New preset keys mapped to lib/strategies/ classes.
-    "trend_breakout": {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
-    "contrarian":     {"risk_profile": "balanced",     "capital_alloc_pct": 0.40, "tp_pct": 0.15, "sl_pct": 0.10},
-    "close_sweep":    {"risk_profile": "balanced",     "capital_alloc_pct": 0.30, "tp_pct": 0.15, "sl_pct": 0.08},
-    "pair_arb":       {"risk_profile": "conservative", "capital_alloc_pct": 0.20, "tp_pct": 0.05, "sl_pct": 0.03},
-    "ensemble":       {"risk_profile": "balanced",   "capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.12},
-    "confluence_scalper": {"risk_profile": "balanced", "capital_alloc_pct": 0.40, "tp_pct": 0.08, "sl_pct": 0.04},
+    # candle_auto: the lifecycle router overrides TP/SL per matched rule at scan
+    # time (see signal_scan_job._candle_auto_rule_tpsl); these are the activation
+    # defaults stored on user_settings as a fallback only.
+    "candle_auto":     {"risk_profile": "balanced", "capital_alloc_pct": 0.30, "tp_pct": 0.15, "sl_pct": 0.08},
+    "close_sweep":     {"risk_profile": "balanced", "capital_alloc_pct": 0.30, "tp_pct": 0.15, "sl_pct": 0.08},
+    "safe_close":      {"risk_profile": "balanced", "capital_alloc_pct": 0.25, "tp_pct": 0.12, "sl_pct": 0.06},
+    "flip_hunter":     {"risk_profile": "balanced", "capital_alloc_pct": 0.30, "tp_pct": 0.25, "sl_pct": 0.12},
+    "weather_monitor": {"risk_profile": "balanced", "capital_alloc_pct": 0.20, "tp_pct": 0.25, "sl_pct": 0.20},
+    # playbook: sports strategy router. The router overrides TP/SL per matched
+    # module at scan time (modules.ModuleDecision); these are activation defaults.
+    "playbook":        {"risk_profile": "balanced", "capital_alloc_pct": 0.40, "tp_pct": 0.25, "sl_pct": 0.12},
 }
 
 # Presets restricted to short-duration crypto markets. Activating one auto-locks
 # the market category filter to Crypto only and requires a timeframe (5m/15m).
-_CRYPTO_SHORT_PRESETS: frozenset[str] = frozenset({"confluence_scalper", "close_sweep"})
-_VALID_TIMEFRAMES: frozenset[str] = frozenset({"5m", "15m"})
-# Assets offered for crypto-short presets; activation defaults to all of them.
-_CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH", "SOL", "BNB")
-_VALID_ASSETS: frozenset[str] = frozenset(_CRYPTO_SHORT_ASSETS)
+_CRYPTO_SHORT_PRESETS: frozenset[str] = frozenset({"candle_auto", "close_sweep", "safe_close", "flip_hunter"})
 
-# Light per-timeframe params merged into user_settings.strategy_params (JSONB)
-# for the close_sweep preset (expiration_timing lib strategy reads config). The
-# confluence_scalper tunes itself in-code from the selected timeframe, so it
-# needs no JSONB entry here. Keep minimal — only the knobs that map onto the
-# strategy's existing config keys. hours_before_* are in HOURS (6m=0.1, 18m=0.3).
+# Preset → market category that activation auto-locks. Crypto-short presets lock
+# to Crypto; weather_monitor locks to Weather. A preset absent from this map
+# leaves the user's existing category_filters untouched (COALESCE NULL below).
+# Mirrored in the frontend AutoTradePage PRESET_LOCKED_CATEGORY map.
+_PRESET_LOCKED_CATEGORY: dict[str, str] = {
+    "candle_auto":     "Crypto",
+    "close_sweep":     "Crypto",
+    "safe_close":      "Crypto",
+    "flip_hunter":     "Crypto",
+    "weather_monitor": "Weather",
+    "playbook":        "Sports",
+}
+_VALID_TIMEFRAMES: frozenset[str] = frozenset({"5m", "15m"})
+# Assets offered for crypto-short presets. BTC/ETH are default-active;
+# SOL is opt-in (thinner book). XRP/DOGE/HYPE/BNB are NOT in the
+# tradable set:
+#   XRP / DOGE / HYPE — removed in candle-preset-asset-config
+#   BNB — moved to MONITOR-ONLY in bnb-monitor-only (Polybot directive
+#         Part 4 Tier 3: collect 30-day edge stats before re-enabling;
+#         book depth on Polymarket BNB candles is too thin for the
+#         existing spread / fill-rate / edge thresholds).
+# Activation with no explicit selection defaults to BTC + ETH.
+_CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH", "SOL")
+_VALID_ASSETS: frozenset[str] = frozenset(_CRYPTO_SHORT_ASSETS)
+_DEFAULT_CRYPTO_SHORT_ASSETS: tuple[str, ...] = ("BTC", "ETH")
+
+
+def _sanitize_selected_assets(raw: Any) -> Optional[list[str]]:
+    """Normalise persisted ``selected_assets`` against the current
+    tradable set on READ.
+
+    Legacy user rows may carry assets (e.g. ``["BNB","XRP","DOGE","HYPE"]``)
+    that were valid when the preset was last activated but have since
+    been removed from the universe. Without this filter,
+    ``/autotrade/state`` + ``/admin/users/{id}`` echo the stale assets,
+    the UI re-renders them as "selected", the user clicks save, and
+    the activate_preset validator 400s — blocking timeframe/asset
+    edits for affected users.
+
+    Returns ``None`` (not ``[]``) for empty / fully-invalid input so
+    downstream code that distinguishes "no selection persisted" from
+    "explicit empty selection" keeps working. Comparison normalises
+    case + strips whitespace to catch pre-uppercase-normalisation rows.
+    """
+    if not raw or not isinstance(raw, (list, tuple, set)):
+        return None
+    out: list[str] = []
+    seen: set[str] = set()
+    for a in raw:
+        sym = str(a).strip().upper()
+        if not sym or sym in seen:
+            continue
+        if sym in _VALID_ASSETS:
+            seen.add(sym)
+            out.append(sym)
+    return out or None
+
+# Light per-timeframe params merged into user_settings.strategy_params (JSONB).
+# close_sweep / safe_close: expiration_timing lib strategy reads these config knobs.
+# flip_hunter: same market filters; underdog direction is hardcoded in the strategy.
+# hours_before_* are in HOURS (6m=0.1, 18m=0.3).
 _CLOSE_SWEEP_TF_PARAMS: dict[str, dict[str, float]] = {
-    # Short crypto candles are liquid but small; relax the lib strategy's volume/
-    # liquidity floors (defaults 3000/2000) so genuine in-window candles aren't
-    # filtered out. hours_before_max bounds entry to the final minutes (6m / 18m).
     "5m":  {"hours_before_min": 0.0, "hours_before_max": 0.1, "min_price": 0.40, "max_price": 0.60,
             "min_volume_24h": 0.0, "min_liquidity": 500.0},
     "15m": {"hours_before_min": 0.0, "hours_before_max": 0.3, "min_price": 0.35, "max_price": 0.65,
             "min_volume_24h": 0.0, "min_liquidity": 500.0},
 }
-
-_VALID_RISK_PROFILES: frozenset[str] = frozenset({"conservative", "balanced", "aggressive", "custom"})
-
-_RISK_PROFILE_DEFAULTS: dict[str, dict[str, float]] = {
-    "conservative": {"capital_alloc_pct": 0.20, "tp_pct": 0.10, "sl_pct": 0.05},
-    "balanced":     {"capital_alloc_pct": 0.40, "tp_pct": 0.20, "sl_pct": 0.15},
-    "aggressive":   {"capital_alloc_pct": 0.60, "tp_pct": 0.30, "sl_pct": 0.20},
+# safe_close: tighter price range (majority side must be 0.60–0.70); 30–60s window.
+_SAFE_CLOSE_TF_PARAMS: dict[str, dict[str, float]] = {
+    "5m":  {"hours_before_min": 0.0, "hours_before_max": 0.1, "min_price": 0.40, "max_price": 0.60,
+            "min_volume_24h": 0.0, "min_liquidity": 500.0},
+    "15m": {"hours_before_min": 0.0, "hours_before_max": 0.3, "min_price": 0.35, "max_price": 0.65,
+            "min_volume_24h": 0.0, "min_liquidity": 500.0},
 }
+# flip_hunter: broader price filter — underdog side is 0.26–0.35, market overall
+# is less leaned. hours_before_max = 0.04h ≈ 2.4m covers the 140s window.
+_FLIP_HUNTER_TF_PARAMS: dict[str, dict[str, float]] = {
+    "5m":  {"hours_before_min": 0.0, "hours_before_max": 0.04, "min_price": 0.25, "max_price": 0.75,
+            "min_volume_24h": 0.0, "min_liquidity": 500.0},
+    "15m": {"hours_before_min": 0.0, "hours_before_max": 0.1,  "min_price": 0.25, "max_price": 0.75,
+            "min_volume_24h": 0.0, "min_liquidity": 500.0},
+}
+
+# WARP-86: 'auto' is the single EV-driven profile (Kelly 0.25 + candle_auto entry
+# + strategy-owned 1.5/0.5 TP/SL). Accepted on the risk-profile write paths; its
+# non-custom defaults come from PROFILE_TP_SL['auto'] (cap 0.40 / 1.5 / 0.5).
+_VALID_RISK_PROFILES: frozenset[str] = frozenset({"conservative", "balanced", "aggressive", "custom", "auto"})
+
+# WARP-83 E.2 (Path C): non-custom profile defaults source TP/SL from the
+# canonical domain PROFILE_TP_SL (single source of truth) — TP/SL is a
+# strategy-level property (150/50) identical across profiles; only
+# capital_alloc_pct differs per profile. No duplicated TP/SL numbers here.
+from ...domain.risk.constants import PROFILE_TP_SL as _RISK_PROFILE_DEFAULTS
 
 
 @router.post("/autotrade/preset")
 async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
     if body.preset_key not in _PRESET_PARAMS:
         raise HTTPException(status_code=400, detail=f"invalid preset key: {body.preset_key}")
+    # Reject presets that are registered but not yet user-activatable (live scan
+    # dispatch not wired — would persist a no-op active_preset). Guards stale/cached
+    # clients that still know the key. (Codex P2 / Gemini, PR #1570.)
+    from ...domain.preset import is_activatable as _preset_is_activatable
+    if not _preset_is_activatable(body.preset_key):
+        raise HTTPException(
+            status_code=400,
+            detail=f"preset not available yet: {body.preset_key}",
+        )
     pool = get_pool()
     user_id = user["user_id"]
-    params = _PRESET_PARAMS[body.preset_key]
+    # A preset selects STRATEGY + market window + assets only. It MUST NOT touch
+    # the user's risk profile, capital_alloc_pct, or TP/SL — those are owned by
+    # the risk-profile setter (/autotrade/risk-profile) and the custom override.
+    # Previously activation force-wrote risk_profile='balanced' + the preset's
+    # capital_alloc_pct, silently resetting a user's chosen profile (e.g.
+    # Aggressive 60%) back to balanced on every preset toggle. Now capital_alloc_pct
+    # actually drives sizing (signal_scan_job), so that clobber would also silently
+    # shrink their trade size. The preset's _PRESET_PARAMS capital/TP/SL are no
+    # longer applied here; the user's existing profile values are preserved.
 
     is_crypto_short = body.preset_key in _CRYPTO_SHORT_PRESETS
 
@@ -585,54 +1265,69 @@ async def activate_preset(body: PresetActivateRequest, user: _CurrentUser):
     timeframe: str | None = None
     assets: list[str] | None = None
     if is_crypto_short:
+        # WARP-95 (Issue 2): candle_auto (Smart Strike) respects the user's
+        # selected_timeframe like every other crypto-short preset — both 5m and
+        # 15m are live and tradable, and the orchestrator scans whichever the user
+        # picked. (WARP-93 had hard-pinned candle_auto to 5m here, which — combined
+        # with the web UI re-POSTing the preset — silently flipped every 15m user
+        # to 5m and stopped 15m scanning entirely. Pin removed.) NULL → 5m default.
         timeframe = body.selected_timeframe or "5m"
         if timeframe not in _VALID_TIMEFRAMES:
             raise HTTPException(
                 status_code=400, detail=f"invalid timeframe: {timeframe} (expected 5m or 15m)"
             )
-        # Normalize + validate the asset selection; default to all offered assets.
+        # Normalize + silently drop assets that are no longer tradable
+        # (e.g. legacy ["BNB","XRP","DOGE","HYPE"] from before the
+        # universe was trimmed). Returning 400 here would lock the UI:
+        # the user can't switch presets because their persisted state
+        # carries an asset that's no longer in _VALID_ASSETS. Drop +
+        # heal on the way through. We log if anything was dropped so
+        # the operator can spot drift but don't fail the request.
         raw_assets = [str(a).strip().upper() for a in (body.selected_assets or [])]
-        assets = [a for a in raw_assets if a in _VALID_ASSETS]
-        bad = [a for a in raw_assets if a not in _VALID_ASSETS]
-        if bad:
-            raise HTTPException(
-                status_code=400,
-                detail=f"invalid asset(s): {', '.join(bad)} (expected any of {', '.join(_CRYPTO_SHORT_ASSETS)})",
+        assets = _sanitize_selected_assets(body.selected_assets) or []
+        dropped = [a for a in raw_assets if a not in _VALID_ASSETS]
+        if dropped:
+            log.info(
+                "activate_preset_dropped_stale_assets",
+                extra={
+                    "user_id": str(user_id),
+                    "preset": body.preset_key,
+                    "dropped": dropped,
+                    "kept": assets,
+                },
             )
         if not assets:
-            assets = list(_CRYPTO_SHORT_ASSETS)
+            assets = list(_DEFAULT_CRYPTO_SHORT_ASSETS)
 
-    # Auto-lock market category to Crypto only for crypto-short presets;
-    # None leaves the existing category_filters untouched for other presets.
-    category_filters = ["Crypto"] if is_crypto_short else None
+    # Auto-lock market category on activation per _PRESET_LOCKED_CATEGORY
+    # (Crypto for candle presets, Weather for weather_monitor). None leaves the
+    # existing category_filters untouched for presets not in the map.
+    _locked_category = _PRESET_LOCKED_CATEGORY.get(body.preset_key)
+    category_filters = [_locked_category] if _locked_category else None
 
-    # Light per-timeframe params for close_sweep -> merged into strategy_params.
+    # Light per-timeframe params → merged into strategy_params for candle presets.
     tf_params_json: str | None = None
     if body.preset_key == "close_sweep" and timeframe in _CLOSE_SWEEP_TF_PARAMS:
         tf_params_json = json.dumps({"expiration_timing": _CLOSE_SWEEP_TF_PARAMS[timeframe]})
+    elif body.preset_key == "safe_close" and timeframe in _SAFE_CLOSE_TF_PARAMS:
+        tf_params_json = json.dumps({"expiration_timing": _SAFE_CLOSE_TF_PARAMS[timeframe]})
+    elif body.preset_key == "flip_hunter" and timeframe in _FLIP_HUNTER_TF_PARAMS:
+        tf_params_json = json.dumps({"expiration_timing": _FLIP_HUNTER_TF_PARAMS[timeframe]})
 
     async with pool.acquire() as conn:
         await conn.execute(
             """UPDATE user_settings
                   SET active_preset       = $1,
-                      risk_profile        = COALESCE($2, risk_profile),
-                      capital_alloc_pct   = COALESCE($3, capital_alloc_pct),
-                      tp_pct              = COALESCE($4, tp_pct),
-                      sl_pct              = COALESCE($5, sl_pct),
-                      selected_timeframe  = $6,
-                      category_filters    = COALESCE($7, category_filters),
+                      selected_timeframe  = $2,
+                      category_filters    = COALESCE($3, category_filters),
                       strategy_params     = CASE
-                                              WHEN $8::jsonb IS NULL THEN strategy_params
-                                              ELSE COALESCE(strategy_params, '{}'::jsonb) || $8::jsonb
+                                              WHEN $4::jsonb IS NULL THEN strategy_params
+                                              ELSE COALESCE(strategy_params, '{}'::jsonb) || $4::jsonb
                                             END,
-                      selected_assets     = $9,
+                      selected_assets     = $5,
                       updated_at          = NOW()
-               WHERE user_id = $10::uuid""",
+               WHERE user_id = $6::uuid""",
             body.preset_key,
-            params.get("risk_profile"),
-            params.get("capital_alloc_pct"),
-            params.get("tp_pct"),
-            params.get("sl_pct"),
             timeframe,
             category_filters,
             tf_params_json,
@@ -658,6 +1353,22 @@ async def customize_strategy(body: CustomizeRequest, user: _CurrentUser):
             params.append(val)
             updates.append(f"{col}=${len(params)}")
 
+    def _clear(col: str):
+        params.append(None)
+        updates.append(f"{col}=${len(params)}")
+
+    # Bounds: these feed trade sizing / exit thresholds. Without guards a user
+    # could submit capital_alloc_pct=99999, negative tp/sl, etc. (stored raw,
+    # used at execution time). Reject out-of-range values up front.
+    if body.tp_pct is not None and not (0 < body.tp_pct <= 10):
+        raise HTTPException(status_code=400, detail="tp_pct must be in (0, 10] (0%–1000%)")
+    if body.sl_pct is not None and not (0 < body.sl_pct <= 1):
+        raise HTTPException(status_code=400, detail="sl_pct must be in (0, 1] (0%–100%)")
+    if body.capital_alloc_pct is not None and not (0 < body.capital_alloc_pct <= 0.80):
+        raise HTTPException(status_code=400, detail="capital_alloc_pct must be in (0, 0.80]")
+    if body.max_position_pct is not None and not (0 < body.max_position_pct <= 0.10):
+        raise HTTPException(status_code=400, detail="max_position_pct must be in (0, 0.10] (system max 10%)")
+
     _add("tp_pct", body.tp_pct)
     _add("sl_pct", body.sl_pct)
     _add("capital_alloc_pct", body.capital_alloc_pct)
@@ -665,11 +1376,71 @@ async def customize_strategy(body: CustomizeRequest, user: _CurrentUser):
     _add("auto_redeem_mode", body.auto_redeem_mode)
     _add("category_filters", body.category_filters)
 
+    # Per-trade cap mode + values (owner-directed; also bounded at sizing time).
+    if body.max_per_trade_mode is not None:
+        if body.max_per_trade_mode not in ("auto", "fixed", "pct"):
+            raise HTTPException(status_code=400, detail="max_per_trade_mode must be auto|fixed|pct")
+        _add("max_per_trade_mode", body.max_per_trade_mode)
+    if body.max_per_trade_usdc is not None and body.max_per_trade_usdc <= 0:
+        raise HTTPException(status_code=400, detail="max_per_trade_usdc must be > 0")
+    if body.max_per_trade_pct is not None and not (0 < body.max_per_trade_pct <= 1):
+        raise HTTPException(status_code=400, detail="max_per_trade_pct must be in (0, 1] (0%–100%)")
+    _add("max_per_trade_usdc", body.max_per_trade_usdc)
+    _add("max_per_trade_pct", body.max_per_trade_pct)
+
+    # Daily loss override: must be negative and no looser than -$2000 system floor.
+    # Explicit null clears the override so the user falls back to the system floor.
+    if "daily_loss_override" in body.model_fields_set:
+        if body.daily_loss_override is None:
+            _clear("daily_loss_override")
+        else:
+            if body.daily_loss_override >= 0:
+                raise HTTPException(status_code=400, detail="daily_loss_override must be negative (e.g. -300)")
+            if body.daily_loss_override < -2000:
+                raise HTTPException(status_code=400, detail="daily_loss_override cannot exceed system floor of -$2000")
+            _add("daily_loss_override", body.daily_loss_override)
+
+    # Max drawdown %: must be in (0, 8%]. Users can only make it stricter than 8%.
+    # Explicit null clears the override so the user falls back to the profile default.
+    if "max_drawdown_pct" in body.model_fields_set:
+        if body.max_drawdown_pct is None:
+            _clear("max_drawdown_pct")
+        else:
+            if not (0 < body.max_drawdown_pct <= 0.08):
+                raise HTTPException(status_code=400, detail="max_drawdown_pct must be in (0, 0.08] (0%–8%)")
+            _add("max_drawdown_pct", body.max_drawdown_pct)
+
+    # Max concurrent trades override: integer in [1, 20]. Gate step 7 picks the
+    # min of this and the profile default — user can only tighten, never loosen.
+    # Explicit null (field present in request but null) clears the override so the
+    # user falls back to their profile default.
+    if "max_concurrent_override" in body.model_fields_set:
+        if body.max_concurrent_override is None:
+            _clear("max_concurrent_override")
+        else:
+            if not (1 <= int(body.max_concurrent_override) <= 20):
+                raise HTTPException(status_code=400, detail="max_concurrent_override must be in [1, 20]")
+            _add("max_concurrent_override", int(body.max_concurrent_override))
+
     if not updates:
         return {"updated": False}
 
     params.append(user_id)
     async with pool.acquire() as conn:
+        # Reject attempts to override a preset's locked market category.
+        # (e.g. weather_monitor locks to "Weather"; crypto-short presets lock to "Crypto")
+        if body.category_filters is not None:
+            row = await conn.fetchrow(
+                "SELECT active_preset FROM user_settings WHERE user_id=$1::uuid",
+                user_id,
+            )
+            preset = ((row["active_preset"] if row else None) or "")
+            locked = _PRESET_LOCKED_CATEGORY.get(preset)
+            if locked and body.category_filters != [locked]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"preset '{preset}' locks market category to '{locked}' — cannot override",
+                )
         await conn.execute(
             f"UPDATE user_settings SET {', '.join(updates)}, updated_at=NOW() WHERE user_id=${len(params)}::uuid",
             *params,
@@ -698,6 +1469,20 @@ async def update_market_filters(body: MarketFilterUpdate, user: _CurrentUser):
 
     params.append(user_id)
     async with pool.acquire() as conn:
+        # Reject attempts to override a preset's locked market category.
+        if "market_categories" in data:
+            row = await conn.fetchrow(
+                "SELECT active_preset FROM user_settings WHERE user_id=$1::uuid",
+                user_id,
+            )
+            preset = ((row["active_preset"] if row else None) or "")
+            locked = _PRESET_LOCKED_CATEGORY.get(preset)
+            incoming_cats = data["market_categories"]
+            if locked and incoming_cats != [locked]:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"preset '{preset}' locks market category to '{locked}' — cannot override",
+                )
         await conn.execute(
             f"UPDATE user_settings SET {', '.join(updates)}, updated_at=NOW() WHERE user_id=${len(params)}::uuid",
             *params,
@@ -723,24 +1508,33 @@ async def set_risk_profile(body: RiskProfileRequest, user: _CurrentUser):
         )
 
     if body.profile == "custom":
-        if body.capital_alloc_pct is None or body.tp_pct is None or body.sl_pct is None:
+        # Custom allows TP-only OR SL-only: require capital + at least one of
+        # tp/sl. The exit watcher already no-ops the unset side (it guards each
+        # branch with `is not None`), so a null tp or null sl is safe.
+        if body.capital_alloc_pct is None:
             raise HTTPException(
                 status_code=422,
-                detail="custom profile requires capital_alloc_pct, tp_pct, and sl_pct",
+                detail="custom profile requires capital_alloc_pct",
+            )
+        if body.tp_pct is None and body.sl_pct is None:
+            raise HTTPException(
+                status_code=422,
+                detail="custom profile requires at least one of tp_pct or sl_pct",
             )
         if body.capital_alloc_pct > 0.80:
             raise HTTPException(
                 status_code=422,
                 detail="capital_alloc_pct must not exceed 0.80 (80% hard ceiling)",
             )
-        if body.tp_pct <= body.sl_pct:
+        # Only enforce the ordering when BOTH are set.
+        if body.tp_pct is not None and body.sl_pct is not None and body.tp_pct <= body.sl_pct:
             raise HTTPException(
                 status_code=422,
                 detail="tp_pct must be greater than sl_pct",
             )
         cap = body.capital_alloc_pct
-        tp = body.tp_pct
-        sl = body.sl_pct
+        tp = body.tp_pct   # may be None → TP disabled
+        sl = body.sl_pct   # may be None → SL disabled
     else:
         defaults = _RISK_PROFILE_DEFAULTS[body.profile]
         cap = float(body.capital_alloc_pct) if body.capital_alloc_pct is not None else defaults["capital_alloc_pct"]
@@ -850,6 +1644,50 @@ async def get_wallet_ledger(
     )
 
 
+@router.post(
+    "/wallet/withdraw",
+    response_model=WithdrawResponse,
+    dependencies=[Depends(per_user_rate_limit("withdraw", limit=10))],
+)
+async def request_withdrawal(body: WithdrawRequest, user: _CurrentUser) -> WithdrawResponse:
+    """Submit a withdrawal request (paper: queued for admin; live: same flow)."""
+    from decimal import Decimal
+    from ...wallet.withdrawals import (
+        MIN_WITHDRAWAL_USDC,
+        create_withdrawal_request,
+        get_approval_mode,
+    )
+
+    amount = Decimal(str(body.amount_usdc))
+    if amount < MIN_WITHDRAWAL_USDC:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Minimum withdrawal is ${float(MIN_WITHDRAWAL_USDC):.2f} USDC",
+        )
+
+    import re
+    if not re.fullmatch(r"0x[0-9a-fA-F]{40}", body.destination_address):
+        raise HTTPException(status_code=400, detail="Invalid EVM destination address")
+
+    user_id = user["user_id"]
+    try:
+        withdrawal_id = await create_withdrawal_request(
+            user_id=user_id,
+            amount_usdc=amount,
+            destination_address=body.destination_address,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    approval_mode = await get_approval_mode()
+    return WithdrawResponse(
+        id=str(withdrawal_id),
+        status="pending",
+        approval_mode=approval_mode,
+        amount_usdc=float(amount),
+    )
+
+
 @router.get("/settings")
 async def get_settings_endpoint(user: _CurrentUser):
     pool = get_pool()
@@ -938,16 +1776,33 @@ async def update_trading_settings(body: TradingSettingsUpdate, user: _CurrentUse
 
 
 @router.get("/alerts")
-async def get_alerts() -> list[AlertItem]:
+async def get_alerts(user: _CurrentUser) -> list[AlertItem]:
+    """Active alerts for the current user.
+
+    Includes both broadcast operator banners (user_id IS NULL) AND per-user
+    trade-lifecycle events (user_id = current user). Limit 50 covers a busy
+    auto-trade session without forcing the UI to paginate.
+
+    Server-side respects ``user_settings.alerts_ack_at`` (the "Mark all read"
+    watermark) so a click in AlertCenter sticks across devices, browsers,
+    and localStorage clears — the localStorage-only watermark used to
+    resurface every alert on a fresh refresh because the bell count was
+    rebuilt purely from the latest /alerts payload.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """SELECT id, severity, title, body, created_at
-               FROM system_alerts
-               WHERE dismissed=FALSE
-                 AND (expires_at IS NULL OR expires_at > NOW())
-               ORDER BY created_at DESC
-               LIMIT 20""",
+            """SELECT a.id, a.severity, a.title, a.body, a.created_at,
+                      a.alert_kind, a.metadata
+               FROM system_alerts a
+               LEFT JOIN user_settings us ON us.user_id = $1::uuid
+               WHERE a.dismissed = FALSE
+                 AND (a.expires_at IS NULL OR a.expires_at > NOW())
+                 AND (a.user_id IS NULL OR a.user_id = $1::uuid)
+                 AND (us.alerts_ack_at IS NULL OR a.created_at > us.alerts_ack_at)
+               ORDER BY a.created_at DESC
+               LIMIT 50""",
+            user["user_id"],
         )
     return [
         AlertItem(
@@ -956,9 +1811,89 @@ async def get_alerts() -> list[AlertItem]:
             title=r["title"],
             body=r["body"],
             created_at=r["created_at"],
+            alert_kind=r["alert_kind"],
+            metadata=_coerce_alert_metadata(r["metadata"]),
         )
         for r in rows
     ]
+
+
+def _coerce_alert_metadata(raw) -> dict:
+    """asyncpg returns JSONB as str or dict depending on codec config; coerce
+    to a dict so the AlertItem schema validation never trips on a JSON-encoded
+    string. Empty/None coerces to {} so the frontend's typed-card path can
+    safely access metadata.get(...) without a guard."""
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
+@router.post("/alerts/ack-all")
+async def ack_all_alerts(user: _CurrentUser) -> dict[str, str | None]:
+    """Persist the AlertCenter "Mark all read" click server-side.
+
+    Sets ``user_settings.alerts_ack_at = NOW()`` so subsequent /alerts and
+    closed-position alert fetches collapse to "nothing pre-dating the click"
+    on every device the user signs in from. Returns the new watermark
+    serialised as ISO-8601 with offset so the caller can update its local
+    visibleAlerts filter immediately without waiting for the next /dashboard
+    refresh.
+
+    Idempotent: a second call simply moves the watermark forward to the
+    current NOW() and returns the new ts.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        # INSERT...ON CONFLICT covers users who haven't materialised a
+        # user_settings row yet (rare in practice but possible on the
+        # signup → settings-write race).
+        # NOT NULL columns (risk_profile, trading_mode, …) carry DEFAULTs in
+        # the migration 001 schema, but we still write the canonical paper-
+        # parity literals here so this endpoint stays aligned with the rest
+        # of the codebase's "explicit > schema default" convention pinned by
+        # test_paper_default_invariant (signup INSERTs are required to spell
+        # trading_mode='paper' so a future schema edit that drops the
+        # default doesn't silently flip a brand-new user to live mode).
+        row = await conn.fetchrow(
+            """INSERT INTO user_settings (user_id, alerts_ack_at, trading_mode, risk_profile, capital_alloc_pct)
+               VALUES ($1::uuid, NOW(), 'paper', 'balanced', 0.40)
+               ON CONFLICT (user_id) DO UPDATE SET alerts_ack_at = NOW()
+               RETURNING alerts_ack_at""",
+            user["user_id"],
+        )
+    return {"alerts_ack_at": row["alerts_ack_at"].isoformat() if row and row["alerts_ack_at"] else None}
+
+
+@router.get("/settings/notification-prefs")
+async def get_notification_prefs(user: _CurrentUser) -> dict:
+    """Return the user's per-alert × per-channel notification prefs.
+
+    Shape: {"trade_opened": {"web": true, "tg": true}, ...}. Missing keys
+    default to both channels ON; UI fills the rest from the static defaults.
+    """
+    prefs = await _notif_prefs.get_prefs(user["user_id"])
+    return {"prefs": prefs}
+
+
+@router.patch("/settings/notification-prefs")
+async def update_notification_prefs(
+    body: dict,
+    user: _CurrentUser,
+) -> dict:
+    """Overwrite the user's notification prefs blob (UI sends the full dict)."""
+    raw = body.get("prefs") if isinstance(body, dict) else None
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=422, detail="prefs must be an object")
+    await _notif_prefs.set_prefs(user["user_id"], raw)
+    return {"updated": True}
 
 
 @router.get("/killswitch", response_model=KillSwitchStatus)
@@ -966,18 +1901,98 @@ async def get_killswitch(user: _CurrentUser) -> KillSwitchStatus:
     return KillSwitchStatus(active=await kill_switch.is_active())
 
 
-@router.post("/kill")
+@router.post(
+    "/kill",
+    dependencies=[Depends(per_user_rate_limit("user_pause", limit=10))],
+)
 async def web_kill(user: _CurrentUser):
+    """Pause THIS user's bot — does NOT activate the global kill switch.
+
+    Multi-tenant safety (Axis #1): the per-user "kill" / pause button on
+    the dashboard sets ``users.paused=TRUE`` for the calling user only.
+    The risk gate honours ``ctx.paused`` and rejects new trades for that
+    user. The bot-wide kill switch is operator-only — Telegram ``/kill``
+    or ``/api/ops/kill`` activates it, never a regular WebTrader user.
+    """
+    from ...users import set_paused
+    user_id = user["user_id"]
     try:
-        await kill_switch.set_active(
-            action="pause",
-            actor_id=None,
-            reason=f"webtrader kill — user {user['user_id']}",
-        )
+        await set_paused(UUID(str(user_id)), True)
     except Exception as exc:
-        log.error("web kill switch failed: %s", exc)
+        log.error("web kill failed: %s", exc)
         raise HTTPException(status_code=500, detail="kill switch failed")
-    return {"ok": True, "kill_switch_active": True}
+    await audit.write(
+        actor_role="user",
+        action="webtrader_user_pause",
+        user_id=UUID(str(user_id)),
+        payload={"source": "/api/web/kill"},
+    )
+    return {"ok": True, "user_paused": True}
+
+
+@router.post(
+    "/resume",
+    dependencies=[Depends(per_user_rate_limit("user_pause", limit=10))],
+)
+async def web_resume(user: _CurrentUser):
+    """Resume THIS user's bot — clears the per-user paused flag.
+
+    Mirrors ``/kill``: sets ``users.paused=FALSE`` so the risk gate
+    accepts new trades for this user again. Does not touch the global
+    kill switch (operator-only). Shares the "user_pause" rate-limit
+    scope with ``/kill`` so a single user cannot flap the flag.
+    """
+    from ...users import set_paused
+    user_id = user["user_id"]
+    try:
+        await set_paused(UUID(str(user_id)), False)
+    except Exception as exc:
+        log.error("web resume failed: %s", exc)
+        raise HTTPException(status_code=500, detail="resume failed")
+    await audit.write(
+        actor_role="user",
+        action="webtrader_user_resume",
+        user_id=UUID(str(user_id)),
+        payload={"source": "/api/web/resume"},
+    )
+    return {"ok": True, "user_paused": False}
+
+
+@router.post(
+    "/emergency-stop",
+    response_model=EmergencyStopResponse,
+    dependencies=[Depends(per_user_rate_limit("emergency_stop", limit=5))],
+)
+async def web_emergency_stop(user: _CurrentUser) -> EmergencyStopResponse:
+    """Halt THIS user's bot and force-close every open position they own.
+
+    Multi-tenant safety (Axis #1): scoped to the calling user only. Two
+    effects mirror the Telegram pause+close-all flow but stay per-user:
+      1. ``users.paused=TRUE`` — the risk gate blocks new trades for
+         this user. Other users are unaffected.
+      2. ``positions.force_close_intent=TRUE`` for every open position
+         owned by this user — the exit watcher closes them on its next
+         tick at current market price, regardless of profit or loss.
+    The global ``system_settings.kill_switch_active`` is NOT touched —
+    that is an operator-only control reachable via ``/api/ops/kill`` or
+    Telegram ``/kill``.
+    """
+    from ...users import set_paused
+    user_id = user["user_id"]
+    try:
+        await set_paused(UUID(str(user_id)), True)
+        marked = await mark_force_close_intent_for_user(UUID(str(user_id)))
+    except Exception as exc:
+        log.error("web emergency stop failed user=%s: %s", user_id, exc)
+        raise HTTPException(status_code=500, detail="emergency stop failed")
+
+    await audit.write(
+        actor_role="user",
+        action="webtrader_emergency_stop_close_all",
+        user_id=UUID(str(user_id)),
+        payload={"positions_marked": marked, "user_paused": True},
+    )
+    return EmergencyStopResponse(positions_marked=marked, user_paused=True)
 
 
 @router.get("/status", response_model=RuntimeStatus)
@@ -992,9 +2007,12 @@ async def get_runtime_status(user: _CurrentUser) -> RuntimeStatus:
             user_id,
         )
         open_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND status='open'",
+            "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND status IN ('open','pending_settlement')",
             user_id,
         )
+        user_paused = bool(await conn.fetchval(
+            "SELECT paused FROM users WHERE id=$1::uuid", user_id,
+        ) or False)
     scanner = get_scanner_state()
     ks_active = await kill_switch.is_active()
     trading_mode = settings_row["trading_mode"] if settings_row else "paper"
@@ -1004,6 +2022,7 @@ async def get_runtime_status(user: _CurrentUser) -> RuntimeStatus:
         active_preset=settings_row["active_preset"] if settings_row else None,
         risk_profile=settings_row["risk_profile"] if settings_row else "balanced",
         kill_switch_active=ks_active,
+        user_paused=user_paused,
         open_positions=int(open_count or 0),
         scanner_scanned=scanner.get("scanned", 0),
         scanner_published=scanner.get("published", 0),
@@ -1027,8 +2046,14 @@ async def get_portfolio_summary(user: _CurrentUser) -> PortfolioSummary:
             ) or 0
         )
         open_rows = await conn.fetch(
-            "SELECT size_usdc, entry_price, current_price FROM positions WHERE user_id=$1::uuid AND status='open'",
+            "SELECT size_usdc, entry_price, current_price FROM positions WHERE user_id=$1::uuid AND status IN ('open','pending_settlement')",
             user_id,
+        )
+        total_closed = int(
+            await conn.fetchval(
+                "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND status IN ('closed', 'expired', 'market_expired')",
+                user_id,
+            ) or 0
         )
 
     balance = float(balance_row["balance_usdc"]) if balance_row else 0.0
@@ -1042,6 +2067,7 @@ async def get_portfolio_summary(user: _CurrentUser) -> PortfolioSummary:
         unrealized_pnl=unrealized_pnl,
         equity_usdc=equity,
         balance_usdc=balance,
+        total_closed=total_closed,
     )
 
 
@@ -1101,7 +2127,7 @@ async def get_portfolio_chart(
             *params_period,
         )
         open_rows = await conn.fetch(
-            "SELECT size_usdc, entry_price, current_price FROM positions WHERE user_id=$1::uuid AND status='open'",
+            "SELECT size_usdc, entry_price, current_price FROM positions WHERE user_id=$1::uuid AND status IN ('open','pending_settlement')",
             user_id,
         )
 
@@ -1127,11 +2153,21 @@ async def get_portfolio_chart(
     return points
 
 
+@router.post("/stream-token")
+async def issue_stream_token(user: _CurrentUser) -> dict:
+    """Mint a short-lived, SSE-scoped handshake token so the main JWT never
+    appears in the EventSource URL (which lands in proxy/access logs)."""
+    return {"token": mint_stream_token(user["user_id"], user.get("telegram_id"))}
+
+
 @router.get("/stream")
-async def sse_stream(user: _CurrentUser):
-    telegram_id: int | None = user.get("telegram_id")
+async def sse_stream(token: str | None = Query(default=None)):
+    # Authenticated via the short-lived SSE handshake token only (NOT the main
+    # JWT) — see issue_stream_token. decode_stream_token enforces scope='sse'.
+    payload = decode_stream_token(token)
+    telegram_id: int | None = payload.get("telegram_id")
     return EventSourceResponse(
-        webtrader_sse.stream_for_user(user["user_id"], telegram_id)
+        webtrader_sse.stream_for_user(payload["user_id"], telegram_id)
     )
 
 
@@ -1144,7 +2180,8 @@ async def get_portfolio_analytics(user: _CurrentUser) -> PortfolioAnalytics:
         rows = await conn.fetch(
             """SELECT p.pnl_usdc, p.opened_at, p.closed_at,
                       COALESCE(p.strategy_type, 'unknown') AS strategy_type,
-                      COALESCE(m.question, p.market_id) AS market_question
+                      p.active_preset,
+                      COALESCE(m.question, p.market_question, p.market_id) AS market_question
                FROM positions p
                LEFT JOIN markets m ON m.id = p.market_id
                WHERE p.user_id = $1::uuid
@@ -1189,11 +2226,14 @@ async def get_portfolio_analytics(user: _CurrentUser) -> PortfolioAnalytics:
         if dd > max_dd:
             max_dd = dd
 
-    # Profit per strategy
+    # Profit per strategy — aggregate by active_preset when present so the
+    # three late_entry_v3 presets (close_sweep / safe_close / flip_hunter)
+    # surface separately. Falls back to strategy_type for rows opened before
+    # migration 062 added the active_preset column.
     strat_pnl: dict[str, float] = {}
     for r in rows:
-        s = r["strategy_type"]
-        strat_pnl[s] = strat_pnl.get(s, 0.0) + float(r["pnl_usdc"])
+        key = r["active_preset"] or r["strategy_type"]
+        strat_pnl[key] = strat_pnl.get(key, 0.0) + float(r["pnl_usdc"])
     profit_per_strategy = [
         StrategyPnl(strategy=k, pnl_usdc=round(v, 2))
         for k, v in sorted(strat_pnl.items(), key=lambda x: -x[1])
@@ -1319,6 +2359,8 @@ class CopyTradeTaskCreate(_BaseModel):
     execution_mode: _ExecutionMode = "auto"
     slippage_pct: float = 0.05
     allow_topups: bool = True
+    max_daily_spend: float = 100.0
+    min_trade_size: float = 1.0
 
 
 class CopyTradeTaskPatch(_BaseModel):
@@ -1350,20 +2392,32 @@ async def list_copy_trade_tasks(user: _CurrentUser):
     return [dict(r) for r in rows]
 
 
-@router.post("/copy-trade/tasks", status_code=201)
+@router.post(
+    "/copy-trade/tasks",
+    status_code=201,
+    dependencies=[Depends(per_user_rate_limit("copy_task", limit=20))],
+)
 async def create_copy_trade_task(body: CopyTradeTaskCreate, user: _CurrentUser):
     copy_mode = {"fixed": "fixed", "percentage": "proportional", "rm": "rm_mirror"}.get(
         body.copy_type, "fixed"
     )
     copy_amount = body.amount if body.copy_type == "fixed" else 10.0
     copy_pct = body.amount / 100.0 if body.copy_type != "fixed" else None
+    max_daily = max(body.max_daily_spend, 1.0)
+    min_trade = max(body.min_trade_size, 1.0)
+    if max_daily < min_trade:
+        raise HTTPException(
+            status_code=400,
+            detail="max_daily_spend cannot be less than min_trade_size",
+        )
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """INSERT INTO copy_trade_tasks
                (user_id, wallet_address, task_name, copy_mode, copy_amount, copy_pct,
-                slippage_pct, status, nickname, copy_direction, execution_mode, allow_topups)
-               VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11)
+                slippage_pct, status, nickname, copy_direction, execution_mode, allow_topups,
+                max_daily_spend, min_trade_size)
+               VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11, $12, $13)
                RETURNING id::text""",
             user["user_id"],
             body.wallet_address.lower(),
@@ -1376,6 +2430,8 @@ async def create_copy_trade_task(body: CopyTradeTaskCreate, user: _CurrentUser):
             body.copy_direction,
             body.execution_mode,
             body.allow_topups,
+            max_daily,
+            min_trade,
         )
     return {"id": row["id"], "status": "active"}
 
@@ -1449,16 +2505,1049 @@ async def get_copy_trade_task_stats(task_id: str, user: _CurrentUser):
         return {"error": "stats unavailable"}
 
 
+# ── Live-trading activation (Axis #3 — WARP/ROOT-live-activation-flow) ──────
+# Per-user opt-in into live execution. Reads operator env guards + the
+# 8-gate live_checklist + the user's `live_capital_cap_usdc` setting.
+# A user toggles into live mode via /live/enable with an EXPLICIT capital
+# cap and an EXACT typed confirm phrase. /live/disable reverts. Risk gate
+# step 15 (domain/risk/gate.py) enforces the cap on every approved live
+# trade — a user with cap=0 cannot execute live, and the gate rejects
+# any trade that would push aggregate live exposure past the cap.
+
+# Single source of truth shared with the Telegram /enable_live flow
+# (domain/activation/live_opt_in_gate.py) so both surfaces stay in sync.
+from ...domain.activation.live_opt_in_gate import (  # noqa: E402
+    LIVE_CAP_MAX_USDC,
+    LIVE_CAP_MIN_USDC,
+    LIVE_ENABLE_CONFIRM_PHRASE as _LIVE_ENABLE_CONFIRM_PHRASE,
+)
+
+
+def _operator_guards_open(s) -> bool:
+    """All five operator-level env guards must be open before any user
+    can flip to live mode (mirrors `assert_live_guards` defensively)."""
+    return bool(
+        s.ENABLE_LIVE_TRADING
+        and s.EXECUTION_PATH_VALIDATED
+        and s.CAPITAL_MODE_CONFIRMED
+        and s.RISK_CONTROLS_VALIDATED
+        and s.SECURITY_HARDENING_VALIDATED
+    )
+
+
+@router.get("/live/status", response_model=LiveStatus)
+async def get_live_status(user: _CurrentUser) -> LiveStatus:
+    """Return the user's live-mode readiness + current state.
+
+    Surfaces every piece of information the UI needs to render the live
+    opt-in screen: current trading_mode, capital cap, open live exposure,
+    operator env-guard state, and the 8-gate live_checklist outcome.
+    """
+    from ...domain.activation import live_checklist
+    from ...config import get_settings
+    s = get_settings()
+    user_id = user["user_id"]
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT trading_mode, live_capital_cap_usdc "
+            "FROM user_settings WHERE user_id = $1::uuid",
+            user_id,
+        )
+        open_live = float(await conn.fetchval(
+            "SELECT COALESCE(SUM(size_usdc), 0) "
+            "FROM positions "
+            "WHERE user_id = $1::uuid "
+            "  AND mode = 'live' "
+            "  AND status IN ('open', 'pending_settlement')",
+            user_id,
+        ) or 0)
+    trading_mode = (row["trading_mode"] if row else "paper") or "paper"
+    cap = float((row["live_capital_cap_usdc"] if row else 0) or 0)
+    checklist = await live_checklist.evaluate(UUID(str(user_id)))
+    return LiveStatus(
+        trading_mode=trading_mode,
+        live_capital_cap_usdc=cap,
+        open_live_exposure_usdc=open_live,
+        operator_guards_open=_operator_guards_open(s),
+        checklist_passed=checklist.passed,
+        failed_gates=list(checklist.failed_gates),
+    )
+
+
+@router.post(
+    "/live/enable",
+    response_model=LiveEnableResponse,
+    dependencies=[Depends(per_user_rate_limit("live_activation", limit=5))],
+)
+async def enable_live(
+    body: LiveEnableRequest,
+    user: _CurrentUser,
+) -> LiveEnableResponse:
+    """Flip the user's trading_mode to 'live' after typed confirmation.
+
+    Defensive gates (all must pass):
+      1. Operator env guards are open.
+      2. 8-gate live_checklist passes for this user.
+      3. `confirm_phrase` matches the exact required string. Defends
+         against accidental clicks; no normalisation, case-sensitive.
+      4. `live_capital_cap_usdc > 0` and bounded by SYSTEM ceiling (the
+         user is not allowed to set an unbounded cap).
+      5. The gate-level enforcement in `domain/risk/gate.py` step 15
+         still has the final say on every individual trade — this
+         endpoint only flips the user-level enable switch.
+    """
+    from ...domain.activation import live_checklist
+    from ...config import get_settings
+    s = get_settings()
+    user_id = user["user_id"]
+
+    if not _operator_guards_open(s):
+        raise HTTPException(
+            status_code=409,
+            detail="operator activation guards are not open",
+        )
+    if body.confirm_phrase != _LIVE_ENABLE_CONFIRM_PHRASE:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"confirm_phrase must equal the exact string "
+                f"'{_LIVE_ENABLE_CONFIRM_PHRASE}' to enable live trading"
+            ),
+        )
+    if not (LIVE_CAP_MIN_USDC < float(body.live_capital_cap_usdc) <= LIVE_CAP_MAX_USDC):
+        raise HTTPException(
+            status_code=400,
+            detail=f"live_capital_cap_usdc must be > 0 and ≤ {int(LIVE_CAP_MAX_USDC)}",
+        )
+
+    checklist = await live_checklist.evaluate(UUID(str(user_id)))
+    if not checklist.passed:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "live_checklist gates not all passing",
+                "failed_gates": list(checklist.failed_gates),
+            },
+        )
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE user_settings "
+                "   SET trading_mode = 'live', "
+                "       live_capital_cap_usdc = $2, "
+                "       updated_at = NOW() "
+                " WHERE user_id = $1::uuid",
+                user_id, float(body.live_capital_cap_usdc),
+            )
+
+    await audit.write(
+        actor_role="user",
+        action="webtrader_live_enable",
+        user_id=UUID(str(user_id)),
+        payload={
+            "live_capital_cap_usdc": float(body.live_capital_cap_usdc),
+            "operator_guards_open": True,
+            "checklist_passed": True,
+        },
+    )
+    return LiveEnableResponse(
+        trading_mode="live",
+        live_capital_cap_usdc=float(body.live_capital_cap_usdc),
+    )
+
+
+@router.post(
+    "/live/disable",
+    dependencies=[Depends(per_user_rate_limit("live_activation", limit=5))],
+)
+async def disable_live(user: _CurrentUser) -> dict:
+    """Flip the user's trading_mode back to 'paper'.
+
+    Single-step, no confirm phrase — easy to back out of live mode.
+    Preserves `live_capital_cap_usdc` so a subsequent enable doesn't
+    require re-entering the cap (the user already verified that value
+    on opt-in). Open live positions are NOT closed by this endpoint —
+    they will resolve under the original live mode. New trades will be
+    paper-mode-only.
+    """
+    user_id = user["user_id"]
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE user_settings "
+            "   SET trading_mode = 'paper', "
+            "       updated_at = NOW() "
+            " WHERE user_id = $1::uuid",
+            user_id,
+        )
+    await audit.write(
+        actor_role="user",
+        action="webtrader_live_disable",
+        user_id=UUID(str(user_id)),
+        payload={"source": "/api/web/live/disable"},
+    )
+    return {"ok": True, "trading_mode": "paper"}
+
+
+# ── Account unification — reverse Telegram-link ────────────────────────────
+# An email-first WebTrader user links their Telegram so both surfaces resolve
+# to ONE account (one user_id → LIVE/PAPER state always in sync). WebTrader
+# mints a one-time code; the user redeems it in the bot via `/link <code>`.
+
+
+@router.get("/account/link-telegram/status")
+async def link_telegram_status(user: _CurrentUser) -> dict:
+    """Whether this account already has a Telegram identity linked."""
+    user_id = user["user_id"]
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        tg = await conn.fetchval(
+            "SELECT telegram_user_id FROM users WHERE id = $1::uuid", user_id,
+        )
+    return {"linked": tg is not None}
+
+
+@router.post(
+    "/account/link-telegram/start",
+    dependencies=[Depends(per_user_rate_limit("account_link", limit=5))],
+)
+async def link_telegram_start(user: _CurrentUser) -> dict:
+    """Mint a one-time link code for the authenticated (email) account.
+
+    The user sends `/link <code>` to the bot to attach their Telegram. 409 if
+    the account already has a Telegram linked.
+    """
+    from ...domain.activation.account_link import (
+        AccountLinkError,
+        CODE_TTL_MINUTES,
+        format_code_for_display,
+        generate_link_code,
+    )
+    from ...config import get_settings
+    user_id = user["user_id"]
+    try:
+        code = await generate_link_code(UUID(str(user_id)))
+    except AccountLinkError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    display = format_code_for_display(code)
+    bot_username = (get_settings().TELEGRAM_BOT_USERNAME or "").lstrip("@")
+    return {
+        "code": display,
+        "link_command": f"/link {display}",
+        "expires_minutes": CODE_TTL_MINUTES,
+        "bot_username": bot_username,
+    }
+
+
+# ── Admin console (role='admin' only) ──────────────────────────────────────
+# Operator dashboard for the logged-in admin: system overview (incl. master
+# hot-pool address + balances for funding), user roster, and global strategy
+# on/off switches. All endpoints gate on users.role = 'admin'.
+
+# Canonical strategy roster the operator can toggle. Only strategies with a
+# real user-facing trigger path live here — see migration 068. Adding a new
+# strategy means: (1) implement scan/exit, (2) add a preset that routes to it,
+# (3) seed a row in `strategies`, (4) append the name here, (5) add to
+# _PRESET_TO_STRATEGY so the user dashboard "PAUSED (Admin)" indicator works.
+_ADMIN_STRATEGIES: tuple[str, ...] = (
+    "late_entry_v3",
+    "signal_following",
+    "copy_trade",
+    "weather",
+    "playbook",
+)
+
+
+async def _require_admin(user: _CurrentUser) -> dict:
+    """Dependency: 403 unless the authenticated user has role='admin'."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        role = await conn.fetchval(
+            "SELECT role FROM users WHERE id = $1::uuid", user["user_id"],
+        )
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="admin only")
+    return user
+
+
+_AdminUser = Annotated[dict, Depends(_require_admin)]
+
+
+@router.get("/admin/overview")
+async def admin_overview(user: _AdminUser) -> dict:
+    """System snapshot for the admin console."""
+    from ...config import get_settings
+    from ...wallet.vault import master_wallet
+    from ...integrations import polygon
+    s = get_settings()
+
+    pool_address: Optional[str] = None
+    pool_usdc: Optional[float] = None
+    pool_matic: Optional[float] = None
+    try:
+        pool_address, _ = master_wallet()
+    except Exception:
+        pool_address = None
+    if pool_address:
+        try:
+            pool_usdc = await polygon.get_usdc_balance(pool_address)
+        except Exception:
+            pool_usdc = None
+        try:
+            pool_matic = await polygon.get_native_balance(pool_address)
+        except Exception:
+            pool_matic = None
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        total_users = await conn.fetchval("SELECT COUNT(*) FROM users") or 0
+        admins = await conn.fetchval("SELECT COUNT(*) FROM users WHERE role = 'admin'") or 0
+        auto_on = await conn.fetchval(
+            "SELECT COUNT(*) FROM users WHERE auto_trade_on = TRUE AND paused = FALSE"
+        ) or 0
+        live_users = await conn.fetchval(
+            "SELECT COUNT(*) FROM user_settings WHERE trading_mode = 'live'"
+        ) or 0
+        open_paper = await conn.fetchval(
+            "SELECT COUNT(*) FROM positions WHERE status = 'open' AND mode = 'paper'"
+        ) or 0
+        open_live = await conn.fetchval(
+            "SELECT COUNT(*) FROM positions WHERE status = 'open' AND mode = 'live'"
+        ) or 0
+        total_balance = await conn.fetchval(
+            "SELECT COALESCE(SUM(balance_usdc), 0) FROM wallets"
+        ) or 0
+        last_scan = await conn.fetchrow(
+            "SELECT started_at, markets_seen, candidates_emitted, "
+            "       risk_approved, paper_orders_created, mode "
+            "FROM scan_runs ORDER BY started_at DESC LIMIT 1"
+        )
+
+    kill_active = False
+    try:
+        from ...database import is_kill_switch_active
+        kill_active = bool(await is_kill_switch_active())
+    except Exception:
+        kill_active = False
+
+    # Polymarket trading-account config so the operator can VERIFY the funder /
+    # sig type / credential source actually loaded (these live in env/secrets,
+    # not the DB, and were previously invisible in the console).
+    try:
+        from ...integrations import clob as _clob
+        _api_key, _, _ = _clob.effective_credentials(s)
+    except Exception:
+        _api_key = ""
+    if s.POLYMARKET_API_KEY:
+        creds_source = "env"
+    elif _api_key:
+        creds_source = "derived"
+    else:
+        creds_source = "none"
+
+    return {
+        "pool": {
+            "address": pool_address,
+            "usdc": pool_usdc,
+            "matic": pool_matic,
+        },
+        "polymarket": {
+            "funder_address": s.POLYMARKET_FUNDER_ADDRESS or None,
+            "signature_type": int(s.POLYMARKET_SIGNATURE_TYPE),
+            "use_real_clob": bool(s.USE_REAL_CLOB),
+            "creds_source": creds_source,        # env | derived | none
+            "creds_ready": bool(_api_key),
+        },
+        "guards": {
+            "ENABLE_LIVE_TRADING": bool(s.ENABLE_LIVE_TRADING),
+            "EXECUTION_PATH_VALIDATED": bool(s.EXECUTION_PATH_VALIDATED),
+            "CAPITAL_MODE_CONFIRMED": bool(s.CAPITAL_MODE_CONFIRMED),
+            "RISK_CONTROLS_VALIDATED": bool(s.RISK_CONTROLS_VALIDATED),
+            "SECURITY_HARDENING_VALIDATED": bool(s.SECURITY_HARDENING_VALIDATED),
+            "USE_REAL_CLOB": bool(s.USE_REAL_CLOB),
+        },
+        "kill_switch_active": kill_active,
+        "counts": {
+            "users": int(total_users),
+            "admins": int(admins),
+            "auto_trade_on": int(auto_on),
+            "live_users": int(live_users),
+            "open_positions_paper": int(open_paper),
+            "open_positions_live": int(open_live),
+            "total_wallet_usdc": float(total_balance),
+        },
+        "last_scan": dict(last_scan) if last_scan else None,
+    }
+
+
+@router.get("/admin/pool-balance")
+async def admin_pool_balance(user: _AdminUser) -> dict:
+    """Lightweight on-chain hot-pool balance — no DB. Safe to call every 10 s."""
+    import asyncio as _asyncio
+    from ...wallet.vault import master_wallet
+    from ...integrations import polygon
+
+    pool_address: Optional[str] = None
+    try:
+        pool_address, _ = master_wallet()
+    except Exception:
+        pass
+    if not pool_address:
+        return {"address": None, "usdc": None, "matic": None}
+
+    results = await _asyncio.gather(
+        polygon.get_usdc_balance(pool_address),
+        polygon.get_native_balance(pool_address),
+        return_exceptions=True,
+    )
+    pool_usdc = results[0] if not isinstance(results[0], BaseException) else None
+    pool_matic = results[1] if not isinstance(results[1], BaseException) else None
+    return {"address": pool_address, "usdc": pool_usdc, "matic": pool_matic}
+
+
+@router.get("/admin/users")
+async def admin_users(user: _AdminUser, limit: int = 50, offset: int = 0) -> dict:
+    """Paginated user roster."""
+    limit = max(1, min(int(limit), 200))
+    offset = max(0, int(offset))
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        total = await conn.fetchval("SELECT COUNT(*) FROM users") or 0
+        rows = await conn.fetch(
+            """
+            SELECT u.id, u.username, u.email, u.role, u.auto_trade_on, u.paused,
+                   u.created_at,
+                   COALESCE(st.trading_mode, 'paper')        AS trading_mode,
+                   COALESCE(st.active_preset, '')            AS active_preset,
+                   COALESCE(w.balance_usdc, 0)               AS balance_usdc,
+                   (SELECT COUNT(*) FROM positions p
+                     WHERE p.user_id = u.id AND p.status = 'open') AS open_positions
+              FROM users u
+              LEFT JOIN user_settings st ON st.user_id = u.id
+              LEFT JOIN wallets       w  ON w.user_id  = u.id
+             ORDER BY u.created_at DESC NULLS LAST
+             LIMIT $1 OFFSET $2
+            """,
+            limit, offset,
+        )
+    users = []
+    for r in rows:
+        email = r["email"]
+        if email and email.endswith("@telegram.local"):
+            email = None
+        users.append({
+            "user_id": str(r["id"]),
+            "username": r["username"],
+            "email": email,
+            "role": r["role"],
+            "trading_mode": r["trading_mode"],
+            "active_preset": r["active_preset"] or None,
+            "balance_usdc": float(r["balance_usdc"]),
+            "auto_trade_on": bool(r["auto_trade_on"]),
+            "paused": bool(r["paused"]),
+            "open_positions": int(r["open_positions"]),
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+        })
+    return {"total": int(total), "limit": limit, "offset": offset, "users": users}
+
+
+@router.get("/admin/strategies")
+async def admin_strategies(user: _AdminUser) -> dict:
+    """List every toggleable strategy + its global enabled state (default ON)."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT name, enabled FROM strategies")
+    state = {str(r["name"]): bool(r["enabled"]) for r in rows}
+    strategies = [
+        {"name": name, "enabled": state.get(name, True)}
+        for name in _ADMIN_STRATEGIES
+    ]
+    return {"strategies": strategies}
+
+
+@router.post(
+    "/admin/strategies/toggle",
+    dependencies=[Depends(per_user_rate_limit("admin_strategy", limit=30))],
+)
+async def admin_toggle_strategy(body: StrategyToggleRequest, user: _AdminUser) -> dict:
+    """Flip a strategy on/off globally (fail-safe: scanner treats missing/ON)."""
+    if body.name not in _ADMIN_STRATEGIES:
+        raise HTTPException(status_code=400, detail="unknown strategy")
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO strategies (name, enabled, updated_at) "
+            "VALUES ($1, $2, NOW()) "
+            "ON CONFLICT (name) DO UPDATE SET enabled = $2, updated_at = NOW()",
+            body.name, bool(body.enabled),
+        )
+    await audit.write(
+        actor_role="admin",
+        action="admin_strategy_toggle",
+        user_id=UUID(str(user["user_id"])),
+        payload={"strategy": body.name, "enabled": bool(body.enabled)},
+    )
+    return {"name": body.name, "enabled": bool(body.enabled)}
+
+
+# ── Admin runtime config (system_settings overlay) ───────────────────────────
+# Frequently-tuned operator knobs editable from the web admin without a redeploy.
+# Only whitelisted keys (runtime_config.RUNTIME_SETTINGS) are exposed; secrets and
+# the LIVE-trading guards stay Fly-secret-only and are NOT reachable here.
+
+
+@router.get("/admin/settings")
+async def admin_get_settings(user: _AdminUser) -> dict:
+    """Effective runtime config: env/Fly default vs DB override per key."""
+    from ...config import get_settings
+    from ...domain.ops import runtime_config
+    return {"settings": await runtime_config.list_effective(get_settings())}
+
+
+@router.patch(
+    "/admin/settings/{key}",
+    dependencies=[Depends(per_user_rate_limit("admin_settings", limit=30))],
+)
+async def admin_update_setting(
+    key: str, body: RuntimeSettingUpdate, user: _AdminUser,
+) -> dict:
+    """Set a runtime-config override (whitelisted keys only). Audited."""
+    from ...domain.ops import runtime_config
+    try:
+        canonical = await runtime_config.set_override(key, body.value)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="unknown setting")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    await audit.write(
+        actor_role="admin",
+        action="admin_runtime_setting_update",
+        user_id=UUID(str(user["user_id"])),
+        payload={"key": key, "value": canonical},
+    )
+    return {"key": key, "value": canonical, "overridden": True}
+
+
+@router.delete(
+    "/admin/settings/{key}",
+    dependencies=[Depends(per_user_rate_limit("admin_settings", limit=30))],
+)
+async def admin_clear_setting(key: str, user: _AdminUser) -> dict:
+    """Clear an override so the key reverts to its env/Fly default. Audited."""
+    from ...domain.ops import runtime_config
+    try:
+        await runtime_config.clear_override(key)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="unknown setting")
+    await audit.write(
+        actor_role="admin",
+        action="admin_runtime_setting_clear",
+        user_id=UUID(str(user["user_id"])),
+        payload={"key": key},
+    )
+    return {"key": key, "overridden": False}
+
+
+# ── Admin user detail + edit ──────────────────────────────────────────────────
+# Per-user operator view + partial settings update. Mirrors the user-facing
+# /autotrade/preset, /autotrade/risk-profile, /autotrade/settings entry points
+# but acting on behalf of any user (operator override). Every mutating call
+# is audit-logged with actor_role='admin' + target user_id.
+
+
+_VALID_MAX_PER_TRADE_MODES: frozenset[str] = frozenset({"auto", "fixed", "pct"})
+# Hard ceilings (echoed from the user-facing customize path). Operator edits
+# are subject to the same physical bounds — admin can change a user's value,
+# not bypass the system fence.
+_MAX_PER_TRADE_USDC_MIN = 1.0
+_MAX_PER_TRADE_USDC_MAX = 500.0
+_MAX_PER_TRADE_PCT_MIN = 0.005
+_MAX_PER_TRADE_PCT_MAX = 0.10
+_CAPITAL_ALLOC_PCT_MIN = 0.01
+_CAPITAL_ALLOC_PCT_MAX = 0.80
+_TP_PCT_MIN = 0.005
+_TP_PCT_MAX = 10.0
+_SL_PCT_MIN = 0.005
+_SL_PCT_MAX = 1.0
+
+
+@router.get("/admin/users/{user_id}", response_model=AdminUserDetail)
+async def admin_user_detail(user_id: str, user: _AdminUser) -> AdminUserDetail:
+    """Full per-user operator view (read-only).
+
+    404 when the target user does not exist. Surfaces every editable field +
+    runtime state so the Ops Console drawer can render "what the user sees
+    now" without re-fetching across multiple endpoints.
+    """
+    try:
+        target_uuid = UUID(user_id)
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(status_code=400, detail="invalid user_id") from exc
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        u_row = await conn.fetchrow(
+            """SELECT u.id, u.username, u.email, u.role, u.auto_trade_on,
+                      u.paused, u.created_at, u.telegram_user_id
+                 FROM users u
+                WHERE u.id = $1::uuid""",
+            target_uuid,
+        )
+        if not u_row:
+            raise HTTPException(status_code=404, detail="user not found")
+        s_row = await conn.fetchrow(
+            """SELECT trading_mode, active_preset, risk_profile,
+                      capital_alloc_pct, tp_pct, sl_pct,
+                      max_per_trade_mode, max_per_trade_usdc, max_per_trade_pct,
+                      selected_timeframe, selected_assets
+                 FROM user_settings WHERE user_id = $1::uuid""",
+            target_uuid,
+        )
+        w_row = await conn.fetchrow(
+            "SELECT balance_usdc, deposit_address FROM wallets WHERE user_id = $1::uuid",
+            target_uuid,
+        )
+        open_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM positions "
+            "WHERE user_id = $1::uuid AND status IN ('open','pending_settlement')",
+            target_uuid,
+        ) or 0
+        # Read-only context for the operator drawer: last 5 trades + last 3
+        # audit rows for the target user. Audit is in a separate schema
+        # (audit.log) and is INSERT-only from the app, so this read is safe.
+        trade_rows = await conn.fetch(
+            """SELECT p.id, p.status, p.side, p.size_usdc, p.entry_price,
+                      p.pnl_usdc, p.exit_reason, p.strategy_type,
+                      p.opened_at, p.closed_at,
+                      COALESCE(m.question, p.market_question) AS market_question
+                 FROM positions p
+                 LEFT JOIN markets m ON m.id = p.market_id
+                WHERE p.user_id = $1::uuid
+                ORDER BY COALESCE(p.closed_at, p.opened_at) DESC
+                LIMIT 5""",
+            target_uuid,
+        )
+        audit_rows = await conn.fetch(
+            """SELECT ts, actor_role, action
+                 FROM audit.log
+                WHERE user_id = $1::uuid
+                ORDER BY ts DESC
+                LIMIT 3""",
+            target_uuid,
+        )
+    email = u_row["email"]
+    if email and email.endswith("@telegram.local"):
+        email = None
+    recent_trades = [
+        AdminRecentTrade(
+            id=str(r["id"]),
+            status=str(r["status"]),
+            side=r["side"],
+            size_usdc=float(r["size_usdc"]) if r["size_usdc"] is not None else None,
+            entry_price=float(r["entry_price"]) if r["entry_price"] is not None else None,
+            pnl_usdc=float(r["pnl_usdc"]) if r["pnl_usdc"] is not None else None,
+            exit_reason=r["exit_reason"],
+            strategy_type=r["strategy_type"],
+            market_question=r["market_question"] or "",
+            ts=(r["closed_at"] or r["opened_at"]).isoformat(),
+        )
+        for r in trade_rows
+    ]
+    recent_audit = [
+        AdminRecentAudit(
+            ts=r["ts"].isoformat(),
+            actor_role=str(r["actor_role"]),
+            action=str(r["action"]),
+        )
+        for r in audit_rows
+    ]
+    return AdminUserDetail(
+        user_id=str(u_row["id"]),
+        username=u_row["username"],
+        email=email,
+        telegram_user_id=int(u_row["telegram_user_id"]) if u_row["telegram_user_id"] is not None else None,
+        wallet_address=str(w_row["deposit_address"]) if w_row and w_row["deposit_address"] else None,
+        role=str(u_row["role"]),
+        created_at=u_row["created_at"],
+        trading_mode=str(s_row["trading_mode"]) if s_row else "paper",
+        auto_trade_on=bool(u_row["auto_trade_on"]),
+        paused=bool(u_row["paused"]),
+        open_positions=int(open_count),
+        balance_usdc=float(w_row["balance_usdc"]) if w_row else 0.0,
+        active_preset=s_row["active_preset"] if s_row else None,
+        risk_profile=str(s_row["risk_profile"]) if s_row else "balanced",
+        capital_alloc_pct=float(s_row["capital_alloc_pct"]) if s_row else 0.40,
+        tp_pct=float(s_row["tp_pct"]) if s_row and s_row["tp_pct"] is not None else None,
+        sl_pct=float(s_row["sl_pct"]) if s_row and s_row["sl_pct"] is not None else None,
+        max_per_trade_mode=str(s_row["max_per_trade_mode"]) if s_row else "auto",
+        max_per_trade_usdc=float(s_row["max_per_trade_usdc"]) if s_row and s_row["max_per_trade_usdc"] is not None else None,
+        max_per_trade_pct=float(s_row["max_per_trade_pct"]) if s_row and s_row["max_per_trade_pct"] is not None else None,
+        selected_timeframe=s_row["selected_timeframe"] if s_row else None,
+        # Same stale-asset sanitisation as get_autotrade — operator-side
+        # admin drawer must not show ["BNB"] etc as selected, else the
+        # operator's save round-trip would 400.
+        selected_assets=_sanitize_selected_assets(s_row["selected_assets"]) if s_row else None,
+        recent_trades=recent_trades,
+        recent_audit=recent_audit,
+    )
+
+
+_NOT_NULL_PATCH_FIELDS: frozenset[str] = frozenset({
+    "risk_profile", "capital_alloc_pct", "max_per_trade_mode",
+})
+
+
+def _validate_admin_user_patch(body: AdminUserUpdate) -> None:
+    """Per-field bounds check. Raises HTTPException(400) on the first miss."""
+    # Reject explicit-null on columns the DB declares NOT NULL — otherwise the
+    # upsert below would attempt to write NULL into risk_profile /
+    # capital_alloc_pct / max_per_trade_mode and 500 with an asyncpg
+    # IntegrityError. The user-facing endpoints can't reach these columns
+    # with a null because their schemas type the field as a non-Optional
+    # value; the admin schema marks them Optional for the "leave alone"
+    # pattern, so we have to enforce the NOT NULL contract here.
+    explicit_fields = body.model_dump(exclude_unset=True)
+    for col in _NOT_NULL_PATCH_FIELDS:
+        if col in explicit_fields and explicit_fields[col] is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{col} cannot be null (column is NOT NULL — omit the "
+                       f"field to leave it unchanged)",
+            )
+    if body.active_preset is not None and body.active_preset not in _PRESET_TO_STRATEGY:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid active_preset: {body.active_preset}. "
+                   f"Must be one of {sorted(_PRESET_TO_STRATEGY.keys())}",
+        )
+    if body.risk_profile is not None and body.risk_profile not in _VALID_RISK_PROFILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid risk_profile: {body.risk_profile}. "
+                   f"Must be one of {sorted(_VALID_RISK_PROFILES)}",
+        )
+    if body.capital_alloc_pct is not None:
+        if not (_CAPITAL_ALLOC_PCT_MIN <= body.capital_alloc_pct <= _CAPITAL_ALLOC_PCT_MAX):
+            raise HTTPException(
+                status_code=400,
+                detail=f"capital_alloc_pct out of range "
+                       f"[{_CAPITAL_ALLOC_PCT_MIN}, {_CAPITAL_ALLOC_PCT_MAX}]",
+            )
+    if body.tp_pct is not None and not (_TP_PCT_MIN <= body.tp_pct <= _TP_PCT_MAX):
+        raise HTTPException(
+            status_code=400,
+            detail=f"tp_pct out of range [{_TP_PCT_MIN}, {_TP_PCT_MAX}]",
+        )
+    if body.sl_pct is not None and not (_SL_PCT_MIN <= body.sl_pct <= _SL_PCT_MAX):
+        raise HTTPException(
+            status_code=400,
+            detail=f"sl_pct out of range [{_SL_PCT_MIN}, {_SL_PCT_MAX}]",
+        )
+    if body.max_per_trade_mode is not None and body.max_per_trade_mode not in _VALID_MAX_PER_TRADE_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid max_per_trade_mode: {body.max_per_trade_mode}. "
+                   f"Must be one of {sorted(_VALID_MAX_PER_TRADE_MODES)}",
+        )
+    if body.max_per_trade_usdc is not None and not (
+        _MAX_PER_TRADE_USDC_MIN <= body.max_per_trade_usdc <= _MAX_PER_TRADE_USDC_MAX
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"max_per_trade_usdc out of range "
+                   f"[{_MAX_PER_TRADE_USDC_MIN}, {_MAX_PER_TRADE_USDC_MAX}]",
+        )
+    if body.max_per_trade_pct is not None and not (
+        _MAX_PER_TRADE_PCT_MIN <= body.max_per_trade_pct <= _MAX_PER_TRADE_PCT_MAX
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"max_per_trade_pct out of range "
+                   f"[{_MAX_PER_TRADE_PCT_MIN}, {_MAX_PER_TRADE_PCT_MAX}]",
+        )
+    if body.selected_timeframe is not None and body.selected_timeframe not in _VALID_TIMEFRAMES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid selected_timeframe: {body.selected_timeframe} "
+                   f"(expected one of {sorted(_VALID_TIMEFRAMES)})",
+        )
+    if body.selected_assets is not None:
+        normalized = [str(a).strip().upper() for a in body.selected_assets]
+        bad = [a for a in normalized if a not in _VALID_ASSETS]
+        if bad:
+            raise HTTPException(
+                status_code=400,
+                detail=f"invalid asset(s): {', '.join(bad)} "
+                       f"(expected any of {', '.join(_CRYPTO_SHORT_ASSETS)})",
+            )
+
+
+@router.patch(
+    "/admin/users/{user_id}",
+    response_model=AdminUserDetail,
+    dependencies=[Depends(per_user_rate_limit("admin_user_patch", limit=60))],
+)
+async def admin_user_update(
+    user_id: str,
+    body: AdminUserUpdate,
+    user: _AdminUser,
+) -> AdminUserDetail:
+    """Partial update of a user's bot settings (operator override).
+
+    Only fields explicitly provided in the request body are written. Skipped
+    fields are left untouched (COALESCE-style). Every successful call is
+    audit-logged with the actor admin's user_id, the target user_id, and the
+    full patch payload so post-hoc operator review can attribute changes.
+
+    Returns the freshly-fetched AdminUserDetail so the client can re-render
+    without a second round-trip.
+    """
+    try:
+        target_uuid = UUID(user_id)
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(status_code=400, detail="invalid user_id") from exc
+    _validate_admin_user_patch(body)
+
+    # Build the field list dynamically so unset fields are NOT overwritten —
+    # COALESCE($n, col) would not work for nullable-by-design fields like
+    # tp_pct (a legitimate "clear it to None" edit is indistinguishable from
+    # "leave it alone" through COALESCE).
+    fields = body.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="empty patch body")
+
+    # Normalize selected_assets to uppercase + de-dup (validator already
+    # rejected unknown symbols). Empty list = clear the column to NULL.
+    if "selected_assets" in fields and fields["selected_assets"] is not None:
+        seen: set[str] = set()
+        normalized: list[str] = []
+        for a in fields["selected_assets"]:
+            up = str(a).strip().upper()
+            if up and up not in seen:
+                seen.add(up)
+                normalized.append(up)
+        fields["selected_assets"] = normalized if normalized else None
+
+    # `paused` and `auto_trade_on` live on `users`, not `user_settings`. Split
+    # both out so the user_settings upsert never writes non-existent columns.
+    paused_value: Optional[bool] = None
+    if "paused" in fields:
+        raw_paused = fields.pop("paused")
+        if raw_paused is None:
+            raise HTTPException(
+                status_code=400,
+                detail="paused cannot be null; omit the field to leave it unchanged",
+            )
+        paused_value = bool(raw_paused)
+
+    auto_trade_value: Optional[bool] = None
+    if "auto_trade_on" in fields:
+        raw_at = fields.pop("auto_trade_on")
+        if raw_at is None:
+            raise HTTPException(
+                status_code=400,
+                detail="auto_trade_on cannot be null; omit the field to leave it unchanged",
+            )
+        auto_trade_value = bool(raw_at)
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        # 404 guard — fail before touching user_settings so we never lazy-
+        # create a row for a non-existent user.
+        exists = await conn.fetchval(
+            "SELECT 1 FROM users WHERE id = $1::uuid", target_uuid,
+        )
+        if not exists:
+            raise HTTPException(status_code=404, detail="user not found")
+
+        if paused_value is not None:
+            from ...users import set_paused
+            await set_paused(target_uuid, paused_value)
+
+        if auto_trade_value is not None:
+            from ...users import set_auto_trade
+            await set_auto_trade(target_uuid, auto_trade_value)
+
+        if fields:
+            set_clauses = [f"{col} = ${i + 2}" for i, col in enumerate(fields.keys())]
+            values = list(fields.values())
+            # Upsert so an operator edit on a brand-new user (no user_settings
+            # row yet) creates the row with explicit paper-mode + balanced defaults
+            # per the paper-default invariant.
+            insert_cols = ["user_id"] + list(fields.keys())
+            insert_vals = ["$1::uuid"] + [f"${i + 2}" for i in range(len(fields))]
+            if "trading_mode" not in fields:
+                insert_cols.append("trading_mode")
+                insert_vals.append("'paper'")
+            if "risk_profile" not in fields:
+                insert_cols.append("risk_profile")
+                insert_vals.append("'balanced'")
+            if "capital_alloc_pct" not in fields:
+                insert_cols.append("capital_alloc_pct")
+                insert_vals.append("0.40")
+            sql = (
+                f"INSERT INTO user_settings ({', '.join(insert_cols)}) "
+                f"VALUES ({', '.join(insert_vals)}) "
+                f"ON CONFLICT (user_id) DO UPDATE SET "
+                f"{', '.join(set_clauses)}, updated_at = NOW()"
+            )
+            await conn.execute(sql, target_uuid, *values)
+
+    # Scope the audit row to the TARGET user so the per-user recent-audit slice
+    # in admin_user_detail (WHERE user_id = $1::uuid) surfaces the change in
+    # that user's drawer. The actor's id is preserved in the payload.
+    audit_payload: dict[str, Any] = {
+        "target_user_id": str(target_uuid),
+        "actor_user_id": str(user["user_id"]),
+        "patch": fields,
+    }
+    if paused_value is not None:
+        audit_payload["paused"] = paused_value
+    if auto_trade_value is not None:
+        audit_payload["auto_trade_on"] = auto_trade_value
+    await audit.write(
+        actor_role="admin",
+        action="admin_user_settings_update",
+        user_id=target_uuid,
+        payload=audit_payload,
+    )
+    return await admin_user_detail(str(target_uuid), user)
+
+
+@router.post(
+    "/admin/users/{user_id}/paper-reset",
+    response_model=AdminPaperResetResult,
+    dependencies=[Depends(per_user_rate_limit("admin_paper_reset", limit=10))],
+)
+async def admin_paper_reset(
+    user_id: str,
+    user: _AdminUser,
+) -> AdminPaperResetResult:
+    """Hard-reset a user's paper trading history and balance.
+
+    Deletes all positions, orders, fills, and ledger entries for the target
+    user, then resets their wallet balance to $1,000. Only valid for paper
+    trading users. Audit-logged. Irreversible.
+    """
+    try:
+        target_uuid = UUID(user_id)
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(status_code=400, detail="invalid user_id") from exc
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT u.id, us.trading_mode "
+            "FROM users u "
+            "LEFT JOIN user_settings us ON us.user_id = u.id "
+            "WHERE u.id = $1::uuid",
+            target_uuid,
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="user not found")
+        if row["trading_mode"] == "live":
+            raise HTTPException(
+                status_code=400,
+                detail="cannot reset a live-mode user; switch to paper first",
+            )
+
+        async with conn.transaction():
+            # 1. fills: FK fills.order_id → orders (CASCADE, but be explicit)
+            await conn.execute(
+                "DELETE FROM fills WHERE order_id IN "
+                "(SELECT id FROM orders WHERE user_id=$1::uuid)",
+                target_uuid,
+            )
+
+            # 2. fees: FK fees.order_id → orders (NO ACTION — must clear before orders)
+            await conn.execute(
+                "DELETE FROM fees WHERE order_id IN "
+                "(SELECT id FROM orders WHERE user_id=$1::uuid)",
+                target_uuid,
+            )
+
+            # 3. copy_trade_events: FK position_id → positions (NO ACTION)
+            await conn.execute(
+                "DELETE FROM copy_trade_events "
+                "WHERE user_id=$1::uuid "
+                "OR position_id IN (SELECT id FROM positions WHERE user_id=$1::uuid)",
+                target_uuid,
+            )
+
+            # 4. positions BEFORE orders: FK positions.order_id → orders (NO ACTION)
+            #    redeem_queue.position_id → positions is CASCADE — auto-deleted here
+            positions_deleted: int = await conn.fetchval(
+                "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid", target_uuid,
+            ) or 0
+            await conn.execute(
+                "DELETE FROM positions WHERE user_id=$1::uuid", target_uuid,
+            )
+
+            # 5. orders: now safe — no NO ACTION FKs pointing to orders remain
+            orders_deleted: int = await conn.fetchval(
+                "SELECT COUNT(*) FROM orders WHERE user_id=$1::uuid", target_uuid,
+            ) or 0
+            await conn.execute(
+                "DELETE FROM orders WHERE user_id=$1::uuid", target_uuid,
+            )
+
+            # Count + delete portfolio snapshots
+            await conn.execute(
+                "DELETE FROM portfolio_snapshots WHERE user_id=$1::uuid", target_uuid,
+            )
+
+            # Count + delete ledger entries
+            ledger_deleted: int = await conn.fetchval(
+                "SELECT COUNT(*) FROM ledger WHERE user_id=$1::uuid", target_uuid,
+            ) or 0
+            await conn.execute(
+                "DELETE FROM ledger WHERE user_id=$1::uuid", target_uuid,
+            )
+
+            # Reset wallet balance to $1,000 and write seed ledger entry
+            await conn.execute(
+                "UPDATE wallets SET balance_usdc=1000 WHERE user_id=$1::uuid",
+                target_uuid,
+            )
+            await conn.execute(
+                "INSERT INTO ledger (user_id, type, amount_usdc, note) "
+                "VALUES ($1::uuid, 'deposit', 1000, "
+                "'Paper wallet — admin reset $1,000 credit')",
+                target_uuid,
+            )
+
+    await audit.write(
+        actor_role="admin",
+        action="admin_paper_reset",
+        user_id=target_uuid,
+        payload={
+            "target_user_id": str(target_uuid),
+            "actor_user_id": str(user["user_id"]),
+            "positions_deleted": positions_deleted,
+            "orders_deleted": orders_deleted,
+            "ledger_entries_deleted": ledger_deleted,
+            "balance_reset_usdc": 1000.0,
+        },
+    )
+
+    return AdminPaperResetResult(
+        user_id=str(target_uuid),
+        positions_deleted=positions_deleted,
+        orders_deleted=orders_deleted,
+        ledger_entries_deleted=ledger_deleted,
+        balance_reset_usdc=1000.0,
+    )
+
+
 # ── Admin: strategy global flags ──────────────────────────────────────────────
-
-_AdminUser = Annotated[dict, Depends(require_admin)]
-
 
 @router.get("/admin/strategy-flags")
 async def get_strategy_flags(user: _AdminUser) -> dict:
     """Return all strategy global on/off flags and bot runtime overrides.
 
-    Admin only. Shape::
+    Shape::
 
         {
             "strategies": {"late_entry_v3": true, "signal_following": false, ...},
@@ -1470,10 +3559,10 @@ async def get_strategy_flags(user: _AdminUser) -> dict:
 
 
 @router.patch("/admin/strategy-flags")
-async def update_strategy_flags(body: "StrategyFlagsUpdate", user: _AdminUser) -> dict:
+async def update_strategy_flags(body: StrategyFlagsUpdate, user: _AdminUser) -> dict:
     """Toggle one or more strategy global flags or bot runtime overrides.
 
-    Admin only. Accepts partial updates — only supplied keys are written.
+    Accepts partial updates — only supplied keys are written.
     """
     from ...domain.ops.strategy_flags import (  # type: ignore
         set_strategy_flag,

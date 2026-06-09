@@ -43,11 +43,24 @@ from projects.polymarket.crusaderbot.domain.positions.registry import (
     OpenPositionForExit,
 )
 from projects.polymarket.crusaderbot.domain.risk.gate import GateResult
+from projects.polymarket.crusaderbot.domain.strategy.registry import (
+    bootstrap_default_strategies,
+)
 from projects.polymarket.crusaderbot.services.trade_engine import (
     TradeEngine,
     TradeResult,
     TradeSignal,
 )
+
+
+@pytest.fixture(autouse=True)
+def _bootstrap_strategies():
+    # WARP-85: the user_settings-NULL fallback resolves the default FROM the
+    # active strategy's default_tp_sl() hook; without a populated registry the
+    # resolver would silently take the last-resort guard instead of exercising
+    # the hook. bootstrap_default_strategies() is idempotent.
+    bootstrap_default_strategies()
+
 
 # ---------------------------------------------------------------------------
 # Shared test data
@@ -508,12 +521,11 @@ class TestExitWatcherTrackACloseReasons:
         assert decision.reason == ExitReason.SL_HIT.value
 
     def test_sl_hit_no_side(self):
-        """NO side: YES rising (bad for NO holder) triggers SL."""
+        """NO side, side-own frame: the NO token's own price falling triggers SL."""
         pos = _make_position(
             side="no", entry_price=0.40,
-            yes_price=0.53, no_price=0.47,
-            # comp_entry=1-0.40=0.60, comp_exit=1-0.47=0.53
-            # ret=(0.53-0.60)/0.60≈-11.7% <= -SL(10%) → SL_HIT
+            yes_price=0.65, no_price=0.35,
+            # side-own: ret=(0.35-0.40)/0.40=-12.5% <= -SL(10%) → SL_HIT
             applied_tp_pct=0.20, applied_sl_pct=0.10,
         )
         decision = asyncio.run(watcher_evaluate(pos))
@@ -557,15 +569,16 @@ class TestExitWatcherTrackACloseReasons:
         assert decision.reason is None
 
     def test_resolved_market_skipped(self):
-        """Watcher must not close resolved markets — redeemer settles them."""
+        """Resolved markets are skipped by evaluate() — redemption pipeline owns the exit."""
         pos = _make_position(
             side="yes", entry_price=0.40,
-            yes_price=1.0,     # would be huge TP
+            yes_price=1.0,     # would be huge TP — must NOT fire
             applied_tp_pct=0.20,
             market_resolved=True,
         )
         decision = asyncio.run(watcher_evaluate(pos))
         assert decision.should_exit is False
+        assert decision.reason is None
 
     def test_hold_when_no_tp_sl_set(self):
         """No auto-close when applied_tp/sl are None and force_close_intent=False."""
@@ -589,13 +602,12 @@ class TestExitWatcherTrackACloseReasons:
         assert decision.should_exit is False
 
     def test_tp_hit_no_side(self):
-        """NO side: comp price rising (i.e. YES falls) triggers TP."""
+        """NO side, side-own frame: the NO token's own price rising triggers TP."""
         pos = _make_position(
             side="no", entry_price=0.60,
-            yes_price=0.44, no_price=0.56,
-            # comp_entry=0.40, comp_exit=0.44 → ret=(0.44-0.40)/0.40=+10% < 20% TP
+            yes_price=0.34, no_price=0.66,
+            # side-own: ret=(0.66-0.60)/0.60=+10% >= TP(5%) → TP_HIT
             applied_tp_pct=0.05, applied_sl_pct=0.20,
-            # with TP=5% and ret=10%, TP fires
         )
         decision = asyncio.run(watcher_evaluate(pos))
         assert decision.should_exit is True
@@ -718,6 +730,10 @@ _SCAN_INSERT = (
 _SCAN_MARK_EXEC = (
     "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job._mark_executed"
 )
+_SCAN_LIVE_PRICE = (
+    "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job"
+    ".get_live_market_price"
+)
 
 
 def _make_scan_row(user_id: UUID | None = None) -> dict:
@@ -786,6 +802,7 @@ class TestScanPathTradeEngineIntegration:
             patch(_SCAN_STALE, new=AsyncMock(return_value=None)),
             patch(_SCAN_DEDUP, new=AsyncMock(return_value=False)),
             patch(_SCAN_MARKET, new=AsyncMock(return_value=market)),
+            patch(_SCAN_LIVE_PRICE, new=AsyncMock(return_value=0.60)),
             patch(_SCAN_ENGINE + ".execute", new=mock_engine_execute),
             patch(_SCAN_ROUTER, new=mock_router),
             patch(_SCAN_INSERT, new=AsyncMock(return_value=True)),
@@ -872,12 +889,13 @@ class TestScanPathTradeEngineIntegration:
 
         mock_insert.assert_not_called()
 
-    def test_build_trade_signal_yes_side_maps_yes_price(self):
-        """YES-side signal uses yes_price as proposed_price."""
+    def test_build_trade_signal_yes_side_uses_live_override(self):
+        """YES-side signal price = the live mark (no fabricated/DB fallback)."""
         row = _make_scan_row()
         cand = _make_scan_cand()
         market = _make_scan_market()
-        sig = _build_trade_signal(row=row, cand=cand, market=market, idempotency_key="k1")
+        sig = _build_trade_signal(row=row, cand=cand, market=market,
+                                  idempotency_key="k1", live_price_override=0.60)
         assert sig.side == "yes"
         assert sig.price == pytest.approx(0.60)
         assert sig.market_liquidity == pytest.approx(50_000.0)
@@ -885,8 +903,8 @@ class TestScanPathTradeEngineIntegration:
         assert sig.strategy_type == "signal_following"
         assert sig.idempotency_key == "k1"
 
-    def test_build_trade_signal_no_side_maps_no_price(self):
-        """NO-side signal uses no_price as proposed_price."""
+    def test_build_trade_signal_no_side_uses_live_override(self):
+        """NO-side signal price = the live mark for the NO token."""
         row = _make_scan_row()
         cand_no = SignalCandidate(
             market_id="mkt-scan-001",
@@ -899,29 +917,45 @@ class TestScanPathTradeEngineIntegration:
             metadata={},
         )
         market = _make_scan_market()
-        sig = _build_trade_signal(row=row, cand=cand_no, market=market, idempotency_key="k2")
+        sig = _build_trade_signal(row=row, cand=cand_no, market=market,
+                                  idempotency_key="k2", live_price_override=0.40)
         assert sig.side == "no"
         assert sig.price == pytest.approx(0.40)
+
+    def test_build_trade_signal_no_live_price_raises(self):
+        """No live mark + no override -> refuse to fabricate (no DB/0.50 fallback)."""
+        with pytest.raises(ValueError):
+            _build_trade_signal(
+                row=_make_scan_row(), cand=_make_scan_cand(),
+                market=_make_scan_market(), idempotency_key="kX",
+                live_price_override=None,
+            )
 
     def test_build_trade_signal_tp_sl_from_row(self):
         """TP and SL are taken from user settings row, not hardcoded."""
         row = {**_make_scan_row(), "tp_pct": 0.30, "sl_pct": 0.15}
         sig = _build_trade_signal(
             row=row, cand=_make_scan_cand(), market=_make_scan_market(),
-            idempotency_key="k3",
+            idempotency_key="k3", live_price_override=0.60,
         )
         assert sig.tp_pct == pytest.approx(0.30)
         assert sig.sl_pct == pytest.approx(0.15)
 
-    def test_build_trade_signal_none_tp_sl_when_row_missing(self):
-        """Missing TP/SL in row produces None fields on TradeSignal."""
+    def test_build_trade_signal_defensive_fallback_when_row_missing(self):
+        """WARP-83 E.2 (Path C): missing TP/SL in user_settings falls back to the
+        logged strategy default (150% / 50%), NOT None — a position must never be
+        opened without an exit. The fallback is the safety net; migration 089
+        backfills every row so it does not fire in steady state."""
+        import projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job as _ssj
         row = {**_make_scan_row(), "tp_pct": None, "sl_pct": None}
         sig = _build_trade_signal(
             row=row, cand=_make_scan_cand(), market=_make_scan_market(),
-            idempotency_key="k4",
+            idempotency_key="k4", live_price_override=0.60,
         )
-        assert sig.tp_pct is None
-        assert sig.sl_pct is None
+        assert sig.tp_pct == pytest.approx(_ssj._LAST_RESORT_TP_PCT)
+        assert sig.sl_pct == pytest.approx(_ssj._LAST_RESORT_SL_PCT)
+        assert sig.tp_pct == pytest.approx(1.5)
+        assert sig.sl_pct == pytest.approx(0.5)
 
 
 # ---------------------------------------------------------------------------

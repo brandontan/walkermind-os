@@ -27,7 +27,7 @@ import {
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
 
-type Tab = "all" | "open" | "closed" | "orders" | "analytics";
+type Tab = "analytics" | "closed" | "all" | "orders";
 // 7D=1W, 30D=1M in backend; "All" maps to "ALL"
 type Period = "1D" | "7D" | "30D" | "All";
 
@@ -59,7 +59,10 @@ export function PortfolioPage() {
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
   const [chartData, setChartData] = useState<ChartPoint[]>([]);
   const [chartPeriod, setChartPeriod] = useState<Period>("7D");
-  const [tab, setTab] = useState<Tab>("open");
+  // Default landing on the Portfolio tab is Analytics — open positions are
+  // already surfaced on the Home dashboard, so the deep view here leads with
+  // settled-trade insights instead.
+  const [tab, setTab] = useState<Tab>("analytics");
   const [error, setError] = useState<string | null>(null);
 
   // Cash Out modal state
@@ -184,6 +187,16 @@ export function PortfolioPage() {
     return () => clearInterval(id);
   }, [refresh]);
 
+  // On mobile, setInterval and SSE pause when the tab is backgrounded.
+  // Force an immediate refresh when the user returns to the page.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [refresh]);
+
   const handleCashOutConfirm = useCallback(async () => {
     if (!cashOutTarget) return;
     setCashOutLoading(true);
@@ -202,19 +215,24 @@ export function PortfolioPage() {
 
   const allPositions = useMemo(() => {
     const combined = [...open, ...closed];
-    combined.sort(
-      (a, b) =>
-        new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime(),
-    );
+    // Most recent activity on top: closed trades by close time, open by open time.
+    const recency = (p: PositionItem) =>
+      new Date(p.closed_at ?? p.opened_at).getTime();
+    combined.sort((a, b) => recency(b) - recency(a));
     return combined;
   }, [open, closed]);
 
+  const pendingOrdersCount = orders.filter(
+    (o) => !["filled", "cancelled", "failed"].includes(o.status),
+  ).length;
+
+  const totalClosed = summary?.total_closed ?? closed.length;
+
   const tabs: FilterTab<Tab>[] = [
-    { key: "open", label: "Open", count: open.length },
-    { key: "closed", label: "Closed", count: closed.length },
-    { key: "all", label: "All", count: open.length + closed.length },
     { key: "analytics", label: "Analytics" },
-    { key: "orders", label: "Orders", count: orders.length, advanced: true },
+    { key: "closed", label: "Closed", count: totalClosed },
+    { key: "all", label: "All", count: open.length + totalClosed },
+    { key: "orders", label: "Orders", count: pendingOrdersCount || undefined, advanced: true },
   ];
 
   return (
@@ -295,34 +313,8 @@ export function PortfolioPage() {
 
         <FilterTabs tabs={tabs} active={tab} onChange={setTab} />
 
-        {tab === "open" && (
-          <CollapsibleSection id="portfolio_open_positions" label={`Open Positions (${open.length})`}>
-            {open.length === 0 ? (
-              <EmptyState
-                icon="📭"
-                title="No Open Positions"
-                text="When auto-trade opens a position, it will appear here in real-time."
-              />
-            ) : (
-              <div className="md:grid md:grid-cols-2 md:gap-3">
-                {open.map((p) => (
-                  <PositionRow
-                    key={p.id}
-                    p={p}
-                    onCashOut={() => { setCashOutTarget(p); setCashOutError(null); }}
-                    onForceRedeem={async () => {
-                      try { await api.forceRedeem(p.id); } catch { /* surfaced via refresh */ }
-                      refresh();
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </CollapsibleSection>
-        )}
-
         {tab === "closed" && (
-          <CollapsibleSection id="portfolio_closed_positions" label={`Closed Trades (${closed.length})`}>
+          <CollapsibleSection id="portfolio_closed_positions" label={`Closed Trades (${totalClosed})`}>
             {closed.length === 0 ? (
               <EmptyState
                 icon="📦"
@@ -412,6 +404,8 @@ export function PortfolioPage() {
           paperMode={isPaperMode}
           balance={summary?.available_usdc ?? 0}
           onClose={() => setShowWithdraw(false)}
+          onWithdraw={api.requestWithdrawal}
+          onSuccess={() => { setShowWithdraw(false); void loadPositions(); }}
         />
       )}
 
@@ -701,32 +695,74 @@ function PnlChart({
 
 // ── Position Row ──────────────────────────────────────────────────────────────
 
+// The pill names the ACTUAL trigger that closed the position — nothing else.
+//   tp_hit → TP, sl_hit → SL (these are inherently win/loss).
+//   A market that ran to its scheduled end (resolution_win/loss, market_expired,
+//   horizon, generic resolution) closed by TIME — NOT by TP/SL. Win vs loss is
+//   shown by colour + the PnL number, never by mislabelling it "TP"/"SL".
+//   strategy_exit closed by the strategy's own logic → STRATEGY.
 const EXIT_LABEL: Record<string, string> = {
   tp_hit: "TP",
   sl_hit: "SL",
-  manual: "MNL",
-  strategy_exit: "STRAT",
-  resolution: "RES",
-  force_close: "FORCE",
-  close_failed: "ERR",
-  market_expired: "EXP",
+  manual: "CLOSED",
+  strategy_exit: "STRATEGY",
+  horizon_exceeded: "TIME",
+  resolution: "TIME",
+  resolution_win: "TIME",
+  resolution_loss: "TIME",
+  force_close: "FORCED",
+  close_failed: "ERROR",
+  market_expired: "TIME",
 };
 
-const EXIT_TONE: Record<string, string> = {
-  tp_hit: "text-grn",
-  sl_hit: "text-red",
-  manual: "text-ink-2",
-  strategy_exit: "text-cyan",
-  resolution: "text-ink-2",
-  force_close: "text-gold",
-  close_failed: "text-red",
-  market_expired: "text-ink-3",
+// Human-readable "Closed by" reason for the expandable trade detail. Names the
+// trigger; for time-resolved closes it adds the Won/Lost outcome for clarity.
+const EXIT_FULL_LABEL: Record<string, string> = {
+  tp_hit: "Take Profit (TP)",
+  sl_hit: "Stop Loss (SL)",
+  resolution: "Time Exit (TIME)",
+  resolution_win: "Time Exit (TIME) — Won",
+  resolution_loss: "Time Exit (TIME) — Lost",
+  market_expired: "Time Exit (TIME)",
+  horizon_exceeded: "Time Exit (TIME)",
+  manual: "Manual Close",
+  strategy_exit: "Strategy Exit (STRATEGY)",
+  force_close: "Force Close",
+  close_failed: "Close Failed",
 };
 
-export function PositionRow({ p, onCashOut, onForceRedeem }: {
+// Preset display names for the strategy that opened the trade
+// (positions.strategy_type holds the underlying strategy class; map it to the
+// preset name the user actually selected, e.g. late_entry_v3 → "Close Sweep").
+const STRATEGY_LABEL: Record<string, string> = {
+  late_entry_v3: "Close Sweep",
+  confluence_scalper: "Crypto Scalper",
+  trend_breakout: "Trend Breakout",
+  momentum: "Contrarian",
+  value_investor: "Value Hunter",
+  copy_trade: "Copy Trade",
+  signal: "Signal Sniper",
+  signal_following: "Signal Following",
+  pair_arb: "Pair Arb",
+  ensemble: "Smart Mix",
+};
+
+const PRESET_LABEL: Record<string, string> = {
+  close_sweep: "Close Sweep",
+  safe_close: "Safe Close",
+  flip_hunter: "Flip Hunter",
+};
+
+function fmtStrategy(s?: string | null): string | null {
+  if (!s) return null;
+  return STRATEGY_LABEL[s] ?? s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function PositionRow({ p, onCashOut, onForceRedeem, defaultExpanded }: {
   p: PositionItem;
   onCashOut?: () => void;
   onForceRedeem?: () => void;
+  defaultExpanded?: boolean;
 }) {
   const isOpen = p.status === "open";
   const awaitingRedeem = isOpen && !!p.awaiting_redeem;
@@ -768,15 +804,44 @@ export function PositionRow({ p, onCashOut, onForceRedeem }: {
 
   const exitKey = p.exit_reason ?? "";
   const exitLabel = EXIT_LABEL[exitKey];
-  const exitToneClass = EXIT_TONE[exitKey] ?? "text-ink-3";
 
   const pnlToneClass =
     tone === "zero" ? "text-ink-2" : tone === "up" ? "text-grn" : "text-red";
 
+  // Pill colour follows the trigger's nature: TP always green, SL always red;
+  // every TIME / STRATEGY / resolution close reflects the real win/loss via the
+  // PnL tone (so a TIME close shows green when it won, red when it lost).
+  const exitToneClass =
+    exitKey === "tp_hit" ? "text-grn"
+    : exitKey === "sl_hit" ? "text-red"
+    : exitKey === "force_close" ? "text-gold"
+    : exitKey === "close_failed" ? "text-red"
+    : exitKey === "manual" ? "text-ink-2"
+    : pnlToneClass;
+
+  const strategyLabel =
+    (p.active_preset ? PRESET_LABEL[p.active_preset] : null) ??
+    fmtStrategy(p.strategy_type);
+
   const metaItems = [
+    ...(strategyLabel
+      ? [
+          <span key="strat" className="text-ink-4 uppercase tracking-wide">
+            {strategyLabel}
+          </span>,
+        ]
+      : []),
     <span key="cost" className="text-ink-3">
-      ${p.size_usdc.toFixed(2)}
+      <span className="text-ink-4 text-[8px]">IN</span> ${p.size_usdc.toFixed(2)}
     </span>,
+    // Entry price — essential context for any open position
+    ...(isOpen && !awaitingRedeem && p.entry_price > 0
+      ? [
+          <span key="entry" className="text-ink-2">
+            {p.side.toUpperCase()} @ {(p.entry_price * 100).toFixed(1)}¢
+          </span>,
+        ]
+      : []),
     ...(awaitingRedeem
       ? [
           <span key="won" className="font-bold text-grn">
@@ -799,6 +864,33 @@ export function PositionRow({ p, onCashOut, onForceRedeem }: {
     </span>,
   ];
 
+  // Expandable trade detail. Exit time/price stay blank ("—") while the
+  // position is open; they fill in once the close is confirmed.
+  const detail = (
+    <div className="md:grid md:grid-cols-2 md:gap-x-5">
+      {/* Strategy spans the full row so the time/price/TP-SL pairs below stay
+          column-aligned on desktop instead of being shifted by one slot. */}
+      {strategyLabel ? (
+        <div className="md:col-span-2">
+          <DetailRow label="Strategy" value={strategyLabel} tone="text-cyan" />
+        </div>
+      ) : null}
+      <DetailRow label="Entry Time" value={fmtDateTime(p.opened_at)} />
+      <DetailRow label="Entry Price" value={`${p.side.toUpperCase()} @ ${fmtCents(p.entry_price)}`} />
+      <DetailRow label="Exit Time" value={isOpen ? "—" : fmtDateTime(p.closed_at)} />
+      <DetailRow label="Exit Price" value={isOpen ? "—" : fmtCents(p.current_price)} />
+      <DetailRow label="TP Price" value={fmtCents(p.tp_price)} tone="text-grn" />
+      <DetailRow label="SL Price" value={fmtCents(p.sl_price)} tone="text-red" />
+      {!isOpen && p.exit_reason ? (
+        <DetailRow
+          label="Closed By"
+          value={EXIT_FULL_LABEL[p.exit_reason] ?? p.exit_reason}
+          tone={exitToneClass}
+        />
+      ) : null}
+    </div>
+  );
+
   return (
     <PositionCard
       market={p.market_question ?? `${p.market_id.slice(0, 18)}…`}
@@ -806,11 +898,9 @@ export function PositionRow({ p, onCashOut, onForceRedeem }: {
       side={side}
       borderTone={tone}
       meta={metaItems}
-      metaAdvanced={[
-        <span key="entry">
-          {p.side.toUpperCase()} @ {(p.entry_price * 100).toFixed(1)}¢
-        </span>,
-      ]}
+      metaAdvanced={[]}
+      detail={detail}
+      defaultExpanded={defaultExpanded}
       footer={
         awaitingRedeem && onForceRedeem ? (
           <button
@@ -873,7 +963,7 @@ function OrderRow({ o }: { o: OrderItem }) {
           {o.market_question ?? o.market_id.slice(0, 20)}
         </span>
         <span
-          className="font-hud text-[9px] font-bold tracking-[1.5px] px-1.5 py-0.5 rounded"
+          className="font-hud text-[9px] font-bold tracking-[1.5px] px-1.5 py-0.5 clip-tab"
           style={{ color: badge.color, background: `${badge.color}18`, border: `1px solid ${badge.color}40` }}
         >
           {badge.label}
@@ -932,33 +1022,83 @@ function fmtDate(ts: string): string {
   }
 }
 
+function fmtDateTime(ts: string | null | undefined): string {
+  if (!ts) return "—";
+  try {
+    return new Date(ts).toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    return ts;
+  }
+}
+
+function fmtCents(price: number | null | undefined): string {
+  return price == null ? "—" : `${(price * 100).toFixed(1)}¢`;
+}
+
+// One label/value row inside the expandable trade detail panel.
+function DetailRow({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="flex items-baseline gap-2 py-[3px] font-mono text-[10px]">
+      <span className="w-[82px] shrink-0 text-ink-3 uppercase tracking-[0.5px]">{label}</span>
+      <span className={`flex-1 min-w-0 truncate text-right ${tone ?? "text-ink-1"}`}>{value}</span>
+    </div>
+  );
+}
+
 // ── Analytics Panel ────────────────────────────────────────────────────────────────
 
 function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
   const [data, setData] = useState<PortfolioAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     setLoading(true);
+    setError(false);
     api.getPortfolioAnalytics()
-      .then(setData)
-      .catch(() => setData(null))
+      .then((d) => { setData(d); setError(false); })
+      // Distinguish a fetch failure from a genuinely-empty history — the old
+      // catch→null collapsed both into the "No analytics yet" empty state.
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [api]);
+
+  useEffect(() => { reload(); }, [reload]);
 
   if (loading) {
     return (
       <div className="space-y-2 mt-2">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-14 rounded-lg border border-surface-3 bg-surface-1 animate-pulse" />
+          <div key={i} className="h-14 clip-card border border-surface-3 bg-surface-1 animate-pulse" />
         ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="my-6 p-4 clip-card border border-surface-3 bg-surface-1 text-center">
+        <div className="text-2xl mb-2">⚠️</div>
+        <p className="font-hud text-sm font-bold text-ink-2 mb-1">Couldn’t load analytics.</p>
+        <button type="button"
+          onClick={reload}
+          className="mt-1 px-3 py-1.5 clip-card-sm border border-surface-3 text-ink-1 text-xs hover:bg-white/5"
+        >
+          Retry
+        </button>
       </div>
     );
   }
 
   if (!data || !data.has_data) {
     return (
-      <div className="my-6 p-4 rounded-lg border border-surface-3 bg-surface-1/50 text-center">
+      <div className="my-6 p-4 clip-card border border-surface-3 bg-surface-1 text-center">
         <div className="text-2xl mb-2">📊</div>
         <p className="font-hud text-sm font-bold text-ink-2 mb-1">No analytics yet.</p>
         <p className="text-ink-3 text-xs font-mono leading-relaxed">
@@ -983,6 +1123,22 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
     ? `${data.win_loss_ratio.toFixed(2)}`
     : settledTrades === 0 ? "Not enough data" : "—";
 
+  // Avg-hold formatting: crypto candle markets resolve in < 5 minutes, so
+  // showing "0.0h" hides the actual value. Render < 1h in minutes (or
+  // seconds when sub-minute), >= 1h in fractional hours.
+  const avgHoldValue = (() => {
+    if (data.avg_hold_hours == null) return "—";
+    const hrs = data.avg_hold_hours;
+    if (hrs >= 1) return `${hrs.toFixed(1)}h`;
+    const mins = hrs * 60;
+    if (mins >= 1) return `${mins.toFixed(1)}m`;
+    const secs = mins * 60;
+    return `${secs.toFixed(0)}s`;
+  })();
+
+  // Win rate as % — clearer than the bare ratio for a quick read.
+  const winRatePct = settledTrades > 0 ? (data.wins / settledTrades) * 100 : null;
+
   return (
     <div className="space-y-3 mt-2">
       <div className="text-[9px] font-mono text-ink-4 tracking-[1.5px] uppercase mb-1">
@@ -996,30 +1152,31 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
           color={drawdownColor}
         />
         <AnalyticCard
-          label="Win / Loss Ratio"
-          value={ratioValue}
-          sub={settledTrades > 0 ? `${data.wins}W · ${data.losses}L` : undefined}
-          color="var(--ink-1)"
+          label="Win Rate"
+          value={winRatePct != null ? `${winRatePct.toFixed(1)}%` : ratioValue}
+          sub={settledTrades > 0 ? `${data.wins}W · ${data.losses}L · ratio ${data.win_loss_ratio?.toFixed(2) ?? "—"}` : undefined}
+          color={winRatePct != null && winRatePct >= 50 ? "var(--grn,#00FF9C)" : "var(--ink-1)"}
         />
         <AnalyticCard
-          label="Avg Hold Duration"
-          value={data.avg_hold_hours != null ? `${data.avg_hold_hours.toFixed(1)}h` : "—"}
+          label="Avg Hold"
+          value={avgHoldValue}
+          sub={settledTrades > 0 ? `over ${settledTrades} trades` : undefined}
           color="var(--ink-1)"
         />
         <AnalyticCard
           label="Best Trade"
           value={data.best_trade != null ? `${data.best_trade.pnl_usdc >= 0 ? "+" : ""}$${data.best_trade.pnl_usdc.toFixed(2)}` : "—"}
-          sub={data.best_trade?.market_question?.slice(0, 30) ?? undefined}
+          sub={data.best_trade?.market_question ?? undefined}
           color="var(--grn,#00FF9C)"
         />
       </div>
 
       {/* Worst trade */}
       {data.worst_trade && (
-        <div className="p-3 rounded-lg border border-surface-3 bg-surface-1">
+        <div className="p-3 clip-card border border-surface-3 bg-surface-1">
           <div className="text-[9px] font-mono text-ink-4 uppercase tracking-widest mb-1">Worst Trade</div>
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono text-ink-2 truncate max-w-[200px]">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[10px] font-mono text-ink-2 truncate flex-1 min-w-0">
               {data.worst_trade.market_question ?? "—"}
             </span>
             <span className="font-bold font-mono text-[11px] text-red flex-shrink-0">
@@ -1029,19 +1186,31 @@ function AnalyticsPanel({ api }: { api: ReturnType<typeof makeApi> }) {
         </div>
       )}
 
-      {/* Profit per strategy */}
+      {/* Profit per strategy — share the same STRATEGY_LABEL map used for
+          PositionRow so the labels match across the app instead of showing
+          raw "late_entry_v3" snake_case identifiers. */}
       {data.profit_per_strategy.length > 0 && (
-        <div className="p-3 rounded-lg border border-surface-3 bg-surface-1">
+        <div className="p-3 clip-card border border-surface-3 bg-surface-1">
           <div className="text-[9px] font-mono text-ink-4 uppercase tracking-widest mb-2">Profit by Strategy</div>
           <div className="space-y-1.5">
-            {data.profit_per_strategy.map((s) => (
-              <div key={s.strategy} className="flex items-center justify-between">
-                <span className="text-[10px] font-mono text-ink-2 capitalize">{s.strategy}</span>
-                <span className={`font-bold font-mono text-[10px] ${s.pnl_usdc >= 0 ? "text-grn" : "text-red"}`}>
-                  {s.pnl_usdc >= 0 ? "+" : ""}${s.pnl_usdc.toFixed(2)}
-                </span>
-              </div>
-            ))}
+            {data.profit_per_strategy.map((s) => {
+              // Backend now keys by active_preset when present (so close_sweep
+              // / safe_close / flip_hunter break out separately) and falls
+              // back to strategy_type. Check the preset map first, then the
+              // strategy map, then a generic title-case formatter.
+              const label =
+                PRESET_LABEL[s.strategy] ??
+                fmtStrategy(s.strategy) ??
+                s.strategy;
+              return (
+                <div key={s.strategy} className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-ink-2">{label}</span>
+                  <span className={`font-bold font-mono text-[10px] ${s.pnl_usdc >= 0 ? "text-grn" : "text-red"}`}>
+                    {s.pnl_usdc >= 0 ? "+" : ""}${s.pnl_usdc.toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1061,7 +1230,7 @@ function AnalyticCard({
   color: string;
 }) {
   return (
-    <div className="p-3 rounded-lg border border-surface-3 bg-surface-1">
+    <div className="p-3 clip-card border border-surface-3 bg-surface-1">
       <div className="text-[9px] font-mono text-ink-4 uppercase tracking-widest mb-1">{label}</div>
       <div className="font-hud font-bold text-[14px] leading-tight" style={{ color }}>{value}</div>
       {sub && <div className="text-[9px] font-mono text-ink-4 mt-0.5 truncate">{sub}</div>}

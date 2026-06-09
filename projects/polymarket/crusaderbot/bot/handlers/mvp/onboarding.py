@@ -29,7 +29,7 @@ async def _classify(telegram_user) -> tuple[bool, str | None]:
     if u is None:
         return False, None
     settings = await _users.fetch_settings(u["id"])
-    configured = bool(u.get("auto_trade_enabled")) or bool(settings.get("active_preset"))
+    configured = bool(u.get("auto_trade_on")) or bool(settings.get("active_preset"))
     wallet_addr: str | None = None
     try:
         from ....database import get_pool  # type: ignore

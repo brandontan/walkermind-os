@@ -5,7 +5,6 @@ All data live from DB.
 """
 from __future__ import annotations
 
-import html
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -118,11 +117,15 @@ async def _fetch_last_trade_action(user_id) -> str:
             )
         if row is None:
             return "📡 Scanning Polymarket liquidity..."
-        q = html.escape((row["market_question"] or "")[:35])
+        q = (row["market_question"] or "")[:35]
         if row["status"] == "open":
             return f"📈 Last: Bought — {q}"
         return f"📉 Last: Closed — {q}"
     except Exception:
+        # Fail-open for UX (the dashboard must always render), but never
+        # silent — log so the operator sees the real fault (CLAUDE.md HARD
+        # RULE: no silent failures). The user still gets a friendly status.
+        logger.exception("dashboard last-trade lookup failed user=%s", user_id)
         return "📡 Scanning Polymarket liquidity..."
 
 
@@ -266,7 +269,7 @@ async def show_dashboard(
     )
     await target.reply_text(
         text,
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=nav_kb,
     )
 
@@ -290,17 +293,17 @@ async def show_dashboard_for_cb(
     )
     if q is not None and q.message is not None:
         try:
-            await q.edit_message_text(text, parse_mode=ParseMode.HTML)
+            await q.edit_message_text(text, parse_mode=ParseMode.MARKDOWN_V2)
         except BadRequest as exc:
             if "Message is not modified" not in str(exc):
                 await _clear_tracked_inline(ctx, q.message.chat_id)
                 await q.message.reply_text(
-                    text, parse_mode=ParseMode.HTML, reply_markup=nav_kb,
+                    text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=nav_kb,
                 )
     elif update.message is not None:
         await _clear_tracked_inline(ctx, update.message.chat_id)
         await update.message.reply_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=nav_kb,
+            text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=nav_kb,
         )
 
 
@@ -369,7 +372,7 @@ async def autotrade_toggle_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
     user = await upsert_user(update.effective_user.id, update.effective_user.username)
     text, _has_preset, _open_count = await _build_dashboard_message(user)
     try:
-        await q.edit_message_text(text, parse_mode=ParseMode.HTML)
+        await q.edit_message_text(text, parse_mode=ParseMode.MARKDOWN_V2)
     except BadRequest as exc:
         if "Message is not modified" not in str(exc):
             raise

@@ -7,6 +7,7 @@ verdict branches: ok / degraded / down / mixed-failure.
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -1069,3 +1070,92 @@ def test_init_sentry_traces_sample_rate_malformed_falls_back(monkeypatch):
     # Direct unit check on the helper too:
     assert monitoring_sentry._read_traces_sample_rate() == 0.0
     assert monitoring_sentry.init_sentry() is False
+
+
+# --- M3: check_alchemy_ws full WS handshake ---------------------------------
+
+
+class _FakeWS:
+    """Async-context-manager stand-in for a websockets connection."""
+
+    def __init__(self, response: str) -> None:
+        self._response = response
+        self.sent: list[str] = []
+
+    async def __aenter__(self) -> "_FakeWS":
+        return self
+
+    async def __aexit__(self, *exc: Any) -> bool:
+        return False
+
+    async def send(self, msg: str) -> None:
+        self.sent.append(msg)
+
+    async def recv(self) -> str:
+        return self._response
+
+
+def _fake_ws_connect(response: str):
+    def _connect(*_args: Any, **_kwargs: Any) -> _FakeWS:
+        return _FakeWS(response)
+
+    return _connect
+
+
+def _ws_settings():
+    return MagicMock(
+        ALCHEMY_POLYGON_WS_URL="wss://polygon-mainnet.g.alchemy.com/v2/key"
+    )
+
+
+def test_check_alchemy_ws_ok_on_rpc_result():
+    """A real handshake that returns a JSON-RPC ``result`` passes the check."""
+    resp = json.dumps({"jsonrpc": "2.0", "id": 1, "result": "0x1234"})
+    with patch.object(monitoring_health, "get_settings", _ws_settings), patch(
+        "websockets.connect", _fake_ws_connect(resp)
+    ):
+        assert _run(monitoring_health.check_alchemy_ws()) is True
+
+
+def test_check_alchemy_ws_raises_on_rpc_error():
+    """An endpoint that completes the handshake but returns a JSON-RPC error
+    must FAIL the check — the whole point of M3 (handshake-not-just-TCP).
+    """
+    resp = json.dumps(
+        {"jsonrpc": "2.0", "id": 1, "error": {"code": -32000, "message": "boom"}}
+    )
+    with patch.object(monitoring_health, "get_settings", _ws_settings), patch(
+        "websockets.connect", _fake_ws_connect(resp)
+    ):
+        with pytest.raises(RuntimeError):
+            _run(monitoring_health.check_alchemy_ws())
+
+
+def test_check_alchemy_ws_missing_url_raises():
+    """No configured WS URL is a hard error, not a silent pass."""
+    settings = MagicMock(ALCHEMY_POLYGON_WS_URL=None)
+    with patch.object(monitoring_health, "get_settings", lambda: settings):
+        with pytest.raises(RuntimeError):
+            _run(monitoring_health.check_alchemy_ws())
+
+
+def test_check_alchemy_ws_handshake_failure_surfaces_sanitised():
+    """A handshake exception whose text embeds the WS URL (Alchemy carries
+    the API key in the path) must be caught and reduced to the class name
+    only — no URL/secret in the public health string.
+    """
+    secret_url = "wss://polygon-mainnet.g.alchemy.com/v2/SUPER_SECRET_KEY"
+
+    def _boom(*_args: Any, **_kwargs: Any):
+        raise OSError(f"connection refused to {secret_url}")
+
+    with patch.object(monitoring_health, "get_settings", _ws_settings), patch(
+        "websockets.connect", _boom
+    ):
+        result = _run(
+            monitoring_health._with_timeout(
+                "alchemy_ws", monitoring_health.check_alchemy_ws
+            )
+        )
+    assert result == "error: OSError"
+    assert "SUPER_SECRET_KEY" not in result

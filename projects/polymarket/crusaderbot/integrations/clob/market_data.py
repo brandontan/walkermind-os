@@ -24,11 +24,30 @@ from tenacity import (
 )
 
 from .exceptions import ClobAPIError
+from .rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_HOST = "https://clob.polymarket.com"
 DEFAULT_TIMEOUT = 5.0
+# Default read limiter: 10 RPS matching the write adapter budget.
+# Shared with integrations.polymarket._clob_read_limiter when the exit
+# watcher singleton is used; tests inject rps=0 to skip throttling.
+_default_read_limiter = RateLimiter(rps=10.0, burst=10.0)
+
+
+def _mark_clob_read_ok() -> None:
+    """Heartbeat (WARP-77 Phase 1.2): record a successful CLOB data read.
+
+    Fail-soft + lazy-imported so this low-level read client never hard-depends on
+    the monitoring package and a monitoring fault can never break a read.
+    """
+    try:
+        from ...monitoring.clob_heartbeat import mark_clob_read_ok
+
+        mark_clob_read_ok()
+    except Exception:  # noqa: BLE001 — telemetry must never break a read
+        pass
 
 
 class MarketDataClient:
@@ -36,6 +55,9 @@ class MarketDataClient:
 
     Caller-supplied transport lets tests inject ``httpx.MockTransport``;
     production code constructs without arguments and gets a real client.
+    A ``RateLimiter`` is shared across all instances by default so the
+    exit watcher and signal scanner don't independently saturate the
+    CLOB read budget.
     """
 
     def __init__(
@@ -44,6 +66,7 @@ class MarketDataClient:
         host: str = DEFAULT_HOST,
         timeout: float = DEFAULT_TIMEOUT,
         transport: Optional[httpx.AsyncBaseTransport] = None,
+        rate_limiter: Optional[RateLimiter] = None,
     ) -> None:
         self._host = host.rstrip("/")
         self._http = httpx.AsyncClient(
@@ -51,6 +74,9 @@ class MarketDataClient:
             timeout=timeout,
             transport=transport,
         )
+        # Use the caller-supplied limiter, or fall back to the module default.
+        # Pass rps=0 in tests to disable throttling without patching the module.
+        self._limiter = rate_limiter if rate_limiter is not None else _default_read_limiter
 
     async def aclose(self) -> None:
         await self._http.aclose()
@@ -131,6 +157,7 @@ class MarketDataClient:
         *,
         params: Optional[dict[str, Any]] = None,
     ) -> dict:
+        await self._limiter.acquire()
         async for attempt in AsyncRetrying(
             reraise=True,
             stop=stop_after_attempt(3),
@@ -148,6 +175,7 @@ class MarketDataClient:
                         body=resp.text or "",
                     )
                 resp.raise_for_status()
+                _mark_clob_read_ok()  # WARP-77 Phase 1.2 — real-CLOB-data heartbeat
                 if not resp.text:
                     return {}
                 return resp.json()

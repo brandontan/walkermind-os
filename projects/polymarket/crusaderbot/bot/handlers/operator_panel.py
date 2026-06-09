@@ -14,7 +14,6 @@ surfaces guard flags read-only and never opens the live-trading gate.
 """
 from __future__ import annotations
 
-import html
 import json
 import logging
 from typing import Any
@@ -28,6 +27,7 @@ from ...domain.ops import job_tracker
 from ...domain.ops import kill_switch as ops_kill_switch
 from ...services.signal_scan.signal_scan_job import fetch_latest_scan_run
 from ..keyboards.admin import operator_panel_keyboard
+from ..ui.tree import md_v2_escape as _md
 from .admin import (
     _apply_killswitch_action,
     _collect_dashboard_snapshot,
@@ -70,16 +70,16 @@ async def _render_root() -> str:
         logger.error("panel root: kill switch read failed: %s", exc)
         active, lock = None, False
     if active is None:
-        run_state = "❓ unknown (DB unreachable)"
+        run_state = "❓ unknown \\(DB unreachable\\)"
     elif active:
-        run_state = "⏹ STOPPED (kill switch ACTIVE)" + (" 🔒 LOCK" if lock else "")
+        run_state = "⏹ STOPPED \\(kill switch ACTIVE\\)" + (" 🔒 LOCK" if lock else "")
     else:
         run_state = "▶️ RUNNING"
     return (
-        "<b>🎛 Operator Control Panel</b>\n\n"
-        f"Mode: <b>{html.escape(mode.upper())}</b>\n"
+        "*🎛 Operator Control Panel*\n\n"
+        f"Mode: *{_md(mode.upper())}*\n"
         f"State: {run_state}\n\n"
-        "Start / Stop the auto-trade engine, or open Status / Stats below."
+        "Start / Stop the auto\\-trade engine, or open Status / Stats below\\."
     )
 
 
@@ -99,58 +99,58 @@ def _summarize_breakdown(raw: Any, limit: int = 3) -> str:
     )
     if not items:
         return "N/A"
-    return ", ".join(f"{html.escape(k)}: {n}" for k, n in items[:limit])
+    return ", ".join(f"`{k}`: {n}" for k, n in items[:limit])
 
 
 def _render_stats(scan_md: dict[str, Any], snap_md: dict[str, Any]) -> str:
     def g(md: dict[str, Any], key: str, default: str = "N/A") -> str:
         v = md.get(key)
-        return default if v is None else html.escape(str(v))
+        return default if v is None else str(v)
 
     return (
-        "<b>📈 Scan Pipeline Stats</b>\n"
-        "<i>(latest scan_runs tick — feed-eval engine)</i>\n\n"
-        f"Mode: <b>{g(scan_md, 'mode')}</b>  ·  live_trading: {g(scan_md, 'live_trading')}\n"
-        f"Strategies loaded: {g(scan_md, 'strategies_loaded')}\n"
-        f"Users evaluated: {g(scan_md, 'users_evaluated')}\n"
-        f"Markets seen: {g(scan_md, 'markets_seen')}\n"
-        f"Candidates emitted: {g(scan_md, 'candidates_emitted')}\n"
-        f"Risk approved: {g(scan_md, 'risk_approved')}  ·  rejected: {g(scan_md, 'risk_rejected')}\n"
-        f"Positions created: {g(scan_md, 'positions_created')}  ·  paper orders: {g(scan_md, 'paper_orders_created')}\n"
+        "*📈 Scan Pipeline Stats*\n"
+        "_\\(latest `scan_runs` tick — feed\\-eval engine\\)_\n\n"
+        f"Mode: *{g(scan_md, 'mode')}*  ·  `live_trading`: `{g(scan_md, 'live_trading')}`\n"
+        f"Strategies loaded: `{g(scan_md, 'strategies_loaded')}`\n"
+        f"Users evaluated: `{g(scan_md, 'users_evaluated')}`\n"
+        f"Markets seen: `{g(scan_md, 'markets_seen')}`\n"
+        f"Candidates emitted: `{g(scan_md, 'candidates_emitted')}`\n"
+        f"Risk approved: `{g(scan_md, 'risk_approved')}`  ·  rejected: `{g(scan_md, 'risk_rejected')}`\n"
+        f"Positions created: `{g(scan_md, 'positions_created')}`  ·  paper orders: `{g(scan_md, 'paper_orders_created')}`\n"
         f"Risk rejections: {_summarize_breakdown(scan_md.get('rejection_breakdown'))}\n"
         f"Skips: {_summarize_breakdown(scan_md.get('skip_breakdown'))}\n\n"
-        f"Snapshots written: {g(snap_md, 'snapshots_written')}"
+        f"Snapshots written: `{g(snap_md, 'snapshots_written')}`"
     )
 
 
 def _render_settings() -> str:
     s = get_settings()
     return (
-        "<b>⚙️ Settings (read-only)</b>\n\n"
-        "<b>Guards:</b>\n"
-        f"  ENABLE_LIVE_TRADING={s.ENABLE_LIVE_TRADING}\n"
-        f"  EXECUTION_PATH_VALIDATED={s.EXECUTION_PATH_VALIDATED}\n"
-        f"  CAPITAL_MODE_CONFIRMED={s.CAPITAL_MODE_CONFIRMED}\n"
-        f"  AUTO_REDEEM_ENABLED={s.AUTO_REDEEM_ENABLED}\n\n"
-        "<b>Scan intervals (s):</b>\n"
-        f"  signal_scan={s.SIGNAL_SCAN_INTERVAL}\n"
-        f"  exit_watch={s.EXIT_WATCH_INTERVAL}\n"
-        f"  portfolio_snapshots={s.PORTFOLIO_SNAPSHOT_INTERVAL}\n"
-        f"  market_sync={s.MARKET_SCAN_INTERVAL}\n\n"
-        "<i>Live-enable is gated behind /live_checklist — not changeable here.</i>"
+        "*⚙️ Settings \\(read\\-only\\)*\n\n"
+        "*Guards:*\n"
+        f"  `ENABLE_LIVE_TRADING`={s.ENABLE_LIVE_TRADING}\n"
+        f"  `EXECUTION_PATH_VALIDATED`={s.EXECUTION_PATH_VALIDATED}\n"
+        f"  `CAPITAL_MODE_CONFIRMED`={s.CAPITAL_MODE_CONFIRMED}\n"
+        f"  `AUTO_REDEEM_ENABLED`={s.AUTO_REDEEM_ENABLED}\n\n"
+        "*Scan intervals \\(s\\):*\n"
+        f"  `signal_scan`={s.SIGNAL_SCAN_INTERVAL}\n"
+        f"  `exit_watch`={s.EXIT_WATCH_INTERVAL}\n"
+        f"  `portfolio_snapshots`={s.PORTFOLIO_SNAPSHOT_INTERVAL}\n"
+        f"  `market_sync`={s.MARKET_SCAN_INTERVAL}\n\n"
+        "_Live\\-enable is gated behind /live\\_checklist — not changeable here\\._"
     )
 
 
 _HELP_TEXT = (
-    "<b>❓ Operator Panel — Help</b>\n\n"
-    "▶️ <b>Start</b> — release the kill switch (auto-trade resumes).\n"
-    "⏹ <b>Stop</b> — engage the kill switch (blocks new trades; open positions stay).\n"
-    "🔒 <b>Lock</b> — Stop + force every user's auto-trade OFF (incident use).\n"
-    "📊 <b>Status</b> — live system snapshot (DB, users, positions, pool, guards).\n"
-    "📈 <b>Stats</b> — latest scan-pipeline metrics from the last scan_runs tick.\n"
-    "⚙️ <b>Settings</b> — read-only guard flags + scan intervals.\n"
-    "🔄 <b>Refresh</b> — re-render this panel.\n\n"
-    "Paper mode only. Existing commands /killswitch, /ops_dashboard, /jobs still work."
+    "*❓ Operator Panel — Help*\n\n"
+    "▶️ *Start* — release the kill switch \\(auto\\-trade resumes\\)\\.\n"
+    "⏹ *Stop* — engage the kill switch \\(blocks new trades; open positions stay\\)\\.\n"
+    "🔒 *Lock* — Stop \\+ force every user's auto\\-trade OFF \\(incident use\\)\\.\n"
+    "📊 *Status* — live system snapshot \\(DB, users, positions, pool, guards\\)\\.\n"
+    "📈 *Stats* — latest scan\\-pipeline metrics from the last `scan_runs` tick\\.\n"
+    "⚙️ *Settings* — read\\-only guard flags \\+ scan intervals\\.\n"
+    "🔄 *Refresh* — re\\-render this panel\\.\n\n"
+    "Paper mode only\\. Existing commands /killswitch, /ops\\_dashboard, /jobs still work\\."
 )
 
 
@@ -161,7 +161,7 @@ async def panel_command(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     await update.message.reply_text(
         await _render_root(),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=operator_panel_keyboard(),
     )
 
@@ -170,7 +170,7 @@ async def _edit(q: CallbackQuery, text: str) -> None:
     try:
         await q.edit_message_text(
             text,
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=operator_panel_keyboard(),
         )
     except Exception as exc:  # noqa: BLE001
@@ -216,7 +216,7 @@ async def panel_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             snap_row = await job_tracker.fetch_latest("portfolio_snapshots")
         except Exception as exc:  # noqa: BLE001
             logger.error("panel stats: scan-run read failed: %s", exc)
-            await _edit(q, "<b>📈 Scan Pipeline Stats</b>\n\nN/A — data not available.")
+            await _edit(q, "*📈 Scan Pipeline Stats*\n\nN/A — data not available\\.")
             return
         snap_md = _coerce_metadata(snap_row.get("metadata")) if snap_row else {}
         await _edit(q, _render_stats(scan_md, snap_md))

@@ -265,11 +265,17 @@ class ClobWebSocketClient:
         every fill / order update for the configured api key without
         having to enumerate active markets up-front.
         """
-        passphrase = s.POLYMARKET_API_PASSPHRASE or s.POLYMARKET_PASSPHRASE or ""
+        # Resolve creds the SAME way the REST client does: env vars first, else
+        # the auto-derived cache. Reading settings directly here sent an empty
+        # auth frame whenever creds were auto-derived (POLYMARKET_API_KEY unset),
+        # which the broker rejects → endless reconnect loop. Deferred import
+        # avoids a circular import (package __init__ imports this module).
+        from . import effective_credentials  # noqa: PLC0415
+        api_key, api_secret, passphrase = effective_credentials(s)
         frame = {
             "auth": {
-                "apiKey": s.POLYMARKET_API_KEY or "",
-                "secret": s.POLYMARKET_API_SECRET or "",
+                "apiKey": api_key,
+                "secret": api_secret,
                 "passphrase": passphrase,
             },
             "type": "user",

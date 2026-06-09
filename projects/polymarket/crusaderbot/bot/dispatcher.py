@@ -18,7 +18,7 @@ from telegram.ext import (
 _DYNAMIC_TRADES_RE = re.compile(r"^💼 Trades \(\d+\)$")
 
 from .handlers import (
-    activation, admin, copy_trade, demo_polish, emergency,
+    account_link, activation, admin, copy_trade, demo_polish, emergency,
     health as health_h, live_gate, market_card,
     pnl_insights as pnl_insights_h, portfolio_chart as portfolio_chart_h,
     positions, referral, settings as settings_handler, setup,
@@ -39,7 +39,7 @@ from .handlers.trades import (
     close_confirm_legacy_cb, history_cb, my_trades, show_trades,
     trade_detail_cb,
 )
-from .handlers.wallet import wallet_callback, wallet_root, wallet_root_cb
+from .handlers.wallet import handle_withdraw_text, wallet_callback, wallet_root, wallet_root_cb
 from .handlers.settings import (
     cap_set_callback, settings_text_input, sl_set_callback, tp_set_callback,
 )
@@ -206,6 +206,9 @@ async def _text_router(update, ctx) -> None:
         return
     if await setup.text_input(update, ctx):
         return
+    if ctx.user_data.get("_wd"):
+        await handle_withdraw_text(update, ctx)
+        return
 
 
 def register(app: Application) -> None:
@@ -279,6 +282,8 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("signals",         signal_following.signals_command))
     app.add_handler(CommandHandler("live_checklist",  activation.live_checklist_command))
     app.add_handler(CommandHandler("enable_live",     live_gate.enable_live_command))
+    app.add_handler(CommandHandler("disable_live",    live_gate.disable_live_command))
+    app.add_handler(CommandHandler("link",            account_link.link_command))
     app.add_handler(CommandHandler("summary_on",      activation.summary_on_command))
     app.add_handler(CommandHandler("summary_off",     activation.summary_off_command))
     app.add_handler(CommandHandler("insights",        pnl_insights_h.pnl_insights_command))

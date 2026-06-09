@@ -24,9 +24,9 @@ from ..keyboards import chart_kb
 logger = logging.getLogger(__name__)
 
 _FALLBACK_MSG = (
-    "\U0001f4ca <b>PORTFOLIO CHART</b>\n"
+    "\U0001f4ca *PORTFOLIO CHART*\n"
     "━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    "No balance history yet. Make a deposit or complete a paper trade to see your chart."
+    "No balance history yet\\. Make a deposit or complete a paper trade to see your chart\\."
 )
 
 
@@ -104,14 +104,14 @@ async def _send_chart(
         if reply_to is not None:
             await reply_to.reply_text(
                 _FALLBACK_MSG,
-                parse_mode=ParseMode.HTML,
+                parse_mode=ParseMode.MARKDOWN_V2,
                 reply_markup=chart_kb(days_key),
             )
         else:
             await ctx.bot.send_message(
                 chat_id,
                 _FALLBACK_MSG,
-                parse_mode=ParseMode.HTML,
+                parse_mode=ParseMode.MARKDOWN_V2,
                 reply_markup=chart_kb(days_key),
             )
         return

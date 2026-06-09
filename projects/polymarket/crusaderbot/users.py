@@ -1,13 +1,14 @@
 """User CRUD helpers used across handlers + scheduler."""
 from __future__ import annotations
 
-import logging
 from typing import Optional
 from uuid import UUID
 
+import structlog
+
 from .database import get_pool
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 _DEMO_FEED_ID = "00000000-0000-0000-0001-000000000001"
 
@@ -72,9 +73,12 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
                     "VALUES ($1, $2, 'user') RETURNING *",
                     telegram_user_id, username,
                 )
+                # PAPER-default invariant (F-MEDIUM-1): write trading_mode
+                # explicitly so the value is not silently inherited from a
+                # future schema-default change.
                 await conn.execute(
-                    "INSERT INTO user_settings (user_id) VALUES ($1) "
-                    "ON CONFLICT (user_id) DO NOTHING",
+                    "INSERT INTO user_settings (user_id, trading_mode) "
+                    "VALUES ($1, 'paper') ON CONFLICT (user_id) DO NOTHING",
                     row["id"],
                 )
                 _is_new_user = True
@@ -90,26 +94,61 @@ async def upsert_user(telegram_user_id: int, username: str | None) -> dict:
     # Must run AFTER transaction commits — vault.py uses its own connection.
     # ON CONFLICT DO NOTHING in create_wallet_for_user makes this safe on retries.
     if _is_new_user:
-        from .wallet.vault import create_wallet_for_user
-        try:
-            await create_wallet_for_user(row["id"])
-        except Exception:
-            logger.exception(
-                "wallet creation failed for new user user_id=%s", row["id"]
-            )
-        try:
-            await seed_paper_capital(row["id"])
-        except Exception:
-            logger.exception(
-                "paper seed failed for new user user_id=%s", row["id"]
-            )
+        await _bootstrap_new_user(row["id"])
     try:
         await _enroll_signal_following(row["id"])
     except Exception:
-        logger.exception(
-            "signal enrollment failed for user user_id=%s", row["id"]
-        )
+        log.exception("signal enrollment failed for user", user_id=str(row["id"]))
     return dict(row)
+
+
+async def _bootstrap_new_user(user_id: UUID) -> None:
+    """Create wallet, seed paper capital, and configure defaults for a new user.
+
+    Called after the users row is committed. Safe to call multiple times —
+    all operations are idempotent (ON CONFLICT DO NOTHING / balance guards).
+
+    Default config (bot OFF, preset ready):
+      risk_profile  = balanced
+      active_preset = close_sweep
+      capital_alloc = 0.40  (40% per trade)
+      tp_pct        = 0.20  (+20% TP — balanced profile)
+      sl_pct        = 0.15  (-15% SL — balanced profile)
+      auto_trade_on = FALSE (user must explicitly enable)
+
+    TP/SL come from the balanced risk profile (not the preset). A user can
+    switch to aggressive (30/20) or set a custom TP-only / SL-only later.
+    """
+    from .wallet.vault import create_wallet_for_user
+    try:
+        await create_wallet_for_user(user_id)
+    except Exception:
+        log.exception("wallet creation failed for new user", user_id=str(user_id))
+    try:
+        await seed_paper_capital(user_id)
+    except Exception:
+        log.exception("paper seed failed for new user", user_id=str(user_id))
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE user_settings SET
+                    risk_profile      = 'balanced',
+                    active_preset     = 'close_sweep',
+                    capital_alloc_pct = 0.40,
+                    tp_pct            = 0.20,
+                    sl_pct            = 0.15
+                WHERE user_id = $1
+                """,
+                user_id,
+            )
+    except Exception:
+        log.exception("default settings failed for new user", user_id=str(user_id))
+    try:
+        await _enroll_signal_following(user_id)
+    except Exception:
+        log.exception("signal enrollment failed for user", user_id=str(user_id))
 
 
 async def seed_paper_capital(user_id: UUID) -> bool:
@@ -195,6 +234,7 @@ async def set_auto_trade(user_id: UUID, on: bool) -> None:
         await conn.execute(
             "UPDATE users SET auto_trade_on=$2 WHERE id=$1", user_id, on,
         )
+    await _emit_settings_changed(user_id)
 
 
 async def set_paused(user_id: UUID, paused: bool) -> None:
@@ -202,6 +242,20 @@ async def set_paused(user_id: UUID, paused: bool) -> None:
     async with pool.acquire() as conn:
         await conn.execute(
             "UPDATE users SET paused=$2 WHERE id=$1", user_id, paused,
+        )
+    await _emit_settings_changed(user_id)
+
+
+async def _emit_settings_changed(user_id: UUID) -> None:
+    """Fire-and-forget event so WebTrader SSE pushes a settings refresh."""
+    try:
+        from .core.event_bus import emit as _emit
+        await _emit("user.settings_changed", user_id=str(user_id))
+    except Exception:
+        # Best-effort SSE refresh — never blocks the settings write — but logged
+        # (zero silent failures): a missing refresh is a real, debuggable signal.
+        log.debug(
+            "settings_changed emit failed", user_id=str(user_id), exc_info=True,
         )
 
 
@@ -220,8 +274,12 @@ async def get_settings_for(user_id: UUID) -> dict:
             "SELECT * FROM user_settings WHERE user_id=$1", user_id,
         )
         if row is None:
+            # PAPER-default invariant (F-MEDIUM-1): write trading_mode
+            # explicitly on lazy creation as well.
             await conn.execute(
-                "INSERT INTO user_settings (user_id) VALUES ($1)", user_id,
+                "INSERT INTO user_settings (user_id, trading_mode) "
+                "VALUES ($1, 'paper') ON CONFLICT (user_id) DO NOTHING",
+                user_id,
             )
             row = await conn.fetchrow(
                 "SELECT * FROM user_settings WHERE user_id=$1", user_id,
@@ -244,7 +302,7 @@ async def user_notifications_enabled(user_id: UUID) -> bool:
                 user_id,
             )
     except Exception as exc:  # noqa: BLE001 — fail-open, never block the send
-        logger.warning("notifications_on read failed user=%s err=%s", user_id, exc)
+        log.warning("notifications_on read failed", user_id=str(user_id), err=str(exc))
         return True
     if row is None or row["notifications_on"] is None:
         return True
@@ -263,9 +321,7 @@ async def notifications_enabled_by_telegram_id(telegram_user_id: int) -> bool:
                 telegram_user_id,
             )
     except Exception as exc:  # noqa: BLE001 — fail-open
-        logger.warning(
-            "notifications_on read failed tg_id=%s err=%s", telegram_user_id, exc
-        )
+        log.warning("notifications_on read failed", tg_id=telegram_user_id, err=str(exc))
         return True
     if row is None or row["notifications_on"] is None:
         return True
@@ -315,9 +371,9 @@ async def backfill_missing_wallets(pool) -> int:
                 await seed_paper_capital(uid)
                 count += 1
             except Exception as exc:  # noqa: BLE001
-                logger.warning("wallet backfill: failed for user %s: %s", uid, exc)
-        logger.info("wallet backfill: %d wallets created", count)
+                log.warning("wallet backfill: failed for user", user_id=str(uid), err=str(exc))
+        log.info("wallet backfill: wallets created", count=count)
         return count
     except Exception as exc:  # noqa: BLE001
-        logger.warning("wallet backfill: startup check failed: %s", exc)
+        log.warning("wallet backfill: startup check failed", err=str(exc))
         return 0

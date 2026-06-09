@@ -10,19 +10,39 @@ dependencies = [
     "asyncpg>=0.29",
     "redis[hiredis]>=5.0",
     "httpx>=0.27",
-    "aiohttp>=3.9",
     "web3>=6.15",
     "cryptography>=42.0",
     "apscheduler>=3.10,<4.0",
     "structlog>=24.1",
     "pydantic-settings>=2.2",
     "python-dotenv>=1.0",
+    # CLOB v2 migration (WARP/clob-v2-migration): the official polymarket-client
+    # produces the CLOB v2 SignedOrder schema. Selected by USE_PYSDK_CLOB.
+    # Pinned to the validated pre-release; bump only with a fresh staging proof.
+    # 0.1.0b4 adds AsyncSecureClient (deposit-wallet / POLY_1271 credential
+    # derivation + deployment) — used to mint deposit-wallet CLOB creds that
+    # py-clob-client-v2's L1 auth cannot (upstream #70).
+    "polymarket-client==0.1.0b4",
+    # py-clob-client is RETAINED during the transition: it is still the default
+    # order backend (USE_PYSDK_CLOB=False) AND it transitively supplies
+    # poly_eip712_structs / py-order-utils, which py-builder-signing-sdk and
+    # wallet/safe import directly. Removed only in the legacy-retirement lane,
+    # after the staging proof + SENTINEL flip USE_PYSDK_CLOB to default-on.
     "py-clob-client",
+    # CLOB v2 cutover (WARP/clob-v2-cutover): py-clob-client-v2 is the stable
+    # 1.x single-package successor (native v2 order struct + builder config),
+    # selected by USE_CLOB_V2 (default OFF until the staging proof). It replaces
+    # the polymarket-client + py-clob-client v1 hybrid once that flip is proven;
+    # both are RETAINED meanwhile as the active/fallback real path.
+    "py-clob-client-v2>=1.0.1",
     "tenacity>=8.2",
-    "eth-account>=0.10",
+    # polymarket-client requires eth-account>=0.13,<1 (was >=0.10).
+    "eth-account>=0.13,<1",
     "sentry-sdk[fastapi]>=2.0",
+    "bcrypt>=4.0",
     # Phase 4D — push-based fill streaming over wss://ws-subscriptions-clob.polymarket.com.
-    "websockets>=12.0,<14.0",
+    # Lower bound raised to 13 to satisfy polymarket-client (requires >=13,<16).
+    "websockets>=13.0,<14.0",
     # Test-only — listed here (not in a separate test extra) because the
     # CI workflow installs straight from [project.dependencies] and the
     # project does not yet ship a test extras group. Phase 4A CLOB tests
@@ -32,6 +52,11 @@ dependencies = [
     # WebTrader dashboard
     "sse-starlette>=1.6",
     "PyJWT>=2.8",
+    # Polymarket Builder Program — gasless relayer for the Safe-proxy custody
+    # migration (foundation only; dormant until POLY_BUILDER_* secrets and
+    # USE_BUILDER_RELAYER are set).
+    "py-builder-relayer-client>=0.0.1",
+    "py-builder-signing-sdk>=0.0.2",
 ]
 
 [build-system]

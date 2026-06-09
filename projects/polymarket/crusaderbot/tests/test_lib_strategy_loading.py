@@ -1,51 +1,30 @@
-"""Regression: every lib strategy must actually load via the runner.
+"""Regression: lib strategy roster is empty after WARP/R00T cleanup.
 
-Guards the F-HIGH-2 root cause — lib/ strategies silently failed to load in
-prod because (a) lib/ lived at the repo root, outside the Docker build context,
-and (b) the file-path loader could not resolve the strategies' package-relative
-imports (``from ..strategy_base import ...``). Both produced zero auto-trade
-candidates with no error surfaced.
+The cosmetic lib/strategies/* modules (ensemble, momentum, trend_breakout,
+value_investor, expiration_timing, pair_arb, whale_tracking, and so on) were
+archived because none of them had a user-facing preset path. This test pins
+the empty roster so that anyone re-introducing a lib strategy must also wire
+it through ENABLED_STRATEGIES / a preset / the admin toggle deliberately.
 
-These tests deliberately do NOT mock run_lib_strategy / _load_strategy — the
-rest of the suite mocks them, which is exactly why the breakage went unnoticed
-at 1600+ passing tests. If lib/ ever stops shipping as an importable subpackage,
-or a strategy's imports break, these tests fail loudly.
+The original F-HIGH-2 regression coverage (file-path loading vs subpackage
+loading) is no longer reachable — there are no lib strategies to load — so
+the test reduces to a sentinel: the moment a name returns, this test fails
+loudly and the operator can refresh the contract.
 """
 from __future__ import annotations
-
-import pytest
 
 from projects.polymarket.crusaderbot.services.signal_scan.lib_strategy_runner import (
     DEFERRED_STRATEGIES,
     ENABLED_STRATEGIES,
-    _load_strategy,
 )
-from projects.polymarket.crusaderbot.lib.strategies import get_strategy
 
 
-@pytest.mark.parametrize("name", list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES))
-def test_lib_strategy_loads(name: str) -> None:
-    """Each catalogued lib strategy loads and reports its own name."""
-    strategy = _load_strategy(name)
-    assert strategy is not None
-    assert getattr(strategy, "name", None) == name
+def test_lib_strategy_roster_is_empty() -> None:
+    """ENABLED_STRATEGIES / DEFERRED_STRATEGIES are empty post-cleanup.
 
-
-@pytest.mark.parametrize("name", list(ENABLED_STRATEGIES))
-def test_get_strategy_returns_named_instance(name: str) -> None:
-    """ensemble's get_strategy() resolves each enabled strategy by name."""
-    strategy = get_strategy(name)
-    assert getattr(strategy, "name", None) == name
-
-
-def test_get_strategy_unknown_raises_value_error() -> None:
-    """Unknown names raise ValueError so ensemble degrades gracefully."""
-    with pytest.raises(ValueError):
-        get_strategy("does_not_exist_strategy")
-
-
-def test_ensemble_builds_sub_strategies() -> None:
-    """ensemble loads and instantiates its sub-strategies without raising."""
-    ensemble = _load_strategy("ensemble")
-    ensemble.initialize({"strategies": "momentum,value_investor,trend_breakout"})
-    assert len(ensemble.sub_strategies) == 3
+    A future strategy gets added back here only via the documented path:
+    implement → wire preset → seed strategies row → append to _ADMIN_STRATEGIES
+    → append name to one of these tuples.
+    """
+    assert ENABLED_STRATEGIES == ()
+    assert DEFERRED_STRATEGIES == ()

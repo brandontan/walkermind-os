@@ -78,66 +78,66 @@ async def start_customize_wizard(
 async def _send_step1(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     cap = ctx.user_data.get("p5_wiz_cap", 50)
     text = (
-        "<b>⚙️ Customize — Step 1/5</b>\n\n"
-        "<b>Capital Allocation</b>\n"
+        "*⚙️ Customize — Step 1/5*\n\n"
+        "*Capital Allocation*\n"
         "How much of your balance to deploy?\n\n"
-        f"<i>Current: {cap}%</i>"
+        f"_Current: `{cap}%`_"
     )
     q = update.callback_query
     if q is not None and q.message is not None:
-        await _safe_edit(q, text, parse_mode=ParseMode.HTML, reply_markup=customize_capital_kb())
+        await _safe_edit(q, text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=customize_capital_kb())
     elif update.message is not None:
         await update.message.reply_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=customize_capital_kb(),
+            text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=customize_capital_kb(),
         )
 
 
 async def _send_step2(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     tp = ctx.user_data.get("p5_wiz_tp", 15)
     text = (
-        "<b>⚙️ Customize — Step 2/5</b>\n\n"
-        "<b>Take Profit</b>\n"
-        "Auto-close winning positions at:\n\n"
-        f"<i>Current: +{tp}%</i>"
+        "*⚙️ Customize — Step 2/5*\n\n"
+        "*Take Profit*\n"
+        "Auto\\-close winning positions at:\n\n"
+        f"_Current: `+{tp}%`_"
     )
     q = update.callback_query
     if q is not None and q.message is not None:
-        await _safe_edit(q, text, parse_mode=ParseMode.HTML, reply_markup=customize_tp_kb())
+        await _safe_edit(q, text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=customize_tp_kb())
     elif update.message is not None:
         await update.message.reply_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=customize_tp_kb(),
+            text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=customize_tp_kb(),
         )
 
 
 async def _send_step3(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     sl = ctx.user_data.get("p5_wiz_sl", 10)
     text = (
-        "<b>⚙️ Customize — Step 3/5</b>\n\n"
-        "<b>Stop Loss</b>\n"
-        "Auto-close losing positions at:\n\n"
-        f"<i>Current: -{sl}%</i>"
+        "*⚙️ Customize — Step 3/5*\n\n"
+        "*Stop Loss*\n"
+        "Auto\\-close losing positions at:\n\n"
+        f"_Current: `-{sl}%`_"
     )
     q = update.callback_query
     if q is not None and q.message is not None:
-        await _safe_edit(q, text, parse_mode=ParseMode.HTML, reply_markup=customize_sl_kb())
+        await _safe_edit(q, text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=customize_sl_kb())
     elif update.message is not None:
         await update.message.reply_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=customize_sl_kb(),
+            text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=customize_sl_kb(),
         )
 
 
 async def _send_step4(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     text = (
-        "<b>⚙️ Customize — Step 4/5</b>\n\n"
-        "<b>Copy Targets</b>\n"
+        "*⚙️ Customize — Step 4/5*\n\n"
+        "*Copy Targets*\n"
         "Enter wallet addresses to follow:"
     )
     q = update.callback_query
     if q is not None and q.message is not None:
-        await _safe_edit(q, text, parse_mode=ParseMode.HTML, reply_markup=customize_targets_kb())
+        await _safe_edit(q, text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=customize_targets_kb())
     elif update.message is not None:
         await update.message.reply_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=customize_targets_kb(),
+            text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=customize_targets_kb(),
         )
 
 
@@ -150,22 +150,22 @@ async def _send_review(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     preset_label = f"{cfg['emoji']} {cfg['name']}" if cfg else preset_key or "Custom"
 
     text = (
-        "<b>⚙️ Customize — Step 5/5</b>\n\n"
-        "<b>Review</b>\n\n"
-        "<pre>"
+        "*⚙️ Customize — Step 5/5*\n\n"
+        "*Review*\n\n"
+        "```\n"
         f"Preset:   {preset_label}\n"
         f"Capital:  {cap}%\n"
         f"TP:       +{tp}%\n"
         f"SL:       -{sl}%\n"
-        f"Mode:     📝 Paper"
-        "</pre>"
+        "Mode:     📝 Paper\n"
+        "```"
     )
     q = update.callback_query
     if q is not None and q.message is not None:
-        await _safe_edit(q, text, parse_mode=ParseMode.HTML, reply_markup=customize_review_kb())
+        await _safe_edit(q, text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=customize_review_kb())
     elif update.message is not None:
         await update.message.reply_text(
-            text, parse_mode=ParseMode.HTML, reply_markup=customize_review_kb(),
+            text, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=customize_review_kb(),
         )
 
 
@@ -181,9 +181,9 @@ async def cap_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         ctx.user_data[_AWAITING_CUSTOM] = "cap"
         await _safe_edit(
             q,
-            "<b>⚙️ Customize — Step 1/5</b>\n\n"
-            "Enter custom capital percentage (1–100):",
-            parse_mode=ParseMode.HTML,
+            "*⚙️ Customize — Step 1/5*\n\n"
+            "Enter custom capital percentage \\(1–100\\):",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return _CAP
     try:
@@ -204,9 +204,9 @@ async def tp_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         ctx.user_data[_AWAITING_CUSTOM] = "tp"
         await _safe_edit(
             q,
-            "<b>⚙️ Customize — Step 2/5</b>\n\n"
-            "Enter custom take profit % (e.g. 25):",
-            parse_mode=ParseMode.HTML,
+            "*⚙️ Customize — Step 2/5*\n\n"
+            "Enter custom take profit % \\(e\\.g\\. 25\\):",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return _TP
     try:
@@ -227,9 +227,9 @@ async def sl_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
         ctx.user_data[_AWAITING_CUSTOM] = "sl"
         await _safe_edit(
             q,
-            "<b>⚙️ Customize — Step 3/5</b>\n\n"
-            "Enter custom stop loss % (e.g. 12):",
-            parse_mode=ParseMode.HTML,
+            "*⚙️ Customize — Step 3/5*\n\n"
+            "Enter custom stop loss % \\(e\\.g\\. 12\\):",
+            parse_mode=ParseMode.MARKDOWN_V2,
         )
         return _SL
     try:
@@ -322,7 +322,7 @@ async def _text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
             raise ValueError
     except ValueError:
         await update.message.reply_text(
-            "Please enter a positive number.", parse_mode=ParseMode.HTML,
+            "Please enter a positive number\\.", parse_mode=ParseMode.MARKDOWN_V2,
         )
         return _CAP if field == "cap" else (_TP if field == "tp" else _SL)
 

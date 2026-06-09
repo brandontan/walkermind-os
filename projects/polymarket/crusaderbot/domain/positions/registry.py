@@ -20,6 +20,7 @@ Contract (R12c):
 from __future__ import annotations
 
 import enum
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime
@@ -45,6 +46,8 @@ class ExitReason(str, enum.Enum):
     SL_HIT = "sl_hit"
     STRATEGY_EXIT = "strategy_exit"
     RESOLUTION = "resolution"
+    RESOLUTION_WIN = "resolution_win"
+    RESOLUTION_LOSS = "resolution_loss"
     FORCE_CLOSE = "force_close"
     CLOSE_FAILED = "close_failed"
     MARKET_EXPIRED = "market_expired"
@@ -61,6 +64,11 @@ WATCHER_EXIT_REASONS: frozenset[str] = frozenset({
     ExitReason.FORCE_CLOSE.value,
     ExitReason.MARKET_EXPIRED.value,
     ExitReason.HORIZON_EXCEEDED.value,
+    # Emitted when the live mark has gapped to a resolution extreme (≈0/≈1)
+    # at the moment a TP/SL threshold is crossed — the close is a market
+    # resolution, not a clean TP/SL trigger, and is labelled honestly.
+    ExitReason.RESOLUTION_WIN.value,
+    ExitReason.RESOLUTION_LOSS.value,
 })
 
 
@@ -98,6 +106,23 @@ class OpenPositionForExit:
     # Owning strategy name; drives the per-strategy exit hook dispatch in the
     # exit watcher (e.g. late_entry_v3 flip-stop). None when unattributed.
     strategy_type: Optional[str] = None
+    # CLOB token IDs for direct /midpoint queries — avoids a Gamma round-trip
+    # in the exit watcher. None when the market row predates this column.
+    yes_token_id: Optional[str] = None
+    no_token_id: Optional[str] = None
+    # Owning user's active preset + selected timeframe at the time the watcher
+    # took the snapshot. Used by the late_entry_v3 exit hook to look up the
+    # Kreo-style fixed-time exit threshold (preset, timeframe) → rem_sec.
+    # Defaults keep older callers that hand-construct OpenPositionForExit (and
+    # any code path that joined the snapshot before this column existed) working.
+    active_preset: Optional[str] = None
+    selected_timeframe: Optional[str] = None
+    # Opaque per-strategy snapshot persisted at entry (weather: city, bucket
+    # bounds, entry forecast mean, high-water price). Replayed into the strategy
+    # exit hook so exits like the weather trailing-stop + adaptive forecast-shift
+    # have their data. None when the position carries no metadata or predates
+    # migration 076.
+    strategy_metadata: Optional[dict] = None
 
     def to_router_dict(self) -> dict[str, Any]:
         """Build the payload shape ``router.close`` expects.
@@ -129,6 +154,101 @@ class OpenPositionForExit:
         return float(self.entry_price)
 
 
+# Shared SELECT column list for the open-position-for-exit query. Kept in one
+# place so the global watcher and the scoped candle loop map identical rows.
+_OPEN_FOR_EXIT_COLS = """
+            SELECT p.id, p.user_id, p.market_id, p.side,
+                   p.entry_price, p.size_usdc, p.mode, p.status,
+                   p.applied_tp_pct, p.applied_sl_pct,
+                   p.force_close_intent, p.close_failure_count,
+                   p.strategy_type, p.strategy_metadata,
+                   m.question AS market_question,
+                   m.yes_price, m.no_price, m.resolved AS market_resolved,
+                   m.resolution_at, m.yes_token_id, m.no_token_id,
+                   COALESCE(s.risk_profile, 'balanced') AS risk_profile,
+                   s.active_preset, s.selected_timeframe,
+                   u.telegram_user_id
+              FROM positions p
+              JOIN markets m ON m.id = p.market_id
+              JOIN users u ON u.id = p.user_id
+              LEFT JOIN user_settings s ON s.user_id = p.user_id
+"""
+
+# Candle presets whose positions the fast exit loop (CLOSE_SWEEP_EXIT_INTERVAL
+# ≈5s) is scoped to. These are the short-TTL 5-minute crypto markets where the
+# price can gap past the SL between two 30s exit_watch ticks, so they need the
+# tight near-resolution poll cadence.
+#
+# WARP-93 (Issue 1): ``candle_auto`` (Smart Strike — the auto-router preset)
+# MUST be in this set. It was previously omitted, so candle_auto positions only
+# got the 30s watcher; a position entered <90s before a 5m candle's expiry could
+# gap straight through its SL threshold to resolution before the next 30s tick
+# and close as ``resolution_loss`` (~-100%) instead of ``sl_hit`` (~-50%).
+# Adding it here routes candle_auto positions into the existing 5s fast loop near
+# resolution so the SL crossing is caught within ~5s. This is the fast-exit
+# *scoping* set ONLY — distinct from ``signal_scan_job._CANDLE_PRESETS`` (the
+# single-rule param-dispatch set, which must NOT include candle_auto).
+_CANDLE_PRESETS = ("close_sweep", "safe_close", "flip_hunter", "candle_auto")
+
+
+def _loads_jsonb(raw: Any) -> Optional[dict]:
+    """Coerce a JSONB column value to a dict (or None).
+
+    asyncpg has no pool-level JSONB codec, so a JSONB column comes back as a
+    ``str`` — decode it. A dict (codec configured, or a hand-built test row)
+    passes through. Anything else, or a malformed payload, returns None rather
+    than poisoning the exit-watcher tick (zero silent crash; the malformed case
+    is logged).
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, (str, bytes, bytearray)):
+        try:
+            parsed = json.loads(raw)
+        except (ValueError, TypeError) as exc:
+            logger.warning("strategy_metadata JSONB decode failed: %s", exc)
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
+
+def _row_to_open_position(r) -> OpenPositionForExit:
+    """Map a DB row (from the _OPEN_FOR_EXIT_COLS query) to the dataclass."""
+    return OpenPositionForExit(
+        id=r["id"],
+        user_id=r["user_id"],
+        telegram_user_id=int(r["telegram_user_id"]),
+        market_id=r["market_id"],
+        market_question=r["market_question"],
+        side=r["side"],
+        entry_price=float(r["entry_price"]),
+        size_usdc=float(r["size_usdc"]),
+        mode=r["mode"],
+        status=r["status"],
+        applied_tp_pct=(float(r["applied_tp_pct"])
+                        if r["applied_tp_pct"] is not None else None),
+        applied_sl_pct=(float(r["applied_sl_pct"])
+                        if r["applied_sl_pct"] is not None else None),
+        force_close_intent=bool(r["force_close_intent"]),
+        close_failure_count=int(r["close_failure_count"] or 0),
+        yes_price=(float(r["yes_price"])
+                   if r["yes_price"] is not None else None),
+        no_price=(float(r["no_price"])
+                  if r["no_price"] is not None else None),
+        market_resolved=bool(r["market_resolved"]),
+        resolution_at=r["resolution_at"],
+        risk_profile=str(r["risk_profile"] or "balanced"),
+        strategy_type=(str(r["strategy_type"]) if r["strategy_type"] else None),
+        yes_token_id=(str(r["yes_token_id"]) if r["yes_token_id"] else None),
+        no_token_id=(str(r["no_token_id"]) if r["no_token_id"] else None),
+        active_preset=(str(r["active_preset"]) if r["active_preset"] else None),
+        selected_timeframe=(str(r["selected_timeframe"]) if r["selected_timeframe"] else None),
+        strategy_metadata=_loads_jsonb(r.get("strategy_metadata")),
+    )
+
+
 async def list_open_for_exit() -> list[OpenPositionForExit]:
     """Fetch every open position joined with its market + telegram user.
 
@@ -139,54 +259,35 @@ async def list_open_for_exit() -> list[OpenPositionForExit]:
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """
-            SELECT p.id, p.user_id, p.market_id, p.side,
-                   p.entry_price, p.size_usdc, p.mode, p.status,
-                   p.applied_tp_pct, p.applied_sl_pct,
-                   p.force_close_intent, p.close_failure_count,
-                   p.strategy_type,
-                   m.question AS market_question,
-                   m.yes_price, m.no_price, m.resolved AS market_resolved,
-                   m.resolution_at,
-                   COALESCE(s.risk_profile, 'balanced') AS risk_profile,
-                   u.telegram_user_id
-              FROM positions p
-              JOIN markets m ON m.id = p.market_id
-              JOIN users u ON u.id = p.user_id
-              LEFT JOIN user_settings s ON s.user_id = p.user_id
-             WHERE p.status = 'open'
+            _OPEN_FOR_EXIT_COLS
+            + "             WHERE p.status = 'open'\n               AND m.resolved = FALSE\n"
+        )
+    return [_row_to_open_position(r) for r in rows]
+
+
+async def list_open_candle_positions_for_exit(
+    near_seconds: int = 90,
+) -> list[OpenPositionForExit]:
+    """Open candle-preset positions within ``near_seconds`` of resolution.
+
+    Scoped for the dedicated fast exit loop so it only re-prices the handful of
+    positions actually near their candle close — keeping per-tick CLOB calls
+    tiny. Same row mapping as ``list_open_for_exit``; resolved markets excluded.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            _OPEN_FOR_EXIT_COLS
+            + """             WHERE p.status = 'open'
                AND m.resolved = FALSE
-            """
+               AND s.active_preset = ANY($1::text[])
+               AND m.resolution_at IS NOT NULL
+               AND m.resolution_at <= NOW() + make_interval(secs => $2)
+""",
+            list(_CANDLE_PRESETS),
+            int(near_seconds),
         )
-    return [
-        OpenPositionForExit(
-            id=r["id"],
-            user_id=r["user_id"],
-            telegram_user_id=int(r["telegram_user_id"]),
-            market_id=r["market_id"],
-            market_question=r["market_question"],
-            side=r["side"],
-            entry_price=float(r["entry_price"]),
-            size_usdc=float(r["size_usdc"]),
-            mode=r["mode"],
-            status=r["status"],
-            applied_tp_pct=(float(r["applied_tp_pct"])
-                            if r["applied_tp_pct"] is not None else None),
-            applied_sl_pct=(float(r["applied_sl_pct"])
-                            if r["applied_sl_pct"] is not None else None),
-            force_close_intent=bool(r["force_close_intent"]),
-            close_failure_count=int(r["close_failure_count"] or 0),
-            yes_price=(float(r["yes_price"])
-                       if r["yes_price"] is not None else None),
-            no_price=(float(r["no_price"])
-                      if r["no_price"] is not None else None),
-            market_resolved=bool(r["market_resolved"]),
-            resolution_at=r["resolution_at"],
-            risk_profile=str(r["risk_profile"] or "balanced"),
-            strategy_type=(str(r["strategy_type"]) if r["strategy_type"] else None),
-        )
-        for r in rows
-    ]
+    return [_row_to_open_position(r) for r in rows]
 
 
 async def list_open_on_resolved_markets() -> list[OpenPositionForExit]:
@@ -347,6 +448,48 @@ async def update_current_price(
                 "WHERE id = $2 AND user_id = $3",
                 price, position_id, user_id,
             )
+
+
+async def bump_high_water_price(
+    position_id: UUID,
+    user_id: UUID,
+    price: float,
+) -> None:
+    """Persist a new peak mark into ``positions.strategy_metadata.high_water_price``.
+
+    The weather strategy's Exit 2 (trailing-stop breakeven) reads this value
+    back on the next watcher tick to decide whether a position that once ran
+    +20% above entry has since fallen back below breakeven.
+
+    Single atomic statement: a JSONB merge that ONLY raises the stored
+    high-water, never lowers it. The ``$1 > COALESCE(stored, 0)`` guard means:
+      * the write is a no-op on a falling / flat market (zero wasted writes),
+      * concurrent ticks cannot race a lower value over a higher one,
+      * a NULL ``strategy_metadata`` (non-weather legacy rows) is seeded with a
+        fresh object via ``COALESCE(..., '{}'::jsonb)``.
+
+    Existing metadata keys (city / bucket bounds / entry mean) are preserved —
+    the ``||`` operator merges, replacing only the ``high_water_price`` key.
+
+    Degenerate prices (None / <= 0) are ignored: a 0-or-below mark is never a
+    valid peak and must not seed the trailing stop.
+    """
+    if price is None or price <= 0.0:
+        return
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE positions
+               SET strategy_metadata =
+                     COALESCE(strategy_metadata, '{}'::jsonb)
+                     || jsonb_build_object('high_water_price', $1::float8)
+             WHERE id = $2 AND user_id = $3
+               AND $1::float8 > COALESCE(
+                     (strategy_metadata ->> 'high_water_price')::float8, 0.0)
+            """,
+            float(price), position_id, user_id,
+        )
 
 
 async def record_close_failure(position_id: UUID, user_id: UUID) -> int:

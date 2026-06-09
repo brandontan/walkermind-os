@@ -32,6 +32,7 @@ from uuid import UUID
 from .. import notifications
 from ..database import get_pool
 from ..users import user_notifications_enabled
+from ..webtrader.backend import notification_prefs as _notif_prefs
 
 logger = logging.getLogger(__name__)
 
@@ -293,6 +294,22 @@ async def run_once() -> dict:
                 skipped_no_telegram += 1
                 continue
             text = await build_summary_for_user(user_id, date_label)
+            try:
+                send_tg = await _notif_prefs.route_outgoing_alert(
+                    telegram_user_id=int(tg_id),
+                    alert_key="daily_report",
+                    web_title="Daily P&L summary",
+                    web_body=text,
+                    severity="info",
+                )
+            except Exception:
+                send_tg = True
+            if not send_tg:
+                # User opted out of TG for daily_report — web mirror already
+                # written by route_outgoing_alert (if web pref ON). Don't
+                # count it as a failure.
+                skipped_disabled += 1
+                continue
             ok = await notifications.send(int(tg_id), text)
             if ok:
                 sent += 1

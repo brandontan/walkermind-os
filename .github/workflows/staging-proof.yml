@@ -1,0 +1,236 @@
+name: WARP-74 Staging Proof (live broker)
+
+# Manual, mobile-triggerable live-broker reconcile proof for WARP-74 Lane 2.
+#
+# Runs the merged staging harness
+#   projects/polymarket/crusaderbot/tests/staging/test_live_reconcile_staging.py
+# against the REAL Polymarket CLOB directly from the GitHub runner, using an
+# ISOLATED THROWAWAY wallet supplied via GitHub Secrets. The DB side of every
+# case is an in-memory recording fake — no Supabase (prod or otherwise) is ever
+# touched. Only the broker is real. No Fly app is required for the proof.
+#
+# GEOBLOCK (IMPORTANT): Polymarket enforces a server-side regional geoblock on
+# ORDER placement. GitHub-HOSTED runners sit in a blocked region, so the
+# order-placing cases (1-4) get a 403 "Trading restricted in your region" there.
+# Run those on a SELF-HOSTED runner on a machine in an allowed region by setting
+# the `runner: self-hosted` dispatch input — see docs/runbooks/warp74-staging-proof.md
+# (§ Self-hosted runner). case5 places NO real orders and runs anywhere.
+#
+# SAFETY (see docs/runbooks/warp74-staging-proof.md):
+#   * workflow_dispatch only — triggering needs repo write access.
+#   * `allow_fills` defaults FALSE. A default run only places tiny resting orders
+#     far below market that never fill and are cancelled on teardown, so it
+#     spends ~no USDC. Set `allow_fills=true` ONLY when you intend to burn real
+#     USDC on the finalize-once fill case.
+#   * Concurrency-locked (cancel-in-progress: false) so two runs can never place
+#     live orders at the same time, and a running proof finishes its own
+#     teardown rather than being cancelled mid-order.
+#   * References ONLY STAGING_* secrets — never point them at the prod wallet.
+#     Prod keeps USE_REAL_CLOB=False; this workflow never deploys or mutates it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      case:
+        description: "Acceptance case to run (one at a time for clean evidence)"
+        type: choice
+        default: all
+        options:
+          - all
+          - case3   # kill switch broker cancel-all (headline proof)
+          - case2   # unknown-order reconcile (adopt / mismatch / halt)
+          - case1   # crash mid-close (rollback / page-no-id / finalize)
+          - case4   # broker<->DB drift detector
+          - case5   # infra-degraded -> paper fallback
+      allow_fills:
+        description: "Enable the finalize fill sub-case (SPENDS REAL USDC)"
+        type: boolean
+        default: false
+      signature_type:
+        description: "Staging wallet signature type (0=EOA, 1=POLY_PROXY, 2=GNOSIS_SAFE)"
+        type: choice
+        default: '2'
+        options: ['0', '1', '2']
+      neg_risk:
+        description: "Set true ONLY if the staging market is neg-risk"
+        type: boolean
+        default: false
+      runner:
+        description: "Where to run. github-hosted is Polymarket-geoblocked for ORDER placement (cases 1-4) -> use self-hosted in an allowed region for those. case5 runs anywhere."
+        type: choice
+        default: github-hosted
+        options:
+          - github-hosted
+          - self-hosted
+
+permissions:
+  contents: read
+
+# One staging proof at a time — never place live orders concurrently, and let a
+# running proof complete its own order teardown instead of being cancelled.
+concurrency:
+  group: staging-proof
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  staging-proof:
+    name: Live-broker reconcile proof
+    # github-hosted (ubuntu-latest) is geoblocked by Polymarket for order
+    # placement; pick `runner: self-hosted` to run the order-placing cases from
+    # a machine you register in an allowed region (the `self-hosted` label is
+    # applied to every self-hosted runner automatically).
+    runs-on: ${{ inputs.runner == 'self-hosted' && 'self-hosted' || 'ubuntu-latest' }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: projects/polymarket/crusaderbot
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install test tooling
+        # Retry so a transient PyPI hiccup on a cold runner does not red-flag the
+        # run. pytest-asyncio is also pulled via pyproject below; installing it
+        # here too guarantees the async markers resolve.
+        run: |
+          python -m pip install --upgrade pip
+          n=0
+          until python -m pip install --retries 5 --timeout 60 pytest pytest-asyncio cffi; do
+            n=$((n + 1))
+            if [ "$n" -ge 3 ]; then
+              echo "tooling install failed after $n attempts" >&2
+              exit 1
+            fi
+            echo "tooling install attempt $n failed; retrying in $((n * 5))s" >&2
+            sleep $((n * 5))
+          done
+
+      - name: Install runtime dependencies (from pyproject.toml)
+        # Same install path as crusaderbot-ci.yml: read deps straight from
+        # pyproject so the proof environment matches the project. The harness
+        # imports the real CLOB integration + notifications, which transitively
+        # need web3 / cryptography / python-telegram-bot, so the full stack is
+        # required (it is also why a dep-less shell errors at collection).
+        run: |
+          python - <<'PY'
+          import subprocess, sys, time, tomllib
+          with open("pyproject.toml", "rb") as f:
+              deps = tomllib.load(f)["project"]["dependencies"]
+          cmd = [
+              sys.executable, "-m", "pip", "install", "--ignore-installed",
+              "--retries", "5", "--timeout", "60", *deps,
+          ]
+          for attempt in range(1, 4):
+              if subprocess.run(cmd).returncode == 0:
+                  break
+              print(f"runtime dep install attempt {attempt} failed", file=sys.stderr, flush=True)
+              if attempt == 3:
+                  sys.exit(1)
+              time.sleep(attempt * 5)
+          PY
+
+      - name: Ensure cffi C extension is present
+        # --ignore-installed above may swap in a cffi wheel lacking the compiled
+        # _cffi_backend extension (needed by cryptography via python-telegram-bot).
+        run: pip install --force-reinstall --no-cache-dir cffi
+
+      - name: Run staging proof
+        id: proof
+        env:
+          # Required — isolated THROWAWAY wallet. NEVER the prod trading wallet.
+          STAGING_WALLET_KEY: ${{ secrets.STAGING_WALLET_KEY }}
+          # Staging market coordinates. If unset, broker cases skip cleanly
+          # (empty string is falsy -> the harness _need_market() skips, no crash).
+          STAGING_TOKEN_ID: ${{ secrets.STAGING_TOKEN_ID }}
+          STAGING_MARKET_ID: ${{ secrets.STAGING_MARKET_ID }}
+          STAGING_NO_TOKEN_ID: ${{ secrets.STAGING_NO_TOKEN_ID }}
+          STAGING_FUNDER_ADDRESS: ${{ secrets.STAGING_FUNDER_ADDRESS }}
+          # L2 API creds — auto-derived from the key at runtime if left unset.
+          STAGING_POLYMARKET_API_KEY: ${{ secrets.STAGING_POLYMARKET_API_KEY }}
+          STAGING_POLYMARKET_API_SECRET: ${{ secrets.STAGING_POLYMARKET_API_SECRET }}
+          STAGING_POLYMARKET_API_PASSPHRASE: ${{ secrets.STAGING_POLYMARKET_API_PASSPHRASE }}
+          # Only used by the fill-gated finalize-once case.
+          STAGING_FILLED_CLOSE_ID: ${{ secrets.STAGING_FILLED_CLOSE_ID }}
+          # From the dispatch form — always a valid value, never empty, so the
+          # harness int()/bool parsing can never crash on an empty string.
+          STAGING_SIGNATURE_TYPE: ${{ inputs.signature_type }}
+          STAGING_NEG_RISK: ${{ inputs.neg_risk && 'true' || 'false' }}
+          STAGING_ALLOW_FILLS: ${{ inputs.allow_fills && '1' || '0' }}
+          CASE: ${{ inputs.case }}
+          # --- Inert app config so the full Settings() model validates on a bare
+          #     runner. The harness builds the staging settings via
+          #     get_settings().model_copy(...), which instantiates the whole
+          #     prod Settings first; these 6 fields are required and have no
+          #     defaults. NONE are exercised by the proof: the DB is the
+          #     in-memory recording fake (never connects), notify_operator is
+          #     monkeypatched (no Bot built), and the staging CLOB client uses
+          #     POLYMARKET_PRIVATE_KEY (not the HD wallet). They exist only to
+          #     satisfy pydantic-settings. Override POLYGON_RPC_URL via secret
+          #     if you want your own endpoint.
+          TELEGRAM_BOT_TOKEN: "0:staging-proof-unused"
+          OPERATOR_CHAT_ID: "0"
+          DATABASE_URL: "postgresql://staging:staging@localhost:5432/staging_proof_fake"
+          POLYGON_RPC_URL: ${{ secrets.STAGING_POLYGON_RPC_URL || 'https://polygon-rpc.com' }}
+          WALLET_HD_SEED: "staging proof hd seed placeholder unused"
+          WALLET_ENCRYPTION_KEY: "WpM238hakouxf5pD_ekYTwFZc_V9BQY1AEnj3BAiYxc="
+        run: |
+          set -o pipefail
+          if [ -z "$STAGING_WALLET_KEY" ]; then
+            echo "::error::STAGING_WALLET_KEY is not set — every case would skip. Add the throwaway wallet key in repo Settings -> Secrets and Variables -> Actions, then re-run." >&2
+            exit 1
+          fi
+          ARGS="tests/staging/test_live_reconcile_staging.py -v --tb=short --junitxml=staging-proof-junit.xml"
+          if [ "$CASE" != "all" ]; then
+            ARGS="$ARGS -k $CASE"
+          fi
+          echo "pytest $ARGS"
+          echo "allow_fills (real USDC) = $STAGING_ALLOW_FILLS  | signature_type = $STAGING_SIGNATURE_TYPE  | neg_risk = $STAGING_NEG_RISK"
+          pytest $ARGS 2>&1 | tee staging-proof-output.txt
+
+      - name: Job summary (mobile-friendly)
+        if: always()
+        run: |
+          {
+            echo "## WARP-74 Staging Proof — result"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Case | \`${{ inputs.case }}\` |"
+            echo "| Fills enabled (real USDC) | \`${{ inputs.allow_fills }}\` |"
+            echo "| Signature type | \`${{ inputs.signature_type }}\` |"
+            echo "| Neg-risk market | \`${{ inputs.neg_risk }}\` |"
+            echo "| Outcome | **${{ steps.proof.outcome }}** |"
+            echo ""
+            echo "<details><summary>Last 30 lines of pytest output</summary>"
+            echo ""
+            echo '```'
+            tail -n 30 staging-proof-output.txt 2>/dev/null || echo "(no output captured — install step may have failed)"
+            echo '```'
+            echo ""
+            echo "</details>"
+            echo ""
+            echo "Full output + JUnit XML are attached as the **staging-proof** artifact. After a Case 3 run, also confirm the wallet shows zero open orders on polymarket.com (runbook §4)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload proof artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-proof-${{ github.run_id }}
+          # upload-artifact does not honour the job working-directory — use full paths.
+          path: |
+            projects/polymarket/crusaderbot/staging-proof-output.txt
+            projects/polymarket/crusaderbot/staging-proof-junit.xml
+          if-no-files-found: warn
+          retention-days: 30

@@ -44,11 +44,10 @@ INSIGHTS    = "insights"      # PnL insights
 CHART       = "chart"         # portfolio chart
 
 # ── Risk tier grouping (for preset picker progressive disclosure) ─
+# Only contains presets in VISIBLE_PRESET_ORDER. Hidden presets must not
+# appear here — showing a tier button that leads to an empty list confuses users.
 RISK_TIERS = {
-    "🟢 Safe":       ["whale_mirror", "signal_sniper", "pair_arb"],
-    "🟡 Balanced":   ["hybrid", "trend_breakout", "contrarian"],
-    "🟡 Advanced":   ["value_hunter", "close_sweep", "ensemble", "confluence_scalper"],
-    "🔴 Aggressive": ["full_auto"],
+    "🟢 Safe": ["close_sweep"],
 }
 
 # ── Standard emoji tokens ────────────────────────────────────────

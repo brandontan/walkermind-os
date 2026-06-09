@@ -1,11 +1,104 @@
 # CrusaderBot — Multi-User Auto-Trade Blueprint v3
 
-**Status:** v3.3 LOCKED — CrusaderBot auto-trade pivot target architecture
-**Version:** 3.3
-**Last Updated:** 2026-05-23 17:00 Asia/Jakarta
+**Status:** v3.4 LOCKED — CrusaderBot auto-trade pivot target architecture
+**Version:** 3.4
+**Last Updated:** 2026-05-28 21:00 Asia/Jakarta
 **Owner:** Bayue Walker (Mr. Walker)
 **Project Path (target):** `projects/polymarket/crusaderbot/`
 **Authority:** This blueprint is target architecture intent. Code truth defines current reality. AGENTS.md remains highest authority.
+
+---
+
+## 0.0 POSTURE RECONCILIATION (2026-05-31 — WARP/ROOT/prelaunch-system-audit)
+
+> **This banner is the current code-truth posture and supersedes any conflicting
+> framing in the historical body below (preserved per flag-don't-rewrite; stale
+> spots are marked inline).**
+>
+> - **Access control = RBAC only.** Two roles in code: `admin` / `user` (default
+>   `user`). NO tier model — `access_tier` was dropped (migration 044). Any
+>   Tier 1–4 / closed-beta / allowlist / owner-gate framing below is STALE
+>   functional-intent, not runtime behaviour; reconcile to `users.role`.
+> - **Launch posture = public PAPER**, not closed beta. LIVE stays OFF behind the
+>   activation guards until an explicit owner flip after paper validation.
+> - **Canonical presets = 3 ONLY:** `close_sweep`, `safe_close`, `flip_hunter`,
+>   all routing to the `late_entry_v3` strategy engine (`domain/preset/presets.py`).
+>   (The registered strategies are `late_entry_v3`, `signal_following`,
+>   `copy_trade`; only `late_entry_v3` is reachable by a canonical preset.) The
+>   legacy multi-strategy roster (whale_mirror, signal_sniper, hybrid,
+>   value_hunter, trend_breakout, contrarian, full_auto, confluence_scalper,
+>   pair_arb, ensemble, "Momentum Reversal") was REMOVED in
+>   WARP/R00T/strategy-system-cleanup — the strategy/preset tables below are
+>   historical. Copy Trade remains a separate gate-coupled path.
+> - **Tradeable assets = BTC / ETH / SOL.** BNB/XRP/DOGE/HYPE are monitor-only.
+
+---
+
+## 0. LIVE+PAPER Readiness Pass (v3.4, 2026-05-28)
+
+The WARP•R00T LIVE+PAPER readiness pass is **COMPLETE + DEPLOYED**. Engineering is LIVE-ready; production posture remains PAPER ONLY until the owner flips the activation guards. The blueprint sections below describe target architecture intent — every safety rail referenced is wired in code as of this revision.
+
+### Activation guards (all default `false`, forced `false` in `fly.toml`)
+
+Five activation guards gate the LIVE path. All default `false` in `config.py`; `fly.toml` re-asserts them as `false` so a deploy can never accidentally flip the posture. A LIVE flip requires the 8-gate `live_checklist.evaluate()` + a typed `CONFIRM` token + the defense-in-depth re-check inside `domain/execution/live.py:assert_live_guards()`.
+
+| Guard | Meaning |
+|---|---|
+| `ENABLE_LIVE_TRADING` | Master switch — must be `true` for any live order to leave the router |
+| `EXECUTION_PATH_VALIDATED` | SENTINEL has audited the live execution path post-deploy |
+| `CAPITAL_MODE_CONFIRMED` | Owner has explicitly confirmed the USDC cohort cap |
+| `RISK_CONTROLS_VALIDATED` | `audit_risk_constants()` passed clean against the target env |
+| `SECURITY_HARDENING_VALIDATED` | Public-ready hardening (H1/H2/H3/M1/M3) verified in target env |
+
+### Paper-default invariant (Lane 2 hardening, #1410)
+
+New users land on `trading_mode='paper'` via **both** the schema column default (`migrations/001_init.sql:73`) **and** an explicit `INSERT` in every production write site. There are three new-user creation paths, all hardened:
+
+1. `users.upsert_user()` (Telegram new-user path) — explicit `INSERT INTO user_settings (user_id, trading_mode) VALUES ($1, 'paper') ON CONFLICT (user_id) DO NOTHING`
+2. `users.get_settings_for()` (lazy-create path) — same explicit INSERT
+3. `webtrader/backend/auth.py:signup_email()` (web signup parity) — same explicit INSERT, inside the same transaction as the user row
+
+The pre-existing silent `except Exception: pass` in webtrader signup's `_bootstrap_new_user` call has been replaced with `logger.exception(...)`. A hermetic regression suite (`tests/test_paper_default_invariant.py`, 5 tests) pins the invariant at INSERT-call-shape **and** source-regex layers; any future edit that drops the literal `'paper'` from a `user_settings` INSERT will fail closed.
+
+### Router + execution audit chain
+
+`domain/execution/router.py` calls `assert_live_guards()` before any live engine call. The guard chain checks **8 conditions** (`ENABLE_LIVE_TRADING`, `EXECUTION_PATH_VALIDATED`, `CAPITAL_MODE_CONFIRMED`, `RISK_CONTROLS_VALIDATED`, `USE_REAL_CLOB`, `role=='admin'`, `trading_mode=='live'`, plus the `live_checklist.evaluate()` confirmation token). Any failure logs `GUARD_BYPASS_ATTEMPT` at CRITICAL with full context, writes to the audit log, and falls back to paper execution. There is no silent failure mode — the route is either live (all 8 conditions pass) or paper (everything else).
+
+`domain/execution/live.py:assert_live_guards()` provides defense-in-depth: even if the router were bypassed and `live.execute()` called directly, the same 8 conditions are re-checked before any CLOB submission. Slippage is fenced separately: `SLIPPAGE_GUARD_PCT = 0.05` rejects any pre-submission price drift > 5%.
+
+### On-chain capital paths — all merged + SENTINEL-approved + guarded OFF
+
+| Path | PR | Gate | SENTINEL |
+|---|---|---|---|
+| **Withdrawal exit** — `transfer_usdc()` signs USDC out of master hot-pool | #1402 | `EXECUTION_PATH_VALIDATED` | 94/100 |
+| **Deposit sweep** — `sweep_usdc_to_master()` consolidates per-user EOA deposits with master-funded MATIC top-up | #1403 | `EXECUTION_PATH_VALIDATED` + `SWEEP_ONCHAIN_ENABLED` | 94/100 |
+| **Safe-proxy custody (gasless)** — `SafeCustody` routes through Polymarket Builder relayer | #1408 | `EXECUTION_PATH_VALIDATED` + `CUSTODY_MODE='safe'` + `is_relayer_configured()` | 94/100 |
+
+There are no remaining `NotImplementedError` / stub gaps in the trading, risk, execution, redeem, withdraw, or sweep paths. The only TODO outside this scope is `lib/strategies/weather_arb.py` (experimental, non-core). Default `CUSTODY_MODE='eoa'` keeps every call on the merged EOA paths — PAPER routing is unchanged.
+
+### Kill switch (3 convergent paths)
+
+All three paths converge on `domain/risk/kill_switch_exec.py:execute_kill_switch()`:
+
+1. Telegram `/emergency` → `execute_kill_switch(triggered_by="telegram_operator")`
+2. DB flag direct set → `system_settings.kill_switch_active=true` → gate step 1 rejects
+3. Env var → `KILL_SWITCH=true` → startup check fires `execute_kill_switch(triggered_by="env_KILL_SWITCH")`
+
+All three (a) halt new order creation, (b) log activation with timestamp + actor to audit_log, (c) do **not** auto-close existing positions. Unit tests pin all three paths.
+
+### Final go-live sequence (owner-only — guards stay OFF until then)
+
+Every remaining step is operational, not code:
+
+1. Fund the master wallet: USDC (withdrawals + trading) + MATIC (gas + sweep top-ups).
+2. Apply pending production migrations (incl. `060_withdrawals_onchain`).
+3. Set `RISK_CONTROLS_VALIDATED=true` after `audit_risk_constants()` passes clean in prod.
+4. Set `EXECUTION_PATH_VALIDATED=true`, then `CAPITAL_MODE_CONFIRMED=true`, then `ENABLE_LIVE_TRADING=true` (in that order).
+5. Enable `SWEEP_ONCHAIN_ENABLED=true` for a small cohort first; watch the `deposit_sweep_onchain` audit trail + on-chain confirmations before broadening.
+6. Keep `withdrawal_approval_mode='manual'` for the first live cohort.
+7. Staged rollout + observation at each step. Kill switch (`/emergency`) is the immediate halt.
+
+See `projects/polymarket/crusaderbot/state/LIVE_READINESS.md` for the authoritative source.
 
 ---
 
@@ -31,7 +124,7 @@ CrusaderBot is a **multi-user, autonomous trading service for Polymarket**, cont
 - Exit: user-overridable via TP/SL setting; otherwise strategy default; otherwise hold-to-resolve
 - Force-close: emergency override available per-position
 
-### Access Tiers
+### Access Tiers — ⚠️ STALE framing (see §0.0): code truth = RBAC `admin`/`user`, no tiers
 
 > **Implementation note (v3.2):** The `access_tier` column (Tier 1–4) was dropped in migration 044 (WARP-51). The running system uses `users.role` (RBAC) as the access control mechanism. The tier descriptions below represent functional intent; the code truth is role-based.
 
@@ -191,7 +284,7 @@ class BaseStrategy:
     def default_tp_sl(self) -> tuple[float, float]
 ```
 
-### Strategies (launch order)
+### Strategies (launch order) — ⚠️ STALE roster (see §0.0): code truth = 3 presets via late_entry_v3
 
 #### Domain strategies (registered in `domain/strategy/registry.py`)
 
@@ -216,6 +309,10 @@ class BaseStrategy:
 | `sentiment` / `logic_arb` / `market_making` / `weather_arb` | 🔲 | — | Present in lib, not in ENABLED_STRATEGIES |
 
 #### Presets (user-facing, `bot/presets.py`)
+
+> ⚠️ **STALE** — superseded by `domain/preset/presets.py` (3 presets only:
+> `close_sweep` / `safe_close` / `flip_hunter`, all → `late_entry_v3`). The
+> table below is historical record (see §0.0).
 
 | Preset key | Name | Strategy backing | Risk label |
 |---|---|---|---|
@@ -304,7 +401,9 @@ State-aware labels (`keyboards/__init__.py → main_menu_keyboard()`):
 KELLY_FRACTION = 0.25
 MAX_POSITION_PCT = 0.10
 MAX_CORRELATED_EXPOSURE = 0.40
-MAX_CONCURRENT_TRADES = 5
+# Max concurrent open positions is PER-USER (no global constant) — owner
+# directive 2026-06-03: effective_max_concurrent = user override, else profile
+# default (conservative 5 / balanced 12 / aggressive 20). No system ceiling.
 DAILY_LOSS_HARD_STOP = -2_000.0
 MAX_DRAWDOWN_HALT = 0.08
 MIN_LIQUIDITY = 10_000.0
@@ -327,7 +426,7 @@ PROFILE         | CONSERVATIVE   | BALANCED       | AGGRESSIVE     | CUSTOM
 ----------------|----------------|----------------|----------------|------------------
 Kelly fraction  | 0.10           | 0.20           | 0.25 (cap)     | 0.20 (floor)
 Max position %  | 3%             | 6%             | 10%            | 6% (floor)
-Max concurrent  | 3              | 5              | 5              | 5
+Max concurrent  | 5              | 12             | 20             | 12 (default; user-overridable, no global cap)
 Daily loss stop | -$200          | -$500          | -$1000         | -$500 (floor)
 Min edge req    | 4% (400bps)    | 3% (300bps)    | 2% (200bps)    | 3% (floor)
 Min liquidity   | $20k           | $15k           | $10k           | $15k (floor)
@@ -383,7 +482,7 @@ trade_intent
   ↓
 [11] dedup_check                 → idempotency key not seen in window
   ↓
-[12] concurrent_trade_check      → user has < 5 open
+[12] concurrent_trade_check      → user has < their per-user limit open (profile default or override; no global cap)
   ↓
 [13] cost_check                  → fees + slippage est ≤ expected_edge
   ↓

@@ -14,7 +14,6 @@ Returning users (onboarding_complete=True) skip directly to Dashboard.
 """
 from __future__ import annotations
 
-import html
 import logging
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -37,9 +36,7 @@ from ...services.referral.referral_service import (
     record_referral,
 )
 from ...users import (
-    set_auto_trade,
     set_onboarding_complete,
-    set_paused,
     update_settings,
     upsert_user,
 )
@@ -113,17 +110,50 @@ def _risk_kb() -> InlineKeyboardMarkup:
     ])
 
 
-def _preset_pick_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🐋 Whale Mirror",   callback_data="onboard:preset:whale_mirror")],
-        [InlineKeyboardButton("📡 Signal Sniper",  callback_data="onboard:preset:signal_sniper")],
-        [InlineKeyboardButton("🐋📡 Hybrid",       callback_data="onboard:preset:hybrid")],
-        [InlineKeyboardButton("🎯 Value Hunter",   callback_data="onboard:preset:value_hunter")],
-        [InlineKeyboardButton("📈 Trend Breakout", callback_data="onboard:preset:trend_breakout")],
-        [InlineKeyboardButton("🔄 Contrarian",     callback_data="onboard:preset:contrarian")],
-        [InlineKeyboardButton("🤖 Smart Mix",      callback_data="onboard:preset:ensemble")],
-        [InlineKeyboardButton("🚀 Full Auto",      callback_data="onboard:preset:full_auto")],
-    ])
+# Onboarding preset roster — single source of truth. Each tuple is
+# (label, callback_key, backing_strategy). When the operator toggles the
+# backing strategy OFF via /admin, the preset is hidden from new users so
+# they cannot pick a no-op preset (signal_scan_job._preset_allows would
+# block execution silently otherwise).
+_ONBOARD_PRESETS: tuple[tuple[str, str, str], ...] = (
+    ("🧹 Close Sweep ⭐", "close_sweep", "late_entry_v3"),
+    ("🔒 Safe Close",     "safe_close",  "late_entry_v3"),
+    ("🎯 Flip Hunter",    "flip_hunter", "late_entry_v3"),
+)
+
+
+async def _load_disabled_strategies_for_onboarding() -> frozenset[str]:
+    """Read the operator's global on/off set; FAIL-SAFE on DB error.
+
+    Mirrors bot.handlers.presets._load_disabled_strategies — a transient blip
+    must never silently empty the onboarding picker.
+    """
+    from ...database import get_pool
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT name FROM strategies WHERE enabled = FALSE"
+            )
+        return frozenset(str(r["name"]) for r in rows)
+    except Exception:
+        logger.exception("onboarding_preset_picker_disabled_lookup_failed")
+        return frozenset()
+
+
+def _preset_pick_kb(disabled: frozenset[str] | None = None) -> InlineKeyboardMarkup:
+    """Build the onboarding preset picker, hiding presets whose backing
+    strategy is globally disabled. ``disabled`` defaults to empty (FAIL-SAFE)
+    so the keyboard never silently empties on a DB blip."""
+    blocked = disabled or frozenset()
+    rows: list[list[InlineKeyboardButton]] = []
+    for label, key, strat in _ONBOARD_PRESETS:
+        if strat in blocked:
+            continue
+        rows.append([InlineKeyboardButton(
+            label, callback_data=f"onboard:preset:{key}",
+        )])
+    return InlineKeyboardMarkup(rows)
 
 
 def _review_kb() -> InlineKeyboardMarkup:
@@ -201,7 +231,7 @@ async def _entry(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     # Step 1 — Welcome
     await update.message.reply_text(
         onboard_welcome_text(),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_welcome_kb(),
     )
     return ONBOARD_WELCOME
@@ -217,7 +247,7 @@ async def _start_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     await q.edit_message_text(
         onboard_how_it_works_text(),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_how_it_works_kb(),
     )
     return ONBOARD_HOW_IT_WORKS
@@ -242,7 +272,7 @@ async def _how_next_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     await q.edit_message_text(
         onboard_wallet_text(address),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_wallet_kb(),
     )
     return ONBOARD_WALLET
@@ -272,7 +302,7 @@ async def _wallet_next_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int
 
     await q.edit_message_text(
         onboard_paper_credit_text(),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_paper_credit_kb(),
     )
     return ONBOARD_PAPER_CREDIT
@@ -288,7 +318,7 @@ async def _paper_credit_next_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) 
 
     await q.edit_message_text(
         onboard_risk_text(),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_risk_kb(),
     )
     return ONBOARD_RISK_PROFILE
@@ -305,10 +335,27 @@ async def _risk_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
     risk_profile = (q.data or "").split(":")[-1]
     ctx.user_data["onboard_risk"] = risk_profile
 
+    disabled = await _load_disabled_strategies_for_onboarding()
+    # Edge case: every onboarding preset shares the same backing strategy
+    # (late_entry_v3). If the operator has disabled it, the picker would
+    # render an empty keyboard and the new user would be stuck in
+    # ONBOARD_PRESET_PICK with no way to proceed. Show an informational
+    # message + a Cancel button so they can exit cleanly and retry later.
+    every_strategy_disabled = all(
+        strat in disabled for _, _, strat in _ONBOARD_PRESETS
+    )
+    if every_strategy_disabled:
+        await q.edit_message_text(
+            "⚠️ Auto trading is temporarily disabled by the admin.\n\n"
+            "Please try again later — when a strategy is re-enabled, send "
+            "/start to resume onboarding.",
+            reply_markup=None,
+        )
+        return ConversationHandler.END
     await q.edit_message_text(
         onboard_preset_pick_text(),
-        parse_mode=ParseMode.HTML,
-        reply_markup=_preset_pick_kb(),
+        parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=_preset_pick_kb(disabled),
     )
     return ONBOARD_PRESET_PICK
 
@@ -332,7 +379,7 @@ async def _preset_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     await q.edit_message_text(
         onboard_review_text(risk_label, preset_emoji, preset_name),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_review_kb(),
     )
     return ONBOARD_REVIEW
@@ -348,7 +395,7 @@ async def _back_risk_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
 
     await q.edit_message_text(
         onboard_risk_text(),
-        parse_mode=ParseMode.HTML,
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=_risk_kb(),
     )
     return ONBOARD_RISK_PROFILE
@@ -401,13 +448,12 @@ async def _launch_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> int:
                     user_id, preset_key, exc,
                 )
 
-    # Activate scanner
-    try:
-        await set_auto_trade(user_id, True)
-        await set_paused(user_id, False)
-    except Exception as exc:
-        logger.error("onboard.auto_trade_activate_failed user=%s err=%s", user_id, exc)
-
+    # WARP-75 (F1 — consent integrity): onboarding does NOT enable autonomous
+    # trading as a side effect. The preset above is configured so the user is
+    # ready, but auto_trade_on stays at its default FALSE until the user makes a
+    # deliberate explicit act — the Dashboard "🤖 Auto Mode" toggle (rendered
+    # below showing Auto Mode OFF). Real capital additionally requires the
+    # typed-CONFIRM live activation gate.
     try:
         await set_onboarding_complete(user_id)
     except Exception as exc:
@@ -459,16 +505,16 @@ async def help_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message is None:
         return
     await update.message.reply_text(
-        "<b>📖 CrusaderBot Help</b>\n\n"
+        "*📖 CrusaderBot Help*\n\n"
         "Use the menu below to navigate:\n"
         "📊 Dashboard   — account overview and status\n"
-        "🤖 Auto-Trade  — configure your trading strategy\n"
+        "🤖 Auto\\-Trade  — configure your trading strategy\n"
         "💼 Portfolio   — view balance and open positions\n"
         "📈 My Trades   — open positions and trade history\n"
         "⚙️ Settings    — risk, mode, wallet, notifications\n"
         "🚨 Emergency   — pause or lock trading immediately\n\n"
-        "Type /start to re-run setup at any time.",
-        parse_mode=ParseMode.HTML,
+        "Type /start to re\\-run setup at any time\\.",
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=InlineKeyboardMarkup([[
             InlineKeyboardButton("🏠 Home", callback_data="dashboard:main"),
         ]]),

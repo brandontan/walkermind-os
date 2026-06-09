@@ -34,6 +34,7 @@ from projects.polymarket.crusaderbot.domain.strategy.types import (
     SignalCandidate,
     UserContext,
 )
+from projects.polymarket.crusaderbot.domain.risk.gate import GateResult
 from projects.polymarket.crusaderbot.services.signal_scan import signal_scan_job as job
 from projects.polymarket.crusaderbot.services.trade_engine import TradeResult
 
@@ -416,6 +417,7 @@ def test_process_candidate_happy_path_inserts_queue_and_executes():
     with patch.object(job, "_load_stale_queued_row", return_value=None), \
             patch.object(job, "_publication_already_queued", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price", new=AsyncMock(return_value=0.55)), \
             patch.object(job._engine, "execute", new=AsyncMock(return_value=approved)), \
             patch.object(job, "_insert_execution_queue", return_value=True), \
             patch.object(job, "_mark_executed", side_effect=_fake_mark_executed):
@@ -427,6 +429,67 @@ def test_process_candidate_happy_path_inserts_queue_and_executes():
 # ---------------------------------------------------------------------------
 # _process_candidate — router raises (failed outcome)
 # ---------------------------------------------------------------------------
+
+
+def test_process_candidate_skips_when_no_live_price_no_fabricated_fill():
+    """WARP•R00T no-fake-data: a candidate with no metadata entry AND no live
+    mark (get_live_market_price -> None) must be SKIPPED, never filled off the
+    cached DB seed price or a fabricated 0.50. The engine must not be reached."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    cand = _candidate()  # signal_following, no metadata["entry_price"]
+    execute_mock = AsyncMock()
+    with patch.object(job, "_load_stale_queued_row", return_value=None), \
+            patch.object(job, "_publication_already_queued", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price", new=AsyncMock(return_value=None)), \
+            patch.object(job._engine, "execute", new=execute_mock):
+        asyncio.run(job._process_candidate(row, cand))
+    execute_mock.assert_not_awaited()
+
+
+def test_build_trade_signal_raises_without_live_price():
+    """_build_trade_signal must refuse to fabricate a fill when no live override
+    is supplied — no cached-DB / 0.50 fallback. The scan caller catches + skips."""
+    cand = _candidate()
+    market = {**_market_row(), "yes_price": None, "no_price": None}
+    with pytest.raises(ValueError):
+        job._build_trade_signal(
+            row=_user_row(), cand=cand, market=market,
+            idempotency_key="k", live_price_override=None,
+        )
+
+
+def test_build_trade_signal_threads_cell_depth_spread_from_metadata():
+    """WARP-87 follow-up (smart-strike-cell-cap-binding): the Smart Strike
+    candidate's measured cell + order-book depth/spread (stamped on cand.metadata
+    by late_entry_v3) must ride onto the TradeSignal so the engine threads them
+    into GateContext and the LIVE per-cell slippage cap binds on real flow."""
+    cand = _candidate()
+    cand.metadata.update(
+        {"cell": "BTC/5m", "orderbook_depth_usdc": 9876.0, "spread": 0.97}
+    )
+    sig = job._build_trade_signal(
+        row=_user_row(), cand=cand, market=_market_row(),
+        idempotency_key="k", live_price_override=0.55,
+    )
+    assert sig.cell == "BTC/5m"
+    assert sig.orderbook_depth_usdc == pytest.approx(9876.0)
+    assert sig.spread == pytest.approx(0.97)
+
+
+def test_build_trade_signal_cell_depth_spread_none_when_metadata_absent():
+    """None-safety: a non-Smart-Strike candidate omits these keys → the
+    TradeSignal carries None → the gate keeps its existing fallback (no per-cell
+    cap). No regression for legacy candidates."""
+    cand = _candidate()  # default metadata has no cell/depth/spread keys
+    sig = job._build_trade_signal(
+        row=_user_row(), cand=cand, market=_market_row(),
+        idempotency_key="k", live_price_override=0.55,
+    )
+    assert sig.cell is None
+    assert sig.orderbook_depth_usdc is None
+    assert sig.spread is None
 
 
 def test_process_candidate_handles_engine_exception_gracefully():
@@ -521,83 +584,170 @@ def test_process_candidate_risk_rejects_inactive_market():
 
 
 # ---------------------------------------------------------------------------
-# run_once — single user, happy path integration (all internals patched)
+# _process_candidate — fill-time price-band re-check (gate 3c)
 # ---------------------------------------------------------------------------
 
 
-def test_run_once_happy_path_calls_process_candidate():
-    """Two-phase loop: Phase A runs each lib strategy once, Phase B
-    distributes candidates to users filtered by active_preset. With
-    active_preset=None (full_auto) all lib strategies are allowed; only
-    one strategy yields a candidate so _process_candidate is called once."""
+def _band_candidate(
+    *,
+    side: str = "YES",
+    entry_price: float = 0.65,
+    fav_price_min: float = 0.60,
+    fav_price_max: float = 0.70,
+) -> SignalCandidate:
+    """Candidate carrying the late_entry_v3 price-band metadata (no publication_id)."""
+    return SignalCandidate(
+        market_id=_MARKET_ID,
+        condition_id=_MARKET_ID,
+        side=side,
+        confidence=0.7,
+        suggested_size_usdc=10.0,
+        strategy_name="late_entry_v3",
+        signal_ts=datetime.now(timezone.utc),
+        metadata={
+            "market_id": _MARKET_ID,
+            "entry_price": entry_price,
+            "fav_price_min": fav_price_min,
+            "fav_price_max": fav_price_max,
+            "underdog_mode": False,
+        },
+    )
+
+
+def test_process_candidate_skips_when_fill_price_below_band():
+    """Candidate with metadata.entry_price BELOW its declared fav_price_min
+    must be rejected by the fill-band gate.
+
+    Realtime-fill-price lane: _process_candidate now sources the fill
+    price from cand.metadata["entry_price"] (real CLOB /book best-ask
+    from scan time) instead of re-fetching via get_live_market_price.
+    So drift between scan and process can no longer occur — but a
+    malformed candidate whose own entry_price falls outside its declared
+    band must still be rejected at the gate. Same protection, different
+    threat model.
+    """
     bootstrap_default_strategies()
     row = _user_row()
-    row["active_preset"] = None  # None → full_auto: all lib strategies allowed
-    cand = _candidate()
-    processed = {"calls": 0}
+    # Out-of-band entry_price (0.495 < fav_price_min 0.60)
+    cand = _band_candidate(entry_price=0.495, fav_price_min=0.60, fav_price_max=0.70)
 
-    def _fake_run_lib(lib_name, markets, config):
-        # Only one strategy emits a signal this tick.
-        return [cand] if lib_name == "trend_breakout" else []
+    engine_called = {"called": False}
 
-    async def _fake_fetch_markets():
-        return []
+    async def _track_execute(signal):
+        engine_called["called"] = True
+        return TradeResult(approved=True, mode="paper", order_id=None, position_id=None,
+                           rejection_reason=None, failed_gate_step=None,
+                           chosen_mode="paper", final_size_usdc=Decimal("10"))
 
-    async def _fake_process(r, c, tel=None):
-        processed["calls"] += 1
+    with patch.object(job, "_load_stale_queued_row", return_value=None), \
+            patch.object(job, "_publication_already_queued", return_value=False), \
+            patch.object(job, "_has_open_position_for_market", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job._engine, "execute", side_effect=_track_execute):
+        asyncio.run(job._process_candidate(row, cand))
 
-    with patch.object(job, "_load_enrolled_users", return_value=[row]), \
-            patch.object(
-                job, "_fetch_markets_for_lib_strategies",
-                side_effect=_fake_fetch_markets,
-            ), \
-            patch.object(job, "run_lib_strategy", side_effect=_fake_run_lib), \
-            patch.object(job, "_process_candidate", side_effect=_fake_process):
-        asyncio.run(job.run_once())
-
-    assert processed["calls"] == 1
+    assert not engine_called["called"], "fill below band must short-circuit before engine"
 
 
-# ---------------------------------------------------------------------------
-# run_once — scan failure per user is isolated
-# ---------------------------------------------------------------------------
-
-
-def test_run_once_scan_failure_does_not_stop_other_users():
-    """Phase B per-user isolation: _process_candidate raising for the first
-    user must not prevent the second user from being processed on the same
-    tick."""
+def test_process_candidate_skips_when_fill_price_at_or_above_max_band():
+    """Candidate with metadata.entry_price at/above fav_price_max must be
+    rejected (band is half-open: max is exclusive)."""
     bootstrap_default_strategies()
-    row1 = _user_row(user_id=UUID("11111111-1111-1111-1111-111111111111"))
-    row2 = _user_row(user_id=UUID("22222222-2222-2222-2222-222222222222"))
-    row1["active_preset"] = None
-    row2["active_preset"] = None
-    processed = {"row1": 0, "row2": 0}
+    row = _user_row()
+    # Out-of-band entry_price (0.70 >= fav_price_max 0.70 — half-open band)
+    cand = _band_candidate(entry_price=0.70, fav_price_min=0.60, fav_price_max=0.70)
 
-    def _fake_run_lib(lib_name, markets, config):
-        return [_candidate()] if lib_name == "trend_breakout" else []
+    engine_called = {"called": False}
 
-    async def _fake_fetch_markets():
-        return []
+    async def _track_execute(signal):
+        engine_called["called"] = True
+        return TradeResult(approved=True, mode="paper", order_id=None, position_id=None,
+                           rejection_reason=None, failed_gate_step=None,
+                           chosen_mode="paper", final_size_usdc=Decimal("10"))
 
-    async def _fake_process(r, c, tel=None):
-        if r["user_id"] == UUID("11111111-1111-1111-1111-111111111111"):
-            processed["row1"] += 1
-            raise RuntimeError("boom")
-        processed["row2"] += 1
+    with patch.object(job, "_load_stale_queued_row", return_value=None), \
+            patch.object(job, "_publication_already_queued", return_value=False), \
+            patch.object(job, "_has_open_position_for_market", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job._engine, "execute", side_effect=_track_execute):
+        asyncio.run(job._process_candidate(row, cand))
 
-    with patch.object(job, "_load_enrolled_users", return_value=[row1, row2]), \
-            patch.object(
-                job, "_fetch_markets_for_lib_strategies",
-                side_effect=_fake_fetch_markets,
-            ), \
-            patch.object(job, "run_lib_strategy", side_effect=_fake_run_lib), \
-            patch.object(job, "_process_candidate", side_effect=_fake_process):
-        asyncio.run(job.run_once())
+    assert not engine_called["called"], "fill at/above max must short-circuit before engine"
 
-    # First user's _process_candidate raised — second user still processed.
-    assert processed["row1"] == 1
-    assert processed["row2"] == 1
+
+def test_process_candidate_proceeds_when_fill_price_inside_band():
+    """Fill price still in band → trade proceeds to engine + execution queue."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    cand = _band_candidate(fav_price_min=0.60, fav_price_max=0.70)
+
+    from uuid import uuid4 as _uuid4
+    approved = TradeResult(
+        approved=True, mode="paper",
+        order_id=_uuid4(), position_id=_uuid4(),
+        rejection_reason=None, failed_gate_step=None,
+        chosen_mode="paper", final_size_usdc=Decimal("10"),
+    )
+    engine_called = {"called": False}
+
+    async def _track_execute(signal):
+        engine_called["called"] = True
+        return approved
+
+    with patch.object(job, "_load_stale_queued_row", return_value=None), \
+            patch.object(job, "_publication_already_queued", return_value=False), \
+            patch.object(job, "_has_open_position_for_market", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price",
+                         new=AsyncMock(return_value=0.66)), \
+            patch.object(job._engine, "execute", side_effect=_track_execute), \
+            patch.object(job, "_insert_execution_queue", return_value=True), \
+            patch.object(job, "_mark_executed", new=AsyncMock()):
+        asyncio.run(job._process_candidate(row, cand))
+
+    assert engine_called["called"], "fill inside band must reach engine"
+
+
+def test_process_candidate_band_gate_is_noop_without_metadata():
+    """Backward compat: candidates without fav_price_min/max metadata bypass the gate."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    # _candidate() emits no band metadata — represents signal_following / lib strategies.
+    cand = _candidate()
+
+    from uuid import uuid4 as _uuid4
+    approved = TradeResult(
+        approved=True, mode="paper",
+        order_id=_uuid4(), position_id=_uuid4(),
+        rejection_reason=None, failed_gate_step=None,
+        chosen_mode="paper", final_size_usdc=Decimal("10"),
+    )
+    engine_called = {"called": False}
+
+    async def _track_execute(signal):
+        engine_called["called"] = True
+        return approved
+
+    with patch.object(job, "_load_stale_queued_row", return_value=None), \
+            patch.object(job, "_publication_already_queued", return_value=False), \
+            patch.object(job, "_has_open_position_for_market", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price",
+                         new=AsyncMock(return_value=0.001)), \
+            patch.object(job._engine, "execute", side_effect=_track_execute), \
+            patch.object(job, "_insert_execution_queue", return_value=True), \
+            patch.object(job, "_mark_executed", new=AsyncMock()):
+        asyncio.run(job._process_candidate(row, cand))
+
+    assert engine_called["called"], (
+        "candidates without band metadata must pass through — band gate is opt-in via metadata"
+    )
+
+
+# Note: WARP/R00T/strategy-system-cleanup removed the lib-strategy loop +
+# `full_auto` preset from run_once; per-user isolation is still exercised by
+# the run_close_sweep_fast tests below (which is the only candle code path
+# users actually hit) and by the signal_feed evaluation per user.
 
 
 # ---------------------------------------------------------------------------
@@ -628,9 +778,12 @@ def test_process_candidate_resumes_stale_queued_row():
     async def _fake_mark_executed(*a, **kw):
         marked["called"] = True
 
+    # Capital circuit breakers clear → resume proceeds.
+    _approved = GateResult(True, "resume_safety_ok")
     with patch.object(job, "_load_stale_queued_row", return_value=stale), \
             patch.object(job, "kill_switch_is_active", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "_resume_safety_check", new=AsyncMock(return_value=_approved)), \
             patch.object(job, "router_execute", side_effect=_fake_router), \
             patch.object(job, "_mark_executed", side_effect=_fake_mark_executed), \
             patch.object(job._engine, "execute", new=AsyncMock()) as mock_engine:
@@ -640,6 +793,43 @@ def test_process_candidate_resumes_stale_queued_row():
     assert marked["called"]
     # TradeEngine must NOT be called — crash recovery bypasses engine entirely.
     mock_engine.assert_not_called()
+
+
+def test_process_candidate_resume_blocked_by_circuit_breaker():
+    """A breached account circuit breaker must abort the resume (no router call)
+    and mark the queued row failed (abandoned), never re-execute it."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    cand = _candidate()
+
+    stale = {
+        "market_id": _MARKET_ID,
+        "side": "yes",
+        "final_size_usdc": Decimal("10"),
+        "suggested_size_usdc": Decimal("10"),
+        "idempotency_key": "sf:abc123",
+        "chosen_mode": "paper",
+    }
+    executed = {"called": False}
+    failed = {"called": False}
+
+    async def _fake_router(**kwargs):
+        executed["called"] = True
+
+    async def _fake_mark_failed(*a, **kw):
+        failed["called"] = True
+
+    _blocked = GateResult(False, "max_drawdown_halt", 6)
+    with patch.object(job, "_load_stale_queued_row", return_value=stale), \
+            patch.object(job, "kill_switch_is_active", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "_resume_safety_check", new=AsyncMock(return_value=_blocked)), \
+            patch.object(job, "router_execute", side_effect=_fake_router), \
+            patch.object(job, "_mark_failed", side_effect=_fake_mark_failed):
+        asyncio.run(job._process_candidate(row, cand))
+
+    assert not executed["called"]   # breached account never resumes the trade
+    assert failed["called"]         # row abandoned, not left to retry forever
 
 
 def test_process_candidate_skips_resume_when_kill_switch_active():
@@ -670,8 +860,99 @@ def test_process_candidate_skips_resume_when_kill_switch_active():
     assert not executed["called"]
 
 
+def test_process_candidate_resume_routes_under_original_strategy():
+    """WARP-91: a late_entry_v3-origin queued row must resume under
+    strategy_type='late_entry_v3' (not the hardcoded signal_following), and the
+    NULL-fallback TP/SL default must resolve via that originating strategy."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    # NULL user TP/SL forces the default-resolution fallback path.
+    row["tp_pct"] = None
+    row["sl_pct"] = None
+    cand = _candidate()
+
+    stale = {
+        "market_id": _MARKET_ID,
+        "side": "yes",
+        "final_size_usdc": Decimal("10"),
+        "suggested_size_usdc": Decimal("10"),
+        "idempotency_key": "le3:abc123",
+        "chosen_mode": "paper",
+        "strategy_name": "late_entry_v3",
+    }
+    captured: dict = {}
+    default_resolver_calls: list[str] = []
+
+    async def _fake_router(**kwargs):
+        captured["strategy_type"] = kwargs.get("strategy_type")
+
+    def _fake_default_tp_sl(strategy_name: str) -> tuple[float, float]:
+        default_resolver_calls.append(strategy_name)
+        return (1.5, 0.5)
+
+    _approved = GateResult(True, "resume_safety_ok")
+    with patch.object(job, "_load_stale_queued_row", return_value=stale), \
+            patch.object(job, "kill_switch_is_active", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "_resume_safety_check", new=AsyncMock(return_value=_approved)), \
+            patch.object(job, "_strategy_default_tp_sl", side_effect=_fake_default_tp_sl), \
+            patch.object(job, "router_execute", side_effect=_fake_router), \
+            patch.object(job, "_mark_executed", new=AsyncMock()), \
+            patch.object(job._engine, "execute", new=AsyncMock()):
+        asyncio.run(job._process_candidate(row, cand))
+
+    # router_execute routed under the ORIGINATING strategy.
+    assert captured["strategy_type"] == "late_entry_v3"
+    # NULL-fallback default resolved via the originating strategy too.
+    assert "late_entry_v3" in default_resolver_calls
+
+
+def test_process_candidate_resume_backward_compat_missing_strategy_name():
+    """WARP-91 backward-compat: a legacy queued row with no strategy_name
+    falls back to the historical _STRATEGY_NAME ('signal_following') for both
+    the router routing and the NULL-fallback default resolution."""
+    bootstrap_default_strategies()
+    row = _user_row()
+    row["tp_pct"] = None
+    row["sl_pct"] = None
+    cand = _candidate()
+
+    # Legacy row: strategy_name field absent entirely (pre-WARP-91 SELECT).
+    stale = {
+        "market_id": _MARKET_ID,
+        "side": "yes",
+        "final_size_usdc": Decimal("10"),
+        "suggested_size_usdc": Decimal("10"),
+        "idempotency_key": "sf:legacy",
+        "chosen_mode": "paper",
+    }
+    captured: dict = {}
+    default_resolver_calls: list[str] = []
+
+    async def _fake_router(**kwargs):
+        captured["strategy_type"] = kwargs.get("strategy_type")
+
+    def _fake_default_tp_sl(strategy_name: str) -> tuple[float, float]:
+        default_resolver_calls.append(strategy_name)
+        return (1.5, 0.5)
+
+    _approved = GateResult(True, "resume_safety_ok")
+    with patch.object(job, "_load_stale_queued_row", return_value=stale), \
+            patch.object(job, "kill_switch_is_active", return_value=False), \
+            patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "_resume_safety_check", new=AsyncMock(return_value=_approved)), \
+            patch.object(job, "_strategy_default_tp_sl", side_effect=_fake_default_tp_sl), \
+            patch.object(job, "router_execute", side_effect=_fake_router), \
+            patch.object(job, "_mark_executed", new=AsyncMock()), \
+            patch.object(job._engine, "execute", new=AsyncMock()):
+        asyncio.run(job._process_candidate(row, cand))
+
+    assert captured["strategy_type"] == job._STRATEGY_NAME == "signal_following"
+    assert default_resolver_calls == ["signal_following"]
+
+
 # ===========================================================================
-# Preset isolation tests (CRUSADERBOT-STRATEGY-RISK-COPY)
+# Preset isolation tests (WARP/R00T/strategy-system-cleanup baseline)
 # ===========================================================================
 
 from projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job import (
@@ -679,48 +960,126 @@ from projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job import
 )
 
 
-def test_preset_allows_whale_mirror_only_whale_tracking():
-    assert _preset_allows("whale_mirror", "whale_tracking") is True
-    assert _preset_allows("whale_mirror", "trend_breakout") is False
-    assert _preset_allows("whale_mirror", "momentum") is False
+def test_preset_allows_candle_presets_route_to_late_entry_v3_only():
+    for preset in ("close_sweep", "safe_close", "flip_hunter"):
+        assert _preset_allows(preset, "late_entry_v3") is True, preset
+        # No other strategy ever fires under a candle preset.
+        for other in ("signal_following", "copy_trade", "anything_else"):
+            assert _preset_allows(preset, other) is False, f"{preset}/{other}"
 
 
-def test_preset_allows_contrarian_only_momentum():
-    assert _preset_allows("contrarian", "momentum") is True
-    assert _preset_allows("contrarian", "trend_breakout") is False
-    assert _preset_allows("contrarian", "pair_arb") is False
+def test_preset_allows_unknown_preset_blocks_every_strategy():
+    """Unknown / removed presets must fail closed — no strategy fires."""
+    for name in ("late_entry_v3", "signal_following", "copy_trade", "trend_breakout"):
+        assert _preset_allows("legacy_preset", name) is False
+        assert _preset_allows(None, name) is False
 
 
-def test_preset_allows_ensemble_subset():
-    for name in ("ensemble", "trend_breakout", "momentum", "value_investor"):
-        assert _preset_allows("ensemble", name) is True, f"ensemble should allow {name}"
-    assert _preset_allows("ensemble", "pair_arb") is False
-    assert _preset_allows("ensemble", "whale_tracking") is False
+def test_preset_allows_deny_by_default_robust_to_nonempty_lib_set():
+    """Deny-by-default must NOT route through ``_LIB_STRATEGY_NAMES``.
+
+    Regression for WARP/ROOT/prelaunch-system-audit F2: the unknown-preset
+    fallback used to be ``_LIB_STRATEGY_NAMES``; it is safe today only because
+    that set is empty. A real prod row (``active_preset='contrarian'``) sits on
+    this path, so the moment any lib strategy is re-registered the legacy-preset
+    user would start trading it. Pin that an unknown / NULL preset denies EVEN
+    when the lib set is non-empty — i.e. the fallback is structurally
+    ``frozenset()``, not the lib set.
+    """
+    saved = job._LIB_STRATEGY_NAMES
+    job._LIB_STRATEGY_NAMES = frozenset({"trend_breakout", "signal_following"})
+    try:
+        for name in ("trend_breakout", "signal_following", "late_entry_v3"):
+            assert _preset_allows("contrarian", name) is False, name
+            assert _preset_allows(None, name) is False, name
+        # Canonical presets remain unaffected by the tightening.
+        assert _preset_allows("close_sweep", "late_entry_v3") is True
+    finally:
+        job._LIB_STRATEGY_NAMES = saved
 
 
-def test_preset_allows_full_auto_all_strategies():
-    from projects.polymarket.crusaderbot.services.signal_scan.lib_strategy_runner import (
-        ENABLED_STRATEGIES, DEFERRED_STRATEGIES,
+def test_preset_allows_globally_disabled_strategy_blocked():
+    """A globally disabled strategy is never allowed regardless of preset."""
+    job._GLOBALLY_DISABLED_STRATEGIES = frozenset({"late_entry_v3"})
+    try:
+        for preset in ("close_sweep", "safe_close", "flip_hunter"):
+            assert _preset_allows(preset, "late_entry_v3") is False
+    finally:
+        job._GLOBALLY_DISABLED_STRATEGIES = frozenset()
+
+
+def test_run_once_skips_phase_c_for_candle_preset_users():
+    """After cleanup, candle presets route ONLY to late_entry_v3 — Phase C
+    (signal_publications feed eval) must not fire signal_following candidates
+    for users whose active_preset is close_sweep/safe_close/flip_hunter, even
+    when signal_following is globally ENABLED. Closes Codex P1 (post-cleanup):
+    candle-preset users were receiving unexpected feed trades because Phase C
+    only checked _GLOBALLY_DISABLED_STRATEGIES, not the preset mapping."""
+    import asyncio
+    from unittest.mock import patch, AsyncMock
+
+    eval_called = {"count": 0}
+
+    async def _fake_eval(**kwargs):
+        eval_called["count"] += 1
+        return []
+
+    async def _fake_fetch_markets():
+        return []
+
+    for preset in ("close_sweep", "safe_close", "flip_hunter"):
+        row = _user_row()
+        row["active_preset"] = preset
+        eval_called["count"] = 0
+        with patch.object(job, "_load_enrolled_users", return_value=[row]), \
+                patch.object(job, "_fetch_markets_for_lib_strategies",
+                             side_effect=_fake_fetch_markets), \
+                patch.object(job, "evaluate_publications_for_user",
+                             side_effect=_fake_eval), \
+                patch.object(job, "_process_candidate", new_callable=AsyncMock):
+            asyncio.run(job.run_once())
+        assert eval_called["count"] == 0, (
+            f"preset={preset}: Phase C signal-feed eval must be skipped — "
+            "_preset_allows pins candle presets to late_entry_v3 only."
+        )
+
+
+def test_run_once_skips_phase_c_when_signal_following_globally_disabled():
+    """Defense-in-depth: even if a user row leaks past the SQL load gate, Phase
+    C (signal_publications feed evaluation) must not fire when the operator
+    has toggled signal_following=OFF."""
+    import asyncio
+    from unittest.mock import patch, AsyncMock
+
+    row = _user_row()
+    row["active_preset"] = "close_sweep"
+
+    eval_called = {"count": 0}
+
+    async def _fake_eval(**kwargs):
+        eval_called["count"] += 1
+        return []
+
+    async def _fake_fetch_markets():
+        return []
+
+    job._GLOBALLY_DISABLED_STRATEGIES = frozenset({"signal_following"})
+    try:
+        with patch.object(job, "_load_enrolled_users", return_value=[row]), \
+                patch.object(job, "_fetch_markets_for_lib_strategies",
+                             side_effect=_fake_fetch_markets), \
+                patch.object(job, "evaluate_publications_for_user",
+                             side_effect=_fake_eval), \
+                patch.object(job, "_process_candidate", new_callable=AsyncMock):
+            asyncio.run(job.run_once())
+    finally:
+        job._GLOBALLY_DISABLED_STRATEGIES = frozenset()
+
+    assert eval_called["count"] == 0, (
+        "signal_following toggled OFF must short-circuit Phase C "
+        "evaluate_publications_for_user — defense-in-depth on top of the SQL "
+        "load-gate filter."
     )
-    for name in list(ENABLED_STRATEGIES) + list(DEFERRED_STRATEGIES):
-        assert _preset_allows("full_auto", name) is True, f"full_auto should allow {name}"
-
-
-def test_preset_allows_none_preset_all_strategies():
-    from projects.polymarket.crusaderbot.services.signal_scan.lib_strategy_runner import (
-        ENABLED_STRATEGIES,
-    )
-    for name in ENABLED_STRATEGIES:
-        assert _preset_allows(None, name) is True, f"None preset should allow {name}"
-
-
-def test_preset_allows_unknown_preset_defaults_to_all():
-    # Unknown preset keys fall back to full allow via _LIB_STRATEGY_NAMES default.
-    from projects.polymarket.crusaderbot.services.signal_scan.lib_strategy_runner import (
-        ENABLED_STRATEGIES,
-    )
-    for name in ENABLED_STRATEGIES:
-        assert _preset_allows("unknown_key", name) is True
 
 
 # ===========================================================================
@@ -783,6 +1142,7 @@ def test_process_candidate_allows_fresh_publication_signal():
     with patch.object(job, "_load_stale_queued_row", return_value=None), \
             patch.object(job, "_publication_already_queued", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price", new=AsyncMock(return_value=0.55)), \
             patch.object(job._engine, "execute", new=execute_mock), \
             patch.object(job, "_insert_execution_queue", new=AsyncMock(return_value=True)), \
             patch.object(job, "_mark_executed", new=AsyncMock()):
@@ -814,6 +1174,7 @@ def test_process_candidate_freshness_gate_skips_exact_boundary():
     with patch.object(job, "_load_stale_queued_row", return_value=None), \
             patch.object(job, "_publication_already_queued", return_value=False), \
             patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price", new=AsyncMock(return_value=0.55)), \
             patch.object(job._engine, "execute", new=AsyncMock(side_effect=_fake_execute)), \
             patch.object(job, "_insert_execution_queue", new=AsyncMock(return_value=True)), \
             patch.object(job, "_mark_executed", new=AsyncMock()):
@@ -920,6 +1281,7 @@ def test_process_candidate_freshness_gate_bypassed_for_lib_strategy():
         return approved
 
     with patch.object(job, "_load_market", return_value=_market_row()), \
+            patch.object(job, "get_live_market_price", new=AsyncMock(return_value=0.55)), \
             patch.object(job._engine, "execute", new=AsyncMock(side_effect=_track_execute)), \
             patch.object(job, "_insert_execution_queue", new=AsyncMock(return_value=True)), \
             patch.object(job, "_mark_executed", new=AsyncMock()):
@@ -1036,7 +1398,7 @@ def _close_sweep_user(preset: str) -> dict:
 def test_run_close_sweep_fast_scans_only_close_sweep_users():
     """Only active_preset=='close_sweep' rows reach late_entry_v3; others skip."""
     cs_user = _close_sweep_user("close_sweep")
-    other_user = _close_sweep_user("full_auto")
+    other_user = _close_sweep_user("not_a_candle_preset")
     cand = _candidate(market_id="cand-mkt")
 
     fake_strat = MagicMock()
@@ -1070,8 +1432,30 @@ def test_run_close_sweep_fast_scans_only_close_sweep_users():
     proc.assert_awaited_once()
 
 
+def test_run_close_sweep_fast_skips_when_late_entry_globally_disabled():
+    """Operator global OFF of late_entry_v3 must stop the fast candle loop too."""
+    cs_user = _close_sweep_user("close_sweep")
+    fake_strat = MagicMock()
+    fake_strat.scan = AsyncMock(return_value=[_candidate(market_id="m")])
+    reg = StrategyRegistry.instance()
+    load = AsyncMock(return_value=[cs_user])
+
+    original = job._GLOBALLY_DISABLED_STRATEGIES
+    try:
+        job._GLOBALLY_DISABLED_STRATEGIES = frozenset({"late_entry_v3"})
+        with patch.object(reg, "get", return_value=fake_strat), \
+                patch.object(job, "_refresh_disabled_strategies", new=AsyncMock()), \
+                patch.object(job, "_load_enrolled_users", new=load):
+            asyncio.run(job.run_close_sweep_fast())
+        # Globally disabled → loop returns before loading users / scanning.
+        load.assert_not_called()
+        fake_strat.scan.assert_not_awaited()
+    finally:
+        job._GLOBALLY_DISABLED_STRATEGIES = original
+
+
 def test_run_close_sweep_fast_no_close_sweep_users_is_noop():
-    other_user = _close_sweep_user("full_auto")
+    other_user = _close_sweep_user("not_a_candle_preset")
     fake_strat = MagicMock()
     fake_strat.scan = AsyncMock(return_value=[])
     reg = StrategyRegistry.instance()
@@ -1098,3 +1482,263 @@ def test_run_close_sweep_fast_unregistered_strategy_returns():
             patch.object(job, "_load_enrolled_users", new=load):
         asyncio.run(job.run_close_sweep_fast())
     load.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _resolve_preset_params — Kreo-aligned per-preset / per-timeframe resolution
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_preset_params_close_sweep_has_no_force_exit():
+    """close_sweep holds to candle resolution — no force_exit_at_rem_sec key."""
+    pp = job._resolve_preset_params("close_sweep", "5m")
+    assert "force_exit_at_rem_sec" not in pp
+
+
+def test_random_close_sweep_min_edge_band():
+    """_random_close_sweep_min_edge draws within the configured [MIN, MAX] band."""
+    cfg = type("C", (), {
+        "PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MIN": 0.02,
+        "PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MAX": 0.04,
+    })()
+    seen = {job._random_close_sweep_min_edge(cfg) for _ in range(60)}
+    assert all(0.02 <= v <= 0.04 for v in seen)
+    assert len(seen) > 1  # randomized → multiple distinct draws
+
+
+def test_random_close_sweep_min_edge_pinned_when_min_eq_max():
+    """MIN == MAX pins the value (deterministic) for reproducible runs/tests."""
+    cfg = type("C", (), {
+        "PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MIN": 0.03,
+        "PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MAX": 0.03,
+    })()
+    assert job._random_close_sweep_min_edge(cfg) == 0.03
+
+
+def test_random_close_sweep_min_edge_safe_fallback_on_bad_cfg():
+    """A cfg missing the band attrs falls back to 0.02 (never raises)."""
+    assert job._random_close_sweep_min_edge(object()) == 0.02
+
+
+def test_resolve_preset_params_close_sweep_min_edge_in_band_with_config():
+    """With live config present, the close_sweep resolver emits a min_ask_diff
+    inside the randomized [MIN, MAX] band (patched config → deterministic env)."""
+    cfg = type("C", (), {
+        "PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MIN": 0.02,
+        "PRESET_CLOSE_SWEEP_MIN_ASK_DIFF_MAX": 0.04,
+        "PRESET_CLOSE_SWEEP_WINDOW_SEC": 35.0,
+        "PRESET_CLOSE_SWEEP_FAV_PRICE_MIN": 0.55,
+    })()
+    with patch("projects.polymarket.crusaderbot.config.get_settings", return_value=cfg):
+        for _ in range(20):
+            pp = job._resolve_preset_params("close_sweep", "5m")
+            assert 0.02 <= pp["min_ask_diff"] <= 0.04
+
+
+def test_resolve_preset_params_safe_close_emits_force_exit_30s():
+    """safe_close has force_exit_at_rem_sec=30s for both 5m and 15m (same rem semantics)."""
+    pp_5m = job._resolve_preset_params("safe_close", "5m")
+    pp_15m = job._resolve_preset_params("safe_close", "15m")
+    assert pp_5m["force_exit_at_rem_sec"] == pytest.approx(30.0)
+    assert pp_15m["force_exit_at_rem_sec"] == pytest.approx(30.0)
+    # safe_close stays in standard mode (favored side)
+    assert pp_5m.get("underdog_mode", False) is False
+    # min_entry_sec preserved so the scan still gates final 30s out
+    assert pp_5m["min_entry_sec"] == pytest.approx(30.0)
+
+
+def test_resolve_preset_params_flip_hunter_5m_directive_mode_a():
+    """flip_hunter 5m: Directive Mode A — cheap side (underdog=True), entry rem 60–180s, hold-to-settlement."""
+    pp = job._resolve_preset_params("flip_hunter", "5m")
+    assert pp.get("underdog_mode") is True, "Directive Mode A → cheap side"
+    assert pp["entry_window_sec"] == pytest.approx(180.0), "max 180s remaining before close"
+    assert pp["min_entry_sec"] == pytest.approx(60.0), "min 60s remaining before close"
+    assert pp["force_exit_at_rem_sec"] == pytest.approx(0.0), "Mode A: hold to settlement"
+    assert pp["min_ask_diff"] == pytest.approx(0.01), "Directive min_arb_edge=1%"
+
+
+def test_resolve_preset_params_flip_hunter_15m_directive_mode_a():
+    """flip_hunter 15m: Directive Mode A — same 60–180s entry window, hold-to-settlement."""
+    pp = job._resolve_preset_params("flip_hunter", "15m")
+    assert pp.get("underdog_mode") is True
+    assert pp["entry_window_sec"] == pytest.approx(180.0)
+    assert pp["min_entry_sec"] == pytest.approx(60.0)
+    assert pp["force_exit_at_rem_sec"] == pytest.approx(0.0)
+
+
+def test_resolve_preset_params_flip_hunter_unknown_tf_defaults_to_5m():
+    """Missing / unknown timeframe defaults to 5m mapping (safe default)."""
+    pp_default = job._resolve_preset_params("flip_hunter", None)
+    pp_5m = job._resolve_preset_params("flip_hunter", "5m")
+    assert pp_default["entry_window_sec"] == pp_5m["entry_window_sec"]
+    assert pp_default["force_exit_at_rem_sec"] == pp_5m["force_exit_at_rem_sec"]
+
+
+def test_resolve_preset_params_non_candle_preset_falls_back_to_static():
+    """Unknown / non-candle preset returns the static fallback (no live config read)."""
+    pp = job._resolve_preset_params("unknown_preset", "5m")
+    # unknown preset isn't in _CANDLE_PRESET_STATIC so falls through to close_sweep default.
+    assert "min_ask_diff" in pp
+    assert pp["min_ask_diff"] == pytest.approx(0.05)  # close_sweep static default
+
+
+def test_resolve_preset_params_safe_close_loosened_to_kreo_min_edge():
+    """Kreo Min Edge 1% → min_ask_diff 0.01 (previously 0.08, much tighter)."""
+    pp = job._resolve_preset_params("safe_close", "5m")
+    assert pp["min_ask_diff"] == pytest.approx(0.01)
+
+
+def test_resolve_preset_params_flip_hunter_directive_cheap_side_band():
+    """flip_hunter band is Directive Mode A cheap-side: min=0.10, max=0.36 (exclusive)."""
+    pp = job._resolve_preset_params("flip_hunter", "5m")
+    assert pp["fav_price_min"] == pytest.approx(0.10), "cheap_side_min_price=0.10"
+    assert pp["fav_price_max"] == pytest.approx(0.36), "cheap_side_max_price=0.35 (excl)"
+
+
+def test_run_close_sweep_fast_telemetry_markets_seen_reflects_candle_universe(monkeypatch):
+    """scan_runs.markets_seen must NOT be 0 when candle markets are fetched.
+
+    Previously the fast scan never set tel.markets_seen, so every candle-only
+    scan_run row showed markets_seen=0 even when 5+ crypto window markets were
+    available — misleading when debugging "why no trades?".
+    """
+    import inspect
+    src = inspect.getsource(job.run_close_sweep_fast)
+    # The fix: _candle_markets_seen is accumulated and assigned to tel.markets_seen
+    assert "_candle_markets_seen" in src
+    assert "tel.markets_seen = _candle_markets_seen" in src
+
+
+def test_run_once_mode_label_uses_three_guard_check(monkeypatch):
+    """scan_runs.mode must be 'LIVE' only when all 3 core live guards are True.
+
+    The original code used only ENABLE_LIVE_TRADING, so any deployment with
+    that single flag set would log mode='LIVE' even in pure paper mode.
+    Consistent with run_close_sweep_fast which already uses 3-guard logic.
+    """
+    import inspect
+    src = inspect.getsource(job.run_once)
+    # Must check all 3 guards, not just ENABLE_LIVE_TRADING alone
+    assert "EXECUTION_PATH_VALIDATED" in src
+    assert "CAPITAL_MODE_CONFIRMED" in src
+
+
+def test_upsert_sports_markets_executes_insert():
+    conn = _FakeConn()
+    m = {
+        "conditionId": "cond1", "slug": "nfl-kc-buf", "question": "KC win?",
+        "category": "nfl football", "outcomePrices": '["0.6","0.4"]',
+        "clobTokenIds": '["y","n"]', "liquidity": 20000,
+        "gameStartTime": "2026-06-03T01:00:00Z",
+    }
+    with _patch_pool(conn):
+        asyncio.run(job._upsert_sports_markets([m]))
+    assert any("INSERT INTO markets" in s for s in conn.executes)
+
+
+def test_upsert_sports_markets_skips_without_condition_id():
+    conn = _FakeConn()
+    with _patch_pool(conn):
+        asyncio.run(job._upsert_sports_markets([{"slug": "no-cond"}]))
+    assert conn.executes == []
+
+
+def test_sync_playbook_sports_markets_fetches_filters_upserts():
+    from datetime import datetime, timedelta, timezone
+    near = (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
+    far = (datetime.now(timezone.utc) + timedelta(hours=12)).isoformat()
+    markets = [
+        {"conditionId": "s1", "category": "nba", "gameStartTime": near,
+         "outcomePrices": '["0.6","0.4"]', "clobTokenIds": '["y","n"]', "liquidity": 9000},
+        {"conditionId": "s2", "category": "nhl", "gameStartTime": far},  # out of window
+        {"conditionId": "x", "category": "crypto", "gameStartTime": near},  # not sports
+    ]
+    conn = _FakeConn()
+    with _patch_pool(conn), patch.object(
+        job._polymarket, "get_events_with_markets", AsyncMock(return_value=markets)
+    ), patch.object(
+        job._polymarket, "get_sports_game_markets", AsyncMock(return_value=[])
+    ):
+        n = asyncio.run(job._sync_playbook_sports_markets())
+    # single (0,72h] window: s1 (15m) + s2 (12h, now in-window) are sports;
+    # x (crypto) excluded. (12h was excluded under the old 2h-24h gap.)
+    assert n == 2
+    assert any("INSERT INTO markets" in s for s in conn.executes)
+
+
+class _CapConn(_FakeConn):
+    """_FakeConn that also records execute() positional args."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.args: list[tuple] = []
+
+    async def execute(self, sql, *a):
+        self.executes.append(sql)
+        self.args.append(a)
+
+
+def test_upsert_weather_markets_executes_insert():
+    wm = SimpleNamespace(
+        market_id="g1", condition_id="wx1", question="High temp in New York City?",
+        yes_price=0.62, no_price=0.38, end_date_iso="2026-06-03T20:00:00Z",
+        raw={"slug": "nyc-temp", "clobTokenIds": '["y","n"]', "liquidity": 1200},
+    )
+    conn = _FakeConn()
+    with _patch_pool(conn):
+        asyncio.run(job._upsert_weather_markets([wm]))
+    assert any("INSERT INTO markets" in s for s in conn.executes)
+    assert any("'Weather'" in s for s in conn.executes)  # category pinned
+
+
+def test_upsert_weather_markets_keys_row_by_market_id():
+    # Codex P1: row PK must be the Gamma market_id (what _load_market resolves
+    # via SELECT ... WHERE id = candidate.market_id), with condition_id in its
+    # own column — otherwise weather candidates miss the just-synced row.
+    wm = SimpleNamespace(
+        market_id="gamma123", condition_id="cond456", question="High temp in Miami?",
+        yes_price=0.6, no_price=0.4, end_date_iso="2026-06-03T20:00:00Z",
+        raw={"slug": "mia", "clobTokenIds": '["y","n"]', "liquidity": 500},
+    )
+    conn = _CapConn()
+    with _patch_pool(conn):
+        asyncio.run(job._upsert_weather_markets([wm]))
+    assert conn.args[0][0] == "gamma123"   # $1 id = market_id
+    assert conn.args[0][9] == "cond456"    # $10 condition_id column
+
+
+def test_upsert_weather_markets_skips_without_any_id():
+    wm = SimpleNamespace(market_id="", condition_id="", question="x", yes_price=0.5,
+                         no_price=0.5, end_date_iso="", raw={})
+    conn = _FakeConn()
+    with _patch_pool(conn):
+        asyncio.run(job._upsert_weather_markets([wm]))
+    assert conn.executes == []
+
+
+def test_sync_weather_markets_fetches_and_upserts():
+    wm = SimpleNamespace(
+        market_id="g2", condition_id="wx1", question="High temp in Chicago?",
+        yes_price=0.55, no_price=0.45, end_date_iso="2026-06-03T20:00:00Z",
+        raw={"slug": "chi", "clobTokenIds": '["y","n"]', "liquidity": 800},
+    )
+    conn = _FakeConn()
+    with _patch_pool(conn), patch(
+        "projects.polymarket.crusaderbot.strategies.weather.market.fetch_weather_markets",
+        AsyncMock(return_value=[wm]),
+    ):
+        n = asyncio.run(job._sync_weather_markets())
+    assert n == 1
+    assert any("INSERT INTO markets" in s for s in conn.executes)
+
+
+def test_sync_weather_markets_handles_none_fetch():
+    # Defensive (Gemini): a None/empty fetch must not crash on len().
+    conn = _FakeConn()
+    with _patch_pool(conn), patch(
+        "projects.polymarket.crusaderbot.strategies.weather.market.fetch_weather_markets",
+        AsyncMock(return_value=None),
+    ):
+        n = asyncio.run(job._sync_weather_markets())
+    assert n == 0
+    assert conn.executes == []

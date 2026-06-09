@@ -149,7 +149,7 @@ def test_my_trades_renders_with_positions():
     assert replies, "reply_text was never called"
     text = replies[0]
     assert "My Trades" in text
-    assert "Open Positions (1)" in text
+    assert "Open Positions \\(1\\)" in text
     assert "Will Bitcoin hit 120K by July?" in text
 
 
@@ -212,7 +212,7 @@ def test_history_cb_page_0():
     assert replies
     text = replies[0]
     assert "Full History" in text
-    assert "page 1/" in text
+    assert "page `1/" in text
 
 
 def test_history_cb_page_1_forward():
@@ -227,7 +227,7 @@ def test_history_cb_page_1_forward():
         asyncio.run(mt.history_cb(update, ctx=None))
 
     text = replies[0]
-    assert "page 2/" in text
+    assert "page `2/" in text
 
 
 # ---------- Test 6: Full History pagination backward -----------------------
@@ -329,10 +329,10 @@ def test_format_positions_section_hierarchy():
     marks = [0.48, 0.61]
     text = mt._format_positions_section([pos1, pos2], marks, tp_pct=None, sl_pct=None)
 
-    assert "Open Positions (2)" in text
-    assert "1." in text and "2." in text
-    assert "YES @ $0.420" in text
-    assert "NO @ $0.650" in text
+    assert "Open Positions \\(2\\)" in text
+    assert "1\\." in text and "2\\." in text
+    assert "`YES` @ `$0.420`" in text
+    assert "`NO` @ `$0.650`" in text
     assert "TP: —" in text and "SL: —" in text
 
 

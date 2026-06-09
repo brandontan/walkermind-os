@@ -1,6 +1,7 @@
 """Entry point: FastAPI + Telegram (polling OR webhook) + APScheduler in one process."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import secrets
@@ -17,7 +18,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import notifications
-from .api import admin as api_admin, health as api_health, ops as api_ops
+from .api import admin as api_admin, health as api_health, legal as api_legal, ops as api_ops
+from .api.rate_limit import RateLimitMiddleware
 from .webtrader.backend import sse as webtrader_sse
 from .webtrader.backend.router import router as web_router
 from .bot.dispatcher import register as register_handlers
@@ -99,6 +101,30 @@ async def lifespan(_: FastAPI):
             "bootstrap_default_strategies() returned an empty registry. "
             "Check domain/strategy/strategies/ imports and lib/ vendoring."
         )
+    # Fail-closed consistency gate: every registered domain strategy MUST have a
+    # STRATEGY_AVAILABILITY entry, otherwise risk gate step 4 rejects every one
+    # of its candidates as unknown_strategy and the strategy silently converts
+    # zero trades (the weather-strategy regression). Caught at boot, not in prod.
+    from .domain.risk.constants import STRATEGY_AVAILABILITY as _STRATEGY_AVAILABILITY
+    _unroutable = [n for n in _domain_names if n not in _STRATEGY_AVAILABILITY]
+    if _unroutable:
+        raise RuntimeError(
+            "FATAL: registered strategies missing from STRATEGY_AVAILABILITY "
+            f"(risk gate step 4 would reject all their candidates): {_unroutable}. "
+            "Add each to domain/risk/constants.py:STRATEGY_AVAILABILITY."
+        )
+    # Auto-derive Polymarket API credentials from private key when USE_REAL_CLOB=True
+    # but POLYMARKET_API_KEY is not set in the environment. No-op in paper mode.
+    if settings.USE_REAL_CLOB:
+        try:
+            from .integrations.clob import ensure_clob_credentials
+            await ensure_clob_credentials(settings)
+        except Exception as _cred_exc:
+            log.error(
+                "startup: CLOB credential derivation failed — live orders will "
+                "fail until credentials are provided: %s", _cred_exc,
+            )
+
     await webtrader_sse.start_listener(settings.DATABASE_URL, pool)
 
     use_webhook = bool(settings.TELEGRAM_WEBHOOK_URL)
@@ -113,7 +139,24 @@ async def lifespan(_: FastAPI):
     register_handlers(bot_app)
     notifications.set_bot(bot_app.bot)
 
-    await bot_app.initialize()
+    # Retry Telegram initialize() on transient network errors during boot.
+    # Fly.io network proxy may not be fully ready the moment lifespan starts.
+    for _attempt in range(5):
+        try:
+            await bot_app.initialize()
+            break
+        except Exception as _exc:  # noqa: BLE001
+            import telegram.error as _tg_err
+            if not isinstance(_exc, (_tg_err.NetworkError, _tg_err.TimedOut)):
+                raise
+            if _attempt == 4:
+                raise
+            _wait = 2 ** _attempt
+            log.warning(
+                "Telegram initialize failed (attempt %d/5): %s — retrying in %ds",
+                _attempt + 1, _exc, _wait,
+            )
+            await asyncio.sleep(_wait)
     await bot_app.start()
     register_notification_handlers()
     webtrader_sse.register_event_bus_handlers()
@@ -264,6 +307,13 @@ async def lifespan(_: FastAPI):
         except Exception as exc:
             log.warning("ws shutdown error: %s", exc)
         try:
+            # WARP-64 Chunk 3: best-effort stop of the lazily-started candle
+            # oracle WS singleton so its run-loop task does not leak on shutdown.
+            from .services.signal_scan.signal_scan_job import stop_candle_oracle
+            await stop_candle_oracle()
+        except Exception as exc:
+            log.warning("candle oracle shutdown error: %s", exc)
+        try:
             if bot_app and bot_app.updater:
                 await bot_app.updater.stop()
         except Exception as exc:
@@ -281,9 +331,13 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="CrusaderBot", version="0.1.0", lifespan=lifespan)
 app.add_middleware(RequestLogMiddleware)
+# Outermost middleware (added last) — reject abusive clients before any
+# downstream work. Health/readiness + Telegram webhook are exempt.
+app.add_middleware(RateLimitMiddleware)
 app.include_router(api_health.router)
 app.include_router(api_admin.router)
 app.include_router(api_ops.router)
+app.include_router(api_legal.router)
 app.include_router(web_router, prefix="/api/web")
 
 class SPAStaticFiles(StaticFiles):

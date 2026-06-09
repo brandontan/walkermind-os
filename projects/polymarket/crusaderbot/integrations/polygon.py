@@ -6,6 +6,7 @@ logged at ERROR (never silently swallowed).
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Optional
 
@@ -19,6 +20,23 @@ from web3.exceptions import Web3RPCError
 from ..config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Serialize on-chain sends per from-address so concurrent capital ops (withdraw
+# / sweep / redeem) never read the same nonce and collide on-chain. Process-
+# local — the WebTrader + bot run as a single Fly primary, so one lock table is
+# sufficient; pair this with the "pending" block tag on get_transaction_count.
+_nonce_locks: dict[str, asyncio.Lock] = {}
+
+
+def nonce_lock(address: str) -> asyncio.Lock:
+    """Return the shared asyncio.Lock for ``address`` (case-insensitive)."""
+    key = address.lower()
+    lock = _nonce_locks.get(key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _nonce_locks[key] = lock
+    return lock
+
 
 ERC20_ABI: list[dict[str, Any]] = [
     {
@@ -142,8 +160,14 @@ def _addr_to_topic(address: str) -> str:
 
 async def scan_usdc_transfers(
     addresses: list[str], from_block: int, to_block: int,
+    token_address: Optional[str] = None,
 ) -> list[dict[str, Any]]:
-    """Return all USDC Transfer events into any of the given addresses.
+    """Return all Transfer events into any of the given addresses for an ERC-20.
+
+    ``token_address`` defaults to the USDC.e collateral contract
+    (``settings.USDC_POLYGON``) — the existing deposit-credit path. Passing a
+    different ERC-20 (e.g. native USDC) scans that contract instead; the
+    Transfer event ABI is identical across ERC-20s so the same decoder applies.
 
     Raises on permanent RPC failure (after retries) so the caller can refuse
     to advance its block cursor.
@@ -152,14 +176,20 @@ async def scan_usdc_transfers(
         return []
     w3 = _get_w3()
     settings = get_settings()
-    contract = _usdc_contract()
+    scan_addr = token_address or settings.USDC_POLYGON
+    scan_cs = AsyncWeb3.to_checksum_address(scan_addr)
+    # Decode with a contract bound to the SCANNED token address rather than the
+    # cached USDC.e instance. The Transfer ABI is identical across ERC-20s, so
+    # decoding succeeds either way, but binding the decoder to the actual
+    # address keeps it unambiguously correct for any token (e.g. native USDC).
+    contract = w3.eth.contract(address=scan_cs, abi=ERC20_ABI)
     to_topics = [_addr_to_topic(a) for a in addresses]
     async for attempt in _retry():
         with attempt:
             logs = await w3.eth.get_logs({
                 "fromBlock": from_block,
                 "toBlock": to_block,
-                "address": AsyncWeb3.to_checksum_address(settings.USDC_POLYGON),
+                "address": scan_cs,
                 "topics": [TRANSFER_TOPIC, None, to_topics],
             })
     out = []
@@ -187,17 +217,21 @@ async def scan_usdc_transfers(
 
 async def scan_from_cursor(
     addresses: list[str], cursor: int, lookback: int = 2000, max_range: int = 1000,
+    token_address: Optional[str] = None,
 ) -> tuple[list[dict[str, Any]], int]:
     """Scan from `cursor` (or head-lookback if cursor==0) up to head.
 
-    Returns (transfers, scanned_to_block). The caller is responsible for
-    persisting `scanned_to_block` only after every transfer has been
-    successfully processed. Raises on permanent RPC failure.
+    ``token_address`` is forwarded to ``scan_usdc_transfers`` (defaults to the
+    USDC.e collateral contract). Returns (transfers, scanned_to_block). The
+    caller is responsible for persisting `scanned_to_block` only after every
+    transfer has been successfully processed. Raises on permanent RPC failure.
     """
     head = await latest_block()
     start = cursor + 1 if cursor > 0 else max(head - lookback, 0)
     if start > head:
         return [], cursor
     end = min(head, start + max_range - 1)
-    transfers = await scan_usdc_transfers(addresses, start, end)
+    transfers = await scan_usdc_transfers(
+        addresses, start, end, token_address=token_address,
+    )
     return transfers, end

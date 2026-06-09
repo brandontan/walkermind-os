@@ -57,9 +57,23 @@ class ClobAPIError(ClobError):
     ) -> None:
         self.status_code = int(status_code)
         self.path = path
-        self.body = body
+        # The HTTP path may hand us a non-str body: py-clob-client-v2 surfaces
+        # ``PolyApiException.error_msg`` as the parsed JSON dict
+        # (e.g. {"error": "maker address not allowed"}). Slicing that with
+        # ``[:200]`` raised ``TypeError: unhashable type: 'slice'`` and masked
+        # the real broker rejection. Coerce to text once so ``.body`` always
+        # honours its documented ``str`` contract for every call site. A raw
+        # ``bytes`` body (HTTP responses are bytes) is decoded rather than
+        # ``str()``-wrapped, which would yield a literal ``b'...'`` excerpt.
+        if isinstance(body, bytes):
+            body_text = body.decode("utf-8", errors="replace")
+        elif body is None:
+            body_text = ""
+        else:
+            body_text = str(body)
+        self.body = body_text
         super().__init__(
-            message or f"CLOB {status_code} on {path}: {(body or '')[:200]}"
+            message or f"CLOB {status_code} on {path}: {body_text[:200]}"
         )
 
 

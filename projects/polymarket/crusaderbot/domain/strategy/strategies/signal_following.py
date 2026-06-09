@@ -5,7 +5,7 @@ Foundation contract (P3a):
                                  publications (no HTTP, pure DB reads).
     BaseStrategy.evaluate_exit - close on operator-published exit triggers
                                  for the originating feed + market.
-    BaseStrategy.default_tp_sl - TP 20% / SL 8%
+    BaseStrategy.default_tp_sl - TP 150% / SL 50% (E.1/E.2 Balanced baseline)
 
 Pipeline boundary (P3c scope):
     DATA -> [STRATEGY <-- this file] -> INTELLIGENCE -> RISK -> EXECUTION
@@ -44,8 +44,11 @@ from ..types import ExitDecision, MarketFilters, SignalCandidate, UserContext
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TP_PCT = 0.20
-DEFAULT_SL_PCT = 0.08
+# WARP-85: STRATEGY-owned exit default aligned to the E.1/E.2 Balanced production
+# baseline (TP +150% / SL -50%, decimal-of-return) — same value as every other
+# enabled strategy and migration 089's user_settings backfill.
+DEFAULT_TP_PCT = 1.5
+DEFAULT_SL_PCT = 0.5
 
 
 class SignalFollowingStrategy(BaseStrategy):
@@ -56,6 +59,16 @@ class SignalFollowingStrategy(BaseStrategy):
     dedup is the responsibility of the downstream scan loop (P3d) - this
     strategy emits one SignalCandidate per publication that survives the
     filter envelope.
+
+    WARP-93 (Issue 3) audit — RETAIN, do NOT delete. This is a real, registered
+    BaseStrategy (StrategyRegistry bootstrap), wired to the Telegram `/signals`
+    command, the live crash-recovery reconciler (live_reconcile directional
+    prefix), DB enrollment migrations (012/031), and 70+ tests. It is currently
+    DORMANT, not dead: with no operator feeds publishing it emits 0 candidates,
+    so production shows 0 positions and the user-strategies row sits disabled.
+    Deleting the class/DB row would break imports, the registry lookup, the bot
+    command surface, and the test suite. Left in place, disabled, as planned
+    future capability — re-activates the moment a feed publishes.
     """
 
     name = "signal_following"

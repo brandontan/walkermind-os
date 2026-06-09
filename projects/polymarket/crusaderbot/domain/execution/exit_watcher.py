@@ -33,14 +33,16 @@ Failure handling:
 from __future__ import annotations
 
 import asyncio
-import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Awaitable, Callable, Optional, Protocol
 
+import structlog
+
 from ... import audit
 from ...database import get_pool
+from ...integrations.clob.market_data import MarketDataClient
 from ...integrations.polymarket import get_live_market_price
 from ...monitoring import alerts as monitoring_alerts
 from ..positions import registry
@@ -53,9 +55,21 @@ from ..strategy.registry import StrategyRegistry
 from . import order as order_module
 from . import router
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 DEFAULT_POLL_INTERVAL_SECONDS: float = 30.0
+
+# Shared MarketDataClient for CLOB /midpoint queries. Constructed lazily so
+# paper-mode test runs that never call _fetch_live_price don't open a socket.
+_market_data_client: Optional[MarketDataClient] = None
+
+
+def _get_market_data_client() -> MarketDataClient:
+    global _market_data_client
+    if _market_data_client is None:
+        _market_data_client = MarketDataClient()
+    return _market_data_client
+
 
 # Per-position consecutive None-price tick counter. A None result on a single
 # tick may be a transient Gamma outage (tenacity already retries network errors
@@ -68,6 +82,11 @@ _price_fail_counts: dict[object, int] = {}  # position.id (UUID) -> consecutive 
 # exit (mirrors copy_trade.RESOLUTION_DISTANCE_DISABLED_DAYS). All shipped
 # profiles are <= 90d, so the guard is always active in practice.
 _RESOLUTION_DISABLED_DAYS: int = 365
+
+# A live mark at/within this distance of 0 or 1 means the binary market has
+# effectively settled. A TP/SL threshold crossed at such a price is a market
+# resolution (price gapped past the target between polls), not a clean trigger.
+_RESOLUTION_PRICE_EPS: float = 0.02
 
 
 def _horizon_exceeded(position: OpenPositionForExit) -> bool:
@@ -125,6 +144,12 @@ async def registry_strategy_evaluator(
     price as ``current_price``. Falls back to no-op (False) when the position
     is unattributed, the strategy is not registered, or the hook errors —
     a strategy exit hook must never poison the watcher loop.
+
+    Enriches the position dict with ``active_preset`` + ``selected_timeframe``
+    + ``seconds_to_close`` + ``force_exit_at_rem_sec`` (Kreo-style fixed-time
+    exit) when the strategy is ``late_entry_v3`` and the snapshot carries the
+    needed data. The strategy hook decides what to do with them — older
+    strategies that ignore unknown dict keys are unaffected.
     """
     name = position.strategy_type
     if not name:
@@ -133,43 +158,145 @@ async def registry_strategy_evaluator(
         strat = StrategyRegistry.instance().get(name)
     except KeyError:
         return False
+
+    payload: dict[str, object] = {
+        "id": position.id,
+        "user_id": position.user_id,
+        "market_id": position.market_id,
+        "side": position.side,
+        "entry_price": position.entry_price,
+        "size_usdc": position.size_usdc,
+        "current_price": current_price,
+        "strategy_type": name,
+    }
+
+    # Weather strategy — enrich payload with resolution_at as end_date so
+    # time-based exits (tp_48h, tp_48h_plus, near_expiry) can compute
+    # hours_remaining, and spread the persisted strategy_metadata (city,
+    # bucket bounds, entry forecast mean, high-water price) so the trailing-stop
+    # (Exit 2) and adaptive forecast-shift (Exit 4) have their inputs. Metadata
+    # keys are spread at the top level (the hook reads position.get("city")
+    # etc.); explicit payload keys below win on any collision.
+    if name == "weather":
+        if isinstance(position.strategy_metadata, dict):
+            # Only fill keys not already authoritative in the base payload —
+            # a stale signal-time metadata value (e.g. current_price/side/
+            # entry_price) must never clobber the live values computed above.
+            for k, v in position.strategy_metadata.items():
+                if k not in payload:
+                    payload[k] = v
+        if position.resolution_at is not None:
+            payload["end_date"] = position.resolution_at.isoformat()
+
+    # late_entry_v3 force-exit plumbing — Kreo-style fixed-time exit.
+    # Compute current rem from resolution_at and look up the (preset, tf)
+    # threshold. Both must be available; otherwise the strategy hook falls
+    # back to flip-stop-only (existing behaviour, unchanged).
+    if name == "late_entry_v3":
+        force_at = _late_entry_force_exit_for(position)
+        # candle_auto router: active_preset is "candle_auto", which has no entry
+        # in the (preset, tf) force-exit map, so _late_entry_force_exit_for returns
+        # None. The matched sub-rule's threshold was stamped into the candidate
+        # metadata at scan time and persisted to positions.strategy_metadata —
+        # fall back to it so each lifecycle rule keeps its fixed-time exit.
+        if force_at is None and isinstance(position.strategy_metadata, dict):
+            _stored = position.strategy_metadata.get("force_exit_at_rem_sec")
+            if _stored is not None:
+                try:
+                    force_at = float(_stored)
+                except (TypeError, ValueError):
+                    force_at = None
+        secs_left = _seconds_to_close_from(position)
+        if force_at is not None:
+            payload["force_exit_at_rem_sec"] = force_at
+        if secs_left is not None:
+            payload["seconds_to_close"] = secs_left
+        if position.active_preset:
+            payload["active_preset"] = position.active_preset
+        if position.selected_timeframe:
+            payload["selected_timeframe"] = position.selected_timeframe
+
     try:
-        decision = await strat.evaluate_exit(
-            {
-                "id": position.id,
-                "user_id": position.user_id,
-                "market_id": position.market_id,
-                "side": position.side,
-                "entry_price": position.entry_price,
-                "size_usdc": position.size_usdc,
-                "current_price": current_price,
-                "strategy_type": name,
-            }
-        )
+        decision = await strat.evaluate_exit(payload)
     except Exception as exc:
-        logger.warning(
-            "exit_watcher strategy hook failed strat=%s pos=%s err=%s",
-            name, position.id, exc,
+        log.warning(
+            "exit_watcher strategy hook failed",
+            strategy=name, position_id=str(position.id), err=str(exc),
         )
         return False
     return bool(getattr(decision, "should_exit", False))
 
 
-async def _fetch_live_price(market_id: str, side: str) -> Optional[float]:
+def _late_entry_force_exit_for(position: OpenPositionForExit) -> Optional[float]:
+    """Look up the (preset, timeframe) → force_exit_at_rem_sec threshold.
+
+    Returns None when the position has no preset attached or the preset has
+    no fixed-time exit rule (e.g. close_sweep). Soft-imports the helper so a
+    refactor that drops late_entry_v3 cannot break the watcher.
+    """
+    try:
+        from ..strategy.strategies.late_entry_v3 import force_exit_at_rem_sec_for
+    except Exception:
+        return None
+    return force_exit_at_rem_sec_for(position.active_preset, position.selected_timeframe)
+
+
+def _seconds_to_close_from(position: OpenPositionForExit) -> Optional[float]:
+    """Return remaining seconds in the candle for this position, or None.
+
+    Uses ``resolution_at`` (already on the snapshot) — no extra DB / API call.
+    Negative values clamp to 0 so a stale snapshot whose candle already closed
+    will exit on the next tick rather than oscillate.
+    """
+    res_at = position.resolution_at
+    if res_at is None:
+        return None
+    if res_at.tzinfo is None:
+        res_at = res_at.replace(tzinfo=timezone.utc)
+    rem = (res_at - datetime.now(timezone.utc)).total_seconds()
+    return max(0.0, rem)
+
+
+async def _fetch_live_price(
+    market_id: str,
+    side: str,
+    *,
+    token_id: Optional[str] = None,
+) -> Optional[float]:
     """Fetch the live Polymarket price for this position's side.
 
-    Error-isolated wrapper around ``get_live_market_price``. Returns None when
-    the API is unreachable or returns an unparseable response — the caller in
-    ``evaluate`` falls back to ``position.current_price()`` (which returns
-    ``entry_price`` when market columns are stale), keeping ret_pct == 0 and
-    preventing spurious TP/SL triggers on missing data.
+    Primary path: CLOB ``GET /midpoint?token_id=X`` when a token_id is
+    available. This skips the Gamma round-trip entirely — one HTTP call
+    instead of two, and the midpoint is always fresh (no 30s Gamma cache).
+
+    Fallback: ``get_live_market_price`` (Gamma → CLOB /price chain) when
+    token_id is absent or the midpoint call fails.
+
+    Returns None on any error — callers fall back to
+    ``position.current_price()`` (entry_price when stale), keeping
+    ret_pct == 0 and preventing spurious TP/SL triggers on missing data.
     """
+    if token_id:
+        try:
+            mdc = _get_market_data_client()
+            resp = await mdc.get_midpoint(token_id)
+            raw = resp.get("mid")
+            if raw is not None:
+                price = float(raw)
+                if 0.0 < price < 1.0:
+                    return price
+        except Exception as exc:
+            log.debug(
+                "exit_watcher._fetch_live_price midpoint failed — falling back",
+                token=token_id, market_id=market_id, side=side, err=str(exc),
+            )
+    # Fallback: Gamma → CLOB /price chain.
     try:
         return await get_live_market_price(market_id, side)
     except Exception as exc:
-        logger.warning(
-            "exit_watcher._fetch_live_price market=%s side=%s error=%s",
-            market_id, side, exc,
+        log.warning(
+            "exit_watcher._fetch_live_price",
+            market_id=market_id, side=side, err=str(exc),
         )
         return None
 
@@ -215,22 +342,47 @@ class RunResult:
     errors: int = 0
 
 
-def _return_pct(*, side: str, entry_price: float, current_price: float) -> float:
-    """Per-side P&L percentage at the current mark.
+def _tp_exit_price(side: str, entry_price: float, applied_tp_pct: float) -> float:
+    """Exact price at which the TP threshold is crossed — used as fill price.
 
-    YES side: (current - entry) / entry
-    NO side : ((1 - current) - (1 - entry)) / (1 - entry)
-            = (entry - current) / (1 - entry)
+    Prevents the polling gap from inflating P&L: a position whose market
+    jumps far past TP between polls would otherwise record the full gap as
+    profit. The TP target price is the fair paper-fill assumption.
 
-    The denominators are floored so a degenerate entry at exactly 0 or 1
-    cannot produce a divide-by-zero — those are upstream-rejected by the
-    risk gate but the floor is cheap insurance.
+    Side-own price convention: ``entry_price`` and the live mark are the
+    position's OWN outcome-token price (YES token for a YES position, NO token
+    for a NO position — see ``_return_pct``). A position takes profit when its
+    own token rises, so TP is reached at ``entry * (1 + tp)`` for BOTH sides.
     """
-    if side == "yes":
-        return (current_price - entry_price) / max(entry_price, 1e-6)
-    comp_entry = 1.0 - entry_price
-    comp_exit = 1.0 - current_price
-    return (comp_exit - comp_entry) / max(comp_entry, 1e-6)
+    return entry_price * (1.0 + applied_tp_pct)
+
+
+def _sl_exit_price(side: str, entry_price: float, applied_sl_pct: float) -> float:
+    """Exact price at which the SL threshold is crossed — used as fill price.
+
+    Side-own convention (see ``_return_pct``): SL is reached when the position's
+    own token falls to ``entry * (1 - sl)`` for BOTH sides.
+    """
+    return entry_price * (1.0 - applied_sl_pct)
+
+
+def _return_pct(*, side: str, entry_price: float, current_price: float) -> float:
+    """P&L percentage at the current mark, in the position's OWN token frame.
+
+    A position is "buy ``size`` USDC of the chosen outcome token at
+    ``entry_price``"; its return is simply how far that same token's price has
+    moved: ``(current - entry) / entry`` — identical for YES and NO, because
+    ``entry_price`` and ``current_price`` are always the position's OWN token
+    price (the data pipeline stores entry from the side's own price and the
+    watcher fetches the side's own ``token_id`` midpoint). YES behaviour is
+    unchanged; this is the corrected NO frame (previously a YES-denominated
+    complement that mis-signed NO P&L — WARP/ROOT/no-side-pnl-frame).
+
+    ``side`` is retained for signature stability; the formula no longer
+    branches on it. ``entry_price`` is floored so a degenerate entry at exactly
+    0 cannot divide-by-zero — upstream-rejected by the risk gate, cheap insurance.
+    """
+    return (current_price - entry_price) / max(entry_price, 1e-6)
 
 
 async def evaluate(
@@ -264,25 +416,98 @@ async def evaluate(
                             reason=ExitReason.FORCE_CLOSE.value,
                             current_price=cur)
 
+    # 1b. Complete-set arbitrage legs are held to RESOLUTION. The pair only pays
+    #     out its locked margin when the market settles (one leg -> $1, the other
+    #     -> $0), so a leg must NEVER exit mid-trade on TP/SL, a strategy hook, or
+    #     the horizon guard — any of those would close one leg and strand the
+    #     other as a naked directional bet, destroying the hedge. Only
+    #     force_close_intent (emergency, handled above) and market_resolved
+    #     (handled at the top — settles via the redemption pipeline) close a set.
+    if position.strategy_type == "complete_set_arb":
+        return ExitDecision(should_exit=False, reason=None, current_price=cur)
+
     ret = _return_pct(side=position.side,
                       entry_price=position.entry_price,
                       current_price=cur)
 
+    # A binary market that has settled prices at ~0 or ~1. When the live mark
+    # has gapped to such an extreme, a crossed TP/SL threshold is really a
+    # market *resolution* (the price leapt past the target between polls), not
+    # a clean TP/SL fill at the configured percentage. Label it honestly so the
+    # UI shows "Market Resolution (Won/Lost)" instead of "Take Profit (TP)" with
+    # a realised return far beyond the user's setting.
+    resolved = cur is not None and (cur <= _RESOLUTION_PRICE_EPS
+                                    or cur >= 1.0 - _RESOLUTION_PRICE_EPS)
+
     # 2. TP — read from the immutable applied_tp_pct snapshot, NOT from
     #    user_settings.tp_pct. A user toggling TP via /settings must NOT
     #    affect open positions.
+    #
+    #    Exit fill price = the live mark (`cur`), NOT the synthetic
+    #    `entry × (1+tp%)` threshold. Rationale:
+    #      * `cur` is the freshly-fetched CLOB /midpoint (or fallback to
+    #        get_live_market_price) — already filtered for sentinels and
+    #        tick-aligned. It IS the realistic fill price.
+    #      * The synthetic was added to bound polling-gap inflation when
+    #        the upstream price sources still leaked 1.0/0.0 sentinels,
+    #        but that protection now lives at the source (sentinel filter
+    #        in get_live_market_price + /midpoint primary).
+    #      * Same synthetic produced identical exits across distinct coins
+    #        (entry × 1.15 = 0.58075 for every position entered at 0.505),
+    #        which was the visible "fake exits" symptom WARP🔹CMD called out.
+    #    Falls back to the synthetic when `cur` is None (no live mark + no
+    #    cached current_price), keeping the old protection intact.
     if position.applied_tp_pct is not None and ret >= position.applied_tp_pct:
+        exit_fill = cur if cur is not None else _tp_exit_price(
+            position.side, position.entry_price, position.applied_tp_pct,
+        )
+        reason = ExitReason.RESOLUTION_WIN.value if resolved else ExitReason.TP_HIT.value
         return ExitDecision(should_exit=True,
-                            reason=ExitReason.TP_HIT.value,
-                            current_price=cur)
+                            reason=reason,
+                            current_price=exit_fill)
 
     # 3. SL — same snapshot rule. Note SL is stored as a positive magnitude;
     #    the trigger condition compares against -applied_sl_pct so a 0.10
     #    SL means "close once we are 10% in the red".
+    #
+    #    The configured SL is a RISK PROMISE: the realised loss must not exceed
+    #    applied_sl_pct. On a fast-moving candle the live mark can gap far past
+    #    the stop between polls (the 0.50 -> 0.14 "SL HIT -72.5% on a 20% stop"
+    #    symptom). So the exit fill is bounded by the stop-threshold price rather
+    #    than blindly taking the gapped live mark:
+    #      * PAPER -> fill at the stop price (standard backtest convention) so
+    #        the realised loss == the user's setting, never worse.
+    #      * LIVE  -> keep the real mark: a real SELL must fill at a marketable
+    #        price (a limit at the higher stop price would sit unfilled), and
+    #        fabricating a capped fill would misstate real-money PnL. Live
+    #        slippage is reported honestly.
+    #      * RESOLUTION (mark gapped to ~0/1) -> real terminal value, an honest
+    #        ~-100% RESOLUTION_LOSS ("you lost the bet"), never capped.
     if position.applied_sl_pct is not None and ret <= -position.applied_sl_pct:
+        sl_threshold_price = _sl_exit_price(
+            position.side, position.entry_price, position.applied_sl_pct,
+        )
+        if resolved:
+            # `resolved` is defined as `cur is not None and (...)` above, so cur
+            # is guaranteed non-None here — use the real terminal mark directly.
+            exit_fill = cur
+            reason = ExitReason.RESOLUTION_LOSS.value
+        else:
+            # Defensive parity with the TP branch (cur never None at runtime —
+            # current_price() falls back to entry — but the fallback is pinned
+            # by test_evaluate_synthetic_fallback so a future refactor can't
+            # surface None into the close path uncaught).
+            if cur is None:
+                exit_fill = sl_threshold_price
+            elif position.mode == "live":
+                exit_fill = cur
+            else:
+                # max(): never record a loss worse than the configured stop.
+                exit_fill = max(cur, sl_threshold_price)
+            reason = ExitReason.SL_HIT.value
         return ExitDecision(should_exit=True,
-                            reason=ExitReason.SL_HIT.value,
-                            current_price=cur)
+                            reason=reason,
+                            current_price=exit_fill)
 
     # 4. Strategy hook — priority above horizon/hold. Pass the live favored-side
     #    price so price-level exits (e.g. late_entry_v3 flip-stop) use real data.
@@ -309,6 +534,10 @@ def _user_alert_for_reason(reason: str):
         return monitoring_alerts.alert_user_tp_hit
     if reason == ExitReason.SL_HIT.value:
         return monitoring_alerts.alert_user_sl_hit
+    if reason == ExitReason.RESOLUTION_WIN.value:
+        return monitoring_alerts.alert_user_resolution_win
+    if reason == ExitReason.RESOLUTION_LOSS.value:
+        return monitoring_alerts.alert_user_resolution_loss
     if reason == ExitReason.FORCE_CLOSE.value:
         return monitoring_alerts.alert_user_force_close
     if reason == ExitReason.STRATEGY_EXIT.value:
@@ -333,6 +562,22 @@ async def _act_on_decision(
         await registry.update_current_price(
             position.id, decision.current_price, position.user_id, pnl_usdc=pnl
         )
+        # Weather trailing stop (Exit 2) needs a running peak price. Persist the
+        # high-water mark into strategy_metadata on every held tick so the next
+        # tick's evaluate_exit can see whether the position ran +20% above entry.
+        # Atomic + only-raises in the registry; a falling market is a no-op.
+        # Failure here must never poison the hold path — the price refresh above
+        # already succeeded; a missed high-water bump self-heals on the next tick.
+        if position.strategy_type == "weather":
+            try:
+                await registry.bump_high_water_price(
+                    position.id, position.user_id, decision.current_price
+                )
+            except Exception as exc:
+                log.warning(
+                    "exit_watcher: high-water bump failed",
+                    position_id=str(position.id), err=str(exc),
+                )
         try:
             from ...webtrader.backend.sse import push_position_updated
             push_position_updated(
@@ -344,7 +589,7 @@ async def _act_on_decision(
         except ImportError:
             pass
         except Exception as exc:
-            logger.warning("exit_watcher: SSE position_updated push failed: %s", exc)
+            log.warning("exit_watcher: SSE position_updated push failed", err=str(exc))
         return
 
     reason = decision.reason or ExitReason.STRATEGY_EXIT.value
@@ -366,14 +611,12 @@ async def _act_on_decision(
                      "failure_count": new_count,
                      "error": (result.error or "")[:500]},
         )
-        logger.info(
+        log.info(
             "close_failed (user notif suppressed, operator alert active)",
-            extra={
-                "position_id": str(position.id),
-                "market_id": position.market_id,
-                "side": position.side,
-                "error": (result.error or "unknown")[:200],
-            },
+            position_id=str(position.id),
+            market_id=position.market_id,
+            side=position.side,
+            error=(result.error or "unknown")[:200],
         )
         await monitoring_alerts.alert_operator_close_failed_persistent(
             position_id=position.id,
@@ -391,6 +634,30 @@ async def _act_on_decision(
         await registry.reset_close_failure(position.id, position.user_id)
 
     payload = result.payload or {}
+
+    # Double-close dedup (no-op guard). A candle position is evaluated by BOTH
+    # the 30s `exit_watch` loop AND the 5s `check_candle_exits` fast loop
+    # (registry._CANDLE_PRESETS — candle_auto joined that set in WARP-93). The two
+    # loops can race the same position: the first close wins the atomic
+    # `WHERE status='open'` claim and records the REAL P&L + fires the correct
+    # alert; the racing second close finds the row already closed, so both
+    # paper.close_position and live.close_position return a NO-OP payload
+    # (exit_reason="already_closed", pnl_usdc=0). submit_close_with_retry wraps
+    # that as ok=True, so without this guard the watcher fired a SECOND,
+    # duplicate "[PAPER] TP/SL hit … P&L: $+0.00" alert for a position that
+    # already exited with real P&L (the user-reported "+0" regression). The
+    # winning close already notified + credited the wallet — treat the no-op as a
+    # silent dedup: no alert, no position.closed emit, no fake close audit.
+    if payload.get("exit_reason") == "already_closed":
+        log.info(
+            "exit_watcher: close was a no-op (position already closed by a "
+            "racing tick) — skipping duplicate $0 alert",
+            position_id=str(position.id),
+            reason=reason,
+            mode=position.mode,
+        )
+        return
+
     pnl_decimal = payload.get("pnl_usdc", Decimal("0"))
     try:
         pnl = float(pnl_decimal)
@@ -418,6 +685,24 @@ async def _act_on_decision(
             pnl_usdc=pnl,
             mode=position.mode,
         )
+
+    # Emit position.closed so the SSE bridge and notification_service both fire.
+    try:
+        from ...core.event_bus import emit as _emit
+        await _emit(
+            "position.closed",
+            telegram_user_id=position.telegram_user_id,
+            market_id=position.market_id,
+            market_question=position.market_question,
+            side=position.side,
+            entry_price=float(position.entry_price),
+            exit_price=float(decision.current_price or position.entry_price),
+            pnl_usdc=pnl,
+            close_reason=reason,
+            mode=position.mode,
+        )
+    except Exception as _exc:
+        log.debug("exit_watcher: position.closed emit failed", err=str(_exc))
 
 
 async def _market_actually_expired(market_id: str) -> bool:
@@ -455,18 +740,18 @@ async def _close_expired_position(position: OpenPositionForExit) -> bool:
     Returns True iff the position was closed. Returns False if the position
     was already closed by another path (idempotent).
     """
-    logger.warning(
-        "Position %s: market %s not found on Gamma after retries — closing as MARKET_EXPIRED",
-        position.id, position.market_id,
+    log.warning(
+        "Position: market not found on Gamma after retries — closing as MARKET_EXPIRED",
+        position_id=str(position.id), market_id=position.market_id,
     )
     try:
         closed = await registry.close_as_expired(
             position.id, position.user_id, position.size_usdc
         )
         if not closed:
-            logger.info(
-                "close_as_expired: position %s already closed (idempotent skip)",
-                position.id,
+            log.info(
+                "close_as_expired: position already closed (idempotent skip)",
+                position_id=str(position.id),
             )
             return False
         await audit.write(
@@ -479,21 +764,19 @@ async def _close_expired_position(position: OpenPositionForExit) -> bool:
                 "mode": position.mode,
             },
         )
-        logger.info(
+        log.info(
             "market_expired position closed (user notif suppressed)",
-            extra={
-                "position_id": str(position.id),
-                "market_id": position.market_id,
-                "side": position.side,
-                "size_usdc": position.size_usdc,
-                "mode": position.mode,
-            },
+            position_id=str(position.id),
+            market_id=position.market_id,
+            side=position.side,
+            size_usdc=position.size_usdc,
+            mode=position.mode,
         )
         return True
     except Exception as exc:
-        logger.error(
-            "exit_watcher._close_expired_position position=%s error=%s",
-            position.id, exc, exc_info=True,
+        log.exception(
+            "exit_watcher._close_expired_position",
+            position_id=str(position.id), err=str(exc),
         )
         return False
 
@@ -502,6 +785,8 @@ async def run_once(
     *,
     strategy_evaluator: StrategyExitEvaluator = registry_strategy_evaluator,
     close_submitter: Optional[order_module.CloseSubmitter] = None,
+    position_loader: Optional[Callable[[], Awaitable[list]]] = None,
+    run_resolved_phase: bool = True,
 ) -> RunResult:
     """One full pass over every open position. Returns a ``RunResult`` with counts.
 
@@ -529,21 +814,29 @@ async def run_once(
     errors = 0
 
     # Phase A: normal positions — market not yet resolved in local DB.
-    positions = await registry.list_open_for_exit()
+    # ``position_loader`` lets the dedicated fast exit loop pass a scoped query
+    # (candle positions near resolution); default = every open position.
+    loader = position_loader or registry.list_open_for_exit
+    positions = await loader()
     for p in positions:
         try:
+            # Resolve the CLOB token_id for this position's side so
+            # _fetch_live_price can use the faster /midpoint endpoint.
+            token_id = (
+                p.yes_token_id if p.side == "yes" else p.no_token_id
+            )
             # Skip live price fetch for force-close: FORCE_CLOSE has highest
             # priority in evaluate(); fetching first would gate an urgent
             # unwind behind Gamma API retry/backoff during outages.
             live_price = (
                 None if p.force_close_intent
-                else await _fetch_live_price(p.market_id, p.side)
+                else await _fetch_live_price(p.market_id, p.side, token_id=token_id)
             )
             # Retry once on None for non-force-close positions. The Gamma
             # cache is populated only on a successful fetch, so a None
             # result is never cached — the retry always makes a fresh call.
             if live_price is None and not p.force_close_intent:
-                live_price = await _fetch_live_price(p.market_id, p.side)
+                live_price = await _fetch_live_price(p.market_id, p.side, token_id=token_id)
                 if live_price is None:
                     # Increment the consecutive-None counter for this position.
                     # Only close after _EXPIRED_TICK_THRESHOLD consecutive ticks
@@ -552,7 +845,15 @@ async def run_once(
                     fail_count = _price_fail_counts.get(p.id, 0) + 1
                     _price_fail_counts[p.id] = fail_count
                     if fail_count >= _EXPIRED_TICK_THRESHOLD:
-                        if await _market_actually_expired(p.market_id):
+                        if p.strategy_type == "complete_set_arb":
+                            # Complete-set legs are held to resolution and settle via
+                            # the redemption pipeline (winning leg -> $1, losing leg
+                            # -> $0). They must NEVER close as MARKET_EXPIRED: that
+                            # path refunds size_usdc, which destroys the hedge. A None
+                            # price on a delisting/resolving set is expected near
+                            # resolution; pin the counter and hold without expiring.
+                            _price_fail_counts[p.id] = _EXPIRED_TICK_THRESHOLD
+                        elif await _market_actually_expired(p.market_id):
                             if await _close_expired_position(p):
                                 expired += 1
                                 _price_fail_counts.pop(p.id, None)
@@ -561,10 +862,10 @@ async def run_once(
                             # Log once per fail-threshold crossing for ops visibility; keep
                             # the counter pinned at the threshold so we recheck each tick
                             # without unbounded growth.
-                            logger.warning(
-                                "exit_watcher: position %s market %s has None price for %d ticks "
-                                "but DB shows not-resolved — treating as stale, not expired",
-                                p.id, p.market_id, fail_count,
+                            log.warning(
+                                "exit_watcher: position has None price but DB shows not-resolved — treating as stale, not expired",
+                                position_id=str(p.id), market_id=p.market_id,
+                                ticks=fail_count,
                             )
                             _price_fail_counts[p.id] = _EXPIRED_TICK_THRESHOLD
                     continue
@@ -581,29 +882,41 @@ async def run_once(
                 p, decision, close_submitter=close_submitter,
             )
         except Exception as exc:
-            logger.error(
-                "exit_watcher: position %s evaluation failed: %s",
-                p.id, exc, exc_info=True,
+            log.exception(
+                "exit_watcher: position evaluation failed",
+                position_id=str(p.id), err=str(exc),
             )
             errors += 1
 
     # Phase B: positions on resolved markets — invisible to Phase A's query.
-    resolved_positions = await registry.list_open_on_resolved_markets()
+    # Skipped by the scoped fast exit loop (run_resolved_phase=False): the
+    # resolved-market sweep is a global wallet-crediting pass owned by the 30s
+    # watcher, not candle-scoped.
+    resolved_positions = (
+        await registry.list_open_on_resolved_markets() if run_resolved_phase else []
+    )
     for p in resolved_positions:
         try:
+            if p.strategy_type == "complete_set_arb":
+                # Held to resolution: both legs settle via the redemption pipeline
+                # (winning leg -> $1, losing leg -> $0), never via close_as_expired
+                # (which refunds the stake and breaks the arb settlement). Counted
+                # as held for observability rather than expired.
+                held += 1
+                continue
             if await _close_expired_position(p):
                 expired += 1
         except Exception as exc:
-            logger.error(
-                "exit_watcher: resolved-market position %s close failed: %s",
-                p.id, exc, exc_info=True,
+            log.exception(
+                "exit_watcher: resolved-market position close failed",
+                position_id=str(p.id), err=str(exc),
             )
             errors += 1
 
     if expired > 0:
-        logger.info(
-            "exit_watcher.run_once: submitted=%d expired=%d held=%d errors=%d",
-            submitted, expired, held, errors,
+        log.info(
+            "exit_watcher.run_once",
+            submitted=submitted, expired=expired, held=held, errors=errors,
         )
     return RunResult(submitted=submitted, expired=expired, held=held, errors=errors)
 
@@ -623,10 +936,10 @@ async def run_forever(
     ``stop`` is an optional poll predicate (returns True to break) used by
     tests; in production the loop runs until the parent task is cancelled.
     """
-    logger.info("exit_watcher.run_forever interval=%.1fs", interval_seconds)
+    log.info("exit_watcher.run_forever", interval_seconds=interval_seconds)
     while True:
         if stop is not None and stop():
-            logger.info("exit_watcher.run_forever stop predicate -> exiting")
+            log.info("exit_watcher.run_forever stop predicate -> exiting")
             return
         try:
             await run_once(
@@ -638,5 +951,5 @@ async def run_forever(
             # last-resort net for an infrastructure-level error (DB pool
             # gone, etc.). The loop must NOT die — APScheduler equivalents
             # would simply restart the tick on the next interval.
-            logger.error("exit_watcher.run_once raised: %s", exc, exc_info=True)
+            log.exception("exit_watcher.run_once raised", err=str(exc))
         await sleep(interval_seconds)

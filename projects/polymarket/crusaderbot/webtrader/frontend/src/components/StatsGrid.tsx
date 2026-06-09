@@ -18,7 +18,7 @@ export function StatsGrid({ essential, advanced }: Props) {
         <div className="grid grid-cols-[1fr_1fr] gap-2 mb-3">{essential}</div>
       </EssentialOnly>
       <AdvancedOnly>
-        <div className="grid grid-cols-[1.3fr_1fr] gap-2 mb-3">{advanced}</div>
+        <div className="grid grid-cols-2 gap-2 mb-3">{advanced}</div>
       </AdvancedOnly>
     </>
   );

@@ -29,6 +29,7 @@ from ..handlers import (
     dashboard,
     positions,
     presets,
+    wallet,
 )
 
 HandlerFn = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[None]]
@@ -69,6 +70,7 @@ MAIN_MENU_ROUTES: dict[str, HandlerFn] = {
     # wizard state without the legacy handler firing a second message.
     "⚙️ Settings":           _group0_noop,
     "❓ Help":               _group0_noop,
+    "💳 Wallet":             wallet.wallet_root_cb,
     # Backward-compat aliases (old state-driven labels)
     "📊 Active Monitor":     dashboard.dashboard,
     "🚀 Start Autobot":      presets.show_preset_picker,

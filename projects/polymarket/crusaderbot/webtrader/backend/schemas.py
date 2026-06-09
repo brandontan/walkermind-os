@@ -3,7 +3,56 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+
+# ── TP/SL server-side bounds (WARP-90 / PR #1688 SENTINEL condition) ───────────
+#
+# Exit thresholds (tp_pct / sl_pct) are a STRATEGY-stage concern (CLAUDE.md
+# SYSTEM PIPELINE) and are stored raw on ``user_settings`` then consumed at
+# execution time by the scan job. Frontend hints are insufficient — any client
+# can POST arbitrary values straight to the API. These bounds are the
+# authoritative server-side guard enforced at the Pydantic schema layer, so they
+# fire on EVERY write path that accepts these fields (customize, risk-profile,
+# admin patch): an invalid present value raises a ValidationError -> FastAPI 422
+# before the handler runs.
+#
+# None/NULL is always allowed (means "use the strategy default", resolved by
+# ``signal_scan_job._strategy_default_tp_sl``). We validate present values only.
+#
+# sl_pct: a stop-loss fraction in (0, MAX_SL_PCT]. 0 or negative = "no stop-loss"
+#         / nonsense; > 1.0 has no meaning for a fractional stop. MIN_SL_PCT is
+#         the messaging floor; the hard reject is ``<= 0``.
+# tp_pct: a take-profit fraction in (0, MAX_TP_PCT] (0%-1000%). 0/negative is
+#         nonsense; > 10.0 is an absurd target.
+MIN_SL_PCT: float = 0.01
+MAX_SL_PCT: float = 1.0
+MAX_TP_PCT: float = 10.0
+
+
+def _validate_tp_pct(value: Optional[float]) -> Optional[float]:
+    """Reject a present tp_pct outside (0, MAX_TP_PCT]. None passes through."""
+    if value is None:
+        return value
+    if value <= 0 or value > MAX_TP_PCT:
+        raise ValueError(
+            f"tp_pct must be in (0, {MAX_TP_PCT}] (0%-1000%); got {value}"
+        )
+    return value
+
+
+def _validate_sl_pct(value: Optional[float]) -> Optional[float]:
+    """Reject a present sl_pct outside (0, MAX_SL_PCT]. None passes through.
+
+    MIN_SL_PCT (0.01) is the messaging floor; the hard rejection is ``<= 0``.
+    """
+    if value is None:
+        return value
+    if value <= 0 or value > MAX_SL_PCT:
+        raise ValueError(
+            f"sl_pct must be in (0, {MAX_SL_PCT}] (0%-100%); got {value}"
+        )
+    return value
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -25,6 +74,22 @@ class TokenResponse(BaseModel):
     first_name: str
 
 
+class EmailRegisterRequest(BaseModel):
+    email: str
+    password: str
+    first_name: str
+
+
+class EmailLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class LinkEmailRequest(BaseModel):
+    email: str
+    password: str
+
+
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 class DashboardSummary(BaseModel):
@@ -40,6 +105,21 @@ class DashboardSummary(BaseModel):
     kill_switch_active: bool
     trading_mode: str
     active_preset: Optional[str] = None
+    risk_profile: str = "balanced"
+    pnl_alltime: float = 0.0
+    signals_today: int = 0
+    # Whether the strategy backing the user's active preset is globally
+    # enabled (operator Ops-Console). When False, the scanner emits no
+    # candidates even though ``auto_trade_on`` is True — used by the desktop
+    # sidebar System Status block + topbar pill so SCANNER shows PAUSED
+    # (ADMIN) instead of RUNNING. Defaults True (no preset / no row = ON).
+    active_preset_globally_enabled: bool = True
+    # Server-side AlertCenter "Mark all read" watermark. NULL = never
+    # acknowledged. Frontend mirrors it onto its visibleAlerts filter so the
+    # closed-position alert stream (sourced from /positions, not /alerts)
+    # also collapses after a click, surviving localStorage clears + device
+    # changes. Serialised as ISO-8601 with offset (tz-aware).
+    alerts_ack_at: Optional[datetime] = None
 
 
 # ── Market feed ───────────────────────────────────────────────────────────────
@@ -74,6 +154,15 @@ class PositionItem(BaseModel):
     opened_at: datetime
     closed_at: Optional[datetime] = None
     exit_reason: Optional[str] = None
+    strategy_type: Optional[str] = None
+    active_preset: Optional[str] = None
+    # TP/SL as configured fractions + the derived trigger price levels (in the
+    # same YES-price units as entry_price/current_price). Powers the expandable
+    # trade detail view. None when the position carries no TP/SL.
+    tp_pct: Optional[float] = None
+    sl_pct: Optional[float] = None
+    tp_price: Optional[float] = None
+    sl_price: Optional[float] = None
     # True when the market resolved in this position's favour but the position
     # is still open awaiting redemption (e.g. hourly auto-redeem not yet run).
     # The UI surfaces a "waiting redeem" state + a Force Redeem action.
@@ -101,6 +190,11 @@ class ClosePositionResponse(BaseModel):
     status: str
 
 
+class EmergencyStopResponse(BaseModel):
+    positions_marked: int
+    user_paused: bool
+
+
 # ── Auto-Trade ────────────────────────────────────────────────────────────────
 
 class AutoTradeState(BaseModel):
@@ -108,8 +202,8 @@ class AutoTradeState(BaseModel):
     active_preset: Optional[str] = None
     risk_profile: str
     capital_alloc_pct: float
-    tp_pct: float
-    sl_pct: float
+    tp_pct: Optional[float] = None   # null when custom SL-only
+    sl_pct: Optional[float] = None   # null when custom TP-only
     market_categories: list[str] = []
     min_liquidity: float = 1000.0
     max_resolution_days: Optional[int] = None
@@ -117,6 +211,30 @@ class AutoTradeState(BaseModel):
     slippage_tolerance_pct: Optional[float] = None
     selected_timeframe: Optional[str] = None  # '5m' | '15m' for crypto-short presets
     selected_assets: Optional[list[str]] = None  # e.g. ['BTC','ETH'] for crypto-short presets
+    # Account equity (free balance + open-position value) and the resulting
+    # per-trade size for the active CAP%. Surfaces in the UI so users see that
+    # CAP% is the deployable pool, not the size of a single trade.
+    equity_usdc: Optional[float] = None
+    # The effective per-trade $ ceiling the engine will use right now (after the
+    # user's max-per-trade mode is applied). This is the "Max per trade: $X".
+    effective_max_per_trade_usdc: Optional[float] = None
+    # The user's configured max-per-trade control (echoed back for the UI form).
+    max_per_trade_mode: str = "auto"
+    max_per_trade_usdc: Optional[float] = None
+    max_per_trade_pct: Optional[float] = None
+    # Daily loss + drawdown user overrides (stricter-only; system floors apply).
+    # daily_loss_override: negative $, e.g. -300 means halt when daily PnL <= -$300.
+    # max_drawdown_pct: 0–8%, e.g. 0.05 = halt at 5% drawdown (stricter than 8% system).
+    daily_loss_override: Optional[float] = None
+    max_drawdown_pct: Optional[float] = None
+    # Max concurrent open positions override (1..20). Stricter-only — gate step 7
+    # picks min(profile_default, this). NULL/None = use profile default
+    # (conservative=5 / balanced=12 / aggressive=20 / custom=12).
+    max_concurrent_override: Optional[int] = None
+    # False when the active preset's strategy is globally disabled by the
+    # operator (Ops Console on/off). The UI shows "PAUSED (Admin)" instead of
+    # "ACTIVE" — no new trades fire, though the preset selection is unchanged.
+    active_preset_globally_enabled: bool = True
 
 
 class AutoTradeToggleRequest(BaseModel):
@@ -136,13 +254,27 @@ class CustomizeRequest(BaseModel):
     max_position_pct: Optional[float] = None
     auto_redeem_mode: Optional[str] = None
     category_filters: Optional[list[str]] = None
+    max_per_trade_mode: Optional[str] = None   # auto | fixed | pct
+    max_per_trade_usdc: Optional[float] = None
+    max_per_trade_pct: Optional[float] = None
+    daily_loss_override: Optional[float] = None   # negative $ cap, e.g. -300
+    max_drawdown_pct: Optional[float] = None      # 0 < x <= 0.08
+    max_concurrent_override: Optional[int] = None  # 1..20 — stricter-only
+
+    _check_tp_pct = field_validator("tp_pct")(_validate_tp_pct)
+    _check_sl_pct = field_validator("sl_pct")(_validate_sl_pct)
 
 
 class RiskProfileRequest(BaseModel):
-    profile: str  # conservative | balanced | aggressive | custom
+    # WARP-86: 'auto' added — value membership is enforced server-side against
+    # router._VALID_RISK_PROFILES (single source of truth), not a schema enum.
+    profile: str  # conservative | balanced | aggressive | custom | auto
     capital_alloc_pct: Optional[float] = None  # required when profile='custom'
     tp_pct: Optional[float] = None             # required when profile='custom'
     sl_pct: Optional[float] = None             # required when profile='custom'
+
+    _check_tp_pct = field_validator("tp_pct")(_validate_tp_pct)
+    _check_sl_pct = field_validator("sl_pct")(_validate_sl_pct)
 
 
 # ── Wallet ────────────────────────────────────────────────────────────────────
@@ -167,6 +299,18 @@ class LedgerPage(BaseModel):
     entries: list[LedgerEntry]
     has_more: bool
     total: int
+
+
+class WithdrawRequest(BaseModel):
+    amount_usdc: float
+    destination_address: str
+
+
+class WithdrawResponse(BaseModel):
+    id: str
+    status: str
+    approval_mode: str
+    amount_usdc: float
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────
@@ -207,6 +351,11 @@ class AlertItem(BaseModel):
     title: str
     body: Optional[str] = None
     created_at: datetime
+    # New: structured fields for typed AlertCenter card rendering. Both default
+    # to None / empty so legacy rows from pre-072 migration still render via
+    # the body fallback path on the client.
+    alert_kind: Optional[str] = None
+    metadata: dict = {}
 
 
 # ── Portfolio ─────────────────────────────────────────────────────────────────
@@ -217,6 +366,7 @@ class PortfolioSummary(BaseModel):
     unrealized_pnl: float
     equity_usdc: float
     balance_usdc: float
+    total_closed: int = 0
 
 
 class ChartPoint(BaseModel):
@@ -282,8 +432,161 @@ class RuntimeStatus(BaseModel):
     paper_mode: bool
     active_preset: Optional[str]
     risk_profile: str
+    # Global operator kill switch — informational. Set ONLY by operator
+    # /api/ops/kill or Telegram /kill. Webtrader users cannot toggle this.
     kill_switch_active: bool
+    # Per-user paused flag (this user only). Toggled by /api/web/kill +
+    # /api/web/resume and /api/web/emergency-stop. Independent of the
+    # global kill switch above.
+    user_paused: bool
     open_positions: int
     scanner_scanned: int
     scanner_published: int
     scanner_last_tick: Optional[float]
+
+
+# ── Live-trading activation (Axis #3 — WARP/ROOT-live-activation-flow) ──────
+
+
+class LiveStatus(BaseModel):
+    """Per-user live-mode readiness + current state for the WebTrader UI."""
+    # Current trading mode set on user_settings ("paper" | "live").
+    trading_mode: str
+    # Per-user live capital cap (USDC). 0 = user has not opted in.
+    live_capital_cap_usdc: float
+    # Aggregate USDC currently deployed across open live positions.
+    open_live_exposure_usdc: float
+    # Operator-level env guards — visible so the user knows whether live
+    # is unlocked at the system level. ALL must be true before any user
+    # can flip trading_mode='live'.
+    operator_guards_open: bool
+    # 8-gate live_checklist outcome (passed/failed-gates).
+    checklist_passed: bool
+    failed_gates: list[str]
+
+
+class LiveEnableRequest(BaseModel):
+    """POST /api/web/live/enable — typed-confirm flip from paper to live.
+
+    A user must:
+      1. Submit an explicit capital cap > 0 (max USDC the bot may deploy
+         in live mode at any one time).
+      2. Type the EXACT confirm phrase. Defends against accidental clicks
+         and one-tap bots.
+    """
+    live_capital_cap_usdc: float
+    confirm_phrase: str
+
+
+class LiveEnableResponse(BaseModel):
+    trading_mode: str
+    live_capital_cap_usdc: float
+
+
+class StrategyToggleRequest(BaseModel):
+    """POST /api/web/admin/strategies/toggle — flip a strategy on/off globally."""
+    name: str
+    enabled: bool
+
+
+class RuntimeSettingUpdate(BaseModel):
+    """PATCH /api/web/admin/settings/{key} — set a runtime-config override.
+
+    ``value`` is bool | float | str; the runtime_config whitelist validates the
+    type + bounds for the target key (unknown key → 404, bad value → 400).
+    """
+    value: object
+
+
+class AdminRecentTrade(BaseModel):
+    """One row in the per-user recent-trades slice on the admin drawer."""
+    id: str
+    status: str
+    side: Optional[str] = None
+    size_usdc: Optional[float] = None
+    entry_price: Optional[float] = None
+    pnl_usdc: Optional[float] = None
+    exit_reason: Optional[str] = None
+    strategy_type: Optional[str] = None
+    market_question: str = ""
+    ts: str
+
+
+class AdminRecentAudit(BaseModel):
+    """One row in the per-user recent-audit slice on the admin drawer."""
+    ts: str
+    actor_role: str
+    action: str
+
+
+class AdminUserDetail(BaseModel):
+    """GET /api/web/admin/users/{user_id} — full per-user operator view.
+
+    Read-only superset of the AdminUsers row plus all editable settings, the
+    wallet snapshot, and a small recent-activity slice. Mirrors the field
+    set the regular user sees on AutoTradePage so the operator panel can
+    show "what the user sees right now".
+    """
+    user_id: str
+    username: Optional[str] = None
+    email: Optional[str] = None
+    telegram_user_id: Optional[int] = None
+    wallet_address: Optional[str] = None
+    role: str
+    created_at: Optional[datetime] = None
+    # Runtime state
+    trading_mode: str
+    auto_trade_on: bool
+    paused: bool
+    open_positions: int
+    balance_usdc: float
+    # Strategy / risk settings (editable subset)
+    active_preset: Optional[str] = None
+    risk_profile: str
+    capital_alloc_pct: float
+    tp_pct: Optional[float] = None
+    sl_pct: Optional[float] = None
+    max_per_trade_mode: str = "auto"
+    max_per_trade_usdc: Optional[float] = None
+    max_per_trade_pct: Optional[float] = None
+    selected_timeframe: Optional[str] = None
+    selected_assets: Optional[list[str]] = None
+    # Read-only context — last 5 trades + last 3 audit rows for this user
+    recent_trades: list[AdminRecentTrade] = []
+    recent_audit: list[AdminRecentAudit] = []
+
+
+class AdminUserUpdate(BaseModel):
+    """PATCH /api/web/admin/users/{user_id} — partial settings update.
+
+    Every field optional. Only fields explicitly provided are written. The
+    handler validates each against the same allowed-value sets as the
+    user-facing endpoints (preset → _PRESET_TO_STRATEGY,
+    risk_profile → _VALID_RISK_PROFILES, max_per_trade_mode → {auto,fixed,pct},
+    selected_timeframe → {5m,15m}, selected_assets ⊆ {BTC,ETH,SOL,BNB}).
+    """
+    active_preset: Optional[str] = None
+    risk_profile: Optional[str] = None
+    capital_alloc_pct: Optional[float] = None
+    tp_pct: Optional[float] = None
+    sl_pct: Optional[float] = None
+    max_per_trade_mode: Optional[str] = None
+    max_per_trade_usdc: Optional[float] = None
+    max_per_trade_pct: Optional[float] = None
+    selected_timeframe: Optional[str] = None
+    selected_assets: Optional[list[str]] = None
+    paused: Optional[bool] = None
+    auto_trade_on: Optional[bool] = None
+
+    _check_tp_pct = field_validator("tp_pct")(_validate_tp_pct)
+    _check_sl_pct = field_validator("sl_pct")(_validate_sl_pct)
+
+
+class AdminPaperResetResult(BaseModel):
+    """POST /api/web/admin/users/{user_id}/paper-reset — result summary."""
+    user_id: str
+    positions_deleted: int
+    orders_deleted: int
+    ledger_entries_deleted: int
+    balance_reset_usdc: float
+

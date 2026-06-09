@@ -15,14 +15,14 @@ import os
 import time
 from typing import Any
 
-import aiohttp
+import httpx
 
 from ...database import get_pool
 
 log = logging.getLogger(__name__)
 
 _FALCON_URL = "https://narrative.agent.heisenberg.so/api/v2/semantic/retrieve/parameterized"
-_TIMEOUT = aiohttp.ClientTimeout(total=30)
+_TIMEOUT = httpx.Timeout(30.0)
 
 _TIER_BADGE: dict[str, str] = {
     "Elite": "Whale",
@@ -89,16 +89,16 @@ async def sync_leaderboard(pool: Any) -> None:
 
     t0 = time.monotonic()
     try:
-        async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
-            async with session.post(_FALCON_URL, json=payload, headers=headers) as resp:
-                if resp.status != 200:
-                    body = await resp.text()
-                    log.warning(
-                        "leaderboard sync: Falcon API status=%d body=%s", resp.status, body[:200]
-                    )
-                    return
-                data = await resp.json()
-    except (aiohttp.ClientError, TimeoutError) as exc:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.post(_FALCON_URL, json=payload, headers=headers)
+            if resp.status_code != 200:
+                body = resp.text
+                log.warning(
+                    "leaderboard sync: Falcon API status=%d body=%s", resp.status_code, body[:200]
+                )
+                return
+            data = resp.json()
+    except (httpx.HTTPError, httpx.TimeoutException) as exc:
         log.warning("leaderboard sync: Falcon API request failed: %s", exc)
         return
     except Exception:

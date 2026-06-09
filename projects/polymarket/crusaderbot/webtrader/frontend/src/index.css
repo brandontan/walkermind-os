@@ -114,10 +114,37 @@ body::after {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+/* ScannerPanel — green scan sweep across the SCANNING bar */
+@keyframes scanSweep {
+  0%   { left: -10%; opacity: 0; }
+  10%  { opacity: 1; }
+  80%  { opacity: 0.8; }
+  100% { left: 110%; opacity: 0; }
+}
+/* ScannerPanel — terminal line type-in */
+@keyframes signalIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+/* ScannerPanel — signal carousel slide (direction-aware via inline animation) */
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-28px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+/* ScannerPanel — carousel auto-advance progress bar */
+@keyframes barProgress {
+  from { width: 0; }
+  to   { width: 100%; }
+}
 
 /* ─── ANIM CLASSES ───────────────────────────────────────────────────── */
 .animate-status-pulse { animation: statusPulse 1.6s ease-in-out infinite; }
 .animate-blink        { animation: blink 1s step-end infinite; }
+.animate-scan-sweep   { animation: scanSweep 2.4s linear infinite; }
 .animate-sweep        { animation: sweepH 4s ease-in-out infinite; }
 .animate-ticker       { animation: tickerScroll 28s linear infinite; }
 
@@ -140,3 +167,9 @@ body::after {
 .clip-tab      { clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%); }
 .clip-pos      { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%); }
 .clip-term     { clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px)); }
+
+/* ─── SCROLL UTILITIES ───────────────────────────────────────────────── */
+/* Hide the native scrollbar on swipe/scroll-snap carousels (touch-native on
+   mobile, dot/keyboard nav on desktop) while keeping the element scrollable. */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

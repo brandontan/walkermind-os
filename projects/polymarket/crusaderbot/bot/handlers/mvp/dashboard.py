@@ -28,7 +28,9 @@ async def _read_dashboard(telegram_user) -> dict:
     if u is None:
         return data
     data["paused"] = bool(u.get("paused"))
-    data["running"] = bool(u.get("auto_trade_enabled")) and not data["paused"]
+    # users.auto_trade_on is the canonical column (NOT "auto_trade_enabled",
+    # which never existed → dashboard always read Stopped even while running).
+    data["running"] = bool(u.get("auto_trade_on")) and not data["paused"]
     settings = await _users.fetch_settings(u["id"])
     preset = settings.get("active_preset")
     if preset:
@@ -39,6 +41,7 @@ async def _read_dashboard(telegram_user) -> dict:
         data["active_strategy"] = label
     data["portfolio_value"] = await _users.fetch_balance(u["id"])
     data["today_pnl"] = await _users.fetch_daily_pnl(u["id"])
+    data["today_trades"] = await _users.fetch_today_trade_count(u["id"])
     data["open_count"] = await _users.fetch_open_position_count(u["id"])
     return data
 
@@ -86,7 +89,17 @@ async def show_dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
 
 async def _dashboard_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    await show_dashboard(update, ctx)
+    # MVP owns the home view (dashboard:main / refresh). Other legacy sub-routes
+    # (insights, portfolio, trades, wallet, settings, auto, stop, monitor) were
+    # silently bounced to the MVP home; delegate them to the legacy dashboard
+    # router so they reach their intended screens.
+    q = update.callback_query
+    sub = (q.data or "").split(":", 1)[-1] if q else "main"
+    if sub in ("main", "refresh", "home", ""):
+        await show_dashboard(update, ctx)
+        return
+    from ..dashboard import dashboard_nav_cb
+    await dashboard_nav_cb(update, ctx)
 
 
 def attach(app: Application) -> None:

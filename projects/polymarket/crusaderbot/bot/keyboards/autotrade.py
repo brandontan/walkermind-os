@@ -61,27 +61,33 @@ def quick_start_kb() -> InlineKeyboardMarkup:
     )
 
 
-# ── Screen 2: Risk Tier Picker (progressive disclosure) ──────────
+# ── Screen 2: Preset Picker (direct list — no tier indirection) ──
+# Tier picker was removed: only close_sweep is visible, so showing a
+# risk-tier selection step first added friction with no benefit.
+# When more presets become visible, re-introduce tiers at that point.
 
-def preset_tier_kb() -> InlineKeyboardMarkup:
-    """Step 1 of preset selection: pick risk tier.
+def preset_tier_kb(disabled_strategies: frozenset[str] | None = None) -> InlineKeyboardMarkup:
+    """Direct preset list — skips the tier step entirely.
 
-    4 tiers + 1 back row = 5 rows (max allowed).
-    Each tier shows count of available presets.
+    Renders visible presets (from VISIBLE_PRESET_ORDER) whose backing strategy
+    is not globally disabled by the operator. The handler fetches the disabled
+    set from the `strategies` table once per render and passes it in; an empty
+    set (FAIL-SAFE on DB error) keeps every preset visible.
     """
-    rows = []
-    tier_callbacks = {
-        "🟢 Safe":       "preset:tier:safe",
-        "🟡 Balanced":   "preset:tier:balanced",
-        "🟡 Advanced":   "preset:tier:advanced",
-        "🔴 Aggressive": "preset:tier:aggressive",
-    }
-    for tier_label, presets in RISK_TIERS.items():
-        count = len(presets)
-        cb = tier_callbacks[tier_label]
-        rows.append([InlineKeyboardButton(
-            f"{tier_label} ({count})", callback_data=cb,
-        )])
+    from ...domain.preset import list_presets
+    from ...domain.preset.presets import RECOMMENDED_PRESET
+    disabled = disabled_strategies or frozenset()
+    rows: list[list[InlineKeyboardButton]] = []
+    for p in list_presets():
+        # Hide presets whose backing strategy is globally OFF.
+        if any(strat in disabled for strat in p.strategies):
+            continue
+        label = f"{p.emoji} {p.name}"
+        if p.key == RECOMMENDED_PRESET:
+            label = f"{label} ⭐"
+        if len(label) > 20:
+            label = label[:19] + "…"
+        rows.append([InlineKeyboardButton(label, callback_data=f"preset:pick:{p.key}")])
     rows.append(back_home_row("menu:autotrade"))
     return InlineKeyboardMarkup(rows)
 

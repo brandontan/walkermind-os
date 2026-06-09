@@ -95,6 +95,57 @@ class TradeSignal:
     tp_pct: Optional[float] = None
     sl_pct: Optional[float] = None
     daily_loss_override: Optional[float] = None
+    user_min_liquidity: float = 0.0
+    max_drawdown_pct: Optional[float] = None
+    active_preset: Optional[str] = None
+    # Per-user live-trading capital cap (USDC). 0 means the user has not
+    # opted in to live mode; gate step 15 rejects any live trade. Set via
+    # /api/web/live/enable typed-confirm flow.
+    live_capital_cap_usdc: float = 0.0
+    # Per-user concurrent-trades override (1..20). None = use profile default.
+    max_concurrent_override: Optional[int] = None
+    # WARP-89 (gate-hotpath-db-fix): authoritative risk-profile CAP%
+    # (capital_alloc_pct) PRELOADED once per user per tick by the scan orchestrator
+    # and flowed into GateContext.capital_alloc_pct so the per-candidate risk gate
+    # does ZERO asyncpg reads for it. None = caller did not preload → the gate falls
+    # back to its one-shot DB loader (legacy construction sites only).
+    capital_alloc_pct: Optional[float] = None
+    # Per-task opt-in bypass for global auto_trade_on (gate step 2). Copy-trade
+    # tasks set this True because copy_trade_tasks.status='active' is the
+    # explicit per-task opt-in. ctx.paused is still honoured.
+    bypass_auto_trade_check: bool = False
+    # Opaque per-strategy snapshot (e.g. weather city/bucket bounds, entry
+    # forecast mean, high-water price). Persisted to positions.strategy_metadata
+    # and replayed into the strategy exit hook so exits like the weather
+    # trailing-stop + adaptive forecast-shift have the data they need. None for
+    # strategies that emit no metadata.
+    strategy_metadata: Optional[dict] = None
+    # Robustness gate (Phase-2c-1b). False only when the candidate's module is
+    # classified UNTRADEABLE and ROBUSTNESS_GATE_ENABLED is on. Default True → no
+    # effect. Flows into GateContext.module_live_eligible (downgrade-only: a live
+    # trade becomes paper; never enables live).
+    module_live_eligible: bool = True
+    # WARP-87 follow-up (smart-strike-cell-cap-binding): the trading cell
+    # ("{asset}/{timeframe}", e.g. "btc/5m"), live order-book depth (USDC) and
+    # complete-set spread the Smart Strike candidate measured at scan time. Threaded
+    # straight into GateContext so the LIVE-only step-14b slippage gate binds the
+    # per-cell size cap (ctx.cell) and estimates slippage from the REAL depth/spread.
+    # None (legacy / non-Smart-Strike / fast_topup candidate) → no per-cell cap and
+    # the gate's existing depth=market_liquidity / spread=1.0 fallback applies.
+    cell: Optional[str] = None
+    orderbook_depth_usdc: Optional[float] = None
+    spread: Optional[float] = None
+    # WARP (smart-strike-slippage-edge-gate, F1): LIVE step-14b edge policy for a
+    # candidate with no measured edge. Threaded into GateContext.require_measured_edge.
+    # Default True (back-compat: non-scan callers keep the prior HALT-on-no-edge);
+    # the scan path sets it from the resolved SMART_STRIKE_REQUIRE_MEASURED_EDGE
+    # toggle (env default False → per-cell cap is the sole control for a capped cell).
+    require_measured_edge: bool = True
+    # Option 3 (smart-strike-real-edge): the Smart Strike candidate's measured GROSS
+    # edge (bps) = the entry-side oracle fair-value edge, used as the step-14b
+    # slippage-of-edge denominator in real-edge mode (require_measured_edge True).
+    # None for a non-Smart-Strike candidate / when the oracle gave no positive edge.
+    slippage_gross_edge_bps: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -180,6 +231,8 @@ class TradeEngine:
             strategy_type=signal.strategy_type,
             tp_pct=signal.tp_pct,
             sl_pct=signal.sl_pct,
+            active_preset=signal.active_preset,
+            strategy_metadata=signal.strategy_metadata,
         )
 
         # Idempotent skip: paper engine returns status="duplicate" when the
@@ -287,4 +340,27 @@ class TradeEngine:
             risk_profile=signal.risk_profile,
             daily_loss_override=signal.daily_loss_override,
             trading_mode=signal.trading_mode,
+            user_min_liquidity=signal.user_min_liquidity,
+            max_drawdown_pct=signal.max_drawdown_pct,
+            live_capital_cap_usdc=signal.live_capital_cap_usdc,
+            max_concurrent_override=signal.max_concurrent_override,
+            # WARP-89: pass the preloaded CAP% straight through to the gate so the
+            # per-candidate evaluate() reads it instead of doing a DB SELECT.
+            capital_alloc_pct=signal.capital_alloc_pct,
+            bypass_auto_trade_check=signal.bypass_auto_trade_check,
+            module_live_eligible=signal.module_live_eligible,
+            # WARP-86: thread the user's active preset so the gate's AUTO entry
+            # constraint (step 4) sees it and fences AUTO to candle_auto only.
+            active_preset=signal.active_preset,
+            # WARP-87 follow-up (smart-strike-cell-cap-binding): thread the trading
+            # cell + real order-book depth/spread so the LIVE-only step-14b slippage
+            # gate binds the per-cell size cap (ctx.cell) and estimates slippage from
+            # the candidate's measured depth/spread instead of the fallback inputs.
+            cell=signal.cell,
+            orderbook_depth_usdc=signal.orderbook_depth_usdc,
+            spread=signal.spread,
+            # WARP (smart-strike-slippage-edge-gate, F1): LIVE no-edge policy.
+            require_measured_edge=signal.require_measured_edge,
+            # Option 3 (smart-strike-real-edge): measured slippage gross-edge (bps).
+            slippage_gross_edge_bps=signal.slippage_gross_edge_bps,
         )

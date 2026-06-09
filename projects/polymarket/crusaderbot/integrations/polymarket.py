@@ -2,23 +2,32 @@
 from __future__ import annotations
 
 import json
-import logging
 import time
 from typing import Any, Optional
 
 import httpx
+import structlog
 from tenacity import (
     AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential,
 )
 
 from ..cache import get_cache, set_cache
 from ..config import get_settings
+from .clob.rate_limiter import RateLimiter
 
-logger = logging.getLogger(__name__)
+log = structlog.get_logger(__name__)
 
 GAMMA = "https://gamma-api.polymarket.com"
 CLOB = "https://clob.polymarket.com"
 DATA_API = "https://data-api.polymarket.com"
+
+# Module-level rate limiters for outbound read traffic.
+# Gamma public API: 100 req/min documented limit → 5 RPS steady-state with
+# burst of 10 absorbs scan bursts without tripping 429s.
+# CLOB read endpoints share the same 10 RPS budget as the write adapter so
+# combined read+write traffic stays within the per-account limit.
+_gamma_limiter = RateLimiter(rps=5.0, burst=10.0)
+_clob_read_limiter = RateLimiter(rps=10.0, burst=10.0)
 
 # Gnosis ConditionalTokens contract used by Polymarket on Polygon mainnet.
 # Source: docs.polymarket.com — required for redeemPositions().
@@ -51,6 +60,11 @@ def _retry():
 
 async def _get_json(url: str, params: dict | None = None,
                     timeout: float = 10.0) -> Any:
+    # Throttle before each attempt so retries also respect the rate limit.
+    if url.startswith(CLOB):
+        await _clob_read_limiter.acquire()
+    else:
+        await _gamma_limiter.acquire()
     async for attempt in _retry():
         with attempt:
             async with httpx.AsyncClient(timeout=timeout) as c:
@@ -94,7 +108,7 @@ async def get_markets(category: Optional[str] = None,
         await set_cache(key, data, ttl=300)
         return data or []
     except Exception as exc:
-        logger.warning("get_markets failed: %s", exc)
+        log.warning("get_markets failed", err=str(exc))
         return []
 
 
@@ -136,7 +150,56 @@ async def get_events_with_markets(limit: int = 200) -> list[dict]:
         await set_cache(key, result, ttl=300)
         return result
     except Exception as exc:
-        logger.warning("get_events_with_markets failed: %s", exc)
+        log.warning("get_events_with_markets failed", err=str(exc))
+        return []
+
+
+async def get_sports_game_markets(limit: int = 500) -> list[dict]:
+    """Fetch near-term individual SPORTS GAME markets from Gamma ``/markets``.
+
+    ``get_events_with_markets`` (the ``/events`` endpoint) only surfaces season
+    FUTURES (NBA Champion, World Cup winner — their event ``startDate`` is the
+    season start, in the past), so today's individual games never enter the
+    playbook window. Individual game markets live on ``/markets`` with a
+    ``sportsMarketType`` (``moneyline``/``spreads``/...) and a per-game
+    ``gameStartTime``. This fetches the volume-ranked universe and keeps only
+    those game markets, annotating ``category`` from the parent event slug
+    (e.g. ``nba-nyk-sas-2026-06-03``) so the markets-table upsert + downstream
+    resolution work. Cached 120s. Fail-soft -> [].
+    """
+    key = f"sports_game_markets:{limit}"
+    if hit := await get_cache(key):
+        return hit
+    params: dict[str, Any] = {
+        "active": "true",
+        "closed": "false",
+        "limit": limit,
+        "order": "volume24hr",
+        "ascending": "false",
+    }
+    try:
+        data = await _get_json(f"{GAMMA}/markets", params=params)
+        if isinstance(data, dict):
+            data = data.get("markets") or data.get("data") or []
+        out: list[dict] = []
+        for m in (data or []):
+            if not isinstance(m, dict):
+                continue
+            if not str(m.get("sportsMarketType") or "").strip():
+                continue  # not an individual game market
+            if not (m.get("gameStartTime") or m.get("game_start_time")):
+                continue
+            events = m.get("events")
+            ev_slug = ""
+            if isinstance(events, (list, tuple)) and events and isinstance(events[0], dict):
+                ev_slug = events[0].get("slug") or ""
+            ev_slug = ev_slug or m.get("slug") or ""
+            category = str(m.get("category") or ev_slug or "").strip().lower()
+            out.append({**m, "category": category})
+        await set_cache(key, out, ttl=120)
+        return out
+    except Exception as exc:
+        log.warning("get_sports_game_markets failed", err=str(exc))
         return []
 
 
@@ -165,11 +228,57 @@ async def get_crypto_short_markets(limit: int = 500) -> list[dict]:
         await set_cache(key, data, ttl=60)
         return data
     except Exception as exc:
-        logger.warning("get_crypto_short_markets failed: %s", exc)
+        log.warning("get_crypto_short_markets failed", err=str(exc))
         return []
 
 
 _TF_WINDOW_SECONDS: dict[str, int] = {"5m": 300, "15m": 900}
+
+# Cache TTL for the candle-window market LIST. The set of markets in a window is
+# stable for the whole window (only prices move, which the scanner re-reads from
+# the CLOB separately), so a slightly longer TTL cuts the /events poll volume
+# (4 coins x 2 slots every scan tick) without staling entry timing — a hedge
+# against the high-frequency polling that can get the bot IP throttled by Gamma.
+_CRYPTO_WINDOW_CACHE_TTL: int = 45
+
+
+# Crypto candle assets that are MONITOR-ONLY (not tradeable). Mirror of
+# services/signal_scan/signal_scan_job._MONITOR_ONLY_ASSETS (lowercased here for
+# slug construction). These are observed for 30-day edge stats via a separate
+# market_data path but must NEVER be fetched as a tradeable candle window — a
+# window here feeds the trade engine. Keep in sync when an asset graduates
+# to / from monitor-only. (ref WARP/ROOT/prelaunch-system-audit F3.)
+_DEFAULT_TRADEABLE_COINS: tuple[str, ...] = ("btc", "eth", "sol")
+_MONITOR_ONLY_COINS: frozenset[str] = frozenset({"bnb"})
+
+
+def _resolve_tradeable_coins(
+    assets: "list[str] | tuple[str, ...] | None",
+) -> list[str]:
+    """Resolve UI tickers to lowercase tradeable candle coins.
+
+    Empty / None defaults to the tradeable set (BTC/ETH/SOL). Monitor-only
+    assets (BNB) are ALWAYS excluded — even from an explicit ``assets`` list —
+    so a candle window for a non-tradeable asset can never reach the trade
+    engine. Closes WARP/ROOT/prelaunch-system-audit F3 (the BNB default-asset
+    fallback that reintroduced BNB whenever ``assets`` was empty/None).
+    """
+    # A bare string is iterable char-by-char — wrap it as a single ticker so
+    # "BTC" resolves to ["btc"], not ["b", "t", "c"].
+    if isinstance(assets, str):
+        assets = [assets]
+    requested = [str(a).strip().lower() for a in (assets or [])]
+    coins = requested or list(_DEFAULT_TRADEABLE_COINS)
+    # Allowlist intersection: keep ONLY tradeable coins. An explicit request for
+    # a non-tradeable asset (xrp/doge/hype) or a monitor-only one (bnb) resolves
+    # away rather than slipping through. The monitor-only check is retained as
+    # belt-and-suspenders intent (still excludes bnb even if it were ever added
+    # back to _DEFAULT_TRADEABLE_COINS by mistake).
+    return [
+        c
+        for c in coins
+        if c in _DEFAULT_TRADEABLE_COINS and c not in _MONITOR_ONLY_COINS
+    ]
 
 
 async def get_crypto_window_markets(
@@ -188,15 +297,19 @@ async def get_crypto_window_markets(
     A broad list fetch buries these among thousands of markets, which is why the
     scanner never saw them.
 
-    ``assets`` are UI tickers (BTC/ETH/SOL/BNB); empty/None defaults to all four.
-    Each returned market dict is annotated ``category="crypto"`` so downstream
-    eligibility passes. Returns [] on any failure. Cached 20s (the live window
-    for a 5-minute candle is itself only minutes long).
+    ``assets`` are UI tickers; empty/None defaults to the tradeable set
+    (BTC/ETH/SOL). Monitor-only assets (e.g. BNB) are always excluded — they
+    must never be fetched as a tradeable candle window. Each returned market
+    dict is annotated ``category="crypto"`` so downstream eligibility passes.
+    Returns [] on any failure. Cached ~45s (``_CRYPTO_WINDOW_CACHE_TTL``; the
+    live window for a 5-minute candle is itself only minutes long).
     """
     step = _TF_WINDOW_SECONDS.get(timeframe)
     if step is None:
         return []
-    coins = [str(a).strip().lower() for a in (assets or [])] or ["btc", "eth", "sol", "bnb"]
+    coins = _resolve_tradeable_coins(assets)
+    if not coins:
+        return []
     now = int(time.time())
     slot = now // step * step
     slots = [slot, slot + step] if include_next else [slot]
@@ -207,13 +320,24 @@ async def get_crypto_window_markets(
 
     out: list[dict] = []
     seen: set[str] = set()
+    attempted = 0
+    fetch_errors = 0
     for coin in coins:
         for s in slots:
             slug = f"{coin}-updown-{timeframe}-{s}"
+            attempted += 1
             try:
                 events = await _get_json(f"{GAMMA}/events", params={"slug": slug})
             except Exception as exc:
-                logger.debug("get_crypto_window_markets %s failed: %s", slug, exc)
+                fetch_errors += 1
+                # WARNING, not debug: a persistent failure here silently starves
+                # the candle scanner of markets. The 2026-05-29 incident ran ~14h
+                # with zero close_sweep/safe_close/flip_hunter trades precisely
+                # because this was logged at debug and invisible to monitoring.
+                log.warning(
+                    "get_crypto_window_markets slug fetch failed",
+                    slug=slug, err=str(exc),
+                )
                 continue
             if isinstance(events, dict):
                 events = events.get("data", [])
@@ -224,7 +348,15 @@ async def get_crypto_window_markets(
                         continue
                     seen.add(mid)
                     out.append({**m, "category": "crypto"})
-    await set_cache(key, out, ttl=20)
+    # Loud signal when the WHOLE candle universe came back empty because every
+    # fetch errored (vs a legitimately marketless gap, which has 0 errors) — this
+    # is the condition that must page the operator, not vanish silently.
+    if not out and fetch_errors:
+        log.warning(
+            "get_crypto_window_markets empty — all candle fetches failed",
+            timeframe=timeframe, attempted=attempted, fetch_errors=fetch_errors,
+        )
+    await set_cache(key, out, ttl=_CRYPTO_WINDOW_CACHE_TTL)
     return out
 
 
@@ -249,7 +381,7 @@ async def get_market(market_id: str) -> Optional[dict]:
     try:
         data = await _get_json(f"{GAMMA}/markets", params={"condition_ids": market_id})
     except Exception as exc:
-        logger.warning("get_market %s failed: %s", market_id, exc)
+        log.warning("get_market failed", market_id=market_id, err=str(exc))
         return None
     markets: list = data if isinstance(data, list) else data.get("data", [])
     result = next(
@@ -281,7 +413,7 @@ async def get_event_market_by_slug(slug: str) -> Optional[dict]:
     try:
         events = await _get_json(f"{GAMMA}/events", params={"slug": slug})
     except Exception as exc:
-        logger.warning("get_event_market_by_slug %s failed: %s", slug, exc)
+        log.warning("get_event_market_by_slug failed", slug=slug, err=str(exc))
         return None
     if isinstance(events, dict):
         events = events.get("data", [])
@@ -309,7 +441,7 @@ async def get_market_by_slug(slug: str) -> Optional[dict]:
             await set_cache(key, result, ttl=120)
         return result
     except Exception as exc:
-        logger.warning("get_market_by_slug %s failed: %s", slug, exc)
+        log.warning("get_market_by_slug failed", slug=slug, err=str(exc))
         return None
 
 
@@ -342,15 +474,11 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
                 timeout=5.0,
             )
         except Exception as exc:
-            logger.warning(
-                "get_live_market_price fetch failed market=%s: %s", market_id, exc
-            )
+            log.warning("get_live_market_price fetch failed", market_id=market_id, err=str(exc))
             return None
         markets: list = data if isinstance(data, list) else data.get("data", [])
         if not markets or not isinstance(markets[0], dict):
-            logger.warning(
-                "get_live_market_price no market found condition_id=%s", market_id
-            )
+            log.warning("get_live_market_price no market found", condition_id=market_id)
             return None
         market_data = markets[0]
         # Validate conditionId when present — reject if it doesn't match the
@@ -361,10 +489,7 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
             market_data.get("conditionId") or market_data.get("condition_id") or ""
         )
         if returned_cid and returned_cid != str(market_id):
-            logger.warning(
-                "get_live_market_price conditionId mismatch requested=%s returned=%s",
-                market_id, returned_cid,
-            )
+            log.warning("get_live_market_price conditionId mismatch", requested=market_id, returned=returned_cid)
             return None
         await set_cache(cache_key, market_data, ttl=30)
 
@@ -397,16 +522,12 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
                     # to the Gamma outcomePrices last-trade fallback.
                     if 0.0 < clob_price < 1.0:
                         return clob_price
-                    logger.warning(
-                        "get_live_market_price CLOB empty-book sentinel "
-                        "price=%.4f market=%s side=%s — falling back to Gamma",
-                        clob_price, market_id, side,
+                    log.warning(
+                        "get_live_market_price CLOB empty-book sentinel — falling back to Gamma",
+                        price=clob_price, market_id=market_id, side=side,
                     )
         except Exception as exc:
-            logger.warning(
-                "get_live_market_price CLOB price failed market=%s side=%s: %s",
-                market_id, side, exc,
-            )
+            log.warning("get_live_market_price CLOB price failed", market_id=market_id, side=side, err=str(exc))
 
     # Fallback: Gamma outcomePrices[0]=YES [1]=NO.
     # Gamma returns outcomePrices as a JSON-encoded string e.g. '["0.565","0.435"]'.
@@ -428,17 +549,11 @@ async def get_live_market_price(market_id: str, side: str) -> Optional[float]:
         # Returning None here makes callers fall back to entry_price
         # (unrealised P&L == 0 / "N/A") instead of a 1.0-inflated figure.
         if not (0.0 < price < 1.0):
-            logger.warning(
-                "get_live_market_price out-of-range price=%.4f market=%s side=%s",
-                price, market_id, side,
-            )
+            log.warning("get_live_market_price out-of-range price", price=price, market_id=market_id, side=side)
             return None
         return price
     except (IndexError, TypeError, ValueError) as exc:
-        logger.warning(
-            "get_live_market_price parse error market=%s side=%s: %s",
-            market_id, side, exc,
-        )
+        log.warning("get_live_market_price parse error", market_id=market_id, side=side, err=str(exc))
         return None
 
 
@@ -453,7 +568,7 @@ async def get_book(token_id: str) -> dict:
         await set_cache(key, data, ttl=30)
         return data
     except Exception as exc:
-        logger.warning("get_book %s failed: %s", token_id, exc)
+        log.warning("get_book failed", token_id=token_id, err=str(exc))
         return {"bids": [], "asks": []}
 
 
@@ -473,7 +588,7 @@ async def get_user_activity(wallet_address: str, limit: int = 20) -> list[dict]:
         await set_cache(key, data or [], ttl=60)
         return data or []
     except Exception as exc:
-        logger.warning("get_user_activity %s failed: %s", wallet_address, exc)
+        log.warning("get_user_activity failed", wallet=wallet_address, err=str(exc))
         return []
 
 
@@ -583,7 +698,7 @@ async def submit_live_redemption(condition_id: str) -> dict:
             "submit_live_redemption blocked: EXECUTION_PATH_VALIDATED=false"
         )
     from web3 import AsyncWeb3
-    from .polygon import _get_w3
+    from .polygon import _get_w3, gas_price_gwei, nonce_lock
     from ..wallet.vault import master_wallet
 
     w3 = _get_w3()
@@ -601,20 +716,31 @@ async def submit_live_redemption(condition_id: str) -> dict:
         abi=CTF_REDEEM_ABI,
     )
 
-    nonce = await w3.eth.get_transaction_count(addr_cs)
-    gas_price = await w3.eth.gas_price
-    tx = await ctf.functions.redeemPositions(
-        usdc_cs, parent_collection, cond_bytes, [1, 2],
-    ).build_transaction({
-        "from": addr_cs,
-        "nonce": nonce,
-        "gas": 350000,
-        "gasPrice": gas_price,
-        "chainId": 137,
-    })
-    signed = w3.eth.account.sign_transaction(tx, private_key=pk)
-    raw = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
-    tx_hash = await w3.eth.send_raw_transaction(raw)
+    # Gas-price ceiling — parity with transfer_usdc/sweep so a fee spike can't
+    # drain the hot pool on redemption gas.
+    gwei = await gas_price_gwei()
+    if gwei > settings.INSTANT_REDEEM_GAS_GWEI_MAX:
+        raise RuntimeError(
+            f"submit_live_redemption blocked: gas {gwei:.1f} gwei exceeds ceiling "
+            f"{settings.INSTANT_REDEEM_GAS_GWEI_MAX:.1f}"
+        )
+
+    # Serialize nonce read → sign → broadcast against other master-wallet sends.
+    async with nonce_lock(addr_cs):
+        nonce = await w3.eth.get_transaction_count(addr_cs, "pending")
+        gas_price = await w3.eth.gas_price
+        tx = await ctf.functions.redeemPositions(
+            usdc_cs, parent_collection, cond_bytes, [1, 2],
+        ).build_transaction({
+            "from": addr_cs,
+            "nonce": nonce,
+            "gas": 350000,
+            "gasPrice": gas_price,
+            "chainId": 137,
+        })
+        signed = w3.eth.account.sign_transaction(tx, private_key=pk)
+        raw = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction")
+        tx_hash = await w3.eth.send_raw_transaction(raw)
     receipt = await w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)
     status = int(receipt["status"])
     if status != 1:

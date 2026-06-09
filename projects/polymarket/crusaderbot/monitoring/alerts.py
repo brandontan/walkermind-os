@@ -31,6 +31,7 @@ from uuid import UUID
 
 from .. import notifications
 from ..config import get_settings
+from ..webtrader.backend import notification_prefs as _notif_prefs
 
 logger = logging.getLogger(__name__)
 
@@ -274,16 +275,108 @@ def _format_exit_label(market_question: Optional[str], market_id: str) -> str:
     return html.escape(market_question or market_id)
 
 
+_EXIT_KIND_PREF_KEY: dict[str, str] = {
+    "tp_hit":         "trade_closed",
+    "sl_hit":         "trade_closed",
+    "force_close":    "trade_closed",
+    "strategy_exit":  "trade_closed",
+    "manual_close":   "trade_closed",
+    "market_expired": "position_resolved",
+    "close_failed":   "bot_errors",
+}
+
+_EXIT_KIND_WEB_TITLE: dict[str, str] = {
+    "tp_hit":         "Take-profit hit",
+    "sl_hit":         "Stop-loss hit",
+    "force_close":    "Position force-closed",
+    "strategy_exit":  "Strategy exit",
+    "manual_close":   "Manual close",
+    "market_expired": "Market resolved",
+    "close_failed":   "Close failed",
+}
+
+_EXIT_KIND_SEVERITY: dict[str, str] = {
+    "tp_hit":         "info",
+    "sl_hit":         "info",
+    "force_close":    "warning",
+    "strategy_exit":  "info",
+    "manual_close":   "info",
+    "market_expired": "info",
+    "close_failed":   "warning",
+}
+
+
+def _exit_metadata(
+    *,
+    market_id: str,
+    market_label: str,
+    side: str,
+    exit_price: Optional[float],
+    pnl_usdc: Optional[float],
+    mode: str,
+    size_usdc: Optional[float] = None,
+    error: Optional[str] = None,
+) -> dict:
+    """Build the structured metadata dict passed to system_alerts.metadata
+    for exit-side alerts so the WebTrader AlertCenter can render typed cards
+    without re-parsing the Telegram HTML body."""
+    payload: dict = {
+        "market_id": market_id,
+        "market_label": market_label,
+        "side": side.upper() if isinstance(side, str) else side,
+        "mode": mode,
+    }
+    if exit_price is not None:
+        payload["exit_price"] = float(exit_price)
+    if pnl_usdc is not None:
+        payload["pnl_usdc"] = float(pnl_usdc)
+    if size_usdc is not None:
+        payload["size_usdc"] = float(size_usdc)
+    if error is not None:
+        payload["error"] = error[:200]
+    return payload
+
+
 async def _send_user_exit_alert(
-    telegram_user_id: int, text: str, *, alert_kind: str, market_id: str,
+    telegram_user_id: int,
+    text: str,
+    *,
+    alert_kind: str,
+    market_id: str,
+    metadata: Optional[dict] = None,
 ) -> bool:
     """Send a user-side exit alert and log a WARNING if delivery was dropped.
+
+    Honors the user's notification_prefs (web/tg channels) — writes a
+    per-user system_alerts row when the web channel is on, and only fires
+    the Telegram send when the tg channel is on. Fail-open semantics from
+    notification_prefs guarantee unknown users / unknown keys still notify.
 
     ``notifications.send`` already retries transient errors and logs at ERROR
     on permanent failure. This wrapper adds an alert-kind-tagged WARNING so a
     dropped TP/SL/force/manual receipt surfaces in logs with its lifecycle
     context — required by WARP-53 "no silent swallow" gate.
     """
+    alert_key = _EXIT_KIND_PREF_KEY.get(alert_kind, "trade_closed")
+    web_title = _EXIT_KIND_WEB_TITLE.get(alert_kind, "Trade update")
+    severity = _EXIT_KIND_SEVERITY.get(alert_kind, "info")
+
+    send_tg = await _notif_prefs.route_outgoing_alert(
+        telegram_user_id=telegram_user_id,
+        alert_key=alert_key,
+        web_title=web_title,
+        web_body=text,
+        severity=severity,
+        dedup_key=market_id,
+        alert_kind=alert_kind,
+        metadata=metadata,
+    )
+    if not send_tg:
+        # User opted out of TG for this alert key — web mirror (if any)
+        # already written by route_outgoing_alert. Treat as delivered so
+        # callers do not retry / log as a drop.
+        return True
+
     delivered = await notifications.send(telegram_user_id, text)
     if not delivered:
         logger.warning(
@@ -313,6 +406,10 @@ async def alert_user_tp_hit(
     )
     await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="tp_hit", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=exit_price, pnl_usdc=pnl_usdc, mode=mode,
+        ),
     )
 
 
@@ -336,6 +433,68 @@ async def alert_user_sl_hit(
     )
     await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="sl_hit", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=exit_price, pnl_usdc=pnl_usdc, mode=mode,
+        ),
+    )
+
+
+async def alert_user_resolution_win(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    market_question: Optional[str],
+    side: str,
+    exit_price: float,
+    pnl_usdc: float,
+    mode: str,
+) -> None:
+    """Position closed because the market resolved in the user's favour.
+
+    Distinct from TP: the price gapped to resolution past the TP target, so the
+    realised return is the settlement value, not the configured TP percentage.
+    """
+    label = _format_exit_label(market_question, market_id)
+    text = (
+        f"\U0001f3c1 <b>[{html.escape(mode.upper())}] Market resolved — Won</b>\n"
+        f"{label}\n"
+        f"Side: <b>{html.escape(side.upper())}</b> — Settled: <code>{exit_price:.3f}</code>\n"
+        f"P&amp;L: <b>${pnl_usdc:+.2f}</b>"
+    )
+    await _send_user_exit_alert(
+        telegram_user_id, text, alert_kind="resolution_win", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=exit_price, pnl_usdc=pnl_usdc, mode=mode,
+        ),
+    )
+
+
+async def alert_user_resolution_loss(
+    *,
+    telegram_user_id: int,
+    market_id: str,
+    market_question: Optional[str],
+    side: str,
+    exit_price: float,
+    pnl_usdc: float,
+    mode: str,
+) -> None:
+    """Position closed because the market resolved against the user."""
+    label = _format_exit_label(market_question, market_id)
+    text = (
+        f"\U0001f3c1 <b>[{html.escape(mode.upper())}] Market resolved — Lost</b>\n"
+        f"{label}\n"
+        f"Side: <b>{html.escape(side.upper())}</b> — Settled: <code>{exit_price:.3f}</code>\n"
+        f"P&amp;L: <b>${pnl_usdc:+.2f}</b>"
+    )
+    await _send_user_exit_alert(
+        telegram_user_id, text, alert_kind="resolution_loss", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=exit_price, pnl_usdc=pnl_usdc, mode=mode,
+        ),
     )
 
 
@@ -359,6 +518,10 @@ async def alert_user_force_close(
     )
     await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="force_close", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=exit_price, pnl_usdc=pnl_usdc, mode=mode,
+        ),
     )
 
 
@@ -382,6 +545,10 @@ async def alert_user_strategy_exit(
     )
     await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="strategy_exit", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=exit_price, pnl_usdc=pnl_usdc, mode=mode,
+        ),
     )
 
 
@@ -405,6 +572,10 @@ async def alert_user_manual_close(
     )
     await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="manual_close", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=exit_price, pnl_usdc=pnl_usdc, mode=mode,
+        ),
     )
 
 
@@ -428,6 +599,10 @@ async def alert_user_market_expired(
     )
     await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="market_expired", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=None, pnl_usdc=None, mode=mode, size_usdc=size_usdc,
+        ),
     )
 
 
@@ -450,10 +625,77 @@ async def alert_user_close_failed(
     )
     delivered = await _send_user_exit_alert(
         telegram_user_id, text, alert_kind="close_failed", market_id=market_id,
+        metadata=_exit_metadata(
+            market_id=market_id, market_label=label, side=side,
+            exit_price=None, pnl_usdc=None, mode="paper", error=error,
+        ),
     )
     if delivered:
         logger.warning("close_failed user-alert delivered tg=%s market=%s err=%s",
                        telegram_user_id, market_id, error[:200])
+
+
+_LOW_BALANCE_COOLDOWN_SEC: float = 3600.0  # re-alert at most once per hour per user
+
+
+async def alert_user_low_balance(
+    *,
+    telegram_user_id: int,
+    current_balance: float,
+    threshold: float,
+) -> None:
+    """Notify user that their wallet balance is below the configured threshold.
+
+    Gated by a 1-hour per-user cooldown (stored in _last_alert_at under
+    the "low_balance" key) so a sustained low balance does not spam.
+    Skipped when threshold <= 0 (feature disabled).
+    """
+    if threshold <= 0:
+        return
+    if current_balance >= threshold:
+        return
+
+    cooldown_key = ("low_balance", str(telegram_user_id))
+    last = _last_alert_at.get(cooldown_key)
+    now = time.monotonic()
+    if last is not None and (now - last) < _LOW_BALANCE_COOLDOWN_SEC:
+        return
+
+    text = (
+        f"⚠️ <b>Low Balance</b>\n"
+        f"Your wallet balance is <b>${current_balance:,.2f} USDC</b>, "
+        f"below the alert threshold of ${threshold:,.2f} USDC.\n"
+        "Please top up to avoid missed trades."
+    )
+    try:
+        send_tg = await _notif_prefs.route_outgoing_alert(
+            telegram_user_id=telegram_user_id,
+            alert_key="low_balance",
+            web_title="Low Balance",
+            web_body=text,
+            severity="warning",
+            dedup_key=None,
+        )
+    except Exception:
+        logger.warning(
+            "alert_user_low_balance.route_failed tg=%s balance=%.2f",
+            telegram_user_id, current_balance, exc_info=True,
+        )
+        return
+
+    if not send_tg:
+        _last_alert_at[cooldown_key] = now
+        return
+
+    try:
+        await notifications.send(telegram_user_id, text)
+    except Exception:
+        logger.warning(
+            "alert_user_low_balance.send_failed tg=%s", telegram_user_id, exc_info=True,
+        )
+        return
+
+    _last_alert_at[cooldown_key] = now
 
 
 async def alert_operator_close_failed_persistent(

@@ -18,13 +18,13 @@ import logging
 import time
 from dataclasses import dataclass
 
-import aiohttp
+import httpx
 
 logger = logging.getLogger(__name__)
 
 _GAMMA_BASE = "https://gamma-api.polymarket.com"
 _CACHE_TTL = 300  # seconds
-_TIMEOUT = aiohttp.ClientTimeout(total=10)
+_TIMEOUT = httpx.Timeout(10.0)
 _MAX_RETRIES = 3
 _BACKOFF_BASE = 1.0  # seconds; delays are 1s, 2s, 4s
 
@@ -81,16 +81,16 @@ async def fetch_top_wallets(category: str | None = None) -> list[WalletStats]:
             if category and category not in ("top_pnl", "top_wr"):
                 params["category"] = category
 
-            async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
+            async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
                 url = f"{_GAMMA_BASE}/leaderboard"
-                async with session.get(url, params=params) as resp:
-                    if resp.status != 200:
-                        logger.warning("leaderboard API status=%d", resp.status)
-                        return []
-                    data = await resp.json()
-                    entries = data if isinstance(data, list) else data.get("results", [])
-                    return [_parse(e.get("address", ""), e) for e in entries[:10]]
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                resp = await client.get(url, params=params)
+                if resp.status_code != 200:
+                    logger.warning("leaderboard API status=%d", resp.status_code)
+                    return []
+                data = resp.json()
+                entries = data if isinstance(data, list) else data.get("results", [])
+                return [_parse(e.get("address", ""), e) for e in entries[:10]]
+        except (httpx.HTTPError, httpx.TimeoutException) as exc:
             last_exc = exc
             if attempt < _MAX_RETRIES:
                 delay = _BACKOFF_BASE * (2 ** attempt)
@@ -112,17 +112,17 @@ async def _fetch_profile(address: str) -> WalletStats:
     last_exc: Exception | None = None
     for attempt in range(_MAX_RETRIES + 1):
         try:
-            async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
+            async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
                 url = f"{_GAMMA_BASE}/profiles/{address}"
-                async with session.get(url) as resp:
-                    if resp.status != 200:
-                        logger.warning(
-                            "profile API status=%d addr=%s", resp.status, address,
-                        )
-                        return _unavailable(address)
-                    data = await resp.json()
-                    return _parse(address, data)
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+                resp = await client.get(url)
+                if resp.status_code != 200:
+                    logger.warning(
+                        "profile API status=%d addr=%s", resp.status_code, address,
+                    )
+                    return _unavailable(address)
+                data = resp.json()
+                return _parse(address, data)
+        except (httpx.HTTPError, httpx.TimeoutException) as exc:
             last_exc = exc
             if attempt < _MAX_RETRIES:
                 delay = _BACKOFF_BASE * (2 ** attempt)

@@ -26,6 +26,7 @@ Coverage targets (from R12c task header):
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import inspect
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -105,12 +106,19 @@ def test_evaluate_hold_when_inside_thresholds():
 
 
 def test_evaluate_tp_hit_yes_side():
-    """YES side: ret = (cur - entry) / entry. cur=0.50 entry=0.40 -> +25% > 20%."""
+    """YES side: ret = (cur - entry) / entry. cur=0.50 entry=0.40 -> +25% > 20%.
+
+    Realtime-fill-price lane: TP exit fill price is now the LIVE mark
+    (`cur`), not the synthetic threshold (`entry × (1+tp%) = 0.48`). The
+    live mark IS the realistic fill price; the synthetic produced
+    identical exit prices across different markets which masked real
+    paper-trade behaviour.
+    """
     p = _make_position(yes_price=0.50, applied_tp_pct=0.20)
     decision = _run(exit_watcher.evaluate(p))
     assert decision.should_exit
     assert decision.reason == ExitReason.TP_HIT.value
-    assert decision.current_price == pytest.approx(0.50)
+    assert decision.current_price == pytest.approx(0.50)  # live mark, not synthetic 0.48
 
 
 def test_evaluate_sl_hit_yes_side():
@@ -122,12 +130,50 @@ def test_evaluate_sl_hit_yes_side():
     assert decision.reason == ExitReason.SL_HIT.value
 
 
+def test_evaluate_sl_paper_caps_fill_at_stop_threshold():
+    """The screenshot bug: a 15-min crypto candle gaps far past the stop between
+    polls (entry 0.50 -> mark 0.1375 = -72.5%) on a 20% SL. In PAPER the exit
+    fill must be modelled at the stop price (0.50 * (1-0.20) = 0.40) so the
+    realised loss == the configured 20%, never the gapped -72.5%."""
+    p = _make_position(side="yes", entry_price=0.50, applied_sl_pct=0.20,
+                       applied_tp_pct=0.50, mode="paper")
+    decision = _run(exit_watcher.evaluate(p, live_price=0.1375))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.SL_HIT.value
+    assert decision.current_price == pytest.approx(0.40)  # stop price, not 0.1375
+    # realised loss at the capped fill == exactly the configured SL
+    realised = (decision.current_price - 0.50) / 0.50
+    assert realised == pytest.approx(-0.20)
+
+
+def test_evaluate_sl_live_keeps_real_mark_no_cap():
+    """LIVE must NOT cap: a real SELL has to be marketable and the recorded PnL
+    must reflect the real mark, not a fabricated capped fill. Honest slippage."""
+    p = _make_position(side="yes", entry_price=0.50, applied_sl_pct=0.20,
+                       applied_tp_pct=0.50, mode="live")
+    decision = _run(exit_watcher.evaluate(p, live_price=0.1375))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.SL_HIT.value
+    assert decision.current_price == pytest.approx(0.1375)  # real mark, uncapped
+
+
+def test_evaluate_sl_paper_no_side_caps_fill_at_stop_threshold():
+    """NO side, side-own frame: entry 0.50, NO token gaps to 0.20 (-60%) on a
+    20% SL. Paper caps the fill at 0.40 so realised loss == 20%."""
+    p = _make_position(side="no", entry_price=0.50, applied_sl_pct=0.20,
+                       applied_tp_pct=0.50, mode="paper")
+    decision = _run(exit_watcher.evaluate(p, live_price=0.20))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.SL_HIT.value
+    assert decision.current_price == pytest.approx(0.40)
+
+
 def test_evaluate_tp_hit_no_side():
-    """NO side P&L: (entry - cur)/(1-entry). entry=0.60 cur=0.50 -> +25%."""
-    p = _make_position(side="no", entry_price=0.60,
-                       yes_price=0.50, no_price=0.50,
-                       applied_tp_pct=0.20)
-    decision = _run(exit_watcher.evaluate(p))
+    """NO side, side-own frame: ret = (cur - entry)/entry (the NO token's own
+    price). entry=0.50 cur=0.62 -> +24% > 20% TP. (Prior YES-frame complement
+    mis-signed this — WARP/ROOT/no-side-pnl-frame.)"""
+    p = _make_position(side="no", entry_price=0.50, applied_tp_pct=0.20)
+    decision = _run(exit_watcher.evaluate(p, live_price=0.62))
     assert decision.should_exit
     assert decision.reason == ExitReason.TP_HIT.value
 
@@ -150,12 +196,64 @@ def test_evaluate_force_close_intent_overrides_sl():
     assert decision.reason == ExitReason.FORCE_CLOSE.value
 
 
+def test_evaluate_resolution_win_relabel_when_price_gapped_to_settlement():
+    """NO entry 0.69, TP +30%; NO token gapped to ~1.0 (NO won at resolution).
+
+    Side-own frame: a NO position wins when its OWN token settles to ~$1. The
+    +43% return crosses TP, but the mark is at a resolution extreme, so the close
+    must be labelled resolution_win — NOT tp_hit (which would falsely imply a
+    clean +30% take-profit).
+    """
+    p = _make_position(side="no", entry_price=0.69, applied_tp_pct=0.30)
+    decision = _run(exit_watcher.evaluate(p, live_price=0.985))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.RESOLUTION_WIN.value
+    assert decision.current_price == pytest.approx(0.985)
+
+
+def test_evaluate_tp_hit_not_relabeled_when_not_resolved():
+    """NO position, mark mid-book (0.70, still trading): genuine TP, stays tp_hit.
+
+    Side-own frame: entry 0.50, mark 0.70 -> +40% TP; 0.70 is not a resolution
+    extreme (<=0.02 or >=0.98), so it stays tp_hit.
+    """
+    p = _make_position(side="no", entry_price=0.50, applied_tp_pct=0.20)
+    decision = _run(exit_watcher.evaluate(p, live_price=0.70))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.TP_HIT.value
+
+
+def test_evaluate_resolution_loss_relabel_when_price_gapped_to_settlement():
+    """NO entry 0.69, SL -20%; NO token gapped to ~0 (NO lost at resolution) → loss.
+
+    Side-own frame: a NO position loses when its OWN token settles to ~$0.
+    Labelled resolution_loss, not sl_hit.
+    """
+    p = _make_position(side="no", entry_price=0.69, applied_sl_pct=0.20)
+    decision = _run(exit_watcher.evaluate(p, live_price=0.015))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.RESOLUTION_LOSS.value
+
+
+def test_resolution_reasons_are_watcher_emittable():
+    assert ExitReason.RESOLUTION_WIN.value in registry.WATCHER_EXIT_REASONS
+    assert ExitReason.RESOLUTION_LOSS.value in registry.WATCHER_EXIT_REASONS
+
+
+def test_resolution_reasons_route_to_resolved_alerts():
+    assert exit_watcher._user_alert_for_reason(ExitReason.RESOLUTION_WIN.value) \
+        is monitoring_alerts.alert_user_resolution_win
+    assert exit_watcher._user_alert_for_reason(ExitReason.RESOLUTION_LOSS.value) \
+        is monitoring_alerts.alert_user_resolution_loss
+
+
 def test_evaluate_resolved_market_skipped():
-    """Resolved markets are NOT closed by the watcher — redemption pipeline."""
+    """Resolved markets are NOT closed by evaluate() — redemption pipeline owns the exit."""
     p = _make_position(yes_price=0.99, applied_tp_pct=0.05,
                        market_resolved=True)
     decision = _run(exit_watcher.evaluate(p))
     assert not decision.should_exit
+    assert decision.reason is None
 
 
 def test_evaluate_strategy_exit_runs_after_sl():
@@ -207,6 +305,281 @@ def test_registry_evaluator_holds_unattributed_position():
     decision = _run(exit_watcher.evaluate(p, live_price=0.40))
     assert not decision.should_exit
     assert decision.reason is None
+
+
+# ---------------------------------------------------------------------------
+# Complete-set arbitrage: paired legs are held to resolution. Mid-trade TP/SL
+# (and strategy/horizon) must NOT close a leg — that would strand the opposite
+# leg as a naked directional bet. Only force_close + market resolution apply.
+# ---------------------------------------------------------------------------
+
+def test_complete_set_holds_through_tp_threshold():
+    # cur 0.99 vs entry 0.40 would normally trip TP, but a set holds.
+    p = dataclasses.replace(
+        _make_position(side="yes", entry_price=0.40, yes_price=0.99,
+                       applied_tp_pct=0.10, applied_sl_pct=0.10),
+        strategy_type="complete_set_arb",
+    )
+    decision = _run(exit_watcher.evaluate(p, live_price=0.99))
+    assert not decision.should_exit
+    assert decision.reason is None
+
+
+def test_complete_set_holds_through_sl_threshold():
+    # cur 0.05 vs entry 0.40 would normally trip SL, but a set holds.
+    p = dataclasses.replace(
+        _make_position(side="yes", entry_price=0.40, yes_price=0.05,
+                       applied_tp_pct=0.10, applied_sl_pct=0.10),
+        strategy_type="complete_set_arb",
+    )
+    decision = _run(exit_watcher.evaluate(p, live_price=0.05))
+    assert not decision.should_exit
+    assert decision.reason is None
+
+
+def test_complete_set_force_close_still_exits():
+    # Emergency Pause+Close-All must still unwind a set (checked before the skip).
+    p = dataclasses.replace(
+        _make_position(side="yes", entry_price=0.40, yes_price=0.50,
+                       force_close_intent=True),
+        strategy_type="complete_set_arb",
+    )
+    decision = _run(exit_watcher.evaluate(p, live_price=0.50))
+    assert decision.should_exit
+    assert decision.reason == ExitReason.FORCE_CLOSE.value
+
+
+# ---------------------------------------------------------------------------
+# Kreo-style fixed-time exit wiring: registry_strategy_evaluator must enrich
+# the payload with active_preset/timeframe/seconds_to_close/force_exit so the
+# late_entry_v3 strategy hook can fire its fixed-time exit at rem ≤ threshold.
+# ---------------------------------------------------------------------------
+
+
+def test_registry_evaluator_fires_safe_close_force_exit_when_rem_below_30s():
+    """safe_close position with candle rem 25s must close via fixed-time exit."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        res_at = datetime.now(timezone.utc) + timedelta(seconds=25)  # rem ≈ 25s, below 30s threshold
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.65,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50,
+                           resolution_at=res_at),
+            strategy_type="late_entry_v3",
+            active_preset="safe_close",
+            selected_timeframe="5m",
+        )
+        # live_price 0.65 keeps the existing flip-stop (0.10) from firing —
+        # the only path to exit is the new fixed-time gate.
+        decision = _run(exit_watcher.evaluate(p, live_price=0.65))
+        assert decision.should_exit
+        assert decision.reason == ExitReason.STRATEGY_EXIT.value
+    finally:
+        StrategyRegistry._reset_for_tests()
+
+
+def test_registry_evaluator_holds_safe_close_when_rem_above_30s():
+    """safe_close position with candle rem 50s (above 30s threshold) must hold."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        res_at = datetime.now(timezone.utc) + timedelta(seconds=50)  # rem ≈ 50s, above 30s
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.65,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50,
+                           resolution_at=res_at),
+            strategy_type="late_entry_v3",
+            active_preset="safe_close",
+            selected_timeframe="5m",
+        )
+        decision = _run(exit_watcher.evaluate(p, live_price=0.65))
+        assert not decision.should_exit
+    finally:
+        StrategyRegistry._reset_for_tests()
+
+
+def test_registry_evaluator_close_sweep_force_exit_below_8s():
+    """close_sweep now force-exits ~8s before resolution (Kreo "exit at 299s")."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        # Rem 5s ≤ 8s threshold → force-exit. TP/SL kept clear (0.50) so the
+        # fixed-time branch is the one that fires.
+        res_at = datetime.now(timezone.utc) + timedelta(seconds=5)
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.65,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50,
+                           resolution_at=res_at),
+            strategy_type="late_entry_v3",
+            active_preset="close_sweep",
+            selected_timeframe="5m",
+        )
+        decision = _run(exit_watcher.evaluate(p, live_price=0.65))
+        assert decision.should_exit, "close_sweep must force-exit at rem ≤ 8s"
+    finally:
+        StrategyRegistry._reset_for_tests()
+
+
+def test_registry_evaluator_close_sweep_holds_above_8s():
+    """close_sweep must HOLD when rem is well above the 8s force-exit threshold."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        res_at = datetime.now(timezone.utc) + timedelta(seconds=40)
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.65,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50,
+                           resolution_at=res_at),
+            strategy_type="late_entry_v3",
+            active_preset="close_sweep",
+            selected_timeframe="5m",
+        )
+        decision = _run(exit_watcher.evaluate(p, live_price=0.65))
+        assert not decision.should_exit, "close_sweep must hold at rem 40s (>8s)"
+    finally:
+        StrategyRegistry._reset_for_tests()
+
+
+def test_run_once_uses_custom_position_loader_and_skips_resolved_phase():
+    """The fast exit loop drives run_once over a scoped loader + skips Phase B."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.positions import registry as _reg
+
+    p = dataclasses.replace(
+        _make_position(side="yes", entry_price=0.65),
+        strategy_type="late_entry_v3", active_preset="close_sweep",
+        selected_timeframe="5m",
+    )
+
+    async def _loader():
+        return [p]
+
+    called = {"resolved": False}
+
+    async def _resolved_spy():
+        called["resolved"] = True
+        return []
+
+    with patch.object(exit_watcher.registry, "list_open_on_resolved_markets", _resolved_spy), \
+         patch.object(exit_watcher, "_fetch_live_price", AsyncMock(return_value=0.65)), \
+         patch.object(exit_watcher, "_act_on_decision", AsyncMock()):
+        result = _run(exit_watcher.run_once(
+            position_loader=_loader, run_resolved_phase=False,
+        ))
+    assert called["resolved"] is False  # Phase B skipped
+    assert (result.submitted + result.held) == 1  # the one scoped position evaluated
+
+
+def test_registry_evaluator_flip_hunter_5m_holds_to_settlement():
+    """Directive Mode A: flip_hunter 5m must hold to settlement (force_exit=0 = no time-exit)."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        # rem ≈ 155s — old Kreo threshold was 160s; Mode A must NOT exit here
+        res_at = datetime.now(timezone.utc) + timedelta(seconds=155)
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.62,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50,
+                           resolution_at=res_at),
+            strategy_type="late_entry_v3",
+            active_preset="flip_hunter",
+            selected_timeframe="5m",
+        )
+        decision = _run(exit_watcher.evaluate(p, live_price=0.62))
+        assert not decision.should_exit, "Mode A holds to settlement — no time-based exit"
+    finally:
+        StrategyRegistry._reset_for_tests()
+
+
+def test_registry_evaluator_holds_flip_hunter_15m_above_threshold():
+    """flip_hunter 15m must hold when rem > 480s (= early-window boundary)."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        res_at = datetime.now(timezone.utc) + timedelta(seconds=600)  # rem 600s, above 480s
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.62,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50,
+                           resolution_at=res_at),
+            strategy_type="late_entry_v3",
+            active_preset="flip_hunter",
+            selected_timeframe="15m",
+        )
+        decision = _run(exit_watcher.evaluate(p, live_price=0.62))
+        assert not decision.should_exit
+    finally:
+        StrategyRegistry._reset_for_tests()
+
+
+def test_registry_evaluator_no_resolution_at_no_force_exit():
+    """Without resolution_at the watcher cannot compute rem — force-exit silent."""
+    import dataclasses
+
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        StrategyRegistry,
+        bootstrap_default_strategies,
+    )
+
+    StrategyRegistry._reset_for_tests()
+    try:
+        bootstrap_default_strategies()
+        # resolution_at=None means seconds_to_close unknown — strategy holds.
+        p = dataclasses.replace(
+            _make_position(side="yes", entry_price=0.65,
+                           applied_tp_pct=0.50, applied_sl_pct=0.50,
+                           resolution_at=None),
+            strategy_type="late_entry_v3",
+            active_preset="safe_close",
+            selected_timeframe="5m",
+        )
+        decision = _run(exit_watcher.evaluate(p, live_price=0.65))
+        assert not decision.should_exit
+    finally:
+        StrategyRegistry._reset_for_tests()
 
 
 def test_evaluate_ignores_tp_pct_when_applied_is_none():
@@ -488,7 +861,7 @@ def _patch_registry(
 
     pos_prices = {(p.market_id, p.side): p.current_price() for p in positions}
 
-    async def _fetch_price(market_id: str, side: str) -> float | None:
+    async def _fetch_price(market_id: str, side: str, *, token_id=None) -> float | None:
         return pos_prices.get((market_id, side))
 
     return (
@@ -543,6 +916,42 @@ def test_run_once_tp_hit_closes_and_alerts():
     update_price.assert_not_awaited()
 
 
+def test_run_once_already_closed_no_op_suppresses_duplicate_alert():
+    """Double-close dedup: a racing second close (the 5s candle fast loop vs the
+    30s exit_watch — candle_auto joined both in WARP-93) finds the row already
+    closed. paper/live close_position then return a NO-OP payload
+    (exit_reason="already_closed", pnl_usdc=0) which submit_close_with_retry
+    wraps as ok=True. The watcher must NOT fire a second, duplicate
+    "TP hit … P&L: $+0.00" alert — the winning close already notified.
+    """
+    captured = _Captured()
+    pos = _make_position(yes_price=0.50, applied_tp_pct=0.20)
+
+    async def _submitter(*, position, exit_price, exit_reason):
+        # Mirror paper.close_position / live.close_position no-op return.
+        return {"pnl_usdc": 0, "exit_price": exit_price,
+                "exit_reason": "already_closed"}
+
+    (record_failure, reset_failure, update_price, list_open,
+     reg_patches) = _patch_registry(positions=[pos])
+    patches = reg_patches + _patch_alerts(captured) + [_patch_audit_noop()]
+    for p_ in patches:
+        p_.start()
+    try:
+        result = _run(exit_watcher.run_once(close_submitter=_submitter))
+    finally:
+        for p_ in patches:
+            p_.stop()
+
+    # The TP decision still counts as a submitted close, but NO user alert fires
+    # for the no-op — that is the regression guard (no duplicate "+0").
+    assert result.submitted == 1
+    assert captured.tp_hit == []
+    assert captured.sl_hit == []
+    assert captured.strategy_exit == []
+    assert captured.force_close == []
+
+
 def test_run_once_sl_hit_alerts_user():
     captured = _Captured()
     pos = _make_position(yes_price=0.32, applied_sl_pct=0.10,
@@ -563,7 +972,12 @@ def test_run_once_sl_hit_alerts_user():
         for p_ in patches:
             p_.stop()
     assert len(captured.sl_hit) == 1
-    assert captured.sl_hit[0]["exit_price"] == pytest.approx(0.32)
+    # Risk-promise lane: in PAPER the SL exit fill is CAPPED at the stop
+    # threshold (`entry × (1-sl%) = 0.40 × 0.90 = 0.36`), NOT the gapped live
+    # mark (0.32 = -20%). The configured 10% stop must bound the realised loss
+    # so a fast candle that gaps past the stop between polls cannot blow through
+    # the user's risk profile. See `domain/execution/exit_watcher.py:evaluate`.
+    assert captured.sl_hit[0]["exit_price"] == pytest.approx(0.36)
 
 
 def test_run_once_force_close_intent_executes_immediately():
@@ -921,6 +1335,71 @@ def test_run_once_market_expired_on_resolved_market():
     close_expired.assert_awaited_once_with(pos.id, pos.user_id, pos.size_usdc)
     # User alert suppressed — exit_watcher logs to logger.info instead.
     assert len(captured_expired) == 0
+
+
+def test_run_once_complete_set_not_expired_on_none_price():
+    """Phase A bypass: a complete_set_arb leg with 3-tick None price + actually-
+    expired market must NOT close as MARKET_EXPIRED (would refund the stake)."""
+    pos = dataclasses.replace(_make_position(yes_price=0.40),
+                              strategy_type="complete_set_arb")
+    close_expired = AsyncMock(return_value=True)
+    list_open = AsyncMock(return_value=[pos])
+    list_open_resolved = AsyncMock(return_value=[])
+    fetch_none = AsyncMock(return_value=None)
+
+    patches = [
+        patch.object(registry, "list_open_for_exit", list_open),
+        patch.object(registry, "list_open_on_resolved_markets", list_open_resolved),
+        patch.object(registry, "close_as_expired", close_expired),
+        patch.object(exit_watcher, "_fetch_live_price", fetch_none),
+        patch.dict(exit_watcher._price_fail_counts,
+                   {pos.id: exit_watcher._EXPIRED_TICK_THRESHOLD - 1}),
+        # Even when the market genuinely expired, a set must not be expire-closed.
+        patch.object(exit_watcher, "_market_actually_expired", AsyncMock(return_value=True)),
+        _patch_audit_noop(),
+    ]
+    for p_ in patches:
+        p_.start()
+    try:
+        result = _run(exit_watcher.run_once())
+        # Capture before stop(): patch.dict restores _price_fail_counts on stop.
+        pinned = exit_watcher._price_fail_counts.get(pos.id)
+    finally:
+        for p_ in patches:
+            p_.stop()
+
+    assert result.expired == 0
+    close_expired.assert_not_awaited()
+    # Counter pinned at threshold so the set is re-checked each tick, not unbounded.
+    assert pinned == exit_watcher._EXPIRED_TICK_THRESHOLD
+
+
+def test_run_once_complete_set_not_expired_on_resolved_market():
+    """Phase B bypass: a complete_set_arb leg on a resolved market must NOT close
+    as MARKET_EXPIRED — it settles via the redemption pipeline. Counted as held."""
+    pos = dataclasses.replace(_make_position(market_resolved=True),
+                              strategy_type="complete_set_arb")
+    close_expired = AsyncMock(return_value=True)
+    list_open = AsyncMock(return_value=[])
+    list_open_resolved = AsyncMock(return_value=[pos])
+
+    patches = [
+        patch.object(registry, "list_open_for_exit", list_open),
+        patch.object(registry, "list_open_on_resolved_markets", list_open_resolved),
+        patch.object(registry, "close_as_expired", close_expired),
+        _patch_audit_noop(),
+    ]
+    for p_ in patches:
+        p_.start()
+    try:
+        result = _run(exit_watcher.run_once())
+    finally:
+        for p_ in patches:
+            p_.stop()
+
+    assert result.expired == 0
+    assert result.held == 1
+    close_expired.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
