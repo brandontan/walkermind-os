@@ -93,3 +93,22 @@ def balance_kb() -> InlineKeyboardMarkup:
         [REFRESH],
         [BACK, HOME],
     ])
+
+
+def history_range_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📅 Today", callback_data="portfolio:history:today"),
+         InlineKeyboardButton("📆 This Week", callback_data="portfolio:history:week")],
+        [InlineKeyboardButton("🗂 All Time", callback_data="portfolio:history:all")],
+        [BACK, HOME],
+    ])
+
+
+def performance_range_kb(active: str = "week") -> InlineKeyboardMarkup:
+    week_label = "📊 ✓ Weekly" if active == "week" else "📊 Weekly"
+    month_label = "📈 ✓ Monthly" if active == "month" else "📈 Monthly"
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(week_label, callback_data="portfolio:performance:week"),
+         InlineKeyboardButton(month_label, callback_data="portfolio:performance:month")],
+        [BACK, HOME],
+    ])

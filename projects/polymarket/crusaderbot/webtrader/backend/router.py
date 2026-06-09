@@ -69,6 +69,7 @@ from .schemas import (
     TelegramAuthPayload,
     TokenResponse,
     TradeHighlight,
+    StrategyFlagsUpdate,
     TradingSettingsUpdate,
     UserSettingsUpdate,
     WalletInfo,
@@ -3538,3 +3539,65 @@ async def admin_paper_reset(
         ledger_entries_deleted=ledger_deleted,
         balance_reset_usdc=1000.0,
     )
+
+
+# ── Admin: strategy global flags ──────────────────────────────────────────────
+
+@router.get("/admin/strategy-flags")
+async def get_strategy_flags(user: _AdminUser) -> dict:
+    """Return all strategy global on/off flags and bot runtime overrides.
+
+    Shape::
+
+        {
+            "strategies": {"late_entry_v3": true, "signal_following": false, ...},
+            "bot_overrides": {"weather_strategy": false, "complete_set_arb": true, ...}
+        }
+    """
+    from ...domain.ops.strategy_flags import get_all_flags  # type: ignore
+    return await get_all_flags()
+
+
+@router.patch("/admin/strategy-flags")
+async def update_strategy_flags(body: StrategyFlagsUpdate, user: _AdminUser) -> dict:
+    """Toggle one or more strategy global flags or bot runtime overrides.
+
+    Accepts partial updates — only supplied keys are written.
+    """
+    from ...domain.ops.strategy_flags import (  # type: ignore
+        set_strategy_flag,
+        set_override_flag,
+        STRATEGIES,
+        BOT_OVERRIDES,
+    )
+    updated: list[str] = []
+    errors: list[str] = []
+
+    if body.strategies:
+        for name, enabled in body.strategies.items():
+            if name not in STRATEGIES:
+                errors.append(f"unknown strategy: {name!r}")
+                continue
+            try:
+                await set_strategy_flag(name, enabled)
+                updated.append(f"strategy:{name}={enabled}")
+            except Exception as exc:
+                log.error("strategy flag update failed name=%s: %s", name, exc)
+                errors.append(f"strategy:{name} write failed")
+
+    if body.bot_overrides:
+        for name, enabled in body.bot_overrides.items():
+            if name not in BOT_OVERRIDES:
+                errors.append(f"unknown bot override: {name!r}")
+                continue
+            try:
+                await set_override_flag(name, enabled)
+                updated.append(f"override:{name}={enabled}")
+            except Exception as exc:
+                log.error("override flag update failed name=%s: %s", name, exc)
+                errors.append(f"override:{name} write failed")
+
+    if errors and not updated:
+        raise HTTPException(status_code=422, detail="; ".join(errors))
+
+    return {"updated": updated, "errors": errors}

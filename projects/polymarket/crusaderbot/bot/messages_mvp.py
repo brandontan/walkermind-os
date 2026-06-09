@@ -115,17 +115,31 @@ def render_autotrade_home(
     pnl_today: float = 0.0,
     executions: int = 0,
     win_rate: int = 0,
+    admin_blocked: bool = False,
 ) -> str:
+    blocked_notice = (
+        f"\n⚠️ <b>Strategy disabled by admin</b> — no new trades will fire.\n"
+        if admin_blocked else ""
+    )
     return (
         f"🤖 *Auto Trade*\n"
         f"{DIV}\n\n"
         f"Status: `{md_v2_escape(status)}`\n"
-        f"Strategy: `{md_v2_escape(strategy)}`\n\n"
+        f"Strategy: `{md_v2_escape(strategy)}`\n"
+        f"{blocked_notice}\n"
         f"*⚙️ Configuration*\n"
-        f"{pre_block([('Capital', f'${capital:,.2f}'), ('Risk', risk), ('Mode', mode)])}\n\n"
-        f"*📊 Performance*\n"
-        f"{pre_block([('PnL Today', pnl(pnl_today)), ('Executions', str(executions)), ('Win Rate', f'{win_rate}%')])}\n"
-        f"{DIV}\n"
+        + pre_block([
+            ("Capital", f"${capital:,.2f}"),
+            ("Risk",    risk),
+            ("Mode",    mode),
+        ]) +
+        f"\n\n*📊 Performance*\n"
+        + pre_block([
+            ("PnL Today",   pnl(pnl_today)),
+            ("Executions",  str(executions)),
+            ("Win Rate",    f"{win_rate}%"),
+        ]) +
+        f"\n{DIV}\n"
         f"{cta('Choose an action:')}"
     )
 
@@ -339,6 +353,16 @@ def render_copy_pause_confirm() -> str:
     )
 
 
+def render_copy_resume_confirm() -> str:
+    return (
+        f"▶ <b>Resume Copy Wallet</b>\n"
+        f"{DIV}\n\n"
+        f"  · Copy monitoring: <code>Resumed</code>\n"
+        f"  · New trades: <code>Will be copied</code>\n\n"
+        f"{cta('Resume copying?')}"
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 11. Markets
 # ─────────────────────────────────────────────────────────────────────────────
@@ -390,6 +414,97 @@ def render_market_card(
         f"{pre_block([('YES', yes), ('NO', no), ('Volume', volume), ('Closes', closes), ('Sentiment', sentiment)])}\n"
         f"{DIV}\n"
         f"{cta('Choose an action:')}"
+    )
+
+
+def render_markets_new(*, items: list) -> str:
+    lines = "\n".join(f"  🆕 {html_escape(str(t)[:80])}" for t in (items or [])[:5])
+    return (
+        f"🆕 <b>New Markets</b>\n"
+        f"{DIV}\n\n"
+        f"{lines or '<i>No new markets right now</i>'}\n\n"
+        f"{cta('Fresh opportunities just listed')}"
+    )
+
+
+def render_watchlist(*, items: list) -> str:
+    lines = "\n".join(f"  ⭐ {html_escape(str(t)[:80])}" for t in (items or [])[:10])
+    return (
+        f"⭐ <b>Watchlist</b>\n"
+        f"{DIV}\n\n"
+        f"{lines}"
+    )
+
+
+def render_watchlist_empty() -> str:
+    return (
+        f"⭐ <b>Watchlist</b>\n"
+        f"{DIV}\n\n"
+        f"  No markets saved yet.\n\n"
+        f"{cta('Browse markets and tap ⭐ to save')}"
+    )
+
+
+def render_markets_search_prompt() -> str:
+    return (
+        f"🔎 <b>Search Markets</b>\n"
+        f"{DIV}\n\n"
+        f"Type a keyword to find markets.\n\n"
+        f"{cta('e.g. Bitcoin, election, sports')}"
+    )
+
+
+def render_markets_search_results(*, query: str, items: list) -> str:
+    lines = "\n".join(f"  🔍 {html_escape(str(t)[:80])}" for t in (items or [])[:5])
+    return (
+        f"🔍 <b>Results: {html_escape(query)}</b>\n"
+        f"{DIV}\n\n"
+        f"{lines or '<i>No results found</i>'}"
+    )
+
+
+def render_markets_empty() -> str:
+    return (
+        f"📊 <b>Markets</b>\n"
+        f"{DIV}\n\n"
+        f"  No markets available right now.\n\n"
+        f"{cta('Check back soon')}"
+    )
+
+
+def render_markets_ai_insight(*, market_title: str, confidence: str, reason: str) -> str:
+    return (
+        f"🧠 <b>AI Insight</b>\n"
+        f"{DIV}\n\n"
+        f"<b>{html_escape(market_title[:80])}</b>\n\n"
+        + pre_block([
+            ("Confidence", confidence),
+            ("Signal",     reason[:60]),
+        ]) +
+        f"\n{DIV}\n"
+        f"{cta('Intelligence-only — no manual trade buttons')}"
+    )
+
+
+def render_markets_detail(
+    *,
+    market_title: str,
+    yes_price: str,
+    no_price: str,
+    sentiment: str,
+    ai_confidence: str = "—",
+) -> str:
+    return (
+        f"📊 <b>{html_escape(market_title[:80])}</b>\n"
+        f"{DIV}\n"
+        + pre_block([
+            ("YES",        yes_price),
+            ("NO",         no_price),
+            ("Sentiment",  sentiment),
+            ("AI Signal",  ai_confidence),
+        ]) +
+        f"\n{DIV}\n"
+        f"{cta('Intelligence view — monitor only')}"
     )
 
 
@@ -472,6 +587,15 @@ def render_position_detail(
     )
 
 
+def render_history_range(*, label: str = "History", count: int = 0) -> str:
+    return (
+        f"📜 <b>Trade History · {html_escape(label)}</b>\n"
+        f"{DIV}\n\n"
+        f"  · Closed Trades: <code>{count}</code>\n\n"
+        f"{cta('Detailed trade log coming soon')}"
+    )
+
+
 def render_history_empty() -> str:
     return (
         f"📜 *Trade History*\n"
@@ -523,14 +647,22 @@ def render_balance(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def render_settings_home(*, trading_mode: str = PAPER) -> str:
+def render_settings_home(
+    *,
+    trading_mode: str = PAPER,
+    risk_profile: str = "Balanced",
+    alerts_on: bool = True,
+    copy_wallet_active: bool = False,
+) -> str:
+    alerts_label = "🟢 ON" if alerts_on else "🔴 OFF"
+    copy_label = "🟢 Active" if copy_wallet_active else "🔴 OFF"
     return (
         f"⚙️ *Settings*\n"
         f"{DIV}\n\n"
         f"  · 🔄 Trading Mode: `{md_v2_escape(trading_mode)}`\n"
-        f"  · 🛡 Risk: `Balanced`\n"
-        f"  · 🔔 Alerts: `ON`\n"
-        f"  · 👥 Copy Wallet: `OFF`\n"
+        f"  · 🛡 Risk: `{md_v2_escape(risk_profile)}`\n"
+        f"  · 🔔 Alerts: `{alerts_label}`\n"
+        f"  · 👥 Copy Wallet: `{copy_label}`\n"
         f"  · 👤 Account: `Profile`\n"
         f"  · 🧪 Advanced: `Power user`"
     )
@@ -609,6 +741,17 @@ def render_settings_account(
         f"  · Mode: `{md_v2_escape(mode)}`\n"
         f"  · API Status: `{md_v2_escape(api_status)}`\n"
         f"  · Subscription: `{md_v2_escape(subscription)}`"
+    )
+
+
+def render_settings_live_access_requested() -> str:
+    return (
+        f"🔒 <b>Live Access Requested</b>\n"
+        f"{DIV}\n\n"
+        f"  · Status: <code>⏳ Pending Review</code>\n\n"
+        f"Your request has been logged. The operator will review and enable"
+        f" live trading access manually.\n\n"
+        f"{cta('You will be notified when approved')}"
     )
 
 
@@ -702,6 +845,30 @@ def render_help_faq() -> str:
         f"  · Is the bot safe? `Yes — paper mode by default`\n"
         f"  · Can I lose money? `Paper mode uses virtual funds only`\n"
         f"  · How to stop? `Tap Pause or Stop Bot in Auto Mode`"
+    )
+
+
+def render_help_faq_paper() -> str:
+    return (
+        f"📝 <b>Paper Trading</b>\n"
+        f"{DIV}\n\n"
+        f"Paper mode simulates trades with virtual capital.\n\n"
+        f"  · No real money at risk\n"
+        f"  · Full strategy execution\n"
+        f"  · Switch to Live when ready\n\n"
+        f"{cta('Safe way to test strategies')}"
+    )
+
+
+def render_help_support_report() -> str:
+    return (
+        f"🐛 <b>Report an Issue</b>\n"
+        f"{DIV}\n\n"
+        f"To report a bug or unexpected behaviour:\n\n"
+        f"  · Describe what happened\n"
+        f"  · Include the time and screen\n"
+        f"  · Send to @CrusaderBotSupport\n\n"
+        f"{cta('We review all reports within 24h')}"
     )
 
 

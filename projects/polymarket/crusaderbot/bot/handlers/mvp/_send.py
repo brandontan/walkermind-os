@@ -74,3 +74,38 @@ def callback_parts(update: Update) -> list[str]:
     if q is None or not q.data:
         return []
     return q.data.split(":")
+
+
+# ── Navigation stack helpers ──────────────────────────────────────────────────
+# Each MVP surface pushes its own callback_data prefix onto the stack so that
+# nav:back can return to the correct parent instead of always going to dashboard.
+
+_NAV_STACK_KEY = "mvp_nav_stack"
+_MAX_STACK_DEPTH = 8
+
+
+def nav_push(ctx, callback_prefix: str) -> None:
+    """Push a surface identifier onto the per-user navigation stack."""
+    if ctx.user_data is None:
+        return
+    stack: list[str] = ctx.user_data.get(_NAV_STACK_KEY) or []
+    if not stack or stack[-1] != callback_prefix:
+        stack.append(callback_prefix)
+    ctx.user_data[_NAV_STACK_KEY] = stack[-_MAX_STACK_DEPTH:]
+
+
+def nav_pop(ctx) -> str | None:
+    """Pop and return the previous surface identifier, or None if stack is empty."""
+    if ctx.user_data is None:
+        return None
+    stack: list[str] = ctx.user_data.get(_NAV_STACK_KEY) or []
+    if len(stack) > 1:
+        stack.pop()
+        ctx.user_data[_NAV_STACK_KEY] = stack
+        return stack[-1]
+    return None
+
+
+def nav_clear(ctx) -> None:
+    if ctx.user_data is not None:
+        ctx.user_data[_NAV_STACK_KEY] = []
