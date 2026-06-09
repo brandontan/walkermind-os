@@ -181,14 +181,40 @@ async def ensure_clob_credentials(
         logger.warning("clob: USE_REAL_CLOB=True but POLYMARKET_PRIVATE_KEY not set — cannot derive credentials")
         return
 
-    # POLY_1271 deposit wallets (EIP-7702 smart accounts): credential derivation is
-    # owned by ClobV2Client._build_client (it binds POLY_ADDRESS to the deposit
-    # wallet, then tries the plain EOA-signed ClobAuth first — the deposit wallet's
-    # ERC-1271 validates its owner's ECDSA — and the ERC-7739 wrapper as fallback).
-    # Skip the EOA-bound SDK auto-derive here so creds=None flows to that path
-    # instead of caching an EOA-bound key.
+    # POLY_1271 deposit wallets (EIP-7702 smart accounts): py-clob-client-v2's L1
+    # auth cannot mint CLOB creds for them (upstream #70 — every L1 attempt returns
+    # "Invalid L1 Request headers"). The OFFICIAL polymarket SDK's AsyncSecureClient
+    # resolves the deposit wallet and derives valid L2 creds; we cache those so the
+    # proven ClobV2Client order path (correct 1271 order signing) authenticates.
     if int(getattr(s, "POLYMARKET_SIGNATURE_TYPE", 0) or 0) == 3:
-        logger.info("clob: POLY_1271 — deferring credential derivation to ClobV2Client")
+        if not s.POLYMARKET_FUNDER_ADDRESS:
+            raise ClobConfigError(
+                "POLY_1271 auto-derive needs POLYMARKET_FUNDER_ADDRESS "
+                "(the deposit wallet address)"
+            )
+        from polymarket import AsyncSecureClient  # noqa: WPS433
+
+        logger.info(
+            "clob: deriving POLY_1271 deposit-wallet creds via AsyncSecureClient "
+            "(wallet=%s) …", s.POLYMARKET_FUNDER_ADDRESS,
+        )
+        sc = await AsyncSecureClient.create(
+            private_key=s.POLYMARKET_PRIVATE_KEY,
+            wallet=s.POLYMARKET_FUNDER_ADDRESS,
+        )
+        try:
+            creds = sc.credentials
+        finally:
+            await sc.close()
+        _derived = {
+            "api_key": creds.key,
+            "api_secret": creds.secret,
+            "passphrase": creds.passphrase,
+        }
+        logger.info(
+            "clob: POLY_1271 deposit-wallet creds derived via AsyncSecureClient "
+            "(key=%.8s…)", _derived["api_key"],
+        )
         return
 
     logger.info("clob: deriving API credentials from POLYMARKET_PRIVATE_KEY …")

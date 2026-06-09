@@ -19,7 +19,10 @@ dependencies = [
     # CLOB v2 migration (WARP/clob-v2-migration): the official polymarket-client
     # produces the CLOB v2 SignedOrder schema. Selected by USE_PYSDK_CLOB.
     # Pinned to the validated pre-release; bump only with a fresh staging proof.
-    "polymarket-client==0.1.0b3",
+    # 0.1.0b4 adds AsyncSecureClient (deposit-wallet / POLY_1271 credential
+    # derivation + deployment) — used to mint deposit-wallet CLOB creds that
+    # py-clob-client-v2's L1 auth cannot (upstream #70).
+    "polymarket-client==0.1.0b4",
     # py-clob-client is RETAINED during the transition: it is still the default
     # order backend (USE_PYSDK_CLOB=False) AND it transitively supplies
     # poly_eip712_structs / py-order-utils, which py-builder-signing-sdk and
