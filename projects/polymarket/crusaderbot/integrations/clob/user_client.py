@@ -101,6 +101,11 @@ class _CachedClient:
 _state_lock: asyncio.Lock = asyncio.Lock()
 _user_cache: "OrderedDict[UUID, _CachedClient]" = OrderedDict()
 _inflight: dict[UUID, "asyncio.Task[_CachedClient]"] = {}
+# Strong-reference set for fire-and-forget background tasks (eviction
+# ``aclose``s). The event loop only weak-refs ``create_task``; without this
+# pin the GC can collect a still-running aclose mid-flight and leak the
+# underlying client / connection.
+_background_tasks: set["asyncio.Task[None]"] = set()
 
 
 async def resolve_deposit_wallet_creds(
@@ -152,15 +157,49 @@ async def _build_and_cache(
     single-flight task carries the cache write through to every waiter.
 
     Cache eviction runs INSIDE the in-flight task so the slot is always live
-    when waiters await it. The ``_inflight`` slot itself is cleaned up by the
-    outermost caller in ``get_user_clob_client``.
+    when waiters await it. The ``_inflight`` slot is also cleared HERE, in
+    the task's own ``finally`` keyed by ``asyncio.current_task()`` — NOT in
+    the caller's ``try/except``. The caller awaits via ``asyncio.shield``,
+    so a caller cancellation does NOT cancel this task; clearing
+    ``_inflight`` from the caller would prematurely release the slot while
+    the task is still running in the background, allowing the next caller
+    to spawn a duplicate ``AsyncSecureClient.create`` and silently defeat
+    single-flight. Cleaning up here is race-free against caller cancellation.
     """
-    entry = await _build_for_user(user_id, settings)
+    current = asyncio.current_task()
+    try:
+        entry = await _build_for_user(user_id, settings)
+        async with _state_lock:
+            await _evict_lru_if_full()
+            _user_cache[user_id] = entry
+            _user_cache.move_to_end(user_id)
+        return entry
+    finally:
+        # The cleanup ``await`` MUST be shielded from cancellation. If THIS
+        # task is cancelled, an unshielded ``async with _state_lock`` would
+        # raise ``CancelledError`` on the lock-acquisition ``await`` and SKIP
+        # ``_inflight.pop`` — leaving a dead task in ``_inflight`` and
+        # permanently wedging every future ``get_user_clob_client`` for this
+        # user (each new caller would ``await asyncio.shield(dead_task)``
+        # which re-raises CancelledError immediately and never repopulates
+        # the slot). ``asyncio.shield`` lets the pop complete, then the
+        # surrounding ``finally`` propagates CancelledError normally.
+        await asyncio.shield(_release_inflight(user_id, current))
+
+
+async def _release_inflight(
+    user_id: UUID,
+    task: "asyncio.Task[_CachedClient] | None",
+) -> None:
+    """Drop ``_inflight[user_id]`` iff it still points at the given task.
+
+    Extracted so the cleanup ``await`` can be wrapped in ``asyncio.shield``
+    from inside a ``finally`` block (a coroutine call expression cannot be
+    shielded inline as an ``async with`` statement).
+    """
     async with _state_lock:
-        await _evict_lru_if_full()
-        _user_cache[user_id] = entry
-        _user_cache.move_to_end(user_id)
-    return entry
+        if _inflight.get(user_id) is task:
+            _inflight.pop(user_id, None)
 
 
 async def _build_for_user(
@@ -221,8 +260,12 @@ async def _evict_lru_if_full() -> None:
             evicted_uid, USER_CACHE_CAPACITY,
         )
         # Fire-and-forget close. If aclose raises we still want the new entry
-        # to land.
-        asyncio.create_task(_safe_aclose(evicted.client))
+        # to land. The strong reference in ``_background_tasks`` keeps the
+        # task alive against the loop's weak-ref behaviour; the done-callback
+        # discards it once aclose finishes so the set never grows unbounded.
+        task = asyncio.create_task(_safe_aclose(evicted.client))
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
 
 
 async def _safe_aclose(client: ClobV2Client) -> None:
@@ -289,6 +332,11 @@ async def get_user_clob_client(
     #     orphan "Future exception was never retrieved" warnings),
     #   * a caller's cancellation cannot bring down the shared task — other
     #     waiters still get their answer.
+    #
+    # The ``_inflight`` slot is cleared by the TASK ITSELF (in
+    # ``_build_and_cache``'s ``finally``), not here, so a caller cancellation
+    # does NOT defeat single-flight by releasing the slot while the task is
+    # still running in the background.
     async with _state_lock:
         cached = _user_cache.get(user_id)
         if cached is not None:
@@ -300,20 +348,7 @@ async def get_user_clob_client(
             task = asyncio.create_task(_build_and_cache(user_id, s))
             _inflight[user_id] = task
 
-    try:
-        entry = await asyncio.shield(task)
-    except BaseException:
-        # Drop the in-flight slot so a retry can re-derive. Whichever awaiter
-        # first observes the failure clears it; the ``is task`` guard prevents
-        # racing with a fresh resolution that has already been registered.
-        async with _state_lock:
-            if _inflight.get(user_id) is task:
-                _inflight.pop(user_id, None)
-        raise
-
-    async with _state_lock:
-        if _inflight.get(user_id) is task:
-            _inflight.pop(user_id, None)
+    entry = await asyncio.shield(task)
     return entry.client
 
 
@@ -321,11 +356,22 @@ async def clear_user_clob_cache() -> None:
     """Test seam — drop every cached per-user client and close it.
 
     Production code never calls this. Mirrors ``reset_clob_resilience`` for
-    the resilience singletons.
+    the resilience singletons. Cancels and awaits every in-flight build +
+    eviction task so test cases never leak background work into each other.
     """
     async with _state_lock:
         entries = list(_user_cache.values())
         _user_cache.clear()
+        inflight_tasks = list(_inflight.values())
         _inflight.clear()
+        bg_tasks = list(_background_tasks)
+        _background_tasks.clear()
+
+    pending = inflight_tasks + bg_tasks
+    for task in pending:
+        task.cancel()
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+
     for entry in entries:
         await _safe_aclose(entry.client)
