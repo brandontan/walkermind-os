@@ -174,7 +174,11 @@ async def ensure_clob_credentials(
     s = settings or get_settings()
     if not s.USE_REAL_CLOB:
         return
-    if s.POLYMARKET_API_KEY:
+    # For POLY_1271 deposit wallets, an env-provided api key (e.g. a builder/EOA
+    # key) cannot authenticate the deposit-wallet maker — always derive via
+    # AsyncSecureClient below. Other wallet types honour an env-provided key.
+    _sig_type = int(getattr(s, "POLYMARKET_SIGNATURE_TYPE", 0) or 0)
+    if s.POLYMARKET_API_KEY and _sig_type != 3:
         logger.info("clob: POLYMARKET_API_KEY set in env — skipping auto-derive")
         return
     if not s.POLYMARKET_PRIVATE_KEY:
@@ -330,12 +334,19 @@ def effective_credentials(
     an endless reconnect loop).
     """
     s = settings or get_settings()
-    api_key = s.POLYMARKET_API_KEY or (_derived or {}).get("api_key", "")
-    api_secret = s.POLYMARKET_API_SECRET or (_derived or {}).get("api_secret", "")
+    d = _derived or {}
+    # POLY_1271 deposit wallets: the AsyncSecureClient-derived creds in ``_derived``
+    # are the ONLY ones bound to the deposit wallet, so they take priority over any
+    # env-provided api key (which for a deposit wallet would be a wrong builder/EOA
+    # key). Every other wallet type keeps env-first precedence.
+    if int(getattr(s, "POLYMARKET_SIGNATURE_TYPE", 0) or 0) == 3 and d.get("api_key"):
+        return d.get("api_key", ""), d.get("api_secret", ""), d.get("passphrase", "")
+    api_key = s.POLYMARKET_API_KEY or d.get("api_key", "")
+    api_secret = s.POLYMARKET_API_SECRET or d.get("api_secret", "")
     passphrase = (
         s.POLYMARKET_API_PASSPHRASE
         or s.POLYMARKET_PASSPHRASE
-        or (_derived or {}).get("passphrase", "")
+        or d.get("passphrase", "")
     )
     return api_key, api_secret, passphrase
 
