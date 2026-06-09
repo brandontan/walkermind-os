@@ -175,9 +175,31 @@ async def _build_and_cache(
             _user_cache.move_to_end(user_id)
         return entry
     finally:
-        async with _state_lock:
-            if _inflight.get(user_id) is current:
-                _inflight.pop(user_id, None)
+        # The cleanup ``await`` MUST be shielded from cancellation. If THIS
+        # task is cancelled, an unshielded ``async with _state_lock`` would
+        # raise ``CancelledError`` on the lock-acquisition ``await`` and SKIP
+        # ``_inflight.pop`` — leaving a dead task in ``_inflight`` and
+        # permanently wedging every future ``get_user_clob_client`` for this
+        # user (each new caller would ``await asyncio.shield(dead_task)``
+        # which re-raises CancelledError immediately and never repopulates
+        # the slot). ``asyncio.shield`` lets the pop complete, then the
+        # surrounding ``finally`` propagates CancelledError normally.
+        await asyncio.shield(_release_inflight(user_id, current))
+
+
+async def _release_inflight(
+    user_id: UUID,
+    task: "asyncio.Task[_CachedClient] | None",
+) -> None:
+    """Drop ``_inflight[user_id]`` iff it still points at the given task.
+
+    Extracted so the cleanup ``await`` can be wrapped in ``asyncio.shield``
+    from inside a ``finally`` block (a coroutine call expression cannot be
+    shielded inline as an ``async with`` statement).
+    """
+    async with _state_lock:
+        if _inflight.get(user_id) is task:
+            _inflight.pop(user_id, None)
 
 
 async def _build_for_user(

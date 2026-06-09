@@ -289,6 +289,50 @@ async def test_single_flight_collapses_concurrent_same_user(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_task_cancellation_does_not_wedge_inflight(monkeypatch):
+    """Hardening regression (Gemini #1732 MED).
+
+    If the in-flight task ITSELF is cancelled, the ``finally`` in
+    ``_build_and_cache`` must still clear ``_inflight[user_id]``. Without
+    ``asyncio.shield`` around the cleanup, the cancellation would propagate
+    through the unshielded ``async with _state_lock`` await and skip the
+    pop — leaving a dead task in ``_inflight`` that wedges every future
+    caller (each new caller awaits ``asyncio.shield(dead_task)`` which
+    re-raises CancelledError immediately and never repopulates the slot).
+    """
+    s = _make_settings(monkeypatch)
+    u = uuid4()
+
+    from projects.polymarket.crusaderbot.wallet import vault as vault_mod
+
+    async def _slow_get(user_id):
+        await asyncio.sleep(0.10)
+        return "0x" + "11" * 32
+
+    monkeypatch.setattr(vault_mod, "get_decrypted_pk", _slow_get)
+
+    # Start a caller and grab a handle to the in-flight TASK (not the caller).
+    caller = asyncio.create_task(uc.get_user_clob_client(u, s))
+    await asyncio.sleep(0.01)
+    assert u in uc._inflight
+    inflight_task = uc._inflight[u]
+
+    # Cancel the build task itself.
+    inflight_task.cancel()
+    with pytest.raises(BaseException):
+        await caller
+
+    # The shielded cleanup MUST have run. With unshielded cleanup,
+    # _inflight[u] would still hold the dead task here.
+    assert u not in uc._inflight
+
+    # A fresh call now succeeds — proves the wedge is gone.
+    _patch_vault(monkeypatch, {u: "0x" + "11" * 32})
+    client = await uc.get_user_clob_client(u, s)
+    assert client.funder.startswith("0x1111")
+
+
+@pytest.mark.asyncio
 async def test_holder_cancellation_does_not_defeat_single_flight(monkeypatch):
     """Hardening regression (Gemini #1731 HIGH).
 
