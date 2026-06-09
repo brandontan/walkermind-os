@@ -216,7 +216,7 @@ class ClobV2Client:
             deposit_wallet = self._funder
             # L2 request headers read signer.address() for POLY_ADDRESS; bind it to
             # the deposit wallet (order signing still uses the EOA private key).
-            client.signer.address = lambda _a=deposit_wallet: _a  # type: ignore[assignment,method-assign]
+            client.signer.address = lambda *_a, **_k: deposit_wallet  # type: ignore[assignment,method-assign]
             if creds is None:
                 resolved = derive_or_create_deposit_wallet_creds(
                     host=self._host,

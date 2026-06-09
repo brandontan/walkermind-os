@@ -171,7 +171,12 @@ def build_poly_1271_clob_auth_signature(
         )
     )
     digest = keccak(primitive=b"\x19\x01" + domain_sep + typed_data_sign_struct_hash)
-    signed = Account._sign_hash(digest, private_key=private_key)
+    # Prefer the public ``unsafe_sign_hash`` (byte-identical successor to the
+    # private ``_sign_hash``); fall back for older eth_account so the signature
+    # stays identical to the SDK's own _build_poly_1271_order_signature.
+    # (Account.signHash was removed in modern eth_account -- do NOT use it.)
+    _sign_hash = getattr(Account, "unsafe_sign_hash", None) or Account._sign_hash
+    signed = _sign_hash(digest, private_key=private_key)
     inner = signed.signature.hex()
     if inner.startswith("0x"):
         inner = inner[2:]
@@ -252,7 +257,12 @@ def derive_or_create_deposit_wallet_creds(
             logger.warning("deposit-wallet auth %s", last_err)
             continue
         if resp.status_code == 200:
-            data = resp.json()
+            try:
+                data = resp.json()
+            except ValueError as json_err:  # 200 but empty / non-JSON body
+                last_err = f"{method} {path}: 200 but invalid JSON: {json_err}"
+                logger.warning("deposit-wallet auth %s", last_err)
+                continue
             key = data.get("apiKey") or data.get("api_key")
             secret = data.get("secret") or data.get("api_secret")
             passphrase = data.get("passphrase") or data.get("api_passphrase")
