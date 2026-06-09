@@ -226,6 +226,22 @@ async def _build_for_user(
     # ``clob/__init__.py`` (which itself imports this module's neighbours).
     from . import get_clob_breaker, get_clob_rate_limiter  # noqa: WPS433
 
+    # Fail-fast on half-configured builder attribution — mirrors the single-wallet
+    # ``get_clob_client`` factory: a non-zero builder code with no builder
+    # address yields invalid/zero-address attribution at the broker. Without
+    # this check, every per-user build pays the vault decrypt + deposit-wallet
+    # derive cost before the SDK construction surface raises.
+    _zero32 = "0x" + ("00" * 32)
+    if (
+        settings.POLYMARKET_BUILDER_CODE
+        and settings.POLYMARKET_BUILDER_CODE != _zero32
+        and not settings.POLYMARKET_BUILDER_ADDRESS
+    ):
+        raise ClobConfigError(
+            "POLYMARKET_BUILDER_CODE is set but POLYMARKET_BUILDER_ADDRESS "
+            "is unset — builder attribution needs both"
+        )
+
     client = ClobV2Client(
         private_key=pk,
         funder_address=wallet,

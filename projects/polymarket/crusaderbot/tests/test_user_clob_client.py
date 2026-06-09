@@ -212,6 +212,45 @@ async def test_no_key_in_vault_hard_fails(monkeypatch):
         await uc.get_user_clob_client(u, s)
 
 
+@pytest.mark.asyncio
+async def test_builder_code_without_address_hard_fails(monkeypatch):
+    """Half-configured builder attribution fails fast — mirrors the global
+    ``get_clob_client`` factory's startup check.
+
+    Regression for the live-trade-readiness execution audit: without this
+    check, every per-user build pays the vault decrypt + deposit-wallet
+    derive cost before the SDK construction surface raises on misconfigured
+    builder attribution.
+    """
+    s = _make_settings(monkeypatch)
+    u = uuid4()
+    _patch_vault(monkeypatch, {u: "0x" + "44" * 32})
+
+    # Mirror the env shape an operator would set: non-zero builder code,
+    # builder address blank.
+    s.POLYMARKET_BUILDER_CODE = "0x" + ("aa" * 32)
+    s.POLYMARKET_BUILDER_ADDRESS = ""
+
+    with pytest.raises(clob_pkg.ClobConfigError, match="BUILDER_ADDRESS"):
+        await uc.get_user_clob_client(u, s)
+
+
+@pytest.mark.asyncio
+async def test_zero_builder_code_does_not_require_address(monkeypatch):
+    """The all-zeros sentinel code is treated as 'unset' — same semantics as
+    the single-wallet factory; no address required, no fail-fast."""
+    s = _make_settings(monkeypatch)
+    u = uuid4()
+    _patch_vault(monkeypatch, {u: "0x" + "55" * 32})
+
+    s.POLYMARKET_BUILDER_CODE = "0x" + ("00" * 32)
+    s.POLYMARKET_BUILDER_ADDRESS = ""
+
+    # Should NOT raise — zero sentinel means no attribution.
+    client = await uc.get_user_clob_client(u, s)
+    assert client is not None
+
+
 # --- per-user cache + distinct wallets -----------------------------------
 
 

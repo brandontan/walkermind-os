@@ -346,6 +346,45 @@ async def test_preflight_failure_refunds_ledger() -> None:
 
 
 @pytest.mark.asyncio
+async def test_builder_relayer_unavailable_refunds_ledger() -> None:
+    """Safe-custody relayer-unavailable is preflight: ledger MUST be refunded.
+
+    Regression for the live-trade-readiness wallet audit (WARP/root-live-trade-
+    readiness-audit). Before the inheritance fix, BuilderRelayerUnavailable was
+    a bare RuntimeError, so the ``except PreflightError`` branch did not match;
+    the generic ``except Exception`` branch marked the withdrawal failed but
+    never refunded the ledger debit, stranding user funds on Safe-custody
+    misconfig. The fix makes BuilderRelayerUnavailable a PreflightError
+    subclass so the existing refund branch covers it.
+    """
+    from projects.polymarket.crusaderbot.wallet import withdrawals
+    from projects.polymarket.crusaderbot.wallet import ledger
+    from projects.polymarket.crusaderbot.integrations.builder_relayer import (
+        BuilderRelayerUnavailable,
+    )
+    from projects.polymarket.crusaderbot.integrations.polygon_usdc import PreflightError
+
+    # Inheritance invariant — the actual subclass relationship is the fix.
+    assert issubclass(BuilderRelayerUnavailable, PreflightError)
+
+    wid = _uuid.uuid4()
+    uid = _uuid.uuid4()
+    conn = _Conn(fetchrow={"user_id": uid})
+
+    async def _relayer_unavailable(*_a, **_k):
+        raise BuilderRelayerUnavailable("relayer not configured")
+
+    with patch.object(withdrawals, "get_pool", return_value=_Pool(conn)), \
+         patch.object(withdrawals, "_attempt_onchain_transfer", _relayer_unavailable), \
+         patch.object(ledger, "credit_in_conn", AsyncMock()) as mock_credit:
+        await withdrawals._settle_withdrawal(
+            wid, "0xAbCd1234567890EF1234567890abcdef12345678", Decimal("10"),
+        )
+
+    mock_credit.assert_awaited_once()  # ledger refunded — no capital moved
+
+
+@pytest.mark.asyncio
 async def test_post_broadcast_failure_does_not_refund() -> None:
     """An ambiguous post-broadcast failure marks 'failed' but never refunds."""
     from projects.polymarket.crusaderbot.wallet import withdrawals
