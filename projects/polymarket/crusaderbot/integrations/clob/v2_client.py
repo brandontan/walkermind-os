@@ -198,60 +198,14 @@ class ClobV2Client:
             builder_config=builder_config,
         )
 
-        # POLY_1271 deposit wallets (EIP-7702 smart accounts -- every Magic-Link /
-        # email account migrated after 2026-04-28). The SDK builds the *order*
-        # signature correctly (maker == signer == deposit wallet, ERC-7739 wrapped)
-        # but its L1 auth binds the API key to the EOA, so the CLOB rejects every
-        # order ("the order signer address has to be the address of the API KEY" /
-        # "maker address not allowed, please use the deposit wallet flow"). Fix:
-        # bind POLY_ADDRESS (L1 derive + L2 request headers) to the deposit wallet
-        # and derive creds with the ERC-7739-wrapped ClobAuth signature. Other
-        # wallet types (EOA/0, POLY_PROXY/1, GNOSIS_SAFE/2) keep the SDK path.
-        if int(self._signature_type) == _POLY_1271_SIGNATURE_TYPE:
-            if not self._funder:
-                raise ClobConfigError(
-                    "POLY_1271 (deposit wallet) requires POLYMARKET_FUNDER_ADDRESS "
-                    "= the deposit wallet address"
-                )
-            deposit_wallet = self._funder
-            # L1 + L2 headers read signer.address() for POLY_ADDRESS; bind it to the
-            # deposit wallet (order signing still uses the EOA private key).
-            client.signer.address = lambda *_a, **_k: deposit_wallet  # type: ignore[assignment,method-assign]
-            if creds is None:
-                # PLAIN first: with signer.address bound to the deposit wallet, the
-                # SDK's own L1 auth signs a STANDARD ClobAuth (address=deposit
-                # wallet) with the EOA key and sets POLY_ADDRESS=deposit wallet. The
-                # docs describe L1 as standard EIP-712 (no ERC-7739 path), and the
-                # deposit wallet's ERC-1271 isValidSignature accepts its owner's
-                # ECDSA — so this should suffice. Fall back to the ERC-7739-wrapped
-                # ClobAuth signature only if the server rejects the plain headers.
-                try:
-                    client.set_api_creds(client.create_or_derive_api_key())
-                    logger.info(
-                        "clob-v2: POLY_1271 creds via plain L1 (deposit-wallet "
-                        "POLY_ADDRESS=%s)", deposit_wallet,
-                    )
-                except Exception as exc_plain:  # noqa: BLE001 - try wrapped fallback
-                    logger.warning(
-                        "clob-v2: plain POLY_1271 L1 derive failed (%s); trying "
-                        "ERC-7739-wrapped ClobAuth", exc_plain,
-                    )
-                    resolved = derive_or_create_deposit_wallet_creds(
-                        host=self._host,
-                        private_key=self._private_key,
-                        deposit_wallet=deposit_wallet,
-                        chain_id=self._chain_id,
-                        timestamp=int(time.time()),
-                    )
-                    client.set_api_creds(
-                        ApiCreds(
-                            api_key=resolved["api_key"],
-                            api_secret=resolved["api_secret"],
-                            api_passphrase=resolved["passphrase"],
-                        )
-                    )
-            return client
-
+        # POLY_1271 deposit wallets (EIP-7702 smart accounts): the order signature
+        # is built correctly here (maker == signer == deposit wallet via ``funder`` +
+        # sig type 3, ERC-7739 wrapped), and the L2 request auth uses the SIGNER
+        # (EOA) POLY_ADDRESS + HMAC over the deposit-wallet creds derived upstream by
+        # AsyncSecureClient (``ensure_clob_credentials``). So NO ``signer.address``
+        # override is needed -- the EOA address is exactly what the CLOB expects for
+        # the L2 header (the SDK does the same: POLY_ADDRESS = signer.address). The
+        # creds reach this client via ``effective_credentials`` (env/_derived).
         if creds is None:
             # Derive L2 creds from the signer and attach them for trade auth.
             client.set_api_creds(client.create_or_derive_api_key())
