@@ -108,17 +108,40 @@ Modified:
   Polymarket's Rust SDK (`rs-clob-client-v2` / `polymarket_client_sdk_v2`), which
   the ecosystem reports as the only client currently trading deposit wallets — a
   larger execution-backend lane, owner-gated.
-- **Not yet proven on the broker at the time of writing** — see §6.
+- **Broker validation result (2026-06-09, real CLOB, allow_fills=false):** the
+  error moved forward each iteration but did NOT reach green:
+  - baseline (sig 1/2, legacy proxy maker): `400 maker address not allowed`.
+  - iter 1 (sig 3, deposit-wallet maker; harness still fed EOA-bound creds):
+    `401 Unauthorized/Invalid api key` — **the maker-not-allowed blocker is GONE**
+    (sig 3 + deposit wallet is accepted as a maker).
+  - iter 2 (sig 3 + `ensure_clob_credentials` routed through the deposit-wallet
+    derive — my L1 auth actually exercised): `401 Invalid L1 Request headers` on
+    both `/auth/derive-api-key` and `/auth/api-key`.
+  So the diagnosis + maker path are proven; the wall is the exact ERC-7739 L1
+  encoding, which Polymarket's server rejects. My encoding matches the
+  publicly-described spec, but **no public working byte-level implementation
+  exists** (upstream issues #64/#65/#70 all OPEN) — the remaining unknowns are in
+  Polymarket's closed server-side verification. Further blind iteration is
+  low-EV; stopped here.
 - **Go-live remains owner-gated.** Even a green order-placement proof does not
   flip `ENABLE_LIVE_TRADING` or run a real-money fill; those are owner decisions.
 
 ## 6. What is next
 
-- Dispatch the staging proof on the branch (sig type 3, funder_override = deposit
-  wallet, `allow_fills=false`) and read the result:
-  - Order accepted → WARP•R00T merges to main, re-runs case2/case4, and this
-    unblocks `USE_CLOB_V2` for migrated wallets.
-  - Still rejected → capture the exact reject, adjust the wrapped-auth encoding or
-    pivot to the Rust SDK backend lane.
-- OWNER (separate, gated): decide the live cutover — `ENABLE_LIVE_TRADING` +
-  `allow_fills` + a small real-money fill test — once order placement is proven.
+- DECISION (owner): pick the path now that the Python deposit-wallet L1 encoding
+  is blocked on Polymarket's undocumented server verification:
+  1. **Trade now on a non-migrated wallet** — a Polymarket account still on the
+     legacy POLY_PROXY system trades today with sig type 1 (the bot's existing,
+     WARP-74-proven path). The owner's current account is migrated → blocked on
+     this lane.
+  2. **Durable deposit-wallet support** — adopt Polymarket's Rust SDK
+     (`polymarket-client-sdk-v2` / `rs-clob-client-v2`, the only client the
+     ecosystem reports trading deposit wallets) as the order backend via a Rust
+     sidecar invoked from the Python bot. Scoped lane, owner-gated.
+  3. **Wait + complete this PR** — the moment Polymarket publishes/fixes the L1
+     deposit-wallet encoding, this PR finishes (the wrapper + wiring + proof
+     scaffolding are in place; only the byte layout needs the spec).
+- This PR stays OPEN (documented WIP), gated to sig type 3 only (no effect on the
+  active sig-1/2 paths). NOT merged — the broker does not yet accept the auth.
+- OWNER (separate, gated): the live cutover — `ENABLE_LIVE_TRADING` +
+  `allow_fills` + a small real-money fill test — stays an owner decision.
