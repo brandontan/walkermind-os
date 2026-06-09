@@ -38,9 +38,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any, Optional
 
 from .adapter import _trade_matches_order
+from .deposit_wallet_auth import derive_or_create_deposit_wallet_creds
 from .circuit_breaker import CircuitBreaker
 from .exceptions import (
     ClobAPIError,
@@ -61,6 +63,8 @@ DEFAULT_CHAIN_ID = 137
 # 32-byte zero sentinel py-clob-client-v2 uses for "no builder attribution".
 _ZERO_BYTES32 = "0x" + ("00" * 32)
 _SUPPORTED_ORDER_TYPES = frozenset({"GTC", "FOK", "FAK"})
+# SignatureTypeV2.POLY_1271 -- EIP-1271 smart-contract (deposit) wallets.
+_POLY_1271_SIGNATURE_TYPE = 3
 
 
 class ClobV2Client:
@@ -193,6 +197,15 @@ class ClobV2Client:
             funder=self._funder,
             builder_config=builder_config,
         )
+
+        # POLY_1271 deposit wallets (EIP-7702 smart accounts): the order signature
+        # is built correctly here (maker == signer == deposit wallet via ``funder`` +
+        # sig type 3, ERC-7739 wrapped), and the L2 request auth uses the SIGNER
+        # (EOA) POLY_ADDRESS + HMAC over the deposit-wallet creds derived upstream by
+        # AsyncSecureClient (``ensure_clob_credentials``). So NO ``signer.address``
+        # override is needed -- the EOA address is exactly what the CLOB expects for
+        # the L2 header (the SDK does the same: POLY_ADDRESS = signer.address). The
+        # creds reach this client via ``effective_credentials`` (env/_derived).
         if creds is None:
             # Derive L2 creds from the signer and attach them for trade auth.
             client.set_api_creds(client.create_or_derive_api_key())
