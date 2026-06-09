@@ -269,6 +269,12 @@ def _staging_settings() -> Any:
         "POLYMARKET_API_KEY": os.getenv("STAGING_POLYMARKET_API_KEY"),
         "POLYMARKET_API_SECRET": os.getenv("STAGING_POLYMARKET_API_SECRET"),
         "POLYMARKET_API_PASSPHRASE": os.getenv("STAGING_POLYMARKET_API_PASSPHRASE"),
+        # Builder attribution: when the api creds are builder keys, the order must
+        # carry the matching builder code/address (forwarded only if set).
+        **({"POLYMARKET_BUILDER_CODE": os.getenv("STAGING_POLYMARKET_BUILDER_CODE")}
+           if os.getenv("STAGING_POLYMARKET_BUILDER_CODE") else {}),
+        **({"POLYMARKET_BUILDER_ADDRESS": os.getenv("STAGING_POLYMARKET_BUILDER_ADDRESS")}
+           if os.getenv("STAGING_POLYMARKET_BUILDER_ADDRESS") else {}),
     })
 
 

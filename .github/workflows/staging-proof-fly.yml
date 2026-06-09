@@ -114,6 +114,11 @@ jobs:
       STAGING_POLYMARKET_API_KEY: ${{ secrets.STAGING_POLYMARKET_API_KEY }}
       STAGING_POLYMARKET_API_SECRET: ${{ secrets.STAGING_POLYMARKET_API_SECRET }}
       STAGING_POLYMARKET_API_PASSPHRASE: ${{ secrets.STAGING_POLYMARKET_API_PASSPHRASE }}
+      # Builder attribution (Builder Program) — when the api creds above are builder
+      # keys, the order must carry the matching builder code/address for the CLOB to
+      # accept it as a builder submission.
+      STAGING_POLYMARKET_BUILDER_CODE: ${{ secrets.STAGING_POLYMARKET_BUILDER_CODE }}
+      STAGING_POLYMARKET_BUILDER_ADDRESS: ${{ secrets.STAGING_POLYMARKET_BUILDER_ADDRESS }}
       STAGING_FILLED_CLOSE_ID: ${{ secrets.STAGING_FILLED_CLOSE_ID }}
       STAGING_SIGNATURE_TYPE: ${{ inputs.signature_type }}
       STAGING_NEG_RISK: ${{ inputs.neg_risk && 'true' || 'false' }}
@@ -211,6 +216,7 @@ jobs:
                    STAGING_NO_TOKEN_ID STAGING_FUNDER_ADDRESS \
                    STAGING_POLYMARKET_API_KEY STAGING_POLYMARKET_API_SECRET \
                    STAGING_POLYMARKET_API_PASSPHRASE STAGING_FILLED_CLOSE_ID \
+                   STAGING_POLYMARKET_BUILDER_CODE STAGING_POLYMARKET_BUILDER_ADDRESS \
                    STAGING_SIGNATURE_TYPE STAGING_NEG_RISK STAGING_ALLOW_FILLS \
                    USE_CLOB_V2 USE_PYSDK_CLOB \
                    TELEGRAM_BOT_TOKEN OPERATOR_CHAT_ID DATABASE_URL \
