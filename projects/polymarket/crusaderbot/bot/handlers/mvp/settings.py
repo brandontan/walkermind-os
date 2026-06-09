@@ -33,8 +33,9 @@ async def _read_settings(telegram_user) -> dict:
     u = await _users.fetch_user(telegram_user.id, telegram_user.username)
     if u is None:
         return s
-    mode_raw = await _users.fetch_trading_mode(u["id"])
-    s["trading_mode"] = LIVE if mode_raw == "live" else PAPER
+    settings = await _users.fetch_settings(u["id"])
+    is_live = str(settings.get("trading_mode") or "paper").lower() == "live"
+    s["trading_mode"] = LIVE if is_live else PAPER
     try:
         from ....database import get_pool  # type: ignore
         pool = get_pool()
