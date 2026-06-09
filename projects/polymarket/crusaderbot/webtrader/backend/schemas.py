@@ -320,6 +320,15 @@ class UserSettingsUpdate(BaseModel):
     notifications_on: Optional[bool] = None
 
 
+class StrategyFlagsUpdate(BaseModel):
+    """Partial update for strategy global flags and bot runtime overrides.
+
+    Both fields are optional — supply only the keys you want to change.
+    """
+    strategies: Optional[dict[str, bool]] = None
+    bot_overrides: Optional[dict[str, bool]] = None
+
+
 class TradingSettingsUpdate(BaseModel):
     auto_redeem: Optional[bool] = None
     redeem_mode: Optional[str] = None

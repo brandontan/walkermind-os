@@ -8,23 +8,22 @@ from ._common import BACK, HOME
 
 def welcome_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 Quick Start", callback_data="auto:quick_start")],
-        [InlineKeyboardButton("🛠 Configure", callback_data="auto:configure")],
+        [InlineKeyboardButton("🚀 Get Started", callback_data="onboard:wallet_ready")],
         [InlineKeyboardButton("❓ Learn More", callback_data="help:home")],
     ])
 
 
 def wallet_ready_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 Quick Start", callback_data="auto:quick_start")],
-        [InlineKeyboardButton("🛠 Customize", callback_data="auto:configure")],
+        [InlineKeyboardButton("💰 Deposit USDC", callback_data="onboard:deposit")],
+        [InlineKeyboardButton("🚀 Start with Paper", callback_data="auto:quick_start")],
         [InlineKeyboardButton("⬅ Back", callback_data="nav:back")],
     ])
 
 
 def deposit_prompt_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Continue with Paper", callback_data="auto:quick_start")],
+        [InlineKeyboardButton("✅ Done — Go to Dashboard", callback_data="onboard:done")],
         [InlineKeyboardButton("⚙️ Settings", callback_data="settings:home")],
         [HOME],
     ])
