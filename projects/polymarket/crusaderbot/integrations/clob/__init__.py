@@ -392,6 +392,19 @@ def get_clob_client(
     if not s.USE_REAL_CLOB:
         return MockClobClient()
 
+    # POLY_1271 (deposit wallet) orders require a resolved maker/funder. Fail fast
+    # for ALL backends here rather than building any client with funder=None: a
+    # None funder fails opaquely at order-signing time (V2 / adapter) or forces a
+    # slow on-the-fly AsyncSecureClient derivation on the trading hot path (pysdk).
+    # effective_funder returns the AsyncSecureClient-resolved deposit wallet (cached
+    # by ensure_clob_credentials at startup) or the env POLYMARKET_FUNDER_ADDRESS.
+    if int(getattr(s, "POLYMARKET_SIGNATURE_TYPE", 0) or 0) == 3 and not effective_funder(s):
+        raise ClobConfigError(
+            "POLY_1271 (deposit wallet) maker unresolved: run "
+            "ensure_clob_credentials() at startup (it auto-derives the deposit "
+            "wallet via AsyncSecureClient) or set POLYMARKET_FUNDER_ADDRESS."
+        )
+
     # Resolve credentials: env vars take priority; fall back to auto-derived cache.
     api_key, api_secret, passphrase = effective_credentials(s)
 

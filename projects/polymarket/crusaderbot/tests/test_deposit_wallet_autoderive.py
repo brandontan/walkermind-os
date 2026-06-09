@@ -135,3 +135,30 @@ async def test_get_clob_client_uses_resolved_funder(monkeypatch):
     await clob_pkg.ensure_clob_credentials(s)
     client = clob_pkg.get_clob_client(s)
     assert getattr(client, "funder", None) == _RESOLVED
+
+
+def test_get_clob_client_sig3_fails_fast_when_unresolved(monkeypatch):
+    """Gemini #1729: a sig-3 client with NO resolved wallet and NO env funder must
+    fail fast with a clear message, not build a client with funder=None."""
+    from projects.polymarket.crusaderbot.integrations.clob.exceptions import (
+        ClobConfigError,
+    )
+
+    s = _settings(monkeypatch, funder=None)  # USE_REAL_CLOB=True, sig 3
+    # ensure_clob_credentials NOT run -> _derived_wallet stays None, env funder None.
+    assert clob_pkg._derived_wallet is None
+    with pytest.raises(ClobConfigError, match="deposit wallet"):
+        clob_pkg.get_clob_client(s)
+
+
+def test_get_clob_client_sig3_paper_mode_never_fails(monkeypatch):
+    """Paper mode (USE_REAL_CLOB=False) returns the mock and never requires a
+    resolved funder."""
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("USE_REAL_CLOB", "false")
+    monkeypatch.setenv("POLYMARKET_SIGNATURE_TYPE", "3")
+    monkeypatch.delenv("POLYMARKET_FUNDER_ADDRESS", raising=False)
+    crusaderbot_config.get_settings.cache_clear()
+    s = crusaderbot_config.Settings()  # type: ignore[call-arg]
+    client = clob_pkg.get_clob_client(s)
+    assert client.__class__.__name__ == "MockClobClient"
