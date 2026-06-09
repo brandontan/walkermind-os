@@ -59,6 +59,14 @@ from .market_data import MarketDataClient
 from .mock import MockClobClient
 from .rate_limiter import RateLimiter
 from .sdk_client import PolymarketSdkClient
+from .user_client import (
+    PerUserClobError,
+    PerUserClobIsolationError,
+    USER_CACHE_CAPACITY,
+    clear_user_clob_cache,
+    get_user_clob_client,
+    resolve_deposit_wallet_creds,
+)
 from .v2_client import ClobV2Client
 from .ws import ClobWebSocketClient
 
@@ -98,6 +106,12 @@ __all__ = [
     "get_clob_rate_limiter",
     "reset_clob_resilience",
     "ensure_clob_credentials",
+    "PerUserClobError",
+    "PerUserClobIsolationError",
+    "USER_CACHE_CAPACITY",
+    "clear_user_clob_cache",
+    "get_user_clob_client",
+    "resolve_deposit_wallet_creds",
 ]
 
 
