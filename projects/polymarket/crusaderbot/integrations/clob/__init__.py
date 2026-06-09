@@ -150,6 +150,12 @@ _limiter: Optional[RateLimiter] = None
 # Only used when POLYMARKET_API_KEY is absent from env. Never persisted.
 _derived: Optional[dict] = None
 
+# POLY_1271 deposit wallet resolved by AsyncSecureClient from the signer key
+# (the SDK auto-derives the *current* deterministic deposit wallet — beacon vs
+# UUPS — via an on-chain factory check). Cached alongside ``_derived`` so the
+# order path can use it as the maker/funder without a hardcoded address.
+_derived_wallet: Optional[str] = None
+
 
 async def ensure_clob_credentials(
     settings: Optional[Settings] = None,
@@ -170,7 +176,7 @@ async def ensure_clob_credentials(
     operator sees the error immediately at boot rather than on the first
     live order.
     """
-    global _derived
+    global _derived, _derived_wallet
     s = settings or get_settings()
     if not s.USE_REAL_CLOB:
         return
@@ -191,23 +197,23 @@ async def ensure_clob_credentials(
     # resolves the deposit wallet and derives valid L2 creds; we cache those so the
     # proven ClobV2Client order path (correct 1271 order signing) authenticates.
     if int(getattr(s, "POLYMARKET_SIGNATURE_TYPE", 0) or 0) == 3:
-        if not s.POLYMARKET_FUNDER_ADDRESS:
-            raise ClobConfigError(
-                "POLY_1271 auto-derive needs POLYMARKET_FUNDER_ADDRESS "
-                "(the deposit wallet address)"
-            )
         from polymarket import AsyncSecureClient  # noqa: WPS433
 
+        # Pass the configured funder if set (validated against the signer); else
+        # None so the SDK auto-derives the signer's current deposit wallet. Either
+        # way we cache the SDK-resolved wallet as the authoritative maker/funder.
+        _requested = s.POLYMARKET_FUNDER_ADDRESS or None
         logger.info(
-            "clob: deriving POLY_1271 deposit-wallet creds via AsyncSecureClient "
-            "(wallet=%s) …", s.POLYMARKET_FUNDER_ADDRESS,
+            "clob: resolving POLY_1271 deposit wallet via AsyncSecureClient "
+            "(requested=%s) …", _requested or "auto-derive",
         )
         sc = await AsyncSecureClient.create(
             private_key=s.POLYMARKET_PRIVATE_KEY,
-            wallet=s.POLYMARKET_FUNDER_ADDRESS,
+            wallet=_requested,
         )
         try:
             creds = sc.credentials
+            _derived_wallet = sc.wallet
         finally:
             await sc.close()
         _derived = {
@@ -216,8 +222,8 @@ async def ensure_clob_credentials(
             "passphrase": creds.passphrase,
         }
         logger.info(
-            "clob: POLY_1271 deposit-wallet creds derived via AsyncSecureClient "
-            "(key=%.8s…)", _derived["api_key"],
+            "clob: POLY_1271 deposit wallet resolved=%s, creds derived (key=%.8s…)",
+            _derived_wallet, _derived["api_key"],
         )
         return
 
@@ -227,7 +233,7 @@ async def ensure_clob_credentials(
         api_secret="",
         passphrase="",
         private_key=s.POLYMARKET_PRIVATE_KEY,
-        funder_address=s.POLYMARKET_FUNDER_ADDRESS,
+        funder_address=effective_funder(s),
         signature_type=s.POLYMARKET_SIGNATURE_TYPE,
         circuit_breaker=get_clob_breaker(s),
         rate_limiter=get_clob_rate_limiter(s),
@@ -351,6 +357,21 @@ def effective_credentials(
     return api_key, api_secret, passphrase
 
 
+def effective_funder(settings: Optional[Settings] = None) -> Optional[str]:
+    """Resolve the maker/funder address.
+
+    For POLY_1271 deposit wallets, prefer the SDK-resolved deposit wallet
+    (``_derived_wallet``, set by ``ensure_clob_credentials`` via
+    ``AsyncSecureClient``) so the operator does not have to look up and hardcode
+    ``POLYMARKET_FUNDER_ADDRESS`` — the configured key alone is enough. Every
+    other wallet type keeps the env-configured funder.
+    """
+    s = settings or get_settings()
+    if int(getattr(s, "POLYMARKET_SIGNATURE_TYPE", 0) or 0) == 3 and _derived_wallet:
+        return _derived_wallet
+    return s.POLYMARKET_FUNDER_ADDRESS
+
+
 def get_clob_client(
     settings: Optional[Settings] = None,
 ) -> ClobClientProtocol:
@@ -396,7 +417,7 @@ def get_clob_client(
             )
         return ClobV2Client(
             private_key=s.POLYMARKET_PRIVATE_KEY,
-            funder_address=s.POLYMARKET_FUNDER_ADDRESS,
+            funder_address=effective_funder(s),
             signature_type=s.POLYMARKET_SIGNATURE_TYPE,
             api_key=api_key or None,
             api_secret=api_secret or None,
@@ -418,7 +439,7 @@ def get_clob_client(
             )
         return PolymarketSdkClient(
             private_key=s.POLYMARKET_PRIVATE_KEY,
-            funder_address=s.POLYMARKET_FUNDER_ADDRESS,
+            funder_address=effective_funder(s),
             signature_type=s.POLYMARKET_SIGNATURE_TYPE,
             api_key=api_key or None,
             api_secret=api_secret or None,
@@ -450,7 +471,7 @@ def get_clob_client(
         api_secret=api_secret,
         passphrase=passphrase,
         private_key=s.POLYMARKET_PRIVATE_KEY,  # type: ignore[arg-type]
-        funder_address=s.POLYMARKET_FUNDER_ADDRESS,
+        funder_address=effective_funder(s),
         signature_type=s.POLYMARKET_SIGNATURE_TYPE,
         builder_api_key=s.POLYMARKET_BUILDER_API_KEY,
         builder_api_secret=s.POLYMARKET_BUILDER_API_SECRET,
