@@ -4,7 +4,7 @@
 - Claim Level: FOUNDATION (design/architecture only — NO runtime code in this doc; the prescribed "design before code" step for a MAJOR, security-sensitive lane)
 - Validation Target: the architecture, security model, and incremental step plan below — for WARP🔹CMD/owner review before implementation begins.
 - Not in Scope (this doc): any code change; the per-user deposit funding/bridge mechanics (owner decision, §5); gasless vs per-user gas (owner decision, §5).
-- Suggested Next Step: owner reviews the security model (§4) + the funding/gas decisions (§5); merge #1729 (the auto-derive foundation) first; then implement Step 1.
+- Suggested Next Step: owner decisions RESOLVED (§5: sweep/bridge funding · gasless relayer · SENTINEL-before-live). Merge #1729 (auto-derive foundation) first; then implement Step 1 (single-flight + bounded per-user cache + `get_user_clob_client`). Live per-user order is SENTINEL-gated.
 
 ---
 
@@ -44,8 +44,16 @@ order for user U:
   `get_clob_client`. Resolves + caches per-user (keyed by `user_id`) creds + wallet
   + client.
 - **Per-user cred/wallet cache** — replace the module-global `_derived` /
-  `_derived_wallet` (single-wallet) with a `dict[user_id -> {creds, wallet}]`.
-  Existing globals stay for the single-wallet/operator path (back-compat).
+  `_derived_wallet` (single-wallet) with a per-user cache. Existing globals stay
+  for the single-wallet/operator path (back-compat). Two concurrency/memory
+  requirements (Gemini #1730):
+  - **Single-flight** — track in-progress resolutions in a
+    `dict[user_id -> asyncio.Task]`; concurrent callers for the same user `await`
+    the existing task instead of each decrypting the key + hitting the SDK
+    (no cache stampede / duplicate AsyncSecureClient calls).
+  - **Bounded eviction** — TTL or LRU on the per-user cache so a long-running
+    process with many users does not grow unbounded; on eviction the client is
+    `aclose()`d.
 - **Onboarding** — when `create_wallet_for_user` runs, ALSO resolve + persist the
   user's Polymarket deposit wallet address (migration: `wallets.polymarket_deposit_wallet`).
   So each user row carries EOA + deposit wallet.
@@ -58,9 +66,14 @@ order for user U:
    extracted from #1729's `ensure_clob_credentials`; per-user cache;
    `get_user_clob_client(user_id)`. Unit-tested with a mocked SDK. (Depends on #1729.)
 2. **Onboarding persistence:** migration + `create_wallet_for_user` resolves &
-   stores `polymarket_deposit_wallet`; backfill job for existing users.
-3. **Deposit routing (owner-gated, §5):** ensure a user's deposit lands in *their*
-   Polymarket deposit wallet on-chain (not just ledger-credited).
+   stores `polymarket_deposit_wallet`; backfill job for existing users. The
+   backfill runs **sequentially** (no `asyncio.gather`) — one DB + SDK resolution
+   at a time — to avoid DB pool pressure + Polymarket API rate limits during the
+   sweep (Gemini #1730).
+3. **Deposit routing (DECIDED — bot sweeps/bridges per-user, §5):** the bot routes
+   each user's deposit into *their* on-chain Polymarket deposit wallet (not just
+   ledger-credited). Reuses the existing custody/sweep surface; per-user, never
+   cross-user.
 4. **Execution rewiring:** thread `user_id` → per-user client in router/live;
    keep the single-wallet path as fallback behind a flag during rollout.
 5. **Per-user staging proof:** the WARP-74 harness, parameterized by a user key,
@@ -86,15 +99,19 @@ order for user U:
   this lane uses them for trading, raising the stakes — warrants a SENTINEL audit
   before live.
 
-## 5. Owner decisions required before implementing past Step 2
+## 5. Owner decisions — RESOLVED (2026-06-09)
 
-- **Funding/bridge:** how does each user's deposit reach their *on-chain* Polymarket
-  deposit wallet? (Today deposits credit a per-user ledger; on-chain per-user
-  trading needs funds physically in each user's deposit wallet.)
-- **Gas:** each deposit-wallet order needs gas — per-user POL funding, or
-  Polymarket's gasless relayer (the SDK supports `setup_gasless_wallet`)?
-- **SENTINEL gate:** given per-user real-money keys, require a WARP•SENTINEL audit
-  (cross-user isolation + key handling) before the first live per-user order.
+- **Funding/bridge → BOT SWEEPS/BRIDGES PER-USER.** The bot routes each user's
+  deposit into their own on-chain Polymarket deposit wallet automatically (Step 3).
+  Strictly per-user; the sweep must never move funds between users (ties into the
+  §4 cross-user isolation invariant + SENTINEL audit).
+- **Gas → GASLESS RELAYER.** Use Polymarket's gasless relayer
+  (SDK `setup_gasless_wallet` / the relayer endpoints) so users need no POL.
+  Implementation must confirm the relayer covers CLOB order ops (not just on-chain
+  txns); if a gap is found, fall back to per-user POL top-up for the affected op.
+- **SENTINEL gate → REQUIRED before the first live per-user order.** WARP•SENTINEL
+  audits cross-user key/fund isolation + key handling before any real per-user
+  order. Build + prove on paper/staging first; live per-user order is SENTINEL-gated.
 
 ## 6. Risks / open questions
 
