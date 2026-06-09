@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
 from ... import messages_mvp as mvp
 from ...keyboards.mvp._common import main_menu_kb
@@ -17,7 +17,7 @@ from ...keyboards.mvp.onboarding import (
     welcome_kb,
 )
 from . import _users, dashboard as dash
-from ._send import send_or_edit
+from ._send import callback_parts, send_or_edit
 
 log = logging.getLogger(__name__)
 
@@ -73,7 +73,19 @@ async def show_deposit_prompt(update: Update, ctx: ContextTypes.DEFAULT_TYPE) ->
     await send_or_edit(update, mvp.render_deposit_prompt(), deposit_prompt_kb())
 
 
+async def _onboard_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle onboarding inline callbacks: onboard:wallet_ready, onboard:deposit, onboard:done."""
+    parts = callback_parts(update)
+    screen = parts[1] if len(parts) > 1 else ""
+    if screen == "wallet_ready":
+        await show_wallet_ready(update, ctx); return
+    if screen == "deposit":
+        await show_deposit_prompt(update, ctx); return
+    if screen == "done":
+        await dash.show_dashboard(update, ctx); return
+    await dash.show_dashboard(update, ctx)
+
+
 def attach(app: Application) -> None:
-    # MVP /start owns the entry point; legacy build_start_handler keeps its
-    # other slash commands but MVP's earlier registration wins for /start.
     app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CallbackQueryHandler(_onboard_cb, pattern=r"^onboard:"))

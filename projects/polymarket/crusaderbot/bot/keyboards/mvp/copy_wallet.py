@@ -51,20 +51,42 @@ def active_wallets_empty_kb() -> InlineKeyboardMarkup:
     ])
 
 
-def wallet_card_kb(wallet_id: str, *, running: bool = True) -> InlineKeyboardMarkup:
+def wallet_card_kb(
+    wallet_id: str,
+    *,
+    running: bool = True,
+    page: int = 1,
+    total_pages: int = 1,
+) -> InlineKeyboardMarkup:
     pause_resume = (
-        InlineKeyboardButton("⏸ Pause Wallet", callback_data=f"copy:wallet:pause:{wallet_id}")
+        InlineKeyboardButton("⏸ Pause", callback_data=f"copy:wallet:pause:{wallet_id}")
         if running else
-        InlineKeyboardButton("▶ Resume Wallet", callback_data=f"copy:wallet:resume:{wallet_id}")
+        InlineKeyboardButton("▶ Resume", callback_data=f"copy:wallet:resume:{wallet_id}")
     )
-    return InlineKeyboardMarkup([
-        [pause_resume, InlineKeyboardButton("⚙️ Edit Wallet", callback_data=f"copy:wallet:edit:{wallet_id}")],
+    rows: list[list[InlineKeyboardButton]] = [
+        [pause_resume, InlineKeyboardButton("⚙️ Edit", callback_data=f"copy:wallet:edit:{wallet_id}")],
         [InlineKeyboardButton("📊 Stats", callback_data=f"copy:wallet:stats:{wallet_id}"), HOME],
-    ])
+    ]
+    if total_pages > 1:
+        nav: list[InlineKeyboardButton] = []
+        if page > 1:
+            nav.append(InlineKeyboardButton("⬅ Prev", callback_data=f"copy:wallets:{page - 1}"))
+        nav.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="nav:noop"))
+        if page < total_pages:
+            nav.append(InlineKeyboardButton("Next ➡", callback_data=f"copy:wallets:{page + 1}"))
+        rows.insert(0, nav)
+    return InlineKeyboardMarkup(rows)
 
 
 def pause_confirm_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ Pause Copying", callback_data="copy:pause:confirm")],
+        [CANCEL],
+    ])
+
+
+def resume_confirm_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Resume Copying", callback_data="copy:resume:confirm")],
         [CANCEL],
     ])

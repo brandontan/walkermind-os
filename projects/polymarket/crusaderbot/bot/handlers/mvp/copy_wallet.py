@@ -65,6 +65,8 @@ async def _read_wallets(user_uuid) -> list[dict]:
 
 
 async def show_home(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    from ._send import nav_push
+    nav_push(ctx, "copy")
     user = update.effective_user
     wallets: list[dict] = []
     if user is not None:
@@ -89,12 +91,46 @@ async def show_add_wallet(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     await send_or_edit(update, mvp.render_copy_add_wallet_prompt(), kb.add_wallet_kb())
 
 
+async def _fetch_wallet_activity(addr: str) -> dict:
+    """Fetch recent trade count for a wallet address from copy_trade_tasks history."""
+    result = {"recent_trades": 0, "activity": STATUS_NOT_SET}
+    if not addr:
+        return result
+    try:
+        from ....database import get_pool  # type: ignore
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            # Count positions copied from this wallet in the last 7 days
+            count = await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM positions p
+                JOIN copy_trade_tasks t ON t.id = p.copy_task_id
+                WHERE t.wallet_address=$1
+                  AND p.opened_at >= NOW() - INTERVAL '7 days'
+                """,
+                addr.lower(),
+            )
+            result["recent_trades"] = int(count or 0)
+            # Check if any active task exists for this wallet globally
+            active = await conn.fetchval(
+                "SELECT 1 FROM copy_trade_tasks WHERE wallet_address=$1 AND status='active' LIMIT 1",
+                addr.lower(),
+            )
+            result["activity"] = STATUS_RUNNING if active else STATUS_NOT_SET
+    except Exception as exc:  # noqa: BLE001
+        log.debug("wallet activity fetch failed: %s", exc)
+    return result
+
+
 async def show_wallet_review(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     f = _flow(ctx)
     addr = f.get("address") or ""
+    activity_data = await _fetch_wallet_activity(addr)
     text = mvp.render_copy_wallet_review(
         address_short=_short_addr(addr),
-        activity=STATUS_RUNNING, recent_trades=0, risk="🟡 Moderate",
+        activity=activity_data["activity"],
+        recent_trades=activity_data["recent_trades"],
+        risk="🟡 Moderate",
     )
     await send_or_edit(update, text, kb.wallet_review_kb())
 
@@ -110,7 +146,12 @@ async def show_wallet_configure(update: Update, ctx: ContextTypes.DEFAULT_TYPE) 
     await send_or_edit(update, text, kb.wallet_configure_kb())
 
 
-async def show_wallets(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+_WALLET_PAGE_SIZE = 1  # one wallet card per page for clarity
+
+
+async def show_wallets(
+    update: Update, ctx: ContextTypes.DEFAULT_TYPE, page: int = 1
+) -> None:
     user = update.effective_user
     wallets: list[dict] = []
     if user is not None:
@@ -120,16 +161,67 @@ async def show_wallets(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not wallets:
         await send_or_edit(update, mvp.render_copy_active_wallets_empty(), kb.active_wallets_empty_kb())
         return
-    w = wallets[0]
+    total = len(wallets)
+    total_pages = max(1, total)
+    page = max(1, min(page, total_pages))
+    if ctx.user_data is not None:
+        ctx.user_data["wallets_page"] = page
+    w = wallets[page - 1]
     text = mvp.render_copy_wallet_card(
-        index=1,
+        index=page,
         address_short=_short_addr(str(w.get("address") or "")),
         status=STATUS_RUNNING if w.get("enabled") else STATUS_NOT_SET,
         allocation=float(w.get("allocation") or 0),
         pnl_today=0.0,
         trades_copied=0,
     )
-    await send_or_edit(update, text, kb.wallet_card_kb(str(w.get("id") or "0"), running=bool(w.get("enabled"))))
+    await send_or_edit(
+        update, text,
+        kb.wallet_card_kb(
+            str(w.get("id") or "0"),
+            running=bool(w.get("enabled")),
+            page=page,
+            total_pages=total_pages,
+        ),
+    )
+
+
+async def _pause_wallet(update: Update, ctx: ContextTypes.DEFAULT_TYPE, wallet_id: str) -> None:
+    user = update.effective_user
+    if user is not None:
+        u = await _users.fetch_user(user.id, user.username)
+        if u is not None:
+            try:
+                from ....database import get_pool  # type: ignore
+                pool = get_pool()
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "UPDATE copy_trade_tasks SET status='paused', updated_at=NOW()"
+                        " WHERE id=$1::uuid AND user_id=$2::uuid",
+                        wallet_id, u["id"],
+                    )
+            except Exception as exc:  # noqa: BLE001
+                log.debug("wallet pause failed: %s", exc)
+    await show_wallets(update, ctx)
+
+
+async def _resume_wallet(update: Update, ctx: ContextTypes.DEFAULT_TYPE, wallet_id: str) -> None:
+    user = update.effective_user
+    if user is not None:
+        u = await _users.fetch_user(user.id, user.username)
+        if u is not None:
+            try:
+                from ....database import get_pool  # type: ignore
+                pool = get_pool()
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "UPDATE copy_trade_tasks SET status='active', updated_at=NOW()"
+                        " WHERE id=$1::uuid AND user_id=$2::uuid",
+                        wallet_id, u["id"],
+                    )
+            except Exception as exc:  # noqa: BLE001
+                log.debug("wallet resume failed: %s", exc)
+    await show_wallets(update, ctx)
 
 
 async def do_start_copying(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -201,7 +293,13 @@ async def do_start_copying(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
         log.debug("copy_trade_tasks insert unavailable: %s", exc)
     f["step"] = None
     if not inserted:
-        log.info("copy wallet add: persist failed; user %s", u["id"])
+        log.warning("copy wallet add: persist failed; user %s", u["id"])
+        await send_or_edit(
+            update,
+            "❌ <b>Failed to save wallet</b>\n\nDatabase error. Please try again.",
+            kb.home_kb(),
+        )
+        return
     await show_home(update, ctx)
 
 
@@ -231,6 +329,33 @@ async def do_pause(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await show_home(update, ctx)
 
 
+async def show_resume_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await send_or_edit(update, mvp.render_copy_resume_confirm(), kb.resume_confirm_kb())
+
+
+async def do_resume(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Re-activate all paused copy_trade_tasks for this user."""
+    user = update.effective_user
+    if user is not None:
+        u = await _users.fetch_user(user.id, user.username)
+        if u is not None:
+            try:
+                from ....database import get_pool  # type: ignore
+                pool = get_pool()
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        UPDATE copy_trade_tasks
+                           SET status='active', updated_at=NOW()
+                         WHERE user_id=$1 AND status='paused'
+                        """,
+                        u["id"],
+                    )
+            except Exception as exc:  # noqa: BLE001
+                log.debug("copy_trade_tasks resume update unavailable: %s", exc)
+    await show_home(update, ctx)
+
+
 async def text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
     """Capture pasted wallet address while the flow is awaiting one."""
     if update.message is None:
@@ -244,8 +369,15 @@ async def text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
         return True
     f["address"] = addr
     f["step"] = "review"
+    activity_data = await _fetch_wallet_activity(addr)
     await update.message.reply_text(
-        mvp.render_copy_wallet_review(address_short=_short_addr(addr), recent_trades=0),
+        mvp.render_copy_wallet_review(
+            address_short=_short_addr(addr),
+            activity=activity_data["activity"],
+            recent_trades=activity_data["recent_trades"],
+            risk="🟡 Moderate",
+        ),
+        parse_mode="HTML",
         reply_markup=kb.wallet_review_kb(),
     )
     return True
@@ -259,15 +391,27 @@ async def _copy_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if screen == "add_wallet":
         await show_add_wallet(update, ctx); return
     if screen == "wallets":
-        await show_wallets(update, ctx); return
+        try:
+            page = int(parts[2]) if len(parts) > 2 else 1
+        except ValueError:
+            page = 1
+        await show_wallets(update, ctx, page=page); return
     if screen == "wallet":
         sub = parts[2] if len(parts) > 2 else ""
+        wallet_id = parts[3] if len(parts) > 3 else ""
         if sub == "configure":
             await show_wallet_configure(update, ctx); return
         if sub == "start":
             await do_start_copying(update, ctx); return
         if sub == "edit":
             await show_wallet_configure(update, ctx); return
+        if sub == "pause" and wallet_id:
+            await _pause_wallet(update, ctx, wallet_id); return
+        if sub == "resume" and wallet_id:
+            await _resume_wallet(update, ctx, wallet_id); return
+        if sub == "stats":
+            # Stats view — show wallet card (full stats deferred)
+            await show_wallets(update, ctx); return
         await show_wallets(update, ctx); return
     if screen == "pause":
         sub = parts[2] if len(parts) > 2 else None
@@ -275,7 +419,10 @@ async def _copy_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             await do_pause(update, ctx); return
         await show_pause_confirm(update, ctx); return
     if screen == "resume":
-        await show_home(update, ctx); return
+        sub = parts[2] if len(parts) > 2 else None
+        if sub == "confirm":
+            await do_resume(update, ctx); return
+        await show_resume_confirm(update, ctx); return
     await show_home(update, ctx)
 
 

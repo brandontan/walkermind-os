@@ -86,3 +86,19 @@ async def get_current_user(
     if not raw:
         raise HTTPException(status_code=401, detail="not authenticated")
     return decode_jwt(raw)
+
+
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    """Dependency that raises 403 unless the user has role='admin' in the DB."""
+    from ...database import get_pool  # type: ignore
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            role = await conn.fetchval(
+                "SELECT role FROM users WHERE id=$1::uuid", user["user_id"]
+            )
+    except Exception:
+        raise HTTPException(status_code=503, detail="db unavailable")
+    if role != "admin":
+        raise HTTPException(status_code=403, detail="admin only")
+    return user

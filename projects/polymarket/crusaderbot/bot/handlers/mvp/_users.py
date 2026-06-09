@@ -103,6 +103,100 @@ async def fetch_open_positions(user_uuid, limit: int = 8) -> list[dict]:
         return []
 
 
+async def fetch_week_pnl(user_uuid) -> float:
+    try:
+        from ....database import get_pool  # type: ignore
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            val = await conn.fetchval(
+                """
+                SELECT COALESCE(SUM(pnl_usdc), 0)
+                FROM positions
+                WHERE user_id=$1 AND status='closed'
+                  AND closed_at >= NOW() - INTERVAL '7 days'
+                """,
+                user_uuid,
+            )
+            return float(val or 0)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("week_pnl fetch failed: %s", exc)
+        return 0.0
+
+
+async def fetch_closed_trade_count(user_uuid, days: int = 1) -> int:
+    try:
+        from ....database import get_pool  # type: ignore
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            n = await conn.fetchval(
+                "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status='closed'"
+                " AND closed_at >= NOW() - ($2 || ' days')::INTERVAL",
+                user_uuid, str(days),
+            )
+            return int(n or 0)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("closed trade count failed: %s", exc)
+        return 0
+
+
+async def fetch_win_rate(user_uuid, days: int = 7) -> int:
+    """Return integer win-rate percentage over the last N days."""
+    try:
+        from ....database import get_pool  # type: ignore
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT COALESCE(pnl_usdc, 0) AS pnl FROM positions"
+                " WHERE user_id=$1 AND status='closed'"
+                " AND closed_at >= NOW() - ($2 || ' days')::INTERVAL",
+                user_uuid, str(days),
+            )
+            if not rows:
+                return 0
+            wins = sum(1 for r in rows if float(r["pnl"]) > 0)
+            return int(wins / len(rows) * 100)
+    except Exception as exc:  # noqa: BLE001
+        log.debug("win_rate fetch failed: %s", exc)
+        return 0
+
+
+async def fetch_trading_mode(user_uuid) -> str:
+    """Return 'live' or 'paper' from user_settings.trading_mode."""
+    try:
+        from ....database import get_pool  # type: ignore
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            val = await conn.fetchval(
+                "SELECT trading_mode FROM user_settings WHERE user_id=$1",
+                user_uuid,
+            )
+            return str(val or "paper").lower()
+    except Exception as exc:  # noqa: BLE001
+        log.debug("trading_mode fetch failed: %s", exc)
+        return "paper"
+
+
+async def fetch_equity(user_uuid) -> float:
+    """Return unrealized equity = balance + sum of open position pnl."""
+    try:
+        from ....database import get_pool  # type: ignore
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            unrealized = await conn.fetchval(
+                "SELECT COALESCE(SUM(pnl_usdc), 0) FROM positions"
+                " WHERE user_id=$1 AND status='open'",
+                user_uuid,
+            )
+            balance = await conn.fetchval(
+                "SELECT COALESCE(balance_usdc, 0) FROM wallets WHERE user_id=$1",
+                user_uuid,
+            )
+            return float((balance or 0)) + float((unrealized or 0))
+    except Exception as exc:  # noqa: BLE001
+        log.debug("equity fetch failed: %s", exc)
+        return 0.0
+
+
 async def set_auto_trade(user_uuid, on: bool) -> None:
     try:
         from ....users import set_auto_trade as _set  # type: ignore

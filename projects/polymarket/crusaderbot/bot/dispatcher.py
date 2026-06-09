@@ -105,8 +105,9 @@ async def _noop_refresh_cb(update, ctx) -> None:
 async def _nav_cb(update, ctx) -> None:
     """`nav:*` global navigation — back / home / refresh / cancel / noop.
 
-    All MVP keyboards emit these prefixes. Default fallback is the MVP
-    dashboard surface (blueprint 6.x).
+    nav:back pops the per-user navigation stack and routes to the previous
+    surface. nav:home always goes to dashboard. nav:refresh re-renders the
+    current surface (falls back to dashboard). nav:cancel = nav:back.
     """
     q = update.callback_query
     if q is None:
@@ -115,10 +116,49 @@ async def _nav_cb(update, ctx) -> None:
     sub = (q.data or "").split(":", 1)[-1]
     if sub == "noop":
         return
-    if sub in {"home", "back", "refresh", "cancel"}:
-        # Back/cancel fall through to the dashboard for MVP — flows that
-        # need finer-grained back behavior maintain their own stack and
-        # route directly.
+    if sub == "home":
+        from .handlers.mvp._send import nav_clear
+        nav_clear(ctx)
+        await mvp_dashboard.show_dashboard(update, ctx)
+        return
+    if sub in {"back", "cancel"}:
+        from .handlers.mvp._send import nav_pop
+        prev = nav_pop(ctx)
+        if prev is None or prev in {"dashboard", "home"}:
+            await mvp_dashboard.show_dashboard(update, ctx)
+            return
+        # Route to the previous surface by its prefix
+        if prev == "auto":
+            await mvp_autotrade.show_home(update, ctx); return
+        if prev == "copy":
+            await mvp_copy_wallet.show_home(update, ctx); return
+        if prev == "portfolio":
+            await mvp_portfolio.show_home(update, ctx); return
+        if prev == "markets":
+            await mvp_markets.show_home(update, ctx); return
+        if prev == "settings":
+            await mvp_settings.show_home(update, ctx); return
+        if prev == "help":
+            await mvp_help.show_home(update, ctx); return
+        await mvp_dashboard.show_dashboard(update, ctx)
+        return
+    if sub == "refresh":
+        # Re-render current surface from stack top without popping
+        from .handlers.mvp._send import _NAV_STACK_KEY
+        stack = (ctx.user_data or {}).get(_NAV_STACK_KEY) or []
+        current = stack[-1] if stack else "dashboard"
+        if current == "auto":
+            await mvp_autotrade.show_home(update, ctx); return
+        if current == "copy":
+            await mvp_copy_wallet.show_home(update, ctx); return
+        if current == "portfolio":
+            await mvp_portfolio.show_home(update, ctx); return
+        if current == "markets":
+            await mvp_markets.show_home(update, ctx); return
+        if current == "settings":
+            await mvp_settings.show_home(update, ctx); return
+        if current == "help":
+            await mvp_help.show_home(update, ctx); return
         await mvp_dashboard.show_dashboard(update, ctx)
         return
     await mvp_dashboard.show_dashboard(update, ctx)
@@ -145,6 +185,12 @@ async def _text_router(update, ctx) -> None:
         if ctx.user_data:
             ctx.user_data.pop("awaiting", None)
         await menu_handler(update, ctx)
+        return
+    # MVP markets search captures free-text query.
+    if await mvp_markets.text_input(update, ctx):
+        return
+    # MVP autotrade flow captures custom capital amount.
+    if await mvp_autotrade.text_input(update, ctx):
         return
     # MVP copy-wallet flow gets first dibs on free text — it captures pasted
     # wallet addresses while in the await_address step (WARP-57).
@@ -210,7 +256,7 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("about",           demo_polish.about_command))
     app.add_handler(CommandHandler("status",          demo_polish.status_command))
     app.add_handler(CommandHandler("demo",            demo_polish.demo_command))
-    app.add_handler(CommandHandler("dashboard",       dashboard))
+    # /dashboard is registered by mvp_dashboard.attach() above — legacy handler removed (M10)
     app.add_handler(CommandHandler("positions",       positions.show_positions))
     app.add_handler(CommandHandler("activity",        activity))
     app.add_handler(CommandHandler("settings",        settings_handler.settings_root))

@@ -44,6 +44,8 @@ async def _read_dashboard(telegram_user) -> dict:
 
 
 async def show_dashboard(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    from ._send import nav_clear
+    nav_clear(ctx)
     user = update.effective_user
     if user is None:
         return

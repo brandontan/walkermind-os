@@ -31,6 +31,28 @@ _RISK_LABELS: dict[str, str] = {
 }
 
 
+_PRESET_TO_STRATEGY_FLAG: dict[str, str] = {
+    # Maps preset key → system_settings strategy_enabled key
+    "late_entry": "late_entry_v3",
+    "late_entry_v3": "late_entry_v3",
+    "signal": "signal_following",
+    "signal_following": "signal_following",
+    "copy_trade": "copy_trade",
+    "copy": "copy_trade",
+    "weather": "weather",
+    "playbook": "playbook",
+}
+
+
+def _check_strategy_blocked(strategy_label: str, flags: dict) -> bool:
+    """Return True if the strategy matching this label is globally disabled by admin."""
+    label_lower = strategy_label.lower().replace(" ", "_").replace("-", "_")
+    for preset_key, flag_key in _PRESET_TO_STRATEGY_FLAG.items():
+        if preset_key in label_lower:
+            return not flags.get(flag_key, True)
+    return False
+
+
 def _flow(ctx: ContextTypes.DEFAULT_TYPE) -> dict:
     """Per-user wizard state stored in PTB `user_data`."""
     if "mvp_auto_flow" not in ctx.user_data:
@@ -48,7 +70,7 @@ async def _read_state(telegram_user) -> dict:
         "configured": False,
         "running": False, "paused": False,
         "strategy": _DEFAULT_STRATEGY, "risk": _DEFAULT_RISK,
-        "balance": 0.0,
+        "balance": 0.0, "mode": "paper",
         "capital": _DEFAULT_CAPITAL, "pnl_today": 0.0,
         "executions": 0, "win_rate": 0,
     }
@@ -66,6 +88,7 @@ async def _read_state(telegram_user) -> dict:
     fraction = _RISK_CAPITAL_FRACTIONS.get(risk_raw, _RISK_CAPITAL_FRACTIONS[_DEFAULT_RISK_KEY])
     state["capital"] = round(balance * fraction, 2) if balance > 0 else _DEFAULT_CAPITAL
     state["risk"] = _RISK_LABELS.get(risk_raw, _DEFAULT_RISK)
+    state["mode"] = await _users.fetch_trading_mode(u["id"])
 
     preset = settings.get("active_preset")
     if preset:
@@ -75,10 +98,24 @@ async def _read_state(telegram_user) -> dict:
         label = cfg.get("name") or str(preset).title().replace("_", " ")
         state["strategy"] = label
     state["pnl_today"] = await _users.fetch_daily_pnl(u["id"])
+    state["win_rate"] = await _users.fetch_win_rate(u["id"])
+    state["executions"] = await _users.fetch_closed_trade_count(u["id"], days=1)
+
+    # Admin strategy flags — check if the user's active strategy is globally blocked
+    try:
+        from ....domain.ops.strategy_flags import get_all_flags  # type: ignore
+        flags = await get_all_flags()
+        state["strategy_flags"] = flags.get("strategies", {})
+    except Exception as exc:  # noqa: BLE001
+        log.debug("strategy_flags fetch failed: %s", exc)
+        state["strategy_flags"] = {}
+
     return state
 
 
 async def show_home(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    from ._send import nav_push
+    nav_push(ctx, "auto")
     user = update.effective_user
     s = await _read_state(user) if user else {
         "configured": False, "running": False, "paused": False,
@@ -94,14 +131,24 @@ async def show_home(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         status = STATUS_STOPPED
     else:
         status = STATUS_NOT_SET
+    from ...ui.tree import LIVE, PAPER
+    mode_label = LIVE if s.get("mode") == "live" else PAPER
+
+    # Check if the user's active strategy is globally blocked by admin
+    strategy_flags: dict = s.get("strategy_flags", {})
+    admin_blocked = _check_strategy_blocked(s.get("strategy", ""), strategy_flags)
+    effective_status = f"🚫 Admin Blocked" if admin_blocked and s["running"] else status
+
     text = mvp.render_autotrade_home(
-        status=status,
+        status=effective_status,
         strategy=s["strategy"],
         capital=s["capital"],
         risk=s["risk"],
+        mode=mode_label,
         pnl_today=s["pnl_today"],
         executions=s["executions"],
         win_rate=s["win_rate"],
+        admin_blocked=admin_blocked,
     )
     await send_or_edit(update, text, kb.home_kb(running=s["running"], paused=s["paused"]))
 
@@ -225,8 +272,17 @@ async def _auto_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             await show_configure_root(update, ctx); return
         if sub == "capital":
             arg = parts[3] if len(parts) > 3 else None
+            if arg == "custom":
+                _flow(ctx)["step"] = "await_capital"
+                await send_or_edit(
+                    update,
+                    "✏️ <b>Custom Capital</b>\n\nType the amount in USD (e.g. <code>150</code>):",
+                    None,
+                )
+                return
             if arg and arg.isdigit():
                 _flow(ctx)["capital"] = float(arg)
+                _flow(ctx)["step"] = None
                 await show_configure_risk(update, ctx); return
             await show_configure_capital(update, ctx); return
         if sub == "risk":
@@ -254,6 +310,35 @@ async def _auto_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             await do_resume(update, ctx); return
         await show_resume_confirm(update, ctx); return
     await show_home(update, ctx)
+
+
+async def text_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Capture free-form capital amount when the flow is awaiting custom input."""
+    if update.message is None:
+        return False
+    f = ctx.user_data.get("mvp_auto_flow") if ctx.user_data else None
+    if not f or f.get("step") != "await_capital":
+        return False
+    raw = (update.message.text or "").strip().lstrip("$").replace(",", "")
+    try:
+        amount = float(raw)
+        if amount <= 0:
+            raise ValueError("non-positive")
+    except ValueError:
+        await update.message.reply_text(
+            "❌ <b>Invalid amount</b>\n\nEnter a positive number (e.g. <code>150</code>).",
+            parse_mode="HTML",
+            reply_markup=kb.configure_capital_kb(),
+        )
+        return True
+    f["capital"] = round(amount, 2)
+    f["step"] = None
+    await update.message.reply_text(
+        mvp.render_autotrade_configure_risk(),
+        parse_mode="HTML",
+        reply_markup=kb.configure_risk_kb(),
+    )
+    return True
 
 
 def attach(app: Application) -> None:

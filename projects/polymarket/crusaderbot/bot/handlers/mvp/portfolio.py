@@ -18,7 +18,7 @@ _RANK_ICONS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣",
 
 async def _read_portfolio(telegram_user) -> dict:
     p: dict = {
-        "uuid": None, "balance": 0.0, "allocated": 0.0,
+        "uuid": None, "balance": 0.0, "equity": 0.0, "allocated": 0.0,
         "today_pnl": 0.0, "today_trades": 0, "win_rate": 0, "week_pnl": 0.0,
         "positions": [], "history_today": 0, "history_week": 0,
     }
@@ -27,18 +27,30 @@ async def _read_portfolio(telegram_user) -> dict:
         return p
     p["uuid"] = u["id"]
     p["balance"] = await _users.fetch_balance(u["id"])
+    p["equity"] = await _users.fetch_equity(u["id"])
     p["today_pnl"] = await _users.fetch_daily_pnl(u["id"])
+    p["week_pnl"] = await _users.fetch_week_pnl(u["id"])
+    p["today_trades"] = await _users.fetch_closed_trade_count(u["id"], days=1)
+    p["win_rate"] = await _users.fetch_win_rate(u["id"])
+    p["history_today"] = p["today_trades"]
+    p["history_week"] = await _users.fetch_closed_trade_count(u["id"], days=7)
     p["positions"] = await _users.fetch_open_positions(u["id"])
     return p
 
 
 async def show_home(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    from ._send import nav_push
+    nav_push(ctx, "portfolio")
     user = update.effective_user
     p = await _read_portfolio(user) if user else {
-        "balance": 0.0, "today_pnl": 0.0, "today_trades": 0, "win_rate": 0, "positions": [],
+        "balance": 0.0, "equity": 0.0, "today_pnl": 0.0, "week_pnl": 0.0,
+        "today_trades": 0, "win_rate": 0, "positions": [],
     }
     text = mvp.render_portfolio_home(
-        balance=p["balance"], today_pnl=p["today_pnl"],
+        balance=p["balance"],
+        equity=p.get("equity", 0.0),
+        today_pnl=p["today_pnl"],
+        week_pnl=p.get("week_pnl", 0.0),
         open_positions=len(p["positions"]),
     )
     await send_or_edit(update, text, kb.home_kb())
@@ -113,10 +125,88 @@ async def show_performance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> No
     await send_or_edit(
         update,
         mvp.render_performance(
-            today_pnl=p["today_pnl"], week_pnl=p["week_pnl"],
-            win_rate=p["win_rate"], trades=p["today_trades"],
+            today_pnl=p.get("today_pnl", 0.0),
+            week_pnl=p.get("week_pnl", 0.0),
+            win_rate=p.get("win_rate", 0),
+            trades=p.get("today_trades", 0),
         ),
         kb.performance_kb(),
+    )
+
+
+async def show_history_range(update: Update, ctx: ContextTypes.DEFAULT_TYPE, range_key: str) -> None:
+    """Show closed trades for today / this week / all time."""
+    user = update.effective_user
+    label_map = {"today": "Today", "week": "This Week", "all": "All Time"}
+    label = label_map.get(range_key, "History")
+    count = 0
+    if user is not None:
+        u = await _users.fetch_user(user.id, user.username)
+        if u is not None:
+            try:
+                from ....database import get_pool  # type: ignore
+                pool = get_pool()
+                async with pool.acquire() as conn:
+                    if range_key == "today":
+                        count = int(await conn.fetchval(
+                            "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status='closed'"
+                            " AND closed_at >= NOW() - INTERVAL '1 day'",
+                            u["id"],
+                        ) or 0)
+                    elif range_key == "week":
+                        count = int(await conn.fetchval(
+                            "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status='closed'"
+                            " AND closed_at >= NOW() - INTERVAL '7 days'",
+                            u["id"],
+                        ) or 0)
+                    else:
+                        count = int(await conn.fetchval(
+                            "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status='closed'",
+                            u["id"],
+                        ) or 0)
+            except Exception as exc:  # noqa: BLE001
+                log.debug("history range fetch failed: %s", exc)
+    from ...keyboards.mvp.portfolio import history_range_kb  # type: ignore
+    await send_or_edit(update, mvp.render_history_range(label=label, count=count), history_range_kb())
+
+
+async def show_performance_range(update: Update, ctx: ContextTypes.DEFAULT_TYPE, range_key: str) -> None:
+    """Show performance stats for a specific time window."""
+    user = update.effective_user
+    pnl_val = 0.0
+    win_rate = 0
+    trades = 0
+    if user is not None:
+        u = await _users.fetch_user(user.id, user.username)
+        if u is not None:
+            try:
+                from ....database import get_pool  # type: ignore
+                pool = get_pool()
+                interval = "7 days" if range_key == "week" else "30 days"
+                async with pool.acquire() as conn:
+                    rows = await conn.fetch(
+                        """
+                        SELECT COALESCE(pnl_usdc, 0) AS pnl
+                        FROM positions
+                        WHERE user_id=$1 AND status='closed'
+                          AND closed_at >= NOW() - INTERVAL '""" + interval + """'
+                        """,
+                        u["id"],
+                    )
+                    if rows:
+                        pnl_vals = [float(r["pnl"]) for r in rows]
+                        trades = len(pnl_vals)
+                        pnl_val = sum(pnl_vals)
+                        wins = sum(1 for v in pnl_vals if v > 0)
+                        win_rate = int(wins / trades * 100) if trades else 0
+            except Exception as exc:  # noqa: BLE001
+                log.debug("performance range fetch failed: %s", exc)
+    label = "7-Day" if range_key == "week" else "30-Day"
+    from ...keyboards.mvp.portfolio import performance_range_kb  # type: ignore
+    await send_or_edit(
+        update,
+        mvp.render_performance(today_pnl=pnl_val, week_pnl=pnl_val, win_rate=win_rate, trades=trades),
+        performance_range_kb(range_key),
     )
 
 
@@ -130,6 +220,51 @@ async def show_balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def show_position_detail(update: Update, ctx: ContextTypes.DEFAULT_TYPE, position_id: str) -> None:
+    user = update.effective_user
+    if user is None:
+        await show_home(update, ctx)
+        return
+    u = await _users.fetch_user(user.id, user.username)
+    if u is None:
+        await show_home(update, ctx)
+        return
+    try:
+        from ....database import get_pool  # type: ignore
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT p.id, p.side, p.entry_price, p.size_usdc,
+                       COALESCE(p.pnl_usdc, 0.0) AS pnl,
+                       p.status,
+                       m.question AS market_title, m.id AS market_id
+                FROM positions p
+                LEFT JOIN markets m ON m.id = p.market_id
+                WHERE p.id=$1::uuid AND p.user_id=$2::uuid
+                """,
+                position_id, u["id"],
+            )
+    except Exception as exc:  # noqa: BLE001
+        log.debug("position detail fetch failed: %s", exc)
+        row = None
+    if row is None:
+        await show_positions(update, ctx)
+        return
+    side_raw = str(row["side"] or "").upper()
+    side = "🟢 YES" if side_raw in {"YES", "BUY"} else "🔴 NO"
+    text = mvp.render_position_detail(
+        market_title=str(row["market_title"] or "Market"),
+        side=side,
+        entry=f"{float(row['entry_price'] or 0) * 100:.1f}",
+        current="—",
+        pnl_value=float(row["pnl"] or 0),
+        status=str(row["status"] or "open").title(),
+    )
+    from ...keyboards.mvp.portfolio import position_detail_kb  # type: ignore
+    await send_or_edit(update, text, position_detail_kb(str(row["market_id"] or "")))
+
+
 async def _port_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     parts = callback_parts(update)
     screen = parts[1] if len(parts) > 1 else "home"
@@ -137,9 +272,18 @@ async def _port_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await show_home(update, ctx); return
     if screen == "positions":
         await show_positions(update, ctx); return
+    if screen == "position":
+        position_id = parts[2] if len(parts) > 2 else ""
+        await show_position_detail(update, ctx, position_id); return
     if screen == "history":
+        sub = parts[2] if len(parts) > 2 else None
+        if sub in {"today", "week", "all"}:
+            await show_history_range(update, ctx, sub); return
         await show_history(update, ctx); return
     if screen == "performance":
+        sub = parts[2] if len(parts) > 2 else None
+        if sub in {"week", "month"}:
+            await show_performance_range(update, ctx, sub); return
         await show_performance(update, ctx); return
     if screen == "balance":
         await show_balance(update, ctx); return

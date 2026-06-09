@@ -14,6 +14,8 @@ log = logging.getLogger(__name__)
 
 
 async def show_home(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    from ._send import nav_push
+    nav_push(ctx, "help")
     await send_or_edit(update, mvp.render_help_home(), kb.home_kb())
 
 
@@ -55,8 +57,20 @@ async def _help_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if screen == "safety":
         await show_safety(update, ctx); return
     if screen == "faq":
+        sub = parts[2] if len(parts) > 2 else None
+        if sub == "auto":
+            await show_how_auto_trade(update, ctx); return
+        if sub == "paper":
+            await send_or_edit(update, mvp.render_help_faq_paper(), kb.faq_kb()); return
+        if sub == "risk":
+            await show_safety(update, ctx); return
+        if sub == "copy":
+            await show_how_copy_wallet(update, ctx); return
         await show_faq(update, ctx); return
     if screen == "support":
+        sub = parts[2] if len(parts) > 2 else None
+        if sub == "report":
+            await send_or_edit(update, mvp.render_help_support_report(), kb.support_kb()); return
         await show_support(update, ctx); return
     await show_home(update, ctx)
 

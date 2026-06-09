@@ -16,7 +16,7 @@ from ...domain.ops import kill_switch
 from ... import notifications as notif_module
 from ...integrations import polymarket as _polymarket
 from . import sse as webtrader_sse
-from .auth import authenticate_telegram, get_current_user
+from .auth import authenticate_telegram, get_current_user, require_admin
 from .schemas import (
     AlertItem,
     AutoTradeState,
@@ -42,6 +42,7 @@ from .schemas import (
     TelegramAuthPayload,
     TokenResponse,
     TradeHighlight,
+    StrategyFlagsUpdate,
     TradingSettingsUpdate,
     UserSettingsUpdate,
     WalletInfo,
@@ -1446,3 +1447,68 @@ async def get_copy_trade_task_stats(task_id: str, user: _CurrentUser):
     except Exception as exc:
         log.warning("copy_trade_stats_fetch_failed wallet=%s error=%s", task["wallet_address"], exc)
         return {"error": "stats unavailable"}
+
+
+# ── Admin: strategy global flags ──────────────────────────────────────────────
+
+_AdminUser = Annotated[dict, Depends(require_admin)]
+
+
+@router.get("/admin/strategy-flags")
+async def get_strategy_flags(user: _AdminUser) -> dict:
+    """Return all strategy global on/off flags and bot runtime overrides.
+
+    Admin only. Shape::
+
+        {
+            "strategies": {"late_entry_v3": true, "signal_following": false, ...},
+            "bot_overrides": {"weather_strategy": false, "complete_set_arb": true, ...}
+        }
+    """
+    from ...domain.ops.strategy_flags import get_all_flags  # type: ignore
+    return await get_all_flags()
+
+
+@router.patch("/admin/strategy-flags")
+async def update_strategy_flags(body: "StrategyFlagsUpdate", user: _AdminUser) -> dict:
+    """Toggle one or more strategy global flags or bot runtime overrides.
+
+    Admin only. Accepts partial updates — only supplied keys are written.
+    """
+    from ...domain.ops.strategy_flags import (  # type: ignore
+        set_strategy_flag,
+        set_override_flag,
+        STRATEGIES,
+        BOT_OVERRIDES,
+    )
+    updated: list[str] = []
+    errors: list[str] = []
+
+    if body.strategies:
+        for name, enabled in body.strategies.items():
+            if name not in STRATEGIES:
+                errors.append(f"unknown strategy: {name!r}")
+                continue
+            try:
+                await set_strategy_flag(name, enabled)
+                updated.append(f"strategy:{name}={enabled}")
+            except Exception as exc:
+                log.error("strategy flag update failed name=%s: %s", name, exc)
+                errors.append(f"strategy:{name} write failed")
+
+    if body.bot_overrides:
+        for name, enabled in body.bot_overrides.items():
+            if name not in BOT_OVERRIDES:
+                errors.append(f"unknown bot override: {name!r}")
+                continue
+            try:
+                await set_override_flag(name, enabled)
+                updated.append(f"override:{name}={enabled}")
+            except Exception as exc:
+                log.error("override flag update failed name=%s: %s", name, exc)
+                errors.append(f"override:{name} write failed")
+
+    if errors and not updated:
+        raise HTTPException(status_code=422, detail="; ".join(errors))
+
+    return {"updated": updated, "errors": errors}
