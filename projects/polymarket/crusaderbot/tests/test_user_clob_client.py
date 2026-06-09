@@ -236,19 +236,38 @@ async def test_builder_code_without_address_hard_fails(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_zero_builder_code_does_not_require_address(monkeypatch):
-    """The all-zeros sentinel code is treated as 'unset' — same semantics as
-    the single-wallet factory; no address required, no fail-fast."""
+@pytest.mark.parametrize(
+    "zero_form",
+    [
+        "0x" + ("00" * 32),  # canonical 32-byte zero sentinel
+        "0X" + ("00" * 32),  # uppercase 0X prefix
+        "0x" + ("00" * 16),  # half-length still parses to int(0)
+        "0x0",               # minimal hex zero
+        "0X0",               # minimal hex zero, uppercase prefix
+        "0",                 # bare zero (int(s, 16)==0)
+    ],
+)
+async def test_zero_builder_code_does_not_require_address(monkeypatch, zero_form):
+    """Equivalent zero forms are all treated as 'unset' — same semantics as
+    the single-wallet factory; no address required, no fail-fast.
+
+    Robustness regression for the gemini #1734 review: the pre-fix exact-string
+    comparison (``code != "0x" + "00"*32``) would false-positive on every form
+    here except the canonical one, raising a spurious ClobConfigError.
+    """
     s = _make_settings(monkeypatch)
     u = uuid4()
     _patch_vault(monkeypatch, {u: "0x" + "55" * 32})
 
-    s.POLYMARKET_BUILDER_CODE = "0x" + ("00" * 32)
+    s.POLYMARKET_BUILDER_CODE = zero_form
     s.POLYMARKET_BUILDER_ADDRESS = ""
 
     # Should NOT raise — zero sentinel means no attribution.
     client = await uc.get_user_clob_client(u, s)
     assert client is not None
+    # Reset cache so the parametrize sweep doesn't hit a hot cache entry.
+    uc._user_cache.clear()
+    uc._inflight.clear()
 
 
 # --- per-user cache + distinct wallets -----------------------------------
