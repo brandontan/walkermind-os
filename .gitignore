@@ -16,3 +16,4 @@ graphify-out/
 
 # Claude Code ephemeral agent worktrees (never tracked)
 .claude/worktrees/
+.blackboxcli/
