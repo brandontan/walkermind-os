@@ -34,7 +34,12 @@ from ...integrations.clob import (
     MockClobClient,
     get_clob_client,
 )
+from ...integrations.clob.user_client import (
+    PerUserClobError,
+    get_user_clob_client_with_wallet,
+)
 from ...wallet import ledger
+from .per_user_clob import resolve_user_clob_client
 from .slippage import compute_aggressive_limit_price
 from ..risk.constants import SLIPPAGE_GUARD_PCT
 
@@ -229,14 +234,63 @@ async def execute(
 
     # Shares computed from limit_price so notional at entry is exact.
     shares = float(size_usdc) / max(limit_price, 0.0001)
-    try:
-        client = clob_client or get_clob_client(s)
-    except (ClobConfigError, ClobAuthError) as exc:
-        raise LivePreSubmitError(f"CLOB client config error: {exc}") from exc
+
+    # PRE-WARM the per-user client cache BEFORE we acquire the DB
+    # connection (gemini #1741 CRITICAL): the SDK build path does vault
+    # decryption + an on-chain RPC, and holding a Postgres transaction
+    # open across that I/O would burn a connection slot for the duration.
+    # After this call returns, the inside-the-transaction
+    # ``resolve_user_clob_client`` is guaranteed to hit the cache. The
+    # short cross-user isolation invariant (NULL column / drift) still
+    # asserts INSIDE the transaction so the wallet read uses the same
+    # snapshot as the orders-row INSERT.
+    _use_per_user = (
+        clob_client is None
+        and getattr(s, "USE_PER_USER_EXECUTION", False)
+        and getattr(s, "USE_REAL_CLOB", False)
+    )
+    if _use_per_user:
+        try:
+            await get_user_clob_client_with_wallet(user_id, s)
+        except (ClobConfigError, ClobAuthError) as exc:
+            raise LivePreSubmitError(f"CLOB client config error: {exc}") from exc
+        except PerUserClobError as exc:
+            # PerUserClobIsolationError on a non-UUID user_id can fire
+            # here (the resolver re-checks but a deeper defense-in-depth
+            # is cheap). Classify as pre-submit so the router can
+            # paper-fallback cleanly.
+            raise LivePreSubmitError(
+                f"per-user CLOB isolation refused: {exc}"
+            ) from exc
 
     # Step 1: claim idempotency by inserting order as 'pending' BEFORE submit.
+    # When the per-user execution flag is on, we also use the SAME connection
+    # to read wallets.polymarket_deposit_wallet for the cross-user isolation
+    # assertion — same snapshot as the claim, no read-then-claim race.
     async with pool.acquire() as conn:
         async with conn.transaction():
+            try:
+                if _use_per_user:
+                    # Cache is warm; resolver does ONE DB read + a
+                    # case-insensitive compare + cache hit. Fast inside
+                    # the transaction.
+                    client = await resolve_user_clob_client(
+                        user_id=user_id, conn=conn, settings=s,
+                    )
+                else:
+                    client = clob_client or get_clob_client(s)
+            except (ClobConfigError, ClobAuthError) as exc:
+                raise LivePreSubmitError(f"CLOB client config error: {exc}") from exc
+            except PerUserClobError as exc:
+                # SAFETY-CRITICAL: WalletIdentityMismatch (drift) and
+                # PerUserClobIsolationError (None/non-UUID user_id) are
+                # surfaced cleanly so the router classifies them as
+                # pre-submit (definitively NO broker call happened) and
+                # the operator alert names the cross-user invariant.
+                raise LivePreSubmitError(
+                    f"per-user CLOB isolation refused: {exc}"
+                ) from exc
+
             row = await conn.fetchrow(
                 """
                 INSERT INTO orders (user_id, market_id, side, size_usdc, price,
@@ -449,9 +503,33 @@ async def close_position(
     # caller (order.py uses LIVE_CLOSE_MAX_ATTEMPTS=1 — single attempt).
     # On failure, roll the claim back to 'open' so a subsequent retry can
     # re-attempt cleanly.
+    #
+    # When the per-user execution flag is on, the close path also uses the
+    # user's own deposit-wallet client (the close MUST be signed by the
+    # same wallet that holds the position — a global-client close would
+    # sign with the wrong funder and the broker would reject the order).
+    # PRE-WARM the cache BEFORE the conn acquire (gemini #1741 CRITICAL)
+    # so the wallet-identity assertion read inside the conn is the only
+    # await that holds a connection slot.
     try:
-        client = clob_client or get_clob_client(s)
-    except (ClobConfigError, ClobAuthError) as exc:
+        if (
+            clob_client is None
+            and getattr(s, "USE_PER_USER_EXECUTION", False)
+            and getattr(s, "USE_REAL_CLOB", False)
+        ):
+            uid = UUID(str(position["user_id"]))
+            await get_user_clob_client_with_wallet(uid, s)
+            async with pool.acquire() as conn:
+                client = await resolve_user_clob_client(
+                    user_id=uid, conn=conn, settings=s,
+                )
+        else:
+            client = clob_client or get_clob_client(s)
+    except (ClobConfigError, ClobAuthError, PerUserClobError) as exc:
+        # PerUserClobError covers WalletIdentityMismatch + isolation —
+        # both must roll the position claim back to 'open' so a subsequent
+        # retry (after the operator fixes the wallet column / user_id)
+        # can re-attempt the close cleanly.
         async with pool.acquire() as conn:
             await conn.execute(
                 "UPDATE positions SET status='open' WHERE id=$1 AND user_id=$2",

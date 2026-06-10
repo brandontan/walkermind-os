@@ -53,6 +53,7 @@ __all__ = [
     "resolve_deposit_wallet",
     "resolve_deposit_wallet_creds",
     "get_user_clob_client",
+    "get_user_clob_client_with_wallet",
     "clear_user_clob_cache",
 ]
 
@@ -404,6 +405,59 @@ async def get_user_clob_client(
 
     entry = await asyncio.shield(task)
     return entry.client
+
+
+async def get_user_clob_client_with_wallet(
+    user_id: UUID,
+    settings: Optional[Settings] = None,
+) -> tuple[ClobV2Client, str]:
+    """Same as ``get_user_clob_client`` but also returns the SDK-resolved
+    deposit wallet for the user (the ``maker``/``funder`` every Poly1271
+    order signs against).
+
+    Step 4 (execution wiring) uses the second tuple value as the LHS of
+    the cross-user isolation assertion ``resolved_wallet == stored_wallet``
+    so a keying bug (or a server-side deposit-wallet migration that this
+    process has not seen yet) NEVER signs an order for user A with user
+    B's funds.
+
+    Atomic single-flight: duplicates the cache-lookup pattern from
+    ``get_user_clob_client`` so the (client, wallet) pair is read off the
+    SAME ``_CachedClient`` row populated by the in-flight task — no
+    race window where a separate lookup could see an evicted entry
+    (gemini #1741 HIGH).
+    """
+    if not isinstance(user_id, UUID):
+        logger.warning(
+            "per_user_clob: ISOLATION VIOLATION — user_id missing or wrong type "
+            "(value=%r, type=%s); refusing to build a CLOB client",
+            user_id, type(user_id).__name__,
+        )
+        raise PerUserClobIsolationError(
+            "get_user_clob_client_with_wallet requires a UUID user_id "
+            "(cross-user isolation invariant)"
+        )
+
+    s = settings or get_settings()
+    if not s.USE_REAL_CLOB:
+        raise ClobConfigError(
+            "get_user_clob_client_with_wallet called with USE_REAL_CLOB=False — "
+            "paper mode must use get_clob_client() instead"
+        )
+
+    async with _state_lock:
+        cached = _user_cache.get(user_id)
+        if cached is not None:
+            _user_cache.move_to_end(user_id)  # MRU
+            return cached.client, cached.wallet
+
+        task = _inflight.get(user_id)
+        if task is None:
+            task = asyncio.create_task(_build_and_cache(user_id, s))
+            _inflight[user_id] = task
+
+    entry = await asyncio.shield(task)
+    return entry.client, entry.wallet
 
 
 async def clear_user_clob_cache() -> None:
