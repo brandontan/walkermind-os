@@ -716,6 +716,10 @@ _SCAN_DEDUP = (
     "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job"
     "._publication_already_queued"
 )
+_SCAN_OPENPOS = (
+    "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job"
+    "._has_open_position_for_market"
+)
 _SCAN_STALE = (
     "projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job"
     "._load_stale_queued_row"
@@ -801,6 +805,7 @@ class TestScanPathTradeEngineIntegration:
         with (
             patch(_SCAN_STALE, new=AsyncMock(return_value=None)),
             patch(_SCAN_DEDUP, new=AsyncMock(return_value=False)),
+            patch(_SCAN_OPENPOS, new=AsyncMock(return_value=False)),
             patch(_SCAN_MARKET, new=AsyncMock(return_value=market)),
             patch(_SCAN_LIVE_PRICE, new=AsyncMock(return_value=0.60)),
             patch(_SCAN_ENGINE + ".execute", new=mock_engine_execute),
