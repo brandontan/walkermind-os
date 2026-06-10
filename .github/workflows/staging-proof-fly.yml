@@ -246,13 +246,14 @@ jobs:
           python -m pip install --quiet --force-reinstall --no-cache-dir cffi
           if [ "${USE_RUST_SIDECAR:-0}" = "1" ]; then
             echo "SIDECAR_DOWNLOAD: fetching pre-built binary (artifact ${SIDECAR_ARTIFACT_ID})..."
-            apt-get install -y --no-install-recommends unzip >/dev/null 2>&1
+            apt-get install -y --no-install-recommends curl unzip >/dev/null 2>&1
             curl -fsSL \
               -H "Authorization: Bearer ${GH_TOKEN}" \
               -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/bayuewalker/walkermind-os/actions/artifacts/${SIDECAR_ARTIFACT_ID}/zip" \
               -o /tmp/sidecar.zip
-            unzip -j /tmp/sidecar.zip -d /usr/local/bin/ >/dev/null
+            echo "SIDECAR_ZIP: $(ls -lh /tmp/sidecar.zip)"
+            unzip -j /tmp/sidecar.zip -d /usr/local/bin/
             chmod +x /usr/local/bin/order-sidecar
             echo "SIDECAR_READY: $(ls -lh /usr/local/bin/order-sidecar)"
           fi
