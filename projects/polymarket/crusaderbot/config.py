@@ -752,14 +752,20 @@ class Settings(BaseSettings):
     # The per-user max_concurrent count cap (5/12/20) does NOT catch this — three
     # correlated entries are well under the count limit. This caps how many
     # crypto-majors (domain.risk.constants.CORRELATED_CRYPTO_MAJORS) a user may
-    # enter in the SAME direction within one short same-candle window
-    # (signal_scan_job._CORRELATED_MAJORS_WINDOW_SEC).
+    # enter in the SAME direction AT ONCE (counted authoritatively from the
+    # user's currently-open positions in the DB — see
+    # signal_scan_job._open_correlated_majors_count — so the cap survives a
+    # process restart / Fly redeploy and multiple scan workers; the in-memory
+    # window alone did NOT, which let a redeploy mid-candle reset the counter
+    # and open a 3rd correlated major).
     #
-    # Default 2 (owner directive 2026-06-08): allow up to two correlated majors
-    # same-direction, block the third. Set to 0 to disable the gate entirely
-    # (escape hatch — runtime branches on `> 0`). Negative values rejected at
-    # config load (same silent-disable trap as the other guardrail knobs).
-    CORRELATED_MAJORS_SAME_DIR_LIMIT: int = 2  # env: CORRELATED_MAJORS_SAME_DIR_LIMIT
+    # Default 1 (owner directive 2026-06-10): treat BTC/ETH/SOL as a SINGLE
+    # correlated bet — take only the best one per direction, skip the rest, so
+    # the cluster can never stop out together. Set to 2 to allow two correlated
+    # majors, or 0 to disable the gate entirely (escape hatch — runtime branches
+    # on `> 0`). Negative values rejected at config load (same silent-disable
+    # trap as the other guardrail knobs).
+    CORRELATED_MAJORS_SAME_DIR_LIMIT: int = 1  # env: CORRELATED_MAJORS_SAME_DIR_LIMIT
 
     # --- Safe-close inventory imbalance override
     #     (WARP/R00T/safe-close-imbalance-override, Polybot directive 1.2.1.c) ---

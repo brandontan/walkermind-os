@@ -184,11 +184,13 @@ def test_asset_resolver_returns_none_for_non_majors_and_missing():
 # ---------------------------------------------------------------------
 
 
-def test_default_limit_is_2(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_limit_is_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Owner directive 2026-06-10: BTC/ETH/SOL are one correlated bet — default
+    # cap of 1 means only the best same-direction major trades per candle.
     _set_required_env(monkeypatch)
     monkeypatch.delenv("CORRELATED_MAJORS_SAME_DIR_LIMIT", raising=False)
     s = crusaderbot_config.Settings()  # type: ignore[call-arg]
-    assert s.CORRELATED_MAJORS_SAME_DIR_LIMIT == 2
+    assert s.CORRELATED_MAJORS_SAME_DIR_LIMIT == 1
 
 
 def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -277,9 +279,15 @@ def _run(
     cand: SignalCandidate,
     execute=None,
     insert_returns: bool = True,
+    open_majors: int = 0,
 ) -> bool:
     """Drive `_process_candidate` with the full mock stack and return True iff
-    `_engine.execute` was reached (the gate did not short-circuit)."""
+    `_engine.execute` was reached (the gate did not short-circuit).
+
+    ``open_majors`` stubs the DB-authoritative count of currently-open
+    same-direction crypto-major positions (``_open_correlated_majors_count``) so
+    a test can simulate prior open exposure WITHOUT the in-memory window — i.e.
+    the post-restart / multi-worker case the window alone could not enforce."""
     engine_called = {"called": False}
 
     async def _track_execute(signal):
@@ -290,6 +298,8 @@ def _run(
     with patch.object(ssj, "_load_stale_queued_row", return_value=None), \
             patch.object(ssj, "_publication_already_queued", return_value=False), \
             patch.object(ssj, "_has_open_position_for_market", return_value=False), \
+            patch.object(ssj, "_open_correlated_majors_count",
+                         new=AsyncMock(return_value=open_majors)), \
             patch.object(ssj, "_load_market", return_value=_market_row()), \
             patch.object(ssj, "get_live_market_price",
                          new=AsyncMock(return_value=0.66)), \
@@ -484,3 +494,107 @@ def test_full_cluster_sequence_caps_at_two(monkeypatch: pytest.MonkeyPatch) -> N
 
     now = datetime.now(timezone.utc).timestamp()
     assert ssj._correlated_majors_recent_count(str(_USER_UUID), "YES", now) == 2
+
+
+# ---------------------------------------------------------------------
+# DB-authoritative count (survives restart / multiple workers).
+# The in-memory window alone reset to empty on a Fly redeploy mid-candle,
+# letting a 3rd correlated major open — the observed prod defect.
+# ---------------------------------------------------------------------
+
+
+def test_default_cap_one_blocks_second_same_direction_major(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default cap 1: a fresh BTC YES is allowed, but a same-direction ETH YES
+    is blocked — BTC/ETH/SOL count as one correlated bet."""
+    _set_required_env(monkeypatch)
+    monkeypatch.delenv("CORRELATED_MAJORS_SAME_DIR_LIMIT", raising=False)
+    bootstrap_default_strategies()
+
+    assert _run(row=_user_row(), cand=_major_candidate("BTC", "YES")) is True
+    assert _run(row=_user_row(), cand=_major_candidate("ETH", "YES")) is False
+
+
+def test_db_open_count_blocks_with_empty_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """THE restart-robustness guarantee. The in-memory window is empty (as it is
+    immediately after a Fly redeploy), but the DB reports one already-open
+    same-direction major. With the default cap of 1 the next major MUST still be
+    blocked — proving the cap no longer depends on volatile in-memory state."""
+    _set_required_env(monkeypatch)
+    monkeypatch.delenv("CORRELATED_MAJORS_SAME_DIR_LIMIT", raising=False)
+    bootstrap_default_strategies()
+
+    now = datetime.now(timezone.utc).timestamp()
+    assert ssj._correlated_majors_recent_count(str(_USER_UUID), "YES", now) == 0
+
+    reached_engine = _run(
+        row=_user_row(), cand=_major_candidate("SOL", "YES"), open_majors=1,
+    )
+    assert not reached_engine, (
+        "An open same-direction major in the DB must enforce the cap even when "
+        "the in-memory window was wiped by a restart."
+    )
+
+
+def test_db_open_count_caps_at_two_when_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With cap 2 and the window empty, the DB count is the sole source: one open
+    major still passes (1 < 2); two open majors blocks the third (2 >= 2)."""
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("CORRELATED_MAJORS_SAME_DIR_LIMIT", "2")
+    bootstrap_default_strategies()
+
+    assert _run(
+        row=_user_row(), cand=_major_candidate("ETH", "YES"), open_majors=1,
+    ) is True
+    assert _run(
+        row=_user_row(), cand=_major_candidate("SOL", "YES"), open_majors=2,
+    ) is False
+
+
+def test_db_open_count_isolates_opposite_side(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The DB count is queried per-side: an open YES major does not block a NO
+    major (opposite directions partially hedge)."""
+    _set_required_env(monkeypatch)
+    monkeypatch.delenv("CORRELATED_MAJORS_SAME_DIR_LIMIT", raising=False)
+    bootstrap_default_strategies()
+
+    # _open_correlated_majors_count is stubbed per-run; here the NO candidate is
+    # told there are 0 open NO majors even though (conceptually) a YES is open.
+    reached_engine = _run(
+        row=_user_row(), cand=_major_candidate("SOL", "NO"), open_majors=0,
+    )
+    assert reached_engine, "Opposite-side major must not be blocked by the cap."
+
+
+def test_gate_effective_count_is_max_of_sources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pure-gate unit: the effective count is max(window, open_position_count).
+    Window 0 + DB 1 with cap 1 => block; window 1 + DB 0 with cap 1 => block."""
+    _set_required_env(monkeypatch)
+    monkeypatch.setenv("CORRELATED_MAJORS_SAME_DIR_LIMIT", "1")
+    crusaderbot_config.get_settings.cache_clear()
+
+    import logging
+    log = logging.getLogger("test")
+
+    # DB source alone trips the cap (window empty).
+    assert ssj._gate_correlated_majors(
+        user_id=_USER_UUID, side="YES", market_id="m", asset="BTC",
+        open_position_count=1, log=log,
+    ) == "skipped_correlated_majors_concentration"
+
+    # Window source alone trips the cap (DB 0).
+    now = datetime.now(timezone.utc).timestamp()
+    ssj._correlated_majors_record_entry(str(_USER_UUID), "YES", now)
+    assert ssj._gate_correlated_majors(
+        user_id=_USER_UUID, side="YES", market_id="m", asset="ETH",
+        open_position_count=0, log=log,
+    ) == "skipped_correlated_majors_concentration"

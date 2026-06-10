@@ -1674,6 +1674,48 @@ async def _has_open_position_for_side(
     return row is not None
 
 
+async def _open_correlated_majors_count(user_id: UUID, side: str) -> int:
+    """Authoritative count of the user's currently-open same-direction
+    crypto-major (BTC/ETH/SOL) candle positions.
+
+    DB-backed (joins ``positions`` -> ``markets`` and matches the candle slug
+    ``{coin}-updown-{tf}-...`` head against the cluster tickers) so the
+    correlated-majors cap survives a process restart / Fly redeploy and is
+    consistent across multiple scan workers. The in-memory window
+    (``_correlated_majors_log``) alone did NOT: a redeploy mid-candle reset the
+    counter to empty, so the next same-direction major saw count 0 and opened —
+    the observed "3 correlated majors stop out together" defect.
+
+    Counts only ACTIVE exposure (``status IN ('open','pending_settlement')``),
+    which is the concurrent-cluster risk the cap exists to bound — strictly more
+    correct than the prior 120s entry-time window proxy. Fail-soft: any DB error
+    returns 0 (the in-memory window, taken via ``max`` at the gate, remains the
+    fallback) so a transient DB fault never blocks trading on its own fault.
+    """
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) AS n
+                  FROM positions p
+                  JOIN markets m ON m.id = p.market_id
+                 WHERE p.user_id = $1
+                   AND LOWER(p.side) = $2
+                   AND p.status IN ('open', 'pending_settlement')
+                   AND m.slug LIKE '%-updown-%'
+                   AND split_part(LOWER(m.slug), '-', 1) = ANY($3::text[])
+                """,
+                user_id,
+                side.lower(),
+                [a.lower() for a in CORRELATED_CRYPTO_MAJORS],
+            )
+        return int(row["n"]) if row and row["n"] is not None else 0
+    except Exception as exc:  # noqa: BLE001 — gate fault must never block trading
+        logger.warning("open_correlated_majors_count_failed", error=str(exc))
+        return 0
+
+
 async def _has_open_position_for_market(user_id: UUID, market_id: str) -> bool:
     """Return True when the user has an open OR recently closed (24h) position on this market.
 
@@ -2567,17 +2609,24 @@ def _gate_correlated_majors(
     side: str,
     market_id: str,
     asset: str | None,
+    open_position_count: int = 0,
     log: Any,
 ) -> str | None:
-    """Cap same-direction crypto-majors (BTC/ETH/SOL) entries within one
-    same-candle window.
+    """Cap same-direction crypto-majors (BTC/ETH/SOL) held at once per user.
 
     Applies to ALL candle presets (the correlation is a market property, not a
     preset property): unlike the safe_close direction limiter, a momentum-led
     close_sweep / flip_hunter / candle_auto stack of correlated majors carries the
     same cluster-stop-out risk. Returns the skip reason when the user is already
     at the cap for this direction, else None. No-op (returns None) for a
-    non-cluster asset or when the cap is disabled (limit <= 0)."""
+    non-cluster asset or when the cap is disabled (limit <= 0).
+
+    The effective count is ``max`` of the DB-authoritative currently-open
+    same-direction major count (``open_position_count``, passed by the caller —
+    survives restarts / multiple workers) and the in-memory same-candle window
+    (``_correlated_majors_recent_count`` — a fast complement that also catches
+    the brief gap between a same-tick accept and the position row commit). Using
+    the max means the cap holds even when one source is momentarily behind."""
     if asset is None:
         return None
     try:
@@ -2587,13 +2636,14 @@ def _gate_correlated_majors(
         log.warning(
             "correlated_majors_limit_config_read_failed",
             error=str(exc),
-            fallback=2,
+            fallback=1,
         )
-        limit = 2
+        limit = 1
     if limit <= 0:
         return None
     now_ts = datetime.now(timezone.utc).timestamp()
-    recent = _correlated_majors_recent_count(str(user_id), side, now_ts)
+    window = _correlated_majors_recent_count(str(user_id), side, now_ts)
+    recent = max(window, int(open_position_count or 0))
     if recent < limit:
         return None
     log.info(
@@ -3156,9 +3206,15 @@ async def _process_candidate(
     #        _gate_correlated_majors). Resolve the cluster asset once here; it is
     #        reused at the accept-path record site below. No-op for non-majors.
     _maj_asset = _major_asset_from_candidate(cand)
+    # DB-authoritative concurrent-exposure count (survives restarts / multiple
+    # workers, unlike the in-memory window). Only queried for cluster majors.
+    _open_majors = (
+        await _open_correlated_majors_count(user_id, side)
+        if _maj_asset is not None else 0
+    )
     _skip = _gate_correlated_majors(
         user_id=user_id, side=side, market_id=cand.market_id,
-        asset=_maj_asset, log=log,
+        asset=_maj_asset, open_position_count=_open_majors, log=log,
     )
     if _skip is not None:
         if telemetry is not None:
