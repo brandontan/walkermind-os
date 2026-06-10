@@ -273,8 +273,8 @@ def _staging_settings() -> Any:
         # RUST_SIDECAR_PATH stays at its config default (/usr/local/bin/
         # order-sidecar in the Fly runtime image) unless the operator
         # explicitly overrides it for local dev.
-        **({"RUST_SIDECAR_PATH": os.getenv("RUST_SIDECAR_PATH")}
-           if os.getenv("RUST_SIDECAR_PATH") else {}),
+        **({"RUST_SIDECAR_PATH": _sidecar_path}
+           if (_sidecar_path := os.getenv("RUST_SIDECAR_PATH")) else {}),
         "POLYMARKET_PRIVATE_KEY": _WALLET,
         "POLYMARKET_FUNDER_ADDRESS": os.getenv("STAGING_FUNDER_ADDRESS"),
         "POLYMARKET_SIGNATURE_TYPE": int(os.getenv("STAGING_SIGNATURE_TYPE", "2")),
