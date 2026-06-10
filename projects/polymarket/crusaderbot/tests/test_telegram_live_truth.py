@@ -12,11 +12,9 @@ Pins the readiness-matrix row 8(b)/(c) fixes:
 """
 from __future__ import annotations
 
-import inspect
 import re
 from pathlib import Path
 
-from projects.polymarket.crusaderbot.domain.activation import live_checklist
 from projects.polymarket.crusaderbot.domain.activation.live_checklist import (
     GATE_ACTIVE_SUBACCOUNT,
     GATE_FIX_HINTS,
@@ -38,7 +36,10 @@ class TestGate7TwoFactorTruth:
         assert "until self-serve 2FA ships" not in hint
 
     def test_module_carries_no_stale_unshipped_claim(self) -> None:
-        src = inspect.getsource(live_checklist)
+        src = (
+            Path(__file__).parents[1] / "domain" / "activation"
+            / "live_checklist.py"
+        ).read_text(encoding="utf-8")
         assert "does not yet exist" not in src
         # The gate's contract anchor stays: it must keep reading the exact
         # key domain/auth/totp.verify_and_enable writes.
