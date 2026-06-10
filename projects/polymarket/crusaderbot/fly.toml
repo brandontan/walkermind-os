@@ -1,4 +1,4 @@
-# fly.toml app configuration file generated for crusaderbot on 2026-05-30T14:00:07Z
+# fly.toml app configuration file generated for crusaderbot on 2026-06-10T12:56:35Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
@@ -41,9 +41,11 @@ kill_timeout = '30s'
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = 'off'
+  auto_stop_machines = false
   auto_start_machines = true
   min_machines_running = 1
+  checks = [{ grace_period = '1m0s', interval = '15s', method = 'GET', path = '/health', protocol = 'http', timeout = '10s' }]
+  concurrency = { hard_limit = 100, soft_limit = 50, type = 'requests' }
 
   [http_service.concurrency]
     type = 'requests'
@@ -64,6 +66,14 @@ kill_timeout = '30s'
   cpu_kind = 'shared'
   cpus = 2
   memory_mb = 1024
+
+[[vm]]
+  size = 'shared-cpu-4x'
+  memory = '2gb'
+  cpu_kind = 'shared'
+  cpus = 4
+  memory_mb = 2048
+  processes = ['app']
 
 [[metrics]]
   port = 8080
