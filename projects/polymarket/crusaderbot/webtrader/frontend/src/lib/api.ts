@@ -140,6 +140,11 @@ export function makeApi(token: string | null) {
     enableLive: (live_capital_cap_usdc: number, confirm_phrase: string) =>
       post<LiveEnableResponse>("/live/enable", { live_capital_cap_usdc, confirm_phrase }),
     disableLive: () => post<{ trading_mode: string }>("/live/disable"),
+    // ── Self-serve TOTP 2FA (closes live_checklist gate 7) ────────────────
+    get2faStatus: () => get<TwoFactorStatus>("/2fa/status"),
+    setup2fa: () => post<TwoFactorSetup>("/2fa/setup"),
+    verify2fa: (code: string) => post<{ ok: boolean; enabled: boolean }>("/2fa/verify", { code }),
+    disable2fa: (code: string) => post<{ ok: boolean; enabled: boolean }>("/2fa/disable", { code }),
     // ── Strategy picker availability (mirrors operator admin toggle) ───────
     getPresetAvailability: () =>
       get<{
@@ -682,6 +687,17 @@ export interface LiveStatus {
 export interface LiveEnableResponse {
   trading_mode: string;
   live_capital_cap_usdc: number;
+}
+
+// Self-serve TOTP 2FA — closes live_checklist gate 7.
+export interface TwoFactorStatus {
+  enrolled: boolean;
+  enabled: boolean;
+}
+
+export interface TwoFactorSetup {
+  otpauth_uri: string;
+  secret: string;
 }
 
 export interface FeedSignal {

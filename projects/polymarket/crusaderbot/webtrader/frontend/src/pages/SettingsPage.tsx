@@ -7,6 +7,7 @@ import { NotificationPrefsCard } from "../components/NotificationPrefsCard";
 import { SettingsGroup, SettingsRow } from "../components/SettingsGroup";
 import { Toggle } from "../components/Toggle";
 import { TopBar } from "../components/TopBar";
+import { TwoFactorSetupCard } from "../components/TwoFactorSetupCard";
 import { makeApi, type LinkTelegramStart, type LiveStatus, type MeResponse, type UserSettings } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSSE } from "../lib/sse";
@@ -277,6 +278,10 @@ export function SettingsPage() {
 
           {/* Right column */}
           <div>
+            {/* 2FA — self-serve TOTP, closes live_checklist gate 7. Above
+                Live Trading so users enrol before attempting to enable. */}
+            <TwoFactorSetupCard onChanged={() => void load()} />
+
             {/* Live Trading — per-user opt-in into real-money execution */}
             <SettingsGroup title="Live Trading">
               <div className="px-3 py-3 space-y-3">
