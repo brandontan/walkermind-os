@@ -53,6 +53,7 @@ __all__ = [
     "resolve_deposit_wallet",
     "resolve_deposit_wallet_creds",
     "get_user_clob_client",
+    "get_user_clob_client_with_wallet",
     "clear_user_clob_cache",
 ]
 
@@ -404,6 +405,43 @@ async def get_user_clob_client(
 
     entry = await asyncio.shield(task)
     return entry.client
+
+
+async def get_user_clob_client_with_wallet(
+    user_id: UUID,
+    settings: Optional[Settings] = None,
+) -> tuple[ClobV2Client, str]:
+    """Same as ``get_user_clob_client`` but also returns the SDK-resolved
+    deposit wallet for the user (the ``maker``/``funder`` every Poly1271
+    order signs against).
+
+    Step 4 (execution wiring) uses the second tuple value as the LHS of
+    the cross-user isolation assertion ``resolved_wallet == stored_wallet``
+    so a keying bug (or a server-side deposit-wallet migration that this
+    process has not seen yet) NEVER signs an order for user A with user
+    B's funds. Pure read of the same single-flight cache; no extra SDK
+    call, no extra DB call.
+    """
+    # Re-uses the single-flight + cache contract — see get_user_clob_client.
+    # The wallet is captured on the same ``_CachedClient`` row populated by
+    # ``_build_and_cache``; we read the entry under the lock to make sure
+    # we don't race the eviction path.
+    client = await get_user_clob_client(user_id, settings)
+    async with _state_lock:
+        cached = _user_cache.get(user_id)
+    if cached is None:
+        # The only way to land here is an eviction between the two awaits
+        # above — capacity = USER_CACHE_CAPACITY users concurrently building.
+        # Retry once: the second call re-populates the entry.
+        client = await get_user_clob_client(user_id, settings)
+        async with _state_lock:
+            cached = _user_cache.get(user_id)
+    if cached is None:
+        raise PerUserClobError(
+            f"per_user_clob: lost cache entry for user_id={user_id} "
+            "(eviction storm — bump USER_CACHE_CAPACITY)"
+        )
+    return client, cached.wallet
 
 
 async def clear_user_clob_cache() -> None:

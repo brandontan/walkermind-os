@@ -415,6 +415,20 @@ class Settings(BaseSettings):
     # Absolute path to the compiled sidecar binary inside the runtime image.
     RUST_SIDECAR_PATH: str = "/usr/local/bin/order-sidecar"
 
+    # --- Per-user on-chain execution (WARP/root-per-user-execution-wiring) ---
+    # When True (and USE_REAL_CLOB=True), live orders are signed per user
+    # against THE USER'S OWN deposit wallet via get_user_clob_client (#1731)
+    # + the cross-user isolation assertion in
+    # domain/execution/per_user_clob.resolve_user_clob_client
+    # (resolved_wallet == wallets.polymarket_deposit_wallet, REFUSES to sign
+    # on drift — the SAFETY-CRITICAL #1730 §4 invariant in code). Default
+    # False: the proven single-wallet get_clob_client(s) path stays the
+    # active real path. Flip ONLY after backfill_deposit_wallets() has
+    # populated wallets.polymarket_deposit_wallet for every user, the
+    # per-user SENTINEL gate (Step 5) is green, and ENABLE_LIVE_TRADING is
+    # owner-enabled — this flag does NOT widen ENABLE_LIVE_TRADING.
+    USE_PER_USER_EXECUTION: bool = False
+
     # --- Balance alerting ---
     # Fire low_balance alert when user wallet balance drops below this value.
     # Set to 0 to disable the alert globally.

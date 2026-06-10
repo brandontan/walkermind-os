@@ -35,6 +35,7 @@ from ...integrations.clob import (
     get_clob_client,
 )
 from ...wallet import ledger
+from .per_user_clob import resolve_user_clob_client
 from .slippage import compute_aggressive_limit_price
 from ..risk.constants import SLIPPAGE_GUARD_PCT
 
@@ -229,14 +230,33 @@ async def execute(
 
     # Shares computed from limit_price so notional at entry is exact.
     shares = float(size_usdc) / max(limit_price, 0.0001)
-    try:
-        client = clob_client or get_clob_client(s)
-    except (ClobConfigError, ClobAuthError) as exc:
-        raise LivePreSubmitError(f"CLOB client config error: {exc}") from exc
 
     # Step 1: claim idempotency by inserting order as 'pending' BEFORE submit.
+    # When the per-user execution flag is on, we also use the SAME connection
+    # to read wallets.polymarket_deposit_wallet for the cross-user isolation
+    # assertion — same snapshot as the claim, no read-then-claim race.
     async with pool.acquire() as conn:
         async with conn.transaction():
+            # Per-user resolution lives INSIDE the transaction so the wallet
+            # read uses the same snapshot as the orders-row INSERT and the
+            # SAFETY-CRITICAL assertion cannot race a backfill mid-flight.
+            # The single-wallet path keeps its prior ordering exactly.
+            try:
+                # ``getattr`` tolerates test-stub Settings classes that
+                # predate this flag — they keep the legacy single-wallet path.
+                if (
+                    clob_client is None
+                    and getattr(s, "USE_PER_USER_EXECUTION", False)
+                    and getattr(s, "USE_REAL_CLOB", False)
+                ):
+                    client = await resolve_user_clob_client(
+                        user_id=user_id, conn=conn, settings=s,
+                    )
+                else:
+                    client = clob_client or get_clob_client(s)
+            except (ClobConfigError, ClobAuthError) as exc:
+                raise LivePreSubmitError(f"CLOB client config error: {exc}") from exc
+
             row = await conn.fetchrow(
                 """
                 INSERT INTO orders (user_id, market_id, side, size_usdc, price,
@@ -449,8 +469,25 @@ async def close_position(
     # caller (order.py uses LIVE_CLOSE_MAX_ATTEMPTS=1 — single attempt).
     # On failure, roll the claim back to 'open' so a subsequent retry can
     # re-attempt cleanly.
+    #
+    # When the per-user execution flag is on, the close path also uses the
+    # user's own deposit-wallet client (the close MUST be signed by the
+    # same wallet that holds the position — a global-client close would
+    # sign with the wrong funder and the broker would reject the order).
     try:
-        client = clob_client or get_clob_client(s)
+        if (
+            clob_client is None
+            and getattr(s, "USE_PER_USER_EXECUTION", False)
+            and getattr(s, "USE_REAL_CLOB", False)
+        ):
+            async with pool.acquire() as conn:
+                client = await resolve_user_clob_client(
+                    user_id=UUID(str(position["user_id"])),
+                    conn=conn,
+                    settings=s,
+                )
+        else:
+            client = clob_client or get_clob_client(s)
     except (ClobConfigError, ClobAuthError) as exc:
         async with pool.acquire() as conn:
             await conn.execute(
