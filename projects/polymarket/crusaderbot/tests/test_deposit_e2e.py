@@ -65,7 +65,13 @@ class _Conn:
         return _Txn()
 
     async def fetch(self, sql: str, *args):
-        if "SELECT user_id, deposit_address, safe_address FROM wallets" in sql:
+        # Step 3 (#per-user-watcher) widened the SELECT to also pull
+        # polymarket_deposit_wallet. Match the column-prefix so this
+        # fixture doesn't break on every future column add to the watcher.
+        if (
+            "SELECT user_id, deposit_address, safe_address" in sql
+            and "FROM wallets" in sql
+        ):
             return self.store.wallet_rows
         if "status='pending'" in sql and ">= $2" in sql:
             head, depth = args
