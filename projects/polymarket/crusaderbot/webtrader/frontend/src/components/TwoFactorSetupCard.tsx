@@ -19,6 +19,7 @@ export function TwoFactorSetupCard({ onChanged }: { onChanged?: () => void }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -90,7 +91,11 @@ export function TwoFactorSetupCard({ onChanged }: { onChanged?: () => void }) {
   }
 
   function handleCopy(text: string) {
-    try { void navigator.clipboard.writeText(text); } catch { /* swallow */ }
+    try {
+      void navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* swallow */ }
   }
 
   return (
@@ -170,7 +175,7 @@ export function TwoFactorSetupCard({ onChanged }: { onChanged?: () => void }) {
                   onClick={() => handleCopy(setupData.secret)}
                   className="font-hud text-[8px] font-bold tracking-[1.5px] uppercase text-gold flex-shrink-0"
                 >
-                  Copy
+                  {copied ? "Copied!" : "Copy"}
                 </button>
               </div>
             </div>

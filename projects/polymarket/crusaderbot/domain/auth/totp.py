@@ -131,23 +131,6 @@ async def _read_secret(user_id: UUID) -> Optional[str]:
         ) from exc
 
 
-async def _write_2fa_system_flag(user_id: UUID, enabled: bool) -> None:
-    """Write the legacy ``system_settings[2fa_enabled:{user_id}]`` key the
-    existing ``_gate_two_factor`` reads. Keep on enable; clear on disable so
-    the gate reflects the current state of the world."""
-    pool = get_pool()
-    key = f"2fa_enabled:{user_id}"
-    value = "true" if enabled else "false"
-    async with pool.acquire() as conn:
-        # system_settings (key, value) — upsert. Mirrors how WARP-92 / global
-        # live toggle writes the same table.
-        await conn.execute(
-            "INSERT INTO system_settings (key, value) VALUES ($1, $2) "
-            "ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value",
-            key, value,
-        )
-
-
 # ── public API ───────────────────────────────────────────────────────────────
 
 
