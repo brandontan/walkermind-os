@@ -6,6 +6,7 @@ from uuid import UUID
 
 from ..config import get_settings
 from ..database import get_pool
+from .deposit_wallet import set_deposit_wallet_in_conn
 from .generator import decrypt_pk, derive_address, encrypt_pk
 from .safe import set_safe_address_in_conn
 
@@ -41,6 +42,12 @@ async def create_wallet_for_user(user_id: UUID) -> tuple[str, int]:
         # the unencrypted signer key in scope. Harmless in EOA custody mode,
         # ready in Safe mode. Silently no-ops if the relayer SDK is absent.
         await set_safe_address_in_conn(conn, user_id, pk)
+        # Pre-resolve the Polymarket deposit wallet (the address per-user orders
+        # will sign against — Step 4 of the per-user execution lane). Same
+        # scope-of-pk window as the Safe derivation above. Silently no-ops if
+        # the polymarket SDK is absent or transient resolve fails; the backfill
+        # is the safety net for both cases.
+        await set_deposit_wallet_in_conn(conn, user_id, pk)
         row = await conn.fetchrow(
             "SELECT deposit_address, hd_index FROM wallets WHERE user_id = $1",
             user_id,
