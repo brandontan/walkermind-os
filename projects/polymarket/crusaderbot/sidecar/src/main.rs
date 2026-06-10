@@ -111,11 +111,39 @@ async fn main() {
 
     match run(request).await {
         Ok(result) => emit(json!({"ok": true, "result": result})),
-        // Action-level failures (auth refused, order rejected, config missing)
-        // are DATA, not process errors: exit 0 with ok=false so the Python
-        // wrapper distinguishes "sidecar broke" from "broker said no".
-        Err(e) => emit_err("action", format!("{e:#}")),
+        // Failures are DATA, not process errors: exit 0 with ok=false so the
+        // Python wrapper distinguishes "sidecar broke" from "broker said no".
+        // The kind is classified STRUCTURALLY from the SDK's typed error so
+        // the Python side maps transport failures to its retryable
+        // ClobNetworkError and broker rejections to ClobAPIError — string
+        // matching on messages would be fragile (gemini #1738 review).
+        Err(e) => emit_err(classify_error(&e), format!("{e:#}")),
     }
+}
+
+/// Map an action failure to a protocol error kind the Python wrapper can
+/// route on:
+///   "network" -> transport/dependency failure (reqwest, DNS, TLS, WS) —
+///                retryable; Python raises ClobNetworkError.
+///   "api"     -> the broker answered with a non-2xx status — Python raises
+///                ClobAPIError (existing retryable-vs-permanent classification
+///                applies downstream).
+///   "action"  -> everything else (validation, geoblock, bad params, missing
+///                env) — permanent until config changes; ClobAPIError.
+fn classify_error(e: &anyhow::Error) -> &'static str {
+    use polymarket_client_sdk_v2::error::{Error as SdkError, Kind as SdkKind};
+    for cause in e.chain() {
+        if let Some(sdk) = cause.downcast_ref::<SdkError>() {
+            return match sdk.kind() {
+                SdkKind::Internal | SdkKind::WebSocket => "network",
+                SdkKind::Status => "api",
+                // Validation / Synchronization / Geoblock + any future
+                // variants (enum is non_exhaustive): config-shaped.
+                _ => "action",
+            };
+        }
+    }
+    "action"
 }
 
 const KNOWN_ACTIONS: &[&str] = &[

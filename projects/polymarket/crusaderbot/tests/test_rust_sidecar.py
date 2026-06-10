@@ -169,6 +169,29 @@ async def test_action_failure_maps_to_api_error(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_network_kind_maps_to_retryable_network_error(tmp_path) -> None:
+    """kind=network (sidecar classified a transport failure structurally from
+    the SDK's typed error) → ClobNetworkError so retry loops + breaker treat
+    it like any HTTP outage, NOT a permanent broker rejection."""
+    path = _echo_sidecar(tmp_path, {
+        "ok": False, "kind": "network",
+        "error": "Internal: error sending request",
+    })
+    with pytest.raises(ClobNetworkError, match="transport failure"):
+        await _client(path).cancel_order("0xabc")
+
+
+@pytest.mark.asyncio
+async def test_api_kind_maps_to_api_error(tmp_path) -> None:
+    """kind=api (broker answered non-2xx) → ClobAPIError."""
+    path = _echo_sidecar(tmp_path, {
+        "ok": False, "kind": "api", "error": "Status: 400 bad order",
+    })
+    with pytest.raises(ClobAPIError, match="400 bad order"):
+        await _client(path).cancel_order("0xabc")
+
+
+@pytest.mark.asyncio
 async def test_nonzero_exit_maps_to_network_error(tmp_path) -> None:
     path = _echo_sidecar(tmp_path, {"ok": False, "kind": "protocol",
                                     "error": "x"}, exit_code=2)

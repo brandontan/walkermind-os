@@ -152,14 +152,23 @@ class RustSidecarClient:
             ) from exc
 
         if not payload.get("ok"):
-            # Action-level failure — broker said no / auth refused / bad params.
-            # Surface as an API error so callers' existing classification
-            # (retryable vs config) applies.
+            error_text = str(payload.get("error", ""))
+            kind = str(payload.get("kind", "action"))
+            # The sidecar classifies failures STRUCTURALLY from the SDK's
+            # typed error (gemini #1738 review): "network" = transport
+            # (reqwest/DNS/TLS) — retryable, so the bot's retry loops +
+            # breaker treat it like any HTTP outage; "api"/"action" =
+            # broker rejection or config-shaped — surfaced as ClobAPIError
+            # so the existing downstream classification applies.
+            if kind == "network":
+                raise ClobNetworkError(
+                    f"rust sidecar {action} transport failure: {error_text}"
+                )
             raise ClobAPIError(
                 status_code=0,
                 path=f"sidecar:{action}",
-                body=str(payload.get("error", "")),
-                message=f"rust sidecar {action} failed: {payload.get('error')}",
+                body=error_text,
+                message=f"rust sidecar {action} failed: {error_text}",
             )
         return payload.get("result")
 
