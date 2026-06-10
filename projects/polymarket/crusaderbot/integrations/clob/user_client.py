@@ -50,6 +50,7 @@ __all__ = [
     "PerUserClobError",
     "PerUserClobIsolationError",
     "USER_CACHE_CAPACITY",
+    "resolve_deposit_wallet",
     "resolve_deposit_wallet_creds",
     "get_user_clob_client",
     "clear_user_clob_cache",
@@ -106,6 +107,36 @@ _inflight: dict[UUID, "asyncio.Task[_CachedClient]"] = {}
 # pin the GC can collect a still-running aclose mid-flight and leak the
 # underlying client / connection.
 _background_tasks: set["asyncio.Task[None]"] = set()
+
+
+async def resolve_deposit_wallet(private_key: str) -> str:
+    """Resolve a signer's Polymarket deposit wallet address only — no creds.
+
+    Same on-chain factory check as ``resolve_deposit_wallet_creds`` (the polymarket
+    SDK's ``AsyncSecureClient`` picks the deterministic deposit wallet for the
+    signer — beacon vs UUPS), but reads ONLY ``sc.wallet`` and never touches
+    ``sc.credentials``. That property mints L2 API credentials against the
+    Polymarket server on first access; backfill paths that only need to persist
+    the wallet address MUST NOT mint fresh credentials (would rotate a user's
+    L2 keys as a side-effect of running a one-shot backfill).
+
+    Step 2 of the per-user execution lane uses this to populate
+    ``wallets.polymarket_deposit_wallet`` for existing users without touching
+    L2 creds. Step 4's pre-post assertion compares this resolved address against
+    the persisted column to enforce the #1730 §4 cross-user isolation invariant.
+
+    Raises ``PerUserClobError`` if ``private_key`` is empty.
+    """
+    if not private_key:
+        raise PerUserClobError("resolve_deposit_wallet: private_key is empty")
+
+    from polymarket import AsyncSecureClient  # noqa: WPS433
+
+    sc = await AsyncSecureClient.create(private_key=private_key, wallet=None)
+    try:
+        return sc.wallet
+    finally:
+        await sc.close()
 
 
 async def resolve_deposit_wallet_creds(
