@@ -52,7 +52,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 const CLOB_URL_VAR: &str = "SIDECAR_CLOB_URL";
-const DEFAULT_CLOB_URL: &str = "https://clob-v2.polymarket.com";
+const DEFAULT_CLOB_URL: &str = "https://clob.polymarket.com";
 const PRIVATE_KEY_VAR: &str = "SIDECAR_PRIVATE_KEY";
 const FUNDER_VAR: &str = "SIDECAR_FUNDER";
 const API_KEY_VAR: &str = "SIDECAR_API_KEY";
