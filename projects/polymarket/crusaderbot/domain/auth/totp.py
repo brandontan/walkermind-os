@@ -151,9 +151,11 @@ async def enroll(user_id: UUID, account_label: str) -> dict:
     encrypted = _fernet().encrypt(secret.encode()).decode()
     pool = get_pool()
     async with pool.acquire() as conn:
-        # INSERT with all known defaults (matches migration 052), UPDATE the
-        # secret column on conflict. user_settings.user_id is the PK from
-        # migration 001.
+        # Narrow upsert — every NOT NULL column on user_settings carries a
+        # schema DEFAULT (001_init + later migrations), so Postgres fills the
+        # rest; hardcoding values here would fork the new-user defaults away
+        # from the schema's single source of truth (e.g. migration 052 moved
+        # risk_profile's default). user_settings.user_id is the PK.
         await conn.execute(
             "INSERT INTO user_settings (user_id, totp_secret_encrypted) "
             "VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET "
