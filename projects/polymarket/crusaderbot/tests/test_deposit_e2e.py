@@ -25,6 +25,7 @@ class _Settings:
     DEPOSIT_CONFIRMATION_DEPTH = 32
     WRONG_TOKEN_ALERTS_ENABLED = True
     USDC_NATIVE_POLYGON = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+    DEPOSIT_SCAN_LOOKBACK_BLOCKS = 50_000
 
 
 # ---------------- in-memory store + fake asyncpg pool ------------------------
@@ -183,7 +184,7 @@ def test_e2e_usdce_deposit_records_confirms_credits():
         "block_number": 100, "to": WALLET, "removed": False,
     }
 
-    async def fake_scan(addresses, cursor, token_address=None):
+    async def fake_scan(addresses, cursor, token_address=None, lookback=2000):
         # USDC.e (default token) returns the deposit; native returns nothing.
         if token_address is None:
             return [usdce_transfer], 100
@@ -226,7 +227,7 @@ def test_e2e_native_usdc_alerts_without_crediting():
         "block_number": 200, "to": WALLET, "removed": False,
     }
 
-    async def fake_scan(addresses, cursor, token_address=None):
+    async def fake_scan(addresses, cursor, token_address=None, lookback=2000):
         if token_address is None:
             return [], 200  # no USDC.e deposits
         return [native_transfer], 200  # native USDC seen
