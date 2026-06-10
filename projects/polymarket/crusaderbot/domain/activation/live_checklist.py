@@ -67,8 +67,8 @@ GATE_FIX_HINTS: dict[str, str] = {
     GATE_RISK_PROFILE_CONFIGURED:
         "Pick a risk profile via /setup → Risk Profile.",
     GATE_TWO_FACTOR_SETUP:
-        "Complete 2FA setup before live trading is permitted. Contact an "
-        "admin until self-serve 2FA ships.",
+        "Enable 2FA in WebTrader → Settings → Two-Factor Authentication "
+        "(scan the QR with any authenticator app).",
     GATE_OPERATOR_ALLOWLIST:
         "Live trading requires admin approval. Request access from an admin.",
 }
@@ -163,11 +163,13 @@ async def _gate_risk_profile(user_id: UUID) -> GateOutcome:
 async def _gate_two_factor(user_id: UUID) -> GateOutcome:
     """[7] 2FA setup complete.
 
-    Self-serve 2FA infrastructure does not yet exist. Until it lands, the
-    gate reads ``system_settings`` for ``2fa_enabled:{user_id}`` so the
-    operator can manually flip an account through after an out-of-band
-    setup. Default is FALSE — the gate fails closed so live trading is
-    not silently unlocked when the 2FA module ships.
+    Self-serve TOTP shipped in #1737: WebTrader → Settings → Two-Factor
+    Authentication (``domain/auth/totp.verify_and_enable``) writes the
+    exact ``system_settings`` key ``2fa_enabled:{user_id}`` this gate
+    reads — enrolling on the web lights the gate automatically. An
+    operator can still flip the same key manually as a break-glass
+    fallback. Default is FALSE — the gate fails closed for users who
+    never enrolled.
     """
     pool = get_pool()
     key = f"2fa_enabled:{user_id}"
