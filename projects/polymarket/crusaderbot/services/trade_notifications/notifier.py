@@ -212,9 +212,12 @@ class TradeNotifier:
 
         reasoning = _build_reasoning(signal_reason, copy_wallet, copy_win_rate)
 
+        # LIVE entries must be unmistakable — real capital is at stake. Paper
+        # rendering stays byte-identical (mode defaults to "paper").
+        header = "🔴  LIVE TRADE OPENED" if mode == "live" else "📋  TRADE OPENED"
         text = (
             f"{_SEP}\n"
-            "📋  TRADE OPENED\n"
+            f"{header}\n"
             f"{_SEP}\n"
             f"<pre>Market  │ {html.escape(label[:28])}\n"
             f"Side    │ {html.escape(side_upper)}\n"
