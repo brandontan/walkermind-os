@@ -1,11 +1,12 @@
 # CrusaderBot — Fast Track Roadmap
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated:** 2026-05-14 22:45 Asia/Jakarta
+**Last Updated:** 2026-06-11 05:12 Asia/Jakarta
 
 ## Current Posture
 
-- Production: LIVE on Fly.io (PAPER ONLY)
+- Production: LIVE on Fly.io — all users PAPER by default; global live infra armed by owner at runtime (Fly secrets; fly.toml [env] still pins guards false so a bare deploy stays paper-safe); per-user live strictly opt-in behind the 8-gate live_checklist + typed CONFIRM
+- Full-surface live/paper readiness: see reports/forge/readiness-matrix.md (Phase 0, 2026-06-11)
 - Telegram UX Phase 5A-5J complete
 - Real CLOB Phase 4A-4E complete; live path guarded
 - Week 1 Fast Track Tracks A-E + Premium PNL Insights MERGED — Week 1 fully complete
@@ -59,9 +60,7 @@
 
 ## Non-Negotiable Rules
 
-- ENABLE_LIVE_TRADING = false
-- EXECUTION_PATH_VALIDATED = false
-- CAPITAL_MODE_CONFIRMED = false
-- RISK_CONTROLS_VALIDATED = false
-- USE_REAL_CLOB = false
-- Paper mode only until explicit owner decision
+- fly.toml [env] pins all 5 activation guards false — a bare deploy can never flip posture; runtime arming is owner-only via Fly secrets
+- Every user defaults to paper (3-path INSERT invariant); per-user live requires the 8-gate checklist + typed CONFIRM
+- Risk constants locked (Kelly 0.25 / pos 10% / -$2k daily / 8% DD / $10k liquidity); two-layer live gate and non-custodial boundary never weakened
+- Any real fund movement (mainnet deposit/withdrawal/live order) is an explicit owner action — never automated unattended
