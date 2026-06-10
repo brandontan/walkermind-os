@@ -67,15 +67,20 @@ async def _validate_live_execution_readiness(settings, pool) -> list[str]:
     # when the first live order spawns the subprocess (ClobConfigError after
     # the order has already been claimed).
     if settings.USE_RUST_SIDECAR:
-        sidecar = Path(settings.RUST_SIDECAR_PATH)
-        if not sidecar.is_file():
+        sidecar_path = settings.RUST_SIDECAR_PATH
+        if not sidecar_path:
             problems.append(
-                f"USE_RUST_SIDECAR=true but no binary at {settings.RUST_SIDECAR_PATH} "
+                "USE_RUST_SIDECAR=true but RUST_SIDECAR_PATH is not configured "
+                "— every live order will fail pre-submit"
+            )
+        elif not (sidecar := Path(sidecar_path)).is_file():
+            problems.append(
+                f"USE_RUST_SIDECAR=true but no binary at {sidecar_path} "
                 "— every live order will fail pre-submit until the image ships it"
             )
         elif not os.access(sidecar, os.X_OK):
             problems.append(
-                f"USE_RUST_SIDECAR=true but {settings.RUST_SIDECAR_PATH} is not "
+                f"USE_RUST_SIDECAR=true but {sidecar_path} is not "
                 "executable — every live order will fail pre-submit"
             )
 

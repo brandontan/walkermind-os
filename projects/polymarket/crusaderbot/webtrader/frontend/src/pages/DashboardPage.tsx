@@ -351,11 +351,19 @@ export function DashboardPage() {
                 </div>
                 {redeemError && (
                   <div
-                    className="mb-2 px-3 py-2 text-[10px] font-mono clip-card border"
+                    className="mb-2 px-3 py-2 text-[10px] font-mono clip-card border flex justify-between items-center gap-2"
                     style={{ background: "rgba(255,45,85,0.08)", borderColor: "rgba(255,45,85,0.3)", color: "#FF6B6B" }}
                     role="alert"
                   >
-                    Redeem failed: {redeemError}
+                    <span>Redeem failed: {redeemError}</span>
+                    <button
+                      type="button"
+                      onClick={() => setRedeemError(null)}
+                      className="font-bold text-[12px] leading-none flex-shrink-0 hover:opacity-70"
+                      aria-label="Dismiss alert"
+                    >
+                      ×
+                    </button>
                   </div>
                 )}
                 {awaitingRedeem.map((p) => (

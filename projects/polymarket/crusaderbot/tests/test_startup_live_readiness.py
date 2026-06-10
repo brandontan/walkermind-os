@@ -66,6 +66,14 @@ async def test_all_flags_off_reports_nothing():
 
 
 @pytest.mark.asyncio
+async def test_sidecar_flag_with_empty_path_is_reported():
+    s = _settings(USE_RUST_SIDECAR=True, RUST_SIDECAR_PATH="")
+    problems = await _validate_live_execution_readiness(s, _FakePool(_FakeConn()))
+    assert len(problems) == 1
+    assert "RUST_SIDECAR_PATH is not configured" in problems[0]
+
+
+@pytest.mark.asyncio
 async def test_sidecar_flag_with_missing_binary_is_reported():
     s = _settings(USE_RUST_SIDECAR=True, RUST_SIDECAR_PATH="/nonexistent/order-sidecar")
     problems = await _validate_live_execution_readiness(s, _FakePool(_FakeConn()))
