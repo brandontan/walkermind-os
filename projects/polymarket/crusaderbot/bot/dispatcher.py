@@ -263,6 +263,9 @@ def register(app: Application) -> None:
     app.add_handler(CommandHandler("positions",       positions.show_positions))
     app.add_handler(CommandHandler("activity",        activity))
     app.add_handler(CommandHandler("settings",        settings_handler.settings_root))
+    # /wallet — the deposit-gate fix hint (GATE_FIX_HINTS) directs users to
+    # "/wallet → Deposit"; the command must exist, not just the menu route.
+    app.add_handler(CommandHandler("wallet",          wallet_root))
     app.add_handler(CommandHandler("preset",          show_autotrade))
     app.add_handler(CommandHandler("setup_advanced",  setup.setup_legacy_root))
     app.add_handler(CommandHandler("emergency",       emergency_root))
