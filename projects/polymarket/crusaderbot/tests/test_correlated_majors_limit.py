@@ -582,8 +582,12 @@ def test_gate_effective_count_is_max_of_sources(
     monkeypatch.setenv("CORRELATED_MAJORS_SAME_DIR_LIMIT", "1")
     crusaderbot_config.get_settings.cache_clear()
 
-    import logging
-    log = logging.getLogger("test")
+    # The gate logs structlog-style (kwargs) on the block path — production
+    # passes logger.bind(...). A stdlib logger only appears to work while the
+    # global level suppresses INFO; any test importing main (which configures
+    # logging) would explode the call with unexpected-kwarg TypeError.
+    import structlog
+    log = structlog.get_logger("test")
 
     # DB source alone trips the cap (window empty).
     assert ssj._gate_correlated_majors(
