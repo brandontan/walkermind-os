@@ -134,22 +134,48 @@ async def sync_markets() -> None:
 def _build_watched_addresses(wallet_rows) -> tuple[list[str], dict[str, object]]:
     """Return the address scan list + a lowercase→user_id lookup map.
 
-    Each wallet contributes its EOA ``deposit_address`` and, when set, its
-    pre-computed ``safe_address`` (migration 061). Both addresses route to
-    the same user, so transfers into either credit that user without any
-    custody-mode flip. NULL ``safe_address`` rows (pre-backfill or pre-Chunk 2
-    wallets) silently fall back to EOA-only — no behavior change for them.
+    Each wallet contributes up to three watched addresses, all routing to
+    the SAME user_id (so transfers credit the right user regardless of which
+    surface Polymarket / the user actually funds):
+
+      * EOA ``deposit_address`` (always present)
+      * pre-computed ``safe_address`` (migration 061) — Polymarket Safe-flow
+      * resolved ``polymarket_deposit_wallet`` (migration 094, per-user
+        Step 2 #1736) — the EIP-7702 deposit wallet sig-3 orders sign against
+
+    NULL columns silently fall back (pre-backfill or pre-Step 2 wallets just
+    get EOA-only) — no behavior change for them. The set() guard collapses
+    duplicates when two columns happen to hold the same address (rare but
+    harmless if the SDK ever returned the EOA as the deposit wallet).
     """
     addresses: list[str] = []
     addr_by_lower: dict = {}
+    seen: set[str] = set()
+
+    def _add(addr, user_id) -> None:
+        if not addr:
+            return
+        key = addr.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        addresses.append(addr)
+        addr_by_lower[key] = user_id
+
     for r in wallet_rows:
-        eoa = r["deposit_address"]
-        addresses.append(eoa)
-        addr_by_lower[eoa.lower()] = r["user_id"]
+        user_id = r["user_id"]
+        _add(r["deposit_address"], user_id)
+        # Tolerate both Mapping (asyncpg Record-like with .get) and plain
+        # dicts; the test fixtures use dicts, scheduler at runtime gets
+        # asyncpg Records (subscript only). r[col] works for both; the .get
+        # path is preserved for safe_address back-compat with older tests.
         safe = r.get("safe_address") if isinstance(r, dict) else r["safe_address"]
-        if safe:
-            addresses.append(safe)
-            addr_by_lower[safe.lower()] = r["user_id"]
+        _add(safe, user_id)
+        deposit_wallet = (
+            r.get("polymarket_deposit_wallet") if isinstance(r, dict)
+            else r["polymarket_deposit_wallet"]
+        )
+        _add(deposit_wallet, user_id)
     return addresses, addr_by_lower
 
 
@@ -172,11 +198,15 @@ async def watch_deposits() -> None:
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            # safe_address comes from migration 061; partial-unique index ensures
-            # one user per address. Safe addresses route to the same user_id as
-            # the EOA so Polymarket Magic-link / Safe-flow deposits credit the
-            # correct user without any custody-mode flip.
-            "SELECT user_id, deposit_address, safe_address FROM wallets",
+            # safe_address comes from migration 061 (Polymarket Safe-flow);
+            # polymarket_deposit_wallet from migration 094 (per-user Step 2,
+            # #1736) — the EIP-7702 deposit wallet the sig-3 orders sign
+            # against. Both partial-unique indexes ensure one user per
+            # address; both route to the same user_id as the EOA so any of
+            # the three surfaces credits the correct user without a
+            # custody-mode flip.
+            "SELECT user_id, deposit_address, safe_address, "
+            "polymarket_deposit_wallet FROM wallets",
         )
     if not rows:
         return
