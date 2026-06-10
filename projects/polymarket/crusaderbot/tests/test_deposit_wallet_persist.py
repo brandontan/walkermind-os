@@ -110,7 +110,11 @@ class _BackfillConn:
         self._batches = list(rows_per_call)
         self.executed: list[tuple] = []
 
-    async def fetch(self, _sql, _limit):
+    async def fetch(self, _sql, *args):
+        # cursor-based pagination passes (last_user_id, batch_size); the mock
+        # just hands out pre-staged batches in order without filtering — the
+        # cursor advance is the production code's responsibility, the mock
+        # only needs to support the call signature.
         return self._batches.pop(0) if self._batches else []
 
     async def execute(self, sql, *args):
@@ -217,6 +221,35 @@ async def test_backfill_continues_past_per_user_resolve_failure() -> None:
     assert len(updates) == 1
     # Only the successful user's UPDATE fired.
     assert updates[0][0] == uid_ok
+
+
+@pytest.mark.asyncio
+async def test_backfill_terminates_when_every_row_skips() -> None:
+    """Regression: pre-fix the loop's `WHERE polymarket_deposit_wallet IS NULL`
+    sole filter would re-fetch the same skipped rows forever if a full batch
+    failed transiently. The cursor-based pagination (user_id > $cursor) advances
+    past every row seen, regardless of whether it was filled or skipped, so the
+    loop must terminate. Identified by gemini-code-assist on PR #1736."""
+    import uuid as _u
+    # Two batches of pre-fix-loopable rows. WITHOUT the cursor, fetch would keep
+    # returning the same rows because none of them ever flip to NOT NULL. The
+    # _BackfillConn mock pops batches in order, so two batches + an empty
+    # third drives the loop to its natural termination iff the cursor advances.
+    batch1 = [{"user_id": _u.uuid4(), "encrypted_key": f"enc{i}"} for i in range(3)]
+    batch2 = [{"user_id": _u.uuid4(), "encrypted_key": f"enc{i+3}"} for i in range(3)]
+    conn = _BackfillConn([batch1, batch2, []])
+
+    async def _always_fail(_pk):
+        raise RuntimeError("simulated persistent resolve failure")
+
+    with patch.object(_dw, "get_settings", return_value=_Settings()), \
+         patch.object(_dw, "get_pool", return_value=_Pool(conn)), \
+         patch.object(_dw, "decrypt_pk", return_value="0x" + "1" * 64), \
+         patch.object(_dw, "_resolve", _always_fail):
+        result = await _dw.backfill_deposit_wallets(batch_size=3)
+
+    # 6 rows scanned (3 + 3), all skipped, none filled, loop exits cleanly.
+    assert result == {"scanned": 6, "filled": 0, "skipped": 6}
 
 
 # ── vault wiring ──────────────────────────────────────────────────────────────

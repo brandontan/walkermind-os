@@ -43,6 +43,12 @@ from ..integrations.clob.user_client import (
 )
 from .generator import decrypt_pk
 
+# Sentinel cursor lower bound for the backfill loop. ``user_id > $cursor`` with
+# this start value sweeps the whole table once; subsequent fetches advance the
+# cursor past the last row seen so transient-fail rows (stay NULL on this run)
+# cannot infinitely re-appear in the next fetch.
+_UUID_MIN = UUID(int=0)
+
 logger = logging.getLogger(__name__)
 
 
@@ -133,13 +139,21 @@ async def backfill_deposit_wallets(batch_size: int = 200) -> dict[str, int]:
     settings = get_settings()
     pool = get_pool()
     scanned = filled = skipped = 0
+    # Cursor-based pagination on user_id. WHERE IS NULL alone is unsafe here:
+    # a skipped row (transient resolve failure) stays NULL on this run, so the
+    # next fetch would return the same row — if ≥ batch_size rows fail in one
+    # batch the loop never terminates. The cursor advances past every row seen
+    # this run (including skipped rows); the WHERE IS NULL filter still skips
+    # rows already filled by a previous backfill. Identified by gemini-code-
+    # assist on PR #1736.
+    last_user_id: UUID = _UUID_MIN
     while True:
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 "SELECT user_id, encrypted_key FROM wallets "
-                "WHERE polymarket_deposit_wallet IS NULL "
-                "ORDER BY user_id LIMIT $1",
-                batch_size,
+                "WHERE polymarket_deposit_wallet IS NULL AND user_id > $1 "
+                "ORDER BY user_id LIMIT $2",
+                last_user_id, batch_size,
             )
         if not rows:
             break
@@ -165,6 +179,7 @@ async def backfill_deposit_wallets(batch_size: int = 200) -> dict[str, int]:
                     row["user_id"], addr,
                 )
             filled += 1
+        last_user_id = rows[-1]["user_id"]
         if len(rows) < batch_size:
             break
     logger.info(
