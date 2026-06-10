@@ -86,6 +86,7 @@ on:
 
 permissions:
   contents: read
+  actions: read   # allow GITHUB_TOKEN to download artifacts from Fly machine
 
 # Share the lock with staging-proof.yml — never place live orders concurrently.
 concurrency:
@@ -149,6 +150,12 @@ jobs:
       POLYGON_RPC_URL: ${{ secrets.STAGING_POLYGON_RPC_URL || 'https://polygon-rpc.com' }}
       WALLET_HD_SEED: "staging proof hd seed placeholder unused"
       WALLET_ENCRYPTION_KEY: "WpM238hakouxf5pD_ekYTwFZc_V9BQY1AEnj3BAiYxc="
+      # Short-lived workflow token for the Fly machine to download the pre-built
+      # sidecar artifact (USE_RUST_SIDECAR=1 only). Needs actions:read permission.
+      GH_TOKEN: ${{ github.token }}
+      # Set by 'Export sidecar artifact ID' step when USE_RUST_SIDECAR=1;
+      # empty string otherwise (injected to machine but ignored by script).
+      SIDECAR_ARTIFACT_ID: ""
 
     steps:
       - name: Checkout (for scripts/proof_result.sh)
@@ -188,6 +195,34 @@ jobs:
             flyctl apps create "$PROOF_APP" --org "$ORG"
           fi
 
+      # Build the Rust sidecar on the GH runner (x86_64-linux — same arch as Fly
+      # machines). ubuntu-latest has Rust pre-installed so no toolchain setup needed.
+      # This eliminates the 15-30 min in-machine compile and replaces it with a fast
+      # GH-runner build (~4-8 min on 4 cores). The binary is uploaded as an artifact
+      # and downloaded inside the Fly machine via the GitHub API.
+      - name: Build Rust sidecar on runner (x86_64-linux)
+        if: env.USE_RUST_SIDECAR == '1'
+        run: |
+          set -euo pipefail
+          cd projects/polymarket/crusaderbot/sidecar
+          echo "SIDECAR_RUNNER_BUILD: cargo build --locked (debug)..."
+          cargo build --locked 2>&1 | tail -10
+          echo "SIDECAR_RUNNER_READY: $(ls -lh target/debug/order-sidecar)"
+
+      - name: Upload sidecar binary as artifact
+        if: env.USE_RUST_SIDECAR == '1'
+        id: sidecar-upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: order-sidecar-${{ github.run_id }}
+          path: projects/polymarket/crusaderbot/sidecar/target/debug/order-sidecar
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Export sidecar artifact ID to env
+        if: env.USE_RUST_SIDECAR == '1'
+        run: echo "SIDECAR_ARTIFACT_ID=${{ steps.sidecar-upload.outputs.artifact-id }}" >> "$GITHUB_ENV"
+
       - name: Run order-placing proof on Fly (allowed region)
         run: |
           set -euo pipefail
@@ -210,13 +245,15 @@ jobs:
           python -m pip install --quiet --ignore-installed $DEPS
           python -m pip install --quiet --force-reinstall --no-cache-dir cffi
           if [ "${USE_RUST_SIDECAR:-0}" = "1" ]; then
-            echo "SIDECAR_BUILD: installing Rust toolchain (order-sidecar required for USE_RUST_SIDECAR=1)"
-            apt-get install -y --no-install-recommends curl build-essential pkg-config libssl-dev >/dev/null 2>&1
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --no-modify-path >/dev/null 2>&1
-            export PATH="$HOME/.cargo/bin:$PATH"
-            echo "SIDECAR_BUILD: cargo build --locked (debug) ..."
-            ( cd /repo/projects/polymarket/crusaderbot/sidecar && cargo build --locked 2>&1 ) | tail -5
-            cp /repo/projects/polymarket/crusaderbot/sidecar/target/debug/order-sidecar /usr/local/bin/order-sidecar
+            echo "SIDECAR_DOWNLOAD: fetching pre-built binary (artifact ${SIDECAR_ARTIFACT_ID})..."
+            apt-get install -y --no-install-recommends unzip >/dev/null 2>&1
+            curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/bayuewalker/walkermind-os/actions/artifacts/${SIDECAR_ARTIFACT_ID}/zip" \
+              -o /tmp/sidecar.zip
+            unzip -j /tmp/sidecar.zip -d /usr/local/bin/ >/dev/null
+            chmod +x /usr/local/bin/order-sidecar
             echo "SIDECAR_READY: $(ls -lh /usr/local/bin/order-sidecar)"
           fi
           ARGS="projects/polymarket/crusaderbot/tests/staging/test_live_reconcile_staging.py -v -s --tb=short"
@@ -237,7 +274,8 @@ jobs:
                    STAGING_SIGNATURE_TYPE STAGING_NEG_RISK STAGING_ALLOW_FILLS \
                    USE_RUST_SIDECAR USE_CLOB_V2 USE_PYSDK_CLOB \
                    TELEGRAM_BOT_TOKEN OPERATOR_CHAT_ID DATABASE_URL \
-                   POLYGON_RPC_URL WALLET_HD_SEED WALLET_ENCRYPTION_KEY; do
+                   POLYGON_RPC_URL WALLET_HD_SEED WALLET_ENCRYPTION_KEY \
+                   SIDECAR_ARTIFACT_ID GH_TOKEN; do
             ENVARGS+=( --env "${v}=${!v}" )
           done
 
