@@ -165,17 +165,17 @@ def _build_watched_addresses(wallet_rows) -> tuple[list[str], dict[str, object]]
     for r in wallet_rows:
         user_id = r["user_id"]
         _add(r["deposit_address"], user_id)
-        # Tolerate both Mapping (asyncpg Record-like with .get) and plain
-        # dicts; the test fixtures use dicts, scheduler at runtime gets
-        # asyncpg Records (subscript only). r[col] works for both; the .get
-        # path is preserved for safe_address back-compat with older tests.
-        safe = r.get("safe_address") if isinstance(r, dict) else r["safe_address"]
-        _add(safe, user_id)
-        deposit_wallet = (
-            r.get("polymarket_deposit_wallet") if isinstance(r, dict)
-            else r["polymarket_deposit_wallet"]
+        # Both ``dict`` and ``asyncpg.Record`` support ``key in r`` for
+        # column-name membership + ``r[key]`` for subscript, so the same
+        # access path covers test fixtures (dicts) and runtime rows
+        # (Records). Defensive against pre-migration-094 rows + older
+        # fixtures that may not carry the new column at all.
+        _add(r["safe_address"] if "safe_address" in r else None, user_id)
+        _add(
+            r["polymarket_deposit_wallet"]
+            if "polymarket_deposit_wallet" in r else None,
+            user_id,
         )
-        _add(deposit_wallet, user_id)
     return addresses, addr_by_lower
 
 
