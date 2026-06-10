@@ -179,6 +179,40 @@ def _build_watched_addresses(wallet_rows) -> tuple[list[str], dict[str, object]]
     return addresses, addr_by_lower
 
 
+# Consecutive watch_deposits RPC-failure streak. The watcher swallows RPC
+# failures per tick by design (no cursor advance, retry next tick) — but a
+# PERSISTENT streak means deposit crediting is down (the prod incident: the
+# cursor sat at its migration-seeded 0 for five weeks while every tick logged
+# an invisible WARNING). At _WATCH_DEPOSITS_FAIL_ESCALATE consecutive failures
+# the log escalates to ERROR (-> Sentry) and re-fires every
+# _WATCH_DEPOSITS_FAIL_REFIRE failures so the outage stays visible without
+# per-tick spam.
+_watch_deposits_fail_streak: int = 0
+_WATCH_DEPOSITS_FAIL_ESCALATE = 3
+_WATCH_DEPOSITS_FAIL_REFIRE = 30
+
+
+def _watch_deposits_failed(stage: str, exc: Exception) -> None:
+    """Log a watcher tick failure at the right severity for the streak."""
+    global _watch_deposits_fail_streak
+    _watch_deposits_fail_streak += 1
+    streak = _watch_deposits_fail_streak
+    if streak == _WATCH_DEPOSITS_FAIL_ESCALATE or (
+        streak > _WATCH_DEPOSITS_FAIL_ESCALATE
+        and (streak - _WATCH_DEPOSITS_FAIL_ESCALATE) % _WATCH_DEPOSITS_FAIL_REFIRE == 0
+    ):
+        log.error(
+            "watch_deposits DOWN — deposits are NOT being credited "
+            "(check POLYGON_RPC_URL)",
+            stage=stage, streak=streak, err=repr(exc),
+        )
+    else:
+        log.warning(
+            "watch_deposits tick failed (no cursor advance)",
+            stage=stage, streak=streak, err=str(exc),
+        )
+
+
 async def watch_deposits() -> None:
     """Confirmation-depth deposit watcher with reorg guard (H6).
 
@@ -194,6 +228,7 @@ async def watch_deposits() -> None:
     is still confirmed on a later tick even after the forward cursor moves past
     its block.
     """
+    global _watch_deposits_fail_streak
     settings = get_settings()
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -215,17 +250,19 @@ async def watch_deposits() -> None:
     try:
         head = await polygon.latest_block()
     except Exception as exc:
-        log.warning("watch_deposits head read failed (no cursor advance)", err=str(exc))
+        _watch_deposits_failed("head read", exc)
         return
 
     cursor_start = await _read_cursor("usdc_deposits")
     try:
         transfers, scanned_to = await polygon.scan_from_cursor(
             addresses, cursor_start,
+            lookback=settings.DEPOSIT_SCAN_LOOKBACK_BLOCKS,
         )
     except Exception as exc:
-        log.warning("watch_deposits scan failed (no cursor advance)", err=str(exc))
+        _watch_deposits_failed("scan", exc)
         return
+    _watch_deposits_fail_streak = 0
 
     all_ok = True
     for t in transfers:
@@ -440,6 +477,7 @@ async def _alert_wrong_token_deposits(
     try:
         transfers, scanned_to = await polygon.scan_from_cursor(
             addresses, cursor_start, token_address=native,
+            lookback=settings.DEPOSIT_SCAN_LOOKBACK_BLOCKS,
         )
     except Exception as exc:
         log.warning("wrong_token scan failed (no cursor advance)", err=str(exc))

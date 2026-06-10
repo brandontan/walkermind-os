@@ -519,6 +519,15 @@ class Settings(BaseSettings):
     # rare but real; a USDC transfer seen at block N is only credited once it is
     # this many blocks deep on the canonical chain. See migration 047.
     DEPOSIT_CONFIRMATION_DEPTH: int = 32
+    # Cold-start lookback for the deposit scanner: when the chain cursor is 0
+    # (never advanced — fresh deploy or recovery from a long RPC outage) the
+    # first successful scan starts at head minus this many blocks. Polygon does
+    # ~43k blocks/day, so the 50k default re-finds deposits sent within the
+    # last ~28h; raise via env for a deeper rescue scan (catch-up advances
+    # 1000 blocks per watcher tick once the cursor is live). Without this, a
+    # recovered watcher silently skipped anything older than 2000 blocks
+    # (~70 min) — deposits sent during an outage were permanently missed.
+    DEPOSIT_SCAN_LOOKBACK_BLOCKS: int = 50_000
     SIGNAL_SCAN_INTERVAL: int = 180
     # Dedicated high-frequency scan for the close_sweep / late_entry_v3 preset.
     # Late Entry V3 only enters in the final ~35s of a crypto candle, so it must

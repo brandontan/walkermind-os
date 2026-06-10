@@ -3079,8 +3079,20 @@ async def _process_candidate(
                 telemetry.record_skip("skipped_open_position_exists")
             return
     except Exception as exc:
-        log.warning("open_position_market_check_failed", error=str(exc))
-        # On DB error fall through — gate step 10 remains the safety net.
+        # FAIL CLOSED — skip this candidate and let the next tick retry.
+        # Gate step 10 is NOT a safety net here: it dedups on the
+        # (market, side, price, size) idempotency key, so a re-entry at a
+        # different price passes it and a transient DB blip on this check
+        # could stack a second open position on the same market.
+        log.warning(
+            "scan_outcome", outcome="skipped_open_position_check_failed",
+            market_id=cand.market_id, error=str(exc),
+            message="open-position dedup check failed — skipping candidate "
+                    "(fail closed); retried next tick",
+        )
+        if telemetry is not None:
+            telemetry.record_skip("skipped_open_position_check_failed")
+        return
 
     # 1c. Signal freshness gate (see _gate_signal_freshness).
     _skip = _gate_signal_freshness(pub_uuid=pub_uuid, signal_ts=cand.signal_ts, log=log)
