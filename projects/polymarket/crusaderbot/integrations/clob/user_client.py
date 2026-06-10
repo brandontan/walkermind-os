@@ -419,29 +419,45 @@ async def get_user_clob_client_with_wallet(
     the cross-user isolation assertion ``resolved_wallet == stored_wallet``
     so a keying bug (or a server-side deposit-wallet migration that this
     process has not seen yet) NEVER signs an order for user A with user
-    B's funds. Pure read of the same single-flight cache; no extra SDK
-    call, no extra DB call.
+    B's funds.
+
+    Atomic single-flight: duplicates the cache-lookup pattern from
+    ``get_user_clob_client`` so the (client, wallet) pair is read off the
+    SAME ``_CachedClient`` row populated by the in-flight task — no
+    race window where a separate lookup could see an evicted entry
+    (gemini #1741 HIGH).
     """
-    # Re-uses the single-flight + cache contract — see get_user_clob_client.
-    # The wallet is captured on the same ``_CachedClient`` row populated by
-    # ``_build_and_cache``; we read the entry under the lock to make sure
-    # we don't race the eviction path.
-    client = await get_user_clob_client(user_id, settings)
+    if not isinstance(user_id, UUID):
+        logger.warning(
+            "per_user_clob: ISOLATION VIOLATION — user_id missing or wrong type "
+            "(value=%r, type=%s); refusing to build a CLOB client",
+            user_id, type(user_id).__name__,
+        )
+        raise PerUserClobIsolationError(
+            "get_user_clob_client_with_wallet requires a UUID user_id "
+            "(cross-user isolation invariant)"
+        )
+
+    s = settings or get_settings()
+    if not s.USE_REAL_CLOB:
+        raise ClobConfigError(
+            "get_user_clob_client_with_wallet called with USE_REAL_CLOB=False — "
+            "paper mode must use get_clob_client() instead"
+        )
+
     async with _state_lock:
         cached = _user_cache.get(user_id)
-    if cached is None:
-        # The only way to land here is an eviction between the two awaits
-        # above — capacity = USER_CACHE_CAPACITY users concurrently building.
-        # Retry once: the second call re-populates the entry.
-        client = await get_user_clob_client(user_id, settings)
-        async with _state_lock:
-            cached = _user_cache.get(user_id)
-    if cached is None:
-        raise PerUserClobError(
-            f"per_user_clob: lost cache entry for user_id={user_id} "
-            "(eviction storm — bump USER_CACHE_CAPACITY)"
-        )
-    return client, cached.wallet
+        if cached is not None:
+            _user_cache.move_to_end(user_id)  # MRU
+            return cached.client, cached.wallet
+
+        task = _inflight.get(user_id)
+        if task is None:
+            task = asyncio.create_task(_build_and_cache(user_id, s))
+            _inflight[user_id] = task
+
+    entry = await asyncio.shield(task)
+    return entry.client, entry.wallet
 
 
 async def clear_user_clob_cache() -> None:

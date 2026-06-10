@@ -16,6 +16,8 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import pytest
+
 from projects.polymarket.crusaderbot.domain.execution.live import execute
 
 
@@ -130,6 +132,14 @@ def _wire(settings_obj, conn) -> tuple:
               new=AsyncMock()),
         patch("projects.polymarket.crusaderbot.domain.execution.live.ledger.debit_in_conn",
               new=AsyncMock()),
+        # The pre-warm call (gemini #1741 CRITICAL fix) builds the per-user
+        # cache OUTSIDE the conn. Stub it so the wiring tests don't try
+        # to drive the real vault/SDK build path.
+        patch(
+            "projects.polymarket.crusaderbot.domain.execution.live"
+            ".get_user_clob_client_with_wallet",
+            new=AsyncMock(return_value=(MagicMock(), "0x0warmed")),
+        ),
     )
 
 
@@ -241,3 +251,79 @@ def test_injected_clob_client_overrides_flag() -> None:
 
     resolver.assert_not_called()
     get_global.assert_not_called()
+
+
+# ── SAFETY-CRITICAL: end-to-end drift refuse ─────────────────────────────────
+#
+# These tests are the SENTINEL Step 5 close-out: prove the wallet-identity
+# assertion fires THROUGH the full live.execute path (not just in the
+# resolver unit), classifies cleanly as LivePreSubmitError, and crucially
+# NEVER invokes ``client.post_order`` — drift becomes a definitive
+# pre-submit refuse so the router's existing pre-submit→paper-fallback
+# classification applies + no broker call happens.
+
+
+def test_drift_refuses_through_full_execute_path() -> None:
+    """Resolver raises WalletIdentityMismatch → live.execute raises
+    LivePreSubmitError, NO broker call. The whole point of the lane."""
+    from projects.polymarket.crusaderbot.domain.execution.live import (
+        LivePreSubmitError,
+    )
+    from projects.polymarket.crusaderbot.domain.execution.per_user_clob import (
+        WalletIdentityMismatch,
+    )
+
+    s = _Settings(per_user=True, real=True)
+    conn = _Conn()
+    drifted_client = MagicMock()
+    drifted_client.post_order = AsyncMock(return_value={})
+
+    drift = WalletIdentityMismatch(
+        "deposit wallet drift for user_id=<test>: "
+        "sdk=0xaaa stored=0xbbb"
+    )
+
+    with ExitStack() as stack:
+        _enter_all(stack, _wire(s, conn))
+        stack.enter_context(patch(
+            "projects.polymarket.crusaderbot.domain.execution.live"
+            ".resolve_user_clob_client",
+            side_effect=drift,
+        ))
+        with pytest.raises(LivePreSubmitError, match="isolation refused"):
+            asyncio.run(execute(**_BASE_KWARGS))
+
+    drifted_client.post_order.assert_not_called()
+    # Defensive: no orders row was inserted because the drift raises
+    # BEFORE the INSERT. The conn fixture only records INSERT/execute
+    # calls — verify none of them are the orders INSERT.
+    assert not any(
+        "INSERT INTO orders" in (q[0] if isinstance(q[0], str) else "")
+        for q in conn.executed
+    )
+
+
+def test_isolation_violation_through_full_execute_path() -> None:
+    """A None/non-UUID user_id smuggled past upstream typing must ALSO
+    refuse via the same PerUserClobError catch (defense-in-depth)."""
+    from projects.polymarket.crusaderbot.domain.execution.live import (
+        LivePreSubmitError,
+    )
+    from projects.polymarket.crusaderbot.integrations.clob.user_client import (
+        PerUserClobIsolationError,
+    )
+
+    s = _Settings(per_user=True, real=True)
+    conn = _Conn()
+
+    with ExitStack() as stack:
+        _enter_all(stack, _wire(s, conn))
+        stack.enter_context(patch(
+            "projects.polymarket.crusaderbot.domain.execution.live"
+            ".resolve_user_clob_client",
+            side_effect=PerUserClobIsolationError(
+                "test: user_id not a UUID"
+            ),
+        ))
+        with pytest.raises(LivePreSubmitError, match="isolation refused"):
+            asyncio.run(execute(**_BASE_KWARGS))
