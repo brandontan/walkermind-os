@@ -403,6 +403,18 @@ class Settings(BaseSettings):
     # that proof. Live trading remains independently gated by ENABLE_LIVE_TRADING.
     USE_CLOB_V2: bool = False
 
+    # --- Rust order sidecar (WARP/root-rust-order-sidecar) ---
+    # When True (and USE_REAL_CLOB=True), the order path invokes the Rust
+    # order-sidecar binary (sidecar/ crate, official polymarket_client_sdk_v2
+    # canary) -- the only client that signs POLY_1271 deposit-wallet orders
+    # (wrapped EIP-1271 signature; py-clob-client-v2 cannot, upstream #70).
+    # Takes precedence over USE_CLOB_V2 and USE_PYSDK_CLOB. Default False:
+    # flip only after the staging proof validates the sidecar against the
+    # real broker. Live trading remains gated by ENABLE_LIVE_TRADING.
+    USE_RUST_SIDECAR: bool = False
+    # Absolute path to the compiled sidecar binary inside the runtime image.
+    RUST_SIDECAR_PATH: str = "/usr/local/bin/order-sidecar"
+
     # --- Balance alerting ---
     # Fire low_balance alert when user wallet balance drops below this value.
     # Set to 0 to disable the alert globally.

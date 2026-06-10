@@ -438,6 +438,36 @@ def get_clob_client(
     # Resolve credentials: env vars take priority; fall back to auto-derived cache.
     api_key, api_secret, passphrase = effective_credentials(s)
 
+    # Rust order sidecar (WARP/root-rust-order-sidecar): the official Rust
+    # SDK's canary line is the ONLY client that signs POLY_1271 deposit-wallet
+    # orders (wrapped EIP-1271 signature — py-clob-client-v2 cannot, upstream
+    # #70). Highest precedence of the real backends. Default OFF until the
+    # staging proof validates it against the real broker.
+    if getattr(s, "USE_RUST_SIDECAR", False):
+        from .rust_sidecar import RustSidecarClient  # noqa: WPS433
+
+        if not s.POLYMARKET_PRIVATE_KEY:
+            raise ClobConfigError(
+                "USE_RUST_SIDECAR=True but POLYMARKET_PRIVATE_KEY is unset"
+            )
+        funder = effective_funder(s)
+        if not funder:
+            raise ClobConfigError(
+                "USE_RUST_SIDECAR=True but no funder resolved: run "
+                "ensure_clob_credentials() at startup or set "
+                "POLYMARKET_FUNDER_ADDRESS (the deposit wallet)"
+            )
+        return RustSidecarClient(
+            binary_path=s.RUST_SIDECAR_PATH,
+            private_key=s.POLYMARKET_PRIVATE_KEY,
+            funder_address=funder,
+            api_key=api_key or None,
+            api_secret=api_secret or None,
+            passphrase=passphrase or None,
+            circuit_breaker=get_clob_breaker(s),
+            rate_limiter=get_clob_rate_limiter(s),
+        )
+
     # CLOB v2 cutover (WARP/clob-v2-cutover): py-clob-client-v2 single-package
     # backend, native v2 order struct + builder attribution. Takes precedence
     # over USE_PYSDK_CLOB when enabled. Default OFF until staging-proven.

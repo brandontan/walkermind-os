@@ -17,3 +17,6 @@ graphify-out/
 # Claude Code ephemeral agent worktrees (never tracked)
 .claude/worktrees/
 .blackboxcli/
+
+# Rust sidecar build artifacts (projects/polymarket/crusaderbot/sidecar)
+projects/polymarket/crusaderbot/sidecar/target/

@@ -1,0 +1,32 @@
+[package]
+name = "order-sidecar"
+version = "0.1.0"
+edition = "2021"
+description = "CrusaderBot Rust order sidecar — places Polymarket CLOB orders for EIP-7702 deposit wallets (SignatureType::Poly1271) that py-clob-client-v2 cannot sign. Invoked by the Python bot over JSON-stdio."
+publish = false
+
+[[bin]]
+name = "order-sidecar"
+path = "src/main.rs"
+
+[dependencies]
+# The only client known to trade Polymarket deposit wallets. The canary line
+# carries SignatureType::Poly1271 + sign_poly1271_order (the wrapped EIP-1271
+# order signature) which the stable 0.5.x line does not. Pinned exactly —
+# bump only with a fresh broker proof.
+polymarket_client_sdk_v2 = { version = "=0.6.0-canary.1", default-features = false, features = ["clob"] }
+alloy = { version = "1", default-features = false, features = ["signer-local"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rust_decimal = "1"
+anyhow = "1"
+# Version-matched to the SDK's own deps so types interoperate.
+uuid = "1"
+secrecy = "0.10"
+
+[profile.release]
+# Small static-ish binary for the Fly image; LTO keeps it lean.
+lto = true
+strip = true
+codegen-units = 1
