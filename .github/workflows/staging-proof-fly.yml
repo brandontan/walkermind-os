@@ -214,7 +214,7 @@ jobs:
             apt-get install -y --no-install-recommends curl build-essential pkg-config libssl-dev >/dev/null 2>&1
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --no-modify-path >/dev/null 2>&1
             export PATH="$HOME/.cargo/bin:$PATH"
-            echo "SIDECAR_BUILD: cargo build --release ..."
+            echo "SIDECAR_BUILD: cargo build --locked (debug) ..."
             ( cd /repo/projects/polymarket/crusaderbot/sidecar && cargo build --locked 2>&1 ) | tail -5
             cp /repo/projects/polymarket/crusaderbot/sidecar/target/debug/order-sidecar /usr/local/bin/order-sidecar
             echo "SIDECAR_READY: $(ls -lh /usr/local/bin/order-sidecar)"
@@ -265,12 +265,12 @@ jobs:
           echo "Proof machine id: $MID (app=$PROOF_APP region=$FLY_REGION)"
 
           # ---- Stream the machine's logs WHILE it runs (fly logs only tails live) ----
-          ( timeout 700 flyctl logs --app "$PROOF_APP" >> fly-proof.log 2>/dev/null ) &
+          ( timeout 2100 flyctl logs --app "$PROOF_APP" >> fly-proof.log 2>/dev/null ) &
           LOGPID=$!
 
           # ---- Wait for the machine to finish ----
           ST=unknown
-          for i in $(seq 1 110); do
+          for i in $(seq 1 200); do
             ST=$(flyctl machines list --app "$PROOF_APP" --json 2>/dev/null | jq -r --arg id "$MID" '(.[]|select(.id==$id)|.state) // "gone"')
             echo "[$i] machine state=$ST"
             case "$ST" in stopped|destroyed|failed|gone) break;; esac
