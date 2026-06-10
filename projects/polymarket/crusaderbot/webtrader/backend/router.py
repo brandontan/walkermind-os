@@ -2692,6 +2692,128 @@ async def disable_live(user: _CurrentUser) -> dict:
     return {"ok": True, "trading_mode": "paper"}
 
 
+# ── Self-serve TOTP 2FA ────────────────────────────────────────────────────
+# Closes the documented gap in live_checklist._gate_two_factor. Flow:
+#   POST /2fa/setup → returns provisioning URI + base32 secret (QR client-side)
+#   POST /2fa/verify {code} → flips totp_enabled + system_settings[2fa_enabled:{uid}]
+#                              (gate 7 lights up automatically)
+#   POST /2fa/disable {code} → reverts (requires current code)
+#   GET /2fa/status → {enrolled, enabled} non-secret read
+#
+# Rate-limited per user (5/min on the write paths) so a stolen session cannot
+# brute-force the 6-digit code. The verify path itself has a 1-window tolerance
+# (±30s) for clock drift — tight to make brute force impractical without also
+# rate-limiting.
+
+
+class _TotpSetupResponse(_BaseModel):
+    otpauth_uri: str
+    secret: str
+
+
+class _TotpStatusResponse(_BaseModel):
+    enrolled: bool
+    enabled: bool
+
+
+class _TotpCodeRequest(_BaseModel):
+    code: str
+
+
+@router.get("/2fa/status", response_model=_TotpStatusResponse)
+async def get_2fa_status(user: _CurrentUser) -> _TotpStatusResponse:
+    """Non-secret 2FA state for the UI — never returns the secret."""
+    from ...domain.auth import totp
+    out = await totp.status(UUID(str(user["user_id"])))
+    return _TotpStatusResponse(**out)
+
+
+@router.post(
+    "/2fa/setup",
+    response_model=_TotpSetupResponse,
+    dependencies=[Depends(per_user_rate_limit("two_factor_setup", limit=5))],
+)
+async def setup_2fa(user: _CurrentUser) -> _TotpSetupResponse:
+    """Generate + persist a fresh TOTP secret. Returns the otpauth URI + the
+    base32 secret so the UI can render a QR + the manual fallback. Calling
+    this on an already-enabled account ROTATES the secret — the user must
+    re-verify with a new code before 2FA is considered enabled again (the
+    setup endpoint does NOT clear the enabled flag immediately, so a user
+    who clicks Setup by mistake doesn't lose 2FA until they finish the new
+    rotation; the verify endpoint re-affirms on success)."""
+    from ...domain.auth import totp
+    user_id = UUID(str(user["user_id"]))
+    label = user.get("email") or user.get("username") or str(user_id)[:8]
+    out = await totp.enroll(user_id, str(label))
+    await audit.write(
+        actor_role="user",
+        action="webtrader_2fa_setup",
+        user_id=user_id,
+        payload={"source": "/api/web/2fa/setup"},
+    )
+    return _TotpSetupResponse(**out)
+
+
+@router.post(
+    "/2fa/verify",
+    dependencies=[Depends(per_user_rate_limit("two_factor_verify", limit=5))],
+)
+async def verify_2fa(body: _TotpCodeRequest, user: _CurrentUser) -> dict:
+    """Validate the code + flip ``totp_enabled``. On success the live_checklist
+    gate 7 reads the system_settings flag and lights up — no separate gate
+    change needed."""
+    from ...domain.auth import totp
+    user_id = UUID(str(user["user_id"]))
+    try:
+        await totp.verify_and_enable(user_id, body.code)
+    except totp.TotpNotEnrolled as exc:
+        raise HTTPException(status_code=409, detail="2fa not enrolled") from exc
+    except totp.TotpInvalidCode as exc:
+        raise HTTPException(status_code=400, detail="invalid 2fa code") from exc
+    except totp.TotpDecryptionError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="2fa secret decrypt failed; re-enroll via /2fa/setup",
+        ) from exc
+    await audit.write(
+        actor_role="user",
+        action="webtrader_2fa_verify",
+        user_id=user_id,
+        payload={"enabled": True},
+    )
+    return {"ok": True, "enabled": True}
+
+
+@router.post(
+    "/2fa/disable",
+    dependencies=[Depends(per_user_rate_limit("two_factor_verify", limit=5))],
+)
+async def disable_2fa(body: _TotpCodeRequest, user: _CurrentUser) -> dict:
+    """Clear ``totp_enabled`` + the stored secret + the system_settings flag.
+    Requires a valid current code so a stolen session cannot disable the
+    second factor without the device that holds it."""
+    from ...domain.auth import totp
+    user_id = UUID(str(user["user_id"]))
+    try:
+        await totp.verify_and_disable(user_id, body.code)
+    except totp.TotpNotEnrolled as exc:
+        raise HTTPException(status_code=409, detail="2fa not enrolled") from exc
+    except totp.TotpInvalidCode as exc:
+        raise HTTPException(status_code=400, detail="invalid 2fa code") from exc
+    except totp.TotpDecryptionError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="2fa secret decrypt failed; contact support",
+        ) from exc
+    await audit.write(
+        actor_role="user",
+        action="webtrader_2fa_disable",
+        user_id=user_id,
+        payload={"enabled": False},
+    )
+    return {"ok": True, "enabled": False}
+
+
 # ── Account unification — reverse Telegram-link ────────────────────────────
 # An email-first WebTrader user links their Telegram so both surfaces resolve
 # to ONE account (one user_id → LIVE/PAPER state always in sync). WebTrader
