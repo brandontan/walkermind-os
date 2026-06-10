@@ -246,13 +246,19 @@ def _staging_settings() -> Any:
     """
     from projects.polymarket.crusaderbot.config import get_settings
 
-    # CLOB backend selection (3-way, matches the factory precedence in
-    # integrations/clob/__init__.py: v2 > pysdk > legacy):
-    #   USE_CLOB_V2=1     -> py-clob-client-v2 cutover backend (the WARP-97 lane;
-    #                        validate this before flipping USE_CLOB_V2 in prod).
+    # CLOB backend selection (matches the factory precedence in
+    # integrations/clob/__init__.py: sidecar > v2 > pysdk > legacy):
+    #   USE_RUST_SIDECAR=1 -> Rust order-sidecar (POLY_1271 deposit wallets;
+    #                        the only backend that signs sig-3 orders for the
+    #                        post-2026-04-28 EIP-7702 wallet generation).
+    #                        Takes precedence over every Python backend.
+    #   USE_CLOB_V2=1     -> py-clob-client-v2 cutover backend (WARP-97).
     #                        Takes precedence over USE_PYSDK_CLOB in the factory.
     #   USE_PYSDK_CLOB=1  -> polymarket-client backend (default when v2 is off).
-    #   both 0            -> legacy py-clob-client v1 ClobAdapter (comparison run).
+    #   all 0             -> legacy py-clob-client v1 ClobAdapter (comparison run).
+    _use_sidecar = os.getenv("USE_RUST_SIDECAR", "0").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
     _use_v2 = os.getenv("USE_CLOB_V2", "0").strip().lower() in (
         "1", "true", "yes", "on",
     )
@@ -261,8 +267,14 @@ def _staging_settings() -> Any:
     )
     return get_settings().model_copy(update={
         "USE_REAL_CLOB": True,
+        "USE_RUST_SIDECAR": _use_sidecar,
         "USE_CLOB_V2": _use_v2,
         "USE_PYSDK_CLOB": _use_pysdk,
+        # RUST_SIDECAR_PATH stays at its config default (/usr/local/bin/
+        # order-sidecar in the Fly runtime image) unless the operator
+        # explicitly overrides it for local dev.
+        **({"RUST_SIDECAR_PATH": os.getenv("RUST_SIDECAR_PATH")}
+           if os.getenv("RUST_SIDECAR_PATH") else {}),
         "POLYMARKET_PRIVATE_KEY": _WALLET,
         "POLYMARKET_FUNDER_ADDRESS": os.getenv("STAGING_FUNDER_ADDRESS"),
         "POLYMARKET_SIGNATURE_TYPE": int(os.getenv("STAGING_SIGNATURE_TYPE", "2")),
