@@ -50,6 +50,74 @@ _STARTUP_DEDUP_KEY = "startup_notif_sent"
 _STARTUP_DEDUP_TTL = 60  # seconds — covers Fly.io rolling deploy overlap
 
 
+async def _validate_live_execution_readiness(settings, pool) -> list[str]:
+    """Surface live-execution misconfiguration at BOOT instead of on the
+    first live order.
+
+    Each check is non-fatal (same posture as the CLOB credential derivation
+    above: a paper-only or partially-configured environment must still boot)
+    but logs loudly so a misconfigured LIVE deploy is visible at deploy time,
+    not 45s into the first order. Returns the list of problems found so
+    tests can assert the contract without scraping log output.
+    """
+    problems: list[str] = []
+
+    # USE_RUST_SIDECAR expects the compiled binary baked into the image at
+    # RUST_SIDECAR_PATH. Missing/non-executable is otherwise only detected
+    # when the first live order spawns the subprocess (ClobConfigError after
+    # the order has already been claimed).
+    if settings.USE_RUST_SIDECAR:
+        sidecar = Path(settings.RUST_SIDECAR_PATH)
+        if not sidecar.is_file():
+            problems.append(
+                f"USE_RUST_SIDECAR=true but no binary at {settings.RUST_SIDECAR_PATH} "
+                "— every live order will fail pre-submit until the image ships it"
+            )
+        elif not os.access(sidecar, os.X_OK):
+            problems.append(
+                f"USE_RUST_SIDECAR=true but {settings.RUST_SIDECAR_PATH} is not "
+                "executable — every live order will fail pre-submit"
+            )
+
+    # USE_PER_USER_EXECUTION refuses (per-order, fail-safe) on any wallet row
+    # whose polymarket_deposit_wallet column is NULL. A missed
+    # backfill_deposit_wallets() run is the expected operator error — count it
+    # here so the gap is one log line at boot, not N refused orders later.
+    if settings.USE_PER_USER_EXECUTION:
+        try:
+            async with pool.acquire() as conn:
+                null_count = await conn.fetchval(
+                    "SELECT COUNT(*) FROM wallets "
+                    "WHERE polymarket_deposit_wallet IS NULL"
+                )
+            if null_count:
+                problems.append(
+                    f"USE_PER_USER_EXECUTION=true but {null_count} wallet(s) have "
+                    "polymarket_deposit_wallet NULL — run "
+                    "wallet.deposit_wallet.backfill_deposit_wallets() or those "
+                    "users' live orders will be refused"
+                )
+        except Exception as exc:  # noqa: BLE001 — validation must never block boot
+            log.warning(
+                "startup: per-user execution backfill check skipped "
+                "(query failed): %s", exc,
+            )
+
+    # Blueprint §12 default-OFF policy: auto-redeem alongside live trading
+    # performs on-chain redeems automatically. Allowed (env var IS the
+    # explicit operator enable) but worth one unmissable line at boot.
+    if settings.ENABLE_LIVE_TRADING and settings.AUTO_REDEEM_ENABLED:
+        log.warning(
+            "startup: ENABLE_LIVE_TRADING=true with AUTO_REDEEM_ENABLED=true — "
+            "resolved live positions will be redeemed on-chain automatically "
+            "(blueprint §12 default-OFF policy: disable unless explicitly intended)"
+        )
+
+    for problem in problems:
+        log.error("startup: live execution readiness — %s", problem)
+    return problems
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global bot_app, scheduler_app, _webhook_secret, _webhook_mode_active
@@ -124,6 +192,8 @@ async def lifespan(_: FastAPI):
                 "startup: CLOB credential derivation failed — live orders will "
                 "fail until credentials are provided: %s", _cred_exc,
             )
+
+    await _validate_live_execution_readiness(settings, pool)
 
     await webtrader_sse.start_listener(settings.DATABASE_URL, pool)
 

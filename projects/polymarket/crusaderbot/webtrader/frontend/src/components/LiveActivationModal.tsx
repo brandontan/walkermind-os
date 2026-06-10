@@ -16,15 +16,19 @@ interface Props {
   onSuccess?: () => void;
 }
 
-// Human-friendly labels for the raw gate keys the backend returns.
+// Human-friendly labels for the raw gate keys the backend returns in
+// `failed_gates` — keys MUST match domain/activation/live_checklist.py
+// GATE_ORDER exactly (the first three are operator env guards; they only
+// appear if guards are open but the checklist still reports them failed).
 const GATE_LABELS: Record<string, string> = {
-  funded: "Wallet funded with real USDC",
-  wallet: "Trading wallet ready",
-  risk_profile: "Risk profile selected",
-  preset: "A strategy preset is active",
-  tos: "Terms of Service accepted",
-  no_kill: "Kill switch is off",
-  guards: "Operator system guards open",
+  EXECUTION_PATH_VALIDATED: "Operator: execution path validated",
+  CAPITAL_MODE_CONFIRMED: "Operator: capital mode confirmed",
+  ENABLE_LIVE_TRADING: "Operator: live trading switched on",
+  active_subaccount_with_deposit: "Wallet funded — at least one confirmed USDC deposit",
+  strategy_configured: "A strategy preset is active",
+  risk_profile_configured: "Risk profile selected",
+  two_factor_setup_complete: "Two-factor authentication enabled (Settings → 2FA)",
+  operator_allowlist_approved: "Live access approved by an admin",
 };
 
 function prettyGate(g: string): string {

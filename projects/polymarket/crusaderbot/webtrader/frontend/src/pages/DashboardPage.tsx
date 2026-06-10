@@ -52,6 +52,7 @@ export function DashboardPage() {
   const [recentSignals, setRecentSignals] = useState<FeedSignal[]>([]);
   const [recentClosed, setRecentClosed] = useState<PositionItem[]>([]);
   const [pnlFlash, setPnlFlash] = useState<"up" | "down" | null>(null);
+  const [redeemError, setRedeemError] = useState<string | null>(null);
   // Alerts come from the global AlertCenterContext (fetched once at AppShell level)
   const { alerts: ctxAlerts } = useAlertCenter();
   const alerts: AlertItem[] = ctxAlerts.slice(0, 5);
@@ -348,12 +349,27 @@ export function DashboardPage() {
                     won · settle
                   </span>
                 </div>
+                {redeemError && (
+                  <div
+                    className="mb-2 px-3 py-2 text-[10px] font-mono clip-card border"
+                    style={{ background: "rgba(255,45,85,0.08)", borderColor: "rgba(255,45,85,0.3)", color: "#FF6B6B" }}
+                    role="alert"
+                  >
+                    Redeem failed: {redeemError}
+                  </div>
+                )}
                 {awaitingRedeem.map((p) => (
                   <PositionRow
                     key={p.id}
                     p={p}
                     onForceRedeem={async () => {
-                      try { await api.forceRedeem(p.id); } catch { /* surfaced via refresh */ }
+                      setRedeemError(null);
+                      try {
+                        await api.forceRedeem(p.id);
+                      } catch (e: unknown) {
+                        const msg = e instanceof Error ? e.message : String(e);
+                        setRedeemError(msg.replace(/^\d+:\s*/, ""));
+                      }
                       refreshAll();
                     }}
                   />
