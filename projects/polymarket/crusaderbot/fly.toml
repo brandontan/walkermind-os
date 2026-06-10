@@ -58,12 +58,16 @@ kill_timeout = '30s'
     path = '/health'
     protocol = 'http'
 
+# Machine size synced to the 2026-06-10 dashboard scale operation (PR #1744
+# intent — that bot PR produced invalid TOML and is superseded by this block).
+# Keeping this in sync prevents the next `fly deploy` from silently
+# downsizing the running machines back to 1GB.
 [[vm]]
-  size = 'shared-cpu-2x'
-  memory = '1gb'
+  size = 'shared-cpu-4x'
+  memory = '2gb'
   cpu_kind = 'shared'
-  cpus = 2
-  memory_mb = 1024
+  cpus = 4
+  memory_mb = 2048
 
 [[metrics]]
   port = 8080
