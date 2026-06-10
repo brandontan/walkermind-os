@@ -17,7 +17,6 @@ without submitting real orders.
 """
 from __future__ import annotations
 
-import html
 import json
 import logging
 from decimal import Decimal
@@ -26,6 +25,8 @@ from uuid import UUID
 from ... import audit, notifications
 from ...config import get_settings
 from ...database import get_pool
+from ...services import portfolio_snapshots
+from ...services.trade_notifications import TradeNotifier
 from ...integrations.clob import (
     ClobAuthError,
     ClobClientProtocol,
@@ -42,6 +43,8 @@ from ...wallet import ledger
 from .per_user_clob import resolve_user_clob_client
 from .slippage import compute_aggressive_limit_price
 from ..risk.constants import SLIPPAGE_GUARD_PCT
+
+_notifier = TradeNotifier()
 
 logger = logging.getLogger(__name__)
 
@@ -423,12 +426,31 @@ async def execute(
                                "signal_price": price,
                                "limit_price": limit_price,
                                "slippage_delta_submitted": round(limit_price - price, 6)})
-    label = html.escape(market_question or market_id)
-    await notifications.send(
-        telegram_user_id,
-        f"📈 <b>[LIVE] Opened</b>\n{label}\n<b>{html.escape(side.upper())}</b> @ {price:.3f}\n"
-        f"Size: ${size_usdc:.2f}",
-    )
+    # Full TradeNotifier entry card — paper/live visibility parity: WebTrader
+    # AlertCenter mirror + notification prefs + View/Close action buttons,
+    # replacing the bare "[LIVE] Opened" text line. Entry price shown is the
+    # submitted limit_price (matches the persisted positions.entry_price).
+    # Wrapped fail-soft: this sits AFTER broker submit + DB persist, so a
+    # notification-path error must never fail an order that already exists.
+    try:
+        await _notifier.notify_entry(
+            telegram_user_id=telegram_user_id,
+            market_id=market_id,
+            market_question=market_question,
+            side=side,
+            size_usdc=size_usdc,
+            price=limit_price,
+            tp_pct=tp_pct,
+            sl_pct=sl_pct,
+            mode="live",
+            strategy_type=strategy_type,
+            position_id=str(position_id),
+        )
+    except Exception as notify_exc:  # noqa: BLE001 — order already live
+        logger.error(
+            "live entry notification failed (order unaffected) position=%s "
+            "err=%s", position_id, notify_exc,
+        )
     return {"order_id": order_id, "position_id": position_id, "mode": "live"}
 
 
@@ -623,4 +645,9 @@ async def close_position(
                                "exit_price": exit_price,
                                "exit_reason": exit_reason,
                                "pnl_usdc": str(pnl)})
+    # Fire a portfolio_snapshots row so the cb_portfolio NOTIFY trigger
+    # pushes the new equity/PnL to WebTrader SSE listeners — same contract
+    # as the paper close path. Best-effort: the writer swallows its own
+    # errors so a snapshot outage cannot corrupt the realised-close return.
+    await portfolio_snapshots.write_snapshot(position["user_id"])
     return {"pnl_usdc": pnl, "exit_price": exit_price, "exit_reason": exit_reason}
