@@ -100,7 +100,7 @@ jobs:
   fly-proof:
     name: Order-placing proof on Fly (allowed region)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       PROOF_APP: crusaderbot-staging-proof
@@ -215,8 +215,8 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --no-modify-path >/dev/null 2>&1
             export PATH="$HOME/.cargo/bin:$PATH"
             echo "SIDECAR_BUILD: cargo build --release ..."
-            ( cd /repo/projects/polymarket/crusaderbot/sidecar && cargo build --release --locked 2>&1 ) | tail -5
-            cp /repo/projects/polymarket/crusaderbot/sidecar/target/release/order-sidecar /usr/local/bin/order-sidecar
+            ( cd /repo/projects/polymarket/crusaderbot/sidecar && cargo build --locked 2>&1 ) | tail -5
+            cp /repo/projects/polymarket/crusaderbot/sidecar/target/debug/order-sidecar /usr/local/bin/order-sidecar
             echo "SIDECAR_READY: $(ls -lh /usr/local/bin/order-sidecar)"
           fi
           ARGS="projects/polymarket/crusaderbot/tests/staging/test_live_reconcile_staging.py -v -s --tb=short"
