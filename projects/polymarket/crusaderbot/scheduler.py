@@ -192,8 +192,14 @@ _WATCH_DEPOSITS_FAIL_ESCALATE = 3
 _WATCH_DEPOSITS_FAIL_REFIRE = 30
 
 
-def _watch_deposits_failed(stage: str, exc: Exception) -> None:
-    """Log a watcher tick failure at the right severity for the streak."""
+def _watch_deposits_failed(stage: str, exc: Exception, **context: object) -> None:
+    """Log a watcher tick failure at the right severity for the streak.
+
+    ``context`` (cursor / head / watched / lookback) rides along on every
+    line so a single log read pins the exact failing request — the block-0
+    outage took five weeks to diagnose precisely because the failure line
+    carried no scan parameters.
+    """
     global _watch_deposits_fail_streak
     _watch_deposits_fail_streak += 1
     streak = _watch_deposits_fail_streak
@@ -204,12 +210,12 @@ def _watch_deposits_failed(stage: str, exc: Exception) -> None:
         log.error(
             "watch_deposits DOWN — deposits are NOT being credited "
             "(check POLYGON_RPC_URL)",
-            stage=stage, streak=streak, err=repr(exc),
+            stage=stage, streak=streak, err=repr(exc), **context,
         )
     else:
         log.warning(
             "watch_deposits tick failed (no cursor advance)",
-            stage=stage, streak=streak, err=str(exc),
+            stage=stage, streak=streak, err=repr(exc), **context,
         )
 
 
@@ -253,14 +259,26 @@ async def watch_deposits() -> None:
         _watch_deposits_failed("head read", exc)
         return
 
-    cursor_start = await _read_cursor("usdc_deposits")
+    # The cursor read is part of the tick's failure surface: an unguarded
+    # exception here would bypass the streak escalation entirely and surface
+    # only as an anonymous APScheduler "job raised an exception" line —
+    # invisible to the watch_deposits DOWN alarm.
+    try:
+        cursor_start = await _read_cursor("usdc_deposits")
+    except Exception as exc:
+        _watch_deposits_failed("cursor read", exc)
+        return
     try:
         transfers, scanned_to = await polygon.scan_from_cursor(
             addresses, cursor_start,
             lookback=settings.DEPOSIT_SCAN_LOOKBACK_BLOCKS,
         )
     except Exception as exc:
-        _watch_deposits_failed("scan", exc)
+        _watch_deposits_failed(
+            "scan", exc,
+            cursor=cursor_start, head=head, watched=len(addresses),
+            lookback=settings.DEPOSIT_SCAN_LOOKBACK_BLOCKS,
+        )
         return
     _watch_deposits_fail_streak = 0
 

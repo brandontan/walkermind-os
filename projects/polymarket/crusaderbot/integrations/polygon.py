@@ -10,6 +10,7 @@ import asyncio
 import logging
 from typing import Any, Optional
 
+from aiohttp import ClientError, ClientTimeout
 from eth_utils import event_abi_to_log_topic
 from tenacity import (
     AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential,
@@ -73,20 +74,55 @@ _usdc = None
 
 
 def _retry():
-    """Retry network/RPC errors only — programmer errors aren't retried."""
+    """Retry network/RPC errors only — programmer errors aren't retried.
+
+    ``ClientError`` matters: web3's AsyncHTTPProvider surfaces non-2xx HTTP
+    responses (Alchemy 429 throttles, 5xx blips) as aiohttp
+    ``ClientResponseError`` — NOT as ``Web3RPCError`` / ``ConnectionError`` —
+    so without it a single throttled response failed the whole call instead
+    of backing off. ``TimeoutError`` covers ``asyncio.timeout`` deadlines
+    (Python 3.11+: ``asyncio.TimeoutError is TimeoutError``).
+    """
     return AsyncRetrying(
         reraise=True,
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=8),
-        retry=retry_if_exception_type((Web3RPCError, ConnectionError, TimeoutError)),
+        retry=retry_if_exception_type(
+            (Web3RPCError, ClientError, ConnectionError, TimeoutError)
+        ),
     )
+
+
+# Fallback when a (test-stub) Settings object predates the field.
+_DEFAULT_RPC_TIMEOUT = 20
+
+
+def _rpc_deadline() -> int:
+    """Per-call wall-clock ceiling for one JSON-RPC round trip."""
+    return int(getattr(
+        get_settings(), "POLYGON_RPC_TIMEOUT_SECONDS", _DEFAULT_RPC_TIMEOUT,
+    ))
 
 
 def _get_w3() -> AsyncWeb3:
     global _w3, _usdc
     if _w3 is None:
         settings = get_settings()
-        _w3 = AsyncWeb3(AsyncHTTPProvider(settings.POLYGON_RPC_URL))
+        # Explicit aiohttp ClientTimeout: without it the session defaults to
+        # total=300s, and a peer that accepts the TCP connection but never
+        # answers wedges the call for 5 minutes per retry attempt. The
+        # asyncio.timeout() wrappers below are the belt to this suspender —
+        # they bound the call even if a future web3/aiohttp version stops
+        # honouring request_kwargs.
+        _w3 = AsyncWeb3(AsyncHTTPProvider(
+            settings.POLYGON_RPC_URL,
+            request_kwargs={
+                "timeout": ClientTimeout(total=getattr(
+                    settings, "POLYGON_RPC_TIMEOUT_SECONDS",
+                    _DEFAULT_RPC_TIMEOUT,
+                )),
+            },
+        ))
         try:
             from web3.middleware import ExtraDataToPOAMiddleware
             _w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
@@ -110,7 +146,8 @@ async def get_native_balance(address: str) -> float:
     try:
         async for attempt in _retry():
             with attempt:
-                wei = await w3.eth.get_balance(checksum)
+                async with asyncio.timeout(_rpc_deadline()):
+                    wei = await w3.eth.get_balance(checksum)
         return float(w3.from_wei(wei, "ether"))
     except Exception as exc:
         logger.error("get_native_balance permanently failed for %s: %s",
@@ -125,7 +162,8 @@ async def get_usdc_balance(address: str) -> float:
     try:
         async for attempt in _retry():
             with attempt:
-                raw = await contract.functions.balanceOf(checksum).call()
+                async with asyncio.timeout(_rpc_deadline()):
+                    raw = await contract.functions.balanceOf(checksum).call()
         return raw / (10 ** settings.USDC_DECIMALS)
     except Exception as exc:
         logger.error("get_usdc_balance permanently failed for %s: %s",
@@ -137,7 +175,8 @@ async def latest_block() -> int:
     w3 = _get_w3()
     async for attempt in _retry():
         with attempt:
-            return int(await w3.eth.block_number)
+            async with asyncio.timeout(_rpc_deadline()):
+                return int(await w3.eth.block_number)
     return 0  # unreachable; tenacity reraises
 
 
@@ -148,7 +187,8 @@ async def gas_price_gwei() -> float:
     w3 = _get_w3()
     async for attempt in _retry():
         with attempt:
-            wei = await w3.eth.gas_price
+            async with asyncio.timeout(_rpc_deadline()):
+                wei = await w3.eth.gas_price
     return float(wei) / 1e9
 
 
@@ -186,12 +226,13 @@ async def scan_usdc_transfers(
     to_topics = [_addr_to_topic(a) for a in addresses]
     async for attempt in _retry():
         with attempt:
-            logs = await w3.eth.get_logs({
-                "fromBlock": from_block,
-                "toBlock": to_block,
-                "address": scan_cs,
-                "topics": [TRANSFER_TOPIC, None, to_topics],
-            })
+            async with asyncio.timeout(_rpc_deadline()):
+                logs = await w3.eth.get_logs({
+                    "fromBlock": from_block,
+                    "toBlock": to_block,
+                    "address": scan_cs,
+                    "topics": [TRANSFER_TOPIC, None, to_topics],
+                })
     out = []
     for log in logs:
         try:
@@ -215,6 +256,12 @@ async def scan_usdc_transfers(
     return out
 
 
+# Smallest eth_getLogs span the adaptive scan will fall back to. If a provider
+# rejects even a 31-block range the problem is not the range — reraise and let
+# the caller's no-cursor-advance contract retry next tick.
+_MIN_SCAN_RANGE = 31
+
+
 async def scan_from_cursor(
     addresses: list[str], cursor: int, lookback: int = 2000, max_range: int = 1000,
     token_address: Optional[str] = None,
@@ -225,13 +272,47 @@ async def scan_from_cursor(
     USDC.e collateral contract). Returns (transfers, scanned_to_block). The
     caller is responsible for persisting `scanned_to_block` only after every
     transfer has been successfully processed. Raises on permanent RPC failure.
+
+    ADAPTIVE RANGE: providers cap eth_getLogs differently (block-range and
+    response-size ceilings vary by vendor and plan, and the rejection arrives
+    as a ``Web3RPCError`` only AFTER the in-call retries are exhausted). A
+    fixed span turns such a cap into a permanent every-tick failure — the
+    block-0 cursor outage mode. On a ``Web3RPCError`` the span halves down to
+    ``_MIN_SCAN_RANGE``; a smaller successful scan still advances the cursor,
+    so the watcher self-heals instead of wedging. Transport-level errors
+    (timeouts, throttles, connection drops) are NOT halved — shrinking the
+    range cannot fix those, and the per-tick retry already covers them.
     """
     head = await latest_block()
     start = cursor + 1 if cursor > 0 else max(head - lookback, 0)
     if start > head:
         return [], cursor
-    end = min(head, start + max_range - 1)
-    transfers = await scan_usdc_transfers(
-        addresses, start, end, token_address=token_address,
-    )
-    return transfers, end
+    span = max(int(max_range), 1)
+    while True:
+        end = min(head, start + span - 1)
+        try:
+            transfers = await scan_usdc_transfers(
+                addresses, start, end, token_address=token_address,
+            )
+            return transfers, end
+        except Web3RPCError as exc:
+            if span <= _MIN_SCAN_RANGE:
+                logger.error(
+                    "scan_from_cursor exhausted adaptive range: "
+                    "start=%s end=%s span=%s addresses=%s err=%r",
+                    start, end, span, len(addresses), exc,
+                )
+                raise
+            logger.warning(
+                "scan_from_cursor range rejected — halving span: "
+                "start=%s end=%s span=%s addresses=%s err=%r",
+                start, end, span, len(addresses), exc,
+            )
+            span = max(span // 2, _MIN_SCAN_RANGE)
+        except (ClientError, ConnectionError, TimeoutError) as exc:
+            logger.error(
+                "scan_from_cursor transport failure (range not at fault): "
+                "start=%s end=%s span=%s addresses=%s err=%r",
+                start, end, span, len(addresses), exc,
+            )
+            raise

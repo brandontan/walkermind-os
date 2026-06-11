@@ -3874,8 +3874,23 @@ async def run_once() -> None:
                     ) if _mid
                 ]
                 # Normalized rows are independent PK lookups — load concurrently.
-                _loaded = await asyncio.gather(*(_load_market(_mid) for _mid in _mids))
-                _cset_rows = [_norm for _norm in _loaded if _norm is not None]
+                # return_exceptions: one failed lookup drops that market only;
+                # without it a single DB blip aborted the whole cset pass for
+                # this user-tick via the outer fail-soft except.
+                _loaded = await asyncio.gather(
+                    *(_load_market(_mid) for _mid in _mids),
+                    return_exceptions=True,
+                )
+                for _mid, _norm in zip(_mids, _loaded):
+                    if isinstance(_norm, BaseException):
+                        user_log.warning(
+                            "cset_market_load_failed", market_id=_mid,
+                            err=repr(_norm),
+                        )
+                _cset_rows = [
+                    _norm for _norm in _loaded
+                    if _norm is not None and not isinstance(_norm, BaseException)
+                ]
                 _cset_res = await scan_complete_set_for_user(
                     row, _cset_rows, settings=_get_settings(),
                 )
