@@ -106,6 +106,8 @@ CRUSADERBOT is considered **DONE** only when:
 
 ## Active — In Progress
 
+- [x] WARP•R00T overnight full-surface live/paper readiness program (owner directive 2026-06-10) — Phase 0 matrix #1754 + Lane A live-notify-parity #1755 (SENTINEL APPROVED 98/100) + Lane B telegram-live-truth #1756 ALL MERGED; suite 3413/11. Matrix: reports/forge/readiness-matrix.md. Wake-up handoff: reports/forge/overnight-handoff.md. Remaining go-live items owner-gated ops only (POLYGON_RPC_URL, backfill, flag/guard flips, mainnet moves).
+
 - Candle Oracle epic (Linear WARP-61, multi-asset BTC/ETH/SOL edge engine for late_entry_v3):
   - [x] WARP-62 Chunk 1/4 [STANDARD/FOUNDATION] MERGED #1601 (squash fbe2abd) — multi-asset oracle client via Polymarket RTDS WebSocket + price_to_beat capture (staleness-honest; default OFF). Report: reports/forge/oracle-chainlink-client.md.
   - [x] WARP-63 Chunk 2/4 [STANDARD/FOUNDATION] MERGED #1602 (squash 5f6bf72) — pure per-asset-sigma fair-value / edge calculator. Report: reports/forge/oracle-fairvalue-calc.md.
