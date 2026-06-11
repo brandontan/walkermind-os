@@ -56,6 +56,12 @@ SECURITY (same lane — found while reading the prod failure lines):
   `api.telegram.org/bot<TOKEN>/getUpdates` was verbatim in Fly logs.
   `configure_json_logging` now pins the `httpx` logger to WARNING.
 
+Gemini #1763 review applied (both findings verified real): HIGH — empty query
+string in a configured URL would have made `str.replace("", ...)` insert
+`[redacted]` between every character of the log line (guarded); MED — the
+probe-up streak now counts only clean FULL-WINDOW passes, so budget-exhausted
+catch-up ticks never waste a probe request on a span the provider just capped.
+
 ## 2. Current system architecture (relevant slice)
 
 ```

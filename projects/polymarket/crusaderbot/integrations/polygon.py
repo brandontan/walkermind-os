@@ -105,7 +105,11 @@ def redact_rpc_secrets(text: str) -> str:
             if len(segment) >= 12:
                 text = text.replace(segment, "[redacted]")
         if "?" in path:
-            text = text.replace(path.split("?", 1)[1], "[redacted]")
+            # Guard the empty query string: str.replace("", x) would insert
+            # x between EVERY character of the log line (Gemini #1763).
+            query = path.split("?", 1)[1]
+            if query:
+                text = text.replace(query, "[redacted]")
     return text
 
 
@@ -443,10 +447,16 @@ async def scan_from_cursor(
             f"(start={start} head={head} final_span={span})",
         )
     # Span memory (#1762): a call that halved stores the span it PROVED works
-    # (never a size it saw rejected); clean no-halve calls build a streak and
-    # only the _PROBE_UP_AFTER-th one probes upward, so steady state wastes
-    # zero calls while a transiently mis-halved span recovers in ~10 minutes.
+    # (never a size it saw rejected); clean FULL-WINDOW passes build a streak
+    # and only the _PROBE_UP_AFTER-th one probes upward, so steady state
+    # wastes zero calls while a transiently mis-halved span recovers once the
+    # scan is caught up. A call that ended early — transport break, floor
+    # rejection after coverage, or budget exhaustion mid-catch-up — is not a
+    # clean pass: it stores the working span with streak 0 (Gemini #1763), so
+    # catch-up never wastes probe requests on a span the provider just capped.
     if halved:
+        _accepted_span[token_address] = (span, 0)
+    elif chunk_start <= head:
         _accepted_span[token_address] = (span, 0)
     elif span < ceiling and streak + 1 >= _PROBE_UP_AFTER:
         _accepted_span[token_address] = (min(span * 2, ceiling), 0)

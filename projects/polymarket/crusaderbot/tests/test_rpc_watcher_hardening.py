@@ -331,12 +331,12 @@ def test_scan_from_cursor_treats_429_as_transport():
 
 
 def test_accepted_span_is_remembered_without_oscillation():
-    """The halving ladder must not be re-walked from max_range every tick,
-    AND a tick that just halved must not store the size it saw rejected
-    (Gemini #1762) — steady state under a static provider cap costs ZERO
-    wasted probes; the upward probe fires only after a streak of clean
-    first-try ticks. max_rpc=3 keeps each tick to three requests so the
-    per-tick span sequence stays readable."""
+    """The halving ladder must not be re-walked from max_range every tick;
+    a tick that just halved must not store the size it saw rejected (Gemini
+    #1762); and ONLY clean FULL-WINDOW passes build the probe-up streak
+    (Gemini #1763) — a budget-exhausted catch-up tick never wastes a probe
+    request on a span the provider just capped. The probe fires after
+    _PROBE_UP_AFTER clean full passes, gets rejected once, and settles."""
     calls: list[tuple[int, int]] = []
     cursor = 0
 
@@ -346,26 +346,31 @@ def test_accepted_span_is_remembered_without_oscillation():
             raise _http_rejection(400)
         return []
 
-    def _tick():
+    def _tick(head: int, **kw):
         nonlocal cursor
-        _, scanned_to = asyncio.run(polygon.scan_from_cursor(
-            ["0xabc"], cursor=cursor, lookback=50_000, max_rpc=3,
-        ))
+        with patch.object(polygon, "latest_block",
+                          AsyncMock(return_value=head)):
+            _, scanned_to = asyncio.run(polygon.scan_from_cursor(
+                ["0xabc"], cursor=cursor, lookback=50_000, **kw,
+            ))
         cursor = scanned_to
         spans = [e - s + 1 for s, e in calls]
         calls.clear()
         return spans
 
-    with patch.object(polygon, "latest_block", AsyncMock(return_value=100_000)), \
-            patch.object(polygon, "scan_usdc_transfers", _scan):
-        assert _tick() == [1000, 500, 250]   # discovery walk, once
-        # Steady state: every chunk 250 first-try, no re-walk from 1000.
-        for _ in range(polygon._PROBE_UP_AFTER - 1):
-            assert _tick() == [250, 250, 250]
-        # The streak-th clean tick stays at 250; the NEXT tick probes 500,
-        # gets rejected once, and settles back — bounded, infrequent probing.
-        assert _tick() == [250, 250, 250]
-        assert _tick() == [500, 250, 250]
+    with patch.object(polygon, "scan_usdc_transfers", _scan):
+        # Discovery walk, once — deep window, budget-exhausted.
+        assert _tick(100_000, max_rpc=3) == [1000, 500, 250]
+        # Catch-up (budget exhausted every tick): opens at the remembered
+        # 250 with NO re-walk and NO upward probe, however many ticks pass.
+        for _ in range(polygon._PROBE_UP_AFTER + 1):
+            assert _tick(100_000, max_rpc=3) == [250, 250, 250]
+        # Caught up: clean full-window passes (2 chunks each) build the
+        # streak; the tick after the streak-th probes 500, gets rejected
+        # once, and settles back — bounded, infrequent probing.
+        for _ in range(polygon._PROBE_UP_AFTER):
+            assert _tick(cursor + 500) == [250, 250]
+        assert _tick(cursor + 500) == [500, 250, 250]
 
 
 def test_should_retry_classification():
@@ -562,6 +567,22 @@ def test_redact_rpc_secrets_strips_api_key():
     assert "WSKEY9876543210" not in out
     assert "polygon-mainnet.g.alchemy.com" in out
     assert "[redacted]" in out
+
+
+def test_redact_rpc_secrets_handles_empty_query_string():
+    """A configured URL ending in '?' yields an empty query string —
+    str.replace('', x) would insert x between EVERY character of the log
+    line (Gemini #1763). The redactor must leave unrelated text intact."""
+    settings = types.SimpleNamespace(
+        POLYGON_RPC_URL="https://rpc.example/v2/TRAILINGKEY12345?",
+        ALCHEMY_POLYGON_RPC_URL=None,
+        ALCHEMY_POLYGON_WS_URL=None,
+    )
+    with patch.object(polygon, "get_settings", return_value=settings):
+        assert polygon.redact_rpc_secrets("plain text") == "plain text"
+        assert "TRAILINGKEY12345" not in polygon.redact_rpc_secrets(
+            "err at https://rpc.example/v2/TRAILINGKEY12345?"
+        )
 
 
 def test_watch_deposits_failure_line_redacts_rpc_key():
