@@ -34,7 +34,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from aiohttp import ClientError
+from aiohttp import ClientError, ClientResponseError
 from tenacity import (
     AsyncRetrying, retry_if_exception_type, stop_after_attempt,
 )
@@ -60,11 +60,13 @@ def _set_required_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def _isolated_state():
     polygon._w3 = None
     polygon._usdc = None
+    polygon._accepted_span.clear()
     crusaderbot_config.get_settings.cache_clear()
     scheduler._watch_deposits_fail_streak = 0
     yield
     polygon._w3 = None
     polygon._usdc = None
+    polygon._accepted_span.clear()
     crusaderbot_config.get_settings.cache_clear()
     scheduler._watch_deposits_fail_streak = 0
 
@@ -242,6 +244,81 @@ def test_scan_from_cursor_does_not_halve_transport_errors():
                 polygon.scan_from_cursor(["0xabc"], cursor=0, lookback=50_000)
             )
     assert scan.await_count == 1
+
+
+def _http_rejection(status: int) -> ClientResponseError:
+    return ClientResponseError(None, (), status=status, message="provider says no")
+
+
+def test_scan_from_cursor_halves_on_http_400_rejection():
+    """web3 v7 raise_for_status()es non-2xx BEFORE parsing the JSON-RPC body,
+    so an Alchemy-class range/size cap arrives as ClientResponseError(400) —
+    NOT Web3RPCError. The adaptive scan must treat that as a range verdict
+    (halve), or the prod block-0 outage mode persists on such vendors."""
+    calls: list[tuple[int, int]] = []
+
+    async def _scan(addresses, from_block, to_block, token_address=None):
+        calls.append((from_block, to_block))
+        if (to_block - from_block + 1) > 250:
+            raise _http_rejection(400)
+        return [{"to": "0xabc", "amount": 1.0}]
+
+    with patch.object(polygon, "latest_block", AsyncMock(return_value=100_000)), \
+            patch.object(polygon, "scan_usdc_transfers", _scan):
+        transfers, scanned_to = asyncio.run(
+            polygon.scan_from_cursor(["0xabc"], cursor=0, lookback=50_000)
+        )
+    assert [e - s + 1 for s, e in calls] == [1000, 500, 250]
+    assert transfers and scanned_to == 50_000 + 250 - 1
+
+
+def test_scan_from_cursor_treats_429_as_transport():
+    """A throttle is not a range verdict — no halving, fail fast, retry next
+    tick (the per-call tenacity layer already backs 429s off)."""
+    scan = AsyncMock(side_effect=_http_rejection(429))
+    with patch.object(polygon, "latest_block", AsyncMock(return_value=100_000)), \
+            patch.object(polygon, "scan_usdc_transfers", scan):
+        with pytest.raises(ClientResponseError):
+            asyncio.run(
+                polygon.scan_from_cursor(["0xabc"], cursor=0, lookback=50_000)
+            )
+    assert scan.await_count == 1
+
+
+def test_accepted_span_is_remembered_across_ticks():
+    """The halving ladder must not be re-walked from max_range every tick —
+    the accepted span is remembered (with a gentle upward probe) so steady
+    state costs ~1 extra call, not 3+ per tick."""
+    calls: list[tuple[int, int]] = []
+
+    async def _scan(addresses, from_block, to_block, token_address=None):
+        calls.append((from_block, to_block))
+        if (to_block - from_block + 1) > 250:
+            raise _http_rejection(400)
+        return []
+
+    with patch.object(polygon, "latest_block", AsyncMock(return_value=100_000)), \
+            patch.object(polygon, "scan_usdc_transfers", _scan):
+        asyncio.run(polygon.scan_from_cursor(["0xabc"], cursor=0, lookback=50_000))
+        first = [e - s + 1 for s, e in calls]
+        calls.clear()
+        asyncio.run(polygon.scan_from_cursor(["0xabc"], cursor=50_249,
+                                             lookback=50_000))
+        second = [e - s + 1 for s, e in calls]
+    assert first == [1000, 500, 250]
+    # Second tick starts from the remembered 250*2 probe, not 1000.
+    assert second == [500, 250]
+
+
+def test_should_retry_classification():
+    assert polygon._should_retry(_http_rejection(400)) is False
+    assert polygon._should_retry(_http_rejection(413)) is False
+    assert polygon._should_retry(_http_rejection(429)) is True
+    assert polygon._should_retry(_http_rejection(503)) is True
+    assert polygon._should_retry(Web3RPCError("limit")) is True
+    assert polygon._should_retry(ClientError("conn reset")) is True
+    assert polygon._should_retry(TimeoutError()) is True
+    assert polygon._should_retry(ValueError("bug")) is False
 
 
 def test_scan_from_cursor_unchanged_contract_on_success():
