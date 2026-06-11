@@ -73,6 +73,42 @@ _w3: Optional[AsyncWeb3] = None
 _usdc = None
 
 
+def redact_rpc_secrets(text: str) -> str:
+    """Strip RPC API keys from text destined for logs.
+
+    aiohttp's ``ClientResponseError`` repr embeds the full request URL —
+    including the provider API key in the path (``/v2/<key>``) — and that
+    repr reaches Fly logs and Sentry via the watcher failure lines. Replace
+    the secret segments of every configured RPC URL with ``[redacted]``.
+
+    Exception-safe by contract: this helper decorates failure-logging paths,
+    so it must never raise. If Settings cannot resolve (bare test process),
+    there is no configured URL to leak — return the text unchanged.
+    """
+    try:
+        settings = get_settings()
+    except Exception:
+        return text
+    for url in (
+        getattr(settings, "POLYGON_RPC_URL", None),
+        getattr(settings, "ALCHEMY_POLYGON_RPC_URL", None),
+        getattr(settings, "ALCHEMY_POLYGON_WS_URL", None),
+    ):
+        if not url:
+            continue
+        # The key is the last path segment on Alchemy-class URLs and may also
+        # appear as a bare token elsewhere in the repr (aiohttp repeats the
+        # URL in RequestInfo + real_url). Redact path segments long enough to
+        # be credentials; never redact the scheme/host.
+        path = url.split("://", 1)[-1]
+        for segment in path.split("?", 1)[0].split("/")[1:]:
+            if len(segment) >= 12:
+                text = text.replace(segment, "[redacted]")
+        if "?" in path:
+            text = text.replace(path.split("?", 1)[1], "[redacted]")
+    return text
+
+
 def _is_request_rejection(exc: BaseException) -> bool:
     """True for a DETERMINISTIC provider rejection of the request itself.
 
@@ -281,10 +317,13 @@ async def scan_usdc_transfers(
     return out
 
 
-# Smallest eth_getLogs span the adaptive scan will fall back to. If a provider
-# rejects even a 31-block range the problem is not the range — reraise and let
-# the caller's no-cursor-advance contract retry next tick.
-_MIN_SCAN_RANGE = 31
+# Smallest eth_getLogs span the adaptive scan will fall back to. Real provider
+# caps go far below the old 31-block floor (Alchemy Free rejects anything over
+# 10 blocks — proven in prod 2026-06-11: the ladder bottomed out at 31, still
+# above the cap, and the cursor sat at block 0 for five weeks). Only a
+# provider that rejects a SINGLE-block range is genuinely broken — reraise
+# then and let the caller's no-cursor-advance contract retry next tick.
+_MIN_SCAN_RANGE = 1
 
 # Last span the provider ACCEPTED, per scanned token contract (None key = the
 # default USDC.e pass), with a consecutive first-try-success streak. Without
@@ -303,41 +342,52 @@ _PROBE_UP_AFTER = 5
 
 async def scan_from_cursor(
     addresses: list[str], cursor: int, lookback: int = 2000, max_range: int = 1000,
-    token_address: Optional[str] = None,
+    token_address: Optional[str] = None, max_rpc: int = 60,
 ) -> tuple[list[dict[str, Any]], int]:
     """Scan from `cursor` (or head-lookback if cursor==0) up to head.
 
     ``token_address`` is forwarded to ``scan_usdc_transfers`` (defaults to the
     USDC.e collateral contract). Returns (transfers, scanned_to_block). The
     caller is responsible for persisting `scanned_to_block` only after every
-    transfer has been successfully processed. Raises on permanent RPC failure.
+    transfer has been successfully processed. Raises on permanent RPC failure
+    ONLY when nothing was covered; once at least one chunk succeeded, the
+    partial coverage is returned so the cursor still advances (the failing
+    offset is retried at the START of the next tick, where a repeat failure
+    DOES raise and feeds the watch_deposits DOWN escalation).
 
-    ADAPTIVE RANGE: providers cap eth_getLogs differently (block-range and
-    response-size ceilings vary by vendor and plan). A fixed span turns such a
-    cap into a permanent every-tick failure — the block-0 cursor outage mode.
-    The rejection arrives in one of TWO shapes depending on vendor HTTP
-    behavior: a 200 + JSON-RPC error body (``Web3RPCError``) on vanilla
-    nodes, or an HTTP 400/413/414 (``ClientResponseError`` — web3 v7 calls
-    ``raise_for_status()`` before parsing the body) on Alchemy-class
-    gateways. BOTH halve the span down to ``_MIN_SCAN_RANGE``; a smaller
-    successful scan still advances the cursor, so the watcher self-heals.
-    Transport-level errors (timeouts, 429 throttles, 5xx, connection drops)
-    are NOT halved — shrinking the range cannot fix those, and the per-call
-    retry already covers them.
+    ADAPTIVE + CHUNKED RANGE: providers cap eth_getLogs per request — by
+    block range and response size, varying wildly by vendor AND plan
+    (Alchemy Free caps at 10 blocks; vanilla nodes accept thousands). A
+    rejection arrives in one of TWO shapes: a 200 + JSON-RPC error body
+    (``Web3RPCError``) on vanilla nodes, or an HTTP 400/413/414
+    (``ClientResponseError`` — web3 v7 ``raise_for_status()``es before
+    parsing the body) on Alchemy-class gateways. BOTH halve the span, down
+    to a single block. Because a tiny accepted span cannot cover the window
+    in one request, the scan then walks the window in accepted-size CHUNKS
+    until head is reached or the ``max_rpc`` request budget for this call is
+    spent (rejected probes count against the budget too). Transport errors
+    (timeouts, 429 throttles, 5xx, connection drops) are never halved —
+    shrinking the range cannot fix those, and the per-call retry already
+    covers them.
     """
     head = await latest_block()
     start = cursor + 1 if cursor > 0 else max(head - lookback, 0)
     if start > head:
         return [], cursor
     ceiling = max(int(max_range), 1)
+    budget = max(int(max_rpc), 1)
     stored_span, streak = _accepted_span.get(token_address, (ceiling, 0))
     span = min(stored_span, ceiling)
     halved = False
-    while True:
-        end = min(head, start + span - 1)
+    transfers: list[dict[str, Any]] = []
+    covered_to: Optional[int] = None
+    chunk_start = start
+    while budget > 0 and chunk_start <= head:
+        budget -= 1
+        end = min(head, chunk_start + span - 1)
         try:
-            transfers = await scan_usdc_transfers(
-                addresses, start, end, token_address=token_address,
+            chunk = await scan_usdc_transfers(
+                addresses, chunk_start, end, token_address=token_address,
             )
         except (Web3RPCError, ClientResponseError) as exc:
             rejection = isinstance(exc, Web3RPCError) or _is_request_rejection(exc)
@@ -346,21 +396,28 @@ async def scan_from_cursor(
                 # already retried per-call; range is not at fault.
                 logger.error(
                     "scan_from_cursor transport failure (range not at fault): "
-                    "start=%s end=%s span=%s addresses=%s err=%r",
-                    start, end, span, len(addresses), exc,
+                    "start=%s end=%s span=%s addresses=%s err=%s",
+                    chunk_start, end, span, len(addresses),
+                    redact_rpc_secrets(repr(exc)),
                 )
+                if covered_to is not None:
+                    break  # keep partial coverage — cursor still advances
                 raise
             if span <= _MIN_SCAN_RANGE:
                 logger.error(
                     "scan_from_cursor exhausted adaptive range: "
-                    "start=%s end=%s span=%s addresses=%s err=%r",
-                    start, end, span, len(addresses), exc,
+                    "start=%s end=%s span=%s addresses=%s err=%s",
+                    chunk_start, end, span, len(addresses),
+                    redact_rpc_secrets(repr(exc)),
                 )
+                if covered_to is not None:
+                    break
                 raise
             logger.warning(
                 "scan_from_cursor range rejected — halving span: "
-                "start=%s end=%s span=%s addresses=%s err=%r",
-                start, end, span, len(addresses), exc,
+                "start=%s end=%s span=%s addresses=%s err=%s",
+                chunk_start, end, span, len(addresses),
+                redact_rpc_secrets(repr(exc)),
             )
             span = max(span // 2, _MIN_SCAN_RANGE)
             halved = True
@@ -368,19 +425,31 @@ async def scan_from_cursor(
         except (ClientError, ConnectionError, TimeoutError) as exc:
             logger.error(
                 "scan_from_cursor transport failure (range not at fault): "
-                "start=%s end=%s span=%s addresses=%s err=%r",
-                start, end, span, len(addresses), exc,
+                "start=%s end=%s span=%s addresses=%s err=%s",
+                chunk_start, end, span, len(addresses),
+                redact_rpc_secrets(repr(exc)),
             )
+            if covered_to is not None:
+                break
             raise
-        # Accepted. A tick that just halved stores the span it PROVED works
-        # (never the size it just saw rejected — Gemini #1762); clean
-        # first-try ticks build a streak and only the _PROBE_UP_AFTER-th one
-        # probes upward, so steady state wastes zero calls while a
-        # transiently mis-halved span still recovers within ~10 minutes.
-        if halved:
-            _accepted_span[token_address] = (span, 0)
-        elif span < ceiling and streak + 1 >= _PROBE_UP_AFTER:
-            _accepted_span[token_address] = (min(span * 2, ceiling), 0)
-        else:
-            _accepted_span[token_address] = (span, streak + 1)
-        return transfers, end
+        transfers.extend(chunk)
+        covered_to = end
+        chunk_start = end + 1
+    if covered_to is None:
+        # Window non-empty but the budget burned entirely on rejected probes
+        # without one accepted chunk — surface it as a failed tick.
+        raise Web3RPCError(
+            f"scan_from_cursor: no chunk accepted within rpc budget "
+            f"(start={start} head={head} final_span={span})",
+        )
+    # Span memory (#1762): a call that halved stores the span it PROVED works
+    # (never a size it saw rejected); clean no-halve calls build a streak and
+    # only the _PROBE_UP_AFTER-th one probes upward, so steady state wastes
+    # zero calls while a transiently mis-halved span recovers in ~10 minutes.
+    if halved:
+        _accepted_span[token_address] = (span, 0)
+    elif span < ceiling and streak + 1 >= _PROBE_UP_AFTER:
+        _accepted_span[token_address] = (min(span * 2, ceiling), 0)
+    else:
+        _accepted_span[token_address] = (span, streak + 1)
+    return transfers, covered_to

@@ -539,6 +539,14 @@ class Settings(BaseSettings):
     # recovered watcher silently skipped anything older than 2000 blocks
     # (~70 min) — deposits sent during an outage were permanently missed.
     DEPOSIT_SCAN_LOOKBACK_BLOCKS: int = 50_000
+    # Per-tick eth_getLogs request budget for the deposit scanner. Providers
+    # cap the block range per request (Alchemy Free caps at 10 blocks — the
+    # cap that kept the prod cursor at block 0); the scanner covers its window
+    # in as many accepted-size chunks as this budget allows and advances the
+    # cursor over whatever it covered. At a 10-block cap the discovered span
+    # is 7: 60 requests/tick ≈ 420 blocks/tick vs ~240 produced per 120s
+    # interval — still catches up. Raise via env for faster catch-up.
+    DEPOSIT_SCAN_MAX_RPC_PER_TICK: int = 60
     SIGNAL_SCAN_INTERVAL: int = 180
     # Dedicated high-frequency scan for the close_sweep / late_entry_v3 preset.
     # Late Entry V3 only enters in the final ~35s of a crypto candle, so it must
