@@ -1,7 +1,7 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-06 00:55
+**Last Updated : 2026-06-11 16:25
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
@@ -18,11 +18,11 @@ Prove the actual runtime spine is real end-to-end:
 → onboarding
 ↓ user state
 ↓ paper wallet
-− default strategy
-− active scanner
-"钒 analysis engine
+↓ default strategy
+↓ active scanner
+↓ analysis engine
 ↓ risk gate
-−  paper trade open
+↓ paper trade open
 ↓ position monitor
 ↓ paper trade close
 ↓ portfolio update

@@ -238,8 +238,21 @@ async def _execute_usdc_transfer(
     tx = SafeTransaction(
         to=usdc_cs, operation=OperationType.Call, data=data, value="0",
     )
-    response = await asyncio.to_thread(client.execute, [tx], metadata)
-    final = await asyncio.to_thread(response.wait)
+    # Bounded: the relayer SDK blocks with no deadline of its own, so an
+    # unanswered relay would hang this coroutine (and the withdrawal/sweep
+    # behind it) indefinitely. On expiry the TimeoutError propagates as a
+    # post-broadcast AMBIGUOUS failure — deliberately NO auto-refund, the
+    # relayer may already have broadcast; the operator reconciles. The worker
+    # thread itself is not cancellable and is left to die with its socket.
+    relayer_deadline = float(settings.RELAYER_CALL_TIMEOUT_SECONDS)
+    response = await asyncio.wait_for(
+        asyncio.to_thread(client.execute, [tx], metadata),
+        timeout=relayer_deadline,
+    )
+    final = await asyncio.wait_for(
+        asyncio.to_thread(response.wait),
+        timeout=relayer_deadline,
+    )
     if final is None:
         raise RuntimeError(
             f"relayer transfer did not reach a terminal state "

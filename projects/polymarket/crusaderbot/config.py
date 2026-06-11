@@ -59,6 +59,17 @@ class Settings(BaseSettings):
     # single Alchemy URL without renaming the legacy ``POLYGON_RPC_URL``.
     ALCHEMY_POLYGON_RPC_URL: Optional[str] = None
     ALCHEMY_POLYGON_WS_URL: Optional[str] = None
+    # Hard per-request deadline for every Polygon JSON-RPC call. Without it the
+    # aiohttp session falls back to its 5-minute default and a single hung call
+    # can wedge an APScheduler job slot for the rest of the process lifetime
+    # (the 2026-06-11 06:12 UTC scheduler stall). Applied both as the aiohttp
+    # ClientTimeout on the provider and as an asyncio deadline around each call.
+    POLYGON_RPC_TIMEOUT_SECONDS: int = 20
+    # Ceiling for each blocking Builder-relayer SDK call (execute / wait) on the
+    # Safe-custody path. Relayed Polygon txs normally mine in seconds; 180s is
+    # generous. On expiry the withdrawal/sweep fails AMBIGUOUS (no auto-refund —
+    # the relayer may already have broadcast) instead of hanging forever.
+    RELAYER_CALL_TIMEOUT_SECONDS: int = 180
 
     # --- Optional infra ---
     REDIS_URL: Optional[str] = None  # falls back to in-memory cache if missing
