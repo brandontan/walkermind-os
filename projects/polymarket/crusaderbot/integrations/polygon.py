@@ -10,10 +10,10 @@ import asyncio
 import logging
 from typing import Any, Optional
 
-from aiohttp import ClientError, ClientTimeout
+from aiohttp import ClientError, ClientResponseError, ClientTimeout
 from eth_utils import event_abi_to_log_topic
 from tenacity import (
-    AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential,
+    AsyncRetrying, retry_if_exception, stop_after_attempt, wait_exponential,
 )
 from web3 import AsyncHTTPProvider, AsyncWeb3
 from web3.exceptions import Web3RPCError
@@ -73,23 +73,48 @@ _w3: Optional[AsyncWeb3] = None
 _usdc = None
 
 
-def _retry():
-    """Retry network/RPC errors only — programmer errors aren't retried.
+def _is_request_rejection(exc: BaseException) -> bool:
+    """True for a DETERMINISTIC provider rejection of the request itself.
+
+    web3 v7's AsyncHTTPProvider calls ``response.raise_for_status()`` BEFORE
+    parsing the JSON-RPC body (``HTTPSessionManager.async_make_post_request``),
+    so a vendor that rejects an over-large ``eth_getLogs`` with HTTP 400
+    (Alchemy-style range/size caps) surfaces as ``ClientResponseError`` —
+    the JSON-RPC error never becomes ``Web3RPCError``. 400 (bad request),
+    413 (payload too large) and 414 (URI too long) are request-shape verdicts:
+    retrying them verbatim can never succeed, but shrinking the range can.
+    429 and 5xx are NOT rejections — they are throttle/transport and must be
+    retried, never used to shrink the scan range.
+    """
+    return isinstance(exc, ClientResponseError) and exc.status in (400, 413, 414)
+
+
+def _should_retry(exc: BaseException) -> bool:
+    """Retry transient network/RPC errors only.
 
     ``ClientError`` matters: web3's AsyncHTTPProvider surfaces non-2xx HTTP
     responses (Alchemy 429 throttles, 5xx blips) as aiohttp
     ``ClientResponseError`` — NOT as ``Web3RPCError`` / ``ConnectionError`` —
     so without it a single throttled response failed the whole call instead
-    of backing off. ``TimeoutError`` covers ``asyncio.timeout`` deadlines
-    (Python 3.11+: ``asyncio.TimeoutError is TimeoutError``).
+    of backing off. Deterministic request rejections (HTTP 400/413/414) are
+    excluded: replaying the identical request cannot succeed, and the
+    adaptive scan needs to see them immediately. ``TimeoutError`` covers
+    ``asyncio.timeout`` deadlines (3.11+: ``asyncio.TimeoutError is
+    TimeoutError``). Programmer errors aren't retried.
     """
+    if _is_request_rejection(exc):
+        return False
+    return isinstance(
+        exc, (Web3RPCError, ClientError, ConnectionError, TimeoutError)
+    )
+
+
+def _retry():
     return AsyncRetrying(
         reraise=True,
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=8),
-        retry=retry_if_exception_type(
-            (Web3RPCError, ClientError, ConnectionError, TimeoutError)
-        ),
+        retry=retry_if_exception(_should_retry),
     )
 
 
@@ -261,6 +286,20 @@ async def scan_usdc_transfers(
 # the caller's no-cursor-advance contract retry next tick.
 _MIN_SCAN_RANGE = 31
 
+# Last span the provider ACCEPTED, per scanned token contract (None key = the
+# default USDC.e pass), with a consecutive first-try-success streak. Without
+# this memory every tick re-walks the halving ladder from max_range — wasted
+# calls and CU on every interval. Upward re-probing (span x2) happens only
+# after _PROBE_UP_AFTER clean first-try successes, never on a tick that just
+# halved — otherwise the next tick would always open with a known-failing
+# span (Gemini #1762). The probe matters: a TRANSIENT 400 misclassified as a
+# range verdict could otherwise pin the span low until restart, and below
+# ~62 blocks/tick the watcher would fall behind Polygon head (~1800
+# blocks/hour vs 30 ticks/hour). Process-local by design: a restart simply
+# re-discovers the cap in one tick.
+_accepted_span: dict[Optional[str], tuple[int, int]] = {}
+_PROBE_UP_AFTER = 5
+
 
 async def scan_from_cursor(
     addresses: list[str], cursor: int, lookback: int = 2000, max_range: int = 1000,
@@ -274,28 +313,43 @@ async def scan_from_cursor(
     transfer has been successfully processed. Raises on permanent RPC failure.
 
     ADAPTIVE RANGE: providers cap eth_getLogs differently (block-range and
-    response-size ceilings vary by vendor and plan, and the rejection arrives
-    as a ``Web3RPCError`` only AFTER the in-call retries are exhausted). A
-    fixed span turns such a cap into a permanent every-tick failure — the
-    block-0 cursor outage mode. On a ``Web3RPCError`` the span halves down to
-    ``_MIN_SCAN_RANGE``; a smaller successful scan still advances the cursor,
-    so the watcher self-heals instead of wedging. Transport-level errors
-    (timeouts, throttles, connection drops) are NOT halved — shrinking the
-    range cannot fix those, and the per-tick retry already covers them.
+    response-size ceilings vary by vendor and plan). A fixed span turns such a
+    cap into a permanent every-tick failure — the block-0 cursor outage mode.
+    The rejection arrives in one of TWO shapes depending on vendor HTTP
+    behavior: a 200 + JSON-RPC error body (``Web3RPCError``) on vanilla
+    nodes, or an HTTP 400/413/414 (``ClientResponseError`` — web3 v7 calls
+    ``raise_for_status()`` before parsing the body) on Alchemy-class
+    gateways. BOTH halve the span down to ``_MIN_SCAN_RANGE``; a smaller
+    successful scan still advances the cursor, so the watcher self-heals.
+    Transport-level errors (timeouts, 429 throttles, 5xx, connection drops)
+    are NOT halved — shrinking the range cannot fix those, and the per-call
+    retry already covers them.
     """
     head = await latest_block()
     start = cursor + 1 if cursor > 0 else max(head - lookback, 0)
     if start > head:
         return [], cursor
-    span = max(int(max_range), 1)
+    ceiling = max(int(max_range), 1)
+    stored_span, streak = _accepted_span.get(token_address, (ceiling, 0))
+    span = min(stored_span, ceiling)
+    halved = False
     while True:
         end = min(head, start + span - 1)
         try:
             transfers = await scan_usdc_transfers(
                 addresses, start, end, token_address=token_address,
             )
-            return transfers, end
-        except Web3RPCError as exc:
+        except (Web3RPCError, ClientResponseError) as exc:
+            rejection = isinstance(exc, Web3RPCError) or _is_request_rejection(exc)
+            if not rejection:
+                # 429 / 5xx ClientResponseError: throttle or vendor blip —
+                # already retried per-call; range is not at fault.
+                logger.error(
+                    "scan_from_cursor transport failure (range not at fault): "
+                    "start=%s end=%s span=%s addresses=%s err=%r",
+                    start, end, span, len(addresses), exc,
+                )
+                raise
             if span <= _MIN_SCAN_RANGE:
                 logger.error(
                     "scan_from_cursor exhausted adaptive range: "
@@ -309,6 +363,8 @@ async def scan_from_cursor(
                 start, end, span, len(addresses), exc,
             )
             span = max(span // 2, _MIN_SCAN_RANGE)
+            halved = True
+            continue
         except (ClientError, ConnectionError, TimeoutError) as exc:
             logger.error(
                 "scan_from_cursor transport failure (range not at fault): "
@@ -316,3 +372,15 @@ async def scan_from_cursor(
                 start, end, span, len(addresses), exc,
             )
             raise
+        # Accepted. A tick that just halved stores the span it PROVED works
+        # (never the size it just saw rejected — Gemini #1762); clean
+        # first-try ticks build a streak and only the _PROBE_UP_AFTER-th one
+        # probes upward, so steady state wastes zero calls while a
+        # transiently mis-halved span still recovers within ~10 minutes.
+        if halved:
+            _accepted_span[token_address] = (span, 0)
+        elif span < ceiling and streak + 1 >= _PROBE_UP_AFTER:
+            _accepted_span[token_address] = (min(span * 2, ceiling), 0)
+        else:
+            _accepted_span[token_address] = (span, streak + 1)
+        return transfers, end
