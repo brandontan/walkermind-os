@@ -98,6 +98,26 @@ per-call, never halve, raise on zero coverage).
 - ruff clean on all touched files. Full suite run recorded below (section 6 / CI).
 - Replay harness confirmed the EXACT Alchemy error text; a 10-block request against the same endpoint shape is the provider-documented accepted form.
 
+### Post-deploy verification (2026-06-11 21:27 WIB, prod)
+
+- Deploy b54846af8c72 live 14:23 UTC; first tick 14:25:41: ladder walked
+  1000->...->15 (rejections logged WITH `[redacted]` in place of the API key —
+  redaction verified live), span 7 accepted, chunks proceeded silently.
+- chain_cursor.usdc_deposits: block 0 -> 88,272,761 (14:27:42 UTC);
+  usdc_native_deposits: 0 -> 88,272,771. BOTH cursors advancing +420
+  blocks/tick. THE 5-WEEK GATE-4 OUTAGE IS CLOSED IN PRODUCTION.
+- Catch-up to head (~49k blocks behind, net ~360/tick): ~4-5h on the Free
+  tier at the default budget.
+- OWNER-DEPOSIT FINDING (changes the gate-4 runbook): Alchemy
+  getAssetTransfers over the FULL history of the owner's bot deposit address
+  0x5827edEf918dc6bf38D5b7D7bbf0A53dF5e8F808 (erc20 + external + internal)
+  returns ZERO transfers ever — the reported $8.32 funding went to the
+  owner's PERSONAL polymarket.com account, an address the bot does not (and
+  after backfill still would not) watch. Gate 4 needs USDC.e (Polygon) sent
+  to the bot deposit address shown in /wallet -> Deposit (or, post-backfill,
+  the bot-user's resolved Polymarket deposit wallet). No lookback raise is
+  needed for a fresh deposit — the watcher is live.
+
 ## 5. Known issues
 
 - Catch-up speed on a 10-block-capped plan is ~420 blocks/tick (≈12-14h to drain the 50k lookback). `DEPOSIT_SCAN_MAX_RPC_PER_TICK` is env-tunable for faster catch-up; an Alchemy PAYG upgrade makes it instant (owner $ decision — code now works on EITHER).
