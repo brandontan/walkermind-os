@@ -9,7 +9,7 @@ must do its chain reads through the operator-configured ``POLYGON_RPC_URL``.
 """
 from __future__ import annotations
 
-import re
+import ast
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -39,19 +39,34 @@ def test_production_environment_pins_rpc_to_settings():
 
 
 def test_every_async_secure_client_create_passes_pinned_environment():
-    """Source pin: any ``AsyncSecureClient.create(`` call in integrations/clob
-    must carry ``environment=production_environment()`` — a new call site that
-    forgets the pin reintroduces the third-party-RPC dependency silently."""
+    """Source pin: any ``AsyncSecureClient.create(...)`` call in
+    integrations/clob must carry ``environment=production_environment()`` — a
+    new call site that forgets the pin reintroduces the third-party-RPC
+    dependency silently. AST-based (Gemini #1765) so formatting, line splits
+    and docstring mentions can never produce false results."""
     offenders: list[str] = []
     for py in _CLOB_DIR.rglob("*.py"):
-        src = py.read_text(encoding="utf-8")
-        for m in re.finditer(r"AsyncSecureClient\.create\(", src):
-            window = src[m.start():m.start() + 400]
-            if window.startswith("AsyncSecureClient.create()"):
-                continue  # docstring/comment mention, not a client build
-            if "environment=production_environment()" not in window:
-                line = src[:m.start()].count("\n") + 1
-                offenders.append(f"{py.name}:{line}")
+        tree = ast.parse(py.read_text(encoding="utf-8"), filename=py.name)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not (
+                isinstance(func, ast.Attribute)
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "AsyncSecureClient"
+                and func.attr == "create"
+            ):
+                continue
+            has_pin = any(
+                kw.arg == "environment"
+                and isinstance(kw.value, ast.Call)
+                and isinstance(kw.value.func, ast.Name)
+                and kw.value.func.id == "production_environment"
+                for kw in node.keywords
+            )
+            if not has_pin:
+                offenders.append(f"{py.name}:{node.lineno}")
     assert not offenders, (
         "AsyncSecureClient.create call(s) missing the RPC-pinned environment: "
         f"{offenders}"
