@@ -103,7 +103,7 @@ async def get_balance(user_id: UUID) -> Decimal:
 # live cost is already subtracted — the sum IS the spendable live cash. The
 # paper balance is wallets.balance_usdc minus this sum, by construction.
 _LIVE_LEDGER_FILTER_SQL = (
-    "( (l.type = 'deposit' AND EXISTS ("
+    "( (l.type = 'deposit' AND l.ref_id IS NOT NULL AND EXISTS ("
     "        SELECT 1 FROM deposits d WHERE d.id = l.ref_id)) "
     "  OR l.type = 'withdraw' "
     "  OR (l.type = 'adjustment' AND EXISTS ("

@@ -186,7 +186,7 @@ def test_live_money_bucket_definition_is_shared():
     for fragment in (
         # deposit rows are REAL only when ref'd to the deposits table — admin
         # paper resets also use type='deposit' (with NULL ref, prod-proven).
-        "type = 'deposit' AND EXISTS (",
+        "type = 'deposit' AND l.ref_id IS NOT NULL AND EXISTS (",
         "type = 'withdraw'",
         "type = 'adjustment'",
         ".mode = 'live'",

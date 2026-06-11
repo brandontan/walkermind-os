@@ -796,7 +796,7 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 -- withdrawal-refund adjustments, and live-position trade rows.
                 COALESCE((SELECT SUM(l.amount_usdc) FROM ledger l
                           WHERE l.user_id = u.id
-                            AND ( (l.type = 'deposit' AND EXISTS (
+                            AND ( (l.type = 'deposit' AND l.ref_id IS NOT NULL AND EXISTS (
                                         SELECT 1 FROM deposits dd
                                         WHERE dd.id = l.ref_id))
                                   OR l.type = 'withdraw'
