@@ -71,6 +71,12 @@ def configure_json_logging(level: str = "INFO") -> None:
     root.addHandler(handler)
     root.setLevel(level.upper())
 
+    # httpx logs every request URL at INFO — for the Telegram API that URL
+    # contains the bot token (api.telegram.org/bot<TOKEN>/...), which would
+    # land verbatim in Fly logs. WARNING keeps real failures visible without
+    # the per-request URL lines.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
     structlog.configure(
         processors=[
             structlog.processors.TimeStamper(fmt="iso"),

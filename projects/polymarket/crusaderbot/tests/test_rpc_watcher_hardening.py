@@ -15,8 +15,12 @@ Pins the fixes for the two 2026-06-11 production failure modes:
       single throttled response failed the call with zero retries;
    b. a provider-side eth_getLogs range/size cap surfaces as a
       ``Web3RPCError`` on EVERY tick with a fixed 1000-block span — now the
-      span halves adaptively down to ``_MIN_SCAN_RANGE`` so a smaller scan
-      still advances the cursor (transport errors are NOT halved);
+      span halves adaptively down to ``_MIN_SCAN_RANGE`` (= 1: Alchemy Free
+      caps at 10 blocks, below the old 31 floor — the cap that kept the prod
+      cursor at block 0 for five weeks) and the scan walks the window in
+      accepted-size CHUNKS under a per-tick ``max_rpc`` budget, so a tiny
+      provider cap still advances the cursor (transport errors are NOT
+      halved, and partial coverage is returned rather than thrown away);
    c. the ``_read_cursor`` stage of ``watch_deposits`` was unguarded — an
       exception there bypassed the failure-streak escalation entirely.
 
@@ -117,6 +121,8 @@ def test_config_defaults():
         "POLYGON_RPC_TIMEOUT_SECONDS"].default == 20
     assert crusaderbot_config.Settings.model_fields[
         "RELAYER_CALL_TIMEOUT_SECONDS"].default == 180
+    assert crusaderbot_config.Settings.model_fields[
+        "DEPOSIT_SCAN_MAX_RPC_PER_TICK"].default == 60
 
 
 # ---------------------------------------------------------------------
@@ -207,17 +213,24 @@ def _scan_recorder(reject_above: int):
     return _scan, calls
 
 
-def test_scan_from_cursor_halves_range_until_provider_accepts():
+def test_scan_from_cursor_halves_range_then_chunks_to_budget():
     scan, calls = _scan_recorder(reject_above=250)
     with patch.object(polygon, "latest_block", AsyncMock(return_value=100_000)), \
             patch.object(polygon, "scan_usdc_transfers", scan):
         transfers, scanned_to = asyncio.run(
             polygon.scan_from_cursor(["0xabc"], cursor=0, lookback=50_000)
         )
-    # 1000 rejected -> 500 rejected -> 250 accepted
-    assert [e - s + 1 for s, e in calls] == [1000, 500, 250]
-    assert transfers and scanned_to == 50_000 + 250 - 1
-    # The cursor still ADVANCES on the reduced span — self-healing, no wedge.
+    # 1000 rejected -> 500 rejected -> 250 accepted, then the remaining
+    # budget (60 - 2 rejected probes = 58 accepted chunks) walks the window
+    # in 250-block chunks. The cursor ADVANCES over everything covered.
+    spans = [e - s + 1 for s, e in calls]
+    assert spans == [1000, 500] + [250] * 58
+    assert len(transfers) == 58
+    assert scanned_to == 50_000 + 58 * 250 - 1
+    # Chunks are contiguous: each starts right after the previous end.
+    accepted = calls[2:]
+    assert all(accepted[i + 1][0] == accepted[i][1] + 1
+               for i in range(len(accepted) - 1))
 
 
 def test_scan_from_cursor_reraises_when_floor_exhausted():
@@ -228,8 +241,38 @@ def test_scan_from_cursor_reraises_when_floor_exhausted():
             asyncio.run(
                 polygon.scan_from_cursor(["0xabc"], cursor=0, lookback=50_000)
             )
-    # 1000 -> 500 -> 250 -> 125 -> 62 -> 31 (floor) then reraise
-    assert [e - s + 1 for s, e in calls] == [1000, 500, 250, 125, 62, 31]
+    # Full ladder down to the single-block floor, then reraise: a provider
+    # that rejects a ONE-block range is genuinely broken, not range-capped.
+    assert [e - s + 1 for s, e in calls] == [
+        1000, 500, 250, 125, 62, 31, 15, 7, 3, 1,
+    ]
+
+
+def test_scan_from_cursor_survives_ten_block_provider_cap():
+    """THE 2026-06-11 prod outage shape: Alchemy Free rejects any
+    eth_getLogs over 10 blocks (HTTP 400). The old 31-block floor sat ABOVE
+    the cap, so every tick failed and the cursor never left block 0. The
+    ladder must now walk below the cap and chunk forward from there."""
+    calls: list[tuple[int, int]] = []
+
+    async def _scan(addresses, from_block, to_block, token_address=None):
+        calls.append((from_block, to_block))
+        if (to_block - from_block + 1) > 10:
+            raise _http_rejection(400)
+        return [{"to": "0xabc", "amount": 1.0}]
+
+    with patch.object(polygon, "latest_block", AsyncMock(return_value=100_000)), \
+            patch.object(polygon, "scan_usdc_transfers", _scan):
+        transfers, scanned_to = asyncio.run(
+            polygon.scan_from_cursor(["0xabc"], cursor=0, lookback=50_000)
+        )
+    spans = [e - s + 1 for s, e in calls]
+    # 7 rejected probes (1000..15) discover span 7, then 53 accepted chunks.
+    assert spans == [1000, 500, 250, 125, 62, 31, 15] + [7] * 53
+    assert len(transfers) == 53
+    assert scanned_to == 50_000 + 53 * 7 - 1
+    # Discovered span is remembered — the next tick opens at 7, no re-walk.
+    assert polygon._accepted_span[None][0] == 7
 
 
 def test_scan_from_cursor_does_not_halve_transport_errors():
@@ -268,8 +311,10 @@ def test_scan_from_cursor_halves_on_http_400_rejection():
         transfers, scanned_to = asyncio.run(
             polygon.scan_from_cursor(["0xabc"], cursor=0, lookback=50_000)
         )
-    assert [e - s + 1 for s, e in calls] == [1000, 500, 250]
-    assert transfers and scanned_to == 50_000 + 250 - 1
+    spans = [e - s + 1 for s, e in calls]
+    assert spans == [1000, 500] + [250] * 58
+    assert len(transfers) == 58
+    assert scanned_to == 50_000 + 58 * 250 - 1
 
 
 def test_scan_from_cursor_treats_429_as_transport():
@@ -286,11 +331,12 @@ def test_scan_from_cursor_treats_429_as_transport():
 
 
 def test_accepted_span_is_remembered_without_oscillation():
-    """The halving ladder must not be re-walked from max_range every tick,
-    AND a tick that just halved must not store the size it saw rejected
-    (Gemini #1762) — steady state under a static provider cap costs ZERO
-    wasted calls; the upward probe fires only after a streak of clean
-    first-try ticks."""
+    """The halving ladder must not be re-walked from max_range every tick;
+    a tick that just halved must not store the size it saw rejected (Gemini
+    #1762); and ONLY clean FULL-WINDOW passes build the probe-up streak
+    (Gemini #1763) — a budget-exhausted catch-up tick never wastes a probe
+    request on a span the provider just capped. The probe fires after
+    _PROBE_UP_AFTER clean full passes, gets rejected once, and settles."""
     calls: list[tuple[int, int]] = []
     cursor = 0
 
@@ -300,26 +346,31 @@ def test_accepted_span_is_remembered_without_oscillation():
             raise _http_rejection(400)
         return []
 
-    def _tick():
+    def _tick(head: int, **kw):
         nonlocal cursor
-        _, scanned_to = asyncio.run(polygon.scan_from_cursor(
-            ["0xabc"], cursor=cursor, lookback=50_000,
-        ))
+        with patch.object(polygon, "latest_block",
+                          AsyncMock(return_value=head)):
+            _, scanned_to = asyncio.run(polygon.scan_from_cursor(
+                ["0xabc"], cursor=cursor, lookback=50_000, **kw,
+            ))
         cursor = scanned_to
         spans = [e - s + 1 for s, e in calls]
         calls.clear()
         return spans
 
-    with patch.object(polygon, "latest_block", AsyncMock(return_value=100_000)), \
-            patch.object(polygon, "scan_usdc_transfers", _scan):
-        assert _tick() == [1000, 500, 250]   # discovery walk, once
-        # Steady state: 250 accepted first-try, no oscillation back to 500.
-        for _ in range(polygon._PROBE_UP_AFTER - 1):
-            assert _tick() == [250]
-        # The streak-th clean tick stays at 250; the NEXT tick probes 500,
-        # gets rejected once, and settles back — bounded, infrequent probing.
-        assert _tick() == [250]
-        assert _tick() == [500, 250]
+    with patch.object(polygon, "scan_usdc_transfers", _scan):
+        # Discovery walk, once — deep window, budget-exhausted.
+        assert _tick(100_000, max_rpc=3) == [1000, 500, 250]
+        # Catch-up (budget exhausted every tick): opens at the remembered
+        # 250 with NO re-walk and NO upward probe, however many ticks pass.
+        for _ in range(polygon._PROBE_UP_AFTER + 1):
+            assert _tick(100_000, max_rpc=3) == [250, 250, 250]
+        # Caught up: clean full-window passes (2 chunks each) build the
+        # streak; the tick after the streak-th probes 500, gets rejected
+        # once, and settles back — bounded, infrequent probing.
+        for _ in range(polygon._PROBE_UP_AFTER):
+            assert _tick(cursor + 500) == [250, 250]
+        assert _tick(cursor + 500) == [500, 250, 250]
 
 
 def test_should_retry_classification():
@@ -333,9 +384,10 @@ def test_should_retry_classification():
     assert polygon._should_retry(ValueError("bug")) is False
 
 
-def test_scan_from_cursor_unchanged_contract_on_success():
-    """Regression: happy path returns (transfers, end) exactly as before."""
-    scan = AsyncMock(return_value=([{"to": "0xabc"}], None))
+def test_scan_from_cursor_covers_window_to_head_on_success():
+    """Happy path: an uncapped provider covers the whole window to head
+    within budget — one full-span chunk plus the 1-block remainder — and
+    returns every transfer with scanned_to == head."""
 
     async def _ok(addresses, from_block, to_block, token_address=None):
         return [{"to": "0xabc"}]
@@ -345,9 +397,46 @@ def test_scan_from_cursor_unchanged_contract_on_success():
         transfers, scanned_to = asyncio.run(
             polygon.scan_from_cursor(["0xabc"], cursor=3_999, lookback=2_000)
         )
-    assert transfers == [{"to": "0xabc"}]
-    assert scanned_to == 4_999  # cursor+1 .. min(head, +1000-1)
-    assert scan.await_count == 0  # local fake used; just guard the var
+    # 4_000..4_999 (span 1000) then 5_000..5_000 — window fully drained.
+    assert transfers == [{"to": "0xabc"}] * 2
+    assert scanned_to == 5_000
+
+
+def test_scan_from_cursor_keeps_partial_coverage_on_midcall_transport():
+    """A transport failure AFTER some chunks succeeded must not throw the
+    coverage away: the covered range is returned (cursor advances past it)
+    and the failing offset is retried at the start of the next tick — where
+    a repeat failure raises and feeds the DOWN escalation."""
+    calls: list[tuple[int, int]] = []
+
+    async def _scan(addresses, from_block, to_block, token_address=None):
+        calls.append((from_block, to_block))
+        if len(calls) == 3:
+            raise ClientError("connection reset")
+        return [{"to": "0xabc", "amount": 1.0}]
+
+    with patch.object(polygon, "latest_block", AsyncMock(return_value=100_000)), \
+            patch.object(polygon, "scan_usdc_transfers", _scan):
+        transfers, scanned_to = asyncio.run(
+            polygon.scan_from_cursor(["0xabc"], cursor=0, lookback=50_000)
+        )
+    assert len(calls) == 3
+    assert len(transfers) == 2
+    assert scanned_to == 50_000 + 2 * 1000 - 1
+
+
+def test_scan_from_cursor_zero_coverage_budget_burn_raises():
+    """If the whole rpc budget burns on rejected probes without ONE accepted
+    chunk, the tick must fail loudly (streak escalation), never return a
+    silent empty success that would advance nothing forever."""
+    scan, calls = _scan_recorder(reject_above=0)
+    with patch.object(polygon, "latest_block", AsyncMock(return_value=100_000)), \
+            patch.object(polygon, "scan_usdc_transfers", scan):
+        with pytest.raises(Web3RPCError, match="no chunk accepted"):
+            asyncio.run(polygon.scan_from_cursor(
+                ["0xabc"], cursor=0, lookback=50_000, max_rpc=3,
+            ))
+    assert [e - s + 1 for s, e in calls] == [1000, 500, 250]
 
 
 # ---------------------------------------------------------------------
@@ -359,6 +448,7 @@ class _FakeWatchSettings:
     DEPOSIT_CONFIRMATION_DEPTH = 32
     WRONG_TOKEN_ALERTS_ENABLED = False
     DEPOSIT_SCAN_LOOKBACK_BLOCKS = 50_000
+    DEPOSIT_SCAN_MAX_RPC_PER_TICK = 77
 
 
 class _WatcherConn:
@@ -429,8 +519,129 @@ def test_scan_failure_log_carries_request_context():
     assert kwargs["lookback"] == 50_000
 
 
+def test_watch_deposits_threads_rpc_budget_from_settings():
+    """The per-tick request budget is operator-tunable: watch_deposits must
+    pass DEPOSIT_SCAN_MAX_RPC_PER_TICK through to scan_from_cursor."""
+    scan = AsyncMock(side_effect=Web3RPCError("range"))
+    with patch.object(scheduler, "get_settings",
+                      return_value=_FakeWatchSettings()), \
+            patch.object(scheduler, "get_pool", return_value=_WatcherPool()), \
+            patch.object(scheduler.polygon, "latest_block",
+                         AsyncMock(return_value=1_000)), \
+            patch.object(scheduler, "_read_cursor",
+                         AsyncMock(return_value=0)), \
+            patch.object(scheduler.polygon, "scan_from_cursor", scan), \
+            patch.object(scheduler, "log", MagicMock()):
+        asyncio.run(scheduler.watch_deposits())
+    assert scan.await_args.kwargs["max_rpc"] == 77
+    assert scan.await_args.kwargs["lookback"] == 50_000
+
+
 # ---------------------------------------------------------------------
-# 5. Relayer SDK calls are bounded
+# 5. RPC secrets never reach logs
+# ---------------------------------------------------------------------
+
+
+def _redact_settings():
+    return types.SimpleNamespace(
+        POLYGON_RPC_URL="https://polygon-mainnet.g.alchemy.com/v2/SECRETKEY12345678",
+        ALCHEMY_POLYGON_RPC_URL=None,
+        ALCHEMY_POLYGON_WS_URL="wss://polygon-mainnet.g.alchemy.com/v2/WSKEY9876543210",
+    )
+
+
+def test_redact_rpc_secrets_strips_api_key():
+    """aiohttp error reprs carry the full request URL — provider API key
+    included. The redactor must strip every configured key while keeping
+    the host (the diagnostic part) readable."""
+    raw = (
+        "ClientResponseError(RequestInfo(url=URL("
+        "'https://polygon-mainnet.g.alchemy.com/v2/SECRETKEY12345678'), "
+        "real_url=URL('https://polygon-mainnet.g.alchemy.com/v2/"
+        "SECRETKEY12345678')), status=400) via wss://polygon-mainnet"
+        ".g.alchemy.com/v2/WSKEY9876543210"
+    )
+    with patch.object(polygon, "get_settings", return_value=_redact_settings()):
+        out = polygon.redact_rpc_secrets(raw)
+    assert "SECRETKEY12345678" not in out
+    assert "WSKEY9876543210" not in out
+    assert "polygon-mainnet.g.alchemy.com" in out
+    assert "[redacted]" in out
+
+
+def test_redact_rpc_secrets_handles_empty_query_string():
+    """A configured URL ending in '?' yields an empty query string —
+    str.replace('', x) would insert x between EVERY character of the log
+    line (Gemini #1763). The redactor must leave unrelated text intact."""
+    settings = types.SimpleNamespace(
+        POLYGON_RPC_URL="https://rpc.example/v2/TRAILINGKEY12345?",
+        ALCHEMY_POLYGON_RPC_URL=None,
+        ALCHEMY_POLYGON_WS_URL=None,
+    )
+    with patch.object(polygon, "get_settings", return_value=settings):
+        assert polygon.redact_rpc_secrets("plain text") == "plain text"
+        assert "TRAILINGKEY12345" not in polygon.redact_rpc_secrets(
+            "err at https://rpc.example/v2/TRAILINGKEY12345?"
+        )
+
+
+def test_watch_deposits_failure_line_redacts_rpc_key():
+    """The watcher DOWN/tick-failed line goes to Fly logs + Sentry — it must
+    never carry the provider API key embedded in aiohttp's error repr."""
+    fake_log = MagicMock()
+    boom = Web3RPCError(
+        "rejected by https://polygon-mainnet.g.alchemy.com/v2/SECRETKEY12345678"
+    )
+    with patch.object(scheduler, "get_settings",
+                      return_value=_FakeWatchSettings()), \
+            patch.object(scheduler, "get_pool", return_value=_WatcherPool()), \
+            patch.object(scheduler.polygon, "latest_block",
+                         AsyncMock(return_value=1_000)), \
+            patch.object(scheduler, "_read_cursor",
+                         AsyncMock(return_value=0)), \
+            patch.object(scheduler.polygon, "scan_from_cursor",
+                         AsyncMock(side_effect=boom)), \
+            patch.object(polygon, "get_settings",
+                         return_value=_redact_settings()), \
+            patch.object(scheduler, "log", fake_log):
+        asyncio.run(scheduler.watch_deposits())
+    err = fake_log.warning.call_args.kwargs["err"]
+    assert "SECRETKEY12345678" not in err
+    assert "[redacted]" in err
+
+
+def test_configure_json_logging_quiets_httpx_request_urls():
+    """httpx logs every request URL at INFO — for Telegram that URL embeds
+    the bot token (api.telegram.org/bot<TOKEN>/...). The logging setup must
+    pin the httpx logger to WARNING so those lines never reach Fly logs."""
+    import logging as _logging
+
+    import structlog as _structlog
+
+    from projects.polymarket.crusaderbot.monitoring.logging import (
+        configure_json_logging,
+    )
+
+    root = _logging.getLogger()
+    saved_handlers = list(root.handlers)
+    saved_level = root.level
+    saved_httpx_level = _logging.getLogger("httpx").level
+    saved_structlog = _structlog.get_config()
+    try:
+        configure_json_logging("INFO")
+        assert _logging.getLogger("httpx").level == _logging.WARNING
+    finally:
+        for h in list(root.handlers):
+            root.removeHandler(h)
+        for h in saved_handlers:
+            root.addHandler(h)
+        root.setLevel(saved_level)
+        _logging.getLogger("httpx").setLevel(saved_httpx_level)
+        _structlog.configure(**saved_structlog)
+
+
+# ---------------------------------------------------------------------
+# 6. Relayer SDK calls are bounded
 # ---------------------------------------------------------------------
 
 

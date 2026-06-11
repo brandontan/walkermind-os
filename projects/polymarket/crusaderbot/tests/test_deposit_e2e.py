@@ -184,7 +184,8 @@ def test_e2e_usdce_deposit_records_confirms_credits():
         "block_number": 100, "to": WALLET, "removed": False,
     }
 
-    async def fake_scan(addresses, cursor, token_address=None, lookback=2000):
+    async def fake_scan(addresses, cursor, token_address=None, lookback=2000,
+                        max_rpc=60):
         # USDC.e (default token) returns the deposit; native returns nothing.
         if token_address is None:
             return [usdce_transfer], 100
@@ -227,7 +228,8 @@ def test_e2e_native_usdc_alerts_without_crediting():
         "block_number": 200, "to": WALLET, "removed": False,
     }
 
-    async def fake_scan(addresses, cursor, token_address=None, lookback=2000):
+    async def fake_scan(addresses, cursor, token_address=None, lookback=2000,
+                        max_rpc=60):
         if token_address is None:
             return [], 200  # no USDC.e deposits
         return [native_transfer], 200  # native USDC seen

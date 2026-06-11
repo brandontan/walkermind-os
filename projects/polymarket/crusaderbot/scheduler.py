@@ -203,6 +203,9 @@ def _watch_deposits_failed(stage: str, exc: Exception, **context: object) -> Non
     global _watch_deposits_fail_streak
     _watch_deposits_fail_streak += 1
     streak = _watch_deposits_fail_streak
+    # aiohttp error reprs embed the full request URL — API key included —
+    # and this line reaches Fly logs + Sentry. Redact before formatting.
+    err = polygon.redact_rpc_secrets(repr(exc))
     if streak == _WATCH_DEPOSITS_FAIL_ESCALATE or (
         streak > _WATCH_DEPOSITS_FAIL_ESCALATE
         and (streak - _WATCH_DEPOSITS_FAIL_ESCALATE) % _WATCH_DEPOSITS_FAIL_REFIRE == 0
@@ -210,12 +213,12 @@ def _watch_deposits_failed(stage: str, exc: Exception, **context: object) -> Non
         log.error(
             "watch_deposits DOWN — deposits are NOT being credited "
             "(check POLYGON_RPC_URL)",
-            stage=stage, streak=streak, err=repr(exc), **context,
+            stage=stage, streak=streak, err=err, **context,
         )
     else:
         log.warning(
             "watch_deposits tick failed (no cursor advance)",
-            stage=stage, streak=streak, err=repr(exc), **context,
+            stage=stage, streak=streak, err=err, **context,
         )
 
 
@@ -272,6 +275,7 @@ async def watch_deposits() -> None:
         transfers, scanned_to = await polygon.scan_from_cursor(
             addresses, cursor_start,
             lookback=settings.DEPOSIT_SCAN_LOOKBACK_BLOCKS,
+            max_rpc=getattr(settings, "DEPOSIT_SCAN_MAX_RPC_PER_TICK", 60),
         )
     except Exception as exc:
         _watch_deposits_failed(
@@ -496,6 +500,7 @@ async def _alert_wrong_token_deposits(
         transfers, scanned_to = await polygon.scan_from_cursor(
             addresses, cursor_start, token_address=native,
             lookback=settings.DEPOSIT_SCAN_LOOKBACK_BLOCKS,
+            max_rpc=getattr(settings, "DEPOSIT_SCAN_MAX_RPC_PER_TICK", 60),
         )
     except Exception as exc:
         log.warning("wrong_token scan failed (no cursor advance)", err=str(exc))
