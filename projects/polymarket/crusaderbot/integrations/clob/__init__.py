@@ -221,9 +221,12 @@ async def ensure_clob_credentials(
             "clob: resolving POLY_1271 deposit wallet via AsyncSecureClient "
             "(requested=%s) …", _requested or "auto-derive",
         )
+        from .sdk_env import production_environment
+
         sc = await AsyncSecureClient.create(
             private_key=s.POLYMARKET_PRIVATE_KEY,
             wallet=_requested,
+            environment=production_environment(),
         )
         try:
             creds = sc.credentials

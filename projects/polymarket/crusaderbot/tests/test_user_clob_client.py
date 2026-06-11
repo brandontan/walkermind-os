@@ -112,6 +112,15 @@ def _isolate(monkeypatch: pytest.MonkeyPatch):
 
     import polymarket
     monkeypatch.setattr(polymarket, "AsyncSecureClient", _FakeSecureClient)
+    # production_environment() (sdk_env) reads settings for the RPC pin —
+    # feed it hermetically so the real replace() logic still runs.
+    from types import SimpleNamespace
+
+    from projects.polymarket.crusaderbot.integrations.clob import sdk_env
+    monkeypatch.setattr(
+        sdk_env, "get_settings",
+        lambda: SimpleNamespace(POLYGON_RPC_URL="https://rpc.test/v2/k"),
+    )
     # The user_client module imports ClobV2Client at module load time;
     # substitute the symbol it actually uses.
     monkeypatch.setattr(uc, "ClobV2Client", _FakeClobV2Client)

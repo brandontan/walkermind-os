@@ -65,6 +65,14 @@ def _isolate(monkeypatch: pytest.MonkeyPatch):
     # function, so patch the attribute on the ``polymarket`` module.
     import polymarket
     monkeypatch.setattr(polymarket, "AsyncSecureClient", _FakeSecureClient)
+    # sdk_env's RPC pin reads settings; feed hermetically.
+    from types import SimpleNamespace
+
+    from projects.polymarket.crusaderbot.integrations.clob import sdk_env
+    monkeypatch.setattr(
+        sdk_env, "get_settings",
+        lambda: SimpleNamespace(POLYGON_RPC_URL="https://rpc.test/v2/k"),
+    )
     yield
     crusaderbot_config.get_settings.cache_clear()
     clob_pkg._derived = None
