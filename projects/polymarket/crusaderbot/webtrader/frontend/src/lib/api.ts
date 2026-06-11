@@ -168,6 +168,11 @@ export function makeApi(token: string | null) {
       patch<AdminUserDetail>(`/admin/users/${encodeURIComponent(userId)}`, body),
     paperResetUser: (userId: string) =>
       post<AdminPaperResetResult>(`/admin/users/${encodeURIComponent(userId)}/paper-reset`, {}),
+    backfillDepositWallets: () =>
+      post<{ scanned: number; filled: number; skipped: number; ok: boolean }>(
+        "/admin/backfill-deposit-wallets",
+        {},
+      ),
     // ── Runtime config (system_settings overlay) ───────────────────────────
     getAdminSettings: () => get<{ settings: RuntimeSetting[] }>("/admin/settings"),
     updateAdminSetting: (key: string, value: boolean | number | string) =>

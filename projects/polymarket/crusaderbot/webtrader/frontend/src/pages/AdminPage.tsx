@@ -32,6 +32,8 @@ export function AdminPage() {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [numDraft, setNumDraft] = useState<Record<string, string>>({});
   const [drawerUserId, setDrawerUserId] = useState<string | null>(null);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -74,6 +76,24 @@ export function AdminPage() {
     const id = setInterval(() => { if (allowed) void loadPool(); }, 10_000);
     return () => clearInterval(id);
   }, [loadPool, allowed]);
+
+  async function handleBackfill() {
+    setBackfilling(true);
+    setBackfillMsg(null);
+    try {
+      const r = await api.backfillDepositWallets();
+      setBackfillMsg(
+        r.ok
+          ? `Done — scanned ${r.scanned}, filled ${r.filled}, skipped ${r.skipped}.`
+          : `Aborted — Polymarket SDK unavailable in the runtime (scanned ${r.scanned}, filled 0). Check deploy.`,
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setBackfillMsg(`Failed — ${msg.replace(/^\d+:\s*/, "")}`);
+    } finally {
+      setBackfilling(false);
+    }
+  }
 
   async function handleToggle(name: string, next: boolean) {
     setSavingStrat(name);
@@ -258,6 +278,29 @@ export function AdminPage() {
             </div>
           </Section>
         )}
+
+        {/* ── Maintenance: deposit-wallet backfill ── */}
+        <Section title="Maintenance">
+          <div className="space-y-2">
+            <p className="text-[11px] text-ink-2 leading-snug">
+              Backfill resolves each user&apos;s Polymarket deposit wallet and records it,
+              so the deposit watcher can credit deposits to their own Polymarket wallet
+              (non-custodial) and per-user live execution can use it as funder. Idempotent —
+              only fills rows still missing it. Moves no funds.
+            </p>
+            <button
+              type="button"
+              onClick={() => void handleBackfill()}
+              disabled={backfilling}
+              className="px-3 py-1.5 clip-card-sm border border-gold/40 bg-gold/10 text-gold text-[10px] font-bold uppercase disabled:opacity-40"
+            >
+              {backfilling ? "Backfilling…" : "Backfill deposit wallets"}
+            </button>
+            {backfillMsg && (
+              <p className="text-[10px] font-mono text-ink-2" role="status">{backfillMsg}</p>
+            )}
+          </div>
+        </Section>
 
         {/* ── Strategies on/off ── */}
         <Section title="Strategies (global on/off)">
