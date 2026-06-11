@@ -87,7 +87,11 @@ async def get_balance(user_id: UUID) -> Decimal:
 # mode column, but every row is attributable to exactly one bucket:
 #
 #   REAL (live) money:
-#     * type='deposit'  — on-chain USDC.e credits (always real)
+#     * type='deposit' WITH ref_id -> deposits row — on-chain USDC.e credits
+#       (the watcher always sets ref_id; ADMIN PAPER RESETS also use
+#       type='deposit' but with ref_id NULL — proven in prod 2026-06-12 by a
+#       "Paper wallet — admin reset $1,000 credit" row — so the deposits-table
+#       join is what separates real money from paper top-ups)
 #     * type='withdraw' — withdrawal request debits (always real)
 #     * type='adjustment' with ref_id → withdrawals — withdrawal refunds
 #       (wallet/withdrawals.py credits T_ADJUSTMENT on preflight failure)
@@ -99,7 +103,9 @@ async def get_balance(user_id: UUID) -> Decimal:
 # live cost is already subtracted — the sum IS the spendable live cash. The
 # paper balance is wallets.balance_usdc minus this sum, by construction.
 _LIVE_LEDGER_FILTER_SQL = (
-    "( l.type IN ('deposit', 'withdraw') "
+    "( (l.type = 'deposit' AND l.ref_id IS NOT NULL AND EXISTS ("
+    "        SELECT 1 FROM deposits d WHERE d.id = l.ref_id)) "
+    "  OR l.type = 'withdraw' "
     "  OR (l.type = 'adjustment' AND EXISTS ("
     "        SELECT 1 FROM withdrawals w WHERE w.id = l.ref_id)) "
     "  OR EXISTS (SELECT 1 FROM positions p "
