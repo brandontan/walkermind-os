@@ -61,6 +61,34 @@ def test_backfill_sdk_abort_shape_is_not_ok() -> None:
     assert out["ok"] is False
 
 
+def test_backfill_concurrent_call_fails_fast_409() -> None:
+    """A second run while one is in flight returns 409, not a stacked backfill."""
+    import pytest
+    from fastapi import HTTPException
+
+    async def _drive() -> None:
+        # Hold the module lock as if a backfill is mid-flight, then assert a
+        # concurrent invocation refuses with 409 and never calls the resolver.
+        backfill = AsyncMock(return_value={"scanned": 1, "filled": 1, "skipped": 0})
+        with (
+            patch(_BACKFILL, new=backfill),
+            patch.object(r.audit, "write", new=AsyncMock()),
+        ):
+            async with r._backfill_lock:
+                with pytest.raises(HTTPException) as exc:
+                    await r.admin_backfill_deposit_wallets({"user_id": str(uuid4())})
+        assert exc.value.status_code == 409
+        backfill.assert_not_awaited()
+
+    asyncio.run(_drive())
+
+
+def test_backfill_lock_released_after_run() -> None:
+    """The lock must be free again after a normal run (so the next tap works)."""
+    _run({"scanned": 1, "filled": 1, "skipped": 0})
+    assert not r._backfill_lock.locked()
+
+
 def test_backfill_audits_the_summary_payload() -> None:
     summary = {"scanned": 2, "filled": 2, "skipped": 0}
     with (

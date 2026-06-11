@@ -1,6 +1,7 @@
 """WebTrader API router — mounted at /api/web in main.py."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -3153,6 +3154,12 @@ async def admin_update_setting(
     return {"key": key, "value": canonical, "overridden": True}
 
 
+# Serializes the backfill: it is heavy (one Polymarket SDK round-trip per NULL
+# row) and idempotent, so a second concurrent run is pure waste + pool/SDK
+# contention. A double-tap fails fast with 409 rather than stacking a run.
+_backfill_lock = asyncio.Lock()
+
+
 @router.post(
     "/admin/backfill-deposit-wallets",
     dependencies=[Depends(per_user_rate_limit("admin_backfill", limit=5))],
@@ -3166,24 +3173,28 @@ async def admin_backfill_deposit_wallets(user: _AdminUser) -> dict:
     boot check (``main.py``) instructs the operator to run — required before
     per-user live execution AND before the deposit watcher can watch a user's
     Polymarket deposit wallet. Moves NO funds; reads + stores wallet addresses
-    only. Tight rate limit (5/min) because each row drives an SDK round-trip.
+    only. Tight rate limit (5/min) because each row drives an SDK round-trip;
+    a process-level lock additionally serializes overlapping runs (409).
     """
-    from ...wallet.deposit_wallet import backfill_deposit_wallets
-    summary = await backfill_deposit_wallets()
-    await audit.write(
-        actor_role="admin",
-        action="admin_backfill_deposit_wallets",
-        user_id=UUID(str(user["user_id"])),
-        payload=summary,
-    )
-    # scanned>0 with filled==0 AND skipped==0 means the run aborted at the first
-    # row — the Polymarket SDK is unavailable in this runtime. Surface it so the
-    # operator does not read an empty fill as "nothing left to backfill".
-    scanned = int(summary.get("scanned", 0))
-    filled = int(summary.get("filled", 0))
-    skipped = int(summary.get("skipped", 0))
-    ok = not (scanned > 0 and filled == 0 and skipped == 0)
-    return {**summary, "ok": ok}
+    if _backfill_lock.locked():
+        raise HTTPException(status_code=409, detail="backfill already in progress")
+    async with _backfill_lock:
+        from ...wallet.deposit_wallet import backfill_deposit_wallets
+        summary = await backfill_deposit_wallets()
+        await audit.write(
+            actor_role="admin",
+            action="admin_backfill_deposit_wallets",
+            user_id=UUID(str(user["user_id"])),
+            payload=summary,
+        )
+        # scanned>0 with filled==0 AND skipped==0 means the run aborted at the
+        # first row — the Polymarket SDK is unavailable in this runtime. Surface
+        # it so the operator does not read an empty fill as "nothing to do".
+        scanned = int(summary.get("scanned", 0))
+        filled = int(summary.get("filled", 0))
+        skipped = int(summary.get("skipped", 0))
+        ok = not (scanned > 0 and filled == 0 and skipped == 0)
+        return {**summary, "ok": ok}
 
 
 @router.delete(
