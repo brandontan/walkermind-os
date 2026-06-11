@@ -287,12 +287,18 @@ async def scan_usdc_transfers(
 _MIN_SCAN_RANGE = 31
 
 # Last span the provider ACCEPTED, per scanned token contract (None key = the
-# default USDC.e pass). Without this memory every tick re-walks the halving
-# ladder from max_range — wasted calls and CU on every interval. On success
-# the stored span doubles (capped at the caller's max_range) so the scan
-# gently re-probes plan headroom instead of being stuck small forever.
-# Process-local by design: a restart simply re-discovers the cap in one tick.
-_accepted_span: dict[Optional[str], int] = {}
+# default USDC.e pass), with a consecutive first-try-success streak. Without
+# this memory every tick re-walks the halving ladder from max_range — wasted
+# calls and CU on every interval. Upward re-probing (span x2) happens only
+# after _PROBE_UP_AFTER clean first-try successes, never on a tick that just
+# halved — otherwise the next tick would always open with a known-failing
+# span (Gemini #1762). The probe matters: a TRANSIENT 400 misclassified as a
+# range verdict could otherwise pin the span low until restart, and below
+# ~62 blocks/tick the watcher would fall behind Polygon head (~1800
+# blocks/hour vs 30 ticks/hour). Process-local by design: a restart simply
+# re-discovers the cap in one tick.
+_accepted_span: dict[Optional[str], tuple[int, int]] = {}
+_PROBE_UP_AFTER = 5
 
 
 async def scan_from_cursor(
@@ -324,7 +330,9 @@ async def scan_from_cursor(
     if start > head:
         return [], cursor
     ceiling = max(int(max_range), 1)
-    span = min(_accepted_span.get(token_address, ceiling), ceiling)
+    stored_span, streak = _accepted_span.get(token_address, (ceiling, 0))
+    span = min(stored_span, ceiling)
+    halved = False
     while True:
         end = min(head, start + span - 1)
         try:
@@ -355,6 +363,7 @@ async def scan_from_cursor(
                 start, end, span, len(addresses), exc,
             )
             span = max(span // 2, _MIN_SCAN_RANGE)
+            halved = True
             continue
         except (ClientError, ConnectionError, TimeoutError) as exc:
             logger.error(
@@ -363,7 +372,15 @@ async def scan_from_cursor(
                 start, end, span, len(addresses), exc,
             )
             raise
-        # Accepted: remember the working span, and probe upward gently so a
-        # temporarily-degraded plan does not pin the scan small forever.
-        _accepted_span[token_address] = min(span * 2, ceiling)
+        # Accepted. A tick that just halved stores the span it PROVED works
+        # (never the size it just saw rejected — Gemini #1762); clean
+        # first-try ticks build a streak and only the _PROBE_UP_AFTER-th one
+        # probes upward, so steady state wastes zero calls while a
+        # transiently mis-halved span still recovers within ~10 minutes.
+        if halved:
+            _accepted_span[token_address] = (span, 0)
+        elif span < ceiling and streak + 1 >= _PROBE_UP_AFTER:
+            _accepted_span[token_address] = (min(span * 2, ceiling), 0)
+        else:
+            _accepted_span[token_address] = (span, streak + 1)
         return transfers, end

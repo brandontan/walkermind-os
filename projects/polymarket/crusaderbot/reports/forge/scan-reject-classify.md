@@ -72,3 +72,13 @@ single-read diagnosis. No other known issues introduced.
 Merge on CI green → CD deploy → re-read prod chain_cursor (expect advance off
 0 within ~2-4 min) → owner continues the gate-4 sequence (admin backfill,
 deposit within lookback).
+
+## Review applied
+
+Gemini #1762 MED applied (improved): a tick that halves now stores the span
+it PROVED works — never the rejected size — and upward probing is gated on a
+streak of `_PROBE_UP_AFTER` clean first-try ticks. Gemini's literal patch
+still oscillated every other tick (store-then-double on the next clean tick);
+the streak gate bounds probe waste to one extra call per ~10 minutes while
+still un-pinning a transiently mis-halved span. Pinned by
+`test_accepted_span_is_remembered_without_oscillation`.

@@ -285,11 +285,14 @@ def test_scan_from_cursor_treats_429_as_transport():
     assert scan.await_count == 1
 
 
-def test_accepted_span_is_remembered_across_ticks():
-    """The halving ladder must not be re-walked from max_range every tick —
-    the accepted span is remembered (with a gentle upward probe) so steady
-    state costs ~1 extra call, not 3+ per tick."""
+def test_accepted_span_is_remembered_without_oscillation():
+    """The halving ladder must not be re-walked from max_range every tick,
+    AND a tick that just halved must not store the size it saw rejected
+    (Gemini #1762) — steady state under a static provider cap costs ZERO
+    wasted calls; the upward probe fires only after a streak of clean
+    first-try ticks."""
     calls: list[tuple[int, int]] = []
+    cursor = 0
 
     async def _scan(addresses, from_block, to_block, token_address=None):
         calls.append((from_block, to_block))
@@ -297,17 +300,26 @@ def test_accepted_span_is_remembered_across_ticks():
             raise _http_rejection(400)
         return []
 
+    def _tick():
+        nonlocal cursor
+        _, scanned_to = asyncio.run(polygon.scan_from_cursor(
+            ["0xabc"], cursor=cursor, lookback=50_000,
+        ))
+        cursor = scanned_to
+        spans = [e - s + 1 for s, e in calls]
+        calls.clear()
+        return spans
+
     with patch.object(polygon, "latest_block", AsyncMock(return_value=100_000)), \
             patch.object(polygon, "scan_usdc_transfers", _scan):
-        asyncio.run(polygon.scan_from_cursor(["0xabc"], cursor=0, lookback=50_000))
-        first = [e - s + 1 for s, e in calls]
-        calls.clear()
-        asyncio.run(polygon.scan_from_cursor(["0xabc"], cursor=50_249,
-                                             lookback=50_000))
-        second = [e - s + 1 for s, e in calls]
-    assert first == [1000, 500, 250]
-    # Second tick starts from the remembered 250*2 probe, not 1000.
-    assert second == [500, 250]
+        assert _tick() == [1000, 500, 250]   # discovery walk, once
+        # Steady state: 250 accepted first-try, no oscillation back to 500.
+        for _ in range(polygon._PROBE_UP_AFTER - 1):
+            assert _tick() == [250]
+        # The streak-th clean tick stays at 250; the NEXT tick probes 500,
+        # gets rejected once, and settles back — bounded, infrequent probing.
+        assert _tick() == [250]
+        assert _tick() == [500, 250]
 
 
 def test_should_retry_classification():
