@@ -29,6 +29,11 @@ class _Conn:
     async def fetchrow(self, *a, **k):
         return self._row
 
+    async def fetchval(self, *a, **k):
+        # /positions reads user_settings.trading_mode for mode scoping
+        # (live-mode-truth); these fixtures are paper-mode users.
+        return "paper"
+
     async def __aenter__(self):
         return self
 

@@ -452,8 +452,12 @@ class LiveStatus(BaseModel):
     """Per-user live-mode readiness + current state for the WebTrader UI."""
     # Current trading mode set on user_settings ("paper" | "live").
     trading_mode: str
-    # Per-user live capital cap (USDC). 0 = user has not opted in.
+    # OPTIONAL manual live cap (USDC). 0 = no manual cap — the user's real
+    # deposited balance alone bounds live exposure (live-mode-truth lane).
     live_capital_cap_usdc: float
+    # The user's REAL deposited balance (spendable live USDC) — the
+    # authoritative bound on live exposure and the balance live mode shows.
+    live_balance_usdc: float = 0.0
     # Aggregate USDC currently deployed across open live positions.
     open_live_exposure_usdc: float
     # Operator-level env guards — visible so the user knows whether live
@@ -468,19 +472,23 @@ class LiveStatus(BaseModel):
 class LiveEnableRequest(BaseModel):
     """POST /api/web/live/enable — typed-confirm flip from paper to live.
 
-    A user must:
-      1. Submit an explicit capital cap > 0 (max USDC the bot may deploy
-         in live mode at any one time).
-      2. Type the EXACT confirm phrase. Defends against accidental clicks
-         and one-tap bots.
+    The user types the EXACT confirm phrase (defends against accidental
+    clicks and one-tap bots). NO capital amount is required — live exposure
+    is bounded by the user's real deposited balance (risk-gate step 15).
+    ``live_capital_cap_usdc`` remains accepted from legacy clients as an
+    OPTIONAL tightening-only cap; 0/omitted = real balance alone bounds.
     """
-    live_capital_cap_usdc: float
     confirm_phrase: str
+    live_capital_cap_usdc: float = 0.0
 
 
 class LiveEnableResponse(BaseModel):
     trading_mode: str
     live_capital_cap_usdc: float
+    # Real deposited balance at enable time — what live mode will trade with.
+    live_balance_usdc: float = 0.0
+    # Mode switches auto-stop the bot; the user re-arms deliberately.
+    auto_trade_on: bool = False
 
 
 class StrategyToggleRequest(BaseModel):

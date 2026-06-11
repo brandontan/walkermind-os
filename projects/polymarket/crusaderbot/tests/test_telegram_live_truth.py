@@ -16,7 +16,6 @@ import re
 from pathlib import Path
 
 from projects.polymarket.crusaderbot.domain.activation.live_checklist import (
-    GATE_ACTIVE_SUBACCOUNT,
     GATE_FIX_HINTS,
     GATE_TWO_FACTOR_SETUP,
 )
@@ -52,10 +51,16 @@ class TestWalletCommandRegistered:
             r'CommandHandler\(\s*"wallet",\s*wallet_root\s*\)', _DISPATCHER_SRC
         ), "/wallet CommandHandler(wallet_root) not registered in dispatcher"
 
-    def test_deposit_gate_hint_references_a_real_command(self) -> None:
-        # The deposit-gate hint has always told users "/wallet → Deposit";
-        # this ties the hint to an actually-registered command so the pair
-        # cannot drift apart again.
-        hint = GATE_FIX_HINTS[GATE_ACTIVE_SUBACCOUNT]
-        assert "/wallet" in hint
+    def test_deposit_gate_removed_from_checklist(self) -> None:
+        # live-mode-truth (owner 2026-06-11): a prior deposit is no longer a
+        # checklist gate — users switch to live FIRST and deposit after (the
+        # bot auto-stops and risk-gate step 15 rejects zero-fund live trades).
+        # Pin the absence so the gate cannot silently come back.
+        assert "active_subaccount_with_deposit" not in GATE_FIX_HINTS
+        src = (
+            Path(__file__).parents[1] / "domain" / "activation"
+            / "live_checklist.py"
+        ).read_text(encoding="utf-8")
+        assert "GATE_ACTIVE_SUBACCOUNT" not in src
+        # /wallet stays a registered command — deposits still happen there.
         assert 'CommandHandler("wallet"' in _DISPATCHER_SRC

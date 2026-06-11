@@ -19,6 +19,7 @@ from ...api.per_user_rate_limit import per_ip_rate_limit, per_user_rate_limit
 from ...domain.execution import router as exec_router
 from ...domain.ops import kill_switch
 from ...domain.positions import mark_force_close_intent_for_user
+from ...wallet.ledger import get_live_balance, live_ledger_filter_sql
 from ...domain.strategy.strategies.late_entry_v3 import (
     resolve_per_trade_ceiling,
     suggested_trade_size,
@@ -305,25 +306,30 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
         wallet_row = await conn.fetchrow(
             "SELECT balance_usdc FROM wallets WHERE user_id = $1::uuid", user_id
         )
+        # Live-mode-truth: every stat on the dashboard is scoped to the mode
+        # the user is IN — live shows live trades + real balance, paper shows
+        # paper trades + paper balance. positions.mode is set at open time.
+        _mode = (settings_row["trading_mode"] if settings_row else "paper") or "paper"
+        _mode = "live" if _mode == "live" else "paper"
         open_count = await conn.fetchval(
-            "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND status IN ('open','pending_settlement')",
-            user_id,
+            "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND mode=$2 AND status IN ('open','pending_settlement')",
+            user_id, _mode,
         )
         pnl_today = await conn.fetchval(
             """SELECT COALESCE(SUM(pnl_usdc),0) FROM positions
-               WHERE user_id=$1::uuid AND status='closed'
+               WHERE user_id=$1::uuid AND mode=$2 AND status='closed'
                  AND closed_at >= NOW() - INTERVAL '24 hours'""",
-            user_id,
+            user_id, _mode,
         )
         pnl_7d = await conn.fetchval(
             """SELECT COALESCE(SUM(pnl_usdc),0) FROM positions
-               WHERE user_id=$1::uuid AND status='closed'
+               WHERE user_id=$1::uuid AND mode=$2 AND status='closed'
                  AND closed_at >= NOW() - INTERVAL '7 days'""",
-            user_id,
+            user_id, _mode,
         )
         pnl_alltime = await conn.fetchval(
-            "SELECT COALESCE(SUM(pnl_usdc),0) FROM positions WHERE user_id=$1::uuid AND status='closed'",
-            user_id,
+            "SELECT COALESCE(SUM(pnl_usdc),0) FROM positions WHERE user_id=$1::uuid AND mode=$2 AND status='closed'",
+            user_id, _mode,
         )
         # settled YES = pnl_usdc > 0 (win), settled NO = pnl_usdc <= 0 (loss).
         # Expired markets (exit_reason='market_expired') are excluded — expiry ≠ settled outcome.
@@ -332,15 +338,16 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
                  COUNT(*) FILTER (WHERE exit_reason IS DISTINCT FROM 'market_expired') AS total,
                  COUNT(*) FILTER (WHERE pnl_usdc > 0 AND exit_reason IS DISTINCT FROM 'market_expired') AS wins,
                  COUNT(*) FILTER (WHERE pnl_usdc <= 0 AND exit_reason IS DISTINCT FROM 'market_expired') AS losses
-               FROM positions WHERE user_id=$1::uuid AND status='closed'""",
-            user_id,
+               FROM positions WHERE user_id=$1::uuid AND mode=$2 AND status='closed'""",
+            user_id, _mode,
         )
         signals_today = await conn.fetchval(
             """SELECT COUNT(*) FROM positions
-               WHERE user_id=$1::uuid
+               WHERE user_id=$1::uuid AND mode=$2
                  AND opened_at >= NOW() - INTERVAL '24 hours'""",
-            user_id,
+            user_id, _mode,
         )
+        _live_bal = float(await get_live_balance(UUID(str(user_id)), conn))
         ks_active = await kill_switch.is_active()
 
         # Same global-pause lookup as /autotrade — the System Status sidebar
@@ -355,7 +362,9 @@ async def get_dashboard(user: _CurrentUser) -> DashboardSummary:
             )
             preset_globally_enabled = True if _se is None else bool(_se)
 
-    balance = float(wallet_row["balance_usdc"]) if wallet_row else 0.0
+    _mixed = float(wallet_row["balance_usdc"]) if wallet_row else 0.0
+    # Mode-scoped balance: live = real deposited money; paper = the rest.
+    balance = _live_bal if _mode == "live" else max(_mixed - _live_bal, 0.0)
     trading_mode = settings_row["trading_mode"] if settings_row else "paper"
 
     return DashboardSummary(
@@ -741,8 +750,16 @@ async def get_positions(
 ) -> list[PositionItem]:
     pool = get_pool()
     user_id = user["user_id"]
-    where = "WHERE p.user_id = $1::uuid"
-    params: list = [user_id]
+    where = "WHERE p.user_id = $1::uuid AND p.mode = $2"
+    # Live-mode-truth: the positions list shows only the trades of the mode
+    # the user is currently in (paper history in paper, live history in live).
+    async with pool.acquire() as conn:
+        _tm = await conn.fetchval(
+            "SELECT trading_mode FROM user_settings WHERE user_id=$1::uuid",
+            user_id,
+        )
+    _mode = "live" if _tm == "live" else "paper"
+    params: list = [user_id, _mode]
     if status == "open":
         # Include pending_settlement so won-positions awaiting payout are visible
         where += " AND p.status IN ('open', 'pending_settlement')"
@@ -1568,24 +1585,34 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
             "SELECT deposit_address, balance_usdc FROM wallets WHERE user_id=$1::uuid",
             user_id,
         )
-        ledger_rows = await conn.fetch(
-            """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
-               WHERE user_id=$1::uuid ORDER BY created_at DESC, id DESC LIMIT 20""",
-            user_id,
-        )
         settings_row = await conn.fetchrow(
             "SELECT trading_mode FROM user_settings WHERE user_id=$1::uuid",
             user_id,
         )
+        _mode_live = bool(settings_row and settings_row["trading_mode"] == "live")
+        # Live-mode-truth: the activity feed shows ONLY the money of the mode
+        # the user is in — real deposits/withdrawals + live trades in live,
+        # paper trade flow in paper. Same bucket SQL as get_live_balance.
+        _flt = live_ledger_filter_sql("l")
+        ledger_rows = await conn.fetch(
+            f"""SELECT l.id::text, l.type, l.amount_usdc, l.note, l.created_at
+                FROM ledger l
+               WHERE l.user_id=$1::uuid AND {'' if _mode_live else 'NOT '}{_flt}
+               ORDER BY l.created_at DESC, l.id DESC LIMIT 20""",
+            user_id,
+        )
+        _live_bal = float(await get_live_balance(UUID(str(user_id)), conn))
 
     if not w_row:
         raise HTTPException(status_code=404, detail="wallet not found")
 
     trading_mode = settings_row["trading_mode"] if settings_row else "paper"
+    _mixed = float(w_row["balance_usdc"])
+    balance = _live_bal if _mode_live else max(_mixed - _live_bal, 0.0)
 
     return WalletInfo(
         deposit_address=w_row["deposit_address"],
-        balance_usdc=float(w_row["balance_usdc"]),
+        balance_usdc=balance,
         ledger_recent=[
             LedgerEntry(
                 id=r["id"],
@@ -1614,13 +1641,22 @@ async def get_wallet_ledger(
     offset = max(offset, 0)
 
     async with pool.acquire() as conn:
+        settings_row = await conn.fetchrow(
+            "SELECT trading_mode FROM user_settings WHERE user_id=$1::uuid",
+            user_id,
+        )
+        _mode_live = bool(settings_row and settings_row["trading_mode"] == "live")
+        _flt = live_ledger_filter_sql("l")
+        _scope = f"{'' if _mode_live else 'NOT '}{_flt}"
         total_row = await conn.fetchrow(
-            "SELECT COUNT(*) AS cnt FROM ledger WHERE user_id=$1::uuid",
+            f"SELECT COUNT(*) AS cnt FROM ledger l WHERE l.user_id=$1::uuid AND {_scope}",
             user_id,
         )
         rows = await conn.fetch(
-            """SELECT id::text, type, amount_usdc, note, created_at FROM ledger
-               WHERE user_id=$1::uuid ORDER BY created_at DESC, id DESC
+            f"""SELECT l.id::text, l.type, l.amount_usdc, l.note, l.created_at
+                FROM ledger l
+               WHERE l.user_id=$1::uuid AND {_scope}
+               ORDER BY l.created_at DESC, l.id DESC
                LIMIT $2 OFFSET $3""",
             user_id,
             limit,
@@ -2040,24 +2076,33 @@ async def get_portfolio_summary(user: _CurrentUser) -> PortfolioSummary:
         balance_row = await conn.fetchrow(
             "SELECT balance_usdc FROM wallets WHERE user_id=$1::uuid", user_id
         )
+        settings_row = await conn.fetchrow(
+            "SELECT trading_mode FROM user_settings WHERE user_id=$1::uuid",
+            user_id,
+        )
+        # Live-mode-truth: equity, P&L and open positions are scoped to the
+        # mode the user is in; live balance is the REAL deposited money.
+        _mode = "live" if (settings_row and settings_row["trading_mode"] == "live") else "paper"
         realized_pnl = float(
             await conn.fetchval(
-                "SELECT COALESCE(SUM(pnl_usdc), 0) FROM positions WHERE user_id=$1::uuid AND status IN ('closed', 'expired')",
-                user_id,
+                "SELECT COALESCE(SUM(pnl_usdc), 0) FROM positions WHERE user_id=$1::uuid AND mode=$2 AND status IN ('closed', 'expired')",
+                user_id, _mode,
             ) or 0
         )
         open_rows = await conn.fetch(
-            "SELECT size_usdc, entry_price, current_price FROM positions WHERE user_id=$1::uuid AND status IN ('open','pending_settlement')",
-            user_id,
+            "SELECT size_usdc, entry_price, current_price FROM positions WHERE user_id=$1::uuid AND mode=$2 AND status IN ('open','pending_settlement')",
+            user_id, _mode,
         )
         total_closed = int(
             await conn.fetchval(
-                "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND status IN ('closed', 'expired', 'market_expired')",
-                user_id,
+                "SELECT COUNT(*) FROM positions WHERE user_id=$1::uuid AND mode=$2 AND status IN ('closed', 'expired', 'market_expired')",
+                user_id, _mode,
             ) or 0
         )
+        _live_bal = float(await get_live_balance(UUID(str(user_id)), conn))
 
-    balance = float(balance_row["balance_usdc"]) if balance_row else 0.0
+    _mixed = float(balance_row["balance_usdc"]) if balance_row else 0.0
+    balance = _live_bal if _mode == "live" else max(_mixed - _live_bal, 0.0)
     unrealized_pnl = _unrealized_pnl(open_rows)
     deployed = sum(float(r["size_usdc"]) for r in open_rows)
     equity = balance + deployed + unrealized_pnl
@@ -2186,10 +2231,15 @@ async def get_portfolio_analytics(user: _CurrentUser) -> PortfolioAnalytics:
                FROM positions p
                LEFT JOIN markets m ON m.id = p.market_id
                WHERE p.user_id = $1::uuid
+                 AND p.mode = $2
                  AND p.status IN ('closed', 'expired')
                  AND p.pnl_usdc IS NOT NULL
                ORDER BY p.closed_at ASC""",
             user_id,
+            "live" if (await conn.fetchval(
+                "SELECT trading_mode FROM user_settings WHERE user_id=$1::uuid",
+                user_id,
+            )) == "live" else "paper",
         )
 
     if not rows:
@@ -2565,10 +2615,12 @@ async def get_live_status(user: _CurrentUser) -> LiveStatus:
         ) or 0)
     trading_mode = (row["trading_mode"] if row else "paper") or "paper"
     cap = float((row["live_capital_cap_usdc"] if row else 0) or 0)
+    live_bal = float(await get_live_balance(UUID(str(user_id))))
     checklist = await live_checklist.evaluate(UUID(str(user_id)))
     return LiveStatus(
         trading_mode=trading_mode,
         live_capital_cap_usdc=cap,
+        live_balance_usdc=live_bal,
         open_live_exposure_usdc=open_live,
         operator_guards_open=_operator_guards_open(s),
         checklist_passed=checklist.passed,
@@ -2587,16 +2639,24 @@ async def enable_live(
 ) -> LiveEnableResponse:
     """Flip the user's trading_mode to 'live' after typed confirmation.
 
+    Live-mode-truth semantics (owner directive 2026-06-11):
+      * NO manual capital amount — live exposure is bounded by the user's
+        REAL deposited balance (risk-gate step 15). An optional cap may
+        still arrive from legacy clients and only tightens that bound.
+      * A prior deposit is NOT required: switch first, deposit after.
+      * The switch AUTO-STOPS the bot (users.auto_trade_on=FALSE) — nothing
+        trades until the user deposits and explicitly re-arms Auto-Trade.
+      * Single mode truth: trading_mode + paper_mode_override are written
+        together so no surface can ever disagree about the user's mode.
+
     Defensive gates (all must pass):
       1. Operator env guards are open.
-      2. 8-gate live_checklist passes for this user.
+      2. 7-gate live_checklist passes for this user.
       3. `confirm_phrase` matches the exact required string. Defends
          against accidental clicks; no normalisation, case-sensitive.
-      4. `live_capital_cap_usdc > 0` and bounded by SYSTEM ceiling (the
-         user is not allowed to set an unbounded cap).
-      5. The gate-level enforcement in `domain/risk/gate.py` step 15
-         still has the final say on every individual trade — this
-         endpoint only flips the user-level enable switch.
+      4. The gate-level enforcement in `domain/risk/gate.py` step 15
+         still has the final say on every individual trade — zero real
+         funds means zero live trades regardless of this switch.
     """
     from ...domain.activation import live_checklist
     from ...config import get_settings
@@ -2616,10 +2676,11 @@ async def enable_live(
                 f"'{_LIVE_ENABLE_CONFIRM_PHRASE}' to enable live trading"
             ),
         )
-    if not (LIVE_CAP_MIN_USDC < float(body.live_capital_cap_usdc) <= LIVE_CAP_MAX_USDC):
+    manual_cap = float(body.live_capital_cap_usdc or 0.0)
+    if manual_cap < 0 or manual_cap > LIVE_CAP_MAX_USDC:
         raise HTTPException(
             status_code=400,
-            detail=f"live_capital_cap_usdc must be > 0 and ≤ {int(LIVE_CAP_MAX_USDC)}",
+            detail=f"live_capital_cap_usdc must be ≥ 0 and ≤ {int(LIVE_CAP_MAX_USDC)}",
         )
 
     checklist = await live_checklist.evaluate(UUID(str(user_id)))
@@ -2638,25 +2699,37 @@ async def enable_live(
             await conn.execute(
                 "UPDATE user_settings "
                 "   SET trading_mode = 'live', "
+                "       paper_mode_override = FALSE, "
                 "       live_capital_cap_usdc = $2, "
                 "       updated_at = NOW() "
                 " WHERE user_id = $1::uuid",
-                user_id, float(body.live_capital_cap_usdc),
+                user_id, manual_cap,
+            )
+            # AUTO-STOP on mode switch: the bot must not trade the instant
+            # the user goes live — they deposit first, then re-arm.
+            await conn.execute(
+                "UPDATE users SET auto_trade_on = FALSE WHERE id = $1::uuid",
+                user_id,
             )
 
+    live_bal = float(await get_live_balance(UUID(str(user_id))))
     await audit.write(
         actor_role="user",
         action="webtrader_live_enable",
         user_id=UUID(str(user_id)),
         payload={
-            "live_capital_cap_usdc": float(body.live_capital_cap_usdc),
+            "live_capital_cap_usdc": manual_cap,
+            "live_balance_usdc": live_bal,
+            "auto_trade_stopped": True,
             "operator_guards_open": True,
             "checklist_passed": True,
         },
     )
     return LiveEnableResponse(
         trading_mode="live",
-        live_capital_cap_usdc=float(body.live_capital_cap_usdc),
+        live_capital_cap_usdc=manual_cap,
+        live_balance_usdc=live_bal,
+        auto_trade_on=False,
     )
 
 
@@ -2677,20 +2750,28 @@ async def disable_live(user: _CurrentUser) -> dict:
     user_id = user["user_id"]
     pool = get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE user_settings "
-            "   SET trading_mode = 'paper', "
-            "       updated_at = NOW() "
-            " WHERE user_id = $1::uuid",
-            user_id,
-        )
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE user_settings "
+                "   SET trading_mode = 'paper', "
+                "       paper_mode_override = TRUE, "
+                "       updated_at = NOW() "
+                " WHERE user_id = $1::uuid",
+                user_id,
+            )
+            # Mode switches always stop the bot — the user re-arms Auto-Trade
+            # deliberately in the mode they just chose.
+            await conn.execute(
+                "UPDATE users SET auto_trade_on = FALSE WHERE id = $1::uuid",
+                user_id,
+            )
     await audit.write(
         actor_role="user",
         action="webtrader_live_disable",
         user_id=UUID(str(user_id)),
-        payload={"source": "/api/web/live/disable"},
+        payload={"source": "/api/web/live/disable", "auto_trade_stopped": True},
     )
-    return {"ok": True, "trading_mode": "paper"}
+    return {"ok": True, "trading_mode": "paper", "auto_trade_on": False}
 
 
 # ── Self-serve TOTP 2FA ────────────────────────────────────────────────────

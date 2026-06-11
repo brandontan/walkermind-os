@@ -143,6 +143,14 @@ export function useScannerStatus(): ScannerCtx {
 // on live enable/disable. Lets any TopBar render the correct LIVE/PAPER pill
 // even on pages that don't fetch the mode themselves.
 export const TradingModeContext = createContext<string>("paper");
+// Refresher so pages that CHANGE the mode (Settings live enable/disable) can
+// update the app-wide TopBar pill immediately — there is no SSE broadcast on
+// the enable endpoint, so without this the pill stays stale until reload
+// (the "switched to live but header still says PAPER" bug).
+export const TradingModeRefreshContext = createContext<() => void>(() => {});
+export function useTradingModeRefresh(): () => void {
+  return useContext(TradingModeRefreshContext);
+}
 
 export function useTradingMode(): string {
   return useContext(TradingModeContext);
@@ -434,6 +442,7 @@ function AppShell() {
 
   return (
     <TradingModeContext.Provider value={tradingMode}>
+    <TradingModeRefreshContext.Provider value={refreshTradingMode}>
     <ScannerContext.Provider value={{ lastScanMs }}>
     <AlertCenterContext.Provider value={alertCtx}>
     <SSEStatusContext.Provider value={sseConnected}>
@@ -516,6 +525,7 @@ function AppShell() {
     </SSEStatusContext.Provider>
     </AlertCenterContext.Provider>
     </ScannerContext.Provider>
+    </TradingModeRefreshContext.Provider>
     </TradingModeContext.Provider>
   );
 }

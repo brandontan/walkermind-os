@@ -790,6 +790,20 @@ async def _load_enrolled_users() -> list[dict[str, Any]]:
                 COALESCE(s.risk_profile, 'balanced') AS risk_profile,
                 COALESCE(s.trading_mode, 'paper')    AS trading_mode,
                 COALESCE(s.live_capital_cap_usdc, 0) AS live_capital_cap_usdc,
+                -- Live-mode-truth: the user's REAL deposited balance (the
+                -- live bankroll + step-15 bound). Same bucket definition as
+                -- wallet.ledger.get_live_balance: deposits/withdrawals,
+                -- withdrawal-refund adjustments, and live-position trade rows.
+                COALESCE((SELECT SUM(l.amount_usdc) FROM ledger l
+                          WHERE l.user_id = u.id
+                            AND ( l.type IN ('deposit', 'withdraw')
+                                  OR (l.type = 'adjustment' AND EXISTS (
+                                        SELECT 1 FROM withdrawals wd
+                                        WHERE wd.id = l.ref_id))
+                                  OR EXISTS (SELECT 1 FROM positions lp
+                                             WHERE lp.id = l.ref_id
+                                               AND lp.mode = 'live') )), 0)
+                    AS live_balance_usdc,
                 s.tp_pct,
                 s.sl_pct,
                 s.daily_loss_override,
@@ -1586,6 +1600,8 @@ async def _maybe_fire_fast_topup(
             ),
             active_preset=preset,
             live_capital_cap_usdc=float(row.get("live_capital_cap_usdc") or 0.0),
+            live_balance_usdc=float(row.get("live_balance_usdc") or 0.0)
+            if row.get("live_balance_usdc") is not None else None,
             max_concurrent_override=(
                 int(row["max_concurrent_override"])
                 if row.get("max_concurrent_override") is not None
@@ -2227,6 +2243,8 @@ def _build_trade_signal(
         # on a stale schema → defaults to 0 → gate step 15 rejects live mode
         # (safe-by-default).
         live_capital_cap_usdc=float(row.get("live_capital_cap_usdc") or 0.0),
+            live_balance_usdc=float(row.get("live_balance_usdc") or 0.0)
+            if row.get("live_balance_usdc") is not None else None,
         max_concurrent_override=(
             int(row["max_concurrent_override"])
             if row.get("max_concurrent_override") is not None
@@ -2789,6 +2807,8 @@ async def _process_candidate(
                     if row.get("max_drawdown_pct") is not None else None
                 ),
                 live_capital_cap_usdc=float(row.get("live_capital_cap_usdc") or 0.0),
+            live_balance_usdc=float(row.get("live_balance_usdc") or 0.0)
+            if row.get("live_balance_usdc") is not None else None,
                 max_concurrent_override=(
                     int(row["max_concurrent_override"])
                     if row.get("max_concurrent_override") is not None else None

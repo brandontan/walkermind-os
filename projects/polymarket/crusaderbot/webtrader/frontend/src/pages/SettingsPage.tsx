@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AdvancedOnly } from "../components/AdvancedGate";
 import { DesktopPageHeader } from "../components/DesktopPageHeader";
 import { LiveActivationModal } from "../components/LiveActivationModal";
+import { useTradingModeRefresh } from "../App";
 import { NotificationPrefsCard } from "../components/NotificationPrefsCard";
 import { SettingsGroup, SettingsRow } from "../components/SettingsGroup";
 import { Toggle } from "../components/Toggle";
@@ -149,11 +150,16 @@ export function SettingsPage() {
     }
   }
 
+  const refreshTradingMode = useTradingModeRefresh();
+
   async function handleDisableLive() {
     setDisablingLive(true);
     try {
       await api.disableLive();
       await load();
+      // Update the app-wide TopBar pill immediately — no SSE broadcast exists
+      // for mode switches, so without this the header stays stale.
+      refreshTradingMode();
     } catch (e) {
       console.error("disable live failed", e);
     } finally {
@@ -305,8 +311,8 @@ export function SettingsPage() {
                         style={{ background: "rgba(0,255,156,0.05)", border: "1px solid rgba(0,255,156,0.18)" }}
                       >
                         <InfoRow
-                          label="Capital cap"
-                          value={`$${liveStatus.live_capital_cap_usdc.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDC`}
+                          label="Live balance (deposited)"
+                          value={`$${liveStatus.live_balance_usdc.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDC`}
                         />
                         <InfoRow
                           label="Open live exposure"
@@ -315,8 +321,9 @@ export function SettingsPage() {
                       </div>
                     )}
                     <p className="text-[10px] text-ink-3 leading-relaxed">
-                      The cap is the most open live exposure the bot will hold for you. Switching
-                      back to paper stops new real-money trades; open live positions resolve as-is.
+                      Your real deposited balance is the bot's live bankroll and its hard exposure
+                      ceiling — deposit more to trade bigger. Switching modes stops the bot until
+                      you re-arm Auto-Trade; open live positions resolve as-is.
                     </p>
                     <button
                       type="button"
@@ -331,8 +338,9 @@ export function SettingsPage() {
                 ) : (
                   <>
                     <p className="text-[10px] text-ink-3 leading-relaxed">
-                      Switch from practice to real-money trading. You'll set a capital cap (your
-                      max live exposure) and type a confirmation phrase. All risk controls stay on.
+                      Switch from practice to real-money trading. No amount to enter — your real
+                      deposited balance is the live bankroll. You can switch first and deposit
+                      after; the bot stays stopped until you re-arm it. All risk controls stay on.
                     </p>
                     <button
                       type="button"
@@ -524,8 +532,8 @@ export function SettingsPage() {
         <LiveActivationModal
           status={liveStatus}
           onClose={() => setShowLiveModal(false)}
-          onEnable={(capValue, confirmPhrase) => api.enableLive(capValue, confirmPhrase)}
-          onSuccess={() => { void load(); }}
+          onEnable={(confirmPhrase) => api.enableLive(confirmPhrase)}
+          onSuccess={() => { void load(); refreshTradingMode(); }}
         />
       )}
     </>

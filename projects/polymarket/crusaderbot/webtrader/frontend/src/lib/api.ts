@@ -137,8 +137,10 @@ export function makeApi(token: string | null) {
       get<FeedSignal[]>(`/signals/recent?limit=${limit}&offset=${offset}`),
     // ── Live-trading activation (per-user opt-in) ──────────────────────────
     getLiveStatus: () => get<LiveStatus>("/live/status"),
-    enableLive: (live_capital_cap_usdc: number, confirm_phrase: string) =>
-      post<LiveEnableResponse>("/live/enable", { live_capital_cap_usdc, confirm_phrase }),
+    // live-mode-truth: no manual capital amount — live exposure is bounded by
+    // the user's real deposited balance; only the typed phrase is sent.
+    enableLive: (confirm_phrase: string) =>
+      post<LiveEnableResponse>("/live/enable", { confirm_phrase }),
     disableLive: () => post<{ trading_mode: string }>("/live/disable"),
     // ── Self-serve TOTP 2FA (closes live_checklist gate 7) ────────────────
     get2faStatus: () => get<TwoFactorStatus>("/2fa/status"),
@@ -682,16 +684,19 @@ export interface RuntimeStatus {
 // ── Live-trading activation (mirrors backend schemas.LiveStatus/LiveEnable*) ──
 export interface LiveStatus {
   trading_mode: string;            // "paper" | "live"
-  live_capital_cap_usdc: number;   // 0 = not opted in
+  live_capital_cap_usdc: number;   // optional manual cap; 0 = real balance alone bounds
+  live_balance_usdc: number;       // REAL deposited balance — the live bankroll
   open_live_exposure_usdc: number; // aggregate open live size
   operator_guards_open: boolean;   // system-level live unlock (all 5 env guards)
-  checklist_passed: boolean;       // 8-gate per-user readiness
+  checklist_passed: boolean;       // 7-gate per-user readiness
   failed_gates: string[];          // human-readable gate names that aren't passing
 }
 
 export interface LiveEnableResponse {
   trading_mode: string;
   live_capital_cap_usdc: number;
+  live_balance_usdc: number;   // real deposited balance at enable time
+  auto_trade_on: boolean;      // always false — mode switches auto-stop the bot
 }
 
 // Self-serve TOTP 2FA — closes live_checklist gate 7.

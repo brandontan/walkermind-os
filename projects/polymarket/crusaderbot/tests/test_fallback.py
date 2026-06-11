@@ -321,6 +321,8 @@ def test_gate_step13_silent_downgrade_triggers_live_guard_unset_fallback():
     with patch.object(gate, "get_pool", return_value=_Pool()), \
          patch.object(gate, "kill_switch_is_active",
                       AsyncMock(return_value=False)), \
+         patch.object(gate, "get_live_balance",
+                      AsyncMock(return_value=D("100"))), \
          patch.object(gate, "daily_pnl",
                       AsyncMock(return_value=D("0"))), \
          patch.object(gate, "_max_drawdown_breached",
