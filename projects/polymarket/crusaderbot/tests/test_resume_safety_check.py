@@ -30,9 +30,11 @@ _MARKET = "market-resume-001"
 
 def _patch_clear(monkeypatch, *, balance=1000.0, pnl=0.0, dd=False,
                  open_count=0, open_exp=0.0, open_live=0.0,
-                 capital_alloc_pct=0.40):
+                 capital_alloc_pct=0.40, live_balance=1000.0):
     """Patch every gate DB helper to a clear (passing) baseline."""
     monkeypatch.setattr(gate_mod, "_log", AsyncMock(return_value=None))
+    monkeypatch.setattr(gate_mod, "get_live_balance",
+                        AsyncMock(return_value=Decimal(str(live_balance))))
     monkeypatch.setattr(gate_mod, "daily_pnl", AsyncMock(return_value=Decimal(str(pnl))))
     monkeypatch.setattr(gate_mod, "get_balance", AsyncMock(return_value=Decimal(str(balance))))
     monkeypatch.setattr(gate_mod, "_max_drawdown_breached", AsyncMock(return_value=dd))
@@ -115,17 +117,20 @@ def test_resume_exposure_blocks(monkeypatch):
     assert res.reason == "capital_deployment_cap"
 
 
-def test_resume_live_not_opted_in_blocks(monkeypatch):
-    _patch_clear(monkeypatch)
+def test_resume_live_no_funds_blocks(monkeypatch):
+    # live-mode-truth: zero REAL deposited balance = no live resume,
+    # regardless of any manual cap value.
+    _patch_clear(monkeypatch, live_balance=0.0)
     res = _run(chosen_mode="live", trading_mode="live", live_capital_cap_usdc=0.0)
     assert res.approved is False
     assert res.failed_step == 15
-    assert res.reason == "live_not_opted_in"
+    assert res.reason == "live_no_funds"
 
 
 def test_resume_live_cap_exceeded_blocks(monkeypatch):
-    # open_live 60 + proposed 100 = 160 > cap 100
-    _patch_clear(monkeypatch, open_live=60.0)
+    # open_live 60 + proposed 100 = 160 > manual cap 100 (real balance is
+    # ample — the manual cap only TIGHTENS the real-balance bound).
+    _patch_clear(monkeypatch, open_live=60.0, live_balance=1000.0)
     res = _run(chosen_mode="live", trading_mode="live", live_capital_cap_usdc=100.0)
     assert res.approved is False
     assert res.failed_step == 15
@@ -136,6 +141,15 @@ def test_resume_live_within_cap_approves(monkeypatch):
     _patch_clear(monkeypatch, open_live=20.0)
     res = _run(chosen_mode="live", trading_mode="live", live_capital_cap_usdc=500.0)
     assert res.approved is True
+
+
+def test_resume_live_real_balance_bounds_without_manual_cap(monkeypatch):
+    # No manual cap (0 = auto): the REAL balance alone bounds exposure.
+    # spendable = live_balance 50 + open_live 0; proposed 100 > 50 → reject.
+    _patch_clear(monkeypatch, live_balance=50.0)
+    res = _run(chosen_mode="live", trading_mode="live", live_capital_cap_usdc=0.0)
+    assert res.approved is False
+    assert res.reason == "live_capital_cap_exceeded"
 
 
 def test_resume_paper_skips_live_cap(monkeypatch):

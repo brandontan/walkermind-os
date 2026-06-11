@@ -142,17 +142,18 @@ def test_all_three_env_gates_fail_alone():
 # ---------- One gate fails per test (isolation grid) ------------------------
 
 
-def test_active_subaccount_gate_fails_when_no_wallet():
-    conn = FakeConn(has_wallet=False)
+def test_deposit_is_not_a_gate():
+    """live-mode-truth (owner 2026-06-11): switching to live must NOT require
+    a prior deposit — users switch first and deposit after. The bot auto-stops
+    on the switch and risk-gate step 15 rejects any live trade while the real
+    deposited balance is zero, so removing this gate cannot let an unfunded
+    account trade. Pin the absence so the gate cannot silently come back."""
+    conn = FakeConn(has_wallet=False, deposit_count=0)
     r = _run(conn, _settings())
-    assert lc.GATE_ACTIVE_SUBACCOUNT in r.failed_gates
-    assert r.passed is False
-
-
-def test_active_subaccount_gate_fails_when_no_confirmed_deposit():
-    conn = FakeConn(deposit_count=0)
-    r = _run(conn, _settings())
-    assert lc.GATE_ACTIVE_SUBACCOUNT in r.failed_gates
+    assert r.passed is True
+    assert "active_subaccount_with_deposit" not in r.failed_gates
+    assert not hasattr(lc, "GATE_ACTIVE_SUBACCOUNT")
+    assert len(lc.GATE_ORDER) == 7
 
 
 def test_strategy_gate_fails_when_empty():
@@ -188,12 +189,12 @@ def test_operator_allowlist_gate_fails_when_user_missing():
 # ---------- Partial pass mix ------------------------------------------------
 
 
-def test_partial_pass_three_env_three_user():
-    # Three env gates pass, three user gates fail (subaccount, 2fa, role).
+def test_partial_pass_three_env_two_user():
+    # Three env gates pass, two user gates fail (2fa, role). A missing
+    # wallet/deposit is NOT a gate (live-mode-truth).
     conn = FakeConn(has_wallet=False, two_factor=False, role="user")
     r = _run(conn, _settings())
     assert r.passed is False
-    assert lc.GATE_ACTIVE_SUBACCOUNT in r.failed_gates
     assert lc.GATE_TWO_FACTOR_SETUP in r.failed_gates
     assert lc.GATE_OPERATOR_ALLOWLIST in r.failed_gates
     # Env gates must NOT be in failed list — they passed.
@@ -249,7 +250,7 @@ def test_render_telegram_failed_message_lists_each_failure_in_order():
 def test_render_telegram_wraps_gate_names_in_code_tags():
     # Gate identifiers contain underscores; HTML <code> tags preserve them
     # literally and are safe in Telegram HTML mode.
-    failed = [lc.GATE_ACTIVE_SUBACCOUNT, lc.GATE_TWO_FACTOR_SETUP]
+    failed = [lc.GATE_STRATEGY_CONFIGURED, lc.GATE_TWO_FACTOR_SETUP]
     outcomes = [
         lc.GateOutcome(name=n, ok=(n not in failed))
         for n in lc.GATE_ORDER

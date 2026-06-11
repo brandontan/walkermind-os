@@ -80,6 +80,67 @@ async def get_balance(user_id: UUID) -> Decimal:
     return Decimal(row["balance_usdc"]) if row else Decimal("0")
 
 
+# ── Live/paper bucket split (read-model, no schema change) ────────────────────
+#
+# ``wallets.balance_usdc`` is a single MIXED pool: paper trade P&L and REAL
+# deposits/withdrawals both post to it through the ledger. The ledger has no
+# mode column, but every row is attributable to exactly one bucket:
+#
+#   REAL (live) money:
+#     * type='deposit'  — on-chain USDC.e credits (always real)
+#     * type='withdraw' — withdrawal request debits (always real)
+#     * type='adjustment' with ref_id → withdrawals — withdrawal refunds
+#       (wallet/withdrawals.py credits T_ADJUSTMENT on preflight failure)
+#     * trade rows (trade_open/trade_close/redeem/fee) whose ref_id joins a
+#       positions row with mode='live'
+#   PAPER money: everything else (paper trade rows, manual paper adjustments).
+#
+# live balance = SUM of the real bucket. trade_open rows are negative, so open
+# live cost is already subtracted — the sum IS the spendable live cash. The
+# paper balance is wallets.balance_usdc minus this sum, by construction.
+_LIVE_LEDGER_FILTER_SQL = (
+    "( l.type IN ('deposit', 'withdraw') "
+    "  OR (l.type = 'adjustment' AND EXISTS ("
+    "        SELECT 1 FROM withdrawals w WHERE w.id = l.ref_id)) "
+    "  OR EXISTS (SELECT 1 FROM positions p "
+    "             WHERE p.id = l.ref_id AND p.mode = 'live') )"
+)
+
+
+def live_ledger_filter_sql(alias: str = "l") -> str:
+    """SQL predicate selecting the REAL-money ledger rows for alias ``l``.
+
+    Exposed so read endpoints can mode-scope ledger feeds with the exact same
+    bucket definition the balance uses — one source of truth for "what is
+    live money".
+    """
+    if alias == "l":
+        return _LIVE_LEDGER_FILTER_SQL
+    return _LIVE_LEDGER_FILTER_SQL.replace("l.", f"{alias}.")
+
+
+async def get_live_balance(
+    user_id: UUID, conn: Optional[asyncpg.Connection] = None,
+) -> Decimal:
+    """Spendable REAL (live) USDC for the user — see bucket notes above.
+
+    Open live position cost is already debited (trade_open rows are negative),
+    so this is the cash available for NEW live exposure. Pass ``conn`` to read
+    inside an existing transaction.
+    """
+    sql = (
+        "SELECT COALESCE(SUM(l.amount_usdc), 0) FROM ledger l "
+        f"WHERE l.user_id = $1 AND {_LIVE_LEDGER_FILTER_SQL}"
+    )
+    if conn is not None:
+        val = await conn.fetchval(sql, user_id)
+    else:
+        pool = get_pool()
+        async with pool.acquire() as c:
+            val = await c.fetchval(sql, user_id)
+    return Decimal(str(val or 0))
+
+
 async def daily_pnl(user_id: UUID) -> Decimal:
     pool = get_pool()
     async with pool.acquire() as conn:

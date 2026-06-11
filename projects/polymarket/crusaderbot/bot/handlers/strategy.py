@@ -167,13 +167,40 @@ async def strategy_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> N
         )
 
     elif action == "paper" and value == "toggle":
+        # Live-mode-truth: trading_mode is the single mode truth and the two
+        # columns must never disagree. Turning paper ON here is a real, safe
+        # drop-to-paper (same write shape as /api/web/live/disable, bot
+        # auto-stopped). Turning paper OFF must NOT silently arm live — that
+        # requires the typed-confirm flow (/enable_live or WebTrader).
         async with pool.acquire() as conn:
-            new_val = await conn.fetchval(
-                "UPDATE user_settings SET paper_mode_override=NOT paper_mode_override"
-                " WHERE user_id=$1 RETURNING paper_mode_override",
+            cur_override = bool(await conn.fetchval(
+                "SELECT paper_mode_override FROM user_settings WHERE user_id=$1",
                 user["id"],
-            )
-        new_val = bool(new_val)
+            ))
+            if cur_override:
+                # paper OFF requested → live. Never silently: point at the
+                # typed-confirm flow and leave the row unchanged.
+                await q.message.edit_text(
+                    "*📄 Paper Mode Override*\n"
+                    "Going live needs the typed\-confirm flow\.\n"
+                    "Use /enable\_live or WebTrader → Settings → "
+                    "Enable Live Trading\.",
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                    reply_markup=_paper_kb(cur_override),
+                )
+                return
+            async with conn.transaction():
+                new_val = bool(await conn.fetchval(
+                    "UPDATE user_settings SET paper_mode_override=TRUE, "
+                    " trading_mode='paper' "
+                    " WHERE user_id=$1 RETURNING paper_mode_override",
+                    user["id"],
+                ))
+                # Mode switches always stop the bot (live-mode-truth lane).
+                await conn.execute(
+                    "UPDATE users SET auto_trade_on=FALSE WHERE id=$1",
+                    user["id"],
+                )
         status = "ON (paper)" if new_val else "OFF (live)"
         await q.message.edit_text(
             f"*📄 Paper Mode Override*\nCurrent: `{status}`",

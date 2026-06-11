@@ -61,33 +61,39 @@ def _ctx(
     )
 
 
-def test_gate_step_15_rejects_live_when_cap_is_zero():
-    """A user with live_capital_cap_usdc=0 has not opted into live mode.
-    Any live trade must be rejected at step 15 with reason 'live_not_opted_in'.
+def test_gate_step_15_rejects_live_when_no_real_funds():
+    """live-mode-truth: the authoritative live bound is the user's REAL
+    deposited balance. Zero real funds = no live trades ('live_no_funds') —
+    this is what makes switch-first-deposit-later safe. A manual cap only
+    tightens the bound; it is no longer an opt-in signal (opt-in is
+    trading_mode='live', written only by the typed-confirm flows).
     """
-    # We test the step-15 logic directly by calling the gate's
-    # _open_live_exposure (which we mock to return 0) and re-implementing
-    # the step-15 branch — source-level pin via inspect.
     src = inspect.getsource(gate_mod.evaluate)
-    assert "live_not_opted_in" in src, (
-        "Regression: gate step 15 lost its 'live_not_opted_in' reject path — "
-        "a user with cap=0 could now place live trades they never opted into."
+    assert "live_no_funds" in src, (
+        "Regression: gate step 15 lost its 'live_no_funds' reject path — "
+        "an unfunded live account could place live trades."
+    )
+    assert "get_live_balance" in src or "live_bal" in src, (
+        "Regression: step 15 no longer reads the real deposited balance."
     )
     # Same pin for the over-cap reject.
     assert "live_capital_cap_exceeded" in src, (
         "Regression: gate step 15 lost its 'live_capital_cap_exceeded' "
-        "reject path — a user could push past their declared cap."
+        "reject path — a user could push past the real-balance bound."
     )
 
 
-def test_gate_step_15_logic_cap_zero_rejects():
-    """Bare logic: cap <= 0 must reject."""
-    cap = 0.0
+def test_gate_step_15_logic_no_funds_rejects():
+    """Bare logic: live balance <= 0 must reject; manual cap only tightens."""
+    live_bal = 0.0
     open_live = 0.0
     proposed = 10.0
-    if cap <= 0.0:
+    manual_cap = 0.0
+    spendable = live_bal + open_live
+    if live_bal <= 0.0:
         rejected = True
     else:
+        cap = min(manual_cap, spendable) if manual_cap > 0 else spendable
         rejected = (open_live + proposed) > cap
     assert rejected is True
 
@@ -156,21 +162,25 @@ def test_enable_live_requires_exact_confirm_phrase():
     assert "body.confirm_phrase != _LIVE_ENABLE_CONFIRM_PHRASE" in src
 
 
-def test_enable_live_enforces_capital_cap_bounds():
-    """POST /live/enable must reject cap <= 0 and cap > the system ceiling.
-
-    Bounds now come from the shared constants in
-    domain/activation/live_opt_in_gate.py (single source of truth for both the
-    WebTrader endpoint and the Telegram /enable_live flow), so the pin asserts
-    the shared-constant comparison form plus the actual ceiling value.
+def test_enable_live_no_manual_cap_required_and_auto_stops():
+    """live-mode-truth: POST /live/enable requires NO capital amount (the
+    real deposited balance bounds exposure); an optional legacy cap is only
+    range-checked. The switch must write BOTH mode columns in sync and
+    AUTO-STOP the bot (users.auto_trade_on = FALSE).
     """
     from projects.polymarket.crusaderbot.domain.activation import (
         live_opt_in_gate as opt_in,
     )
     src = inspect.getsource(router_mod.enable_live)
-    assert "LIVE_CAP_MIN_USDC < float(body.live_capital_cap_usdc) <= LIVE_CAP_MAX_USDC" in src
-    assert opt_in.LIVE_CAP_MIN_USDC == 0.0
+    # Optional cap: present-but-bounded, never required.
+    assert "manual_cap" in src
+    assert "LIVE_CAP_MAX_USDC" in src
     assert opt_in.LIVE_CAP_MAX_USDC == 10_000.0
+    # Single mode truth: both columns written together.
+    assert "trading_mode = 'live'" in src
+    assert "paper_mode_override = FALSE" in src
+    # Auto-stop on switch.
+    assert "auto_trade_on = FALSE" in src
 
 
 def test_enable_live_requires_operator_guards_and_checklist():

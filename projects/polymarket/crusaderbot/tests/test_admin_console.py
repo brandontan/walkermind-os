@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -379,6 +380,8 @@ def _run_get_dashboard(active_preset, *, strategy_enabled=True, alerts_ack_at=No
         fetchval_returns.append(strategy_enabled)
     conn.fetchval = AsyncMock(side_effect=fetchval_returns)
     with patch.object(r, "get_pool", return_value=_pool(conn)), \
+         patch.object(r, "get_live_balance",
+                      AsyncMock(return_value=Decimal("0"))), \
          patch.object(r.kill_switch, "is_active", AsyncMock(return_value=False)):
         return asyncio.run(r.get_dashboard({"user_id": str(uuid4())}))
 

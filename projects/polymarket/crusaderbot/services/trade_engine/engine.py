@@ -98,10 +98,14 @@ class TradeSignal:
     user_min_liquidity: float = 0.0
     max_drawdown_pct: Optional[float] = None
     active_preset: Optional[str] = None
-    # Per-user live-trading capital cap (USDC). 0 means the user has not
-    # opted in to live mode; gate step 15 rejects any live trade. Set via
-    # /api/web/live/enable typed-confirm flow.
+    # OPTIONAL manual live cap (USDC); 0 = no manual cap. The authoritative
+    # live bound is the user's REAL deposited balance (live_balance_usdc) —
+    # gate step 15 enforces min(manual cap if >0, real balance).
     live_capital_cap_usdc: float = 0.0
+    # The user's REAL deposited balance — preloaded by the scan loader
+    # (live-mode-truth lane); the live bankroll for sizing + step 15.
+    # None = legacy construction site; the gate falls back to a one-shot read.
+    live_balance_usdc: Optional[float] = None
     # Per-user concurrent-trades override (1..20). None = use profile default.
     max_concurrent_override: Optional[int] = None
     # WARP-89 (gate-hotpath-db-fix): authoritative risk-profile CAP%
@@ -343,6 +347,9 @@ class TradeEngine:
             user_min_liquidity=signal.user_min_liquidity,
             max_drawdown_pct=signal.max_drawdown_pct,
             live_capital_cap_usdc=signal.live_capital_cap_usdc,
+            # getattr: stub TradeSignals in existing harnesses predate the
+            # field; None routes the gate to its one-shot fallback read.
+            live_balance_usdc=getattr(signal, "live_balance_usdc", None),
             max_concurrent_override=signal.max_concurrent_override,
             # WARP-89: pass the preloaded CAP% straight through to the gate so the
             # per-candidate evaluate() reads it instead of doing a DB SELECT.

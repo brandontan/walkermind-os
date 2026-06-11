@@ -10,7 +10,7 @@ from uuid import UUID
 import asyncpg
 
 from ...database import get_pool
-from ...wallet.ledger import daily_pnl, get_balance
+from ...wallet.ledger import daily_pnl, get_balance, get_live_balance
 from ..execution import fallback as live_fallback
 from ..execution.slippage import check_market_impact
 from ..ops.kill_switch import is_active as kill_switch_is_active
@@ -47,13 +47,21 @@ class GateContext:
     # User-configured drawdown halt threshold (0, 0.08]. System 8% floor applies
     # regardless — this only lets users halt earlier (e.g. set 5% to stop at 5%).
     max_drawdown_pct: float | None = None
-    # Per-user live-trading capital cap (USDC). Aggregate live exposure +
-    # this proposed size must stay below this cap. 0 = live trading
-    # disabled for this user (any live trade rejected at step 15). Set
-    # via /api/web/live/enable (typed confirm) or Telegram /enable_live.
-    # Paper trades are unaffected — the cap only fires when the gate is
-    # about to approve a chosen_mode='live' trade.
+    # OPTIONAL per-user live-trading cap (USDC), tightening only. The
+    # authoritative live ceiling is the user's REAL deposited balance
+    # (live-mode-truth lane): effective cap = min(manual cap if > 0,
+    # live balance). 0 = no manual cap — the real balance alone bounds
+    # exposure. Paper trades are unaffected — the cap only fires when the
+    # gate is about to approve a chosen_mode='live' trade (step 15).
     live_capital_cap_usdc: float = 0.0
+    # The user's spendable REAL (deposited) USDC — wallet.ledger
+    # get_live_balance. Preloaded once per user per tick by the scan loader
+    # (WARP-89 pattern: no per-candidate DB read); None only at legacy
+    # construction sites, where step 15 falls back to the one-shot read.
+    # Sizing for an intended-live user (trading_mode='live') uses THIS as
+    # the bankroll instead of the mixed wallets.balance_usdc — live trades
+    # must size off real money, never the paper bankroll.
+    live_balance_usdc: float | None = None
     # Per-user concurrent-trades override (1..20). None = use profile default.
     # Gate step 7 picks min(profile_default, this) — user can only tighten.
     max_concurrent_override: int | None = None
@@ -660,7 +668,17 @@ async def evaluate(ctx: GateContext) -> GateResult:
     max_pos_pct = float(profile["max_pos_pct"])
     assert 0 < max_pos_pct < 1.0, \
         f"max_pos_pct {max_pos_pct} must be < 1.0"
-    max_pos_size = balance * Decimal(str(max_pos_pct)) * Decimal(str(kelly))
+    # Live-mode-truth: an intended-live user's bankroll is their REAL
+    # deposited balance, never the mixed wallets pool (which is dominated by
+    # paper P&L). Preloaded by the scan loader; one-shot fallback otherwise.
+    live_bal: Decimal | None = None
+    if ctx.trading_mode == "live":
+        if ctx.live_balance_usdc is not None:
+            live_bal = Decimal(str(ctx.live_balance_usdc))
+        else:
+            live_bal = await get_live_balance(ctx.user_id)
+    sizing_balance = live_bal if live_bal is not None else balance
+    max_pos_size = sizing_balance * Decimal(str(max_pos_pct)) * Decimal(str(kelly))
     if ctx.complete_set:
         # A complete-set quote is a fixed YES+NO share count; Kelly-shrinking the
         # combined cost would desync the approved size from the legs the booker
@@ -790,32 +808,44 @@ async def evaluate(ctx: GateContext) -> GateResult:
             # cap-only LIVE entry (no measured edge) is visible in the risk audit.
             await _log(ctx.user_id, ctx.market_id, 14, True, _slip.reason)
 
-    # 15. Per-user LIVE capital cap (Axis #3, WARP/ROOT-live-activation-flow).
-    #     Fires only when the gate is about to approve a chosen_mode='live'
-    #     trade. The user MUST have opted into live mode via
-    #     /api/web/live/enable (typed-confirm flow) or Telegram /enable_live
-    #     — both writers set users_settings.live_capital_cap_usdc > 0.
-    #     A cap of zero means the user has NOT opted in; any live trade
-    #     for them is rejected.
-    #     Aggregate exposure check: open-live size + this proposed size
-    #     must stay below the cap, so a user with cap=$50 cannot have one
-    #     $30 position plus a new $40 trade. Paper trades skip this gate.
+    # 15. Per-user LIVE capital bound (live-mode-truth rework). Fires only
+    #     when the gate is about to approve a chosen_mode='live' trade.
+    #     The authoritative ceiling is the user's REAL deposited balance
+    #     (deposits − withdrawals ± live trade P&L, open live cost already
+    #     debited): exposure can never exceed money that actually exists.
+    #     A manual cap (live_capital_cap_usdc > 0, legacy/Telegram flows)
+    #     only TIGHTENS the bound. Zero real funds = no live trades —
+    #     "switch to live first, deposit later" is safe by construction.
+    #     Aggregate check: open-live size + this proposed size must stay
+    #     within the bound. Paper trades skip this gate. Opt-in itself is
+    #     structural: chosen_mode='live' requires trading_mode='live'
+    #     (gate 13), written only by the typed-confirm enable flows.
     if chosen_mode == "live":
-        cap = max(0.0, float(ctx.live_capital_cap_usdc or 0.0))
-        if cap <= 0.0:
-            await _log(ctx.user_id, ctx.market_id, 15, False, "live_not_opted_in")
-            return GateResult(False, "live_not_opted_in", 15)
+        if live_bal is None:  # trading_mode!='live' cannot reach here; belt only
+            live_bal = await get_live_balance(ctx.user_id)
         open_live = await _open_live_exposure(ctx.user_id)
-        if (float(open_live) + float(final_size)) > cap:
+        spendable = float(live_bal) + float(open_live)  # total real capital
+        if float(live_bal) <= 0.0:
+            await _log(
+                ctx.user_id, ctx.market_id, 15, False,
+                f"live_no_funds live_balance={float(live_bal):.2f}",
+            )
+            return GateResult(False, "live_no_funds", 15)
+        manual_cap = max(0.0, float(ctx.live_capital_cap_usdc or 0.0))
+        effective_cap = (
+            min(manual_cap, spendable) if manual_cap > 0.0 else spendable
+        )
+        if (float(open_live) + float(final_size)) > effective_cap:
             await _log(
                 ctx.user_id, ctx.market_id, 15, False,
                 f"live_capital_cap_exceeded open={open_live:.2f} "
-                f"proposed={float(final_size):.2f} cap={cap:.2f}",
+                f"proposed={float(final_size):.2f} cap={effective_cap:.2f}",
             )
             return GateResult(False, "live_capital_cap_exceeded", 15)
         await _log(
             ctx.user_id, ctx.market_id, 15, True,
-            f"live_cap_ok open={open_live:.2f} cap={cap:.2f}",
+            f"live_cap_ok open={open_live:.2f} cap={effective_cap:.2f} "
+            f"live_balance={float(live_bal):.2f}",
         )
 
     await _record_idempotency(ctx.user_id, ctx.idempotency_key)
@@ -929,18 +959,25 @@ async def resume_safety_check(
         await _log(user_id, market_id, 8, False, "resume_capital_deployment")
         return GateResult(False, "capital_deployment_cap", 8)
 
-    # 15. Per-user LIVE capital cap — only when resuming a live-mode trade.
+    # 15. Per-user LIVE capital bound — only when resuming a live-mode trade.
+    #     Same live-mode-truth semantics as the main gate: the REAL deposited
+    #     balance is the authoritative ceiling; a manual cap only tightens it.
     if chosen_mode == "live":
-        cap_live = max(0.0, float(live_capital_cap_usdc or 0.0))
-        if cap_live <= 0.0:
-            await _log(user_id, market_id, 15, False, "resume_live_not_opted_in")
-            return GateResult(False, "live_not_opted_in", 15)
+        live_bal = await get_live_balance(user_id)
         open_live = await _open_live_exposure(user_id)
-        if (float(open_live) + float(proposed_size_usdc)) > cap_live:
+        if float(live_bal) <= 0.0:
+            await _log(user_id, market_id, 15, False, "resume_live_no_funds")
+            return GateResult(False, "live_no_funds", 15)
+        spendable = float(live_bal) + float(open_live)
+        manual_cap = max(0.0, float(live_capital_cap_usdc or 0.0))
+        effective_cap = (
+            min(manual_cap, spendable) if manual_cap > 0.0 else spendable
+        )
+        if (float(open_live) + float(proposed_size_usdc)) > effective_cap:
             await _log(
                 user_id, market_id, 15, False,
                 f"resume_live_capital_cap_exceeded open={open_live:.2f} "
-                f"proposed={float(proposed_size_usdc):.2f} cap={cap_live:.2f}",
+                f"proposed={float(proposed_size_usdc):.2f} cap={effective_cap:.2f}",
             )
             return GateResult(False, "live_capital_cap_exceeded", 15)
 

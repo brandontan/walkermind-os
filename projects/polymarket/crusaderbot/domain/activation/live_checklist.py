@@ -1,12 +1,16 @@
 """R12 Live Opt-In Checklist — pre-activation gate.
 
-Eight gates that all must pass before a user is permitted to flip
-auto-trade ON in live mode. The checklist NEVER itself sets any
+Seven gates that all must pass before a user is permitted to flip
+auto-trade ON in live mode. A prior deposit is deliberately NOT a gate
+(live-mode-truth lane, owner directive 2026-06-11): users switch to live
+FIRST and deposit after — the bot auto-stops on the switch, and risk-gate
+step 15 rejects any live trade while the real deposited balance is zero,
+so an unfunded live account can never trade. The checklist NEVER itself sets any
 activation flag — it only reports readiness. Operator action remains
 the sole way to set ``EXECUTION_PATH_VALIDATED`` / ``CAPITAL_MODE_CONFIRMED``
 / ``ENABLE_LIVE_TRADING`` and to grant Tier 4.
 
-Gate order is fixed (1→8) and surfaced in the result so the Telegram
+Gate order is fixed (1→7) and surfaced in the result so the Telegram
 handler can render a numbered fix-list. Every evaluation writes one
 ``audit.log`` row with the full pass/fail snapshot for forensic replay.
 """
@@ -30,7 +34,6 @@ logger = logging.getLogger(__name__)
 GATE_EXECUTION_PATH_VALIDATED = "EXECUTION_PATH_VALIDATED"
 GATE_CAPITAL_MODE_CONFIRMED = "CAPITAL_MODE_CONFIRMED"
 GATE_ENABLE_LIVE_TRADING = "ENABLE_LIVE_TRADING"
-GATE_ACTIVE_SUBACCOUNT = "active_subaccount_with_deposit"
 GATE_STRATEGY_CONFIGURED = "strategy_configured"
 GATE_RISK_PROFILE_CONFIGURED = "risk_profile_configured"
 GATE_TWO_FACTOR_SETUP = "two_factor_setup_complete"
@@ -40,7 +43,6 @@ GATE_ORDER: tuple[str, ...] = (
     GATE_EXECUTION_PATH_VALIDATED,
     GATE_CAPITAL_MODE_CONFIRMED,
     GATE_ENABLE_LIVE_TRADING,
-    GATE_ACTIVE_SUBACCOUNT,
     GATE_STRATEGY_CONFIGURED,
     GATE_RISK_PROFILE_CONFIGURED,
     GATE_TWO_FACTOR_SETUP,
@@ -59,9 +61,6 @@ GATE_FIX_HINTS: dict[str, str] = {
         "review.",
     GATE_ENABLE_LIVE_TRADING:
         "Operator must set ENABLE_LIVE_TRADING=true after final go-live sign-off.",
-    GATE_ACTIVE_SUBACCOUNT:
-        "Deposit at least one confirmed USDC transfer to your sub-account "
-        "via /wallet → Deposit before enabling live trading.",
     GATE_STRATEGY_CONFIGURED:
         "Pick at least one strategy via /setup → Strategy.",
     GATE_RISK_PROFILE_CONFIGURED:
@@ -101,27 +100,6 @@ class ChecklistResult:
 
 
 # ---------------- Per-gate primitives ---------------------------------------
-
-
-async def _gate_active_subaccount(user_id: UUID) -> GateOutcome:
-    """[4] User has an active sub-account with at least one confirmed deposit."""
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        wallet = await conn.fetchrow(
-            "SELECT 1 FROM wallets WHERE user_id=$1", user_id,
-        )
-        if wallet is None:
-            return GateOutcome(GATE_ACTIVE_SUBACCOUNT, False, "no wallet")
-        deposit = await conn.fetchval(
-            "SELECT COUNT(*) FROM deposits "
-            "WHERE user_id=$1 AND confirmed_at IS NOT NULL",
-            user_id,
-        )
-    if int(deposit or 0) <= 0:
-        return GateOutcome(
-            GATE_ACTIVE_SUBACCOUNT, False, "no confirmed deposits",
-        )
-    return GateOutcome(GATE_ACTIVE_SUBACCOUNT, True, f"deposits={int(deposit)}")
 
 
 async def _gate_strategy(user_id: UUID) -> GateOutcome:
@@ -205,7 +183,7 @@ async def _gate_operator_allowlist(user_id: UUID) -> GateOutcome:
 
 
 async def evaluate(user_id: UUID) -> ChecklistResult:
-    """Run all eight gates in fixed order, audit the result, return it.
+    """Run all seven gates in fixed order, audit the result, return it.
 
     Failing one gate does NOT short-circuit later gates — the user gets a
     full numbered list back and can fix everything in one pass. The gate
@@ -230,7 +208,6 @@ async def evaluate(user_id: UUID) -> ChecklistResult:
         f"flag={settings.ENABLE_LIVE_TRADING}",
     ))
 
-    outcomes.append(await _gate_active_subaccount(user_id))
     outcomes.append(await _gate_strategy(user_id))
     outcomes.append(await _gate_risk_profile(user_id))
     outcomes.append(await _gate_two_factor(user_id))
