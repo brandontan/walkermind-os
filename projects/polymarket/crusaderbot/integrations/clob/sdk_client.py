@@ -175,12 +175,15 @@ class PolymarketSdkClient:
             if bk and bs and bp:
                 builder = BuilderApiKey(key=bk, secret=bs, passphrase=bp)
             try:
+                from .sdk_env import production_environment
+
                 self._client = await AsyncSecureClient.create(
                     private_key=self._private_key,
                     wallet=self._funder,
                     credentials=creds,
                     api_key=builder,
                     nonce=self._nonce,
+                    environment=production_environment(),
                 )
             except Exception as exc:
                 raise self._map_error(exc, "create_client")

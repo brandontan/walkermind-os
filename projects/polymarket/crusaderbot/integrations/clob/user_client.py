@@ -133,7 +133,12 @@ async def resolve_deposit_wallet(private_key: str) -> str:
 
     from polymarket import AsyncSecureClient  # noqa: WPS433
 
-    sc = await AsyncSecureClient.create(private_key=private_key, wallet=None)
+    from .sdk_env import production_environment
+
+    sc = await AsyncSecureClient.create(
+        private_key=private_key, wallet=None,
+        environment=production_environment(),
+    )
     try:
         return sc.wallet
     finally:
@@ -165,9 +170,14 @@ async def resolve_deposit_wallet_creds(
     # the lazy import used in ``ensure_clob_credentials``.
     from polymarket import AsyncSecureClient  # noqa: WPS433
 
+    from .sdk_env import production_environment
+
     # wallet=None requests the SDK auto-derive (the single-wallet contract from
     # #1729). For a per-user key the operator never has a hardcoded address.
-    sc = await AsyncSecureClient.create(private_key=private_key, wallet=None)
+    sc = await AsyncSecureClient.create(
+        private_key=private_key, wallet=None,
+        environment=production_environment(),
+    )
     try:
         creds_obj = sc.credentials
         wallet = sc.wallet
