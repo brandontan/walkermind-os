@@ -544,8 +544,9 @@ class Settings(BaseSettings):
     # cap that kept the prod cursor at block 0); the scanner covers its window
     # in as many accepted-size chunks as this budget allows and advances the
     # cursor over whatever it covered. At a 10-block cap the discovered span
-    # is 7: 60 requests/tick ≈ 420 blocks/tick vs ~240 produced per 120s
-    # interval — still catches up. Raise via env for faster catch-up.
+    # is 7: 60 requests/tick ≈ 420 blocks/tick vs ~60 produced per 120s
+    # interval (Polygon ~2s blocks) — catches up at ~360 blocks/tick net,
+    # verified live 2026-06-11. Raise via env for faster catch-up.
     DEPOSIT_SCAN_MAX_RPC_PER_TICK: int = 60
     SIGNAL_SCAN_INTERVAL: int = 180
     # Dedicated high-frequency scan for the close_sweep / late_entry_v3 preset.
