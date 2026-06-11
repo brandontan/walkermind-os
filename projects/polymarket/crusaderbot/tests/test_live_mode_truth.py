@@ -184,7 +184,10 @@ def test_live_money_bucket_definition_is_shared():
         .read_text(encoding="utf-8")
     )
     for fragment in (
-        "type IN ('deposit', 'withdraw')",
+        # deposit rows are REAL only when ref'd to the deposits table — admin
+        # paper resets also use type='deposit' (with NULL ref, prod-proven).
+        "type = 'deposit' AND EXISTS (",
+        "type = 'withdraw'",
         "type = 'adjustment'",
         ".mode = 'live'",
     ):
