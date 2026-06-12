@@ -35,7 +35,10 @@ def test_migration_097_widens_positions_and_orders_mode():
     sql = _MIG.read_text(encoding="utf-8")
     for table in ("positions", "orders"):
         assert re.search(
-            rf"ALTER TABLE {table} ALTER COLUMN mode TYPE VARCHAR\(20\)", sql
+            rf"ALTER TABLE (?:public\.)?{table} ALTER COLUMN mode TYPE VARCHAR\(20\)",
+            sql,
         ), f"migration 097 must widen {table}.mode to VARCHAR(20)"
-    # Guarded so re-running is harmless (catalog-only, idempotent).
+    # Guarded so re-running is harmless (catalog-only, idempotent), and scoped
+    # to the public schema so the guard matches the actual target table.
     assert "character_maximum_length < 20" in sql
+    assert "table_schema = 'public'" in sql

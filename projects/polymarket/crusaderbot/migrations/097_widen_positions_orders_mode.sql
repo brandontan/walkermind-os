@@ -11,16 +11,18 @@ DO $$
 BEGIN
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'positions' AND column_name = 'mode'
+        WHERE table_schema = 'public'
+          AND table_name = 'positions' AND column_name = 'mode'
           AND character_maximum_length < 20
     ) THEN
-        ALTER TABLE positions ALTER COLUMN mode TYPE VARCHAR(20);
+        ALTER TABLE public.positions ALTER COLUMN mode TYPE VARCHAR(20);
     END IF;
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'orders' AND column_name = 'mode'
+        WHERE table_schema = 'public'
+          AND table_name = 'orders' AND column_name = 'mode'
           AND character_maximum_length < 20
     ) THEN
-        ALTER TABLE orders ALTER COLUMN mode TYPE VARCHAR(20);
+        ALTER TABLE public.orders ALTER COLUMN mode TYPE VARCHAR(20);
     END IF;
 END $$;
