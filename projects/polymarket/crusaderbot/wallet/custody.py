@@ -74,12 +74,11 @@ def effective_deposit_address(wallet_row: Any) -> str:
     """
     if wallet_row is None:
         return "(not set)"
-    eoa = wallet_row["deposit_address"]
+    # `key in r` + `r[key]` work for both dict and asyncpg.Record (#1740
+    # house pattern) — no type checks, no try/except.
+    eoa = wallet_row["deposit_address"] if "deposit_address" in wallet_row else None
     if get_settings().CUSTODY_MODE == "safe":
-        try:
-            safe = wallet_row["safe_address"]
-        except (KeyError, IndexError):
-            safe = None
+        safe = wallet_row["safe_address"] if "safe_address" in wallet_row else None
         if safe:
             return str(safe)
     return str(eoa) if eoa else "(not set)"
