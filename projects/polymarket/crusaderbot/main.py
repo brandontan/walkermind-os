@@ -118,6 +118,37 @@ async def _validate_live_execution_readiness(settings, pool) -> list[str]:
             "(blueprint §12 default-OFF policy: disable unless explicitly intended)"
         )
 
+    # Custody posture — one unmissable line per boot (gasless-custody lane).
+    # Safe mode requires the relayer fully configured; surface the wiring
+    # state AND the master Safe address (pure local CREATE2 — no network,
+    # no secrets) so the operator can verify + fund the pool from the log.
+    try:
+        from .integrations.builder_relayer import is_relayer_configured
+        relayer_ok = is_relayer_configured()
+        custody = settings.CUSTODY_MODE
+        master_safe = "n/a"
+        if custody == "safe" and relayer_ok:
+            try:
+                from .integrations.builder_relayer import make_relayer_client
+                from .wallet.vault import master_wallet
+                _, _mpk = master_wallet()
+                master_safe = str(make_relayer_client(_mpk).get_expected_safe())
+            except Exception as exc:  # noqa: BLE001 — evidence only
+                master_safe = f"derive-failed: {exc}"
+        log.warning(
+            "startup: custody posture — CUSTODY_MODE=%s relayer_configured=%s "
+            "sweep_onchain=%s master_safe=%s",
+            custody, relayer_ok, settings.SWEEP_ONCHAIN_ENABLED, master_safe,
+        )
+        if custody == "safe" and not relayer_ok:
+            problems.append(
+                "CUSTODY_MODE='safe' but the Builder relayer is not configured "
+                "(USE_BUILDER_RELAYER + builder creds) — sweeps and withdrawal "
+                "payouts will refuse until it is"
+            )
+    except Exception as exc:  # noqa: BLE001 — validation must never block boot
+        log.warning("startup: custody posture check skipped: %s", exc)
+
     for problem in problems:
         log.error("startup: live execution readiness — %s", problem)
     return problems

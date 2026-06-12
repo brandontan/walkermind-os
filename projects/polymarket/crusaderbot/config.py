@@ -1117,6 +1117,39 @@ class Settings(BaseSettings):
 
     @model_validator(mode="before")
     @classmethod
+    def _alias_poly_builder_creds(cls, data):
+        """Populate the relayer's POLY_BUILDER_* fields from the operator's
+        POLYMARKET_BUILDER_* Fly secrets.
+
+        The Builder Program issues ONE credential set used both for CLOB
+        order attribution (POLYMARKET_BUILDER_*) and the gasless relayer
+        (POLY_BUILDER_* — read by integrations.builder_relayer). Prod only
+        provisions the former; without this alias the relayer reports
+        unconfigured even though the credentials exist (gasless-custody
+        lane, owner-authorized 2026-06-12). Canonical values win when set.
+        """
+        if isinstance(data, dict):
+            # Order-independent (pydantic v2 runs mode="before" validators in
+            # REVERSE definition order): read both secret spellings directly
+            # rather than relying on _alias_builder_secret having run first.
+            secret = (
+                data.get("POLYMARKET_BUILDER_API_SECRET")
+                or data.get("POLYMARKET_BUILDER_SECRET")
+            )
+            pairs = (
+                ("POLY_BUILDER_API_KEY", data.get("POLYMARKET_BUILDER_API_KEY")),
+                ("POLY_BUILDER_SECRET", secret),
+                ("POLY_BUILDER_PASSPHRASE", data.get("POLYMARKET_BUILDER_PASSPHRASE")),
+            )
+            for canon, alias_val in pairs:
+                if alias_val and (
+                    data.get(canon) is None or str(data.get(canon)).strip() == ""
+                ):
+                    data[canon] = alias_val
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
     def _alias_polygon_rpc_url(cls, data):
         """Allow alias-only deployments: when only ``ALCHEMY_POLYGON_RPC_URL``
         is supplied, copy it into ``POLYGON_RPC_URL`` so the latter's

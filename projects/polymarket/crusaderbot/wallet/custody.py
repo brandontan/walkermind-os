@@ -62,6 +62,29 @@ def _ensure_safe_mode_wired() -> None:
         )
 
 
+def effective_deposit_address(wallet_row: Any) -> str:
+    """The address users must deposit USDC.e to, per the active custody mode.
+
+    Safe mode: money must live in the user's Polymarket Safe proxy (sweeps
+    and withdrawal payouts are relayed gaslessly between Safes) — show the
+    Safe. Falls back to the EOA while ``safe_address`` is unbackfilled so the
+    surface never renders blank. EOA mode: the HD deposit EOA, unchanged.
+    The deposit watcher watches BOTH columns, so funds sent to either are
+    credited; this helper only decides which one users are TOLD to use.
+    """
+    if wallet_row is None:
+        return "(not set)"
+    eoa = wallet_row["deposit_address"]
+    if get_settings().CUSTODY_MODE == "safe":
+        try:
+            safe = wallet_row["safe_address"]
+        except (KeyError, IndexError):
+            safe = None
+        if safe:
+            return str(safe)
+    return str(eoa) if eoa else "(not set)"
+
+
 async def transfer_usdc(to: str, amount_usdc: Decimal) -> dict[str, Any]:
     """Withdrawal payout dispatcher. Returns the underlying call's dict.
 
