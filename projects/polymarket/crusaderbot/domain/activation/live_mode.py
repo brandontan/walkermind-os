@@ -15,12 +15,17 @@ from uuid import UUID
 import asyncpg
 
 from ...database import get_pool
-from ...wallet.ledger import get_live_balance
+from ...wallet.ledger import get_live_balance, live_ledger_filter_sql
 from . import live_checklist
 
 MIN_LIVE_AUTOTRADE_BALANCE_USDC = Decimal("5")
+# Fresh paper practice bankroll seeded when a paper session is reset, matching
+# users.seed_paper_capital ($1,000 initial credit). Returning to PAPER after a
+# LIVE stint must show this, not the stale pre-live bankroll.
+PAPER_STARTING_BALANCE_USDC = Decimal("1000")
 PAPER_ARCHIVED_MODE = "paper_archived"
 PAPER_ARCHIVE_EXIT_REASON = "paper_to_live_switch"
+PAPER_SESSION_RESET_NOTE = "Paper wallet — session reset $1,000 credit"
 
 # Machine-readable refusal reasons surfaced by the shared start guard so each
 # arming surface can render its own copy without re-deriving the decision.
@@ -36,6 +41,10 @@ class PaperToLiveResult:
     auto_trade_on: bool
     archived_positions: int
     archived_orders: int
+    archived_notifications: int
+    archived_ledger_rows: int
+    paper_session_reset: bool
+    paper_balance_after_reset_usdc: Decimal
     alerts_acknowledged: bool
     waiting_for_deposit: bool
 
@@ -159,7 +168,8 @@ async def enable_live_self_serve(
     * force ``users.auto_trade_on=FALSE``;
     * archive current paper simulation positions/orders away from user-facing
       paper/live queries by moving their mode to ``paper_archived``;
-    * acknowledge pre-switch user-scoped alerts so LIVE AlertCenter starts clean.
+    * archive pre-switch per-user AlertCenter rows (``dismissed=TRUE``) and
+      acknowledge the alert watermark so LIVE notification context starts clean.
 
     The helper never flips platform live guards and never starts Auto-Trade.
     """
@@ -225,6 +235,64 @@ async def enable_live_self_serve(
                 user_id,
                 PAPER_ARCHIVED_MODE,
             )
+            alert_status = await c.execute(
+                """
+                UPDATE system_alerts
+                   SET dismissed = TRUE
+                 WHERE user_id = $1
+                   AND dismissed = FALSE
+                   AND created_at <= NOW()
+                """,
+                user_id,
+            )
+            # ---- Paper session reset (#1792 full scope) -------------------
+            # The paper positions/orders are archived above, but the paper
+            # LEDGER rows have no mode column — they are "not live" rows, so
+            # without this they stayed in the paper wallet feed and kept
+            # wallets.balance_usdc at the stale pre-live bankroll (e.g.
+            # 904.16). Archive the user's active paper ledger rows and reseed
+            # a fresh $1,000 paper bankroll so PAPER -> LIVE -> PAPER returns a
+            # clean practice session. Only on a genuine PAPER -> LIVE
+            # transition (re-enabling live has no paper session to reset).
+            paper_filter = f"NOT {live_ledger_filter_sql('l')}"
+            archived_ledger = 0
+            paper_session_reset = False
+            paper_balance_after_reset = PAPER_STARTING_BALANCE_USDC
+            if from_mode != "live":
+                ledger_status = await c.execute(
+                    f"""
+                    UPDATE ledger AS l
+                       SET archived = TRUE
+                     WHERE l.user_id = $1
+                       AND l.archived = FALSE
+                       AND {paper_filter}
+                    """,
+                    user_id,
+                )
+                archived_ledger = _status_count(ledger_status)
+                # Live cash is unaffected by archiving paper rows (they fail
+                # the live predicate). wallets.balance_usdc = paper + live by
+                # construction, so reset paper to the fresh bankroll while
+                # preserving the live component.
+                live_now = await get_live_balance(user_id, c)
+                new_wallet_balance = PAPER_STARTING_BALANCE_USDC + live_now
+                await c.execute(
+                    "UPDATE wallets SET balance_usdc = $2 WHERE user_id = $1",
+                    user_id,
+                    new_wallet_balance,
+                )
+                # Fresh, non-archived paper deposit row so the returning paper
+                # wallet feed opens on the clean $1,000 credit.
+                await c.execute(
+                    """
+                    INSERT INTO ledger (user_id, type, amount_usdc, note, archived)
+                    VALUES ($1, 'deposit', $2, $3, FALSE)
+                    """,
+                    user_id,
+                    PAPER_STARTING_BALANCE_USDC,
+                    PAPER_SESSION_RESET_NOTE,
+                )
+                paper_session_reset = True
             balance = await get_live_balance(user_id, c)
         return PaperToLiveResult(
             from_mode=from_mode,
@@ -233,6 +301,10 @@ async def enable_live_self_serve(
             auto_trade_on=False,
             archived_positions=_status_count(pos_status),
             archived_orders=_status_count(order_status),
+            archived_notifications=_status_count(alert_status),
+            archived_ledger_rows=archived_ledger,
+            paper_session_reset=paper_session_reset,
+            paper_balance_after_reset_usdc=paper_balance_after_reset,
             alerts_acknowledged=True,
             waiting_for_deposit=not has_min_live_autotrade_balance(balance),
         )

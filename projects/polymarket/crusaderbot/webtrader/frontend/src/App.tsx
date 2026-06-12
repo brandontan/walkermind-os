@@ -367,6 +367,12 @@ function AppShell() {
   // Re-fetch on both system and alert events to keep the Alert Center in sync.
   const { connected: sseConnected } = useSSE(user?.token ?? null, {
     system: () => { setAlertOffset(0); void fetchAlerts(0, false); refreshTradingMode(); },
+    settings: () => {
+      setAlerts([]);
+      setAlertOffset(0);
+      void fetchAlerts(0, false);
+      refreshTradingMode();
+    },
     alert:  () => { setAlertOffset(0); void fetchAlerts(0, false); },
     scanner_tick: (raw) => {
       const payload = raw as { ts?: number };

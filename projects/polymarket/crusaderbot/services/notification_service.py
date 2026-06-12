@@ -169,6 +169,8 @@ async def _send_safe(
     kb: Optional[InlineKeyboardMarkup] = None,
     *,
     market_id: str | None = None,
+    alert_kind: str | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> None:
     """Send Telegram message; catch all failures — MUST NOT propagate.
 
@@ -188,6 +190,8 @@ async def _send_safe(
             web_body=text,
             severity="info",
             dedup_key=market_id,
+            alert_kind=alert_kind,
+            metadata=metadata,
         )
     except Exception:
         send_tg = True  # fail-open
@@ -245,7 +249,24 @@ async def _on_position_opened(
         f"Market: {html.escape(label)}\n"
         f"Price: {price:.4f} | Strategy: {html.escape(strat)}"
     )
-    await _send_safe(telegram_user_id, text, "position.opened", _auto_trade_kb(position_id), market_id=market_id)
+    await _send_safe(
+        telegram_user_id, text, "position.opened", _auto_trade_kb(position_id),
+        market_id=market_id,
+        alert_kind="trade_opened",
+        metadata={
+            "market_id": market_id,
+            "market_label": label,
+            "side": side.upper(),
+            "size_usdc": float(size_usdc),
+            "entry_price": float(price),
+            "tp_pct": float(tp_pct) if tp_pct is not None else None,
+            "sl_pct": float(sl_pct) if sl_pct is not None else None,
+            "strategy": strat,
+            "strategy_type": strategy_type,
+            "mode": mode,
+            "position_id": position_id,
+        },
+    )
 
 
 async def _on_position_closed(
@@ -279,7 +300,21 @@ async def _on_position_closed(
         f"Reason  │ {html.escape(reason_display)}</pre>\n"
         f"{_SEP}"
     )
-    await _send_safe(telegram_user_id, text, "position.closed", _portfolio_trades_kb(), market_id=market_id)
+    await _send_safe(
+        telegram_user_id, text, "position.closed", _portfolio_trades_kb(),
+        market_id=market_id,
+        alert_kind=close_reason.lower(),
+        metadata={
+            "market_id": market_id,
+            "market_label": label,
+            "side": side.upper(),
+            "entry_price": float(entry_price),
+            "exit_price": float(exit_price),
+            "pnl_usdc": float(pnl_usdc),
+            "close_reason": close_reason,
+            "mode": mode,
+        },
+    )
 
 
 async def _on_copy_trade_executed(
@@ -313,6 +348,20 @@ async def _on_copy_trade_executed(
         telegram_user_id, text, "copy_trade.executed",
         _copy_trade_kb(position_id, copy_task_id),
         market_id=market_id,
+        alert_kind="copy_trade_opened",
+        metadata={
+            "market_id": market_id,
+            "market_label": label,
+            "side": side.upper(),
+            "size_usdc": float(size_usdc),
+            "entry_price": float(price),
+            "tp_pct": float(tp_pct) if tp_pct is not None else None,
+            "sl_pct": float(sl_pct) if sl_pct is not None else None,
+            "target_wallet": target_wallet,
+            "mode": mode,
+            "position_id": position_id,
+            "copy_task_id": copy_task_id,
+        },
     )
 
 

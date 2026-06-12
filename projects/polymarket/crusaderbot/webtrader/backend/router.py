@@ -251,10 +251,20 @@ async def get_recent_signals(user: _CurrentUser, limit: int = 10):
 
 @router.get("/activity")
 async def get_activity(user: _CurrentUser, limit: int = 10):
-    """Last N trade events (opens + closes) for the authenticated user."""
+    """Last N trade events (opens + closes) for the authenticated user.
+
+    Mode-scoped: shows only the current mode's trades (paper in paper, live in
+    live). This excludes ``paper_archived`` rows so a PAPER -> LIVE -> PAPER
+    user sees a fresh activity feed, not the previous paper session (#1792).
+    """
     pool = get_pool()
     user_id = user["user_id"]
     async with pool.acquire() as conn:
+        _tm = await conn.fetchval(
+            "SELECT trading_mode FROM user_settings WHERE user_id=$1::uuid",
+            user_id,
+        )
+        _mode = "live" if _tm == "live" else "paper"
         rows = await conn.fetch(
             """
             SELECT p.id, p.status, p.side, p.size_usdc,
@@ -264,11 +274,13 @@ async def get_activity(user: _CurrentUser, limit: int = 10):
               FROM positions p
               LEFT JOIN markets m ON m.id = p.market_id
              WHERE p.user_id = $1::uuid
+               AND p.mode = $3
              ORDER BY COALESCE(p.closed_at, p.opened_at) DESC
              LIMIT $2
             """,
             user_id,
             min(limit, 20),
+            _mode,
         )
     return [
         {
@@ -864,6 +876,14 @@ async def get_orders(
     pool = get_pool()
     user_id = user["user_id"]
     async with pool.acquire() as conn:
+        # Mode-scoped (live-mode-truth): the order history shows only the
+        # current mode's orders, excluding 'paper_archived' rows from a prior
+        # paper session after a PAPER -> LIVE -> PAPER round-trip (#1792).
+        _tm = await conn.fetchval(
+            "SELECT trading_mode FROM user_settings WHERE user_id=$1::uuid",
+            user_id,
+        )
+        _mode = "live" if _tm == "live" else "paper"
         rows = await conn.fetch(
             """SELECT o.id, o.market_id, m.question AS market_question,
                       o.side, o.size_usdc, o.price, o.status, o.mode,
@@ -874,9 +894,10 @@ async def get_orders(
                FROM orders o
                LEFT JOIN markets m ON m.id = o.market_id
                WHERE o.user_id = $1::uuid
+                 AND o.mode = $4
                ORDER BY o.created_at DESC
                LIMIT $2 OFFSET $3""",
-            user_id, limit, offset,
+            user_id, limit, offset, _mode,
         )
     return [
         OrderItem(
@@ -1622,10 +1643,13 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
         # the user is in — real deposits/withdrawals + live trades in live,
         # paper trade flow in paper. Same bucket SQL as get_live_balance.
         _flt = live_ledger_filter_sql("l")
+        # NOT l.archived drops a prior paper session's rows after a
+        # PAPER -> LIVE -> PAPER round-trip (archived by enable_live_self_serve).
         ledger_rows = await conn.fetch(
             f"""SELECT l.id::text, l.type, l.amount_usdc, l.note, l.created_at
                 FROM ledger l
                WHERE l.user_id=$1::uuid AND {'' if _mode_live else 'NOT '}{_flt}
+                 AND NOT l.archived
                ORDER BY l.created_at DESC, l.id DESC LIMIT 20""",
             user_id,
         )
@@ -1678,7 +1702,8 @@ async def get_wallet_ledger(
         )
         _mode_live = bool(settings_row and settings_row["trading_mode"] == "live")
         _flt = live_ledger_filter_sql("l")
-        _scope = f"{'' if _mode_live else 'NOT '}{_flt}"
+        # NOT l.archived excludes a prior paper session archived on PAPER -> LIVE.
+        _scope = f"{'' if _mode_live else 'NOT '}{_flt} AND NOT l.archived"
         total_row = await conn.fetchrow(
             f"SELECT COUNT(*) AS cnt FROM ledger l WHERE l.user_id=$1::uuid AND {_scope}",
             user_id,
@@ -1868,6 +1893,11 @@ async def get_alerts(user: _CurrentUser) -> list[AlertItem]:
                  AND (a.expires_at IS NULL OR a.expires_at > NOW())
                  AND (a.user_id IS NULL OR a.user_id = $1::uuid)
                  AND (us.alerts_ack_at IS NULL OR a.created_at > us.alerts_ack_at)
+                 AND (
+                       a.user_id IS NULL
+                    OR COALESCE(a.metadata->>'mode', '') = ''
+                    OR LOWER(a.metadata->>'mode') = COALESCE(us.trading_mode, 'paper')
+                 )
                ORDER BY a.created_at DESC
                LIMIT 50""",
             user["user_id"],
@@ -2728,6 +2758,10 @@ async def enable_live(
             "waiting_for_deposit": switch.waiting_for_deposit,
             "archived_positions": switch.archived_positions,
             "archived_orders": switch.archived_orders,
+            "archived_notifications": switch.archived_notifications,
+            "archived_ledger_rows": switch.archived_ledger_rows,
+            "paper_session_reset": switch.paper_session_reset,
+            "paper_balance_after_reset_usdc": float(switch.paper_balance_after_reset_usdc),
             "self_serve": True,
             "two_factor_required": False,
             "admin_approval_required": False,
