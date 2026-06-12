@@ -4,7 +4,7 @@ from __future__ import annotations
 import html
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import TypedDict
+from typing import Iterable, TypedDict
 
 import structlog
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -312,16 +312,27 @@ async def watch_deposits() -> None:
     except Exception as exc:
         log.error("deposit confirm pass failed", err=str(exc))
         notify_after = []
+    confirmed_user_ids = {user_id for user_id, _tg_id, _amt, _tx in notify_after}
+    try:
+        await _sweep_confirmed_deposits_for_users(
+            confirmed_user_ids, reason="realtime_confirm",
+        )
+    except Exception as exc:
+        log.error(
+            "deposit realtime sweep trigger failed — cron fallback remains",
+            err=str(exc), users=len(confirmed_user_ids),
+        )
 
     deposit_kb = InlineKeyboardMarkup([[
         InlineKeyboardButton("💰 Wallet", callback_data="menu:wallet"),
         InlineKeyboardButton("📊 Dashboard", callback_data="menu:dashboard"),
     ]])
-    for tg_id, amt, tx in notify_after:
+    for _user_id, tg_id, amt, tx in notify_after:
         await notifications.send(
             tg_id,
             f"✅ <b>Deposit confirmed:</b> ${float(amt):.2f} USDC\n"
-            f"<code>{html.escape(tx)}</code>",
+            f"<code>{html.escape(tx)}</code>\n\n"
+            "Lifecycle: confirming → available → sweep queued/complete.",
             reply_markup=deposit_kb,
         )
 
@@ -359,10 +370,11 @@ async def _record_pending_deposit(user_id, t: dict) -> None:
             row = await conn.fetchrow(
                 """
                 INSERT INTO deposits (user_id, tx_hash, log_index, amount_usdc,
-                                      block_number, status)
-                VALUES ($1,$2,$3,$4,$5,'pending')
+                                      block_number, status, lifecycle_state)
+                VALUES ($1,$2,$3,$4,$5,'pending','confirming')
                 ON CONFLICT (tx_hash, log_index) DO UPDATE
-                    SET status='pending', confirmed_at_block=NULL
+                    SET status='pending', confirmed_at_block=NULL,
+                        lifecycle_state='confirming'
                     WHERE deposits.status='reverted'
                 RETURNING id
                 """,
@@ -398,7 +410,9 @@ async def _revert_deposit(t: dict) -> None:
             if dep is None or dep["status"] == "reverted":
                 return
             await conn.execute(
-                "UPDATE deposits SET status='reverted' WHERE id=$1", dep["id"],
+                "UPDATE deposits SET status='reverted', lifecycle_state=$2, "
+                "sweep_error=NULL WHERE id=$1",
+                dep["id"], ledger.L_FAILED,
             )
             amount = Decimal(str(dep["amount_usdc"]))
             if dep["status"] == "confirmed":
@@ -419,12 +433,12 @@ async def _revert_deposit(t: dict) -> None:
 
 async def _confirm_ready_deposits(
     head: int, depth: int,
-) -> list[tuple[int, Decimal, str]]:
+) -> list[tuple[object, int, Decimal, str]]:
     """Promote pending deposits that are now >= ``depth`` blocks deep to
     ``confirmed`` and credit the ledger once. The confirming UPDATE is guarded
     by ``status='pending'`` so a credit can never fire twice for the same row.
 
-    Returns ``(telegram_user_id, amount, tx_hash)`` tuples to notify.
+    Returns ``(user_id, telegram_user_id, amount, tx_hash)`` tuples to notify.
     """
     pool = get_pool()
     async with pool.acquire() as conn:
@@ -438,7 +452,7 @@ async def _confirm_ready_deposits(
             """,
             head, depth,
         )
-    notify: list[tuple[int, Decimal, str]] = []
+    notify: list[tuple[object, int, Decimal, str]] = []
     for d in ready:
         amount = Decimal(str(d["amount_usdc"]))
         async with pool.acquire() as conn:
@@ -447,7 +461,7 @@ async def _confirm_ready_deposits(
                     """
                     UPDATE deposits
                        SET status='confirmed', confirmed_at_block=$2,
-                           confirmed_at=NOW()
+                           confirmed_at=NOW(), lifecycle_state='available'
                      WHERE id=$1 AND status='pending'
                     RETURNING id
                     """,
@@ -468,8 +482,51 @@ async def _confirm_ready_deposits(
                      "block": d["block_number"], "confirmed_at_block": head},
         )
         if u:
-            notify.append((u["telegram_user_id"], amount, d["tx_hash"]))
+            notify.append((d["user_id"], u["telegram_user_id"], amount, d["tx_hash"]))
     return notify
+
+
+async def _sweep_confirmed_deposits_for_users(
+    user_ids: Iterable[object], reason: str,
+) -> None:
+    """Near-realtime per-user sweep trigger after confirmed deposits.
+
+    Cron ``sweep_deposits`` remains the 03:00 fallback/reconciliation job. This
+    helper only targets users whose deposit rows were confirmed in this watcher
+    tick. On-chain movement is still hard-gated by the existing live flags; with
+    guards off, it performs the same logical ``swept=TRUE`` reconciliation that
+    the cron fallback used to do later.
+    """
+    targets = list(dict.fromkeys(user_ids))
+    if not targets:
+        return
+    settings = get_settings()
+    if getattr(settings, "EXECUTION_PATH_VALIDATED", False) and getattr(
+        settings, "SWEEP_ONCHAIN_ENABLED", False,
+    ):
+        await _sweep_deposits_onchain(user_ids=targets, reason=reason)
+        return
+
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            count = await conn.fetchval(
+                "WITH u AS ("
+                " UPDATE deposits SET swept=TRUE, lifecycle_state=$2 "
+                " WHERE swept=FALSE AND status='confirmed' "
+                "   AND user_id = ANY($1::uuid[]) "
+                " RETURNING 1"
+                ") SELECT COUNT(*) FROM u",
+                targets, ledger.L_SWEPT,
+            )
+    log.info(
+        "deposit_realtime_sweep_logical", count=int(count or 0), reason=reason,
+    )
+    await audit.write(
+        actor_role="bot",
+        action="deposit_sweep_realtime_logical",
+        payload={"count": int(count or 0), "reason": reason},
+    )
 
 
 async def _alert_wrong_token_deposits(
@@ -1101,8 +1158,10 @@ async def sweep_deposits() -> None:
         async with conn.transaction():
             count = await conn.fetchval(
                 "WITH u AS ("
-                " UPDATE deposits SET swept=TRUE WHERE swept=FALSE RETURNING 1"
-                ") SELECT COUNT(*) FROM u"
+                " UPDATE deposits SET swept=TRUE, lifecycle_state=$1 "
+                " WHERE swept=FALSE RETURNING 1"
+                ") SELECT COUNT(*) FROM u",
+                ledger.L_SWEPT,
             )
     log.info("sweep_deposits: deposits marked swept", count=int(count))
     await audit.write(
@@ -1112,7 +1171,9 @@ async def sweep_deposits() -> None:
     )
 
 
-async def _sweep_deposits_onchain() -> None:
+async def _sweep_deposits_onchain(
+    user_ids: Iterable[object] | None = None, reason: str = "cron",
+) -> None:
     """Per-user on-chain consolidation into the master hot-pool.
 
     Runs sequentially (the cron job is max_instances=1) so the master wallet's
@@ -1129,11 +1190,20 @@ async def _sweep_deposits_onchain() -> None:
 
     pool = get_pool()
     async with pool.acquire() as conn:
-        users = await conn.fetch(
-            "SELECT DISTINCT d.user_id, w.deposit_address "
-            "FROM deposits d JOIN wallets w ON w.user_id = d.user_id "
-            "WHERE d.swept = FALSE AND d.status = 'confirmed'"
-        )
+        if user_ids is None:
+            users = await conn.fetch(
+                "SELECT DISTINCT d.user_id, w.deposit_address "
+                "FROM deposits d JOIN wallets w ON w.user_id = d.user_id "
+                "WHERE d.swept = FALSE AND d.status = 'confirmed'"
+            )
+        else:
+            users = await conn.fetch(
+                "SELECT DISTINCT d.user_id, w.deposit_address "
+                "FROM deposits d JOIN wallets w ON w.user_id = d.user_id "
+                "WHERE d.swept = FALSE AND d.status = 'confirmed' "
+                "AND d.user_id = ANY($1::uuid[])",
+                list(user_ids),
+            )
 
     swept_users = 0
     for u in users:
@@ -1144,18 +1214,31 @@ async def _sweep_deposits_onchain() -> None:
                 continue
             result = await sweep_usdc_to_master(u["deposit_address"], pk)
         except PreflightError as exc:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE deposits SET lifecycle_state=$2, sweep_error=$3 "
+                    "WHERE user_id=$1 AND swept=FALSE AND status='confirmed'",
+                    u["user_id"], ledger.L_MANUAL_REVIEW, str(exc)[:500],
+                )
             log.warning("sweep_skip", user_id=str(u["user_id"]), err=str(exc))
             continue
         except Exception as exc:
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE deposits SET lifecycle_state=$2, sweep_error=$3 "
+                    "WHERE user_id=$1 AND swept=FALSE AND status='confirmed'",
+                    u["user_id"], ledger.L_FAILED, str(exc)[:500],
+                )
             log.error("sweep_failed", user_id=str(u["user_id"]), err=str(exc))
             continue
         if result.get("skipped"):
             continue
         async with pool.acquire() as conn:
             await conn.execute(
-                "UPDATE deposits SET swept=TRUE "
+                "UPDATE deposits SET swept=TRUE, lifecycle_state=$2, "
+                "sweep_tx_hash=$3, sweep_error=NULL "
                 "WHERE user_id=$1 AND swept=FALSE AND status='confirmed'",
-                u["user_id"],
+                u["user_id"], ledger.L_SWEPT, result.get("tx_hash"),
             )
         swept_users += 1
         await audit.write(
@@ -1164,7 +1247,8 @@ async def _sweep_deposits_onchain() -> None:
             payload={"user_id": str(u["user_id"]),
                      "tx_hash": result.get("tx_hash"),
                      "amount_usdc": result.get("amount_usdc"),
-                     "gas_topup_matic": result.get("gas_topup_matic")},
+                     "gas_topup_matic": result.get("gas_topup_matic"),
+                     "reason": reason},
         )
     log.info("sweep_deposits_onchain: user wallets swept", count=swept_users)
 

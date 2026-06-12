@@ -88,6 +88,19 @@ class _Conn:
         if "block_number FROM chain_cursor" in sql:
             (name,) = args
             return self.store.cursors.get(name, 0)
+        if "UPDATE deposits SET swept=TRUE" in sql:
+            user_ids, lifecycle_state = args
+            count = 0
+            for d in self.store.deposits:
+                if (
+                    d["user_id"] in set(user_ids)
+                    and d["status"] == "confirmed"
+                    and not d.get("swept", False)
+                ):
+                    d["swept"] = True
+                    d["lifecycle_state"] = lifecycle_state
+                    count += 1
+            return count
         raise AssertionError(f"unexpected fetchval: {sql}")
 
     async def fetchrow(self, sql: str, *args):
@@ -99,7 +112,8 @@ class _Conn:
                     "id": uuid.uuid4(), "user_id": user_id, "tx_hash": tx_hash,
                     "log_index": log_index, "amount_usdc": amount,
                     "block_number": block_number, "status": "pending",
-                    "confirmed_at_block": None,
+                    "confirmed_at_block": None, "swept": False,
+                    "lifecycle_state": "confirming",
                 }
                 self.store.deposits.append(row)
                 return {"id": row["id"]}
@@ -122,6 +136,7 @@ class _Conn:
                 if d["id"] == dep_id and d["status"] == "pending":
                     d["status"] = "confirmed"
                     d["confirmed_at_block"] = head
+                    d["lifecycle_state"] = "available"
                     return {"id": d["id"]}
             return None
         if "telegram_user_id" in sql:
@@ -210,6 +225,8 @@ def test_e2e_usdce_deposit_records_confirms_credits():
                           AsyncMock(return_value=100 + depth)):
             _run(scheduler.watch_deposits())
         assert store.deposits[0]["status"] == "confirmed"
+        assert store.deposits[0]["swept"] is True
+        assert store.deposits[0]["lifecycle_state"] == "swept"
         credit.assert_awaited_once()
         assert credit.await_args.args[2] == Decimal("25.0")
         # No wrong-token rows from a legitimate USDC.e deposit.

@@ -592,7 +592,8 @@ def wallet_deposit_text(address: str, balance: Decimal | float) -> str:
         "*How to deposit:*\n"
         "1\\. Send USDC on *Polygon \\(MATIC\\)* network only\n"
         "2\\. Min deposit: *$50 USDC*\n"
-        "3\\. Allow ~2 min for 32\\-block confirmation\n\n"
+        "3\\. Allow ~2 min for 32\\-block confirmation\n"
+        "4\\. Confirmed deposits are credited and swept immediately when custody sweep is enabled\n\n"
         "*Your deposit address:*\n"
         f"`{address}`\n\n"
         f"_Short: {_md(short)}_\n\n"
@@ -630,17 +631,17 @@ def withdraw_confirm_text(amount: str, address: str) -> str:
         f"Amount:  `${amount} USDC`\n"
         f"To:      `{address}`\n"
         f"         _\\({_md(short)}\\)_\n\n"
-        "📋 _Paper mode — no on\\-chain transfer yet\\._\n"
-        "_Funds will be debited from your paper balance\\._\n"
+        "📋 _Funds lock immediately before any payout submission\\._\n"
+        "_Paper mode keeps the payout deferred behind live guards\\._\n"
         "_Admin approval required\\._"
     )
 
 
 def withdraw_submitted_text(amount: str, mode: str) -> str:
     if mode == "auto":
-        approval_line = "✅ Auto\\-approved — balance debited\\."
+        approval_line = "✅ Auto\\-approved — balance locked and submitted if live guards allow\\."
     else:
-        approval_line = "⏳ Pending admin approval\\."
+        approval_line = "⏳ Pending admin approval — balance locked\\."
     return (
         "📤 *Withdrawal Submitted*\n"
         + DIV + "\n\n"
@@ -668,7 +669,7 @@ def withdraw_history_text(withdrawals: list[dict]) -> str:
         short_addr = str(w["destination_address"])[:6] + "…" + str(w["destination_address"])[-4:]
         lines.append(
             f"{icon} `${w['amount_usdc']:.2f}` → "
-            f"`{short_addr}` · {_md(ts)}"
+            f"`{short_addr}` · {_md(ts)} · {_md(str(w.get('lifecycle_state') or w['status']))}"
         )
     return "\n".join(lines)
 
@@ -683,6 +684,7 @@ def admin_withdrawal_item_text(w: dict) -> str:
         f"Amount:  `${w['amount_usdc']:.2f} USDC`\n"
         f"To:      `{w['destination_address']}`\n"
         f"         _\\({_md(short_addr)}\\)_\n"
+        f"State:   `{_md(str(w.get('lifecycle_state') or w.get('status') or 'withdraw_pending'))}`\n"
         f"Time:    `{ts}`\n"
         f"ID:      `{str(w['id'])[:8]}…`"
     )

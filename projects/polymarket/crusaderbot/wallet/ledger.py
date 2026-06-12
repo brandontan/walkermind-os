@@ -25,6 +25,34 @@ T_FEE = "fee"
 T_WITHDRAW = "withdraw"
 T_ADJUSTMENT = "adjustment"
 
+# Formal custody/accounting lifecycle states (#1780). These are intentionally
+# string constants rather than an enum tied to one table: deposits, withdrawals,
+# and order accounting each persist their lifecycle in different rows, but the
+# operator-facing truth must use one vocabulary.
+L_DETECTED = "detected"
+L_CONFIRMING = "confirming"
+L_AVAILABLE = "available"
+L_RESERVED_FOR_ORDER = "reserved_for_order"
+L_IN_POSITION = "in_position"
+L_WITHDRAW_PENDING = "withdraw_pending"
+L_SWEEPING = "sweeping"
+L_SWEPT = "swept"
+L_FAILED = "failed"
+L_MANUAL_REVIEW = "manual_review"
+
+LEDGER_LIFECYCLE_STATES = frozenset({
+    L_DETECTED,
+    L_CONFIRMING,
+    L_AVAILABLE,
+    L_RESERVED_FOR_ORDER,
+    L_IN_POSITION,
+    L_WITHDRAW_PENDING,
+    L_SWEEPING,
+    L_SWEPT,
+    L_FAILED,
+    L_MANUAL_REVIEW,
+})
+
 
 async def credit(user_id: UUID, amount: Decimal | float, type_: str,
                  ref_id: Optional[UUID] = None, note: str | None = None) -> None:
