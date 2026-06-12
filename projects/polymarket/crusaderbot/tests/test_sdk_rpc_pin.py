@@ -65,7 +65,11 @@ def test_every_async_secure_client_create_passes_pinned_environment():
                 and kw.value.func.id == "production_environment"
                 for kw in node.keywords
             )
-            if not has_pin:
+            # api_key is equally load-bearing: without it the SDK cannot
+            # gaslessly deploy a deposit wallet for a fresh EOA (the prod
+            # 6/6 backfill skip, 2026-06-12).
+            has_api_key = any(kw.arg == "api_key" for kw in node.keywords)
+            if not (has_pin and has_api_key):
                 offenders.append(f"{py.name}:{node.lineno}")
     assert not offenders, (
         "AsyncSecureClient.create call(s) missing the RPC-pinned environment: "
@@ -97,6 +101,10 @@ async def test_resolve_deposit_wallet_builds_client_with_pinned_env(monkeypatch)
     fake = SimpleNamespace(POLYGON_RPC_URL="https://rpc.example/v2/PINNED")
     monkeypatch.setattr(sdk_env, "get_settings", lambda: fake)
 
+    sentinel = object()
+    monkeypatch.setattr(sdk_env, "sdk_api_key", lambda: sentinel)
     wallet = await uc.resolve_deposit_wallet("0x" + "11" * 32)
     assert wallet == "0x" + "ab" * 20
     assert captured["environment"].rpc_url == "https://rpc.example/v2/PINNED"
+    # the gasless-deploy key must reach the SDK client build
+    assert captured["api_key"] is sentinel

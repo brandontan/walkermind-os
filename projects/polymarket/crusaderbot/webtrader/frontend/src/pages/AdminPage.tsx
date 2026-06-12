@@ -82,10 +82,13 @@ export function AdminPage() {
     setBackfillMsg(null);
     try {
       const r = await api.backfillDepositWallets();
+      const safes = r.safes
+        ? ` Safes — scanned ${r.safes.scanned}, filled ${r.safes.filled}, skipped ${r.safes.skipped}.`
+        : "";
       setBackfillMsg(
         r.ok
-          ? `Done — scanned ${r.scanned}, filled ${r.filled}, skipped ${r.skipped}.`
-          : `Aborted — Polymarket SDK unavailable in the runtime (scanned ${r.scanned}, filled 0). Check deploy.`,
+          ? `Done — scanned ${r.scanned}, filled ${r.filled}, skipped ${r.skipped}.${safes}`
+          : `Aborted — Polymarket SDK unavailable in the runtime (scanned ${r.scanned}, filled 0).${safes} Check deploy.`,
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

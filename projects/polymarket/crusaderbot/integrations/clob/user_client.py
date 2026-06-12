@@ -133,11 +133,14 @@ async def resolve_deposit_wallet(private_key: str) -> str:
 
     from polymarket import AsyncSecureClient  # noqa: WPS433
 
-    from .sdk_env import production_environment
+    from .sdk_env import production_environment, sdk_api_key
 
     sc = await AsyncSecureClient.create(
         private_key=private_key, wallet=None,
         environment=production_environment(),
+        # Required to gaslessly DEPLOY the deposit wallet for a fresh EOA —
+        # without it the SDK raises UserInputError (prod 6/6 backfill skip).
+        api_key=sdk_api_key(),
     )
     try:
         return sc.wallet
@@ -170,13 +173,14 @@ async def resolve_deposit_wallet_creds(
     # the lazy import used in ``ensure_clob_credentials``.
     from polymarket import AsyncSecureClient  # noqa: WPS433
 
-    from .sdk_env import production_environment
+    from .sdk_env import production_environment, sdk_api_key
 
     # wallet=None requests the SDK auto-derive (the single-wallet contract from
     # #1729). For a per-user key the operator never has a hardcoded address.
     sc = await AsyncSecureClient.create(
         private_key=private_key, wallet=None,
         environment=production_environment(),
+        api_key=sdk_api_key(),
     )
     try:
         creds_obj = sc.credentials

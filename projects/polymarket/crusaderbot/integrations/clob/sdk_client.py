@@ -175,13 +175,15 @@ class PolymarketSdkClient:
             if bk and bs and bp:
                 builder = BuilderApiKey(key=bk, secret=bs, passphrase=bp)
             try:
-                from .sdk_env import production_environment
+                from .sdk_env import production_environment, sdk_api_key
 
                 self._client = await AsyncSecureClient.create(
                     private_key=self._private_key,
                     wallet=self._funder,
                     credentials=creds,
-                    api_key=builder,
+                    # Client-local builder creds win; settings-level relayer/
+                    # builder key is the fallback for gasless workflows.
+                    api_key=builder if builder is not None else sdk_api_key(),
                     nonce=self._nonce,
                     environment=production_environment(),
                 )
