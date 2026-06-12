@@ -2686,12 +2686,19 @@ async def enable_live(
             ),
         )
 
-    consent_version = body.consent_version or _LIVE_ENABLE_CONSENT_VERSION
-    if consent_version != _LIVE_ENABLE_CONSENT_VERSION:
+    # STRICT consent versioning: the client must echo the exact version of
+    # the Terms/risk copy it rendered. No server-side default — a missing or
+    # stale version means the user may have consented to outdated copy, so
+    # the audit record would not be provably tied to the current text.
+    if body.consent_version != _LIVE_ENABLE_CONSENT_VERSION:
         raise HTTPException(
             status_code=400,
-            detail=f"consent_version must equal '{_LIVE_ENABLE_CONSENT_VERSION}'",
+            detail=(
+                f"consent_version must equal '{_LIVE_ENABLE_CONSENT_VERSION}' "
+                "— refresh the app to load the current Terms/risk text"
+            ),
         )
+    consent_version = body.consent_version
 
     consent_accepted_at = datetime.now(timezone.utc).isoformat()
     manual_cap = float(body.live_capital_cap_usdc or 0.0)

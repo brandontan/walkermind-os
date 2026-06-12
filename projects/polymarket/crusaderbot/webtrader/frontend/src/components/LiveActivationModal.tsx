@@ -40,7 +40,10 @@ function fmtUsd(v: number): string {
 }
 
 export function LiveActivationModal({ status, onClose, onEnable, onSuccess }: Props) {
-  const ready = status.operator_guards_open && status.checklist_passed;
+  // Live-trade ARMING readiness (operator guards + checklist). Display-only:
+  // the PAPER -> LIVE switch itself is self-serve and must never be blocked
+  // on it (#1787) — readiness only gates starting live Auto-Trade later.
+  const armReady = status.operator_guards_open && status.checklist_passed;
   const [step, setStep] = useState<Step>("preview");
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [result, setResult] = useState<LiveEnableResponse | null>(null);
@@ -135,17 +138,24 @@ export function LiveActivationModal({ status, onClose, onEnable, onSuccess }: Pr
               <CheckRow ok={status.checklist_passed} label="Your account passes all readiness checks" />
             </div>
 
-            {!ready && (
+            {/* Readiness is status-only: it gates starting live Auto-Trade,
+                NOT this switch. The user may flip to LIVE now and lands in
+                LIVE ENABLED / WAITING FOR DEPOSIT until funded + ready. */}
+            {!armReady && (
               <div
                 className="p-3 rounded-sm"
                 style={{ background: "rgba(245,200,66,0.06)", border: "1px solid rgba(245,200,66,0.2)" }}
               >
                 <p className="font-hud text-[9px] font-bold tracking-[1.5px] uppercase text-gold mb-1">
-                  Not ready yet
+                  Heads up — live Auto-Trade not ready yet
+                </p>
+                <p className="text-[10px] font-mono text-ink-3 mb-1">
+                  You can still switch to LIVE now. The bot stays stopped, and live
+                  Auto-Trade won't start until these clear (plus $5 deposited):
                 </p>
                 {!status.operator_guards_open ? (
                   <p className="text-[10px] font-mono text-ink-3">
-                    The operator hasn't switched the system to live yet. You can't go live until that's done.
+                    The operator hasn't unlocked live order execution platform-wide yet.
                   </p>
                 ) : (
                   <ul className="text-[10px] font-mono text-ink-3 space-y-0.5 list-disc pl-3.5">
@@ -159,16 +169,15 @@ export function LiveActivationModal({ status, onClose, onEnable, onSuccess }: Pr
 
             <button
               type="button"
-              disabled={!ready}
               onClick={() => setStep("consent")}
-              className="w-full clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors"
               style={{
                 background: "rgba(0,255,156,0.1)",
                 border: "1px solid rgba(0,255,156,0.35)",
                 color: "#00FF9C",
               }}
             >
-              {ready ? "Continue →" : "Locked"}
+              Continue →
             </button>
           </div>
         )}

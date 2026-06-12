@@ -2,11 +2,12 @@
 
 **Project:** CrusaderBot  
 **Project Root:** projects/polymarket/crusaderbot  
-**Branch:** WARP/live-enable-tos-checkbox-flow  
+**Branch:** warp/implement-live-enable-tos-checkbox-flow  
 **Issue:** #1787  
+**PR:** #1791  
 **Validation Tier:** MAJOR  
 **Claim Level:** NARROW INTEGRATION  
-**Last Updated:** 2026-06-12 22:20 Asia/Jakarta
+**Last Updated:** 2026-06-12 23:05 Asia/Jakarta
 
 ## Scope
 
@@ -50,4 +51,42 @@ Replace WebTrader LIVE enable typed-phrase consent with a Terms/risk checkbox fl
 
 ## State
 
-State: FORGE build complete on `WARP/live-enable-tos-checkbox-flow`; MAJOR lane requires WARP•SENTINEL or WARP•R00T final gate before merge.
+State: FORGE build complete on `warp/implement-live-enable-tos-checkbox-flow`; MAJOR lane requires WARP•SENTINEL or WARP•R00T final gate before merge.
+
+---
+
+## WARP•R00T Finishing Pass (PR #1791)
+
+**Last Updated:** 2026-06-12 23:05 Asia/Jakarta
+**Decision:** APPROVE — WARP•R00T takes final gate responsibility, self-merge on CI green. WARP•SENTINEL did NOT run and is not claimed.
+
+### CMD first-pass blockers — disposition
+
+- **BLOCKER 1 (dirty / behind main)** — RESOLVED. Merged latest `origin/main` (`#1789` mode-width migration + `#1790` health-probe severity); only conflict was `state/PROJECT_STATE.md`, resolved onto the mainline AGENTS.md-compliant shape, lane re-applied truthfully.
+- **BLOCKER 2 (frontend blocked LIVE switch on operator/checklist readiness)** — FIXED. `LiveActivationModal` no longer computes a blocking `ready` gate: the preview→consent button is always enabled; operator/checklist readiness is rendered as status rows + a "Heads up — live Auto-Trade not ready yet" warning that explicitly says the user can still switch and lands as `LIVE ENABLED / WAITING FOR DEPOSIT`. The backend was already correct (`enable_live` never consulted `_operator_guards_open` / `live_checklist`) — pinned by `test_enable_live_is_self_serve_not_operator_or_admin_gated` and `test_enable_live_with_zero_balance_and_consent_succeeds_waiting_for_deposit`. New frontend source pin `test_live_modal_does_not_block_switch_on_operator_or_checklist_readiness` makes the regression fail CI.
+- **BLOCKER 3 (stale 2FA copy)** — FIXED. `TwoFactorSetupCard`: "Required for live trading. Off — turn on before going live." → "Optional — recommended for account and withdrawal protection."; disable-flow copy "will block live trading" → optional-protection wording. All 2FA surfaces (setup/status/verify/disable) preserved — pinned by `test_two_factor_card_copy_is_optional_not_required`.
+- **BLOCKER 4 (branch traceability)** — FIXED. Exact PR head branch `warp/implement-live-enable-tos-checkbox-flow` now used in this report, PROJECT_STATE, WORKTODO, CHANGELOG (the FORGE CHANGELOG entry, which the auto-merge had also mis-placed mid-file, was relocated to the top and corrected), and the PR body.
+- **BLOCKER 5 (PR body gate summary)** — FIXED. Report / State / Validation Tier / Claim Level / Next Gate block added to the PR body.
+- **BLOCKER 6 (no CI on head)** — RESOLVED on the finished head: targeted + full validation locally, GitHub `Lint + Test` confirmed green before merge.
+
+### CMD hardening item — STRICT consent_version (decision: STRICT)
+
+The FORGE build defaulted a missing `consent_version` to the server constant — a stale client could record consent against copy the user never rendered. R00T removed the default: `body.consent_version` must equal `LIVE_ENABLE_CONSENT_VERSION` exactly; missing OR stale → HTTP 400 with a refresh hint, before any state change. WebTrader always sends the version (`lib/api.ts` default parameter). Truly stale clients (typed-phrase era) fail earlier on `consent_accepted`. New pins: `test_enable_live_missing_consent_version_blocks_with_400`, `test_enable_live_stale_consent_version_blocks_with_400`.
+
+### Files modified by the finishing pass (on top of FORGE)
+
+- `projects/polymarket/crusaderbot/webtrader/backend/router.py` (strict consent_version)
+- `projects/polymarket/crusaderbot/webtrader/frontend/src/components/LiveActivationModal.tsx` (readiness no longer blocks switch)
+- `projects/polymarket/crusaderbot/webtrader/frontend/src/components/TwoFactorSetupCard.tsx` (optional/recommended copy)
+- `projects/polymarket/crusaderbot/tests/test_live_activation_flow.py` (+4 tests: strict-version ×2, frontend source pins ×2; legacy-phrase test updated to carry the version)
+- `state/PROJECT_STATE.md`, `state/WORKTODO.md`, `state/CHANGELOG.md` (repo-truth sync, exact branch)
+
+### Validation (finishing pass)
+
+- Targeted pytest (live activation / live mode / self-serve / 2FA / checklist + autotrade-guard pins): green — see PR body for counts.
+- Full suite green; ruff + py_compile clean on touched Python; `npm run build` green on the touched frontend.
+- Secret-pattern + UTF-8/mojibake/BOM scans clean. Branch traceability verified from `git rev-parse`.
+
+### Inviolable invariants — confirmed clean
+
+No `USE_REAL_CLOB` / `EXECUTION_PATH_VALIDATED` / `ENABLE_LIVE_TRADING` / `CAPITAL_MODE_CONFIRMED` flip; shared `$5` live Auto-Trade start guard and Auto-Trade-OFF-on-switch untouched (pinned by the #1784 toggle tests, all green); no risk-constant / Kelly change; no secrets; no real fund movement; asyncio only.

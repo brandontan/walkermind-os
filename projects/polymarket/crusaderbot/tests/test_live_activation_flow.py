@@ -268,9 +268,16 @@ def test_enable_live_ignores_legacy_typed_phrase_when_checkbox_consent_present()
     from projects.polymarket.crusaderbot.webtrader.backend.schemas import (
         LiveEnableRequest,
     )
+    from projects.polymarket.crusaderbot.domain.activation.live_opt_in_gate import (
+        LIVE_ENABLE_CONSENT_VERSION,
+    )
 
     user_id = UUID("00000000-0000-0000-0000-000000000009")
-    body = LiveEnableRequest(consent_accepted=True, confirm_phrase="wrong")
+    body = LiveEnableRequest(
+        consent_accepted=True,
+        consent_version=LIVE_ENABLE_CONSENT_VERSION,
+        confirm_phrase="wrong",
+    )
     switch = SimpleNamespace(
         live_balance_usdc=Decimal("5"),
         waiting_for_deposit=False,
@@ -284,6 +291,50 @@ def test_enable_live_ignores_legacy_typed_phrase_when_checkbox_consent_present()
         out = asyncio.run(router_mod.enable_live(body, {"user_id": str(user_id)}))
 
     assert out.status == "LIVE ENABLED"
+
+
+def test_enable_live_missing_consent_version_blocks_with_400():
+    """STRICT consent versioning (R00T hardening): consent_accepted=true with
+    NO consent_version must be rejected — a silently-defaulted version would
+    let a stale client record consent against copy the user never saw.
+    """
+    from projects.polymarket.crusaderbot.webtrader.backend.schemas import (
+        LiveEnableRequest,
+    )
+
+    user = {"user_id": str(UUID("00000000-0000-0000-0000-000000000009"))}
+    body = LiveEnableRequest(consent_accepted=True)  # no consent_version
+
+    with patch.object(router_mod._live_mode, "enable_live_self_serve",
+                      AsyncMock()) as enable:
+        with pytest.raises(router_mod.HTTPException) as ei:
+            asyncio.run(router_mod.enable_live(body, user))
+
+    assert ei.value.status_code == 400
+    assert "consent_version" in ei.value.detail
+    enable.assert_not_awaited()
+
+
+def test_enable_live_stale_consent_version_blocks_with_400():
+    """A stale/unknown consent_version (old client after copy was re-versioned)
+    must be rejected with 400, never silently upgraded."""
+    from projects.polymarket.crusaderbot.webtrader.backend.schemas import (
+        LiveEnableRequest,
+    )
+
+    user = {"user_id": str(UUID("00000000-0000-0000-0000-000000000009"))}
+    body = LiveEnableRequest(
+        consent_accepted=True, consent_version="live-enable-tos-risk-v0",
+    )
+
+    with patch.object(router_mod._live_mode, "enable_live_self_serve",
+                      AsyncMock()) as enable:
+        with pytest.raises(router_mod.HTTPException) as ei:
+            asyncio.run(router_mod.enable_live(body, user))
+
+    assert ei.value.status_code == 400
+    assert "consent_version" in ei.value.detail
+    enable.assert_not_awaited()
 
 
 def test_disable_live_single_step_and_audit_logged():
@@ -315,6 +366,52 @@ def test_live_enable_consent_version_constant_value():
     changing it means the ToS/risk acknowledgement copy materially changed.
     """
     assert router_mod._LIVE_ENABLE_CONSENT_VERSION == "live-enable-tos-risk-v1"
+
+
+# ---------------------------------------------------------------------
+# Frontend source pins — self-serve switch is never readiness-blocked (#1787)
+# ---------------------------------------------------------------------
+
+from pathlib import Path  # noqa: E402
+
+_FRONTEND_SRC = (
+    Path(__file__).resolve().parents[1] / "webtrader" / "frontend" / "src"
+)
+
+
+def test_live_modal_does_not_block_switch_on_operator_or_checklist_readiness():
+    """#1787 product truth: the PAPER -> LIVE switch is self-serve anytime.
+    Operator guards / checklist readiness gate live Auto-Trade ARMING, not the
+    mode switch — the modal may show readiness as status/warning but must not
+    disable the continue/enable path on it.
+    """
+    src = (_FRONTEND_SRC / "components" / "LiveActivationModal.tsx").read_text(
+        encoding="utf-8",
+    )
+    assert "disabled={!ready}" not in src, (
+        "Regression: LiveActivationModal re-blocked the LIVE switch on "
+        "operator/checklist readiness."
+    )
+    assert "disabled={!armReady}" not in src
+    # The only submit gate on the consent step is the checkbox itself.
+    assert "disabled={!consentAccepted}" in src
+    # Readiness still shown as status (CheckRow) — informational, not blocking.
+    assert "operator_guards_open" in src
+
+
+def test_two_factor_card_copy_is_optional_not_required():
+    """2FA stays available but optional/recommended — the card must not tell
+    users it is required for live trading (canonical policy, CMD blocker 3).
+    """
+    src = (_FRONTEND_SRC / "components" / "TwoFactorSetupCard.tsx").read_text(
+        encoding="utf-8",
+    )
+    assert "Required for live trading" not in src
+    assert "block live trading" not in src
+    assert "Optional" in src or "optional" in src
+    # The feature surfaces themselves stay (setup/status/verify/disable).
+    for surface in ("setup2fa", "verify2fa", "disable2fa"):
+        assert surface in src, f"2FA surface removed: {surface}"
 
 
 # ---------------------------------------------------------------------

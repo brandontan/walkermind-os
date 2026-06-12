@@ -112,7 +112,7 @@ export function TwoFactorSetupCard({ onChanged }: { onChanged?: () => void }) {
               <div>
                 <p className="text-xs font-bold text-ink-1">2FA Status</p>
                 <p className="text-[10px] text-ink-3 mt-0.5">
-                  Required for live trading. Off — turn on before going live.
+                  Optional — recommended for account and withdrawal protection.
                 </p>
               </div>
               <span
@@ -245,8 +245,8 @@ export function TwoFactorSetupCard({ onChanged }: { onChanged?: () => void }) {
               </summary>
               <div className="mt-2 space-y-2">
                 <p className="text-[10px] text-ink-3 leading-relaxed">
-                  Enter your current 6-digit code to confirm. Disabling 2FA will
-                  block live trading until you re-enable it.
+                  Enter your current 6-digit code to confirm. 2FA is optional,
+                  but turning it off reduces account and withdrawal protection.
                 </p>
                 <input
                   type="text"
