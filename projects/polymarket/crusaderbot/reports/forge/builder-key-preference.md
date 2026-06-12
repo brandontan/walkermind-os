@@ -28,6 +28,12 @@ the preference over the builder credential set. A BuilderApiKey relays on
 behalf of ARBITRARY user EOAs (builder pays gas) — the only key kind that can
 deploy deposit wallets for our per-user HD addresses.
 
+Gemini #1778 applied (adapted): a half-configured credential family now emits
+ONE deduped WARNING per process (field names only, never values) and keeps the
+safe fallback — Gemini proposed raising, rejected because `sdk_api_key()` runs
+on every client build including already-deployed-wallet resolves that need no
+key; a raise would convert a config smell into a capital-path outage.
+
 ## 2. Current system architecture
 
 Unchanged. `sdk_api_key()` remains the single choke point feeding `api_key=`
