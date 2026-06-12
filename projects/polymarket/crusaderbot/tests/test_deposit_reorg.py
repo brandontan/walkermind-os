@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from projects.polymarket.crusaderbot import scheduler
@@ -59,7 +60,13 @@ class _Conn:
 
     async def fetchrow(self, sql: str, *args):
         if "INSERT INTO deposits" in sql:
-            user_id, tx_hash, log_index, amount, block_number = args
+            user_id, tx_hash, log_index, amount, block_number, *asset_args = args
+            token_symbol = asset_args[0] if len(asset_args) > 0 else "USDC.e"
+            token_address = asset_args[1] if len(asset_args) > 1 else None
+            network = asset_args[2] if len(asset_args) > 2 else "Polygon"
+            chain_id = asset_args[3] if len(asset_args) > 3 else 137
+            token_decimals = asset_args[4] if len(asset_args) > 4 else 6
+            normalized_amount = asset_args[5] if len(asset_args) > 5 else amount
             row = self.store.find(tx_hash, log_index)
             if row is None:
                 row = {
@@ -67,6 +74,10 @@ class _Conn:
                     "log_index": log_index, "amount_usdc": amount,
                     "block_number": block_number, "status": "pending",
                     "confirmed_at_block": None, "lifecycle_state": "confirming",
+                    "token_symbol": token_symbol, "token_address": token_address,
+                    "network": network, "chain_id": chain_id,
+                    "token_decimals": token_decimals,
+                    "normalized_amount_usdc": normalized_amount,
                 }
                 self.store.deposits.append(row)
                 return {"id": row["id"]}
@@ -90,7 +101,9 @@ class _Conn:
             if d is None:
                 return None
             return {"id": d["id"], "user_id": d["user_id"],
-                    "amount_usdc": d["amount_usdc"], "status": d["status"]}
+                    "amount_usdc": d["amount_usdc"],
+                    "normalized_amount_usdc": d.get("normalized_amount_usdc"),
+                    "status": d["status"]}
         if "telegram_user_id" in sql:
             (user_id,) = args
             return {"telegram_user_id": self.store.tg_by_user.get(user_id, 999)}
@@ -132,9 +145,17 @@ def _harness(store: _Store):
     credit = AsyncMock()
     debit = AsyncMock()
     audit_write = AsyncMock()
+    asset = SimpleNamespace(
+        token_symbol="USDC.e",
+        token_contract="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+        network="Polygon",
+        chain_id=137,
+        decimals=6,
+    )
     ctx = patch.multiple(
         scheduler,
         get_pool=lambda: _Pool(store),
+        primary_deposit_asset=lambda: asset,
     )
     return credit, debit, audit_write, ctx
 
@@ -146,6 +167,7 @@ def _run(coro):
 def _transfer(block: int, removed: bool = False) -> dict:
     return {
         "tx_hash": "0xabc", "log_index": 0, "amount": 100.0,
+        "token_address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
         "block_number": block, "to": "0xWALLET", "removed": removed,
     }
 
@@ -201,6 +223,31 @@ def test_confirmed_then_reorg_removed_uncredits():
     kw = audit_write.await_args.kwargs
     assert kw["action"] == "deposit_credit_reverted"
     assert kw["payload"]["uncredited"] is True
+
+
+def test_confirmed_reorg_reverts_normalized_amount_not_raw():
+    """Codex P2: the confirm pass credits normalized_amount_usdc, so the reorg
+    revert must debit that SAME normalized value — not the raw token amount —
+    or a non-1:1 deposit would over/under-debit the wallet balance.
+    """
+    store = _Store()
+    user_id = uuid.uuid4()
+    store.deposits.append({
+        "id": uuid.uuid4(), "user_id": user_id, "tx_hash": "0xabc",
+        "log_index": 0, "amount_usdc": Decimal("100.0"),
+        "normalized_amount_usdc": Decimal("42.5"), "block_number": 100,
+        "status": "confirmed", "confirmed_at_block": 132,
+    })
+    credit, debit, audit_write, ctx = _harness(store)
+    with ctx, patch.object(scheduler.ledger, "credit_in_conn", credit), \
+         patch.object(scheduler.ledger, "debit_in_conn", debit), \
+         patch.object(scheduler.audit, "write", audit_write):
+        _run(scheduler._revert_deposit(_transfer(block=100, removed=True)))
+
+    debit.assert_awaited_once()
+    assert debit.await_args.args[2] == Decimal("42.5"), (
+        "revert debited the raw token amount, not the credited normalized value"
+    )
 
 
 # ---------------- Test 3: pending then removed → reverted, no ledger move -----

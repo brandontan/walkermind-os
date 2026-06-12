@@ -1,17 +1,58 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import type { DepositOption } from "../lib/api";
 
 interface Props {
   address: string;
+  depositOptions?: DepositOption[];
   paperMode: boolean;
   balance?: number;
   onClose: () => void;
 }
 
-export function DepositModal({ address, paperMode, balance, onClose }: Props) {
+function legacyOption(address: string): DepositOption {
+  return {
+    id: "polygon-usdc-e",
+    token_symbol: "USDC.e",
+    token_label: "USDC.e (bridged)",
+    token_contract: null,
+    network: "Polygon",
+    chain_id: 137,
+    display_label: "USDC.e on Polygon",
+    decimals: 6,
+    min_deposit: 50,
+    backend_supported: true,
+    watcher_supported: true,
+    bridge_custody_supported: true,
+    enabled: true,
+    unavailable_reason: null,
+    deposit_address: address || null,
+  };
+}
+
+export function DepositModal({ address, depositOptions, paperMode, balance, onClose }: Props) {
   const [copied, setCopied] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const options = useMemo(() => {
+    const normalized = depositOptions && depositOptions.length > 0
+      ? depositOptions
+      : [legacyOption(address)];
+    return normalized.map((option) => ({
+      ...option,
+      deposit_address: option.deposit_address ?? (option.enabled ? address : null),
+    }));
+  }, [address, depositOptions]);
+
+  const firstEnabled = options.find((option) => option.enabled);
+  const [selectedId, setSelectedId] = useState(firstEnabled?.id ?? options[0]?.id ?? "");
+
+  useEffect(() => {
+    if (!options.some((option) => option.id === selectedId)) {
+      setSelectedId(firstEnabled?.id ?? options[0]?.id ?? "");
+    }
+  }, [firstEnabled?.id, options, selectedId]);
 
   useEffect(() => {
     return () => {
@@ -19,15 +60,22 @@ export function DepositModal({ address, paperMode, balance, onClose }: Props) {
     };
   }, []);
 
-  const hasAddress = Boolean(address);
+  const selected = options.find((option) => option.id === selectedId) ?? firstEnabled ?? options[0];
+  const selectedAddress = selected?.enabled ? (selected.deposit_address ?? address) : "";
+  const hasAddress = Boolean(selectedAddress);
+  const selectorDisabled = !selected?.enabled;
+  const minDeposit = selected?.min_deposit ? `$${selected.min_deposit.toFixed(0)}` : "Not published";
 
   const copyAddress = async () => {
+    if (!selectedAddress) return;
     try {
+      // COPY contract: raw address ONLY — wallets/exchanges paste this
+      // straight into a send form. Never wrap it in instruction text.
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(address);
+        await navigator.clipboard.writeText(selectedAddress);
       } else {
         const ta = document.createElement("textarea");
-        ta.value = address;
+        ta.value = selectedAddress;
         ta.style.position = "fixed";
         ta.style.opacity = "0";
         document.body.appendChild(ta);
@@ -52,7 +100,7 @@ export function DepositModal({ address, paperMode, balance, onClose }: Props) {
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         role="dialog"
         aria-modal="true"
-        aria-label="Deposit USDC"
+        aria-label="Deposit selector"
       >
         <div
           className="w-full max-w-sm bg-surface border border-border-1 clip-card p-5 pb-8 md:pb-5 max-h-[90vh] overflow-y-auto"
@@ -62,17 +110,11 @@ export function DepositModal({ address, paperMode, balance, onClose }: Props) {
           <div className="flex items-start justify-between mb-4">
             <div>
               <p className="font-hud text-[11px] font-bold tracking-[2px] uppercase text-gold">
-                {paperMode ? "Paper Wallet Address" : "Deposit USDC"}
+                {paperMode ? "Paper Wallet Address" : "Deposit Funds"}
               </p>
-              {paperMode ? (
-                <p className="text-[9px] font-mono text-ink-3 mt-0.5">
-                  Paper Mode — no real funds at risk
-                </p>
-              ) : (
-                <p className="text-[9px] font-mono text-ink-3 mt-0.5">
-                  Polygon · USDC only
-                </p>
-              )}
+              <p className="text-[9px] font-mono text-ink-3 mt-0.5">
+                {paperMode ? "Paper Mode — no real funds at risk" : "Choose token + network"}
+              </p>
             </div>
             <button
               type="button"
@@ -84,13 +126,50 @@ export function DepositModal({ address, paperMode, balance, onClose }: Props) {
             </button>
           </div>
 
-          {!hasAddress ? (
+          <div className="mb-4 space-y-2" aria-label="Deposit token and network options">
+            {options.map((option) => {
+              const active = option.id === selected?.id;
+              return (
+                <button
+                  type="button"
+                  key={option.id}
+                  disabled={!option.enabled}
+                  onClick={() => setSelectedId(option.id)}
+                  className={`w-full text-left rounded-sm border p-2.5 transition-colors ${
+                    active ? "border-gold" : "border-border-1"
+                  } ${option.enabled ? "hover:border-gold/80" : "opacity-55 cursor-not-allowed"}`}
+                  style={{ background: active ? "rgba(245,200,66,0.08)" : "rgba(255,255,255,0.03)" }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-hud text-[10px] font-bold tracking-[1px] uppercase text-ink-1">
+                      {option.display_label}
+                    </span>
+                    <span className={`font-mono text-[8px] ${option.enabled ? "text-grn" : "text-ink-4"}`}>
+                      {option.enabled ? "SUPPORTED" : "UNAVAILABLE"}
+                    </span>
+                  </div>
+                  <div className="mt-1 font-mono text-[8px] text-ink-4 leading-relaxed">
+                    Token: {option.token_symbol} · Network: {option.network} · Chain ID: {option.chain_id}
+                  </div>
+                  {!option.enabled && option.unavailable_reason && (
+                    <div className="mt-1 font-mono text-[8px] text-red leading-relaxed">
+                      {option.unavailable_reason}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {!selected || !hasAddress || selectorDisabled ? (
             <div className="py-8 text-center space-y-1.5">
               <p className="text-[10px] font-mono text-ink-3">
-                No deposit address available.
+                {selectorDisabled ? "This token/network is not deposit-enabled." : "No deposit address available."}
               </p>
               <p className="text-[9px] font-mono text-ink-4">
-                Set up your wallet via the Telegram bot.
+                {selectorDisabled
+                  ? "Unsupported assets cannot produce QR codes or deposit instructions."
+                  : "Set up your wallet via the Telegram bot."}
               </p>
             </div>
           ) : (
@@ -101,11 +180,11 @@ export function DepositModal({ address, paperMode, balance, onClose }: Props) {
                   type="button"
                   onClick={() => setFullscreen(true)}
                   className="p-3 bg-white rounded-sm cursor-pointer hover:opacity-90 transition-opacity"
-                  aria-label="Tap to enlarge QR code"
+                  aria-label={`Tap to enlarge ${selected.display_label} QR code`}
                   title="Tap to enlarge"
                 >
                   <QRCodeSVG
-                    value={address}
+                    value={selectedAddress}
                     size={156}
                     level="M"
                     bgColor="#ffffff"
@@ -114,11 +193,11 @@ export function DepositModal({ address, paperMode, balance, onClose }: Props) {
                 </button>
               </div>
               <p className="text-[9px] font-mono text-ink-4 text-center mb-3">
-                Tap QR to enlarge · Scan with any crypto wallet
+                QR is for {selected.token_symbol} on {selected.network} only
               </p>
 
               {/* Network badges */}
-              <div className="flex gap-2 mb-3">
+              <div className="flex flex-wrap gap-2 mb-3">
                 <span
                   className="font-hud text-[9px] font-bold tracking-[1px] uppercase px-2 py-0.5 rounded-sm"
                   style={{
@@ -127,7 +206,7 @@ export function DepositModal({ address, paperMode, balance, onClose }: Props) {
                     color: "#A855F7",
                   }}
                 >
-                  Polygon
+                  {selected.network}
                 </span>
                 <span
                   className="font-hud text-[9px] font-bold tracking-[1px] uppercase px-2 py-0.5 rounded-sm"
@@ -137,7 +216,10 @@ export function DepositModal({ address, paperMode, balance, onClose }: Props) {
                     color: "#60A5FA",
                   }}
                 >
-                  USDC
+                  {selected.token_symbol}
+                </span>
+                <span className="font-mono text-[9px] text-ink-4 px-2 py-0.5">
+                  Min: {minDeposit}
                 </span>
               </div>
 
@@ -150,7 +232,7 @@ export function DepositModal({ address, paperMode, balance, onClose }: Props) {
                   color: "#C4A23A",
                 }}
               >
-                Send only USDC on the Polygon network. Other tokens or networks will result in permanent loss.
+                Send only {selected.token_label} on {selected.network}. Wrong token or wrong network may cause permanent loss or manual recovery risk.
               </div>
 
               {/* Live-mode risk notice */}
@@ -163,7 +245,7 @@ export function DepositModal({ address, paperMode, balance, onClose }: Props) {
                     color: "#FF6B6B",
                   }}
                 >
-                  Live mode — real funds. Verify the address carefully before sending.
+                  Live mode — real funds. Verify token, network, and address carefully before sending.
                 </div>
               )}
 
@@ -177,9 +259,9 @@ export function DepositModal({ address, paperMode, balance, onClose }: Props) {
               >
                 <span
                   className="font-mono text-[10px] text-ink-1 flex-1 tracking-[0.5px] break-all leading-snug"
-                  title={address}
+                  title={selectedAddress}
                 >
-                  {address}
+                  {selectedAddress}
                 </span>
                 <button
                   type="button"
@@ -211,21 +293,21 @@ export function DepositModal({ address, paperMode, balance, onClose }: Props) {
       </div>
 
       {/* Fullscreen QR overlay */}
-      {fullscreen && hasAddress && (
+      {fullscreen && selected && hasAddress && (
         <div
           className="fixed inset-0 z-[60] flex flex-col items-center justify-center"
           style={{ background: "rgba(0,0,0,0.92)" }}
           onClick={() => setFullscreen(false)}
           role="dialog"
           aria-modal="true"
-          aria-label="QR Code fullscreen"
+          aria-label={`${selected.display_label} QR Code fullscreen`}
         >
           <div
             className="p-5 bg-white rounded-md"
             onClick={(e) => e.stopPropagation()}
           >
             <QRCodeSVG
-              value={address}
+              value={selectedAddress}
               size={260}
               level="M"
               bgColor="#ffffff"
@@ -233,7 +315,7 @@ export function DepositModal({ address, paperMode, balance, onClose }: Props) {
             />
           </div>
           <p className="mt-5 text-[10px] font-mono text-ink-3 pointer-events-none">
-            Tap anywhere to close
+            {selected.token_symbol} on {selected.network} · tap anywhere to close
           </p>
         </div>
       )}

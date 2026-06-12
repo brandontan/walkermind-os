@@ -474,10 +474,29 @@ export interface RiskProfileParams {
   sl_pct?: number;
 }
 
+export interface DepositOption {
+  id: string;
+  token_symbol: string;
+  token_label: string;
+  token_contract: string | null;
+  network: string;
+  chain_id: number;
+  display_label: string;
+  decimals: number;
+  min_deposit: number | null;
+  backend_supported: boolean;
+  watcher_supported: boolean;
+  bridge_custody_supported: boolean;
+  enabled: boolean;
+  unavailable_reason: string | null;
+  deposit_address: string | null;
+}
+
 export interface WalletInfo {
   deposit_address: string;
   balance_usdc: number;
   ledger_recent: LedgerEntry[];
+  deposit_options: DepositOption[];
   paper_mode?: boolean;
   trading_mode?: string;
 }

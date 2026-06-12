@@ -151,8 +151,12 @@ class _WatcherPool:
 def test_successful_tick_resets_streak_and_threads_lookback():
     scheduler._watch_deposits_fail_streak = 7  # mid-outage
     scan = AsyncMock(return_value=([], 900))
+    from types import SimpleNamespace as _NS
+    _asset = _NS(token_symbol="USDC.e", token_contract="0x" + "27" * 20,
+                 network="Polygon", chain_id=137, decimals=6)
     with patch.object(scheduler, "get_settings", return_value=_FakeSettings()), \
             patch.object(scheduler, "get_pool", return_value=_WatcherPool()), \
+            patch.object(scheduler, "primary_deposit_asset", lambda: _asset), \
             patch.object(scheduler.polygon, "latest_block",
                          new=AsyncMock(return_value=1_000)), \
             patch.object(scheduler.polygon, "scan_from_cursor", new=scan):

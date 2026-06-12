@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 # ── TP/SL server-side bounds (WARP-90 / PR #1688 SENTINEL condition) ───────────
@@ -287,10 +287,29 @@ class LedgerEntry(BaseModel):
     created_at: datetime
 
 
+class DepositOption(BaseModel):
+    id: str
+    token_symbol: str
+    token_label: str
+    token_contract: Optional[str] = None
+    network: str
+    chain_id: int
+    display_label: str
+    decimals: int
+    min_deposit: Optional[float] = None
+    backend_supported: bool
+    watcher_supported: bool
+    bridge_custody_supported: bool
+    enabled: bool
+    unavailable_reason: Optional[str] = None
+    deposit_address: Optional[str] = None
+
+
 class WalletInfo(BaseModel):
     deposit_address: str
     balance_usdc: float
     ledger_recent: list[LedgerEntry]
+    deposit_options: list[DepositOption] = Field(default_factory=list)
     paper_mode: bool = True
     trading_mode: str = "paper"
 

@@ -92,7 +92,14 @@ class _Conn:
 
     async def fetchrow(self, sql: str, *args):
         if "INSERT INTO deposits" in sql:
-            user_id, tx_hash, log_index, amount, block_number = args
+            (user_id, tx_hash, log_index, amount, block_number,
+             *asset_args) = args
+            token_symbol = asset_args[0] if len(asset_args) > 0 else "USDC.e"
+            token_address = asset_args[1] if len(asset_args) > 1 else None
+            network = asset_args[2] if len(asset_args) > 2 else "Polygon"
+            chain_id = asset_args[3] if len(asset_args) > 3 else 137
+            token_decimals = asset_args[4] if len(asset_args) > 4 else 6
+            normalized = asset_args[5] if len(asset_args) > 5 else amount
             row = self.store.find_deposit(tx_hash, log_index)
             if row is None:
                 row = {
@@ -101,6 +108,10 @@ class _Conn:
                     "block_number": block_number, "status": "pending",
                     "confirmed_at_block": None, "swept": False,
                     "lifecycle_state": "confirming",
+                    "token_symbol": token_symbol, "token_address": token_address,
+                    "network": network, "chain_id": chain_id,
+                    "token_decimals": token_decimals,
+                    "normalized_amount_usdc": normalized,
                 }
                 self.store.deposits.append(row)
                 return {"id": row["id"]}
@@ -164,6 +175,18 @@ def _run(coro):
 
 WALLET = "0x5827edEf918dc6bf38D5b7D7bbf0A53dF5e8F808"
 
+# Hermetic stand-in for wallet.deposit_assets.primary_deposit_asset() — the
+# real one reads the full Settings model, which this test never constructs.
+from types import SimpleNamespace as _NS
+
+_FAKE_ASSET = _NS(
+    token_symbol="USDC.e",
+    token_contract="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+    network="Polygon",
+    chain_id=137,
+    decimals=6,
+)
+
 
 def _store_with_wallet(user_id) -> _Store:
     store = _Store()
@@ -186,15 +209,17 @@ def test_e2e_usdce_deposit_records_confirms_credits():
         "block_number": 100, "to": WALLET, "removed": False,
     }
 
-    async def fake_scan(addresses, cursor, token_address=None, lookback=2000,
-                        max_rpc=60):
-        # USDC.e (default token) returns the deposit; native returns nothing.
-        if token_address is None:
+    async def fake_scan(addresses, cursor, token_address=None,
+                        token_decimals=None, lookback=2000, max_rpc=60):
+        # Primary scan now passes the explicit USDC.e contract; the
+        # wrong-token pass scans native USDC. Branch on the actual token.
+        if token_address == _FAKE_ASSET.token_contract:
             return [usdce_transfer], 100
         return [], 100
 
     with patch.object(scheduler, "get_pool", lambda: _Pool(store)), \
          patch.object(scheduler, "get_settings", return_value=_Settings()), \
+         patch.object(scheduler, "primary_deposit_asset", lambda: _FAKE_ASSET), \
          patch.object(scheduler.polygon, "latest_block", AsyncMock(return_value=100)), \
          patch.object(scheduler.polygon, "scan_from_cursor", side_effect=fake_scan), \
          patch.object(scheduler.ledger, "credit_in_conn", credit), \
@@ -234,14 +259,15 @@ def test_e2e_native_usdc_alerts_without_crediting():
         "block_number": 200, "to": WALLET, "removed": False,
     }
 
-    async def fake_scan(addresses, cursor, token_address=None, lookback=2000,
-                        max_rpc=60):
-        if token_address is None:
-            return [], 200  # no USDC.e deposits
-        return [native_transfer], 200  # native USDC seen
+    async def fake_scan(addresses, cursor, token_address=None,
+                        token_decimals=None, lookback=2000, max_rpc=60):
+        if token_address == _Settings.USDC_NATIVE_POLYGON:
+            return [native_transfer], 200  # native USDC seen
+        return [], 200  # no USDC.e deposits on the primary scan
 
     with patch.object(scheduler, "get_pool", lambda: _Pool(store)), \
          patch.object(scheduler, "get_settings", return_value=_Settings()), \
+         patch.object(scheduler, "primary_deposit_asset", lambda: _FAKE_ASSET), \
          patch.object(scheduler.polygon, "latest_block", AsyncMock(return_value=200)), \
          patch.object(scheduler.polygon, "scan_from_cursor", side_effect=fake_scan), \
          patch.object(scheduler.ledger, "credit_in_conn", credit), \

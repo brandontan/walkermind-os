@@ -1,12 +1,22 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-12 16:55**
+**Last Updated : 2026-06-13 00:25**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1793 -- multi-asset-deposit-selector
+
+- [x] FORGE build complete on warp/add-multi-asset-deposit-selector (MAJOR — NARROW INTEGRATION).
+- [x] wallet/deposit_assets.py allowlist: token+network separated; ONLY Polygon USDC.e enabled end-to-end; native USDC detect-only; USDT/Base/Arbitrum disabled with honest reasons.
+- [x] Migration 099 preserves original token/network/contract/decimals + normalized credit amount on deposit rows (backfilled).
+- [x] Watcher records original asset truth and credits from normalized amount; wrong-token path stays credit-neutral; mismatched-token insert raises.
+- [x] Unsupported assets get no deposit address/QR/copy on UI or API.
+- [x] WARP🔹CMD first-pass PR check — 6 blockers + 4 hardening items raised on PR #1795.
+- [x] WARP•R00T finishing pass: merged main; migration renumbered 098->099 (collision with #1794); COPY writes raw address only; token_decimals propagated + explicit is-None fallbacks (zero-normalized credits 0, behaviour-tested); e2e tests upgraded to token-scoped scan branching; exact branch across artifacts. PR #1795 MERGED under WARP•R00T final gate.
 
 ## #1792 -- live-switch-notification-isolation-fix
 
