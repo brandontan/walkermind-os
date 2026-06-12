@@ -1,12 +1,24 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 04:35**
+**Last Updated : 2026-06-13 05:25**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1800 -- polygon-usdc-usdt-deposit-enablement
+
+- [x] FORGE build on warp/polygon-usdc-usdt-deposit-enablement (MAJOR — NARROW INTEGRATION).
+- [x] End-to-end safety audit: sweep is USDC.e-contract-bound, no USDC/USDT->USDC.e conversion path -> native USDC + USDT cannot be safely enabled.
+- [x] Both tokens stay DISABLED with explicit documented blockers (no fake-enablement, per issue guardrail).
+- [x] Explicit capability matrix on DepositAsset (detectable/creditable/sweepable/reconcilable/convertible/disabled_reason); enabled gate requires the full matrix.
+- [x] CMD UI scope update: capability-card list removed from DepositModal; compact selected-token status + dropdowns + QR + raw-address copy + concise warnings; disabled token gates off QR/address/copy.
+- [x] USDC.e + #1795/#1798 sweep behaviour + reorg-normalized-revert + wrong-token credit-neutral + $5 live gate + live guards preserved.
+- [x] 16 new tests; full suite 3583 passed; frontend build green.
+- [ ] WARP🔹CMD first-pass PR check.
+- [ ] WARP•R00T finishing pass / final gate before merge.
 
 ## #1801 -- smart-strike-audit-gaps-closure
 
