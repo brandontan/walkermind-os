@@ -1,12 +1,21 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-12 17:30
+**Last Updated : 2026-06-12 21:30**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1782 -- self-serve-paper-to-live-switch
+
+- [x] FORGE build complete on warp/implement-self-serve-paper-to-live-switch (MAJOR — NARROW INTEGRATION).
+- [x] Self-serve typed-confirm PAPER -> LIVE switch implemented without mandatory 2FA/admin approval.
+- [x] Switch forces Auto-Trade OFF and leaves LIVE Auto-Trade locked until confirmed available live USDC.e >= $5 plus required live checklist gates.
+- [x] Paper simulation positions/orders archived out of user-facing live surfaces; pre-switch alerts acknowledged for clean live notification context.
+- [x] WARP🔹CMD first-pass PR check — 5 blockers raised on PR #1784.
+- [x] WARP•R00T finishing pass: shared evaluate_live_autotrade_start guard enforced on WebTrader /autotrade/toggle (CMD blocker 2) + Telegram + MVP; merged main onto #1783 state shape; stale test_live_mode_truth enable-pin relocated to the live_mode helper; exact branch across artifacts. Full suite 3487 passed. PR #1784 MERGED under WARP•R00T final gate.
 
 ## P0 -- Runtime Spine Validation (MANDATORY)
 
