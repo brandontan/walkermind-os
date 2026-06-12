@@ -1,12 +1,22 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 03:25**
+**Last Updated : 2026-06-13 03:50**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1797 -- smart-strike-live-readiness-audit
+
+- [x] WARP•R00T audit (R00T-assigned lane): execution routing NOT paper-only — real CLOB live path, fail-closed on every missing guard/credential.
+- [x] Sizing/per-user isolation CLEAR PASS: active user's confirmed available live balance only; Kelly hard-capped 0.25; no pool/cross-user/paper leak.
+- [x] Strategy rules verified against code truth (entry window/ask-diff/spread/price-band/precedence router); no material docs-code mismatch.
+- [x] FIXED: SOL disabled by default (SMART_STRIKE_SOL_ENABLED=False, owner lock).
+- [x] FIXED: 6 admin runtime market-universe controls (master/BTC/ETH/SOL/5m/15m) wired into both scan loops with explicit skip reasons; disabled bucket produces no candidates/order intent.
+- [x] Admin enablement bypasses no user mode / Auto-Trade / $5 balance / measured-edge / kill-switch / live-guard gate (pinned).
+- [x] 15 new tests; full suite 3547 passed; PR merged under WARP•R00T final gate.
 
 ## #1796 -- polygon-multi-token-deposit-activation
 

@@ -231,6 +231,88 @@ def _filter_monitor_only_assets(assets: Any) -> list[str]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# Smart Strike market universe (#1797, owner-locked)
+# ---------------------------------------------------------------------------
+# Admin runtime gating for the Smart Strike candle universe: master switch +
+# per-pair (BTC/ETH/SOL — SOL default OFF) + per-timeframe (5m/15m) controls.
+# Resolved HERE in the scan job (WARP-89 pattern: no DB read inside the pure
+# strategy/gate), each with a same-named env default in config.py and a
+# runtime_config admin overlay (no redeploy). Scanning/selection gating ONLY —
+# user mode, Auto-Trade, per-user balance/risk, measured-edge policy, kill
+# switch, and the live guard flags are enforced downstream regardless.
+_SMART_STRIKE_DEFAULT_ASSETS: tuple[str, ...] = ("BTC", "ETH", "SOL")
+_SMART_STRIKE_PAIR_FLAGS: dict[str, str] = {
+    "BTC": "SMART_STRIKE_BTC_ENABLED",
+    "ETH": "SMART_STRIKE_ETH_ENABLED",
+    "SOL": "SMART_STRIKE_SOL_ENABLED",
+}
+_SMART_STRIKE_TF_FLAGS: dict[str, str] = {
+    "5m": "SMART_STRIKE_5M_ENABLED",
+    "15m": "SMART_STRIKE_15M_ENABLED",
+}
+
+
+async def _smart_strike_admin_universe(
+    selected_timeframe: str | None,
+    selected_assets: list[str] | None,
+) -> tuple[bool, str | None, list[str]]:
+    """Resolve the admin market-universe gate for one candle-preset user.
+
+    Returns ``(allowed, skip_reason, effective_assets)``:
+    * master OFF              -> (False, "smart_strike_admin_disabled", [])
+    * user's timeframe OFF    -> (False, "smart_strike_timeframe_disabled:<tf>", [])
+    * every pair OFF/dropped  -> (False, "smart_strike_assets_disabled", [])
+    * else                    -> (True, None, admin-enabled subset of the user's
+                                  assets — SOL drops out by default).
+
+    A None/empty asset selection falls back to the default universe BEFORE
+    filtering, so the per-pair flags always apply (an empty selection must not
+    resurrect SOL via the downstream tradeable-coins default).
+    """
+    from ...config import get_settings as _cfg_get_settings
+
+    try:
+        s = _cfg_get_settings()
+    except Exception:  # noqa: BLE001 — hermetic envs without full Settings:
+        # fall back to the owner-lock env defaults (SOL stays OFF) rather
+        # than killing the scan loop. Production always has valid Settings.
+        s = None
+
+    def _env(flag: str, default: bool) -> bool:
+        return bool(getattr(s, flag, default)) if s is not None else default
+
+    if not await _runtime_config.resolve_bool(
+        "SMART_STRIKE_ENABLED", _env("SMART_STRIKE_ENABLED", True),
+    ):
+        return False, "smart_strike_admin_disabled", []
+    tf = str(selected_timeframe or "5m")
+    tf_flag = _SMART_STRIKE_TF_FLAGS.get(tf)
+    if tf_flag is not None and not await _runtime_config.resolve_bool(
+        tf_flag, _env(tf_flag, True),
+    ):
+        return False, f"smart_strike_timeframe_disabled:{tf}", []
+    requested = [
+        str(a).strip().upper()
+        for a in (selected_assets or _SMART_STRIKE_DEFAULT_ASSETS)
+    ]
+    effective: list[str] = []
+    for sym in requested:
+        flag = _SMART_STRIKE_PAIR_FLAGS.get(sym)
+        if flag is None:
+            # Non-major symbols pass through — strategy eligibility plus the
+            # deterministic {coin}-updown-{tf}-{slot} slug universe still
+            # bound what can actually be scanned/traded.
+            effective.append(sym)
+            continue
+        env_default = _env(flag, sym != "SOL")
+        if await _runtime_config.resolve_bool(flag, env_default):
+            effective.append(sym)
+    if not effective:
+        return False, "smart_strike_assets_disabled", []
+    return True, None, effective
+
+
 # =====================================================================
 # Bankroll dynamic sizing multiplier
 # (WARP/R00T/bankroll-dynamic-sizing, Lane 5/5 Polybot directive)
@@ -1943,13 +2025,22 @@ async def fetch_latest_scan_run() -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 
 
-def _build_user_context(row: dict[str, Any]) -> UserContext:
+def _build_user_context(
+    row: dict[str, Any], *, assets_override: list[str] | None = None,
+) -> UserContext:
     _alloc = row.get("capital_allocation_pct")
     allocation = float(_alloc if _alloc is not None else 0.10)
     allocation = max(0.0, min(1.0, allocation))
     sub_account_id = str(row.get("sub_account_id") or row["user_id"])
     _tf = row.get("selected_timeframe")
-    _assets = tuple(_filter_monitor_only_assets(row.get("selected_assets")))
+    # assets_override carries the admin-filtered Smart Strike universe
+    # (#1797) so the strategy's own asset eligibility matches the buckets
+    # the admin actually enabled; None keeps legacy behaviour.
+    _assets = (
+        tuple(assets_override)
+        if assets_override is not None
+        else tuple(_filter_monitor_only_assets(row.get("selected_assets")))
+    )
     balance = float(row.get("balance_usdc") or 0.0)
     # Equity = free balance + capital already deployed in open positions (cost
     # basis). Sizing is based on equity so the deployable pool reflects the
@@ -3710,18 +3801,46 @@ async def run_once() -> None:
         # (by deterministic slug), so they see the in-window markets with real
         # liquidity instead of the far-future batch a broad list fetch returns.
         crypto_window_markets: list[dict] = []
+        ss_allowed = True
+        ss_assets: list[str] | None = None
         if active_preset in _ALL_CANDLE_PRESETS:
-            try:
-                crypto_window_markets = await _polymarket.get_crypto_window_markets(
-                    selected_timeframe or "5m", selected_assets or None
+            # Smart Strike market universe (#1797): master/pair/timeframe admin
+            # gate. A blocked bucket emits an explicit skip reason — it never
+            # silently disappears — and produces no candidates (so no order
+            # intent, paper or live, regardless of Auto-Trade state).
+            ss_allowed, ss_reason, ss_assets = await _smart_strike_admin_universe(
+                selected_timeframe, selected_assets,
+            )
+            if not ss_allowed:
+                user_log.info(
+                    "smart_strike_admin_skip",
+                    reason=ss_reason,
+                    timeframe=selected_timeframe or "5m",
                 )
-                # Upsert into the markets table so _process_candidate's
-                # _load_market gate resolves them (market_sync never pulls these
-                # micro candle markets) and the trade engine gets their tokens.
-                await _upsert_crypto_window_markets(crypto_window_markets)
-            except Exception as exc:
-                user_log.warning("crypto_window_fetch_failed", error=str(exc))
-                crypto_window_markets = []
+                tel.record_zero_reason(_LATE_ENTRY_V3_NAME, str(ss_reason))
+            else:
+                _requested = {
+                    str(a).strip().upper()
+                    for a in (selected_assets or _SMART_STRIKE_DEFAULT_ASSETS)
+                }
+                _dropped = sorted(_requested - set(ss_assets))
+                if _dropped:
+                    user_log.info(
+                        "smart_strike_pair_disabled",
+                        pairs=_dropped,
+                        reason="smart_strike_asset_disabled",
+                    )
+                try:
+                    crypto_window_markets = await _polymarket.get_crypto_window_markets(
+                        selected_timeframe or "5m", ss_assets
+                    )
+                    # Upsert into the markets table so _process_candidate's
+                    # _load_market gate resolves them (market_sync never pulls these
+                    # micro candle markets) and the trade engine gets their tokens.
+                    await _upsert_crypto_window_markets(crypto_window_markets)
+                except Exception as exc:
+                    user_log.warning("crypto_window_fetch_failed", error=str(exc))
+                    crypto_window_markets = []
 
         # Run domain late_entry_v3 strategy when the active preset
         # permits (close_sweep + full_auto/default). Like confluence_scalper it
@@ -3729,11 +3848,11 @@ async def run_once() -> None:
         # scan(), so emitted candidates already satisfy the asset whitelist and
         # the final-seconds timing window. The crypto-window upsert above runs
         # for close_sweep, so these candidates resolve in _load_market.
-        if late_entry_strat is not None and _preset_allows(
+        if late_entry_strat is not None and ss_allowed and _preset_allows(
             active_preset, _LATE_ENTRY_V3_NAME
         ):
             try:
-                user_ctx = _build_user_context(row)
+                user_ctx = _build_user_context(row, assets_override=ss_assets)
                 market_filters = _build_market_filters(user_ctx.risk_profile, row)
                 # Pass preset-specific params when the user is on a candle preset
                 # (candle_auto runs the lifecycle router internally). Non-candle
@@ -4656,11 +4775,25 @@ async def run_close_sweep_fast() -> None:
         selected_assets: list[str] = _filter_monitor_only_assets(row.get("selected_assets"))
         user_log = logger.bind(user_id=str(row["user_id"]), preset=active_preset)
 
+        # Smart Strike market universe (#1797): same admin gate as run_once —
+        # the fast loop must not scan a bucket the slow loop would skip.
+        ss_allowed, ss_reason, ss_assets = await _smart_strike_admin_universe(
+            selected_timeframe, selected_assets,
+        )
+        if not ss_allowed:
+            user_log.info(
+                "smart_strike_admin_skip",
+                reason=ss_reason,
+                timeframe=selected_timeframe or "5m",
+            )
+            tel.record_zero_reason(_LATE_ENTRY_V3_NAME, str(ss_reason))
+            continue
+
         # Upsert the live candle window so _process_candidate's _load_market
         # gate resolves the markets (market_sync never pulls these micro candles).
         try:
             crypto_window_markets = await _polymarket.get_crypto_window_markets(
-                selected_timeframe or "5m", selected_assets or None
+                selected_timeframe or "5m", ss_assets
             )
             await _upsert_crypto_window_markets(crypto_window_markets)
             _candle_markets_seen = max(_candle_markets_seen, len(crypto_window_markets))
@@ -4668,7 +4801,7 @@ async def run_close_sweep_fast() -> None:
             user_log.warning("close_sweep_fast_window_fetch_failed", error=str(exc))
 
         try:
-            user_ctx = _build_user_context(row)
+            user_ctx = _build_user_context(row, assets_override=ss_assets)
             market_filters = _build_market_filters(user_ctx.risk_profile, row)
             # candle_auto runs the lifecycle router internally (scans all three
             # single rules + stamps per-rule exit/TP-SL); single candle presets
