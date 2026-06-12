@@ -180,8 +180,11 @@ export function DepositModal({ address, depositOptions, paperMode, balance, onCl
             </label>
 
             {/* Compact selected-token status (#1800) — replaces the per-token
-                capability card list. Supported = QR/address/copy render below;
-                unavailable shows a concise reason and gates them off. */}
+                capability card list. The selected token is always an enabled
+                one today (the dropdown blocks disabled options + the onChange
+                guard), so the Unavailable branch is defensive: it stays correct
+                if a future PR lets users select a disabled token to read its
+                reason, without changing the current selection semantics. */}
             {selected && (
               <div
                 className="flex items-start justify-between gap-2 rounded-sm border p-2"

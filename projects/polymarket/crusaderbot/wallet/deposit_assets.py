@@ -53,10 +53,34 @@ class DepositAsset:
     convertible: bool = False      # a safe conversion to the collateral token exists
     disabled_reason: str | None = None  # issue-vocabulary mirror of unavailable_reason
 
+    @property
+    def is_fully_enabled(self) -> bool:
+        """The ONE source of truth for "safe to deposit end-to-end" (#1800).
+
+        Used by both ``enabled_deposit_assets()`` and ``to_api()`` so the
+        backend's selectable set and the address/QR the frontend renders can
+        never disagree — a stray ``enabled=True`` without the backing
+        capability matrix exposes no address.
+        """
+        return (
+            self.enabled
+            and self.backend_supported
+            and self.watcher_supported
+            and self.bridge_custody_supported
+            and self.detectable
+            and self.creditable
+            and self.sweepable
+            and self.reconcilable
+        )
+
     def to_api(self, deposit_address: str) -> dict[str, Any]:
+        fully = self.is_fully_enabled
         data = asdict(self)
+        # Serialize the TRUE end-to-end verdict, not the bare flag — and only
+        # attach the address/QR when the asset is fully supported.
+        data["enabled"] = fully
         data["min_deposit"] = float(self.min_deposit) if self.min_deposit is not None else None
-        data["deposit_address"] = deposit_address if self.enabled else None
+        data["deposit_address"] = deposit_address if fully else None
         # Keep the two reason fields in sync for any caller reading either.
         data["disabled_reason"] = self.disabled_reason or self.unavailable_reason
         data["unavailable_reason"] = self.unavailable_reason or self.disabled_reason
@@ -207,14 +231,7 @@ def enabled_deposit_assets() -> tuple[DepositAsset, ...]:
     token for real deposits."""
     return tuple(
         asset for asset in supported_deposit_assets()
-        if asset.enabled
-        and asset.backend_supported
-        and asset.watcher_supported
-        and asset.bridge_custody_supported
-        and asset.detectable
-        and asset.creditable
-        and asset.sweepable
-        and asset.reconcilable
+        if asset.is_fully_enabled
     )
 
 

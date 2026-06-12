@@ -69,10 +69,32 @@ def test_usdt_fully_disabled_with_conversion_blocker():
 
 def test_enabled_requires_full_matrix_not_just_enabled_flag():
     """A future stray enabled=True without the capabilities cannot fake-enable:
-    enabled_deposit_assets requires detectable+creditable+sweepable+reconcilable."""
-    src = inspect.getsource(deposit_assets.enabled_deposit_assets)
+    is_fully_enabled requires the whole matrix, and both enabled_deposit_assets
+    and to_api gate on it (frontend/backend can never disagree)."""
+    src = inspect.getsource(deposit_assets.DepositAsset.is_fully_enabled.fget)
     for cap in ("detectable", "creditable", "sweepable", "reconcilable"):
-        assert f"asset.{cap}" in src
+        assert f"self.{cap}" in src
+    assert "is_fully_enabled" in inspect.getsource(deposit_assets.enabled_deposit_assets)
+    assert "is_fully_enabled" in inspect.getsource(deposit_assets.DepositAsset.to_api)
+
+
+def test_to_api_gates_address_on_full_matrix_not_bare_flag():
+    """Defense-in-depth: a token with enabled=True but an incomplete matrix
+    must serialize enabled=False and attach NO address (no fake-enablement)."""
+    from decimal import Decimal as _D
+    fake = deposit_assets.DepositAsset(
+        id="x", token_symbol="X", token_label="X", token_contract="0x1",
+        network="Polygon", chain_id=137, display_label="X", decimals=6,
+        min_deposit=_D("1"),
+        backend_supported=True, watcher_supported=True, bridge_custody_supported=True,
+        enabled=True,  # stray flag...
+        detectable=True, creditable=True, sweepable=False,  # ...but sweep missing
+        reconcilable=True,
+    )
+    assert fake.is_fully_enabled is False
+    api = fake.to_api("0x" + "22" * 20)
+    assert api["enabled"] is False
+    assert api["deposit_address"] is None
 
 
 # ── disabled tokens cannot credit / sweep / render an address ────────────────
