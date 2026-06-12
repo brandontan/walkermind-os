@@ -174,6 +174,59 @@ def _strip_html_for_web(text: Optional[str]) -> Optional[str]:
     return cleaned.strip()
 
 
+async def persist_user_alert_once(
+    *,
+    user_id: UUID | str,
+    alert_key: str,
+    title: str,
+    body: Optional[str] = None,
+    severity: str = DEFAULT_SEVERITY,
+    alert_kind: Optional[str] = None,
+    metadata: Optional[dict] = None,
+    dedup_key: str,
+) -> Optional[str]:
+    """Idempotent web alert writer for money lifecycle confirmations.
+
+    Deposit/withdrawal confirmation can be observed by more than one retrying
+    job tick. This helper stores a caller-provided ``dedup_key`` inside the
+    JSONB metadata and suppresses future inserts for the same user+kind+key, so
+    the WebTrader unread counter receives exactly one confirmed-money alert.
+    """
+    payload = dict(metadata or {})
+    payload["dedup_key"] = dedup_key
+    try:
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            exists = await conn.fetchval(
+                """
+                SELECT 1 FROM system_alerts
+                 WHERE user_id = $1::uuid
+                   AND COALESCE(alert_kind, '') = COALESCE($2, '')
+                   AND metadata->>'dedup_key' = $3
+                 LIMIT 1
+                """,
+                str(user_id), alert_kind, dedup_key,
+            )
+        if exists:
+            return None
+    except Exception:
+        logger.warning(
+            "persist_user_alert_dedup_probe_failed user_id=%s kind=%s",
+            user_id, alert_kind, exc_info=True,
+        )
+    try:
+        return await persist_user_alert(
+            user_id=user_id, alert_key=alert_key, title=title, body=body,
+            severity=severity, alert_kind=alert_kind, metadata=payload,
+        )
+    except Exception:
+        logger.warning(
+            "persist_user_alert_once_failed user_id=%s kind=%s",
+            user_id, alert_kind, exc_info=True,
+        )
+        return None
+
+
 async def persist_user_alert(
     *,
     user_id: UUID | str,

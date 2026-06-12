@@ -519,6 +519,29 @@ async def _confirm_ready_deposits(
                 "confirmed_at_block": head,
             },
         )
+        # Web notification is independent of Telegram delivery and deduped by
+        # deposit tx hash/status transition. Only confirmed/credited deposits
+        # reach here; pending/processing rows never create a confirmed alert.
+        from .webtrader.backend.notification_prefs import persist_user_alert_once
+        await persist_user_alert_once(
+            user_id=d["user_id"],
+            alert_key="system_status",
+            title="Deposit confirmed",
+            body=f"${float(amount):.2f} {d['token_symbol'] or 'USDC.e'} is now available.",
+            severity="info",
+            alert_kind="deposit_confirmed",
+            dedup_key=f"deposit:{d['tx_hash']}:confirmed",
+            metadata={
+                "deposit_id": str(d["id"]),
+                "tx_hash": d["tx_hash"],
+                "amount_usdc": float(amount),
+                "token_symbol": d["token_symbol"],
+                "network": d["network"],
+                "chain_id": d["chain_id"],
+                "status": "confirmed",
+                "tradeable": True,
+            },
+        )
         if u:
             notify.append((d["user_id"], u["telegram_user_id"], amount, d["tx_hash"]))
     return notify

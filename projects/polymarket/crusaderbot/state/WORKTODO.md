@@ -1,12 +1,26 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 05:25**
+**Last Updated : 2026-06-13 05:26**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1805 -- polymarket-bridge-usdc-usdt-deposit-enablement
+
+- [x] FORGE build on WARP/polymarket-bridge-usdc-usdt-deposit-enablement (MAJOR — NARROW INTEGRATION).
+- [x] Read required Polymarket docs in-run: API Introduction, Bridge supported-assets, create deposit addresses, quote, status, pUSD, and deposit wallets.
+- [x] Live Bridge supported-assets probe performed with no secrets: Polygon USDC.e, native USDC, USDT, and pUSD are advertised by the Bridge API.
+- [x] Added mocked Polymarket Bridge adapter for supported-assets/deposit-address/quote/status parsing; no external Bridge calls in CI tests.
+- [x] Added migration 100 bridge_deposit_addresses + bridge_deposit_events as audit substrate for future active Bridge settlement polling.
+- [x] Confirmed-money WebTrader notifications added: deposit confirmed/credited and withdrawal completed each persist a deduped system_alert independent of Telegram.
+- [x] Native USDC + USDT remain DISABLED in user-facing deposit UI/API until an active Bridge status poller can credit only terminal COMPLETED Polygon pUSD settlement; no fake-enablement.
+- [x] USDC.e path, wrong-token credit-neutral path, $5 live Auto-Trade gate, and live guard flags preserved.
+- [x] Targeted compile/ruff/pytest checks passed (43 targeted tests).
+- [ ] WARP🔹CMD first-pass PR check.
+- [ ] WARP•R00T finishing pass or WARP•SENTINEL final gate before merge.
 
 ## #1800 -- polygon-usdc-usdt-deposit-enablement
 
