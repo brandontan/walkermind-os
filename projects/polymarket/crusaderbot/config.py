@@ -235,6 +235,22 @@ class Settings(BaseSettings):
     # (step 14b runs only for chosen_mode='live').
     SMART_STRIKE_REQUIRE_MEASURED_EDGE: bool = False
 
+    # --- Smart Strike market universe (#1797, owner-locked) -------------------
+    # Smart Strike (candle presets -> late_entry_v3) is locked to Polymarket
+    # short-duration crypto Up/Down candle markets. Owner truth: BTC + ETH on
+    # 5m + 15m are the enabled universe; SOL exists in the product model but is
+    # DISABLED by default until the owner explicitly enables it. Each flag has
+    # a same-named runtime_config admin overlay (no redeploy). These flags gate
+    # scanning/selection ONLY — admin enablement never bypasses user mode,
+    # Auto-Trade, per-user balance/risk, measured-edge policy, kill switch, or
+    # the live guard flags.
+    SMART_STRIKE_ENABLED: bool = True
+    SMART_STRIKE_BTC_ENABLED: bool = True
+    SMART_STRIKE_ETH_ENABLED: bool = True
+    SMART_STRIKE_SOL_ENABLED: bool = False
+    SMART_STRIKE_5M_ENABLED: bool = True
+    SMART_STRIKE_15M_ENABLED: bool = True
+
     # --- Multi-asset crypto oracle (WARP-62, candle edge engine foundation) ---
     # Foundation knobs for the candle oracle layer. Default OFF — even with the
     # client code present, the runtime factory

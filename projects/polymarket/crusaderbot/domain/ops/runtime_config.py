@@ -119,6 +119,51 @@ RUNTIME_SETTINGS: dict[str, SettingSpec] = {
                     "Default OFF = static base only. Feature vector is logged each "
                     "evaluation regardless, for future calibration.",
     ),
+    "SMART_STRIKE_ENABLED": SettingSpec(
+        key="SMART_STRIKE_ENABLED",
+        kind="bool",
+        label="Smart Strike: master enable",
+        description="Master switch for the Smart Strike market universe (#1797). "
+                    "OFF stops all Smart Strike candle scanning/selection/execution "
+                    "with an explicit skip reason. Never bypasses user mode, "
+                    "Auto-Trade, balance/risk, kill switch, or live guards.",
+    ),
+    "SMART_STRIKE_BTC_ENABLED": SettingSpec(
+        key="SMART_STRIKE_BTC_ENABLED",
+        kind="bool",
+        label="Smart Strike: BTC Up/Down",
+        description="Enable BTC Up/Down candle markets for Smart Strike. OFF skips "
+                    "the BTC bucket with an explicit skip reason.",
+    ),
+    "SMART_STRIKE_ETH_ENABLED": SettingSpec(
+        key="SMART_STRIKE_ETH_ENABLED",
+        kind="bool",
+        label="Smart Strike: ETH Up/Down",
+        description="Enable ETH Up/Down candle markets for Smart Strike. OFF skips "
+                    "the ETH bucket with an explicit skip reason.",
+    ),
+    "SMART_STRIKE_SOL_ENABLED": SettingSpec(
+        key="SMART_STRIKE_SOL_ENABLED",
+        kind="bool",
+        label="Smart Strike: SOL Up/Down (default OFF)",
+        description="SOL exists in the product model but is DISABLED by default "
+                    "(#1797 owner lock). Enable only after backend support is "
+                    "proven; enabling never bypasses user/risk/live gates.",
+    ),
+    "SMART_STRIKE_5M_ENABLED": SettingSpec(
+        key="SMART_STRIKE_5M_ENABLED",
+        kind="bool",
+        label="Smart Strike: 5m candles",
+        description="Enable the 5m candle interval for Smart Strike. OFF skips "
+                    "5m-bucket users with an explicit skip reason.",
+    ),
+    "SMART_STRIKE_15M_ENABLED": SettingSpec(
+        key="SMART_STRIKE_15M_ENABLED",
+        kind="bool",
+        label="Smart Strike: 15m candles",
+        description="Enable the 15m candle interval for Smart Strike. OFF skips "
+                    "15m-bucket users with an explicit skip reason.",
+    ),
     "SMART_STRIKE_REQUIRE_MEASURED_EDGE": SettingSpec(
         key="SMART_STRIKE_REQUIRE_MEASURED_EDGE",
         kind="bool",
