@@ -2128,6 +2128,26 @@ async def get_runtime_status(user: _CurrentUser) -> RuntimeStatus:
     scanner = get_scanner_state()
     ks_active = await kill_switch.is_active()
     trading_mode = settings_row["trading_mode"] if settings_row else "paper"
+
+    # Surface the REAL Smart Strike candle-scan funnel + dominant no-trade
+    # reason so a running-but-no-trade LIVE state shows an explicit reason
+    # rather than only ``awaiting_signal`` + scanner 0/0 (which come from the
+    # legacy edge-finder). Read-only, non-fatal — a telemetry read must never
+    # break the runtime status panel.
+    ss_run: dict | None = None
+    ss_reason: str | None = None
+    try:
+        from ...services.signal_scan.signal_scan_job import (
+            fetch_latest_scan_run,
+            summarize_no_trade_reason,
+        )
+        ss_run = await fetch_latest_scan_run()
+        ss_reason = summarize_no_trade_reason(ss_run)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("runtime_status_smart_strike_telemetry_failed: %s", exc)
+        ss_run, ss_reason = None, None
+
+    _ss_started = ss_run.get("started_at") if ss_run else None
     return RuntimeStatus(
         trading_mode=trading_mode,
         paper_mode=trading_mode != "live",
@@ -2139,6 +2159,12 @@ async def get_runtime_status(user: _CurrentUser) -> RuntimeStatus:
         scanner_scanned=scanner.get("scanned", 0),
         scanner_published=scanner.get("published", 0),
         scanner_last_tick=scanner.get("last_tick_ts"),
+        smart_strike_markets_seen=int(ss_run["markets_seen"]) if ss_run and ss_run.get("markets_seen") is not None else None,
+        smart_strike_markets_eligible=int(ss_run["markets_eligible"]) if ss_run and ss_run.get("markets_eligible") is not None else None,
+        smart_strike_candidates=int(ss_run["candidates_emitted"]) if ss_run and ss_run.get("candidates_emitted") is not None else None,
+        smart_strike_orders=int(ss_run["paper_orders_created"]) if ss_run and ss_run.get("paper_orders_created") is not None else None,
+        smart_strike_no_trade_reason=ss_reason,
+        scan_run_at=_ss_started.isoformat() if _ss_started is not None else None,
     )
 
 

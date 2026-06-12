@@ -1,12 +1,25 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 05:25**
+**Last Updated : 2026-06-13 05:40**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1804 -- live-smart-strike-no-trade-diagnostic
+
+- [x] WARP•R00T diagnostic (R00T-assigned, MAJOR — NARROW INTEGRATION) on WARP/live-smart-strike-no-trade-diagnostic.
+- [x] Root cause: no-trade is expected fail-closed, MASKED by an observability bug — /status panel reads scanned/published from the legacy edge-finder (jobs/market_signal_scanner _scanner_state), not the real Smart Strike candle scan (services/signal_scan/signal_scan_job) whose scan_runs skip/rejection/zero-reason telemetry was never surfaced.
+- [x] Read-only fix: summarize_no_trade_reason() derives the dominant no-trade reason from persisted scan_runs telemetry.
+- [x] RuntimeStatus schema + /status endpoint carry the Smart Strike funnel counts + dominant reason (non-fatal read).
+- [x] ScannerPanel status line shows awaiting_signal · <reason> instead of bare awaiting_signal.
+- [x] Counter semantics documented: legacy scanner_scanned/published retained (edge-finder approval/publish), Smart Strike funnel added alongside (no risky rename).
+- [x] LIVE order-intent positive path + fail-closed negative paths unchanged (assert_live_guards/$5 gate/measured-edge/min-order/kill-switch) — covered by existing gate tests; no live-guard flip, no order/fund movement, no fabricated signal.
+- [x] test_smart_strike_no_trade_reason.py (helper logic 16/16 proven on source + required pins: zeros-cannot-hide-skip-reasons, user-facing reason surfacing); ruff + py_compile clean; frontend tsc+vite build green.
+- [ ] WARP🔹CMD first-pass PR check.
+- [ ] WARP•R00T final-gate disposition (self-merge on CI green) OR route to WARP•SENTINEL.
 
 ## #1800 -- polygon-usdc-usdt-deposit-enablement
 

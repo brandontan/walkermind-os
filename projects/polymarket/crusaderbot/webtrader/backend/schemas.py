@@ -469,6 +469,21 @@ class RuntimeStatus(BaseModel):
     scanner_scanned: int
     scanner_published: int
     scanner_last_tick: Optional[float]
+    # ── Smart Strike candle-scan telemetry (real feed-eval engine) ──────────
+    # The scanner_scanned / scanner_published counters above come from the
+    # legacy edge-finder scanner. The fields below surface the REAL Smart
+    # Strike candle scan funnel (services/signal_scan/signal_scan_job.py) so a
+    # LIVE Smart Strike no-trade state shows an explicit reason instead of only
+    # ``awaiting_signal``. All Optional — null when no scan_runs row exists yet.
+    smart_strike_markets_seen: Optional[int] = None
+    smart_strike_markets_eligible: Optional[int] = None
+    smart_strike_candidates: Optional[int] = None
+    smart_strike_orders: Optional[int] = None
+    # Dominant no-trade reason (highest-count skip/rejection/zero-reason, or a
+    # structural funnel reason). Null when a trade fired or no scan data exists.
+    smart_strike_no_trade_reason: Optional[str] = None
+    # ISO-8601 start timestamp of the latest scan run (UI staleness display).
+    scan_run_at: Optional[str] = None
 
 
 # ── Live-trading activation (Axis #3 — WARP/ROOT-live-activation-flow) ──────
