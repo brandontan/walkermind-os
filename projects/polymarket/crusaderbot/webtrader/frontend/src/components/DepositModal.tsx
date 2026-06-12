@@ -179,35 +179,29 @@ export function DepositModal({ address, depositOptions, paperMode, balance, onCl
               </span>
             </label>
 
-            <div className="space-y-1.5" aria-label="Polygon token support status">
-              {tokenOptions.map((option) => {
-                const active = option.id === selected?.id;
-                return (
-                  <div
-                    key={option.id}
-                    className={`rounded-sm border p-2 ${active ? "border-gold" : "border-border-1"} ${option.enabled ? "" : "opacity-65"}`}
-                    style={{ background: active ? "rgba(245,200,66,0.08)" : "rgba(255,255,255,0.03)" }}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-hud text-[10px] font-bold tracking-[1px] uppercase text-ink-1">
-                        {option.token_symbol} on {option.network}
-                      </span>
-                      <span className={`font-mono text-[8px] ${option.enabled ? "text-grn" : "text-ink-4"}`}>
-                        {option.enabled ? "SUPPORTED" : "UNAVAILABLE"}
-                      </span>
-                    </div>
-                    <div className="mt-1 font-mono text-[8px] text-ink-4 leading-relaxed">
-                      Chain ID {option.chain_id} · Decimals {option.decimals}
-                    </div>
-                    {!option.enabled && option.unavailable_reason && (
-                      <div className="mt-1 font-mono text-[8px] text-red leading-relaxed">
-                        {option.unavailable_reason}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            {/* Compact selected-token status (#1800) — replaces the per-token
+                capability card list. Supported = QR/address/copy render below;
+                unavailable shows a concise reason and gates them off. */}
+            {selected && (
+              <div
+                className="flex items-start justify-between gap-2 rounded-sm border p-2"
+                style={{
+                  borderColor: selected.enabled ? "rgba(0,255,156,0.25)" : "rgba(255,255,255,0.08)",
+                  background: selected.enabled ? "rgba(0,255,156,0.05)" : "rgba(255,255,255,0.03)",
+                }}
+                aria-label="Selected token status"
+              >
+                <span className="font-mono text-[9px] text-ink-3 leading-relaxed">
+                  {selected.token_label} on {selected.network}
+                  {!selected.enabled && selected.unavailable_reason && (
+                    <span className="block text-[8px] text-ink-4 mt-0.5">{selected.unavailable_reason}</span>
+                  )}
+                </span>
+                <span className={`font-hud text-[8px] font-bold tracking-[1px] uppercase shrink-0 ${selected.enabled ? "text-grn" : "text-ink-4"}`}>
+                  {selected.enabled ? "Supported" : "Unavailable"}
+                </span>
+              </div>
+            )}
           </div>
 
           {!selected || !hasAddress || selectorDisabled ? (
