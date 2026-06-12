@@ -42,6 +42,12 @@ class _Conn:
             return "UPDATE 3"
         if "UPDATE system_alerts" in sql:
             return "UPDATE 4"
+        if "UPDATE ledger" in sql:
+            return "UPDATE 7"
+        if "INSERT INTO ledger" in sql:
+            return "INSERT 0 1"
+        if "UPDATE wallets" in sql:
+            return "UPDATE 1"
         return "UPDATE 1"
 
 
@@ -63,6 +69,10 @@ def test_enable_live_self_serve_forces_autotrade_off_and_archives_paper_state():
     assert result.archived_positions == 2
     assert result.archived_orders == 3
     assert result.archived_notifications == 4
+    # Full paper-session reset (#1792): paper ledger archived + fresh bankroll.
+    assert result.archived_ledger_rows == 7
+    assert result.paper_session_reset is True
+    assert result.paper_balance_after_reset_usdc == Decimal("1000")
     sql = "\n".join(q for q, _ in conn.executed)
     assert "trading_mode = 'live'" in sql
     assert "paper_mode_override = FALSE" in sql
@@ -74,6 +84,33 @@ def test_enable_live_self_serve_forces_autotrade_off_and_archives_paper_state():
     assert "dismissed = TRUE" in sql
     assert "user_id = $1" in sql
     assert "created_at <= NOW()" in sql
+    # Paper ledger archived (out of the active paper feed, retained for audit).
+    assert "UPDATE ledger" in sql
+    assert "SET archived = TRUE" in sql
+    assert "DELETE FROM ledger" not in sql
+    # Wallet reset to fresh paper bankroll (+ live component) and a fresh
+    # paper deposit seeded so the returning paper feed opens clean.
+    assert "UPDATE wallets SET balance_usdc" in sql
+    assert "INSERT INTO ledger" in sql
+    assert live_mode.PAPER_SESSION_RESET_NOTE in [arg for _, args in conn.executed for arg in args]
+
+
+def test_enable_live_self_serve_from_live_does_not_reset_paper_again():
+    """Re-enabling LIVE (from_mode already 'live') must NOT archive ledger,
+    reset the wallet, or seed a fresh paper bankroll — there is no active
+    paper session to reset, and a re-seed would wrongly bump the balance.
+    """
+    uid = uuid4()
+    conn = _Conn(before_mode="live", live_balance=Decimal("50"))
+
+    result = asyncio.run(live_mode.enable_live_self_serve(uid, conn=conn))
+
+    assert result.paper_session_reset is False
+    assert result.archived_ledger_rows == 0
+    sql = "\n".join(q for q, _ in conn.executed)
+    assert "UPDATE ledger" not in sql
+    assert "UPDATE wallets SET balance_usdc" not in sql
+    assert "INSERT INTO ledger" not in sql
 
 
 def test_enable_live_self_serve_exact_five_is_not_waiting_for_deposit():
