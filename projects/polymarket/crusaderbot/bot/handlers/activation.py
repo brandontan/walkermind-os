@@ -131,18 +131,20 @@ async def autotrade_toggle_pending_confirm(
         return False
     # LIVE Auto-Trade start is the real-money arming point: require all
     # platform/operator gates plus a confirmed available live balance >= $5.
-    result = await live_checklist.evaluate(user["id"])
-    live_balance, enough_balance = await live_mode.live_autotrade_balance_status(user["id"])
-    if not result.ready_for_live or not enough_balance:
-        if not result.ready_for_live:
-            await _reply(update, live_checklist.render_telegram(result), parse_mode=ParseMode.HTML)
+    # Shared start guard — identical decision on WebTrader + MVP surfaces.
+    gate = await live_mode.evaluate_live_autotrade_start(
+        user["id"], trading_mode="live",
+    )
+    if not gate.allowed:
+        if gate.reason == live_mode.REASON_LIVE_NOT_READY:
+            await _reply(update, live_checklist.render_telegram(gate.checklist), parse_mode=ParseMode.HTML)
         else:
             await _reply(
                 update,
                 "🟡 *LIVE ENABLED / WAITING FOR DEPOSIT*\n\n"
                 f"Deposit at least *$5 USDC\\.e* confirmed available to start "
                 f"Auto\\-Trade\\. Current confirmed live balance: "
-                f"`${float(live_balance):,.2f}`\\.",
+                f"`${float(gate.live_balance_usdc):,.2f}`\\.",
             )
         return True
     if ctx.user_data is not None:
@@ -228,7 +230,6 @@ async def text_input(
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username,
     )
-    result = await live_checklist.evaluate(user["id"])
     if awaiting == AWAITING_LIVE_CONFIRM:
         if user.get("locked", False):
             await update.message.reply_text(
@@ -236,16 +237,20 @@ async def text_input(
                 parse_mode=ParseMode.MARKDOWN_V2,
             )
             return True
-        live_balance, enough_balance = await live_mode.live_autotrade_balance_status(user["id"])
-        if not result.ready_for_live or not enough_balance:
+        # Re-check the shared start guard at confirm time — gates or balance
+        # may have changed between arming and the typed CONFIRM.
+        gate = await live_mode.evaluate_live_autotrade_start(
+            user["id"], trading_mode="live",
+        )
+        if not gate.allowed:
             text = (
-                live_checklist.render_telegram(result)
-                if not result.ready_for_live
+                live_checklist.render_telegram(gate.checklist)
+                if gate.reason == live_mode.REASON_LIVE_NOT_READY
                 else (
                     "🟡 <b>LIVE ENABLED / WAITING FOR DEPOSIT</b>\n\n"
                     "Deposit at least <b>$5 USDC.e</b> confirmed available "
                     "to start Auto-Trade. Current confirmed live balance: "
-                    f"<code>${float(live_balance):,.2f}</code>."
+                    f"<code>${float(gate.live_balance_usdc):,.2f}</code>."
                 )
             )
             await update.message.reply_text(text, parse_mode=ParseMode.HTML)

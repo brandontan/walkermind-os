@@ -221,16 +221,26 @@ def test_wallet_endpoints_are_mode_scoped():
 
 
 def test_mode_writers_keep_both_columns_in_sync_and_auto_stop():
-    src = (_ROOT / "webtrader" / "backend" / "router.py").read_text(encoding="utf-8")
-    n = _norm(src)
-    # enable: live + override cleared + bot stopped (SQL spans adjacent
-    # string literals — assert the fragments, not the joined statement)
-    assert "trading_mode = 'live'" in n
-    assert "paper_mode_override = FALSE" in n
-    # disable: paper + override set + bot stopped
-    assert "trading_mode = 'paper'" in n
-    assert "paper_mode_override = TRUE" in n
-    assert n.count("SET auto_trade_on = FALSE WHERE id = $1::uuid") >= 2
+    # Self-serve refactor centralized the ENABLE writer into the shared
+    # domain helper (live_mode.enable_live_self_serve) — the single source of
+    # truth both WebTrader and Telegram flip through — while DISABLE stays
+    # inline in the router. Assert each writer at its real location so the
+    # both-columns-in-sync + auto-stop contract is pinned without re-coupling
+    # the enable SQL back into the router.
+    router_src = _norm(
+        (_ROOT / "webtrader" / "backend" / "router.py").read_text(encoding="utf-8")
+    )
+    helper_src = _norm(
+        (_ROOT / "domain" / "activation" / "live_mode.py").read_text(encoding="utf-8")
+    )
+    # enable: live + override cleared + bot stopped (in the shared helper)
+    assert "trading_mode = 'live'" in helper_src
+    assert "paper_mode_override = FALSE" in helper_src
+    assert "auto_trade_on = FALSE" in helper_src
+    # disable: paper + override set + bot stopped (inline in the router)
+    assert "trading_mode = 'paper'" in router_src
+    assert "paper_mode_override = TRUE" in router_src
+    assert "SET auto_trade_on = FALSE WHERE id = $1::uuid" in router_src
 
 
 def test_telegram_paper_toggle_is_safe_direction_only():

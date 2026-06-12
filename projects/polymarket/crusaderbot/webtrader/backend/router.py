@@ -1058,8 +1058,35 @@ async def toggle_autotrade(body: AutoTradeToggleRequest, user: _CurrentUser):
     if body.enabled and await kill_switch.is_active():
         raise HTTPException(status_code=409, detail="kill switch is active — resume trading first")
 
-    pool = get_pool()
     user_id = user["user_id"]
+
+    if body.enabled:
+        # LIVE arming gate — the shared start guard used by Telegram + MVP.
+        # Paper toggles pass through unchanged; live users must clear the
+        # required checklist and hold >= $5 confirmed available live USDC.e
+        # before Auto-Trade can arm. Switching to LIVE alone never starts it.
+        from ...domain.activation import live_mode
+        gate = await live_mode.evaluate_live_autotrade_start(UUID(str(user_id)))
+        if not gate.allowed:
+            if gate.reason == live_mode.REASON_LIVE_NO_FUNDS:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "LIVE Auto-Trade needs at least $5 confirmed available "
+                        f"USDC.e — current confirmed live balance is "
+                        f"${float(gate.live_balance_usdc):,.2f}. Deposit and wait "
+                        "for confirmation, then re-arm."
+                    ),
+                )
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "LIVE activation checklist not satisfied — complete the "
+                    "required gates (see /live/status) before enabling Auto-Trade."
+                ),
+            )
+
+    pool = get_pool()
     async with pool.acquire() as conn:
         if body.enabled:
             preset_row = await conn.fetchrow(

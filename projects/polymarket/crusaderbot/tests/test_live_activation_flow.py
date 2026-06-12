@@ -18,7 +18,8 @@ from __future__ import annotations
 import asyncio
 import inspect
 from decimal import Decimal
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -234,3 +235,80 @@ def test_confirm_phrase_constant_value():
     assert router_mod._LIVE_ENABLE_CONFIRM_PHRASE == (
         "ENABLE LIVE TRADING FOR MY ACCOUNT"
     )
+
+
+# ---------------------------------------------------------------------
+# WebTrader /autotrade/toggle — shared LIVE arming guard (R00T blocker 2)
+# ---------------------------------------------------------------------
+
+def test_autotrade_toggle_routes_through_shared_live_guard():
+    """Source pin: enabling Auto-Trade on WebTrader must go through the same
+    shared start guard as Telegram + MVP — not just kill-switch + preset.
+    A regression that drops this re-opens the unguarded live arming path.
+    """
+    src = inspect.getsource(router_mod.toggle_autotrade)
+    assert "evaluate_live_autotrade_start" in src
+    assert "REASON_LIVE_NO_FUNDS" in src
+
+
+def test_autotrade_toggle_blocks_live_user_without_funds():
+    """A live user with < $5 confirmed available USDC.e is refused (409)
+    before auto_trade_on is ever written."""
+    from projects.polymarket.crusaderbot.domain.activation import live_mode
+    body = SimpleNamespace(enabled=True)
+    user = {"user_id": str(UUID("00000000-0000-0000-0000-000000000009"))}
+    blocked = live_mode.LiveAutotradeStartGate(
+        trading_mode="live", is_live=True, allowed=False,
+        reason=live_mode.REASON_LIVE_NO_FUNDS,
+        live_balance_usdc=Decimal("1.00"), enough_balance=False, checklist=None,
+    )
+    with patch.object(router_mod.kill_switch, "is_active",
+                      AsyncMock(return_value=False)), \
+         patch.object(live_mode, "evaluate_live_autotrade_start",
+                      AsyncMock(return_value=blocked)):
+        with pytest.raises(router_mod.HTTPException) as ei:
+            asyncio.run(router_mod.toggle_autotrade(body, user))
+    assert ei.value.status_code == 409
+    assert "$5" in ei.value.detail
+
+
+def test_autotrade_toggle_blocks_live_user_failing_checklist():
+    """A live user whose activation checklist is not satisfied is refused
+    (409) regardless of balance."""
+    from projects.polymarket.crusaderbot.domain.activation import live_mode
+    body = SimpleNamespace(enabled=True)
+    user = {"user_id": str(UUID("00000000-0000-0000-0000-000000000009"))}
+    blocked = live_mode.LiveAutotradeStartGate(
+        trading_mode="live", is_live=True, allowed=False,
+        reason=live_mode.REASON_LIVE_NOT_READY,
+        live_balance_usdc=Decimal("50.00"), enough_balance=True, checklist=None,
+    )
+    with patch.object(router_mod.kill_switch, "is_active",
+                      AsyncMock(return_value=False)), \
+         patch.object(live_mode, "evaluate_live_autotrade_start",
+                      AsyncMock(return_value=blocked)):
+        with pytest.raises(router_mod.HTTPException) as ei:
+            asyncio.run(router_mod.toggle_autotrade(body, user))
+    assert ei.value.status_code == 409
+    assert "checklist" in ei.value.detail.lower()
+
+
+def test_autotrade_toggle_disable_skips_live_guard():
+    """Turning Auto-Trade OFF never runs the live guard (no arming risk)."""
+    from projects.polymarket.crusaderbot.domain.activation import live_mode
+
+    class _Conn:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        def acquire(self): return self
+        async def fetchrow(self, *a): return None
+        async def execute(self, *a): return "UPDATE 1"
+
+    body = SimpleNamespace(enabled=False)
+    user = {"user_id": str(UUID("00000000-0000-0000-0000-000000000009"))}
+    with patch.object(router_mod, "get_pool", lambda: _Conn()), \
+         patch.object(live_mode, "evaluate_live_autotrade_start",
+                      AsyncMock()) as guard:
+        out = asyncio.run(router_mod.toggle_autotrade(body, user))
+    assert out == {"auto_trade_on": False}
+    guard.assert_not_awaited()

@@ -16,10 +16,16 @@ import asyncpg
 
 from ...database import get_pool
 from ...wallet.ledger import get_live_balance
+from . import live_checklist
 
 MIN_LIVE_AUTOTRADE_BALANCE_USDC = Decimal("5")
 PAPER_ARCHIVED_MODE = "paper_archived"
 PAPER_ARCHIVE_EXIT_REASON = "paper_to_live_switch"
+
+# Machine-readable refusal reasons surfaced by the shared start guard so each
+# arming surface can render its own copy without re-deriving the decision.
+REASON_LIVE_NOT_READY = "live_not_ready"
+REASON_LIVE_NO_FUNDS = "live_no_funds"
 
 
 @dataclass(frozen=True)
@@ -46,6 +52,98 @@ async def live_autotrade_balance_status(
     """Return (confirmed available live balance, meets $5 minimum)."""
     balance = await get_live_balance(user_id, conn)
     return balance, has_min_live_autotrade_balance(balance)
+
+
+@dataclass(frozen=True)
+class LiveAutotradeStartGate:
+    """Shared decision for "may this user START live Auto-Trade right now?".
+
+    Every arming surface — WebTrader ``/autotrade/toggle``, Telegram
+    activation, MVP Auto-Trade — routes through
+    :func:`evaluate_live_autotrade_start` so the live arming gate is enforced
+    identically and can never drift between surfaces. Paper users are always
+    allowed (``is_live`` False): the guard is a no-op for them and existing
+    paper behaviour is untouched. For live users the guard requires every
+    required ``live_checklist`` gate to pass AND confirmed available live
+    USDC.e >= $5 (paper / pending / reserved / in-position / withdraw-pending
+    balances are excluded by ``get_live_balance``). The guard never starts
+    Auto-Trade and never flips any platform live guard — it only decides.
+    """
+
+    trading_mode: str
+    is_live: bool
+    allowed: bool
+    reason: str  # "" when allowed, else REASON_LIVE_NOT_READY / REASON_LIVE_NO_FUNDS
+    live_balance_usdc: Decimal
+    enough_balance: bool
+    checklist: Optional[live_checklist.ChecklistResult]
+
+    @property
+    def checklist_ready(self) -> bool:
+        return self.checklist is None or self.checklist.ready_for_live
+
+
+async def _read_trading_mode(
+    user_id: UUID, conn: Optional[asyncpg.Connection] = None,
+) -> str:
+    sql = "SELECT trading_mode FROM user_settings WHERE user_id=$1"
+    if conn is not None:
+        mode = await conn.fetchval(sql, user_id)
+    else:
+        pool = get_pool()
+        async with pool.acquire() as c:
+            mode = await c.fetchval(sql, user_id)
+    return str(mode or "paper")
+
+
+async def evaluate_live_autotrade_start(
+    user_id: UUID,
+    *,
+    trading_mode: Optional[str] = None,
+    conn: Optional[asyncpg.Connection] = None,
+) -> LiveAutotradeStartGate:
+    """Decide whether the user may start LIVE Auto-Trade.
+
+    Paper users pass through unconditionally (the caller still applies its
+    own kill-switch / preset checks). Live users must clear the required
+    activation checklist and hold >= $5 confirmed available live USDC.e.
+    The checklist refusal takes precedence over the funding refusal so the
+    user fixes operator/strategy gates before being told to deposit.
+
+    ``trading_mode`` may be supplied by callers that already resolved it
+    (the Telegram/MVP surfaces read settings first) to skip a redundant DB
+    read; when ``None`` the guard reads it itself.
+    """
+    if trading_mode is None:
+        trading_mode = await _read_trading_mode(user_id, conn)
+    if trading_mode != "live":
+        return LiveAutotradeStartGate(
+            trading_mode=trading_mode,
+            is_live=False,
+            allowed=True,
+            reason="",
+            live_balance_usdc=Decimal("0"),
+            enough_balance=True,
+            checklist=None,
+        )
+
+    checklist = await live_checklist.evaluate(user_id)
+    balance, enough = await live_autotrade_balance_status(user_id, conn)
+    if not checklist.ready_for_live:
+        reason, allowed = REASON_LIVE_NOT_READY, False
+    elif not enough:
+        reason, allowed = REASON_LIVE_NO_FUNDS, False
+    else:
+        reason, allowed = "", True
+    return LiveAutotradeStartGate(
+        trading_mode=trading_mode,
+        is_live=True,
+        allowed=allowed,
+        reason=reason,
+        live_balance_usdc=balance,
+        enough_balance=enough,
+        checklist=checklist,
+    )
 
 
 async def enable_live_self_serve(
