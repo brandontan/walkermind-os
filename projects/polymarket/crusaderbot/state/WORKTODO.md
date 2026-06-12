@@ -1,12 +1,23 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-12 23:05**
+**Last Updated : 2026-06-12 23:49**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1793 -- multi-asset-deposit-selector
+
+- [x] FORGE build complete on WARP/multi-asset-deposit-selector (MAJOR — NARROW INTEGRATION).
+- [x] WebTrader `GET /wallet` now returns supported deposit options with token and network represented separately.
+- [x] Deposit modal now renders a token + network selector; only enabled assets receive QR/address/copy instructions.
+- [x] Supported truth is conservative: Polygon USDC.e selectable; native Polygon USDC, USDT, Base USDC, and Arbitrum USDC unavailable because watcher/ledger/sweep support is not complete.
+- [x] Deposit watcher/accounting now preserves token/network/contract/chain/decimals plus normalized USDC credit truth via migration 098 and audit payloads.
+- [x] Regression tests added for supported-asset filtering, unsupported option safety, audit metadata, and wrong-token credit neutrality.
+- [ ] WARP🔹CMD first-pass PR check.
+- [ ] MAJOR final validation gate (WARP•R00T finishing pass or WARP•SENTINEL approval/conditional approval).
 
 ## #1787 -- live-enable-tos-checkbox-flow
 

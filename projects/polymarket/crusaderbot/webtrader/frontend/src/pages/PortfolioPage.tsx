@@ -19,6 +19,7 @@ import { WithdrawModal } from "../components/WithdrawModal";
 import {
   makeApi,
   type ChartPoint,
+  type DepositOption,
   type OrderItem,
   type PortfolioAnalytics,
   type PortfolioSummary,
@@ -74,6 +75,7 @@ export function PortfolioPage() {
   const [showDeposit, setShowDeposit] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [depositAddress, setDepositAddress] = useState<string | null>(null);
+  const [depositOptions, setDepositOptions] = useState<DepositOption[]>([]);
   const [isPaperMode, setIsPaperMode] = useState(true);
   const [walletLoading, setWalletLoading] = useState(false);
 
@@ -257,6 +259,7 @@ export function PortfolioPage() {
               try {
                 const w = await api.getWallet();
                 setDepositAddress(w.deposit_address);
+                setDepositOptions(w.deposit_options ?? []);
                 setIsPaperMode(w.paper_mode !== false);
                 setShowDeposit(true);
               } catch {
@@ -283,6 +286,7 @@ export function PortfolioPage() {
               try {
                 const w = await api.getWallet();
                 setDepositAddress(w.deposit_address);
+                setDepositOptions(w.deposit_options ?? []);
                 setIsPaperMode(w.paper_mode !== false);
                 setShowWithdraw(true);
               } catch {
@@ -393,6 +397,7 @@ export function PortfolioPage() {
       {showDeposit && (
         <DepositModal
           address={depositAddress ?? ""}
+          depositOptions={depositOptions}
           paperMode={isPaperMode}
           balance={summary?.available_usdc}
           onClose={() => setShowDeposit(false)}

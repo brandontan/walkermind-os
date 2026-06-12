@@ -103,7 +103,7 @@ export function WalletPage() {
             <WalletCard
               label={paperMode ? "Paper Balance" : "Wallet Balance"}
               balance={balanceStr}
-              mode={paperMode ? "Paper Mode · No real funds at risk" : "Live Mode · Polygon USDC"}
+              mode={paperMode ? "Paper Mode · No real funds at risk" : "Live Mode · Deposit selector"}
             />
 
             {/* Deposit / Withdraw action row */}
@@ -136,7 +136,7 @@ export function WalletPage() {
             </div>
 
             <AddressCard
-              label="Deposit Address · Polygon USDC"
+              label="Deposit Address · Supported assets"
               address={info.deposit_address}
             />
           </div>
@@ -175,6 +175,7 @@ export function WalletPage() {
       {showDeposit && (
         <DepositModal
           address={info.deposit_address}
+          depositOptions={info.deposit_options}
           paperMode={paperMode}
           balance={info.balance_usdc}
           onClose={() => setShowDeposit(false)}

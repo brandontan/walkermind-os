@@ -53,6 +53,7 @@ from .services.redeem import hourly_worker as redeem_hourly_worker
 from .services.redeem import redeem_router
 from .services import portfolio_snapshots
 from .wallet import ledger
+from .wallet.deposit_assets import primary_deposit_asset
 
 log = structlog.get_logger(__name__)
 
@@ -272,9 +273,11 @@ async def watch_deposits() -> None:
         _watch_deposits_failed("cursor read", exc)
         return
     try:
+        deposit_asset = primary_deposit_asset()
         transfers, scanned_to = await polygon.scan_from_cursor(
             addresses, cursor_start,
             lookback=settings.DEPOSIT_SCAN_LOOKBACK_BLOCKS,
+            token_address=deposit_asset.token_contract,
             max_rpc=getattr(settings, "DEPOSIT_SCAN_MAX_RPC_PER_TICK", 60),
         )
     except Exception as exc:
@@ -330,7 +333,7 @@ async def watch_deposits() -> None:
     for _user_id, tg_id, amt, tx in notify_after:
         await notifications.send(
             tg_id,
-            f"✅ <b>Deposit confirmed:</b> ${float(amt):.2f} USDC\n"
+            f"✅ <b>Deposit confirmed:</b> ${float(amt):.2f} USDC.e\n"
             f"<code>{html.escape(tx)}</code>\n\n"
             "Lifecycle: confirming → available. Custody sweep follows "
             "when enabled.",
@@ -365,14 +368,23 @@ async def _record_pending_deposit(user_id, t: dict) -> None:
     """
     log_index = int(t.get("log_index", 0))
     amount = Decimal(str(t["amount"]))
+    asset = primary_deposit_asset()
+    if t.get("token_address") and asset.token_contract:
+        if str(t["token_address"]).lower() != asset.token_contract.lower():
+            raise ValueError("transfer token does not match enabled deposit asset")
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             row = await conn.fetchrow(
                 """
-                INSERT INTO deposits (user_id, tx_hash, log_index, amount_usdc,
-                                      block_number, status, lifecycle_state)
-                VALUES ($1,$2,$3,$4,$5,'pending','confirming')
+                INSERT INTO deposits (
+                    user_id, tx_hash, log_index, amount_usdc, block_number,
+                    status, lifecycle_state, token_symbol, token_address,
+                    network, chain_id, token_decimals, normalized_amount_usdc
+                )
+                VALUES (
+                    $1,$2,$3,$4,$5,'pending','confirming',$6,$7,$8,$9,$10,$11
+                )
                 ON CONFLICT (tx_hash, log_index) DO UPDATE
                     SET status='pending', confirmed_at_block=NULL,
                         lifecycle_state='confirming'
@@ -380,12 +392,19 @@ async def _record_pending_deposit(user_id, t: dict) -> None:
                 RETURNING id
                 """,
                 user_id, t["tx_hash"], log_index, amount, t["block_number"],
+                asset.token_symbol, asset.token_contract, asset.network,
+                asset.chain_id, asset.decimals, amount,
             )
     if row is not None:
         await audit.write(
             actor_role="bot", action="deposit_credit_pending", user_id=user_id,
-            payload={"tx_hash": t["tx_hash"], "log_index": log_index,
-                     "amount": str(amount), "block": t["block_number"]},
+            payload={
+                "tx_hash": t["tx_hash"], "log_index": log_index,
+                "amount": str(amount), "normalized_amount_usdc": str(amount),
+                "token_symbol": asset.token_symbol,
+                "token_address": asset.token_contract, "network": asset.network,
+                "chain_id": asset.chain_id, "block": t["block_number"],
+            },
         )
 
 
@@ -445,7 +464,8 @@ async def _confirm_ready_deposits(
     async with pool.acquire() as conn:
         ready = await conn.fetch(
             """
-            SELECT id, user_id, tx_hash, amount_usdc, block_number
+            SELECT id, user_id, tx_hash, amount_usdc, block_number,
+                   token_symbol, network, chain_id, normalized_amount_usdc
               FROM deposits
              WHERE status='pending'
                AND block_number IS NOT NULL
@@ -455,7 +475,7 @@ async def _confirm_ready_deposits(
         )
     notify: list[tuple[object, int, Decimal, str]] = []
     for d in ready:
-        amount = Decimal(str(d["amount_usdc"]))
+        amount = Decimal(str(d["normalized_amount_usdc"] or d["amount_usdc"]))
         async with pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
@@ -479,8 +499,13 @@ async def _confirm_ready_deposits(
                 )
         await audit.write(
             actor_role="bot", action="deposit_credit_confirmed", user_id=d["user_id"],
-            payload={"tx_hash": d["tx_hash"], "amount": str(amount),
-                     "block": d["block_number"], "confirmed_at_block": head},
+            payload={
+                "tx_hash": d["tx_hash"], "amount": str(d["amount_usdc"]),
+                "normalized_amount_usdc": str(amount),
+                "token_symbol": d["token_symbol"], "network": d["network"],
+                "chain_id": d["chain_id"], "block": d["block_number"],
+                "confirmed_at_block": head,
+            },
         )
         if u:
             notify.append((d["user_id"], u["telegram_user_id"], amount, d["tx_hash"]))

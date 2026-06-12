@@ -1639,10 +1639,12 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
     balance = _live_bal if _mode_live else max(_mixed - _live_bal, 0.0)
 
     from ...wallet.custody import effective_deposit_address
+    from ...wallet.deposit_assets import asset_api_options
+    deposit_address = effective_deposit_address(w_row)
     return WalletInfo(
         # Custody-aware: safe mode shows the user's Polymarket Safe (the
         # gasless sweep/payout surface); EOA mode shows the HD address.
-        deposit_address=effective_deposit_address(w_row),
+        deposit_address=deposit_address,
         balance_usdc=balance,
         ledger_recent=[
             LedgerEntry(
@@ -1654,6 +1656,7 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
             )
             for r in ledger_rows
         ],
+        deposit_options=asset_api_options(deposit_address),
         trading_mode=trading_mode,
         paper_mode=trading_mode != "live",
     )

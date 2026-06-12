@@ -265,7 +265,7 @@ def _addr_to_topic(address: str) -> str:
 
 async def scan_usdc_transfers(
     addresses: list[str], from_block: int, to_block: int,
-    token_address: Optional[str] = None,
+    token_address: Optional[str] = None, token_decimals: Optional[int] = None,
 ) -> list[dict[str, Any]]:
     """Return all Transfer events into any of the given addresses for an ERC-20.
 
@@ -282,6 +282,7 @@ async def scan_usdc_transfers(
     w3 = _get_w3()
     settings = get_settings()
     scan_addr = token_address or settings.USDC_POLYGON
+    decimals = int(token_decimals or settings.USDC_DECIMALS)
     scan_cs = AsyncWeb3.to_checksum_address(scan_addr)
     # Decode with a contract bound to the SCANNED token address rather than the
     # cached USDC.e instance. The Transfer ABI is identical across ERC-20s, so
@@ -308,7 +309,9 @@ async def scan_usdc_transfers(
                 "block_number": int(log["blockNumber"]),
                 "from": decoded["args"]["from"],
                 "to": decoded["args"]["to"],
-                "amount": decoded["args"]["value"] / (10 ** settings.USDC_DECIMALS),
+                "amount": decoded["args"]["value"] / (10 ** decimals),
+                "token_address": scan_addr,
+                "token_decimals": decimals,
                 # `removed` is True when this log came from a block that was
                 # orphaned by a reorg. eth_getLogs over a finalized range
                 # returns False; reorg-aware subscriptions set it True so the
@@ -346,7 +349,8 @@ _PROBE_UP_AFTER = 5
 
 async def scan_from_cursor(
     addresses: list[str], cursor: int, lookback: int = 2000, max_range: int = 1000,
-    token_address: Optional[str] = None, max_rpc: int = 60,
+    token_address: Optional[str] = None, token_decimals: Optional[int] = None,
+    max_rpc: int = 60,
 ) -> tuple[list[dict[str, Any]], int]:
     """Scan from `cursor` (or head-lookback if cursor==0) up to head.
 
@@ -392,6 +396,7 @@ async def scan_from_cursor(
         try:
             chunk = await scan_usdc_transfers(
                 addresses, chunk_start, end, token_address=token_address,
+                token_decimals=token_decimals,
             )
         except (Web3RPCError, ClientResponseError) as exc:
             rejection = isinstance(exc, Web3RPCError) or _is_request_rejection(exc)
