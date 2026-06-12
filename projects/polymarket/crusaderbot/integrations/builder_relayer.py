@@ -54,15 +54,36 @@ class BuilderRelayerUnavailable(PreflightError):
     """
 
 
-def is_relayer_configured() -> bool:
-    """True iff every credential is set AND the master toggle is enabled."""
+def is_builder_configured() -> bool:
+    """True iff Builder API credentials are complete and relayer is armed."""
+    s = get_settings()
+    return bool(
+        getattr(s, "USE_BUILDER_RELAYER", False)
+        and getattr(s, "POLY_BUILDER_API_KEY", None)
+        and getattr(s, "POLY_BUILDER_SECRET", None)
+        and getattr(s, "POLY_BUILDER_PASSPHRASE", None)
+    )
+
+
+def is_relayer_api_key_configured() -> bool:
+    """True iff the dedicated Polymarket SDK relayer key is complete.
+
+    These credentials are consumed by ``integrations.clob.sdk_env.sdk_api_key``
+    for gasless deposit-wallet deployment. They are intentionally reported
+    separately from Builder API credentials because each unlocks a different
+    integration surface and operators need to see which one is missing.
+    """
     s = get_settings()
     return bool(
         s.USE_BUILDER_RELAYER
-        and s.POLY_BUILDER_API_KEY
-        and s.POLY_BUILDER_SECRET
-        and s.POLY_BUILDER_PASSPHRASE
+        and getattr(s, "RELAYER_API_KEY", None)
+        and getattr(s, "RELAYER_API_KEY_ADDRESS", None)
     )
+
+
+def is_relayer_configured() -> bool:
+    """True iff Builder relayer client credentials are complete and armed."""
+    return is_builder_configured()
 
 
 def build_builder_config() -> Any:

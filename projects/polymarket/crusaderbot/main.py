@@ -123,8 +123,17 @@ async def _validate_live_execution_readiness(settings, pool) -> list[str]:
     # state AND the master Safe address (pure local CREATE2 — no network,
     # no secrets) so the operator can verify + fund the pool from the log.
     try:
-        from .integrations.builder_relayer import is_relayer_configured
-        relayer_ok = is_relayer_configured()
+        from .integrations import builder_relayer as _builder_relayer
+
+        relayer_ok = _builder_relayer.is_relayer_configured()
+        try:
+            relayer_api_key_ok = _builder_relayer.is_relayer_api_key_configured()
+        except Exception:  # noqa: BLE001 — evidence-only status for partial test settings
+            relayer_api_key_ok = False
+        try:
+            builder_ok = _builder_relayer.is_builder_configured()
+        except Exception:  # noqa: BLE001 — relayer_ok remains the blocking truth
+            builder_ok = relayer_ok
         custody = settings.CUSTODY_MODE
         master_safe = "n/a"
         if custody == "safe" and relayer_ok:
@@ -137,8 +146,10 @@ async def _validate_live_execution_readiness(settings, pool) -> list[str]:
                 master_safe = f"derive-failed: {exc}"
         log.warning(
             "startup: custody posture — CUSTODY_MODE=%s relayer_configured=%s "
+            "relayer_api_key_configured=%s builder_configured=%s "
             "sweep_onchain=%s master_safe=%s",
-            custody, relayer_ok, settings.SWEEP_ONCHAIN_ENABLED, master_safe,
+            custody, relayer_ok, relayer_api_key_ok, builder_ok,
+            settings.SWEEP_ONCHAIN_ENABLED, master_safe,
         )
         if custody == "safe" and not relayer_ok:
             problems.append(

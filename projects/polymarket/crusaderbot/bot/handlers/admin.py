@@ -336,9 +336,11 @@ async def _admin_status_hud(message: Message) -> None:
 async def _live_readiness_hud(message) -> None:
     """Show live trading readiness checklist — /admin live."""
     from ...config import get_settings as _cfg
+    from ...services.validation.live_readiness_truth import live_readiness_truth
     from ...integrations.clob import _derived as _clob_derived
 
     s = _cfg()
+    readiness = live_readiness_truth(s)
 
     # Credential status
     has_private_key = bool(s.POLYMARKET_PRIVATE_KEY)
@@ -378,9 +380,21 @@ async def _live_readiness_hud(message) -> None:
         f"  {_g(s.SECURITY_HARDENING_VALIDATED)} `SECURITY_HARDENING_VALIDATED`",
         f"  {_g(s.USE_REAL_CLOB)} `USE_REAL_CLOB`",
         "",
+        "*Execution Truth:*",
+        f"  {_g(readiness['real_clob_armed'])} real CLOB armed",
+        f"  {_g(readiness['execution_path_validated'])} execution path validated",
+        f"  Custody: `{_md(str(readiness['custody_mode']))}`",
+        f"  Signature type: `{_md(str(readiness['signature_type']))}`",
+        f"  Funder source: `{_md(str(readiness['funder_deposit_wallet_source']))}`",
+        "",
         "*Credentials:*",
         f"  {_g(has_private_key)} `POLYMARKET_PRIVATE_KEY`",
         f"  {_g(has_api_key)} API credentials \\({_md(api_key_source)}\\)",
+        f"  {_g(readiness['relayer_configured'])} relayer configured",
+        f"  {_g(readiness['relayer_api_key_address_configured'])} relayer API key address configured",
+        f"  {_g(readiness['builder_configured'])} builder credentials configured",
+        f"  {_g(readiness['builder_code_configured'])} builder code configured",
+        f"  {_g(readiness['builder_address_configured'])} builder address configured",
         "",
         "*Wallet:*",
         f"  Balance: `{_md(wallet_balance)}`",

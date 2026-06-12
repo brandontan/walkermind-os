@@ -1,7 +1,7 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-11 16:25
+**Last Updated : 2026-06-12 15:33
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
@@ -105,6 +105,8 @@ CRUSADERBOT is considered **DONE** only when:
 ---
 
 ## Active — In Progress
+
+- [x] GitHub #1776 — polymarket-builder-relayer-cutover (WARP/polymarket-builder-relayer-cutover) [MAJOR, NARROW INTEGRATION] — BUILT: RELAYER_API_KEY/_ADDRESS first-class readiness truth; POLY_BUILDER_API_SECRET alias; non-secret readiness payload wired to /admin/live-gate + Telegram /admin live; live guards remain operator-controlled; per-user risk/concurrency authority preserved by targeted tests. Report: projects/polymarket/crusaderbot/reports/forge/polymarket-builder-relayer-cutover.md. SENTINEL required before merge.
 
 - [x] WARP•R00T overnight full-surface live/paper readiness program (owner directive 2026-06-10) — Phase 0 matrix #1754 + Lane A live-notify-parity #1755 (SENTINEL APPROVED 98/100) + Lane B telegram-live-truth #1756 ALL MERGED; suite 3413/11. Matrix: reports/forge/readiness-matrix.md. Wake-up handoff: reports/forge/overnight-handoff.md. Remaining go-live items owner-gated ops only (POLYGON_RPC_URL, backfill, flag/guard flips, mainnet moves).
 

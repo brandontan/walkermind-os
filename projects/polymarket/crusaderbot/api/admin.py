@@ -12,6 +12,7 @@ import secrets
 from fastapi import APIRouter, Header, HTTPException
 
 from ..config import get_settings
+from ..services.validation.live_readiness_truth import live_readiness_truth
 from ..database import get_pool, is_kill_switch_active, set_kill_switch
 from ..monitoring import sentry as monitoring_sentry
 from .. import scheduler
@@ -118,6 +119,7 @@ async def live_gate_status(authorization: str | None = Header(default=None)):
 
     return {
         "operator_guards_open": operator_guards_open,
+        "readiness": live_readiness_truth(s),
         "live_routing_possible": operator_guards_open and live_mode_tier4_count > 0,
         "gates": gates,
         "users": {

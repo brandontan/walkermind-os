@@ -466,7 +466,11 @@ class Settings(BaseSettings):
     # any relayer call; absent → relayer paths raise BuilderRelayerUnavailable.
     # All three default None — the relayer code is dormant until enrolled.
     POLY_BUILDER_API_KEY: Optional[str] = None
+    # Canonical relayer secret field. POLY_BUILDER_API_SECRET is accepted as
+    # a compatibility alias below because older Builder docs/screenshots use
+    # both spellings; internal relayer consumers read POLY_BUILDER_SECRET only.
     POLY_BUILDER_SECRET: Optional[str] = None
+    POLY_BUILDER_API_SECRET: Optional[str] = None
     POLY_BUILDER_PASSPHRASE: Optional[str] = None
     POLY_RELAYER_URL: str = "https://relayer-v2.polymarket.com"
     # Polymarket SDK relayer API key (polymarket.com -> Builder/Relayer keys).
@@ -1144,6 +1148,11 @@ class Settings(BaseSettings):
                 data.get("POLYMARKET_BUILDER_API_SECRET")
                 or data.get("POLYMARKET_BUILDER_SECRET")
             )
+            if data.get("POLY_BUILDER_API_SECRET") and (
+                data.get("POLY_BUILDER_SECRET") is None
+                or str(data.get("POLY_BUILDER_SECRET")).strip() == ""
+            ):
+                data["POLY_BUILDER_SECRET"] = data.get("POLY_BUILDER_API_SECRET")
             pairs = (
                 ("POLY_BUILDER_API_KEY", data.get("POLYMARKET_BUILDER_API_KEY")),
                 ("POLY_BUILDER_SECRET", secret),
