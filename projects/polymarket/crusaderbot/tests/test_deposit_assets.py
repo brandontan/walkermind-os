@@ -234,3 +234,27 @@ def test_deposit_modal_no_static_card_selector_buttons():
     src = (_FRONTEND / "components" / "DepositModal.tsx").read_text(encoding="utf-8")
     assert 'aria-label="Deposit token and network options"' not in src
     assert "onClick={() => setSelectedId(option.id)}" not in src
+
+
+def test_deposit_modal_selection_invariant_local_to_selected_chain():
+    """R00T hardening (PR #1798): the `selected` fallback must stay within the
+    chosen chain's tokenOptions — never fall back to an enabled option on a
+    different chain. Pins the chain-local fallback chain."""
+    src = (_FRONTEND / "components" / "DepositModal.tsx").read_text(encoding="utf-8")
+    assert "tokenOptions.find((option) => option.id === selectedId) ??" in src
+    assert "tokenOptions.find((option) => option.enabled) ??" in src
+    assert "tokenOptions[0];" in src
+    # The old cross-chain fallback (firstEnabled across ALL options) is gone
+    # from the `selected` resolution.
+    assert "=== selectedId) ?? firstEnabled ?? tokenOptions[0]" not in src
+
+
+def test_deposit_modal_disabled_token_select_cannot_change_selection():
+    """A disabled <option> cannot be chosen, and the onChange guard ignores any
+    non-enabled value — so QR/address/copy can never render for a disabled
+    token even via programmatic select."""
+    src = (_FRONTEND / "components" / "DepositModal.tsx").read_text(encoding="utf-8")
+    # onChange only commits an enabled token.
+    assert "if (next?.enabled) setSelectedId(next.id);" in src
+    # Disabled <option> attribute present on the token dropdown.
+    assert "disabled={!option.enabled}" in src

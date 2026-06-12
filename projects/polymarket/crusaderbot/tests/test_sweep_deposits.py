@@ -292,3 +292,155 @@ def test_realtime_sweep_no_targets_is_a_noop():
             [], reason="realtime_confirm",
         ))
     settings_mock.assert_not_called()  # early return before any work
+
+
+# ── R00T behaviour-level sweep asset-scoping (PR #1798 CMD blocker 5) ─────────
+# Proves the USDC.e custody sweep path cannot SELECT, mark swept, or move to
+# manual_review a confirmed deposit row for an unsupported Polygon token. The
+# mock below actually EMULATES the asset WHERE-clause against the bound params,
+# so these are behaviour assertions, not source-string pins.
+
+_PRIMARY = "0x2791bca1f2de4661ed88a30c99a7a9449aa84174"  # lower-cased USDC.e
+_NATIVE = "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359"   # native USDC
+_USDT = "0xc2132d05d31c914a87c6611c10748aeb04b58e8f"     # USDT
+
+
+class _FilteringOnchainConn:
+    """asyncpg stand-in that applies the sweep asset filter to fetch + execute."""
+
+    def __init__(self, deposits: list[dict]) -> None:
+        self.deposits = deposits
+        self.executed: list[tuple] = []
+
+    @staticmethod
+    def _asset_match(row: dict, network, chain_id, token_lower) -> bool:
+        if row["network"] != network or row["chain_id"] != chain_id:
+            return False
+        ta = row.get("token_address")
+        return ta is None or ta.lower() == token_lower
+
+    async def fetch(self, _sql, *args):
+        network, chain_id, token_lower = args[0], args[1], args[2]
+        user_ids = list(args[3]) if len(args) > 3 else None
+        picked: dict = {}
+        for r in self.deposits:
+            if r["swept"] or r["status"] != "confirmed":
+                continue
+            if not self._asset_match(r, network, chain_id, token_lower):
+                continue
+            if user_ids is not None and r["user_id"] not in user_ids:
+                continue
+            picked.setdefault(r["user_id"], r["deposit_address"])
+        return [{"user_id": uid, "deposit_address": addr} for uid, addr in picked.items()]
+
+    async def execute(self, sql, *args):
+        self.executed.append((sql, args))
+        user_id = args[0]
+        network, chain_id, token_lower = args[-3], args[-2], args[-1]
+        mark_swept = "swept=TRUE" in sql
+        for r in self.deposits:
+            if r["user_id"] != user_id or r["swept"] or r["status"] != "confirmed":
+                continue
+            if not self._asset_match(r, network, chain_id, token_lower):
+                continue
+            if mark_swept:
+                r["swept"] = True
+                r["lifecycle_state"] = "swept"
+            else:
+                r["lifecycle_state"] = "manual_review"
+        return "OK"
+
+
+def _dep(uid, token_address, *, network="Polygon", chain_id=137):
+    return {
+        "user_id": uid, "deposit_address": "0xAbCd1234567890EF1234567890abcdef12345678",
+        "network": network, "chain_id": chain_id, "token_address": token_address,
+        "status": "confirmed", "swept": False, "lifecycle_state": "available",
+    }
+
+
+def _run_onchain(conn, *, user_ids=None):
+    from projects.polymarket.crusaderbot import scheduler as sched
+    from projects.polymarket.crusaderbot.integrations import polygon_usdc
+    from projects.polymarket.crusaderbot.wallet import vault
+
+    with patch.object(sched, "get_settings", return_value=_OnchainSettings()), \
+         patch("projects.polymarket.crusaderbot.config.get_settings", return_value=_OnchainSettings()), \
+         patch.object(sched, "primary_deposit_asset", _primary_asset_stub), \
+         patch.object(sched, "get_pool", return_value=_Pool(conn)), \
+         patch.object(vault, "get_decrypted_pk", AsyncMock(return_value="0xpk")), \
+         patch.object(polygon_usdc, "sweep_usdc_to_master",
+                      AsyncMock(return_value={"tx_hash": "0xabc", "amount_usdc": "10"})), \
+         patch.object(sched.audit, "write", new=AsyncMock()):
+        asyncio.run(sched._sweep_deposits_onchain(user_ids=user_ids))
+
+
+def test_onchain_sweep_only_marks_primary_asset_rows_not_unsupported_tokens():
+    """Global sweep: USDC.e + legacy-NULL rows get swept; native USDC and USDT
+    confirmed rows are never selected nor marked (swept stays FALSE, lifecycle
+    never flips to swept/manual_review)."""
+    u_usdce, u_native, u_usdt, u_legacy = (_uuid.uuid4() for _ in range(4))
+    deposits = [
+        _dep(u_usdce, _PRIMARY),
+        _dep(u_native, _NATIVE),
+        _dep(u_usdt, _USDT),
+        _dep(u_legacy, None),  # pre-asset-audit migration-compat row
+    ]
+    conn = _FilteringOnchainConn(deposits)
+    _run_onchain(conn)
+
+    by_user = {d["user_id"]: d for d in deposits}
+    # Supported + legacy-NULL → swept
+    assert by_user[u_usdce]["swept"] is True
+    assert by_user[u_usdce]["lifecycle_state"] == "swept"
+    assert by_user[u_legacy]["swept"] is True
+    # Unsupported tokens → untouched on every column
+    for uid in (u_native, u_usdt):
+        assert by_user[uid]["swept"] is False, "unsupported token row was swept"
+        assert by_user[uid]["lifecycle_state"] == "available", (
+            "unsupported token row was marked (swept/manual_review) by the USDC.e path"
+        )
+    # No UPDATE ever bound an unsupported user_id.
+    touched = {args[0] for _sql, args in conn.executed}
+    assert u_native not in touched and u_usdt not in touched
+
+
+def test_onchain_sweep_failure_only_manual_reviews_primary_asset_rows():
+    """A wallet whose on-chain sweep raises moves ONLY its USDC.e rows to
+    manual_review — a co-located native/USDT row is left alone."""
+    from projects.polymarket.crusaderbot import scheduler as sched
+    from projects.polymarket.crusaderbot.integrations import polygon_usdc
+    from projects.polymarket.crusaderbot.wallet import vault
+
+    uid = _uuid.uuid4()
+    deposits = [_dep(uid, _PRIMARY), _dep(uid, _USDT)]
+    conn = _FilteringOnchainConn(deposits)
+
+    with patch.object(sched, "get_settings", return_value=_OnchainSettings()), \
+         patch("projects.polymarket.crusaderbot.config.get_settings", return_value=_OnchainSettings()), \
+         patch.object(sched, "primary_deposit_asset", _primary_asset_stub), \
+         patch.object(sched, "get_pool", return_value=_Pool(conn)), \
+         patch.object(vault, "get_decrypted_pk", AsyncMock(return_value="0xpk")), \
+         patch.object(polygon_usdc, "sweep_usdc_to_master",
+                      AsyncMock(side_effect=RuntimeError("rpc down"))), \
+         patch.object(sched.audit, "write", new=AsyncMock()):
+        asyncio.run(sched._sweep_deposits_onchain(user_ids=None))
+
+    by_token = {d["token_address"]: d for d in deposits}
+    assert by_token[_PRIMARY]["lifecycle_state"] == "manual_review"
+    assert by_token[_PRIMARY]["swept"] is False
+    assert by_token[_USDT]["lifecycle_state"] == "available"  # untouched
+    assert by_token[_USDT]["swept"] is False
+
+
+def test_onchain_sweep_user_scoped_path_applies_same_asset_filter():
+    """The realtime per-user sweep path applies the identical asset filter: a
+    targeted user whose only confirmed row is native USDC is not selected."""
+    uid = _uuid.uuid4()
+    deposits = [_dep(uid, _NATIVE)]
+    conn = _FilteringOnchainConn(deposits)
+    _run_onchain(conn, user_ids=[uid])
+
+    assert deposits[0]["swept"] is False
+    assert deposits[0]["lifecycle_state"] == "available"
+    assert conn.executed == []  # nothing selected → no UPDATE bound

@@ -1,7 +1,7 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 02:38**
+**Last Updated : 2026-06-13 03:25**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
@@ -10,13 +10,15 @@
 
 ## #1796 -- polygon-multi-token-deposit-activation
 
-- [x] FORGE build complete on WARP/polygon-multi-token-deposit-activation (MAJOR — NARROW INTEGRATION).
+- [x] FORGE build complete on warp/activate-polygon-multi-token-deposit (MAJOR — NARROW INTEGRATION).
 - [x] WebTrader DepositModal changed from static option cards to Polymarket-style token dropdown + Polygon-only chain dropdown; disabled tokens remain visible as unavailable but not selectable.
 - [x] Polygon-only scope preserved: USDC.e on Polygon remains the only enabled end-to-end asset; native Polygon USDC and Polygon USDT remain disabled with explicit backend/custody blockers.
 - [x] QR/address/copy remain gated to selected enabled assets; COPY still writes raw address only.
 - [x] On-chain sweep SQL now filters to the primary enabled asset (network/chain/token, legacy NULL token rows allowed) before sweep user selection and swept/manual-review updates, preventing unsupported token rows from riding the USDC.e sweep path.
 - [x] LIVE Auto-Trade $5 confirmed-balance guard and live guard flags unchanged.
 - [x] Report filed: projects/polymarket/crusaderbot/reports/forge/polygon-multi-token-deposit-activation.md
+- [x] WARP🔹CMD first-pass PR check — 5 blockers + 4 hardening items raised on PR #1798.
+- [x] WARP•R00T finishing pass: behaviour-level sweep asset-filter tests (CMD blocker 5 — unsupported tokens never selected/swept/manual-reviewed); chain-local selected fallback; disabled-token non-selectability pinned; exact branch + PROJECT_STATE truth + PR body. PR #1798 MERGED under WARP•R00T final gate.
 
 ## #1793 -- multi-asset-deposit-selector
 

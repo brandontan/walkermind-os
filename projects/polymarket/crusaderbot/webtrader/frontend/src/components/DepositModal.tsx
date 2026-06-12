@@ -67,7 +67,13 @@ export function DepositModal({ address, depositOptions, paperMode, balance, onCl
     [options, selectedChain],
   );
 
-  const selected = tokenOptions.find((option) => option.id === selectedId) ?? firstEnabled ?? tokenOptions[0];
+  // Keep the selection invariant LOCAL to the chosen chain: never fall back to
+  // an enabled option on a different chain (#1796 — only Polygon exists today,
+  // but this keeps the selector correct if a future chain is added).
+  const selected =
+    tokenOptions.find((option) => option.id === selectedId) ??
+    tokenOptions.find((option) => option.enabled) ??
+    tokenOptions[0];
   const selectedAddress = selected?.enabled ? (selected.deposit_address ?? address) : "";
   const hasAddress = Boolean(selectedAddress);
   const selectorDisabled = !selected?.enabled;
