@@ -121,7 +121,7 @@ _MVP_DESCRIPTIONS: dict[str, str] = {
     "candle_auto": (
         "🔥 Smart Strike\n"
         "Risk: 🟡 Balanced\n"
-        "One auto-router for BTC/ETH/SOL candles — picks the rule per candle stage:\n"
+        "One auto-router for BTC/ETH candles (SOL admin-gated, off by default) — picks the rule per candle stage:\n"
         "Flip Hunter early (cheap side) → Safe Close mid → Close Sweep final.\n"
         "Each entry keeps its own exit. Set-and-forget — recommended."
     ),

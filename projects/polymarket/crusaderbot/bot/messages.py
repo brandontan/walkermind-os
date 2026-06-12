@@ -422,7 +422,7 @@ PRESET_PICKER_TEXT = (
     "*🤖 Auto\\-Trade — Strategy*\n"
     + DIV + "\n\n"
     "*🧹 Close Sweep*  🟢 Safe  ⭐\n\n"
-    "Enters in the final 35s of a BTC/ETH/SOL\n"
+    "Enters in the final 35s of a BTC/ETH\n"
     "candle\. Requires a strong lean \\(≥55¢ side\\)\.\n\n"
     "```\n"
     "TP:      +90%\n"

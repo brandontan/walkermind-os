@@ -440,6 +440,11 @@ export interface AutoTradeState {
   slippage_tolerance_pct: number | null;
   selected_timeframe: string | null;
   selected_assets: string[] | null;
+  // Smart Strike admin-enabled market universe (#1801) — the UI disables any
+  // asset/timeframe not in these lists (SOL excluded by default).
+  smart_strike_enabled?: boolean;
+  smart_strike_enabled_assets?: string[];
+  smart_strike_enabled_timeframes?: string[];
   equity_usdc?: number | null;
   effective_max_per_trade_usdc?: number | null;
   max_per_trade_mode?: "auto" | "fixed" | "pct";

@@ -54,9 +54,14 @@ def test_default_universe_is_btc_eth_with_sol_disabled():
 
 
 def test_default_universe_constants_locked():
+    from projects.polymarket.crusaderbot.domain.strategy import (
+        smart_strike_universe as ssu,
+    )
+    # The scan job re-exports the shared single-source-of-truth constants.
     assert ssj._SMART_STRIKE_DEFAULT_ASSETS == ("BTC", "ETH", "SOL")
-    assert set(ssj._SMART_STRIKE_PAIR_FLAGS) == {"BTC", "ETH", "SOL"}
-    assert set(ssj._SMART_STRIKE_TF_FLAGS) == {"5m", "15m"}
+    assert ssu.DEFAULT_ASSETS == ("BTC", "ETH", "SOL")
+    assert set(ssu.PAIR_FLAGS) == {"BTC", "ETH", "SOL"}
+    assert set(ssu.TIMEFRAME_FLAGS) == {"5m", "15m"}
 
 
 def test_15m_enabled_by_default():

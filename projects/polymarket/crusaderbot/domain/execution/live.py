@@ -42,7 +42,7 @@ from ...integrations.clob.user_client import (
 from ...wallet import ledger
 from .per_user_clob import resolve_user_clob_client
 from .slippage import compute_aggressive_limit_price
-from ..risk.constants import SLIPPAGE_GUARD_PCT
+from ..risk.constants import LIVE_MIN_ORDER_SHARES, SLIPPAGE_GUARD_PCT
 
 _notifier = TradeNotifier()
 
@@ -237,6 +237,27 @@ async def execute(
 
     # Shares computed from limit_price so notional at entry is exact.
     shares = float(size_usdc) / max(limit_price, 0.0001)
+
+    # MIN ORDER SIZE fence (#1801): a sub-minimum order is broker-rejected, so
+    # fail closed pre-submit rather than spend an ambiguous network round-trip.
+    if shares < LIVE_MIN_ORDER_SHARES:
+        raise LivePreSubmitError(
+            f"order below CLOB minimum: shares={shares:.4f} < "
+            f"LIVE_MIN_ORDER_SHARES={LIVE_MIN_ORDER_SHARES} "
+            f"(size_usdc={float(size_usdc):.4f} limit_price={limit_price:.4f})"
+        )
+
+    # Observability (#1801): one structured line carrying the full live
+    # order-intent decision context — token/side, prices, spread, size,
+    # tick/min constraints — so every intent is debuggable from logs alone.
+    logger.info(
+        "live_order_intent token=%s side=%s shares=%.4f limit_price=%.4f "
+        "best_bid=%s best_ask=%s tick_size=%s neg_risk=%s min_shares=%.1f "
+        "size_usdc=%.4f market=%s user=%s key=%s",
+        token_id, side, shares, limit_price, best_bid, best_ask,
+        _tick_size, _neg_risk, LIVE_MIN_ORDER_SHARES, float(size_usdc),
+        market_id, user_id, idempotency_key,
+    )
 
     # PRE-WARM the per-user client cache BEFORE we acquire the DB
     # connection (gemini #1741 CRITICAL): the SDK build path does vault
