@@ -49,6 +49,7 @@ async def _with_timeout(
     coro_factory: Callable[[], Awaitable[bool]],
     *,
     reason_provider: Callable[[], str | None] | None = None,
+    critical: bool = True,
 ) -> str:
     """Run a check coroutine, return ``'ok'`` or ``'error: <reason>'``.
 
@@ -59,7 +60,7 @@ async def _with_timeout(
     request errors, for instance, embed the full request URL and Alchemy
     encodes the API key in that URL path. Only the exception class name is
     surfaced publicly; full details (including ``str(exc)``) go to internal
-    logs at ERROR.
+    logs.
 
     ``reason_provider`` is an optional zero-arg callable consulted only on
     the ``ok=False`` branch — when present and non-empty, its return value
@@ -67,6 +68,13 @@ async def _with_timeout(
     parentheses. This lets the database check surface the asyncpg
     exception class to operators without making the inner ping coroutine
     leak structured data through the bool contract.
+
+    ``critical`` controls the log severity of a probe *exception*: only the
+    database check drives ``status='down'`` / ``ready=False`` and is logged at
+    ERROR (a Sentry event). The non-blocking probes (telegram / alchemy_*)
+    merely degrade readiness, so a transient network blip is logged at WARNING
+    — keeping it out of Sentry's error stream (default ``event_level=ERROR``)
+    instead of paging on every flaky Telegram/RPC poll with zero user impact.
     """
     try:
         ok = await asyncio.wait_for(coro_factory(), timeout=CHECK_TIMEOUT_SECONDS)
@@ -85,8 +93,10 @@ async def _with_timeout(
         # log stream — which fans out to Fly's log aggregation — never
         # sees the secret. The exception class name + scrubbed message is
         # enough for diagnosis given the small number of check entry
-        # points.
-        logger.error(
+        # points. Severity follows ``critical`` so only a real readiness
+        # blocker (the DB) pages Sentry.
+        log = logger.error if critical else logger.warning
+        log(
             "health check failed: name=%s type=%s msg=%s",
             name, type(exc).__name__, _scrub_url(str(exc)),
         )
@@ -171,12 +181,22 @@ async def run_health_checks() -> dict:
 
     Returns a dict matching the documented ``GET /health`` response shape.
     """
+    # Only the database failure drives status='down'/ready=False -> ERROR
+    # (Sentry event). The other probes only degrade readiness, so their
+    # transient failures log at WARNING and stay out of the error stream.
     db_task = asyncio.create_task(_with_timeout(
         "database", check_database, reason_provider=db_last_ping_error,
+        critical=True,
     ))
-    tg_task = asyncio.create_task(_with_timeout("telegram", check_telegram))
-    rpc_task = asyncio.create_task(_with_timeout("alchemy_rpc", check_alchemy_rpc))
-    ws_task = asyncio.create_task(_with_timeout("alchemy_ws", check_alchemy_ws))
+    tg_task = asyncio.create_task(_with_timeout(
+        "telegram", check_telegram, critical=False,
+    ))
+    rpc_task = asyncio.create_task(_with_timeout(
+        "alchemy_rpc", check_alchemy_rpc, critical=False,
+    ))
+    ws_task = asyncio.create_task(_with_timeout(
+        "alchemy_ws", check_alchemy_ws, critical=False,
+    ))
 
     db_res, tg_res, rpc_res, ws_res = await asyncio.gather(
         db_task, tg_task, rpc_task, ws_task
