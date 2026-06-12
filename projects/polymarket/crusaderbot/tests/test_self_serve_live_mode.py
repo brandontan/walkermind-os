@@ -40,6 +40,8 @@ class _Conn:
             return "UPDATE 2"
         if "UPDATE orders" in sql:
             return "UPDATE 3"
+        if "UPDATE system_alerts" in sql:
+            return "UPDATE 4"
         return "UPDATE 1"
 
 
@@ -60,6 +62,7 @@ def test_enable_live_self_serve_forces_autotrade_off_and_archives_paper_state():
     assert result.waiting_for_deposit is True
     assert result.archived_positions == 2
     assert result.archived_orders == 3
+    assert result.archived_notifications == 4
     sql = "\n".join(q for q, _ in conn.executed)
     assert "trading_mode = 'live'" in sql
     assert "paper_mode_override = FALSE" in sql
@@ -67,6 +70,10 @@ def test_enable_live_self_serve_forces_autotrade_off_and_archives_paper_state():
     assert "mode = $2" in sql
     assert live_mode.PAPER_ARCHIVED_MODE in [arg for _, args in conn.executed for arg in args]
     assert "alerts_ack_at = NOW()" in sql
+    assert "UPDATE system_alerts" in sql
+    assert "dismissed = TRUE" in sql
+    assert "user_id = $1" in sql
+    assert "created_at <= NOW()" in sql
 
 
 def test_enable_live_self_serve_exact_five_is_not_waiting_for_deposit():

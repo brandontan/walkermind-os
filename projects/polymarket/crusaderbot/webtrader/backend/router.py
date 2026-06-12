@@ -1868,6 +1868,11 @@ async def get_alerts(user: _CurrentUser) -> list[AlertItem]:
                  AND (a.expires_at IS NULL OR a.expires_at > NOW())
                  AND (a.user_id IS NULL OR a.user_id = $1::uuid)
                  AND (us.alerts_ack_at IS NULL OR a.created_at > us.alerts_ack_at)
+                 AND (
+                       a.user_id IS NULL
+                    OR COALESCE(a.metadata->>'mode', '') = ''
+                    OR LOWER(a.metadata->>'mode') = COALESCE(us.trading_mode, 'paper')
+                 )
                ORDER BY a.created_at DESC
                LIMIT 50""",
             user["user_id"],
@@ -2728,6 +2733,7 @@ async def enable_live(
             "waiting_for_deposit": switch.waiting_for_deposit,
             "archived_positions": switch.archived_positions,
             "archived_orders": switch.archived_orders,
+            "archived_notifications": switch.archived_notifications,
             "self_serve": True,
             "two_factor_required": False,
             "admin_approval_required": False,

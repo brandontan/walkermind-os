@@ -36,6 +36,7 @@ class PaperToLiveResult:
     auto_trade_on: bool
     archived_positions: int
     archived_orders: int
+    archived_notifications: int
     alerts_acknowledged: bool
     waiting_for_deposit: bool
 
@@ -159,7 +160,8 @@ async def enable_live_self_serve(
     * force ``users.auto_trade_on=FALSE``;
     * archive current paper simulation positions/orders away from user-facing
       paper/live queries by moving their mode to ``paper_archived``;
-    * acknowledge pre-switch user-scoped alerts so LIVE AlertCenter starts clean.
+    * archive pre-switch per-user AlertCenter rows (``dismissed=TRUE``) and
+      acknowledge the alert watermark so LIVE notification context starts clean.
 
     The helper never flips platform live guards and never starts Auto-Trade.
     """
@@ -225,6 +227,16 @@ async def enable_live_self_serve(
                 user_id,
                 PAPER_ARCHIVED_MODE,
             )
+            alert_status = await c.execute(
+                """
+                UPDATE system_alerts
+                   SET dismissed = TRUE
+                 WHERE user_id = $1
+                   AND dismissed = FALSE
+                   AND created_at <= NOW()
+                """,
+                user_id,
+            )
             balance = await get_live_balance(user_id, c)
         return PaperToLiveResult(
             from_mode=from_mode,
@@ -233,6 +245,7 @@ async def enable_live_self_serve(
             auto_trade_on=False,
             archived_positions=_status_count(pos_status),
             archived_orders=_status_count(order_status),
+            archived_notifications=_status_count(alert_status),
             alerts_acknowledged=True,
             waiting_for_deposit=not has_min_live_autotrade_balance(balance),
         )

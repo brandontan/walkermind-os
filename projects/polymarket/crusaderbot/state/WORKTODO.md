@@ -1,12 +1,23 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-12 23:05**
+**Last Updated : 2026-06-12 23:19**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1792 -- live-switch-notification-isolation-fix
+
+- [x] FORGE build complete on WARP/live-switch-notification-isolation-fix (MAJOR — NARROW INTEGRATION).
+- [x] PAPER -> LIVE switch archives pre-switch per-user AlertCenter rows with dismissed=TRUE while preserving system_alerts audit records.
+- [x] LIVE /alerts query keeps alerts_ack_at filtering and excludes user-scoped structured alerts whose metadata.mode does not match current trading_mode.
+- [x] WebTrader settings SSE clears/refetches AlertCenter state so stale in-memory PAPER alerts/unread counters do not survive the switch.
+- [x] Daily P&L web alerts are tagged mode=paper; trade event-bus web mirrors carry structured mode metadata.
+- [x] Auto-Trade OFF, $5 confirmed live balance start guard, optional/recommended 2FA posture, and all live guard flags remain unchanged.
+- [ ] WARP🔹CMD first-pass PR check pending.
+- [ ] WARP•R00T final gate or WARP•SENTINEL approval pending before merge.
 
 ## #1787 -- live-enable-tos-checkbox-flow
 
