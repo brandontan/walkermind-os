@@ -213,3 +213,24 @@ def test_deposit_modal_disabled_assets_not_selectable_no_qr():
     # Address resolves to "" for a disabled selection -> QR/copy gated off.
     assert 'selected?.enabled ? (selected.deposit_address ?? address) : ""' in src
     assert "option.deposit_address ?? (option.enabled ? address : null)" in src
+
+
+def test_deposit_modal_uses_token_and_polygon_chain_dropdowns():
+    """#1796 selector UX: Polymarket-style token dropdown + Polygon-only
+    chain dropdown, not a static token-card list. Disabled tokens remain visible
+    as unavailable options but cannot be selected/copyable."""
+    src = (_FRONTEND / "components" / "DepositModal.tsx").read_text(encoding="utf-8")
+    assert 'aria-label="Deposit token selector"' in src
+    assert 'aria-label="Deposit chain selector"' in src
+    assert 'const selectableChains = useMemo(() => ["Polygon"], [])' in src
+    assert 'option.network === selectedChain && option.chain_id === 137' in src
+    assert "disabled={!option.enabled}" in src
+    assert "Polygon is the only enabled network scope" in src
+
+
+def test_deposit_modal_no_static_card_selector_buttons():
+    """#1796 regression pin: selector flow must not fall back to the old
+    clickable card-list layout for token selection."""
+    src = (_FRONTEND / "components" / "DepositModal.tsx").read_text(encoding="utf-8")
+    assert 'aria-label="Deposit token and network options"' not in src
+    assert "onClick={() => setSelectedId(option.id)}" not in src

@@ -60,7 +60,14 @@ export function DepositModal({ address, depositOptions, paperMode, balance, onCl
     };
   }, []);
 
-  const selected = options.find((option) => option.id === selectedId) ?? firstEnabled ?? options[0];
+  const selectableChains = useMemo(() => ["Polygon"], []);
+  const [selectedChain, setSelectedChain] = useState(selectableChains[0]);
+  const tokenOptions = useMemo(
+    () => options.filter((option) => option.network === selectedChain && option.chain_id === 137),
+    [options, selectedChain],
+  );
+
+  const selected = tokenOptions.find((option) => option.id === selectedId) ?? firstEnabled ?? tokenOptions[0];
   const selectedAddress = selected?.enabled ? (selected.deposit_address ?? address) : "";
   const hasAddress = Boolean(selectedAddress);
   const selectorDisabled = !selected?.enabled;
@@ -126,39 +133,75 @@ export function DepositModal({ address, depositOptions, paperMode, balance, onCl
             </button>
           </div>
 
-          <div className="mb-4 space-y-2" aria-label="Deposit token and network options">
-            {options.map((option) => {
-              const active = option.id === selected?.id;
-              return (
-                <button
-                  type="button"
-                  key={option.id}
-                  disabled={!option.enabled}
-                  onClick={() => setSelectedId(option.id)}
-                  className={`w-full text-left rounded-sm border p-2.5 transition-colors ${
-                    active ? "border-gold" : "border-border-1"
-                  } ${option.enabled ? "hover:border-gold/80" : "opacity-55 cursor-not-allowed"}`}
-                  style={{ background: active ? "rgba(245,200,66,0.08)" : "rgba(255,255,255,0.03)" }}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-hud text-[10px] font-bold tracking-[1px] uppercase text-ink-1">
-                      {option.display_label}
-                    </span>
-                    <span className={`font-mono text-[8px] ${option.enabled ? "text-grn" : "text-ink-4"}`}>
-                      {option.enabled ? "SUPPORTED" : "UNAVAILABLE"}
-                    </span>
-                  </div>
-                  <div className="mt-1 font-mono text-[8px] text-ink-4 leading-relaxed">
-                    Token: {option.token_symbol} · Network: {option.network} · Chain ID: {option.chain_id}
-                  </div>
-                  {!option.enabled && option.unavailable_reason && (
-                    <div className="mt-1 font-mono text-[8px] text-red leading-relaxed">
-                      {option.unavailable_reason}
+          <div className="mb-4 space-y-3" aria-label="Deposit token and network selectors">
+            <label className="block">
+              <span className="font-hud text-[9px] font-bold tracking-[1.5px] uppercase text-ink-3">Token</span>
+              <select
+                value={selected?.id ?? ""}
+                onChange={(event) => {
+                  const next = tokenOptions.find((option) => option.id === event.target.value);
+                  if (next?.enabled) setSelectedId(next.id);
+                }}
+                className="mt-1 w-full rounded-sm border border-border-1 bg-black/30 px-3 py-2 font-mono text-[11px] text-ink-1 outline-none focus:border-gold"
+                aria-label="Deposit token selector"
+              >
+                {tokenOptions.map((option) => (
+                  <option key={option.id} value={option.id} disabled={!option.enabled}>
+                    {option.token_label} {option.enabled ? "" : "— unavailable"}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="font-hud text-[9px] font-bold tracking-[1.5px] uppercase text-ink-3">Chain</span>
+              <select
+                value={selectedChain}
+                onChange={(event) => {
+                  const nextChain = event.target.value;
+                  if (selectableChains.includes(nextChain)) setSelectedChain(nextChain);
+                }}
+                className="mt-1 w-full rounded-sm border border-border-1 bg-black/30 px-3 py-2 font-mono text-[11px] text-ink-1 outline-none focus:border-gold"
+                aria-label="Deposit chain selector"
+              >
+                {selectableChains.map((chain) => (
+                  <option key={chain} value={chain}>{chain}</option>
+                ))}
+              </select>
+              <span className="mt-1 block font-mono text-[8px] text-ink-4">
+                Polygon is the only enabled network scope in this release.
+              </span>
+            </label>
+
+            <div className="space-y-1.5" aria-label="Polygon token support status">
+              {tokenOptions.map((option) => {
+                const active = option.id === selected?.id;
+                return (
+                  <div
+                    key={option.id}
+                    className={`rounded-sm border p-2 ${active ? "border-gold" : "border-border-1"} ${option.enabled ? "" : "opacity-65"}`}
+                    style={{ background: active ? "rgba(245,200,66,0.08)" : "rgba(255,255,255,0.03)" }}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-hud text-[10px] font-bold tracking-[1px] uppercase text-ink-1">
+                        {option.token_symbol} on {option.network}
+                      </span>
+                      <span className={`font-mono text-[8px] ${option.enabled ? "text-grn" : "text-ink-4"}`}>
+                        {option.enabled ? "SUPPORTED" : "UNAVAILABLE"}
+                      </span>
                     </div>
-                  )}
-                </button>
-              );
-            })}
+                    <div className="mt-1 font-mono text-[8px] text-ink-4 leading-relaxed">
+                      Chain ID {option.chain_id} · Decimals {option.decimals}
+                    </div>
+                    {!option.enabled && option.unavailable_reason && (
+                      <div className="mt-1 font-mono text-[8px] text-red leading-relaxed">
+                        {option.unavailable_reason}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {!selected || !hasAddress || selectorDisabled ? (

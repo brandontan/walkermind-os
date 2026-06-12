@@ -8,6 +8,7 @@ COUNT(*)s it inside a transaction, and writes an audit row.
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from projects.polymarket.crusaderbot import scheduler
@@ -96,6 +97,16 @@ class _OnchainSettings:
     CUSTODY_MODE = "eoa"  # tests target the EOA branch; SafeCustody has its own tests
 
 
+def _primary_asset_stub():
+    return SimpleNamespace(
+        token_symbol="USDC.e",
+        token_contract="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+        network="Polygon",
+        chain_id=137,
+        decimals=6,
+    )
+
+
 class _OnchainConn:
     def __init__(self, rows: list[dict]) -> None:
         self._rows = rows
@@ -144,6 +155,7 @@ def test_onchain_sweep_marks_swept_after_confirm():
 
     with patch.object(sched, "get_settings", return_value=_OnchainSettings()), \
          patch("projects.polymarket.crusaderbot.config.get_settings", return_value=_OnchainSettings()), \
+         patch.object(sched, "primary_deposit_asset", _primary_asset_stub), \
          patch.object(sched, "get_pool", return_value=_Pool(conn)), \
          patch.object(vault, "get_decrypted_pk", AsyncMock(return_value="0xpk")), \
          patch.object(polygon_usdc, "sweep_usdc_to_master",
@@ -166,6 +178,7 @@ def test_onchain_sweep_skips_dust_without_marking():
 
     with patch.object(sched, "get_settings", return_value=_OnchainSettings()), \
          patch("projects.polymarket.crusaderbot.config.get_settings", return_value=_OnchainSettings()), \
+         patch.object(sched, "primary_deposit_asset", _primary_asset_stub), \
          patch.object(sched, "get_pool", return_value=_Pool(conn)), \
          patch.object(vault, "get_decrypted_pk", AsyncMock(return_value="0xpk")), \
          patch.object(polygon_usdc, "sweep_usdc_to_master",
@@ -175,6 +188,22 @@ def test_onchain_sweep_skips_dust_without_marking():
 
     assert conn.executed == []  # nothing marked swept
 
+
+
+
+def test_onchain_sweep_sql_is_scoped_to_primary_deposit_asset():
+    """#1796 custody safety: the USDC.e sweep path must not mark arbitrary
+    confirmed deposits for unsupported Polygon tokens as swept/manual-review."""
+    import inspect
+    from projects.polymarket.crusaderbot import scheduler as sched
+
+    src = inspect.getsource(sched._sweep_deposits_onchain)
+    assert "primary_asset = primary_deposit_asset()" in src
+    assert "d.network=$1" in src
+    assert "d.chain_id=$2" in src
+    assert "lower(d.token_address)=$3" in src
+    assert "AND network=$4 AND chain_id=$5" in src
+    assert "lower(token_address)=$6" in src
 
 def test_onchain_sweep_continues_on_user_failure():
     """One failing wallet is logged and skipped; the rest still process."""
@@ -197,6 +226,7 @@ def test_onchain_sweep_continues_on_user_failure():
 
     with patch.object(sched, "get_settings", return_value=_OnchainSettings()), \
          patch("projects.polymarket.crusaderbot.config.get_settings", return_value=_OnchainSettings()), \
+         patch.object(sched, "primary_deposit_asset", _primary_asset_stub), \
          patch.object(sched, "get_pool", return_value=_Pool(conn)), \
          patch.object(vault, "get_decrypted_pk", AsyncMock(return_value="0xpk")), \
          patch.object(polygon_usdc, "sweep_usdc_to_master", _sweep), \

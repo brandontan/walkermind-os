@@ -1219,20 +1219,31 @@ async def _sweep_deposits_onchain(
     from .wallet.custody import PreflightError, sweep_usdc_to_master
     from .wallet.vault import get_decrypted_pk
 
+    primary_asset = primary_deposit_asset()
+    primary_token = str(primary_asset.token_contract or "").lower()
+    asset_filter = (
+        "AND d.network=$1 AND d.chain_id=$2 "
+        "AND (d.token_address IS NULL OR lower(d.token_address)=$3)"
+    )
+
     pool = get_pool()
     async with pool.acquire() as conn:
         if user_ids is None:
             users = await conn.fetch(
                 "SELECT DISTINCT d.user_id, w.deposit_address "
                 "FROM deposits d JOIN wallets w ON w.user_id = d.user_id "
-                "WHERE d.swept = FALSE AND d.status = 'confirmed'"
+                "WHERE d.swept = FALSE AND d.status = 'confirmed' "
+                f"{asset_filter}",
+                primary_asset.network, primary_asset.chain_id, primary_token,
             )
         else:
             users = await conn.fetch(
                 "SELECT DISTINCT d.user_id, w.deposit_address "
                 "FROM deposits d JOIN wallets w ON w.user_id = d.user_id "
                 "WHERE d.swept = FALSE AND d.status = 'confirmed' "
-                "AND d.user_id = ANY($1::uuid[])",
+                f"{asset_filter} "
+                "AND d.user_id = ANY($4::uuid[])",
+                primary_asset.network, primary_asset.chain_id, primary_token,
                 list(user_ids),
             )
 
@@ -1248,8 +1259,11 @@ async def _sweep_deposits_onchain(
             async with pool.acquire() as conn:
                 await conn.execute(
                     "UPDATE deposits SET lifecycle_state=$2, sweep_error=$3 "
-                    "WHERE user_id=$1 AND swept=FALSE AND status='confirmed'",
+                    "WHERE user_id=$1 AND swept=FALSE AND status='confirmed' "
+                    "AND network=$4 AND chain_id=$5 "
+                    "AND (token_address IS NULL OR lower(token_address)=$6)",
                     u["user_id"], ledger.L_MANUAL_REVIEW, str(exc)[:500],
+                    primary_asset.network, primary_asset.chain_id, primary_token,
                 )
             log.warning("sweep_skip", user_id=str(u["user_id"]), err=str(exc))
             continue
@@ -1261,8 +1275,11 @@ async def _sweep_deposits_onchain(
             async with pool.acquire() as conn:
                 await conn.execute(
                     "UPDATE deposits SET lifecycle_state=$2, sweep_error=$3 "
-                    "WHERE user_id=$1 AND swept=FALSE AND status='confirmed'",
+                    "WHERE user_id=$1 AND swept=FALSE AND status='confirmed' "
+                    "AND network=$4 AND chain_id=$5 "
+                    "AND (token_address IS NULL OR lower(token_address)=$6)",
                     u["user_id"], ledger.L_MANUAL_REVIEW, str(exc)[:500],
+                    primary_asset.network, primary_asset.chain_id, primary_token,
                 )
             log.error("sweep_failed", user_id=str(u["user_id"]), err=str(exc))
             continue
@@ -1272,8 +1289,11 @@ async def _sweep_deposits_onchain(
             await conn.execute(
                 "UPDATE deposits SET swept=TRUE, lifecycle_state=$2, "
                 "sweep_tx_hash=$3, sweep_error=NULL "
-                "WHERE user_id=$1 AND swept=FALSE AND status='confirmed'",
+                "WHERE user_id=$1 AND swept=FALSE AND status='confirmed' "
+                "AND network=$4 AND chain_id=$5 "
+                "AND (token_address IS NULL OR lower(token_address)=$6)",
                 u["user_id"], ledger.L_SWEPT, result.get("tx_hash"),
+                primary_asset.network, primary_asset.chain_id, primary_token,
             )
         swept_users += 1
         await audit.write(
