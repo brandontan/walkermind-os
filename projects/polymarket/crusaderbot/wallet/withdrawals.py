@@ -210,11 +210,30 @@ async def _attempt_onchain_transfer(
     result = await transfer_usdc(to=destination_address, amount_usdc=amount_usdc)
 
     async with pool.acquire() as conn:
-        await conn.execute(
+        completed = await conn.fetchrow(
             "UPDATE withdrawals SET status = 'completed', tx_hash = $2, "
             "processed_at = NOW(), confirmed_at = NOW(), lifecycle_state = $3 "
-            "WHERE id = $1",
+            "WHERE id = $1 "
+            "RETURNING user_id, id, amount_usdc, destination_address, tx_hash",
             withdrawal_id, result["tx_hash"], ledger.L_SWEPT,
+        )
+    if completed is not None:
+        from ..webtrader.backend.notification_prefs import persist_user_alert_once
+        await persist_user_alert_once(
+            user_id=completed["user_id"],
+            alert_key="system_status",
+            title="Withdrawal confirmed",
+            body=f"${float(completed['amount_usdc']):.2f} withdrawal is complete.",
+            severity="info",
+            alert_kind="withdrawal_confirmed",
+            dedup_key=f"withdrawal:{completed['id']}:completed",
+            metadata={
+                "withdrawal_id": str(completed["id"]),
+                "tx_hash": completed["tx_hash"],
+                "amount_usdc": float(completed["amount_usdc"]),
+                "destination_address": completed["destination_address"],
+                "status": "completed",
+            },
         )
     from .. import audit
     await audit.write(

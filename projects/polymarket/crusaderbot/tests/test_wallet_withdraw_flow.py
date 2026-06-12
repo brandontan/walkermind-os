@@ -183,6 +183,11 @@ class _Conn:
         return self._fetchval
 
     async def fetchrow(self, sql, *args):
+        # Record executed SQL too — the withdrawal completion now uses
+        # ``UPDATE withdrawals ... RETURNING`` via fetchrow (to feed the
+        # confirmed-money web alert), so the mock must observe it for the
+        # status-transition assertions to stay meaningful.
+        self.executed.append((sql, args))
         return self._fetchrow
 
     async def execute(self, sql, *args):
