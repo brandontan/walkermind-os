@@ -10,7 +10,7 @@ Coverage:
   * Source-level pins for the 3 WebTrader endpoints:
       - GET /live/status returns LiveStatus shape with operator_guards
         + checklist + capital cap + exposure
-      - POST /live/enable requires exact confirm_phrase + non-zero cap
+      - POST /live/enable requires checkbox Terms/risk consent + no manual cap
       - POST /live/disable single-step, audit-logged
 """
 from __future__ import annotations
@@ -67,7 +67,7 @@ def test_gate_step_15_rejects_live_when_no_real_funds():
     deposited balance. Zero real funds = no live trades ('live_no_funds') —
     this is what makes switch-first-deposit-later safe. A manual cap only
     tightens the bound; it is no longer an opt-in signal (opt-in is
-    trading_mode='live', written only by the typed-confirm flows).
+    trading_mode='live', written only by the explicit consent flows).
     """
     src = inspect.getsource(gate_mod.evaluate)
     assert "live_no_funds" in src, (
@@ -153,14 +153,15 @@ def test_get_live_status_endpoint_exists_with_right_shape():
     assert "live_checklist.evaluate" in src
 
 
-def test_enable_live_requires_exact_confirm_phrase():
-    """POST /live/enable must check `confirm_phrase == constant`.
-    A regression that relaxes this (e.g. case-insensitive compare, or
-    truthy check) re-opens the accidental-click vector.
+def test_enable_live_requires_checkbox_consent_not_typed_phrase():
+    """POST /live/enable must require explicit ToS/risk checkbox consent.
+    The old typed phrase must not remain a live-switch gate.
     """
     src = inspect.getsource(router_mod.enable_live)
-    assert "_LIVE_ENABLE_CONFIRM_PHRASE" in src
-    assert "body.confirm_phrase != _LIVE_ENABLE_CONFIRM_PHRASE" in src
+    assert "body.consent_accepted" in src
+    assert "_LIVE_ENABLE_CONSENT_VERSION" in src
+    assert "body.confirm_phrase !=" not in src
+    assert "_LIVE_ENABLE_CONFIRM_PHRASE" not in src
 
 
 def test_enable_live_no_manual_cap_required_and_auto_stops():
@@ -198,10 +199,91 @@ def test_enable_live_is_self_serve_not_operator_or_admin_gated():
 
 
 def test_enable_live_writes_audit_log():
-    """Every live-mode flip must write an audit_log row."""
+    """Every live-mode flip must write an audit_log row with consent truth."""
     src = inspect.getsource(router_mod.enable_live)
     assert "audit.write" in src
     assert "webtrader_live_enable" in src
+    assert "consent_accepted_at" in src
+    assert "consent_version" in src
+    assert "mode_transition_source" in src
+
+
+def test_enable_live_missing_checkbox_consent_blocks_with_400():
+    from projects.polymarket.crusaderbot.webtrader.backend.schemas import (
+        LiveEnableRequest,
+    )
+
+    user = {"user_id": str(UUID("00000000-0000-0000-0000-000000000009"))}
+    body = LiveEnableRequest(consent_accepted=False)
+
+    with patch.object(router_mod._live_mode, "enable_live_self_serve", AsyncMock()) as enable:
+        with pytest.raises(router_mod.HTTPException) as ei:
+            asyncio.run(router_mod.enable_live(body, user))
+
+    assert ei.value.status_code == 400
+    assert "Terms of Service" in ei.value.detail
+    enable.assert_not_awaited()
+
+
+def test_enable_live_with_zero_balance_and_consent_succeeds_waiting_for_deposit():
+    from projects.polymarket.crusaderbot.webtrader.backend.schemas import (
+        LiveEnableRequest,
+    )
+    from projects.polymarket.crusaderbot.domain.activation.live_opt_in_gate import (
+        LIVE_ENABLE_CONSENT_VERSION,
+    )
+
+    user_id = UUID("00000000-0000-0000-0000-000000000009")
+    user = {"user_id": str(user_id)}
+    body = LiveEnableRequest(
+        consent_accepted=True,
+        consent_version=LIVE_ENABLE_CONSENT_VERSION,
+    )
+    switch = SimpleNamespace(
+        live_balance_usdc=Decimal("0"),
+        waiting_for_deposit=True,
+        archived_positions=2,
+        archived_orders=3,
+    )
+
+    with patch.object(router_mod._live_mode, "enable_live_self_serve",
+                      AsyncMock(return_value=switch)) as enable, \
+         patch.object(router_mod.audit, "write", AsyncMock()) as audit_write:
+        out = asyncio.run(router_mod.enable_live(body, user))
+
+    enable.assert_awaited_once_with(user_id, live_capital_cap_usdc=0.0)
+    audit_write.assert_awaited_once()
+    payload = audit_write.await_args.kwargs["payload"]
+    assert payload["consent_accepted"] is True
+    assert payload["consent_version"] == LIVE_ENABLE_CONSENT_VERSION
+    assert payload["mode_transition_source"] == "webtrader"
+    assert payload["waiting_for_deposit"] is True
+    assert out.trading_mode == "live"
+    assert out.auto_trade_on is False
+    assert out.waiting_for_deposit is True
+    assert out.status == "LIVE ENABLED / WAITING FOR DEPOSIT"
+
+
+def test_enable_live_ignores_legacy_typed_phrase_when_checkbox_consent_present():
+    from projects.polymarket.crusaderbot.webtrader.backend.schemas import (
+        LiveEnableRequest,
+    )
+
+    user_id = UUID("00000000-0000-0000-0000-000000000009")
+    body = LiveEnableRequest(consent_accepted=True, confirm_phrase="wrong")
+    switch = SimpleNamespace(
+        live_balance_usdc=Decimal("5"),
+        waiting_for_deposit=False,
+        archived_positions=0,
+        archived_orders=0,
+    )
+
+    with patch.object(router_mod._live_mode, "enable_live_self_serve",
+                      AsyncMock(return_value=switch)), \
+         patch.object(router_mod.audit, "write", AsyncMock()):
+        out = asyncio.run(router_mod.enable_live(body, {"user_id": str(user_id)}))
+
+    assert out.status == "LIVE ENABLED"
 
 
 def test_disable_live_single_step_and_audit_logged():
@@ -225,16 +307,14 @@ def test_live_endpoints_have_per_user_rate_limit():
 
 
 # ---------------------------------------------------------------------
-# Confirm-phrase invariant
+# Consent-version invariant
 # ---------------------------------------------------------------------
 
-def test_confirm_phrase_constant_value():
-    """The confirm phrase must be a clear, deliberate sentence. Renaming
-    is breaking change (existing UI flows will fail closed) — pin it.
+def test_live_enable_consent_version_constant_value():
+    """The consent version is persisted into live-enable audit payloads;
+    changing it means the ToS/risk acknowledgement copy materially changed.
     """
-    assert router_mod._LIVE_ENABLE_CONFIRM_PHRASE == (
-        "ENABLE LIVE TRADING FOR MY ACCOUNT"
-    )
+    assert router_mod._LIVE_ENABLE_CONSENT_VERSION == "live-enable-tos-risk-v1"
 
 
 # ---------------------------------------------------------------------

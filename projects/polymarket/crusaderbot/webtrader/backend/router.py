@@ -2588,20 +2588,17 @@ async def get_copy_trade_task_stats(task_id: str, user: _CurrentUser):
 
 
 # ── Live-trading activation (Axis #3 — WARP/ROOT-live-activation-flow) ──────
-# Per-user opt-in into live execution. Reads operator env guards + the
-# 8-gate live_checklist + the user's `live_capital_cap_usdc` setting.
-# A user toggles into live mode via /live/enable with an EXPLICIT capital
-# cap and an EXACT typed confirm phrase. /live/disable reverts. Risk gate
-# step 15 (domain/risk/gate.py) enforces the cap on every approved live
-# trade — a user with cap=0 cannot execute live, and the gate rejects
-# any trade that would push aggregate live exposure past the cap.
+# Per-user opt-in into live execution. The WebTrader switch now requires
+# checkbox Terms/risk consent instead of a typed phrase. /live/disable reverts.
+# Risk gate step 15 (domain/risk/gate.py) still enforces real deposited balance
+# + optional cap on every approved live trade.
 
-# Single source of truth shared with the Telegram /enable_live flow
-# (domain/activation/live_opt_in_gate.py) so both surfaces stay in sync.
+# Single source of truth shared with Telegram/backwards-compatible live opt-in
+# constants (domain/activation/live_opt_in_gate.py).
 from ...domain.activation.live_opt_in_gate import (  # noqa: E402
     LIVE_CAP_MAX_USDC,
     LIVE_CAP_MIN_USDC,
-    LIVE_ENABLE_CONFIRM_PHRASE as _LIVE_ENABLE_CONFIRM_PHRASE,
+    LIVE_ENABLE_CONSENT_VERSION as _LIVE_ENABLE_CONSENT_VERSION,
 )
 from ...domain.activation import live_mode as _live_mode  # noqa: E402
 
@@ -2669,7 +2666,7 @@ async def enable_live(
     body: LiveEnableRequest,
     user: _CurrentUser,
 ) -> LiveEnableResponse:
-    """Self-serve flip to LIVE after typed confirmation.
+    """Self-serve flip to LIVE after checkbox Terms/risk consent.
 
     The mode switch itself does not require 2FA, admin approval, a deposit,
     or open operator execution guards. It only records explicit user consent,
@@ -2680,14 +2677,23 @@ async def enable_live(
     """
     user_id = user["user_id"]
 
-    if body.confirm_phrase != _LIVE_ENABLE_CONFIRM_PHRASE:
+    if not body.consent_accepted:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"confirm_phrase must equal the exact string "
-                f"'{_LIVE_ENABLE_CONFIRM_PHRASE}' to enable live trading"
+                "You must accept the Terms of Service and live-trading risk "
+                "acknowledgement before enabling live trading"
             ),
         )
+
+    consent_version = body.consent_version or _LIVE_ENABLE_CONSENT_VERSION
+    if consent_version != _LIVE_ENABLE_CONSENT_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail=f"consent_version must equal '{_LIVE_ENABLE_CONSENT_VERSION}'",
+        )
+
+    consent_accepted_at = datetime.now(timezone.utc).isoformat()
     manual_cap = float(body.live_capital_cap_usdc or 0.0)
     if manual_cap < 0 or manual_cap > LIVE_CAP_MAX_USDC:
         raise HTTPException(
@@ -2706,6 +2712,11 @@ async def enable_live(
         payload={
             "live_capital_cap_usdc": manual_cap,
             "live_balance_usdc": float(switch.live_balance_usdc),
+            "consent_accepted": True,
+            "consent_accepted_at": consent_accepted_at,
+            "consent_version": consent_version,
+            "consent_surface": "webtrader_live_enable",
+            "mode_transition_source": "webtrader",
             "auto_trade_stopped": True,
             "waiting_for_deposit": switch.waiting_for_deposit,
             "archived_positions": switch.archived_positions,

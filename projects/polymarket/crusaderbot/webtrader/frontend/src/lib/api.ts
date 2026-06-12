@@ -138,9 +138,9 @@ export function makeApi(token: string | null) {
     // ── Live-trading activation (per-user opt-in) ──────────────────────────
     getLiveStatus: () => get<LiveStatus>("/live/status"),
     // live-mode-truth: no manual capital amount — live exposure is bounded by
-    // the user's real deposited balance; only the typed phrase is sent.
-    enableLive: (confirm_phrase: string) =>
-      post<LiveEnableResponse>("/live/enable", { confirm_phrase }),
+    // the user's real deposited balance; WebTrader sends checkbox consent.
+    enableLive: (consent_accepted: boolean, consent_version = LIVE_ENABLE_CONSENT_VERSION) =>
+      post<LiveEnableResponse>("/live/enable", { consent_accepted, consent_version }),
     disableLive: () => post<{ trading_mode: string }>("/live/disable"),
     // ── Self-serve TOTP 2FA (closes live_checklist gate 7) ────────────────
     get2faStatus: () => get<TwoFactorStatus>("/2fa/status"),
@@ -331,9 +331,8 @@ export interface LinkTelegramStart {
   bot_username: string;    // "" when not configured
 }
 
-// Exact phrase the user must type to flip into live mode. MUST match the
-// backend constant (domain/activation/live_opt_in_gate.LIVE_ENABLE_CONFIRM_PHRASE)
-// and the Telegram flow — single source of truth across all three surfaces.
+// Legacy Telegram/backwards-compatible phrase constant. WebTrader live-enable
+// uses checkbox Terms/risk consent instead of typed phrase.
 export const LIVE_ENABLE_CONFIRM_PHRASE = "ENABLE LIVE TRADING FOR MY ACCOUNT";
 // Per-user live capital cap bounds (mirrors LIVE_CAP_MIN/MAX_USDC on the backend).
 export const LIVE_CAP_MIN_USDC = 0;
@@ -682,6 +681,8 @@ export interface RuntimeStatus {
 }
 
 // ── Live-trading activation (mirrors backend schemas.LiveStatus/LiveEnable*) ──
+export const LIVE_ENABLE_CONSENT_VERSION = "live-enable-tos-risk-v1";
+
 export interface LiveStatus {
   trading_mode: string;            // "paper" | "live"
   live_capital_cap_usdc: number;   // optional manual cap; 0 = real balance alone bounds

@@ -51,8 +51,13 @@ class ModeChangeReason(str, Enum):
 # WebTrader (full control) and the Telegram bot (simple control) MUST agree on
 # these values so the per-user live opt-in behaves identically everywhere.
 
-# Exact phrase the WebTrader "full" flow requires the user to type. The Telegram
-# "simple" flow uses a shorter CONFIRM word but writes the SAME settings + cap.
+# Stable consent identifier recorded by WebTrader live-enable. Keep this value
+# versioned whenever the user-facing Terms/risk acknowledgement text materially
+# changes, so audit payloads can prove which consent copy was accepted.
+LIVE_ENABLE_CONSENT_VERSION = "live-enable-tos-risk-v1"
+
+# Legacy constant retained for Telegram/backwards-compatible imports. WebTrader no
+# longer requires users to type this phrase; it requires checkbox consent instead.
 LIVE_ENABLE_CONFIRM_PHRASE = "ENABLE LIVE TRADING FOR MY ACCOUNT"
 
 # Per-user live capital cap bounds. The cap is the maximum USDC of *aggregate*

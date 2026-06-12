@@ -284,8 +284,7 @@ export function SettingsPage() {
 
           {/* Right column */}
           <div>
-            {/* 2FA — self-serve TOTP, closes live_checklist gate 7. Above
-                Live Trading so users enrol before attempting to enable. */}
+            {/* 2FA — optional/recommended account and withdrawal protection. */}
             <TwoFactorSetupCard onChanged={() => void load()} />
 
             {/* Live Trading — per-user opt-in into real-money execution */}
@@ -338,9 +337,10 @@ export function SettingsPage() {
                 ) : (
                   <>
                     <p className="text-[10px] text-ink-3 leading-relaxed">
-                      Switch from practice to real-money trading. No amount to enter — your real
-                      deposited balance is the live bankroll. You can switch first and deposit
-                      after; the bot stays stopped until you re-arm it. All risk controls stay on.
+                      Switch from practice to real-money trading by accepting the Terms/risk
+                      acknowledgement. No amount to enter — you can switch first and deposit
+                      after. The bot stays stopped until you re-arm it, and LIVE Auto-Trade needs
+                      at least $5 confirmed available USDC.e. 2FA is optional and recommended.
                     </p>
                     <button
                       type="button"
@@ -532,7 +532,7 @@ export function SettingsPage() {
         <LiveActivationModal
           status={liveStatus}
           onClose={() => setShowLiveModal(false)}
-          onEnable={(confirmPhrase) => api.enableLive(confirmPhrase)}
+          onEnable={(consentAccepted, consentVersion) => api.enableLive(consentAccepted, consentVersion)}
           onSuccess={() => { void load(); refreshTradingMode(); }}
         />
       )}
