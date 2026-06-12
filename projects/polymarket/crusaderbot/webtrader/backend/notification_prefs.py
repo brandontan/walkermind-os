@@ -214,8 +214,12 @@ async def persist_user_alert_once(
     clean_title = _strip_html_for_web(title) or title
     clean_body = _strip_html_for_web(body)
 
-    pool = get_pool()
+    # get_pool() is INSIDE the try: a confirmed-money alert is best-effort and
+    # runs AFTER the deposit credit / withdrawal completion has committed, so a
+    # pool/DB error here must be swallowed — never propagated into the
+    # money-lifecycle flow (matches the "never raises" contract above).
     try:
+        pool = get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
