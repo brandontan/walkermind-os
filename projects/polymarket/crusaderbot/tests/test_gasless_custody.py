@@ -199,9 +199,13 @@ def test_safe_mode_with_relayer_is_clean():
 # ── 5. SDK gasless api_key wiring (deposit-wallet deploy) ────────────────────
 
 
-def test_sdk_api_key_prefers_relayer_key(monkeypatch):
-    """RELAYER_API_KEY(+_ADDRESS) — the operator's provisioned secrets — map
-    onto polymarket.auth.RelayerApiKey and take precedence."""
+def test_sdk_api_key_prefers_builder_key(monkeypatch):
+    """Both credential sets present → BuilderApiKey wins. A RelayerApiKey is
+    address-BOUND (the relayer rejects any ``from`` ≠ the key's own address) —
+    prod-proven 2026-06-12 when relayer-first selection failed all 6
+    deposit-wallet backfill resolves with ``from <user EOA> does not match
+    auth <relayer address>``. Only the builder key relays for arbitrary
+    per-user EOAs."""
     from projects.polymarket.crusaderbot.integrations.clob import sdk_env
     monkeypatch.setattr(sdk_env, "get_settings", lambda: SimpleNamespace(
         RELAYER_API_KEY="rk", RELAYER_API_KEY_ADDRESS="0x" + "ab" * 20,
@@ -209,18 +213,20 @@ def test_sdk_api_key_prefers_relayer_key(monkeypatch):
         POLY_BUILDER_PASSPHRASE="bp",
     ))
     key = sdk_env.sdk_api_key()
-    assert type(key).__name__ == "RelayerApiKey"
+    assert type(key).__name__ == "BuilderApiKey"
 
 
-def test_sdk_api_key_falls_back_to_builder(monkeypatch):
+def test_sdk_api_key_falls_back_to_relayer(monkeypatch):
+    """Builder creds absent → the relayer key still beats None (valid for the
+    key's own address; deterministic 4xx for any other EOA)."""
     from projects.polymarket.crusaderbot.integrations.clob import sdk_env
     monkeypatch.setattr(sdk_env, "get_settings", lambda: SimpleNamespace(
-        RELAYER_API_KEY=None, RELAYER_API_KEY_ADDRESS=None,
-        POLY_BUILDER_API_KEY="bk", POLY_BUILDER_SECRET="bs",
-        POLY_BUILDER_PASSPHRASE="bp",
+        RELAYER_API_KEY="rk", RELAYER_API_KEY_ADDRESS="0x" + "ab" * 20,
+        POLY_BUILDER_API_KEY=None, POLY_BUILDER_SECRET=None,
+        POLY_BUILDER_PASSPHRASE=None,
     ))
     key = sdk_env.sdk_api_key()
-    assert type(key).__name__ == "BuilderApiKey"
+    assert type(key).__name__ == "RelayerApiKey"
 
 
 def test_sdk_api_key_none_when_unconfigured(monkeypatch):
@@ -231,3 +237,44 @@ def test_sdk_api_key_none_when_unconfigured(monkeypatch):
         POLY_BUILDER_PASSPHRASE=None,
     ))
     assert sdk_env.sdk_api_key() is None
+
+
+def test_sdk_api_key_partial_builder_warns_and_falls_back(monkeypatch, caplog):
+    """Half-configured builder set (Gemini #1778): must NOT raise — this runs
+    on every client build incl. already-deployed-wallet resolves — but the
+    silent preference loss is exactly what made the prod skips hard to debug,
+    so it warns (field names only) and falls through to the relayer key."""
+    from projects.polymarket.crusaderbot.integrations.clob import sdk_env
+    monkeypatch.setattr(sdk_env, "_PARTIAL_WARNED", set())
+    monkeypatch.setattr(sdk_env, "get_settings", lambda: SimpleNamespace(
+        RELAYER_API_KEY="rk", RELAYER_API_KEY_ADDRESS="0x" + "ab" * 20,
+        POLY_BUILDER_API_KEY="bk", POLY_BUILDER_SECRET=None,
+        POLY_BUILDER_PASSPHRASE=None,
+    ))
+    with caplog.at_level("WARNING", logger=sdk_env.logger.name):
+        key = sdk_env.sdk_api_key()
+    assert type(key).__name__ == "RelayerApiKey"
+    warn = [r for r in caplog.records if "PARTIALLY configured" in r.getMessage()]
+    assert len(warn) == 1 and "builder" in warn[0].getMessage()
+    assert "POLY_BUILDER_SECRET" in warn[0].getMessage()  # names, never values
+    assert "bk" not in warn[0].getMessage()
+    # deduped: second call stays silent
+    caplog.clear()
+    with caplog.at_level("WARNING", logger=sdk_env.logger.name):
+        sdk_env.sdk_api_key()
+    assert not [r for r in caplog.records if "PARTIALLY configured" in r.getMessage()]
+
+
+def test_sdk_api_key_partial_relayer_warns_returns_none(monkeypatch, caplog):
+    from projects.polymarket.crusaderbot.integrations.clob import sdk_env
+    monkeypatch.setattr(sdk_env, "_PARTIAL_WARNED", set())
+    monkeypatch.setattr(sdk_env, "get_settings", lambda: SimpleNamespace(
+        RELAYER_API_KEY="rk", RELAYER_API_KEY_ADDRESS=None,
+        POLY_BUILDER_API_KEY=None, POLY_BUILDER_SECRET=None,
+        POLY_BUILDER_PASSPHRASE=None,
+    ))
+    with caplog.at_level("WARNING", logger=sdk_env.logger.name):
+        assert sdk_env.sdk_api_key() is None
+    warn = [r for r in caplog.records if "PARTIALLY configured" in r.getMessage()]
+    assert len(warn) == 1 and "relayer" in warn[0].getMessage()
+    assert "RELAYER_API_KEY_ADDRESS" in warn[0].getMessage()
