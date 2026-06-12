@@ -106,7 +106,7 @@ CRUSADERBOT is considered **DONE** only when:
 
 ## Active — In Progress
 
-- [x] realtime-deposit-withdraw-engine / WARP/realtime-deposit-withdraw-engine — BUILT #1780 (MAJOR, NARROW INTEGRATION; WARP•SENTINEL required). Near-realtime deposit confirmation now triggers immediate per-user sweep with cron fallback; withdrawal lifecycle now locks funds, submits under guards, records confirmation metadata, refunds preflight failures, and marks ambiguous failures manual_review. Report: reports/forge/realtime-deposit-withdraw-engine.md.
+- [x] realtime-deposit-withdraw-engine / warp/implement-realtime-deposit-and-withdraw-engine — #1780 built (FORGE) + R00T-finished, PR #1781 (MAJOR, NARROW INTEGRATION; WARP•R00T final gate, self-merge on CI green). Near-realtime deposit confirmation triggers immediate per-user ON-CHAIN sweep only when guards armed; guard-off defers truthfully (swept stays FALSE, cron fallback + later on-chain retry preserved). Withdrawal lifecycle locks funds, submits under guards, records confirmation metadata, refunds preflight failures, marks ambiguous failures manual_review. Report: reports/forge/realtime-deposit-withdraw-engine.md.
 
 - [x] WARP•R00T overnight full-surface live/paper readiness program (owner directive 2026-06-10) — Phase 0 matrix #1754 + Lane A live-notify-parity #1755 (SENTINEL APPROVED 98/100) + Lane B telegram-live-truth #1756 ALL MERGED; suite 3413/11. Matrix: reports/forge/readiness-matrix.md. Wake-up handoff: reports/forge/overnight-handoff.md. Remaining go-live items owner-gated ops only (POLYGON_RPC_URL, backfill, flag/guard flips, mainnet moves).
 

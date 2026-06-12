@@ -207,3 +207,58 @@ def test_onchain_sweep_continues_on_user_failure():
     updates = [a for sql, a in conn.executed if "swept=TRUE" in sql]
     assert len(updates) == 1
     assert updates[0][0] == good
+
+
+# ── realtime per-confirm sweep trigger (#1780 / PR #1781) ────────────────────
+
+
+def test_realtime_sweep_guards_off_defers_and_keeps_rows_eligible():
+    """Guards OFF: NO swept flip, NO pool access — rows stay sweep-eligible.
+
+    A deposit may only become swept when funds actually moved (on-chain path)
+    or via the explicitly-logical nightly paper reconciliation. The realtime
+    trigger must never pre-emptively burn on-chain sweep eligibility.
+    """
+    from projects.polymarket.crusaderbot import scheduler as sched
+
+    pool_mock = AsyncMock()
+    audit_mock = AsyncMock()
+    with patch.object(sched, "get_settings", return_value=_LogicalSettings()), \
+         patch.object(sched, "get_pool", pool_mock), \
+         patch.object(sched.audit, "write", new=audit_mock):
+        asyncio.run(sched._sweep_confirmed_deposits_for_users(
+            [_uuid.uuid4(), _uuid.uuid4()], reason="realtime_confirm",
+        ))
+
+    pool_mock.assert_not_called()  # no DB write — nothing marked swept
+    audit_mock.assert_awaited_once()
+    kw = audit_mock.call_args.kwargs
+    assert kw["action"] == "deposit_sweep_realtime_deferred"
+    assert kw["payload"] == {"users": 2, "reason": "realtime_confirm"}
+
+
+def test_realtime_sweep_guards_on_routes_to_onchain_with_targets():
+    """Both guards ON: dispatches to the on-chain path scoped to the
+    confirmed users (deduplicated), tagged with the realtime reason."""
+    from projects.polymarket.crusaderbot import scheduler as sched
+
+    uid = _uuid.uuid4()
+    onchain = AsyncMock()
+    with patch.object(sched, "get_settings", return_value=_OnchainSettings()), \
+         patch.object(sched, "_sweep_deposits_onchain", onchain):
+        asyncio.run(sched._sweep_confirmed_deposits_for_users(
+            [uid, uid], reason="realtime_confirm",
+        ))
+
+    onchain.assert_awaited_once_with(user_ids=[uid], reason="realtime_confirm")
+
+
+def test_realtime_sweep_no_targets_is_a_noop():
+    from projects.polymarket.crusaderbot import scheduler as sched
+
+    settings_mock = AsyncMock()
+    with patch.object(sched, "get_settings", settings_mock):
+        asyncio.run(sched._sweep_confirmed_deposits_for_users(
+            [], reason="realtime_confirm",
+        ))
+    settings_mock.assert_not_called()  # early return before any work

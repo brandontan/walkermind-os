@@ -332,7 +332,8 @@ async def watch_deposits() -> None:
             tg_id,
             f"✅ <b>Deposit confirmed:</b> ${float(amt):.2f} USDC\n"
             f"<code>{html.escape(tx)}</code>\n\n"
-            "Lifecycle: confirming → available → sweep queued/complete.",
+            "Lifecycle: confirming → available. Custody sweep follows "
+            "when enabled.",
             reply_markup=deposit_kb,
         )
 
@@ -494,8 +495,11 @@ async def _sweep_confirmed_deposits_for_users(
     Cron ``sweep_deposits`` remains the 03:00 fallback/reconciliation job. This
     helper only targets users whose deposit rows were confirmed in this watcher
     tick. On-chain movement is still hard-gated by the existing live flags; with
-    guards off, it performs the same logical ``swept=TRUE`` reconciliation that
-    the cron fallback used to do later.
+    guards off NO sweep occurs and rows are NOT marked swept — they stay
+    ``swept=FALSE`` / lifecycle ``available`` so they remain eligible for the
+    cron fallback and for the on-chain path once the guards are armed. A
+    deposit may only become ``swept`` when funds actually moved (on-chain
+    path) or via the explicitly-logical nightly paper reconciliation.
     """
     targets = list(dict.fromkeys(user_ids))
     if not targets:
@@ -507,25 +511,15 @@ async def _sweep_confirmed_deposits_for_users(
         await _sweep_deposits_onchain(user_ids=targets, reason=reason)
         return
 
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            count = await conn.fetchval(
-                "WITH u AS ("
-                " UPDATE deposits SET swept=TRUE, lifecycle_state=$2 "
-                " WHERE swept=FALSE AND status='confirmed' "
-                "   AND user_id = ANY($1::uuid[]) "
-                " RETURNING 1"
-                ") SELECT COUNT(*) FROM u",
-                targets, ledger.L_SWEPT,
-            )
     log.info(
-        "deposit_realtime_sweep_logical", count=int(count or 0), reason=reason,
+        "deposit_realtime_sweep_deferred",
+        users=len(targets), reason=reason,
+        detail="custody guards off — rows stay sweep-eligible for cron/on-chain",
     )
     await audit.write(
         actor_role="bot",
-        action="deposit_sweep_realtime_logical",
-        payload={"count": int(count or 0), "reason": reason},
+        action="deposit_sweep_realtime_deferred",
+        payload={"users": len(targets), "reason": reason},
     )
 
 
@@ -1223,11 +1217,15 @@ async def _sweep_deposits_onchain(
             log.warning("sweep_skip", user_id=str(u["user_id"]), err=str(exc))
             continue
         except Exception as exc:
+            # NOT lifecycle 'failed': that state is reserved for reverted
+            # deposits (migration 095 backfill). The deposit stays credited and
+            # sweep-eligible (swept=FALSE, status='confirmed'); annotate for
+            # operator review and let cron/realtime retry clear it on success.
             async with pool.acquire() as conn:
                 await conn.execute(
                     "UPDATE deposits SET lifecycle_state=$2, sweep_error=$3 "
                     "WHERE user_id=$1 AND swept=FALSE AND status='confirmed'",
-                    u["user_id"], ledger.L_FAILED, str(exc)[:500],
+                    u["user_id"], ledger.L_MANUAL_REVIEW, str(exc)[:500],
                 )
             log.error("sweep_failed", user_id=str(u["user_id"]), err=str(exc))
             continue

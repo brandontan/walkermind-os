@@ -66,7 +66,7 @@ class _Conn:
                     "id": uuid.uuid4(), "user_id": user_id, "tx_hash": tx_hash,
                     "log_index": log_index, "amount_usdc": amount,
                     "block_number": block_number, "status": "pending",
-                    "confirmed_at_block": None,
+                    "confirmed_at_block": None, "lifecycle_state": "confirming",
                 }
                 self.store.deposits.append(row)
                 return {"id": row["id"]}
@@ -81,6 +81,7 @@ class _Conn:
                 if d["id"] == dep_id and d["status"] == "pending":
                     d["status"] = "confirmed"
                     d["confirmed_at_block"] = head
+                    d["lifecycle_state"] = "available"
                     return {"id": d["id"]}
             return None
         if "FOR UPDATE" in sql:
@@ -97,10 +98,11 @@ class _Conn:
 
     async def execute(self, sql: str, *args):
         if "status='reverted'" in sql:
-            (dep_id,) = args
+            dep_id, lifecycle_state = args
             for d in self.store.deposits:
                 if d["id"] == dep_id:
                     d["status"] = "reverted"
+                    d["lifecycle_state"] = lifecycle_state
             return
         raise AssertionError(f"unexpected execute: {sql}")
 
@@ -170,7 +172,9 @@ def test_pending_not_credited_until_confirmation_depth():
         notify = _run(scheduler._confirm_ready_deposits(head=132, depth=32))
         assert store.deposits[0]["status"] == "confirmed"
         credit.assert_awaited_once()
-        assert notify and notify[0][1] == Decimal("100.0")
+        # 4-tuple shape: (user_id, telegram_user_id, amount, tx_hash)
+        assert notify and notify[0][0] == user_id
+        assert notify[0][2] == Decimal("100.0")
 
 
 # ---------------- Test 2: confirmed then removed=true → debited back ----------
@@ -190,6 +194,7 @@ def test_confirmed_then_reorg_removed_uncredits():
         _run(scheduler._revert_deposit(_transfer(block=100, removed=True)))
 
     assert store.deposits[0]["status"] == "reverted"
+    assert store.deposits[0]["lifecycle_state"] == "failed"
     debit.assert_awaited_once()
     assert debit.await_args.args[2] == Decimal("100.0")  # amount un-credited
     audit_write.assert_awaited_once()
