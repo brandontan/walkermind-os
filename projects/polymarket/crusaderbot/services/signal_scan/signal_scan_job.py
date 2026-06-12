@@ -2009,6 +2009,11 @@ def summarize_no_trade_reason(scan_run: dict[str, Any] | None) -> str | None:
     """
     if not scan_run:
         return None
+    # ``fetch_latest_scan_run`` already returns ``dict(row)``, but normalize
+    # defensively so a future caller passing an asyncpg.Record straight from a
+    # query cannot break this panel surface (Record has no ``.get``).
+    if not isinstance(scan_run, dict):
+        scan_run = dict(scan_run)
     orders = int(scan_run.get("paper_orders_created") or 0)
     positions = int(scan_run.get("positions_created") or 0)
     if orders > 0 or positions > 0:
