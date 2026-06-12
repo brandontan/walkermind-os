@@ -3819,17 +3819,21 @@ async def run_once() -> None:
                 )
                 tel.record_zero_reason(_LATE_ENTRY_V3_NAME, str(ss_reason))
             else:
-                _requested = {
-                    str(a).strip().upper()
-                    for a in (selected_assets or _SMART_STRIKE_DEFAULT_ASSETS)
-                }
-                _dropped = sorted(_requested - set(ss_assets))
-                if _dropped:
-                    user_log.info(
-                        "smart_strike_pair_disabled",
-                        pairs=_dropped,
-                        reason="smart_strike_asset_disabled",
-                    )
+                # Per-bucket drop log ONLY for an explicit user selection —
+                # the default universe always drops SOL (admin-off), and
+                # logging that on every tick for every default-selection
+                # user would be pure noise (gemini review #1799).
+                if selected_assets:
+                    _requested = {
+                        str(a).strip().upper() for a in selected_assets
+                    }
+                    _dropped = sorted(_requested - set(ss_assets))
+                    if _dropped:
+                        user_log.info(
+                            "smart_strike_pair_disabled",
+                            pairs=_dropped,
+                            reason="smart_strike_asset_disabled",
+                        )
                 try:
                     crypto_window_markets = await _polymarket.get_crypto_window_markets(
                         selected_timeframe or "5m", ss_assets
