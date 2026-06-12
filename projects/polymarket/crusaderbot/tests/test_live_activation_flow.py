@@ -244,6 +244,10 @@ def test_enable_live_with_zero_balance_and_consent_succeeds_waiting_for_deposit(
         waiting_for_deposit=True,
         archived_positions=2,
         archived_orders=3,
+        archived_notifications=4,
+        archived_ledger_rows=7,
+        paper_session_reset=True,
+        paper_balance_after_reset_usdc=Decimal("1000"),
     )
 
     with patch.object(router_mod._live_mode, "enable_live_self_serve",
@@ -283,6 +287,10 @@ def test_enable_live_ignores_legacy_typed_phrase_when_checkbox_consent_present()
         waiting_for_deposit=False,
         archived_positions=0,
         archived_orders=0,
+        archived_notifications=0,
+        archived_ledger_rows=0,
+        paper_session_reset=True,
+        paper_balance_after_reset_usdc=Decimal("1000"),
     )
 
     with patch.object(router_mod._live_mode, "enable_live_self_serve",

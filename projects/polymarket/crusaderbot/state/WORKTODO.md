@@ -1,23 +1,23 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-12 23:49**
+**Last Updated : 2026-06-12 16:55**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
 
-## #1793 -- multi-asset-deposit-selector
+## #1792 -- live-switch-notification-isolation-fix
 
-- [x] FORGE build complete on WARP/multi-asset-deposit-selector (MAJOR — NARROW INTEGRATION).
-- [x] WebTrader `GET /wallet` now returns supported deposit options with token and network represented separately.
-- [x] Deposit modal now renders a token + network selector; only enabled assets receive QR/address/copy instructions.
-- [x] Supported truth is conservative: Polygon USDC.e selectable; native Polygon USDC, USDT, Base USDC, and Arbitrum USDC unavailable because watcher/ledger/sweep support is not complete.
-- [x] Deposit watcher/accounting now preserves token/network/contract/chain/decimals plus normalized USDC credit truth via migration 098 and audit payloads.
-- [x] Regression tests added for supported-asset filtering, unsupported option safety, audit metadata, and wrong-token credit neutrality.
-- [ ] WARP🔹CMD first-pass PR check.
-- [ ] MAJOR final validation gate (WARP•R00T finishing pass or WARP•SENTINEL approval/conditional approval).
+- [x] FORGE build complete on warp/fix-live-switch-notification-isolation (MAJOR — NARROW INTEGRATION).
+- [x] PAPER -> LIVE switch archives pre-switch per-user AlertCenter rows with dismissed=TRUE while preserving system_alerts audit records.
+- [x] LIVE /alerts query keeps alerts_ack_at filtering and excludes user-scoped structured alerts whose metadata.mode does not match current trading_mode.
+- [x] WebTrader settings SSE clears/refetches AlertCenter state so stale in-memory PAPER alerts/unread counters do not survive the switch.
+- [x] Daily P&L web alerts are tagged mode=paper; trade event-bus web mirrors carry structured mode metadata.
+- [x] Auto-Trade OFF, $5 confirmed live balance start guard, optional/recommended 2FA posture, and all live guard flags remain unchanged.
+- [x] WARP🔹CMD first-pass PR check — 5 blockers (incl. scope expansion to full paper-session reset) + hardening raised on PR #1794.
+- [x] WARP•R00T finishing pass: FULL paper-session reset (migration 098 ledger.archived; archive paper ledger + reset $1,000+live bankroll + seed fresh paper deposit on paper->live; /activity//orders//wallet feeds exclude archived/paper_archived); CI-red fixed; unmodeled-alert dismissal hardened; exact branch + PROJECT_STATE truth. Full suite 3508 passed. PR #1794 MERGED under WARP•R00T final gate.
 
 ## #1787 -- live-enable-tos-checkbox-flow
 

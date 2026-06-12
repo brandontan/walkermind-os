@@ -301,6 +301,8 @@ async def run_once() -> dict:
                     web_title="Daily P&L summary",
                     web_body=text,
                     severity="info",
+                    alert_kind="daily_report",
+                    metadata={"mode": "paper"},
                 )
             except Exception:
                 send_tg = True
