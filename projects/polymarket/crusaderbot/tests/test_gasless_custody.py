@@ -194,3 +194,40 @@ def test_safe_mode_with_relayer_is_clean():
         ))
     # master-safe derive failure is evidence-only — never a problem/blocker
     assert problems == []
+
+
+# ── 5. SDK gasless api_key wiring (deposit-wallet deploy) ────────────────────
+
+
+def test_sdk_api_key_prefers_relayer_key(monkeypatch):
+    """RELAYER_API_KEY(+_ADDRESS) — the operator's provisioned secrets — map
+    onto polymarket.auth.RelayerApiKey and take precedence."""
+    from projects.polymarket.crusaderbot.integrations.clob import sdk_env
+    monkeypatch.setattr(sdk_env, "get_settings", lambda: SimpleNamespace(
+        RELAYER_API_KEY="rk", RELAYER_API_KEY_ADDRESS="0x" + "ab" * 20,
+        POLY_BUILDER_API_KEY="bk", POLY_BUILDER_SECRET="bs",
+        POLY_BUILDER_PASSPHRASE="bp",
+    ))
+    key = sdk_env.sdk_api_key()
+    assert type(key).__name__ == "RelayerApiKey"
+
+
+def test_sdk_api_key_falls_back_to_builder(monkeypatch):
+    from projects.polymarket.crusaderbot.integrations.clob import sdk_env
+    monkeypatch.setattr(sdk_env, "get_settings", lambda: SimpleNamespace(
+        RELAYER_API_KEY=None, RELAYER_API_KEY_ADDRESS=None,
+        POLY_BUILDER_API_KEY="bk", POLY_BUILDER_SECRET="bs",
+        POLY_BUILDER_PASSPHRASE="bp",
+    ))
+    key = sdk_env.sdk_api_key()
+    assert type(key).__name__ == "BuilderApiKey"
+
+
+def test_sdk_api_key_none_when_unconfigured(monkeypatch):
+    from projects.polymarket.crusaderbot.integrations.clob import sdk_env
+    monkeypatch.setattr(sdk_env, "get_settings", lambda: SimpleNamespace(
+        RELAYER_API_KEY=None, RELAYER_API_KEY_ADDRESS=None,
+        POLY_BUILDER_API_KEY=None, POLY_BUILDER_SECRET=None,
+        POLY_BUILDER_PASSPHRASE=None,
+    ))
+    assert sdk_env.sdk_api_key() is None

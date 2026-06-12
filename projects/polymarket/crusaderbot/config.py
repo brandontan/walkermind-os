@@ -469,6 +469,14 @@ class Settings(BaseSettings):
     POLY_BUILDER_SECRET: Optional[str] = None
     POLY_BUILDER_PASSPHRASE: Optional[str] = None
     POLY_RELAYER_URL: str = "https://relayer-v2.polymarket.com"
+    # Polymarket SDK relayer API key (polymarket.com -> Builder/Relayer keys).
+    # REQUIRED by AsyncSecureClient for gasless deposit-wallet deployment on
+    # fresh EOAs ("Gasless transactions require a Builder API Key or Relayer
+    # API Key" — the exact 6/6 backfill skip root-caused 2026-06-12). The Fly
+    # secrets were provisioned by the owner from day one; these fields wire
+    # them in. Maps 1:1 onto polymarket.auth.RelayerApiKey(key=, address=).
+    RELAYER_API_KEY: Optional[str] = None
+    RELAYER_API_KEY_ADDRESS: Optional[str] = None
     # Master toggle for routing capital ops via the gasless relayer. Stays
     # False until the Safe-proxy custody migration cuts over. CUSTODY_MODE is
     # the future enum that selects the active custody implementation.

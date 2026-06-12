@@ -171,10 +171,10 @@ export function makeApi(token: string | null) {
     paperResetUser: (userId: string) =>
       post<AdminPaperResetResult>(`/admin/users/${encodeURIComponent(userId)}/paper-reset`, {}),
     backfillDepositWallets: () =>
-      post<{ scanned: number; filled: number; skipped: number; ok: boolean }>(
-        "/admin/backfill-deposit-wallets",
-        {},
-      ),
+      post<{
+        scanned: number; filled: number; skipped: number; ok: boolean;
+        safes?: { scanned: number; filled: number; skipped: number };
+      }>("/admin/backfill-deposit-wallets", {}),
     // ── Runtime config (system_settings overlay) ───────────────────────────
     getAdminSettings: () => get<{ settings: RuntimeSetting[] }>("/admin/settings"),
     updateAdminSetting: (key: string, value: boolean | number | string) =>

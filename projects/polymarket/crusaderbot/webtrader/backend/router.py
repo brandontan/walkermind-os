@@ -3124,15 +3124,24 @@ async def admin_users(user: _AdminUser, limit: int = 50, offset: int = 0) -> dic
     pool = get_pool()
     async with pool.acquire() as conn:
         total = await conn.fetchval("SELECT COUNT(*) FROM users") or 0
+        live_ledger_filter = live_ledger_filter_sql("l")
         rows = await conn.fetch(
-            """
+            f"""
             SELECT u.id, u.username, u.email, u.role, u.auto_trade_on, u.paused,
                    u.created_at,
                    COALESCE(st.trading_mode, 'paper')        AS trading_mode,
                    COALESCE(st.active_preset, '')            AS active_preset,
                    COALESCE(w.balance_usdc, 0)               AS balance_usdc,
+                   -- live-mode-truth (admin surface): the user's REAL money
+                   -- bucket, using the canonical wallet.ledger live filter.
+                   COALESCE((SELECT SUM(l.amount_usdc) FROM ledger l
+                             WHERE l.user_id = u.id
+                               AND {live_ledger_filter}), 0)
+                       AS live_balance_usdc,
                    (SELECT COUNT(*) FROM positions p
-                     WHERE p.user_id = u.id AND p.status = 'open') AS open_positions
+                     WHERE p.user_id = u.id AND p.status = 'open'
+                       AND p.mode = COALESCE(st.trading_mode, 'paper'))
+                       AS open_positions
               FROM users u
               LEFT JOIN user_settings st ON st.user_id = u.id
               LEFT JOIN wallets       w  ON w.user_id  = u.id
@@ -3153,7 +3162,12 @@ async def admin_users(user: _AdminUser, limit: int = 50, offset: int = 0) -> dic
             "role": r["role"],
             "trading_mode": r["trading_mode"],
             "active_preset": r["active_preset"] or None,
-            "balance_usdc": float(r["balance_usdc"]),
+            # Mode-scoped truth (owner report 2026-06-12): a LIVE row must
+            # show the user's REAL balance, never the mixed/paper pool.
+            "balance_usdc": (
+                float(r["live_balance_usdc"]) if r["trading_mode"] == "live"
+                else max(float(r["balance_usdc"]) - float(r["live_balance_usdc"]), 0.0)
+            ),
             "auto_trade_on": bool(r["auto_trade_on"]),
             "paused": bool(r["paused"]),
             "open_positions": int(r["open_positions"]),
