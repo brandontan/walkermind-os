@@ -101,7 +101,9 @@ class _Conn:
             if d is None:
                 return None
             return {"id": d["id"], "user_id": d["user_id"],
-                    "amount_usdc": d["amount_usdc"], "status": d["status"]}
+                    "amount_usdc": d["amount_usdc"],
+                    "normalized_amount_usdc": d.get("normalized_amount_usdc"),
+                    "status": d["status"]}
         if "telegram_user_id" in sql:
             (user_id,) = args
             return {"telegram_user_id": self.store.tg_by_user.get(user_id, 999)}
@@ -221,6 +223,31 @@ def test_confirmed_then_reorg_removed_uncredits():
     kw = audit_write.await_args.kwargs
     assert kw["action"] == "deposit_credit_reverted"
     assert kw["payload"]["uncredited"] is True
+
+
+def test_confirmed_reorg_reverts_normalized_amount_not_raw():
+    """Codex P2: the confirm pass credits normalized_amount_usdc, so the reorg
+    revert must debit that SAME normalized value — not the raw token amount —
+    or a non-1:1 deposit would over/under-debit the wallet balance.
+    """
+    store = _Store()
+    user_id = uuid.uuid4()
+    store.deposits.append({
+        "id": uuid.uuid4(), "user_id": user_id, "tx_hash": "0xabc",
+        "log_index": 0, "amount_usdc": Decimal("100.0"),
+        "normalized_amount_usdc": Decimal("42.5"), "block_number": 100,
+        "status": "confirmed", "confirmed_at_block": 132,
+    })
+    credit, debit, audit_write, ctx = _harness(store)
+    with ctx, patch.object(scheduler.ledger, "credit_in_conn", credit), \
+         patch.object(scheduler.ledger, "debit_in_conn", debit), \
+         patch.object(scheduler.audit, "write", audit_write):
+        _run(scheduler._revert_deposit(_transfer(block=100, removed=True)))
+
+    debit.assert_awaited_once()
+    assert debit.await_args.args[2] == Decimal("42.5"), (
+        "revert debited the raw token amount, not the credited normalized value"
+    )
 
 
 # ---------------- Test 3: pending then removed → reverted, no ledger move -----

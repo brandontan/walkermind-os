@@ -421,7 +421,7 @@ async def _revert_deposit(t: dict) -> None:
         async with conn.transaction():
             dep = await conn.fetchrow(
                 """
-                SELECT id, user_id, amount_usdc, status
+                SELECT id, user_id, amount_usdc, normalized_amount_usdc, status
                   FROM deposits
                  WHERE tx_hash=$1 AND log_index=$2
                  FOR UPDATE
@@ -435,7 +435,13 @@ async def _revert_deposit(t: dict) -> None:
                 "sweep_error=NULL WHERE id=$1",
                 dep["id"], ledger.L_FAILED,
             )
-            amount = Decimal(str(dep["amount_usdc"]))
+            # Roll back exactly what was credited: the confirm pass credits the
+            # NORMALIZED amount (explicit is-None fallback, not truthiness — a
+            # legitimate zero must not silently revert the raw token amount).
+            normalized = dep["normalized_amount_usdc"]
+            amount = Decimal(
+                str(dep["amount_usdc"] if normalized is None else normalized)
+            )
             if dep["status"] == "confirmed":
                 # roll the credited funds back out of the user's balance
                 await ledger.debit_in_conn(

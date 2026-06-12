@@ -93,6 +93,10 @@ Decision     : APPROVE — WARP•R00T takes final gate responsibility, self-mer
 3. **Unsupported assets non-selectable end-to-end** — VERIFIED. Native `disabled` attribute (not keyboard-focusable per HTML semantics), `selectedAddress=""` for a disabled selection gates QR + copy off, API `deposit_address=null` for disabled options. Pinned by `test_deposit_modal_disabled_assets_not_selectable_no_qr` + FORGE's `test_api_options_do_not_attach_address_to_unavailable_assets`.
 4. **Custody address truth** — VERIFIED post-merge. `/wallet` resolves the displayed address via `wallet.custody.effective_deposit_address(w_row)` (safe_address under `CUSTODY_MODE='safe'`), and `asset_api_options()` attaches that same custody-aware address only to the enabled asset.
 
+### Codex review (P2) — reorg revert amount truth — FIXED
+
+Codex flagged that `_confirm_ready_deposits` now credits `normalized_amount_usdc` while `_revert_deposit` (reorg `removed=true` rollback) still debited the raw `amount_usdc` — a non-1:1 (or zero) normalized deposit would over/under-debit the wallet on a reorg. `_revert_deposit` now `SELECT`s `normalized_amount_usdc` and applies the same explicit `is None` fallback before `ledger.debit_in_conn`, so the credit and the rollback always move the same value. Pinned by `test_confirmed_reorg_reverts_normalized_amount_not_raw` (normalized=42.5 vs raw=100.0 → debits 42.5).
+
 ### R00T also fixed (found during the pass)
 
 - `tests/test_deposit_e2e.py` was broken by the FORGE change at the seams: (a) the `fake_scan` mocks branched on `token_address is None` for the primary scan, but the primary scan now passes the explicit USDC.e contract — the mocks now branch on the actual token contract, which upgrades the e2e into a behavioural proof that the primary scan is token-scoped and the wrong-token pass scans native USDC; (b) the deposits INSERT mock unpacked 5 args (now 11); (c) `primary_deposit_asset()` reads the real Settings — hermetic tests now patch the `scheduler.primary_deposit_asset` seam (same as the reorg harness).
