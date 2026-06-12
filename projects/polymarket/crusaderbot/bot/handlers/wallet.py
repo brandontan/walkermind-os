@@ -16,6 +16,7 @@ from telegram.ext import ContextTypes
 
 from ...users import upsert_user
 from ...wallet.ledger import get_balance
+from ...wallet.custody import effective_deposit_address
 from ...wallet.vault import get_wallet
 from ...wallet.withdrawals import (
     MIN_WITHDRAWAL_USDC,
@@ -88,7 +89,7 @@ async def _render_home(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if result is None:
         return
     user, w = result
-    address = w["deposit_address"] if w else "(not set)"
+    address = effective_deposit_address(w)
     balance = await get_balance(user["id"])
     text = wallet_text(balance, address)
     await _edit_or_reply(update, text, wallet_home_kb())
@@ -111,7 +112,7 @@ async def _render_deposit(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     if result is None:
         return
     user, w = result
-    address = w["deposit_address"] if w else "(not set)"
+    address = effective_deposit_address(w)
     balance = await get_balance(user["id"])
     text = wallet_deposit_text(address, balance)
     await _edit_or_reply(update, text, wallet_deposit_kb())
@@ -127,7 +128,7 @@ async def _handle_copy(update: Update) -> None:
     if result is None:
         return
     _, w = result
-    address = w["deposit_address"] if w else "(not set)"
+    address = effective_deposit_address(w)
     if address != "(not set)":
         await q.answer(f"Address: {address}", show_alert=True)
     else:

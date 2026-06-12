@@ -23,11 +23,18 @@ from projects.polymarket.crusaderbot.webtrader.backend import router as r
 _BACKFILL = (
     "projects.polymarket.crusaderbot.wallet.deposit_wallet.backfill_deposit_wallets"
 )
+# gasless-custody lane: the endpoint also fills wallets.safe_address (pure
+# local CREATE2). Patched alongside in every harness call below.
+_SAFE_BACKFILL = (
+    "projects.polymarket.crusaderbot.wallet.safe.backfill_safe_addresses"
+)
+_SAFE_SUMMARY = {"scanned": 0, "filled": 0, "skipped": 0}
 
 
 def _run(summary: dict) -> dict:
     with (
         patch(_BACKFILL, new=AsyncMock(return_value=summary)),
+        patch(_SAFE_BACKFILL, new=AsyncMock(return_value=_SAFE_SUMMARY)),
         patch.object(r.audit, "write", new=AsyncMock()) as mock_audit,
     ):
         out = asyncio.run(
@@ -39,7 +46,10 @@ def _run(summary: dict) -> dict:
 
 def test_backfill_happy_path_ok_true_and_audited() -> None:
     out = _run({"scanned": 3, "filled": 3, "skipped": 0})
-    assert out == {"scanned": 3, "filled": 3, "skipped": 0, "ok": True}
+    assert out == {
+        "scanned": 3, "filled": 3, "skipped": 0,
+        "safes": _SAFE_SUMMARY, "ok": True,
+    }
 
 
 def test_backfill_partial_skips_is_ok() -> None:
@@ -72,6 +82,7 @@ def test_backfill_concurrent_call_fails_fast_409() -> None:
         backfill = AsyncMock(return_value={"scanned": 1, "filled": 1, "skipped": 0})
         with (
             patch(_BACKFILL, new=backfill),
+            patch(_SAFE_BACKFILL, new=AsyncMock(return_value=_SAFE_SUMMARY)),
             patch.object(r.audit, "write", new=AsyncMock()),
         ):
             async with r._backfill_lock:
@@ -93,9 +104,10 @@ def test_backfill_audits_the_summary_payload() -> None:
     summary = {"scanned": 2, "filled": 2, "skipped": 0}
     with (
         patch(_BACKFILL, new=AsyncMock(return_value=summary)),
+        patch(_SAFE_BACKFILL, new=AsyncMock(return_value=_SAFE_SUMMARY)),
         patch.object(r.audit, "write", new=AsyncMock()) as mock_audit,
     ):
         asyncio.run(r.admin_backfill_deposit_wallets({"user_id": str(uuid4())}))
     kwargs = mock_audit.await_args.kwargs
     assert kwargs["action"] == "admin_backfill_deposit_wallets"
-    assert kwargs["payload"] == summary
+    assert kwargs["payload"] == {**summary, "safes": _SAFE_SUMMARY}

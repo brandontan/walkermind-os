@@ -1582,7 +1582,8 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
 
     async with pool.acquire() as conn:
         w_row = await conn.fetchrow(
-            "SELECT deposit_address, balance_usdc FROM wallets WHERE user_id=$1::uuid",
+            "SELECT deposit_address, safe_address, balance_usdc "
+            "FROM wallets WHERE user_id=$1::uuid",
             user_id,
         )
         settings_row = await conn.fetchrow(
@@ -1610,8 +1611,11 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
     _mixed = float(w_row["balance_usdc"])
     balance = _live_bal if _mode_live else max(_mixed - _live_bal, 0.0)
 
+    from ...wallet.custody import effective_deposit_address
     return WalletInfo(
-        deposit_address=w_row["deposit_address"],
+        # Custody-aware: safe mode shows the user's Polymarket Safe (the
+        # gasless sweep/payout surface); EOA mode shows the HD address.
+        deposit_address=effective_deposit_address(w_row),
         balance_usdc=balance,
         ledger_recent=[
             LedgerEntry(
@@ -3261,12 +3265,17 @@ async def admin_backfill_deposit_wallets(user: _AdminUser) -> dict:
         raise HTTPException(status_code=409, detail="backfill already in progress")
     async with _backfill_lock:
         from ...wallet.deposit_wallet import backfill_deposit_wallets
+        from ...wallet.safe import backfill_safe_addresses
         summary = await backfill_deposit_wallets()
+        # Safe-proxy addresses (gasless-custody lane): pure LOCAL CREATE2
+        # derivation per row — no network, no funds; idempotent on NULL rows.
+        # Required before CUSTODY_MODE='safe' surfaces can display the Safe.
+        safes = await backfill_safe_addresses()
         await audit.write(
             actor_role="admin",
             action="admin_backfill_deposit_wallets",
             user_id=UUID(str(user["user_id"])),
-            payload=summary,
+            payload={**summary, "safes": safes},
         )
         # scanned>0 with filled==0 AND skipped==0 means the run aborted at the
         # first row — the Polymarket SDK is unavailable in this runtime. Surface
@@ -3275,7 +3284,7 @@ async def admin_backfill_deposit_wallets(user: _AdminUser) -> dict:
         filled = int(summary.get("filled", 0))
         skipped = int(summary.get("skipped", 0))
         ok = not (scanned > 0 and filled == 0 and skipped == 0)
-        return {**summary, "ok": ok}
+        return {**summary, "safes": safes, "ok": ok}
 
 
 @router.delete(

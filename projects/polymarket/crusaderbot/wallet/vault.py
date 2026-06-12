@@ -59,8 +59,8 @@ async def get_wallet(user_id: UUID) -> dict | None:
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT deposit_address, hd_index, balance_usdc FROM wallets "
-            "WHERE user_id = $1",
+            "SELECT deposit_address, safe_address, hd_index, balance_usdc "
+            "FROM wallets WHERE user_id = $1",
             user_id,
         )
         return dict(row) if row else None
