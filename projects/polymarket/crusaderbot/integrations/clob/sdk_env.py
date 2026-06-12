@@ -45,23 +45,29 @@ def sdk_api_key() -> "object | None":
     wallet raises ``UserInputError`` — the exact shape behind the prod
     backfill's ``scanned 6, filled 0, skipped 6``. Preference order:
 
-    1. ``RelayerApiKey`` from RELAYER_API_KEY + RELAYER_API_KEY_ADDRESS
-       (the operator's dedicated relayer key).
-    2. ``BuilderApiKey`` from the POLY_BUILDER_* credential set.
+    1. ``BuilderApiKey`` from the POLY_BUILDER_* credential set. A builder
+       key relays on behalf of ARBITRARY user EOAs (builder pays gas) — the
+       only key kind that can deploy deposit wallets for our per-user HD
+       addresses.
+    2. ``RelayerApiKey`` from RELAYER_API_KEY + RELAYER_API_KEY_ADDRESS.
+       Address-BOUND: the relayer only accepts requests whose ``from`` equals
+       the key's own address — prod-proven 2026-06-12 when relayer-first
+       selection failed all 6 backfill resolves with
+       ``from 0x<user EOA> does not match auth 0x<relayer address>``.
     3. ``None`` — resolves still work for ALREADY-deployed wallets.
     """
     # getattr throughout: hermetic test fixtures stub Settings with partial
     # SimpleNamespaces (house pattern) — missing fields mean "unconfigured".
     s = get_settings()
-    relayer_key = getattr(s, "RELAYER_API_KEY", None)
-    relayer_addr = getattr(s, "RELAYER_API_KEY_ADDRESS", None)
-    if relayer_key and relayer_addr:
-        from polymarket.auth import RelayerApiKey  # noqa: WPS433
-        return RelayerApiKey(key=relayer_key, address=relayer_addr)
     b_key = getattr(s, "POLY_BUILDER_API_KEY", None)
     b_secret = getattr(s, "POLY_BUILDER_SECRET", None)
     b_pass = getattr(s, "POLY_BUILDER_PASSPHRASE", None)
     if b_key and b_secret and b_pass:
         from polymarket.auth import BuilderApiKey  # noqa: WPS433
         return BuilderApiKey(key=b_key, secret=b_secret, passphrase=b_pass)
+    relayer_key = getattr(s, "RELAYER_API_KEY", None)
+    relayer_addr = getattr(s, "RELAYER_API_KEY_ADDRESS", None)
+    if relayer_key and relayer_addr:
+        from polymarket.auth import RelayerApiKey  # noqa: WPS433
+        return RelayerApiKey(key=relayer_key, address=relayer_addr)
     return None
