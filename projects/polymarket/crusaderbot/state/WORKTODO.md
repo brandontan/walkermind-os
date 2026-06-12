@@ -1,12 +1,22 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-12 21:30**
+**Last Updated : 2026-06-12 23:05**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1787 -- live-enable-tos-checkbox-flow
+
+- [x] FORGE build complete on warp/implement-live-enable-tos-checkbox-flow (MAJOR — NARROW INTEGRATION).
+- [x] WebTrader LIVE enable typed phrase replaced with ToS/risk checkbox consent.
+- [x] Backend missing-consent path returns HTTP 400, accepted consent is audited with timestamp/version/user/surface/source, and $0 live balance succeeds as waiting-for-deposit.
+- [x] 2FA remains optional/recommended for account and withdrawal protection; no 2FA setup/status/verify/disable surface removed.
+- [x] Auto-Trade remains OFF after PAPER -> LIVE switch; shared LIVE Auto-Trade start guard still requires confirmed available live USDC.e >= $5.
+- [x] WARP🔹CMD first-pass PR check — 6 blockers + consent-version hardening raised on PR #1791.
+- [x] WARP•R00T finishing pass: switch no longer blocked on operator/checklist readiness in LiveActivationModal (warning/status only); STRICT consent_version (missing/stale → 400); 2FA card copy fixed to optional/recommended; merged main + exact branch across artifacts. PR #1791 MERGED under WARP•R00T final gate.
 
 ## #1782 -- self-serve-paper-to-live-switch
 

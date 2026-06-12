@@ -470,15 +470,19 @@ class LiveStatus(BaseModel):
 
 
 class LiveEnableRequest(BaseModel):
-    """POST /api/web/live/enable — typed-confirm flip from paper to live.
+    """POST /api/web/live/enable — checkbox-consent flip from paper to live.
 
-    The user types the EXACT confirm phrase (defends against accidental
-    clicks and one-tap bots). NO capital amount is required — live exposure
-    is bounded by the user's real deposited balance (risk-gate step 15).
+    WebTrader requires an explicit Terms/risk checkbox acknowledgement instead
+    of a typed phrase. NO capital amount is required — live exposure is bounded
+    by the user's real deposited balance (risk-gate step 15).
     ``live_capital_cap_usdc`` remains accepted from legacy clients as an
     OPTIONAL tightening-only cap; 0/omitted = real balance alone bounds.
+    ``confirm_phrase`` is retained only so stale clients fail via
+    ``consent_accepted`` validation instead of a request-shape 500.
     """
-    confirm_phrase: str
+    consent_accepted: bool = False
+    consent_version: str | None = None
+    confirm_phrase: str | None = None
     live_capital_cap_usdc: float = 0.0
 
 

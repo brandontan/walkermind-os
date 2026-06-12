@@ -1,16 +1,16 @@
 import { useState } from "react";
 import {
-  LIVE_ENABLE_CONFIRM_PHRASE,
+  LIVE_ENABLE_CONSENT_VERSION,
   type LiveEnableResponse,
   type LiveStatus,
 } from "../lib/api";
 
-type Step = "preview" | "confirm" | "submitting" | "success" | "error";
+type Step = "preview" | "consent" | "submitting" | "success" | "error";
 
 interface Props {
   status: LiveStatus;
   onClose: () => void;
-  onEnable: (phrase: string) => Promise<LiveEnableResponse>;
+  onEnable: (consentAccepted: boolean, consentVersion?: string) => Promise<LiveEnableResponse>;
   onSuccess?: () => void;
 }
 
@@ -40,19 +40,20 @@ function fmtUsd(v: number): string {
 }
 
 export function LiveActivationModal({ status, onClose, onEnable, onSuccess }: Props) {
-  const ready = status.operator_guards_open && status.checklist_passed;
+  // Live-trade ARMING readiness (operator guards + checklist). Display-only:
+  // the PAPER -> LIVE switch itself is self-serve and must never be blocked
+  // on it (#1787) — readiness only gates starting live Auto-Trade later.
+  const armReady = status.operator_guards_open && status.checklist_passed;
   const [step, setStep] = useState<Step>("preview");
-  const [phrase, setPhrase] = useState("");
+  const [consentAccepted, setConsentAccepted] = useState(false);
   const [result, setResult] = useState<LiveEnableResponse | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const phraseOk = phrase === LIVE_ENABLE_CONFIRM_PHRASE;
-
   async function handleSubmit() {
-    if (!phraseOk) return;
+    if (!consentAccepted) return;
     setStep("submitting");
     try {
-      const resp = await onEnable(phrase);
+      const resp = await onEnable(true, LIVE_ENABLE_CONSENT_VERSION);
       setResult(resp);
       setStep("success");
       onSuccess?.();
@@ -79,7 +80,7 @@ export function LiveActivationModal({ status, onClose, onEnable, onSuccess }: Pr
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            {step === "confirm" && (
+            {step === "consent" && (
               <button
                 type="button"
                 onClick={() => setStep("preview")}
@@ -104,15 +105,15 @@ export function LiveActivationModal({ status, onClose, onEnable, onSuccess }: Pr
         </div>
 
         {/* Step indicator */}
-        {(step === "preview" || step === "confirm") && (
+        {(step === "preview" || step === "consent") && (
           <div className="flex gap-1 mb-4">
-            {["preview", "confirm"].map((s, i) => (
+            {["preview", "consent"].map((s, i) => (
               <div
                 key={s}
                 className="h-[2px] flex-1 rounded-full transition-colors"
                 style={{
                   background:
-                    ["preview", "confirm"].indexOf(step) >= i
+                    ["preview", "consent"].indexOf(step) >= i
                       ? "rgba(0,255,156,0.8)"
                       : "rgba(255,255,255,0.1)",
                 }}
@@ -137,17 +138,24 @@ export function LiveActivationModal({ status, onClose, onEnable, onSuccess }: Pr
               <CheckRow ok={status.checklist_passed} label="Your account passes all readiness checks" />
             </div>
 
-            {!ready && (
+            {/* Readiness is status-only: it gates starting live Auto-Trade,
+                NOT this switch. The user may flip to LIVE now and lands in
+                LIVE ENABLED / WAITING FOR DEPOSIT until funded + ready. */}
+            {!armReady && (
               <div
                 className="p-3 rounded-sm"
                 style={{ background: "rgba(245,200,66,0.06)", border: "1px solid rgba(245,200,66,0.2)" }}
               >
                 <p className="font-hud text-[9px] font-bold tracking-[1.5px] uppercase text-gold mb-1">
-                  Not ready yet
+                  Heads up — live Auto-Trade not ready yet
+                </p>
+                <p className="text-[10px] font-mono text-ink-3 mb-1">
+                  You can still switch to LIVE now. The bot stays stopped, and live
+                  Auto-Trade won't start until these clear (plus $5 deposited):
                 </p>
                 {!status.operator_guards_open ? (
                   <p className="text-[10px] font-mono text-ink-3">
-                    The operator hasn't switched the system to live yet. You can't go live until that's done.
+                    The operator hasn't unlocked live order execution platform-wide yet.
                   </p>
                 ) : (
                   <ul className="text-[10px] font-mono text-ink-3 space-y-0.5 list-disc pl-3.5">
@@ -161,22 +169,21 @@ export function LiveActivationModal({ status, onClose, onEnable, onSuccess }: Pr
 
             <button
               type="button"
-              disabled={!ready}
-              onClick={() => setStep("confirm")}
-              className="w-full clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={() => setStep("consent")}
+              className="w-full clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors"
               style={{
                 background: "rgba(0,255,156,0.1)",
                 border: "1px solid rgba(0,255,156,0.35)",
                 color: "#00FF9C",
               }}
             >
-              {ready ? "Continue →" : "Locked"}
+              Continue →
             </button>
           </div>
         )}
 
-        {/* ── Step: typed confirm ── */}
-        {step === "confirm" && (
+        {/* ── Step: Terms/risk consent ── */}
+        {step === "consent" && (
           <div className="space-y-3">
             <div
               className="p-3.5 rounded-sm space-y-2"
@@ -192,24 +199,30 @@ export function LiveActivationModal({ status, onClose, onEnable, onSuccess }: Pr
               The bot stops the moment you switch — deposit USDC.e, then turn Auto-Trade back on
               when you're ready. With $0 deposited, no live trade can open. Risk controls remain
               on every trade: Kelly 0.25, position ≤10%, daily loss limit, drawdown halt, kill
-              switch. To confirm, type the phrase exactly:
+              switch. 2FA is optional and recommended for account and withdrawal protection; it is
+              not required to switch LIVE.
             </p>
-            <p className="text-[11px] font-mono text-gold text-center select-all py-1">
-              {LIVE_ENABLE_CONFIRM_PHRASE}
+            <label
+              className="flex gap-3 p-3 rounded-sm cursor-pointer transition-colors"
+              style={{ background: consentAccepted ? "rgba(0,255,156,0.08)" : "rgba(255,255,255,0.03)", border: consentAccepted ? "1px solid rgba(0,255,156,0.35)" : "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <input
+                type="checkbox"
+                checked={consentAccepted}
+                onChange={(e) => setConsentAccepted(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-[#00FF9C] flex-shrink-0"
+                aria-label="Accept live trading terms and risk acknowledgement"
+              />
+              <span className="text-[10px] font-mono text-ink-2 leading-relaxed">
+                I accept the <a href="/legal/terms" target="_blank" rel="noreferrer" className="text-gold underline underline-offset-2">Terms of Service</a> and understand LIVE trading uses real USDC, can lose money, does not start Auto-Trade by itself, and remains blocked from live Auto-Trade until my confirmed available live USDC.e is at least $5.
+              </span>
+            </label>
+            <p className="text-[9px] font-mono text-ink-4 leading-relaxed">
+              Consent version: {LIVE_ENABLE_CONSENT_VERSION}. This acknowledgement is recorded with your LIVE enable audit event.
             </p>
-            <input
-              type="text"
-              value={phrase}
-              onChange={(e) => setPhrase(e.target.value)}
-              placeholder="Type the phrase above"
-              autoFocus
-              spellCheck={false}
-              autoCapitalize="characters"
-              className="w-full px-3 py-2.5 bg-transparent border border-border-1 font-mono text-[11px] text-ink-1 rounded-sm focus:outline-none focus:border-gold/50 placeholder-ink-4"
-            />
             <button
               type="button"
-              disabled={!phraseOk}
+              disabled={!consentAccepted}
               onClick={() => void handleSubmit()}
               className="w-full clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ background: "rgba(0,255,156,0.12)", border: "1px solid rgba(0,255,156,0.45)", color: "#00FF9C" }}
@@ -273,7 +286,7 @@ export function LiveActivationModal({ status, onClose, onEnable, onSuccess }: Pr
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => { setSubmitError(null); setStep("confirm"); }}
+                onClick={() => { setSubmitError(null); setStep("consent"); }}
                 className="flex-1 clip-btn font-hud text-[10px] font-bold tracking-[1.5px] uppercase py-2.5 transition-colors"
                 style={{ background: "rgba(0,255,156,0.08)", border: "1px solid rgba(0,255,156,0.25)", color: "#00FF9C" }}
               >
