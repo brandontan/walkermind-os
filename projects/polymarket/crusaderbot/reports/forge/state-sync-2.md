@@ -27,6 +27,7 @@ Violations corrected:
 ## 2. Files Modified
 
 - `projects/polymarket/crusaderbot/state/PROJECT_STATE.md`
+- `projects/polymarket/crusaderbot/state/CHANGELOG.md`
 
 ---
 
