@@ -196,10 +196,11 @@ def test_record_health_result_alerts_after_threshold_then_cools_down():
 
 
 def test_health_log_does_not_leak_exception_url(caplog):
-    """The ERROR log emitted by ``_with_timeout`` must NOT contain the
-    raw exception URL: httpx errors include the full request URL and
-    Alchemy embeds the API key in the URL path. The endpoint payload is
-    sanitised already; the application log stream must be too.
+    """The log emitted by ``_with_timeout`` must NOT contain the raw
+    exception URL: httpx errors include the full request URL and Alchemy
+    embeds the API key in the URL path. The endpoint payload is sanitised
+    already; the application log stream must be too. (alchemy_rpc is a
+    non-critical probe -> WARNING, so capture at WARNING.)
     """
     SECRET_PATH = "v2/ALCHEMY_KEY_DO_NOT_LEAK"
     SECRET_URL = f"https://polygon-mainnet.g.alchemy.com/{SECRET_PATH}"
@@ -209,7 +210,7 @@ def test_health_log_does_not_leak_exception_url(caplog):
             f"Client error '401 Unauthorized' for url '{SECRET_URL}'"
         )
 
-    with caplog.at_level("ERROR", logger="projects.polymarket.crusaderbot.monitoring.health"):
+    with caplog.at_level("WARNING", logger="projects.polymarket.crusaderbot.monitoring.health"):
         with patch.object(monitoring_health, "check_alchemy_rpc", new=_leaks):
             _run(monitoring_health.run_health_checks())
     log_text = "\n".join(rec.getMessage() for rec in caplog.records)
@@ -220,6 +221,66 @@ def test_health_log_does_not_leak_exception_url(caplog):
     # exception class name + a redacted URL marker.
     assert "RuntimeError" in log_text
     assert "<redacted>" in log_text
+
+
+def test_noncritical_probe_failure_logs_warning_not_error(caplog):
+    """A non-blocking probe failure (telegram/alchemy_*) only degrades
+    readiness, so it must log at WARNING — keeping it out of Sentry's error
+    stream (default event_level=ERROR). Regression for the ~5k telegram
+    ConnectError Sentry events/14d with zero user impact.
+    """
+    patches = [
+        _patch_check("check_database", ok=True),
+        _patch_check("check_telegram", ok=False,
+                     exc=RuntimeError("telegram transient ConnectError")),
+        _patch_check("check_alchemy_rpc", ok=True),
+        _patch_check("check_alchemy_ws", ok=True),
+    ]
+    for p in patches:
+        p.start()
+    try:
+        with caplog.at_level("WARNING", logger="projects.polymarket.crusaderbot.monitoring.health"):
+            result = _run(monitoring_health.run_health_checks())
+    finally:
+        for p in patches:
+            p.stop()
+
+    recs = [r for r in caplog.records if "name=telegram" in r.getMessage()]
+    assert recs, "telegram probe failure must still be logged"
+    assert all(r.levelname == "WARNING" for r in recs), (
+        f"non-critical probe must log WARNING, got {[r.levelname for r in recs]}"
+    )
+    # Degraded but still ready — the probe is non-blocking.
+    assert result["status"] == "degraded"
+    assert result["ready"] is True
+
+
+def test_critical_database_failure_logs_error(caplog):
+    """The database check drives status='down'/ready=False — its failure is
+    operator-critical and MUST stay at ERROR (a Sentry event)."""
+    patches = [
+        _patch_check("check_database", ok=False,
+                     exc=RuntimeError("db connection refused")),
+        _patch_check("check_telegram", ok=True),
+        _patch_check("check_alchemy_rpc", ok=True),
+        _patch_check("check_alchemy_ws", ok=True),
+    ]
+    for p in patches:
+        p.start()
+    try:
+        with caplog.at_level("WARNING", logger="projects.polymarket.crusaderbot.monitoring.health"):
+            result = _run(monitoring_health.run_health_checks())
+    finally:
+        for p in patches:
+            p.stop()
+
+    recs = [r for r in caplog.records if "name=database" in r.getMessage()]
+    assert recs, "database probe failure must be logged"
+    assert all(r.levelname == "ERROR" for r in recs), (
+        f"critical DB probe must log ERROR, got {[r.levelname for r in recs]}"
+    )
+    assert result["status"] == "down"
+    assert result["ready"] is False
 
 
 def test_settings_accepts_alias_only_polygon_rpc_url(monkeypatch):
