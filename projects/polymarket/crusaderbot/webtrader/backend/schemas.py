@@ -489,6 +489,9 @@ class LiveEnableResponse(BaseModel):
     live_balance_usdc: float = 0.0
     # Mode switches auto-stop the bot; the user re-arms deliberately.
     auto_trade_on: bool = False
+    # LIVE may be enabled before deposit; Auto-Trade remains locked until >= $5.
+    waiting_for_deposit: bool = True
+    status: str = "LIVE ENABLED / WAITING FOR DEPOSIT"
 
 
 class StrategyToggleRequest(BaseModel):

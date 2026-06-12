@@ -172,25 +172,28 @@ def test_enable_live_no_manual_cap_required_and_auto_stops():
         live_opt_in_gate as opt_in,
     )
     src = inspect.getsource(router_mod.enable_live)
+    from projects.polymarket.crusaderbot.domain.activation import live_mode
+    helper_src = inspect.getsource(live_mode.enable_live_self_serve)
     # Optional cap: present-but-bounded, never required.
     assert "manual_cap" in src
     assert "LIVE_CAP_MAX_USDC" in src
     assert opt_in.LIVE_CAP_MAX_USDC == 10_000.0
     # Single mode truth: both columns written together.
-    assert "trading_mode = 'live'" in src
-    assert "paper_mode_override = FALSE" in src
+    assert "trading_mode = 'live'" in helper_src
+    assert "paper_mode_override = FALSE" in helper_src
     # Auto-stop on switch.
-    assert "auto_trade_on = FALSE" in src
+    assert "auto_trade_on = FALSE" in helper_src
 
 
-def test_enable_live_requires_operator_guards_and_checklist():
-    """POST /live/enable must short-circuit when operator guards are
-    closed OR when the per-user 8-gate checklist hasn't passed.
+def test_enable_live_is_self_serve_not_operator_or_admin_gated():
+    """POST /live/enable is self-serve: typed user consent flips mode,
+    while operator guards/checklist/$5 balance gate LIVE Auto-Trade start.
     """
     src = inspect.getsource(router_mod.enable_live)
-    assert "_operator_guards_open(s)" in src
-    assert "live_checklist.evaluate" in src
-    assert "checklist.passed" in src
+    assert "_operator_guards_open(s)" not in src
+    assert "live_checklist.evaluate" not in src
+    assert "enable_live_self_serve" in src
+    assert "waiting_for_deposit" in src
 
 
 def test_enable_live_writes_audit_log():

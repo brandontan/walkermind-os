@@ -21,9 +21,9 @@ from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
-from ...domain.activation import live_checklist
+from ...domain.activation import live_checklist, live_mode
 from ...jobs import daily_pnl_summary
-from ...users import get_settings_for, set_auto_trade, update_settings, upsert_user
+from ...users import get_settings_for, set_auto_trade, upsert_user
 
 logger = logging.getLogger(__name__)
 
@@ -129,17 +129,21 @@ async def autotrade_toggle_pending_confirm(
         return False
     if (settings_row.get("trading_mode") or "paper") != "live":
         return False
-    # Re-run the full activation checklist BEFORE arming CONFIRM. The
-    # /setup live-mode picker only blocks on Tier + global flags, and
-    # the risk gate's live selection only checks globals + tier +
-    # trading_mode — neither enforces 2FA or the active-subaccount /
-    # configured-strategy gates. Without this re-evaluation a user
-    # whose checklist is failing could still type CONFIRM and route a
-    # real CLOB order. Surface the fix list and refuse the flip when
-    # any gate fails so the checklist is a hard pre-activation gate.
+    # LIVE Auto-Trade start is the real-money arming point: require all
+    # platform/operator gates plus a confirmed available live balance >= $5.
     result = await live_checklist.evaluate(user["id"])
-    if not result.ready_for_live:
-        await _reply(update, live_checklist.render_telegram(result), parse_mode=ParseMode.HTML)
+    live_balance, enough_balance = await live_mode.live_autotrade_balance_status(user["id"])
+    if not result.ready_for_live or not enough_balance:
+        if not result.ready_for_live:
+            await _reply(update, live_checklist.render_telegram(result), parse_mode=ParseMode.HTML)
+        else:
+            await _reply(
+                update,
+                "🟡 *LIVE ENABLED / WAITING FOR DEPOSIT*\n\n"
+                f"Deposit at least *$5 USDC\\.e* confirmed available to start "
+                f"Auto\\-Trade\\. Current confirmed live balance: "
+                f"`${float(live_balance):,.2f}`\\.",
+            )
         return True
     if ctx.user_data is not None:
         ctx.user_data[AWAITING_KEY] = AWAITING_LIVE_CONFIRM
@@ -171,18 +175,18 @@ async def trading_mode_live_pending_confirm(
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username,
     )
-    result = await live_checklist.evaluate(user["id"])
-    if not result.ready_for_live:
-        await _reply(update, live_checklist.render_telegram(result), parse_mode=ParseMode.HTML)
-        return True
+    # Self-serve mode switching only requires explicit typed consent.
+    # Operator guards, 2FA, admin approval and the $5 live-balance threshold
+    # are enforced later when the user tries to start LIVE Auto-Trade.
     if ctx.user_data is not None:
         ctx.user_data[AWAITING_KEY] = AWAITING_TRADING_MODE_LIVE_CONFIRM
     await _reply(
         update,
         "⚠️ *You are switching trading mode to LIVE — real capital\\.* \n"
-        "All activation gates have passed\\.\n\n"
-        "If your auto\\-trade is already ON, the next signal will route "
-        "as a real Polymarket order\\.\n\n"
+        "Auto\\-Trade will be forced *OFF* and paper simulation history "
+        "will be hidden from LIVE trade/activity/alert surfaces\\.\n\n"
+        "2FA is recommended but optional; admin approval is not required\\. "
+        "Deposit at least *$5 USDC\\.e* before starting LIVE Auto\\-Trade\\.\n\n"
         "Type *CONFIRM* \\(in capitals\\) to proceed, or anything else to "
         "cancel\\.",
     )
@@ -224,24 +228,27 @@ async def text_input(
     user = await upsert_user(
         update.effective_user.id, update.effective_user.username,
     )
-    # Defense-in-depth re-check: the operator could have flipped
-    # ENABLE_LIVE_TRADING off, the user's deposit could have been
-    # reverted, or 2FA could have been revoked between the prompt and
-    # this reply. Re-run the checklist and refuse the flip if any gate
-    # has degraded since CONFIRM was armed.
     result = await live_checklist.evaluate(user["id"])
-    if not result.ready_for_live:
-        await update.message.reply_text(
-            live_checklist.render_telegram(result),
-            parse_mode=ParseMode.HTML,
-        )
-        return True
     if awaiting == AWAITING_LIVE_CONFIRM:
         if user.get("locked", False):
             await update.message.reply_text(
                 "🔒 Account locked\\. Contact admin\\.",
                 parse_mode=ParseMode.MARKDOWN_V2,
             )
+            return True
+        live_balance, enough_balance = await live_mode.live_autotrade_balance_status(user["id"])
+        if not result.ready_for_live or not enough_balance:
+            text = (
+                live_checklist.render_telegram(result)
+                if not result.ready_for_live
+                else (
+                    "🟡 <b>LIVE ENABLED / WAITING FOR DEPOSIT</b>\n\n"
+                    "Deposit at least <b>$5 USDC.e</b> confirmed available "
+                    "to start Auto-Trade. Current confirmed live balance: "
+                    f"<code>${float(live_balance):,.2f}</code>."
+                )
+            )
+            await update.message.reply_text(text, parse_mode=ParseMode.HTML)
             return True
         await set_auto_trade(user["id"], True)
         await update.message.reply_text(
@@ -251,10 +258,19 @@ async def text_input(
         )
         return True
     # AWAITING_TRADING_MODE_LIVE_CONFIRM
-    await update_settings(user["id"], trading_mode="live")
+    switch = await live_mode.enable_live_self_serve(user["id"])
+    balance = float(switch.live_balance_usdc)
+    status = (
+        "🟢 Trading mode set to *LIVE*\\. Auto\\-trade is *OFF*\\."
+        if not switch.waiting_for_deposit
+        else "🟡 *LIVE ENABLED / WAITING FOR DEPOSIT*\\. Auto\\-trade is *OFF*\\."
+    )
     await update.message.reply_text(
-        "🟢 Trading mode set to *LIVE*\\. Existing risk gates still apply "
-        "on every signal\\. Toggle auto\\-trade to engage\\.",
+        f"{status}\n\n"
+        f"Paper simulation history is hidden from LIVE surfaces\\. "
+        f"Confirmed live balance: `${balance:,.2f}` USDC\\.e\n"
+        f"Deposit at least `$5` USDC\\.e and confirm risk settings before "
+        f"starting LIVE Auto\\-Trade\\.",
         parse_mode=ParseMode.MARKDOWN_V2,
     )
     return True

@@ -17,7 +17,7 @@ from pathlib import Path
 
 from projects.polymarket.crusaderbot.domain.activation.live_checklist import (
     GATE_FIX_HINTS,
-    GATE_TWO_FACTOR_SETUP,
+    GATE_TWO_FACTOR_OPTIONAL,
 )
 
 _DISPATCHER_SRC = (
@@ -26,13 +26,9 @@ _DISPATCHER_SRC = (
 
 
 class TestGate7TwoFactorTruth:
-    def test_fix_hint_points_to_shipped_web_flow(self) -> None:
-        hint = GATE_FIX_HINTS[GATE_TWO_FACTOR_SETUP]
-        assert "WebTrader" in hint
-        assert "Settings" in hint
-        # The pre-#1737 framing must be gone.
-        assert "Contact an admin" not in hint
-        assert "until self-serve 2FA ships" not in hint
+    def test_2fa_is_optional_not_a_fix_hint_gate(self) -> None:
+        assert GATE_TWO_FACTOR_OPTIONAL == "two_factor_optional_recommended"
+        assert "two_factor_setup_complete" not in GATE_FIX_HINTS
 
     def test_module_carries_no_stale_unshipped_claim(self) -> None:
         src = (

@@ -82,13 +82,13 @@ async def _read_state(telegram_user) -> dict:
     state["running"] = bool(u.get("auto_trade_on")) and not state["paused"]
     settings = await _users.fetch_settings(u["id"])
 
-    balance = await _users.fetch_balance(u["id"])
+    state["mode"] = await _users.fetch_trading_mode(u["id"])
+    balance = await _users.fetch_balance(u["id"], state["mode"])
     state["balance"] = balance
     risk_raw = str(settings.get("risk_profile") or _DEFAULT_RISK_KEY).lower()
     fraction = _RISK_CAPITAL_FRACTIONS.get(risk_raw, _RISK_CAPITAL_FRACTIONS[_DEFAULT_RISK_KEY])
     state["capital"] = round(balance * fraction, 2) if balance > 0 else _DEFAULT_CAPITAL
     state["risk"] = _RISK_LABELS.get(risk_raw, _DEFAULT_RISK)
-    state["mode"] = await _users.fetch_trading_mode(u["id"])
 
     preset = settings.get("active_preset")
     if preset:
@@ -97,9 +97,9 @@ async def _read_state(telegram_user) -> dict:
         cfg = PRESET_CONFIG.get(preset, {})
         label = cfg.get("name") or str(preset).title().replace("_", " ")
         state["strategy"] = label
-    state["pnl_today"] = await _users.fetch_daily_pnl(u["id"])
-    state["win_rate"] = await _users.fetch_win_rate(u["id"])
-    state["executions"] = await _users.fetch_closed_trade_count(u["id"], days=1)
+    state["pnl_today"] = await _users.fetch_daily_pnl(u["id"], state["mode"])
+    state["win_rate"] = await _users.fetch_win_rate(u["id"], mode=state["mode"])
+    state["executions"] = await _users.fetch_closed_trade_count(u["id"], days=1, mode=state["mode"])
 
     # Admin strategy flags — check if the user's active strategy is globally blocked
     try:
@@ -206,6 +206,25 @@ async def do_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if user is not None:
         u = await _users.fetch_user(user.id, user.username)
         if u is not None:
+            settings = await _users.fetch_settings(u["id"])
+            if (settings.get("trading_mode") or "paper") == "live":
+                from ....domain.activation import live_checklist, live_mode  # type: ignore
+
+                checklist = await live_checklist.evaluate(u["id"])
+                live_balance, enough_balance = await live_mode.live_autotrade_balance_status(u["id"])
+                if not checklist.ready_for_live or not enough_balance:
+                    detail = (
+                        live_checklist.render_telegram(checklist)
+                        if not checklist.ready_for_live
+                        else (
+                            "🟡 <b>LIVE ENABLED / WAITING FOR DEPOSIT</b>\n\n"
+                            "Deposit at least <b>$5 USDC.e</b> confirmed available "
+                            "to start Auto-Trade. Current confirmed live balance: "
+                            f"<code>${float(live_balance):,.2f}</code>."
+                        )
+                    )
+                    await send_or_edit(update, detail, None)
+                    return
             await _users.set_paused(u["id"], False)
             await _users.set_auto_trade(u["id"], True)
             # Derive real capital from balance × risk fraction (WARP-72 fix)

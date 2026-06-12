@@ -2576,6 +2576,7 @@ from ...domain.activation.live_opt_in_gate import (  # noqa: E402
     LIVE_CAP_MIN_USDC,
     LIVE_ENABLE_CONFIRM_PHRASE as _LIVE_ENABLE_CONFIRM_PHRASE,
 )
+from ...domain.activation import live_mode as _live_mode  # noqa: E402
 
 
 def _operator_guards_open(s) -> bool:
@@ -2641,37 +2642,17 @@ async def enable_live(
     body: LiveEnableRequest,
     user: _CurrentUser,
 ) -> LiveEnableResponse:
-    """Flip the user's trading_mode to 'live' after typed confirmation.
+    """Self-serve flip to LIVE after typed confirmation.
 
-    Live-mode-truth semantics (owner directive 2026-06-11):
-      * NO manual capital amount — live exposure is bounded by the user's
-        REAL deposited balance (risk-gate step 15). An optional cap may
-        still arrive from legacy clients and only tightens that bound.
-      * A prior deposit is NOT required: switch first, deposit after.
-      * The switch AUTO-STOPS the bot (users.auto_trade_on=FALSE) — nothing
-        trades until the user deposits and explicitly re-arms Auto-Trade.
-      * Single mode truth: trading_mode + paper_mode_override are written
-        together so no surface can ever disagree about the user's mode.
-
-    Defensive gates (all must pass):
-      1. Operator env guards are open.
-      2. 7-gate live_checklist passes for this user.
-      3. `confirm_phrase` matches the exact required string. Defends
-         against accidental clicks; no normalisation, case-sensitive.
-      4. The gate-level enforcement in `domain/risk/gate.py` step 15
-         still has the final say on every individual trade — zero real
-         funds means zero live trades regardless of this switch.
+    The mode switch itself does not require 2FA, admin approval, a deposit,
+    or open operator execution guards. It only records explicit user consent,
+    forces Auto-Trade OFF, hides paper simulation state from LIVE surfaces,
+    and returns WAITING_FOR_DEPOSIT until confirmed available live USDC.e is
+    at least $5. Operator guards and the $5 balance threshold are enforced
+    when LIVE Auto-Trade is started and on every live order path.
     """
-    from ...domain.activation import live_checklist
-    from ...config import get_settings
-    s = get_settings()
     user_id = user["user_id"]
 
-    if not _operator_guards_open(s):
-        raise HTTPException(
-            status_code=409,
-            detail="operator activation guards are not open",
-        )
     if body.confirm_phrase != _LIVE_ENABLE_CONFIRM_PHRASE:
         raise HTTPException(
             status_code=400,
@@ -2687,54 +2668,40 @@ async def enable_live(
             detail=f"live_capital_cap_usdc must be ≥ 0 and ≤ {int(LIVE_CAP_MAX_USDC)}",
         )
 
-    checklist = await live_checklist.evaluate(UUID(str(user_id)))
-    if not checklist.passed:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "message": "live_checklist gates not all passing",
-                "failed_gates": list(checklist.failed_gates),
-            },
-        )
-
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
-                "UPDATE user_settings "
-                "   SET trading_mode = 'live', "
-                "       paper_mode_override = FALSE, "
-                "       live_capital_cap_usdc = $2, "
-                "       updated_at = NOW() "
-                " WHERE user_id = $1::uuid",
-                user_id, manual_cap,
-            )
-            # AUTO-STOP on mode switch: the bot must not trade the instant
-            # the user goes live — they deposit first, then re-arm.
-            await conn.execute(
-                "UPDATE users SET auto_trade_on = FALSE WHERE id = $1::uuid",
-                user_id,
-            )
-
-    live_bal = float(await get_live_balance(UUID(str(user_id))))
+    switch = await _live_mode.enable_live_self_serve(
+        UUID(str(user_id)),
+        live_capital_cap_usdc=manual_cap,
+    )
     await audit.write(
         actor_role="user",
         action="webtrader_live_enable",
         user_id=UUID(str(user_id)),
         payload={
             "live_capital_cap_usdc": manual_cap,
-            "live_balance_usdc": live_bal,
+            "live_balance_usdc": float(switch.live_balance_usdc),
             "auto_trade_stopped": True,
-            "operator_guards_open": True,
-            "checklist_passed": True,
+            "waiting_for_deposit": switch.waiting_for_deposit,
+            "archived_positions": switch.archived_positions,
+            "archived_orders": switch.archived_orders,
+            "self_serve": True,
+            "two_factor_required": False,
+            "admin_approval_required": False,
         },
+    )
+    status = (
+        "LIVE ENABLED"
+        if not switch.waiting_for_deposit
+        else "LIVE ENABLED / WAITING FOR DEPOSIT"
     )
     return LiveEnableResponse(
         trading_mode="live",
         live_capital_cap_usdc=manual_cap,
-        live_balance_usdc=live_bal,
+        live_balance_usdc=float(switch.live_balance_usdc),
         auto_trade_on=False,
+        waiting_for_deposit=switch.waiting_for_deposit,
+        status=status,
     )
+
 
 
 @router.post(

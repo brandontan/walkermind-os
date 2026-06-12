@@ -48,32 +48,44 @@ async def fetch_settings(user_uuid) -> dict:
     return out
 
 
-async def fetch_balance(user_uuid) -> float:
+async def fetch_balance(user_uuid, mode: str = "paper") -> float:
     try:
-        from ....wallet.ledger import get_balance  # type: ignore
-        return float(await get_balance(user_uuid) or 0)
+        from ....wallet.ledger import get_balance, get_live_balance  # type: ignore
+        if mode == "live":
+            return float(await get_live_balance(user_uuid) or 0)
+        mixed = float(await get_balance(user_uuid) or 0)
+        live = float(await get_live_balance(user_uuid) or 0)
+        return max(mixed - live, 0.0)
     except Exception as exc:  # noqa: BLE001
         log.debug("get_balance failed: %s", exc)
         return 0.0
 
 
-async def fetch_daily_pnl(user_uuid) -> float:
+async def fetch_daily_pnl(user_uuid, mode: str = "paper") -> float:
     try:
-        from ....wallet.ledger import daily_pnl  # type: ignore
-        return float(await daily_pnl(user_uuid) or 0)
+        from ....database import get_pool  # type: ignore
+        pool = get_pool()
+        async with pool.acquire() as conn:
+            val = await conn.fetchval(
+                """SELECT COALESCE(SUM(pnl_usdc), 0) FROM positions
+                   WHERE user_id=$1 AND mode=$2 AND status='closed'
+                     AND closed_at >= NOW() - INTERVAL '24 hours'""",
+                user_uuid, mode,
+            )
+            return float(val or 0)
     except Exception as exc:  # noqa: BLE001
         log.debug("daily_pnl failed: %s", exc)
         return 0.0
 
 
-async def fetch_open_position_count(user_uuid) -> int:
+async def fetch_open_position_count(user_uuid, mode: str = "paper") -> int:
     try:
         from ....database import get_pool  # type: ignore
         pool = get_pool()
         async with pool.acquire() as conn:
             n = await conn.fetchval(
-                "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status IN ('open','pending_settlement')",
-                user_uuid,
+                "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND mode=$2 AND status IN ('open','pending_settlement')",
+                user_uuid, mode,
             )
             return int(n or 0)
     except Exception as exc:  # noqa: BLE001
@@ -141,15 +153,15 @@ async def fetch_week_pnl(user_uuid) -> float:
         return 0.0
 
 
-async def fetch_closed_trade_count(user_uuid, days: int = 1) -> int:
+async def fetch_closed_trade_count(user_uuid, days: int = 1, mode: str = "paper") -> int:
     try:
         from ....database import get_pool  # type: ignore
         pool = get_pool()
         async with pool.acquire() as conn:
             n = await conn.fetchval(
-                "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND status='closed'"
-                " AND closed_at >= NOW() - ($2 || ' days')::INTERVAL",
-                user_uuid, str(days),
+                "SELECT COUNT(*) FROM positions WHERE user_id=$1 AND mode=$2 AND status='closed'"
+                " AND closed_at >= NOW() - ($3 || ' days')::INTERVAL",
+                user_uuid, mode, str(days),
             )
             return int(n or 0)
     except Exception as exc:  # noqa: BLE001
@@ -157,7 +169,7 @@ async def fetch_closed_trade_count(user_uuid, days: int = 1) -> int:
         return 0
 
 
-async def fetch_win_rate(user_uuid, days: int = 7) -> int:
+async def fetch_win_rate(user_uuid, days: int = 7, mode: str = "paper") -> int:
     """Return integer win-rate percentage over the last N days."""
     try:
         from ....database import get_pool  # type: ignore
@@ -165,9 +177,9 @@ async def fetch_win_rate(user_uuid, days: int = 7) -> int:
         async with pool.acquire() as conn:
             rows = await conn.fetch(
                 "SELECT COALESCE(pnl_usdc, 0) AS pnl FROM positions"
-                " WHERE user_id=$1 AND status='closed'"
-                " AND closed_at >= NOW() - ($2 || ' days')::INTERVAL",
-                user_uuid, str(days),
+                " WHERE user_id=$1 AND mode=$2 AND status='closed'"
+                " AND closed_at >= NOW() - ($3 || ' days')::INTERVAL",
+                user_uuid, mode, str(days),
             )
             if not rows:
                 return 0

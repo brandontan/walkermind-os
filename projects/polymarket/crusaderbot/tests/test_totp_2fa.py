@@ -3,7 +3,7 @@
 Pins the contract: enrol generates + encrypts a secret; verify validates
 RFC 6238 codes with ±1 window tolerance; enable flips both the column AND
 the legacy ``system_settings[2fa_enabled:{uid}]`` flag the existing
-live_checklist gate reads; disable clears everything; status leaks no secret.
+live_checklist optional status reads; disable clears everything; status leaks no secret.
 """
 from __future__ import annotations
 
@@ -139,7 +139,7 @@ async def test_enroll_persists_encrypted_secret_and_returns_uri() -> None:
 @pytest.mark.asyncio
 async def test_verify_and_enable_flips_both_column_and_legacy_flag() -> None:
     """The legacy ``system_settings[2fa_enabled:{uid}]`` write is THE thing
-    that makes live_checklist gate 7 light up — must be present."""
+    that makes live_checklist optional 2FA status light up — must be present."""
     settings = _Settings()
     secret = _totp.generate_secret()
     encrypted = _make_encrypted(secret, settings.WALLET_ENCRYPTION_KEY)
@@ -160,7 +160,7 @@ async def test_verify_and_enable_flips_both_column_and_legacy_flag() -> None:
         args for sql, args in conn.executed
         if "system_settings" in sql and "INSERT" in sql
     ]
-    assert flag_writes, "expected system_settings write so the live_checklist gate lights up"
+    assert flag_writes, "expected system_settings write so live_checklist optional status lights up"
     assert flag_writes[0][0] == f"2fa_enabled:{uid}"
 
 
@@ -289,8 +289,8 @@ async def test_status_returns_false_for_unknown_user() -> None:
 @pytest.mark.asyncio
 async def test_live_checklist_gate_reads_the_flag_we_write() -> None:
     """The lane's whole purpose: verify_and_enable writes the SAME key that
-    domain/activation/live_checklist._gate_two_factor reads. If this drifts,
-    self-serve 2FA stops unlocking the live gate."""
+    domain/activation/live_checklist._gate_two_factor_optional reads. If this drifts,
+    self-serve 2FA stops reflecting in live readiness status."""
     from projects.polymarket.crusaderbot.domain.activation import live_checklist
     uid = _uuid.uuid4()
     # Drive verify_and_enable's INSERT into system_settings and capture the key.
@@ -310,4 +310,4 @@ async def test_live_checklist_gate_reads_the_flag_we_write() -> None:
     expected_key = f"2fa_enabled:{uid}"
     assert written_key == expected_key
     # Belt-and-suspenders: the gate constructs its own key the same way.
-    assert hasattr(live_checklist, "_gate_two_factor")
+    assert hasattr(live_checklist, "_gate_two_factor_optional")

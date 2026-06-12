@@ -1,7 +1,6 @@
 """R12 Live Opt-In Checklist — pre-activation gate.
 
-Seven gates that all must pass before a user is permitted to flip
-auto-trade ON in live mode. A prior deposit is deliberately NOT a gate
+Five required gates plus optional 2FA status for live Auto-Trade readiness. A prior deposit is deliberately NOT a gate
 (live-mode-truth lane, owner directive 2026-06-11): users switch to live
 FIRST and deposit after — the bot auto-stops on the switch, and risk-gate
 step 15 rejects any live trade while the real deposited balance is zero,
@@ -10,7 +9,7 @@ activation flag — it only reports readiness. Operator action remains
 the sole way to set ``EXECUTION_PATH_VALIDATED`` / ``CAPITAL_MODE_CONFIRMED``
 / ``ENABLE_LIVE_TRADING`` and to grant Tier 4.
 
-Gate order is fixed (1→7) and surfaced in the result so the Telegram
+Gate order is fixed and surfaced in the result so the Telegram
 handler can render a numbered fix-list. Every evaluation writes one
 ``audit.log`` row with the full pass/fail snapshot for forensic replay.
 """
@@ -36,8 +35,7 @@ GATE_CAPITAL_MODE_CONFIRMED = "CAPITAL_MODE_CONFIRMED"
 GATE_ENABLE_LIVE_TRADING = "ENABLE_LIVE_TRADING"
 GATE_STRATEGY_CONFIGURED = "strategy_configured"
 GATE_RISK_PROFILE_CONFIGURED = "risk_profile_configured"
-GATE_TWO_FACTOR_SETUP = "two_factor_setup_complete"
-GATE_OPERATOR_ALLOWLIST = "operator_allowlist_approved"
+GATE_TWO_FACTOR_OPTIONAL = "two_factor_optional_recommended"
 
 GATE_ORDER: tuple[str, ...] = (
     GATE_EXECUTION_PATH_VALIDATED,
@@ -45,8 +43,6 @@ GATE_ORDER: tuple[str, ...] = (
     GATE_ENABLE_LIVE_TRADING,
     GATE_STRATEGY_CONFIGURED,
     GATE_RISK_PROFILE_CONFIGURED,
-    GATE_TWO_FACTOR_SETUP,
-    GATE_OPERATOR_ALLOWLIST,
 )
 
 # Operator-facing fix instructions surfaced to the user when a gate fails.
@@ -65,11 +61,6 @@ GATE_FIX_HINTS: dict[str, str] = {
         "Pick at least one strategy via /setup → Strategy.",
     GATE_RISK_PROFILE_CONFIGURED:
         "Pick a risk profile via /setup → Risk Profile.",
-    GATE_TWO_FACTOR_SETUP:
-        "Enable 2FA in WebTrader → Settings → Two-Factor Authentication "
-        "(scan the QR with any authenticator app).",
-    GATE_OPERATOR_ALLOWLIST:
-        "Live trading requires admin approval. Request access from an admin.",
 }
 
 
@@ -138,16 +129,16 @@ async def _gate_risk_profile(user_id: UUID) -> GateOutcome:
     )
 
 
-async def _gate_two_factor(user_id: UUID) -> GateOutcome:
-    """[7] 2FA setup complete.
+async def _gate_two_factor_optional(user_id: UUID) -> GateOutcome:
+    """Optional 2FA recommendation status.
 
     Self-serve TOTP shipped in #1737: WebTrader → Settings → Two-Factor
     Authentication (``domain/auth/totp.verify_and_enable``) writes the
     exact ``system_settings`` key ``2fa_enabled:{user_id}`` this gate
     reads — enrolling on the web lights the gate automatically. An
     operator can still flip the same key manually as a break-glass
-    fallback. Default is FALSE — the gate fails closed for users who
-    never enrolled.
+    fallback. Default is FALSE — this is informational only and never blocks
+    self-serve LIVE mode or Auto-Trade start.
     """
     pool = get_pool()
     key = f"2fa_enabled:{user_id}"
@@ -156,27 +147,11 @@ async def _gate_two_factor(user_id: UUID) -> GateOutcome:
             "SELECT value FROM system_settings WHERE key=$1", key,
         )
     if row is None:
-        return GateOutcome(GATE_TWO_FACTOR_SETUP, False, "2fa not enabled")
+        return GateOutcome(GATE_TWO_FACTOR_OPTIONAL, True, "2fa not enabled; recommended")
     raw = (row["value"] or "").strip().lower()
     if raw in {"true", "1", "yes", "on"}:
-        return GateOutcome(GATE_TWO_FACTOR_SETUP, True, "2fa enabled")
-    return GateOutcome(GATE_TWO_FACTOR_SETUP, False, f"2fa flag={raw!r}")
-
-
-async def _gate_operator_allowlist(user_id: UUID) -> GateOutcome:
-    """[8] Operator allowlist approved → users.role = 'admin'."""
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        role = await conn.fetchval(
-            "SELECT role FROM users WHERE id=$1", user_id,
-        )
-    if role is None:
-        return GateOutcome(GATE_OPERATOR_ALLOWLIST, False, "user not found")
-    if str(role) == "admin":
-        return GateOutcome(GATE_OPERATOR_ALLOWLIST, True, "role=admin")
-    return GateOutcome(
-        GATE_OPERATOR_ALLOWLIST, False, f"role={role}",
-    )
+        return GateOutcome(GATE_TWO_FACTOR_OPTIONAL, True, "2fa enabled")
+    return GateOutcome(GATE_TWO_FACTOR_OPTIONAL, True, f"2fa flag={raw!r}; recommended")
 
 
 # ---------------- Public entry ----------------------------------------------
@@ -210,13 +185,15 @@ async def evaluate(user_id: UUID) -> ChecklistResult:
 
     outcomes.append(await _gate_strategy(user_id))
     outcomes.append(await _gate_risk_profile(user_id))
-    outcomes.append(await _gate_two_factor(user_id))
-    outcomes.append(await _gate_operator_allowlist(user_id))
+    outcomes.append(await _gate_two_factor_optional(user_id))
 
     # Preserve canonical ordering when the dispatch above is reorganized.
     by_name = {o.name: o for o in outcomes}
     ordered = [by_name[name] for name in GATE_ORDER if name in by_name]
     failed = [o.name for o in ordered if not o.ok]
+    # 2FA is surfaced separately as an optional/recommended security status,
+    # never as a hard blocker for self-serve live or auto-trade activation.
+    failed = [name for name in failed if name != GATE_TWO_FACTOR_OPTIONAL]
     passed = not failed
     result = ChecklistResult(
         passed=passed,
@@ -245,14 +222,14 @@ def render_telegram(result: ChecklistResult) -> str:
     if result.passed:
         return (
             "✅ <b>Live trading ready.</b>\n\n"
-            "All eight activation gates passed. Toggle auto-trade in "
+            "All required activation gates passed. Toggle auto-trade in "
             "/dashboard to activate. You will be asked to type <b>CONFIRM</b> "
             "before live mode flips on."
         )
     lines: list[str] = [
         "🔒 <b>Live trading not yet ready.</b>",
         "",
-        "Failed gates (must all pass before live activation):",
+        "Failed required gates (must pass before LIVE Auto-Trade starts):",
     ]
     failed_set = set(result.failed_gates)
     n = 0

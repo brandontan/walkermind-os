@@ -119,7 +119,9 @@ def test_pending_confirm_arms_when_toggle_on_in_live_mode_and_gates_pass():
          patch.object(activation, "get_settings_for",
                       AsyncMock(return_value={"trading_mode": "live"})), \
          patch.object(activation.live_checklist, "evaluate",
-                      AsyncMock(return_value=passing)):
+                      AsyncMock(return_value=passing)), \
+         patch.object(activation.live_mode, "live_autotrade_balance_status",
+                      AsyncMock(return_value=(10, True))):
         result = asyncio.run(
             activation.autotrade_toggle_pending_confirm(update, ctx),
         )
@@ -150,7 +152,9 @@ def test_pending_confirm_refuses_to_arm_when_checklist_fails():
          patch.object(activation.live_checklist, "evaluate",
                       AsyncMock(return_value=failing)), \
          patch.object(activation.live_checklist, "render_telegram",
-                      return_value="🔒 fix list"):
+                      return_value="🔒 fix list"), \
+         patch.object(activation.live_mode, "live_autotrade_balance_status",
+                      AsyncMock(return_value=(0, False))):
         result = asyncio.run(
             activation.autotrade_toggle_pending_confirm(update, ctx),
         )
@@ -205,6 +209,8 @@ def test_text_input_confirm_flips_auto_trade_on():
                       AsyncMock(return_value=USER_ROW_OFF)), \
          patch.object(activation.live_checklist, "evaluate",
                       AsyncMock(return_value=passing)), \
+         patch.object(activation.live_mode, "live_autotrade_balance_status",
+                      AsyncMock(return_value=(10, True))), \
          patch.object(activation, "set_auto_trade",
                       AsyncMock()) as flip:
         consumed = asyncio.run(activation.text_input(update, ctx))
@@ -230,6 +236,8 @@ def test_text_input_confirm_rejects_when_checklist_degraded_between_prompt_and_r
                       AsyncMock(return_value=failing)), \
          patch.object(activation.live_checklist, "render_telegram",
                       return_value="🔒 fix list"), \
+         patch.object(activation.live_mode, "live_autotrade_balance_status",
+                      AsyncMock(return_value=(0, False))), \
          patch.object(activation, "set_auto_trade",
                       AsyncMock()) as flip:
         consumed = asyncio.run(activation.text_input(update, ctx))
@@ -275,7 +283,7 @@ def test_text_input_lowercase_confirm_does_not_match():
 # ---------- /setup paper→live mode switch (Codex P1 follow-up) ---------------
 
 
-def test_trading_mode_live_pending_confirm_arms_when_checklist_passes():
+def test_trading_mode_live_pending_confirm_arms_without_checklist():
     """Codex P1 regression: switching trading_mode to live via /setup is
     itself a live-activation event for users with auto_trade_on=true.
     The picker must run the full checklist and arm CONFIRM rather than
@@ -283,11 +291,10 @@ def test_trading_mode_live_pending_confirm_arms_when_checklist_passes():
     """
     update, msg = _make_update(callback=True)
     ctx = _make_ctx()
-    passing = SimpleNamespace(ready_for_live=True)
     with patch.object(activation, "upsert_user",
                       AsyncMock(return_value=USER_ROW_OFF)), \
          patch.object(activation.live_checklist, "evaluate",
-                      AsyncMock(return_value=passing)):
+                      AsyncMock()) as evaluate:
         result = asyncio.run(
             activation.trading_mode_live_pending_confirm(update, ctx),
         )
@@ -300,30 +307,8 @@ def test_trading_mode_live_pending_confirm_arms_when_checklist_passes():
     sent_text = msg.reply_text.call_args[0][0]
     assert "CONFIRM" in sent_text
     assert "LIVE" in sent_text
-
-
-def test_trading_mode_live_pending_confirm_refuses_when_checklist_fails():
-    """If any activation gate fails, the /setup live picker must NOT
-    arm CONFIRM and must NOT write trading_mode='live'. Show the fix
-    list instead.
-    """
-    update, msg = _make_update(callback=True)
-    ctx = _make_ctx()
-    failing = SimpleNamespace(ready_for_live=False)
-    with patch.object(activation, "upsert_user",
-                      AsyncMock(return_value=USER_ROW_OFF)), \
-         patch.object(activation.live_checklist, "evaluate",
-                      AsyncMock(return_value=failing)), \
-         patch.object(activation.live_checklist, "render_telegram",
-                      return_value="🔒 fix list"):
-        result = asyncio.run(
-            activation.trading_mode_live_pending_confirm(update, ctx),
-        )
-    # Picker is fully consumed, no CONFIRM armed.
-    assert result is True
-    assert activation.AWAITING_KEY not in ctx.user_data
-    msg.reply_text.assert_awaited_once()
-    assert msg.reply_text.call_args[0][0] == "🔒 fix list"
+    assert "admin approval is not required" in sent_text
+    evaluate.assert_not_awaited()
 
 
 def test_text_input_confirm_for_trading_mode_writes_live():
@@ -337,43 +322,17 @@ def test_text_input_confirm_for_trading_mode_writes_live():
                       AsyncMock(return_value=USER_ROW_OFF)), \
          patch.object(activation.live_checklist, "evaluate",
                       AsyncMock(return_value=passing)), \
-         patch.object(activation, "update_settings",
-                      AsyncMock()) as upd, \
+         patch.object(activation.live_mode, "enable_live_self_serve",
+                      AsyncMock(return_value=SimpleNamespace(live_balance_usdc=0, waiting_for_deposit=True))) as enable, \
          patch.object(activation, "set_auto_trade",
                       AsyncMock()) as flip:
         consumed = asyncio.run(activation.text_input(update, ctx))
     assert consumed is True
-    upd.assert_awaited_once_with(USER_ROW_OFF["id"], trading_mode="live")
+    enable.assert_awaited_once_with(USER_ROW_OFF["id"])
     # The trading-mode CONFIRM path must NOT also flip auto_trade_on —
     # mode and engagement are separate user actions.
     flip.assert_not_awaited()
     assert activation.AWAITING_KEY not in ctx.user_data
-
-
-def test_text_input_trading_mode_confirm_re_checks_checklist_before_writing():
-    """Defense-in-depth: a guard could have degraded between the picker
-    and the CONFIRM reply (operator flips ENABLE_LIVE_TRADING off, etc).
-    update_settings must NOT be called when the re-check fails.
-    """
-    update, msg = _make_update(text="CONFIRM")
-    ctx = _make_ctx()
-    ctx.user_data[activation.AWAITING_KEY] = (
-        activation.AWAITING_TRADING_MODE_LIVE_CONFIRM
-    )
-    failing = SimpleNamespace(ready_for_live=False)
-    with patch.object(activation, "upsert_user",
-                      AsyncMock(return_value=USER_ROW_OFF)), \
-         patch.object(activation.live_checklist, "evaluate",
-                      AsyncMock(return_value=failing)), \
-         patch.object(activation.live_checklist, "render_telegram",
-                      return_value="🔒 fix list"), \
-         patch.object(activation, "update_settings",
-                      AsyncMock()) as upd:
-        consumed = asyncio.run(activation.text_input(update, ctx))
-    assert consumed is True
-    upd.assert_not_awaited()
-    msg.reply_text.assert_awaited_once()
-    assert msg.reply_text.call_args[0][0] == "🔒 fix list"
 
 
 def test_dispatcher_routes_activation_confirm_before_setup():
@@ -397,6 +356,8 @@ def test_dispatcher_routes_activation_confirm_before_setup():
                       AsyncMock(return_value=USER_ROW_OFF)), \
          patch.object(activation.live_checklist, "evaluate",
                       AsyncMock(return_value=passing)), \
+         patch.object(activation.live_mode, "live_autotrade_balance_status",
+                      AsyncMock(return_value=(10, True))), \
          patch.object(activation, "set_auto_trade",
                       AsyncMock()) as flip:
         _asyncio.run(dispatcher._text_router(update, ctx))
@@ -433,11 +394,11 @@ def test_text_input_trading_mode_wrong_reply_cancels():
     ctx.user_data[activation.AWAITING_KEY] = (
         activation.AWAITING_TRADING_MODE_LIVE_CONFIRM
     )
-    with patch.object(activation, "update_settings",
-                      AsyncMock()) as upd:
+    with patch.object(activation.live_mode, "enable_live_self_serve",
+                      AsyncMock()) as enable:
         consumed = asyncio.run(activation.text_input(update, ctx))
     assert consumed is True
-    upd.assert_not_awaited()
+    enable.assert_not_awaited()
     msg.reply_text.assert_awaited_once()
     body = msg.reply_text.call_args[0][0]
     assert "Cancelled" in body
