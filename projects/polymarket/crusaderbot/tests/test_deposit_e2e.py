@@ -99,7 +99,8 @@ class _Conn:
                     "id": uuid.uuid4(), "user_id": user_id, "tx_hash": tx_hash,
                     "log_index": log_index, "amount_usdc": amount,
                     "block_number": block_number, "status": "pending",
-                    "confirmed_at_block": None,
+                    "confirmed_at_block": None, "swept": False,
+                    "lifecycle_state": "confirming",
                 }
                 self.store.deposits.append(row)
                 return {"id": row["id"]}
@@ -122,6 +123,7 @@ class _Conn:
                 if d["id"] == dep_id and d["status"] == "pending":
                     d["status"] = "confirmed"
                     d["confirmed_at_block"] = head
+                    d["lifecycle_state"] = "available"
                     return {"id": d["id"]}
             return None
         if "telegram_user_id" in sql:
@@ -210,6 +212,10 @@ def test_e2e_usdce_deposit_records_confirms_credits():
                           AsyncMock(return_value=100 + depth)):
             _run(scheduler.watch_deposits())
         assert store.deposits[0]["status"] == "confirmed"
+        # Guards OFF: realtime sweep is DEFERRED — the row must stay
+        # sweep-eligible (swept=FALSE) and truthfully 'available'.
+        assert store.deposits[0]["swept"] is False
+        assert store.deposits[0]["lifecycle_state"] == "available"
         credit.assert_awaited_once()
         assert credit.await_args.args[2] == Decimal("25.0")
         # No wrong-token rows from a legitimate USDC.e deposit.

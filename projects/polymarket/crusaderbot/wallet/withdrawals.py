@@ -1,6 +1,8 @@
 """Withdrawal request management.
 
-Paper-only: requests are recorded and ledger-debited on submission.
+    Requests are recorded and ledger-debited on submission — that debit is the
+    available-balance lock. Paper/default mode stops at the approved/pending row;
+    guarded live mode submits on-chain and tracks confirmation.
 No on-chain transfer until EXECUTION_PATH_VALIDATED guard is activated.
 
 Approval modes (system_settings key 'withdrawal_approval_mode'):
@@ -25,6 +27,7 @@ from typing import Optional
 from uuid import UUID
 
 from ..database import get_pool
+from ..wallet import ledger
 from ..wallet.ledger import T_WITHDRAW, debit_in_conn
 
 logger = logging.getLogger(__name__)
@@ -91,11 +94,12 @@ async def create_withdrawal_request(
             row = await conn.fetchrow(
                 """
                 INSERT INTO withdrawals (user_id, amount_usdc, destination_address,
-                                         status, approval_mode)
-                VALUES ($1, $2, $3, $4, $5)
+                                         status, approval_mode, lifecycle_state)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 RETURNING *
                 """,
                 user_id, amount_usdc, destination_address, initial_status, mode,
+                ledger.L_WITHDRAW_PENDING,
             )
             await debit_in_conn(
                 conn, user_id, amount_usdc, T_WITHDRAW,
@@ -193,9 +197,10 @@ async def _attempt_onchain_transfer(
 
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE withdrawals SET status = 'processing' "
+            "UPDATE withdrawals SET status = 'processing', lifecycle_state = $2, "
+            "submitted_at = COALESCE(submitted_at, NOW()) "
             "WHERE id = $1 AND status = 'approved'",
-            withdrawal_id,
+            withdrawal_id, ledger.L_CONFIRMING,
         )
 
     # Custody-mode dispatcher: EOA → polygon_usdc.transfer_usdc (master-funded);
@@ -207,8 +212,9 @@ async def _attempt_onchain_transfer(
     async with pool.acquire() as conn:
         await conn.execute(
             "UPDATE withdrawals SET status = 'completed', tx_hash = $2, "
-            "processed_at = NOW() WHERE id = $1",
-            withdrawal_id, result["tx_hash"],
+            "processed_at = NOW(), confirmed_at = NOW(), lifecycle_state = $3 "
+            "WHERE id = $1",
+            withdrawal_id, result["tx_hash"], ledger.L_SWEPT,
         )
     from .. import audit
     await audit.write(
@@ -233,11 +239,12 @@ async def approve_withdrawal(
             UPDATE withdrawals
                SET status = 'approved',
                    admin_notes = $2,
+                   lifecycle_state = $3,
                    processed_at = NOW()
              WHERE id = $1 AND status = 'pending'
             RETURNING *
             """,
-            withdrawal_id, admin_notes,
+            withdrawal_id, admin_notes, ledger.L_WITHDRAW_PENDING,
         )
     if row is None:
         raise ValueError(f"Withdrawal {withdrawal_id} not found or not pending")
@@ -279,10 +286,11 @@ async def _settle_withdrawal(
         async with pool.acquire() as conn:
             async with conn.transaction():
                 updated = await conn.fetchrow(
-                    "UPDATE withdrawals SET status = 'failed', onchain_error = $2 "
+                    "UPDATE withdrawals SET status = 'failed', onchain_error = $2, "
+                    "lifecycle_state = $3 "
                     "WHERE id = $1 AND status IN ('approved', 'processing') "
                     "AND tx_hash IS NULL RETURNING user_id",
-                    withdrawal_id, str(exc)[:500],
+                    withdrawal_id, str(exc)[:500], ledger.L_FAILED,
                 )
                 if updated is not None:
                     await credit_in_conn(
@@ -298,9 +306,10 @@ async def _settle_withdrawal(
         )
         async with pool.acquire() as conn:
             await conn.execute(
-                "UPDATE withdrawals SET status = 'failed', onchain_error = $2 "
+                "UPDATE withdrawals SET status = 'failed', onchain_error = $2, "
+                "lifecycle_state = $3 "
                 "WHERE id = $1 AND status IN ('approved', 'processing')",
-                withdrawal_id, str(exc)[:500],
+                withdrawal_id, str(exc)[:500], ledger.L_MANUAL_REVIEW,
             )
 
 
@@ -317,11 +326,12 @@ async def reject_withdrawal(
                 UPDATE withdrawals
                    SET status = 'rejected',
                        admin_notes = $2,
+                       lifecycle_state = $3,
                        processed_at = NOW()
                  WHERE id = $1 AND status = 'pending'
                 RETURNING *
                 """,
-                withdrawal_id, admin_notes,
+                withdrawal_id, admin_notes, ledger.L_FAILED,
             )
             if row is None:
                 raise ValueError(f"Withdrawal {withdrawal_id} not found or not pending")
