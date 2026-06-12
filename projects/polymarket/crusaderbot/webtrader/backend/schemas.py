@@ -211,6 +211,13 @@ class AutoTradeState(BaseModel):
     slippage_tolerance_pct: Optional[float] = None
     selected_timeframe: Optional[str] = None  # '5m' | '15m' for crypto-short presets
     selected_assets: Optional[list[str]] = None  # e.g. ['BTC','ETH'] for crypto-short presets
+    # Smart Strike admin-enabled market universe (#1801) — single source of
+    # truth shared with the scanner. The UI disables any asset/timeframe not in
+    # these lists (SOL excluded by default) so the picker can never present an
+    # admin-disabled market as active.
+    smart_strike_enabled: bool = True
+    smart_strike_enabled_assets: list[str] = []     # e.g. ['BTC','ETH']
+    smart_strike_enabled_timeframes: list[str] = []  # e.g. ['5m','15m']
     # Account equity (free balance + open-position value) and the resulting
     # per-trade size for the active CAP%. Surfaces in the UI so users see that
     # CAP% is the deployable pool, not the size of a single trade.

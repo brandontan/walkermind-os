@@ -1033,6 +1033,12 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
     mpt_usdc = (float(s_row["max_per_trade_usdc"]) if s_row and s_row["max_per_trade_usdc"] is not None else None)
     mpt_pct = (float(s_row["max_per_trade_pct"]) if s_row and s_row["max_per_trade_pct"] is not None else None)
     ceiling = resolve_per_trade_ceiling(equity, mpt_mode, mpt_usdc, mpt_pct)
+    # Smart Strike admin-enabled universe (#1801) — resolved from the shared
+    # single source of truth so the UI never drifts from the scanner.
+    from ...domain.strategy import smart_strike_universe as _ssu
+    _ss_enabled = await _ssu.master_enabled()
+    _ss_assets = await _ssu.enabled_pairs() if _ss_enabled else []
+    _ss_tfs = await _ssu.enabled_timeframes() if _ss_enabled else []
     return AutoTradeState(
         auto_trade_on=bool(u_row["auto_trade_on"]) if u_row else False,
         active_preset=s_row["active_preset"] if s_row else None,
@@ -1050,6 +1056,11 @@ async def get_autotrade(user: _CurrentUser) -> AutoTradeState:
         # is defined at module level a few hundred lines below; Python
         # resolves the name at request time, not at module-load time.
         selected_assets=_sanitize_selected_assets(s_row["selected_assets"]) if s_row else None,  # noqa: F821
+        # Smart Strike admin-enabled universe (#1801) — same resolver the
+        # scanner uses, so the picker disables exactly what the scanner skips.
+        smart_strike_enabled=_ss_enabled,
+        smart_strike_enabled_assets=_ss_assets,
+        smart_strike_enabled_timeframes=_ss_tfs,
         equity_usdc=round(equity, 2),
         effective_max_per_trade_usdc=round(suggested_trade_size(equity, cap_pct, ceiling_usdc=ceiling), 2),
         max_per_trade_mode=mpt_mode,

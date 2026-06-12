@@ -59,6 +59,7 @@ from ...core import event_bus as _event_bus
 from ...database import get_pool
 from ...domain.execution.router import execute as router_execute
 from ...domain.ops import runtime_config as _runtime_config
+from ...domain.strategy import smart_strike_universe as _ss_universe
 from ...domain.ops.kill_switch import is_active as kill_switch_is_active
 from ...domain.research import scan_observability as _scan_observability
 from ...domain.risk.constants import CORRELATED_CRYPTO_MAJORS, PROFILES
@@ -236,21 +237,14 @@ def _filter_monitor_only_assets(assets: Any) -> list[str]:
 # ---------------------------------------------------------------------------
 # Admin runtime gating for the Smart Strike candle universe: master switch +
 # per-pair (BTC/ETH/SOL — SOL default OFF) + per-timeframe (5m/15m) controls.
-# Resolved HERE in the scan job (WARP-89 pattern: no DB read inside the pure
-# strategy/gate), each with a same-named env default in config.py and a
-# runtime_config admin overlay (no redeploy). Scanning/selection gating ONLY —
-# user mode, Auto-Trade, per-user balance/risk, measured-edge policy, kill
-# switch, and the live guard flags are enforced downstream regardless.
-_SMART_STRIKE_DEFAULT_ASSETS: tuple[str, ...] = ("BTC", "ETH", "SOL")
-_SMART_STRIKE_PAIR_FLAGS: dict[str, str] = {
-    "BTC": "SMART_STRIKE_BTC_ENABLED",
-    "ETH": "SMART_STRIKE_ETH_ENABLED",
-    "SOL": "SMART_STRIKE_SOL_ENABLED",
-}
-_SMART_STRIKE_TF_FLAGS: dict[str, str] = {
-    "5m": "SMART_STRIKE_5M_ENABLED",
-    "15m": "SMART_STRIKE_15M_ENABLED",
-}
+# The flag set + resolution live in the shared single-source-of-truth module
+# ``domain.strategy.smart_strike_universe`` (also consumed by the WebTrader
+# autotrade status payload, so the UI can never drift from the scanner).
+# Resolved HERE per WARP-89 (no DB read inside the pure strategy/gate). Gating
+# is scanning/selection ONLY — user mode, Auto-Trade, per-user balance/risk,
+# measured-edge policy, kill switch, and the live guard flags are enforced
+# downstream regardless.
+_SMART_STRIKE_DEFAULT_ASSETS: tuple[str, ...] = _ss_universe.DEFAULT_ASSETS
 
 
 async def _smart_strike_admin_universe(
@@ -268,46 +262,20 @@ async def _smart_strike_admin_universe(
 
     A None/empty asset selection falls back to the default universe BEFORE
     filtering, so the per-pair flags always apply (an empty selection must not
-    resurrect SOL via the downstream tradeable-coins default).
+    resurrect SOL via the downstream tradeable-coins default). Resolution
+    delegates to ``smart_strike_universe`` so this gate and the user-facing
+    status read identical truth.
     """
-    from ...config import get_settings as _cfg_get_settings
-
-    try:
-        s = _cfg_get_settings()
-    except Exception:  # noqa: BLE001 — hermetic envs without full Settings:
-        # fall back to the owner-lock env defaults (SOL stays OFF) rather
-        # than killing the scan loop. Production always has valid Settings.
-        s = None
-
-    def _env(flag: str, default: bool) -> bool:
-        return bool(getattr(s, flag, default)) if s is not None else default
-
-    if not await _runtime_config.resolve_bool(
-        "SMART_STRIKE_ENABLED", _env("SMART_STRIKE_ENABLED", True),
-    ):
+    if not await _ss_universe.master_enabled():
         return False, "smart_strike_admin_disabled", []
     tf = str(selected_timeframe or "5m")
-    tf_flag = _SMART_STRIKE_TF_FLAGS.get(tf)
-    if tf_flag is not None and not await _runtime_config.resolve_bool(
-        tf_flag, _env(tf_flag, True),
-    ):
+    if not await _ss_universe.timeframe_enabled(tf):
         return False, f"smart_strike_timeframe_disabled:{tf}", []
     requested = [
         str(a).strip().upper()
         for a in (selected_assets or _SMART_STRIKE_DEFAULT_ASSETS)
     ]
-    effective: list[str] = []
-    for sym in requested:
-        flag = _SMART_STRIKE_PAIR_FLAGS.get(sym)
-        if flag is None:
-            # Non-major symbols pass through — strategy eligibility plus the
-            # deterministic {coin}-updown-{tf}-{slot} slug universe still
-            # bound what can actually be scanned/traded.
-            effective.append(sym)
-            continue
-        env_default = _env(flag, sym != "SOL")
-        if await _runtime_config.resolve_bool(flag, env_default):
-            effective.append(sym)
+    effective = [sym for sym in requested if await _ss_universe.asset_enabled(sym)]
     if not effective:
         return False, "smart_strike_assets_disabled", []
     return True, None, effective

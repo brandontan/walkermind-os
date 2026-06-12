@@ -985,12 +985,24 @@ async def _evaluate_market(
     if m.get("closed"):
         log.debug("late_entry_v3 skip closed", slug=slug)
         return None, "closed"
+    # Polymarket-API-truth eligibility (#1801): an archived market is never
+    # tradeable regardless of the (candle-exempt) active flag — fail closed.
+    if m.get("archived"):
+        log.debug("late_entry_v3 skip archived", slug=slug)
+        return None, "archived"
     if not is_candle and not m.get("active"):
         log.debug("late_entry_v3 skip inactive (non-candle)", slug=slug)
         return None, "inactive"
     if not m.get("acceptingOrders", m.get("accepting_orders", True)):
         log.debug("late_entry_v3 skip not_accepting_orders", slug=slug)
         return None, "not_accepting_orders"
+    # The CLOB order book must be enabled for this market or no order can rest
+    # (#1801). Default True when the API does not carry the field (older candle
+    # rows) so existing eligible markets are unaffected — reject only on an
+    # explicit False.
+    if not m.get("enableOrderBook", m.get("enable_order_book", True)):
+        log.debug("late_entry_v3 skip order_book_disabled", slug=slug)
+        return None, "order_book_disabled"
 
     # Timing gate — only act inside the configured window before candle close.
     seconds_left = _seconds_to_close(m, now_ts)

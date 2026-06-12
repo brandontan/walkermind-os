@@ -27,7 +27,7 @@ const STRATEGY_PRESETS = [
     freq: "Medium",
     features: ["🤖 Auto rule-switch", "🎯 Flip→Safe→Close", "⏱ Picks per candle stage"],
     detail: [
-      "One preset that runs all three candle rules on the same BTC/ETH/SOL engine — you don't have to choose.",
+      "One preset that runs all three candle rules on the same BTC/ETH engine — you don't have to choose.",
       "Per market it picks the rule that fits the candle's stage: Flip Hunter early (underdog, 60–180s out), Safe Close mid (favorite, 30–60s), Close Sweep final (favorite, last 35s).",
       "Each entry keeps its own exit — Flip holds to settlement, Safe exits before the noisy final 30s, Close force-exits ~8s out.",
       "A market is only ever taken by one rule per candle, so the rules never fight each other.",
@@ -39,7 +39,7 @@ const STRATEGY_PRESETS = [
     name: "Close Sweep",
     emoji: "🧹",
     engine: "W.A.R.P_STRIKE",
-    signal: "Final 35s entry on BTC/ETH/SOL candles. Strong lean required.",
+    signal: "Final 35s entry on BTC/ETH candles. Strong lean required.",
     risk: "safe" as const,
     freq: "Medium",
     features: ["⚡ Time-decay sizing", "🛡 Spread-guarded", "↔ Dual-leg arb"],
@@ -494,6 +494,10 @@ export function AutoTradePage() {
   const lockedCategory: string | undefined =
     state.active_preset ? PRESET_LOCKED_CATEGORY[state.active_preset] : undefined;
   const activeTimeframe = (state.selected_timeframe as Timeframe | null) ?? "5m";
+  // Admin-enabled Smart Strike universe (#1801) from backend truth — falls
+  // back to the BTC/ETH default if the field is absent (older backend), never
+  // resurrecting SOL by default.
+  const ssEnabledAssets = state.smart_strike_enabled_assets ?? [...CRYPTO_ASSETS_DEFAULT];
 
   return (
     <>
@@ -861,22 +865,32 @@ export function AutoTradePage() {
                     </div>
                     <div className="grid grid-cols-3 gap-1.5">
                       {CRYPTO_ASSETS.map((asset) => {
-                        const on = selectedAssets.includes(asset);
+                        // Admin-enabled universe truth (#1801): an asset the
+                        // backend has disabled (SOL by default) is shown but
+                        // NOT selectable — the scanner would skip it anyway, so
+                        // the picker must not present it as active.
+                        const adminEnabled = ssEnabledAssets.includes(asset);
+                        const on = adminEnabled && selectedAssets.includes(asset);
                         return (
                           <button
                             key={asset}
                             type="button"
                             aria-pressed={on}
-                            onClick={() => void handleToggleAsset(asset)}
+                            disabled={!adminEnabled}
+                            title={adminEnabled ? undefined : `${asset} is unavailable — disabled by admin`}
+                            onClick={() => { if (adminEnabled) void handleToggleAsset(asset); }}
                             className={[
                               "flex items-center justify-center gap-1 py-1.5 clip-card-sm border text-[11px] font-hud font-bold tracking-wide transition-all",
-                              on
+                              !adminEnabled
+                                ? "border-surface-3 bg-surface-1 text-ink-4 opacity-50 cursor-not-allowed"
+                                : on
                                 ? "border-gold bg-gold/10 text-gold"
                                 : "border-surface-3 bg-surface-1 text-ink-3 hover:border-ink-3",
                             ].join(" ")}
                           >
                             {on && <span className="text-[7px]" aria-hidden>●</span>}
                             {asset}
+                            {!adminEnabled && <span className="text-[7px] uppercase ml-0.5" aria-hidden>n/a</span>}
                           </button>
                         );
                       })}

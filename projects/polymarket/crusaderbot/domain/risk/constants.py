@@ -46,6 +46,13 @@ MAX_SLIPPAGE_PCT = 0.03
 # SLIPPAGE_REJECTED and never reach the CLOB. Applies to live path only.
 SLIPPAGE_GUARD_PCT = 0.05
 
+# LIVE_MIN_ORDER_SHARES: Polymarket CLOB minimum order size (5 shares). A live
+# order computed below this minimum would be rejected by the broker, so the
+# live path fails closed BEFORE submission (#1801) rather than spend an
+# ambiguous network round-trip. Applies to the live path only; paper is
+# unaffected. Conservative platform-wide floor — never weakens any risk fence.
+LIVE_MIN_ORDER_SHARES = 5.0
+
 # Complete-set arbitrage hard floor. AGENTS.md RISK CONSTANTS: "Arbitrage —
 # execute only if net_edge > fees + slippage AND > 2%". MIN_COMPLETE_SET_EDGE
 # (config, default 0.0) keeps the path dormant; the instant an operator

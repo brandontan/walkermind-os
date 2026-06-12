@@ -1,12 +1,23 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 03:50**
+**Last Updated : 2026-06-13 04:35**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1801 -- smart-strike-audit-gaps-closure
+
+- [x] Per-user sizing isolation explicit tests: get_live_balance binds only the active user; live ledger bucket excludes paper/pending/pool; gate sizes per-user; Kelly 0.25 (no audit-prose-only).
+- [x] Polymarket-API eligibility: late_entry_v3 rejects archived=true + enableOrderBook=false (fail-closed, behaviour-tested); existing active/closed/acceptingOrders/clobTokenIds/tick/neg_risk/empty-book preserved.
+- [x] LIVE_MIN_ORDER_SHARES=5 — live order below CLOB minimum fails closed pre-submit (no broker round-trip).
+- [x] Market-data freshness posture documented/tested: fresh REST get_book per candidate, empty/missing book = NO TRADE, missing metadata fails closed (no stale-WS leak path on this surface).
+- [x] User-facing SOL-disabled: shared smart_strike_universe single-source-of-truth (scan gate delegates; /autotrade exposes enabled universe; AutoTradePage disables admin-off assets in picker; copy corrected on WebTrader + Telegram).
+- [x] Observability: structured live_order_intent trace (token/side/price/spread/size/tick/min/user).
+- [x] #1799 market-universe behaviour preserved (all universe + signal-scan tests green after delegation refactor).
+- [x] 20 new tests; full suite 3567 passed; frontend build green; PR merged under WARP•R00T final gate.
 
 ## #1797 -- smart-strike-live-readiness-audit
 
