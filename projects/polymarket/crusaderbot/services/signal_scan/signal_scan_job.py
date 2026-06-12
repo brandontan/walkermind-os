@@ -1988,6 +1988,73 @@ async def fetch_latest_scan_run() -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
+def summarize_no_trade_reason(scan_run: dict[str, Any] | None) -> str | None:
+    """Return the dominant no-trade reason for a finished scan run, or None.
+
+    A "no-trade" state is a scan tick that created zero orders and zero
+    positions. The dominant reason is the highest-count entry across the
+    per-candidate skip / rejection / zero-reason breakdowns; when those are
+    empty it falls back to a structural reason derived from the scan funnel
+    counters (no markets in universe / no eligible markets / no candidates).
+
+    Returns None when a trade actually fired (so the UI shows ``signal_fired``
+    instead) or when there is no scan data yet.
+
+    Read-only observability accessor: it derives the reason purely from
+    already-persisted ``scan_runs`` telemetry. It never gates, never generates
+    order intent, and never influences any live-trading guard. Its only purpose
+    is to make the WebTrader / operator panel show an explicit reason instead
+    of a bare ``awaiting_signal`` + ``scanned 0 / published 0`` when LIVE Smart
+    Strike is running but fails closed.
+    """
+    if not scan_run:
+        return None
+    # ``fetch_latest_scan_run`` already returns ``dict(row)``, but normalize
+    # defensively so a future caller passing an asyncpg.Record straight from a
+    # query cannot break this panel surface (Record has no ``.get``).
+    if not isinstance(scan_run, dict):
+        scan_run = dict(scan_run)
+    orders = int(scan_run.get("paper_orders_created") or 0)
+    positions = int(scan_run.get("positions_created") or 0)
+    if orders > 0 or positions > 0:
+        return None  # a trade fired — not a no-trade state
+
+    # Merge the three reason breakdowns. asyncpg may hand JSONB back as a str,
+    # so coerce defensively; a malformed payload contributes nothing rather
+    # than raising (this surface must never break the runtime status panel).
+    merged: dict[str, int] = {}
+    for col in ("skip_breakdown", "rejection_breakdown", "zero_reason_breakdown"):
+        raw = scan_run.get(col)
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except (json.JSONDecodeError, ValueError):
+                raw = None
+        if isinstance(raw, dict):
+            for key, val in raw.items():
+                try:
+                    merged[str(key)] = merged.get(str(key), 0) + int(val)
+                except (TypeError, ValueError):
+                    continue
+    if merged:
+        # Highest count wins; ties resolve to the alphabetically-first reason
+        # (deterministic) because ``sorted`` yields keys ascending and ``max``
+        # keeps the first element that attains the maximum.
+        return max(sorted(merged), key=lambda k: merged[k])
+
+    # No per-candidate breakdown — derive a structural reason from the funnel.
+    markets_seen = int(scan_run.get("markets_seen") or 0)
+    markets_eligible = int(scan_run.get("markets_eligible") or 0)
+    candidates = int(scan_run.get("candidates_emitted") or 0)
+    if markets_seen == 0:
+        return "no_markets_in_universe"
+    if markets_eligible == 0:
+        return "no_eligible_markets"
+    if candidates == 0:
+        return "no_candidates"
+    return "awaiting_signal"
+
+
 # ---------------------------------------------------------------------------
 # Context builders
 # ---------------------------------------------------------------------------

@@ -1,26 +1,38 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 05:26**
+**Last Updated : 2026-06-13 06:05**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
 
-## #1805 -- polymarket-bridge-usdc-usdt-deposit-enablement
+## #1808 -- polymarket-bridge-usdc-usdt-deposit-enablement (PR #1808)
 
-- [x] FORGE build on WARP/polymarket-bridge-usdc-usdt-deposit-enablement (MAJOR — NARROW INTEGRATION).
-- [x] Read required Polymarket docs in-run: API Introduction, Bridge supported-assets, create deposit addresses, quote, status, pUSD, and deposit wallets.
-- [x] Live Bridge supported-assets probe performed with no secrets: Polygon USDC.e, native USDC, USDT, and pUSD are advertised by the Bridge API.
-- [x] Added mocked Polymarket Bridge adapter for supported-assets/deposit-address/quote/status parsing; no external Bridge calls in CI tests.
-- [x] Added migration 100 bridge_deposit_addresses + bridge_deposit_events as audit substrate for future active Bridge settlement polling.
-- [x] Confirmed-money WebTrader notifications added: deposit confirmed/credited and withdrawal completed each persist a deduped system_alert independent of Telegram.
+- [x] FORGE build on warp/enable-usdc-usdt-deposit-on-polymarket-bridge (MAJOR — NARROW INTEGRATION).
+- [x] Mocked Polymarket Bridge adapter for supported-assets/deposit-address/quote/status parsing; no external Bridge calls in CI tests; no secrets; fail-closed on non-terminal status.
+- [x] Migration 100 bridge_deposit_addresses + bridge_deposit_events audit substrate (additive, IF NOT EXISTS, no 099 collision).
+- [x] Confirmed-money WebTrader notifications: deposit confirmed/credited and withdrawal completed each persist a deduped system_alert independent of Telegram.
 - [x] Native USDC + USDT remain DISABLED in user-facing deposit UI/API until an active Bridge status poller can credit only terminal COMPLETED Polygon pUSD settlement; no fake-enablement.
-- [x] USDC.e path, wrong-token credit-neutral path, $5 live Auto-Trade gate, and live guard flags preserved.
-- [x] Targeted compile/ruff/pytest checks passed (43 targeted tests).
-- [ ] WARP🔹CMD first-pass PR check.
-- [ ] WARP•R00T finishing pass or WARP•SENTINEL final gate before merge.
+- [x] USDC.e-only enablement; wrong-token credit-neutral path; $5 live Auto-Trade gate; live guard flags all preserved.
+- [x] WARP•R00T finishing: merged current main onto branch (preserved #1806 Smart Strike observability truth); resolved dirty merge state.
+- [x] WARP•R00T finishing: corrected every repo-truth branch reference to the exact head warp/enable-usdc-usdt-deposit-on-polymarket-bridge (was an earlier non-matching placeholder name).
+- [x] WARP•R00T finishing: hardened confirmed-money alert dedup to atomic DB idempotency (UNIQUE index + ON CONFLICT DO NOTHING); claim now matches runtime.
+- [ ] CI green on fixed head SHA.
+- [ ] WARP•R00T final-gate disposition.
+
+## #1804 -- live-smart-strike-no-trade-diagnostic (MERGED #1806)
+
+- [x] WARP•R00T diagnostic (R00T-assigned, MAJOR — NARROW INTEGRATION) on WARP/live-smart-strike-no-trade-diagnostic.
+- [x] Root cause: no-trade is expected fail-closed, MASKED by an observability bug — /status panel reads scanned/published from the legacy edge-finder (jobs/market_signal_scanner _scanner_state), not the real Smart Strike candle scan (services/signal_scan/signal_scan_job) whose scan_runs skip/rejection/zero-reason telemetry was never surfaced.
+- [x] Read-only fix: summarize_no_trade_reason() derives the dominant no-trade reason from persisted scan_runs telemetry.
+- [x] RuntimeStatus schema + /status endpoint carry the Smart Strike funnel counts + dominant reason (non-fatal read).
+- [x] ScannerPanel status line shows awaiting_signal · <reason> instead of bare awaiting_signal.
+- [x] Counter semantics documented: legacy scanner_scanned/published retained (edge-finder approval/publish), Smart Strike funnel added alongside (no risky rename).
+- [x] LIVE order-intent positive path + fail-closed negative paths unchanged (assert_live_guards/$5 gate/measured-edge/min-order/kill-switch) — covered by existing gate tests; no live-guard flip, no order/fund movement, no fabricated signal.
+- [x] test_smart_strike_no_trade_reason.py (helper logic 16/16 proven on source + required pins: zeros-cannot-hide-skip-reasons, user-facing reason surfacing); ruff + py_compile clean; frontend tsc+vite build green.
+- [x] WARP•R00T final-gate disposition: self-merged on CI green (PR #1806).
 
 ## #1800 -- polygon-usdc-usdt-deposit-enablement
 

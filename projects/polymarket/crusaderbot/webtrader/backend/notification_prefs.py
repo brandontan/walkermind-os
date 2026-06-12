@@ -188,37 +188,52 @@ async def persist_user_alert_once(
     """Idempotent web alert writer for money lifecycle confirmations.
 
     Deposit/withdrawal confirmation can be observed by more than one retrying
-    job tick. This helper stores a caller-provided ``dedup_key`` inside the
-    JSONB metadata and suppresses future inserts for the same user+kind+key, so
-    the WebTrader unread counter receives exactly one confirmed-money alert.
+    job tick, and ticks can overlap concurrently. The dedup is enforced
+    ATOMICALLY by the partial UNIQUE index
+    ``uq_system_alerts_money_dedup`` on
+    ``(user_id, COALESCE(alert_kind, ''), metadata->>'dedup_key')`` (migration
+    101): the INSERT uses ``ON CONFLICT DO NOTHING`` so exactly one
+    confirmed-money alert survives even under a race between two ticks — no
+    check-then-insert window. Returns the new alert id on insert, or None if a
+    duplicate was suppressed, the user disabled web delivery, or the write
+    failed (failure is logged, never raised, so an alert outage cannot break
+    the calling money-lifecycle flow).
     """
+    try:
+        ok = await should_notify(user_id, alert_key, "web")
+    except Exception:
+        ok = True
+    if not ok:
+        return None
+
+    if severity not in ("info", "warning", "critical"):
+        severity = DEFAULT_SEVERITY
+
     payload = dict(metadata or {})
     payload["dedup_key"] = dedup_key
+    clean_title = _strip_html_for_web(title) or title
+    clean_body = _strip_html_for_web(body)
+
+    pool = get_pool()
     try:
-        pool = get_pool()
         async with pool.acquire() as conn:
-            exists = await conn.fetchval(
+            row = await conn.fetchrow(
                 """
-                SELECT 1 FROM system_alerts
-                 WHERE user_id = $1::uuid
-                   AND COALESCE(alert_kind, '') = COALESCE($2, '')
-                   AND metadata->>'dedup_key' = $3
-                 LIMIT 1
+                INSERT INTO system_alerts (
+                    user_id, severity, title, body, alert_kind, metadata
+                )
+                VALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb)
+                ON CONFLICT (user_id, COALESCE(alert_kind, ''), (metadata->>'dedup_key'))
+                    WHERE metadata->>'dedup_key' IS NOT NULL
+                    DO NOTHING
+                RETURNING id
                 """,
-                str(user_id), alert_kind, dedup_key,
+                str(user_id), severity, clean_title, clean_body,
+                alert_kind, _json.dumps(payload),
             )
-        if exists:
-            return None
-    except Exception:
-        logger.warning(
-            "persist_user_alert_dedup_probe_failed user_id=%s kind=%s",
-            user_id, alert_kind, exc_info=True,
-        )
-    try:
-        return await persist_user_alert(
-            user_id=user_id, alert_key=alert_key, title=title, body=body,
-            severity=severity, alert_kind=alert_kind, metadata=payload,
-        )
+        if row is None:
+            return None  # duplicate suppressed atomically by the unique index
+        return str(row["id"])
     except Exception:
         logger.warning(
             "persist_user_alert_once_failed user_id=%s kind=%s",

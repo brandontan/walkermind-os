@@ -702,6 +702,16 @@ export interface RuntimeStatus {
   scanner_scanned: number;
   scanner_published: number;
   scanner_last_tick: number | null;
+  /** Real Smart Strike candle-scan funnel (the counters above come from the
+   * legacy edge-finder). These surface the dominant no-trade reason so a LIVE
+   * Smart Strike running-but-no-trade state shows an explicit reason instead
+   * of only "awaiting_signal". All optional — null when no scan run exists. */
+  smart_strike_markets_seen?: number | null;
+  smart_strike_markets_eligible?: number | null;
+  smart_strike_candidates?: number | null;
+  smart_strike_orders?: number | null;
+  smart_strike_no_trade_reason?: string | null;
+  scan_run_at?: string | null;
 }
 
 // ── Live-trading activation (mirrors backend schemas.LiveStatus/LiveEnable*) ──

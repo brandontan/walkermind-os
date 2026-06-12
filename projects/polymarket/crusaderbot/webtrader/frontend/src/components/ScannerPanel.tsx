@@ -447,6 +447,19 @@ export function ScannerPanel({
   const scanned   = runtime?.scanner_scanned ?? 0;
   const published = runtime?.scanner_published ?? 0;
 
+  // Smart Strike candle-scan funnel — the real LIVE engine. When the scanner is
+  // running but no order fired, surface the dominant no-trade reason from
+  // backend telemetry so the panel never hides a fail-closed cause behind a
+  // bare "awaiting_signal". Raw reason code is shown verbatim (honest +
+  // greppable); only the noisy "skipped_" prefix is trimmed for readability.
+  const noTradeReason = runtime?.smart_strike_no_trade_reason ?? null;
+  const noTradeLabel = noTradeReason ? noTradeReason.replace(/^skipped_/, "") : null;
+  const statusText = signals.length > 0
+    ? "signal_fired"
+    : noTradeLabel
+      ? `awaiting_signal · ${noTradeLabel}`
+      : "awaiting_signal";
+
   const feedSummary = feed
     .map((f) => `${LEAN_ARROW[f.lean]} ${f.asset} ${Math.round(f.up_prob * 100)}%`)
     .join("  ");
@@ -458,7 +471,7 @@ export function ScannerPanel({
         { parts: [{ type: "out", text: "scanned " }, { type: "warn", text: String(scanned) }, { type: "out", text: "  published " }, { type: "ok", text: String(published) }] },
         { parts: [{ type: "out", text: "last_tick " }, { type: "dim", text: `${liveAgo != null ? `${liveAgo}s ago` : "—"}  ` }, { type: "dim", text: "signals scanning" }], cursor: true },
         { parts: [{ type: "out", text: "markets  " }, { type: "dim", text: feedSummary || "—" }] },
-        { parts: [{ type: "out", text: "status " }, { type: "dim", text: signals.length > 0 ? "signal_fired" : "awaiting_signal" }] },
+        { parts: [{ type: "out", text: "status " }, { type: signals.length > 0 ? "ok" : "warn", text: statusText }] },
       ]
     : [
         { parts: [{ type: "cmd", text: "market_signal_scanner" }, { type: "dim", text: "  ◦ idle" }] },

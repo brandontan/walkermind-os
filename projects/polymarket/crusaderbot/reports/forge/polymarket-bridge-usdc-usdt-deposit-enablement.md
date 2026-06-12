@@ -1,11 +1,21 @@
 # #1805 — polymarket-bridge-usdc-usdt-deposit-enablement
 
 **Project:** CrusaderBot (`projects/polymarket/crusaderbot`)  
-**Role:** WARP•FORGE  
-**Branch:** `WARP/polymarket-bridge-usdc-usdt-deposit-enablement`  
+**Role:** WARP•FORGE build + WARP•R00T finishing pass  
+**Branch:** `warp/enable-usdc-usdt-deposit-on-polymarket-bridge` (PR #1808)  
 **Validation Tier:** MAJOR  
 **Claim Level:** NARROW INTEGRATION  
-**Last Updated:** 2026-06-13 05:26 Asia/Jakarta
+**Last Updated:** 2026-06-13 06:05 Asia/Jakarta
+
+## WARP•R00T finishing pass (PR #1808)
+
+WARP•R00T took the FORGE build to final gate with three scoped corrections — no behavioural change to the deposit credit path, USDC.e-only enablement, or any live guard:
+
+1. **Merged current `main` onto the branch** (was `mergeable_state=dirty`), preserving the #1806 Smart Strike observability truth in `PROJECT_STATE.md` / `WORKTODO.md` / `CHANGELOG.md`. Migration `100` does not collide with `099`.
+2. **Branch traceability:** corrected every repo-truth artifact (`PROJECT_STATE.md`, `WORKTODO.md`, `CHANGELOG.md`, this report) from an earlier non-matching placeholder name to the exact PR head `warp/enable-usdc-usdt-deposit-on-polymarket-bridge`.
+3. **Notification idempotency hardened (owner blocker):** the confirmed-deposit / completed-withdrawal WebTrader alert dedup was check-then-insert (SELECT probe + separate INSERT) with a race window between overlapping job ticks, so the “exactly once” claim did not hold under concurrency. Replaced with **atomic** dedup — migration `101` adds a partial `UNIQUE` index on `(user_id, COALESCE(alert_kind,''), metadata->>'dedup_key')` and `persist_user_alert_once` now does `INSERT ... ON CONFLICT DO NOTHING`. The exactly-once claim now matches runtime.
+
+R00T audit confirmed (file:line evidence in PR thread): bridge adapter has no secrets / no live calls / fails closed; USDC.e is the only `is_fully_enabled` asset and disabled assets attach no deposit address; deposit confirm credits only the normalized tradeable amount; wrong-token path is credit-neutral; no `USE_REAL_CLOB` / `EXECUTION_PATH_VALIDATED` / `ENABLE_LIVE_TRADING` / `CAPITAL_MODE_CONFIRMED` flip; $5 live gate untouched.
 
 ## Verdict
 

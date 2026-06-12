@@ -4,6 +4,7 @@
 For all system rules (tiers, claims, branch format, report/state/roadmap rules, risk constants, pipeline, domain, failure conditions, drift, pre-flight), read `AGENTS.md`. AGENTS.md is the single source of truth and always wins on conflict.
 
 Rule priority: `AGENTS.md` > `PROJECT_REGISTRY.md` > `{PROJECT_ROOT}/state/PROJECT_STATE.md` > `{PROJECT_ROOT}/state/ROADMAP.md` > `{PROJECT_ROOT}/state/WORKTODO.md` > latest relevant forge report > this file.
+> memory at `MEMORY.md`
 
 Version: 2.8
 Last Updated: 2026-06-05 12:00 Asia/Jakarta
