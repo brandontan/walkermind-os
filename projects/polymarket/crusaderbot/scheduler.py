@@ -278,6 +278,7 @@ async def watch_deposits() -> None:
             addresses, cursor_start,
             lookback=settings.DEPOSIT_SCAN_LOOKBACK_BLOCKS,
             token_address=deposit_asset.token_contract,
+            token_decimals=deposit_asset.decimals,
             max_rpc=getattr(settings, "DEPOSIT_SCAN_MAX_RPC_PER_TICK", 60),
         )
     except Exception as exc:
@@ -475,7 +476,12 @@ async def _confirm_ready_deposits(
         )
     notify: list[tuple[object, int, Decimal, str]] = []
     for d in ready:
-        amount = Decimal(str(d["normalized_amount_usdc"] or d["amount_usdc"]))
+        # Capital/accounting path: explicit None check, never truthiness — a
+        # legitimate zero-valued normalized amount must NOT silently fall back
+        # to the raw token amount (migration 099 backfills NULLs, so None only
+        # means "pre-asset-audit row").
+        normalized = d["normalized_amount_usdc"]
+        amount = Decimal(str(d["amount_usdc"] if normalized is None else normalized))
         async with pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(

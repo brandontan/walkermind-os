@@ -69,12 +69,13 @@ export function DepositModal({ address, depositOptions, paperMode, balance, onCl
   const copyAddress = async () => {
     if (!selectedAddress) return;
     try {
-      const instruction = `Deposit ${selected.token_label} on ${selected.network} to ${selectedAddress}`;
+      // COPY contract: raw address ONLY — wallets/exchanges paste this
+      // straight into a send form. Never wrap it in instruction text.
       if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(instruction);
+        await navigator.clipboard.writeText(selectedAddress);
       } else {
         const ta = document.createElement("textarea");
-        ta.value = instruction;
+        ta.value = selectedAddress;
         ta.style.position = "fixed";
         ta.style.opacity = "0";
         document.body.appendChild(ta);

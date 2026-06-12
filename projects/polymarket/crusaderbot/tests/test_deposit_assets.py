@@ -83,3 +83,133 @@ def test_wrong_token_path_remains_credit_neutral():
     assert "wrong_token_deposits" in src
     assert "ledger.credit" not in src
     assert "balance_usdc" not in src
+
+
+# ── R00T finishing-pass pins (PR #1795 CMD hardening items) ──────────────────
+
+_FRONTEND = __import__("pathlib").Path(__file__).resolve().parents[1] / "webtrader" / "frontend" / "src"
+
+
+def test_watch_deposits_propagates_token_decimals_into_scan():
+    """The scanner must decode amounts with the ENABLED asset's decimals, not
+    a hardcoded default — pin the kwarg through watch_deposits and the
+    explicit is-None fallback in polygon (decimals=0 is a valid ERC-20 value
+    and must not silently fall back)."""
+    from projects.polymarket.crusaderbot.integrations import polygon
+    src = inspect.getsource(scheduler.watch_deposits)
+    assert "token_address=deposit_asset.token_contract" in src
+    assert "token_decimals=deposit_asset.decimals" in src
+    poly_src = inspect.getsource(polygon.scan_usdc_transfers)
+    assert "token_decimals is None" in poly_src
+    assert "token_decimals or" not in poly_src
+
+
+def test_confirm_uses_explicit_none_check_for_normalized_amount():
+    """Capital path: `normalized or raw` would silently fall back on a
+    legitimate zero — pin the explicit None check."""
+    src = inspect.getsource(scheduler._confirm_ready_deposits)
+    assert "is None" in src
+    assert 'd["normalized_amount_usdc"] or' not in src
+
+
+def test_confirm_credits_zero_normalized_amount_not_raw(monkeypatch):
+    """Behavior: a ready row with normalized_amount_usdc=0 must credit 0,
+    NOT fall back to the raw token amount."""
+    import asyncio
+    import uuid as _uuid
+    from decimal import Decimal as _D
+    from unittest.mock import AsyncMock, patch
+
+    row = {
+        "id": _uuid.uuid4(), "user_id": _uuid.uuid4(), "tx_hash": "0xz",
+        "amount_usdc": _D("100.0"), "block_number": 10,
+        "token_symbol": "USDC.e", "network": "Polygon", "chain_id": 137,
+        "normalized_amount_usdc": _D("0"),
+    }
+
+    class _Tx:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+
+    class _Conn:
+        def transaction(self): return _Tx()
+        async def fetch(self, sql, *a): return [row]
+        async def fetchrow(self, sql, *a):
+            if "status='confirmed'" in sql:
+                return {"id": row["id"]}
+            if "telegram_user_id" in sql:
+                return {"telegram_user_id": 1}
+            return None
+
+    class _Acq:
+        async def __aenter__(self): return _Conn()
+        async def __aexit__(self, *a): return False
+
+    class _Pool:
+        def acquire(self): return _Acq()
+
+    credit = AsyncMock()
+    with patch.object(scheduler, "get_pool", lambda: _Pool()), \
+         patch.object(scheduler.ledger, "credit_in_conn", credit), \
+         patch.object(scheduler.audit, "write", AsyncMock()):
+        asyncio.run(scheduler._confirm_ready_deposits(head=100, depth=32))
+
+    credit.assert_awaited_once()
+    assert credit.await_args.args[2] == _D("0"), (
+        "zero normalized amount silently fell back to the raw token amount"
+    )
+
+
+def test_record_pending_rejects_mismatched_token_transfer():
+    """A transfer whose token_address differs from the enabled asset must
+    never be inserted as a deposit (no unsupported-asset crediting)."""
+    import asyncio
+    import uuid as _uuid
+    from types import SimpleNamespace as _NS
+    from unittest.mock import patch
+
+    asset = _NS(token_symbol="USDC.e",
+                token_contract="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+                network="Polygon", chain_id=137, decimals=6)
+    t = {"tx_hash": "0xbad", "log_index": 0, "amount": 9.0,
+         "block_number": 5, "removed": False,
+         "token_address": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"}
+    with patch.object(scheduler, "primary_deposit_asset", lambda: asset):
+        with pytest.raises(ValueError):
+            asyncio.run(scheduler._record_pending_deposit(_uuid.uuid4(), t))
+
+
+def test_migration_099_adds_asset_audit_columns():
+    """Migration renumbered 098->099 (098 = ledger.archived on main)."""
+    import pathlib
+    migrations = pathlib.Path(__file__).resolve().parents[1] / "migrations"
+    assert not (migrations / "098_deposit_asset_audit.sql").exists()
+    sql = (migrations / "099_deposit_asset_audit.sql").read_text(encoding="utf-8")
+    for col in ("token_symbol", "token_address", "network", "chain_id",
+                "token_decimals", "normalized_amount_usdc"):
+        assert col in sql
+    assert "ADD COLUMN IF NOT EXISTS" in sql  # idempotent
+    # 098 on main stays the paper-session ledger.archived migration.
+    assert (migrations / "098_ledger_archived.sql").exists()
+
+
+def test_deposit_modal_copy_writes_raw_address_only():
+    """COPY contract (CMD blocker 4): wallets/exchanges paste this straight
+    into a send form — the button must copy ONLY the raw address, never an
+    instruction sentence."""
+    src = (_FRONTEND / "components" / "DepositModal.tsx").read_text(encoding="utf-8")
+    assert "writeText(selectedAddress)" in src
+    assert "ta.value = selectedAddress" in src
+    assert "Deposit ${selected.token_label}" not in src, (
+        "copy regressed to an instruction sentence instead of the raw address"
+    )
+
+
+def test_deposit_modal_disabled_assets_not_selectable_no_qr():
+    """Disabled options: native disabled attr (not keyboard-selectable), no
+    QR/address output, and the API attaches no address to them."""
+    src = (_FRONTEND / "components" / "DepositModal.tsx").read_text(encoding="utf-8")
+    assert "disabled={!option.enabled}" in src
+    # Address resolves to "" for a disabled selection -> QR/copy gated off.
+    assert 'selected?.enabled ? (selected.deposit_address ?? address) : ""' in src
+    assert "option.deposit_address ?? (option.enabled ? address : null)" in src

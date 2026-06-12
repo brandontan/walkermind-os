@@ -46,6 +46,14 @@ from web3.exceptions import Web3RPCError
 
 from projects.polymarket.crusaderbot import config as crusaderbot_config
 from projects.polymarket.crusaderbot import scheduler
+
+# Hermetic stand-in: primary_deposit_asset() reads the full Settings model.
+from types import SimpleNamespace as _NS
+
+_FAKE_DEPOSIT_ASSET = _NS(
+    token_symbol="USDC.e", token_contract="0x" + "27" * 20,
+    network="Polygon", chain_id=137, decimals=6,
+)
 from projects.polymarket.crusaderbot.integrations import polygon
 from projects.polymarket.crusaderbot.wallet import custody
 
@@ -204,7 +212,8 @@ def _scan_recorder(reject_above: int):
     the provider-side range-limit behavior."""
     calls: list[tuple[int, int]] = []
 
-    async def _scan(addresses, from_block, to_block, token_address=None):
+    async def _scan(addresses, from_block, to_block, token_address=None,
+                    token_decimals=None):
         calls.append((from_block, to_block))
         if (to_block - from_block + 1) > reject_above:
             raise Web3RPCError("query exceeds max block range")
@@ -255,7 +264,8 @@ def test_scan_from_cursor_survives_ten_block_provider_cap():
     ladder must now walk below the cap and chunk forward from there."""
     calls: list[tuple[int, int]] = []
 
-    async def _scan(addresses, from_block, to_block, token_address=None):
+    async def _scan(addresses, from_block, to_block, token_address=None,
+                    token_decimals=None):
         calls.append((from_block, to_block))
         if (to_block - from_block + 1) > 10:
             raise _http_rejection(400)
@@ -300,7 +310,8 @@ def test_scan_from_cursor_halves_on_http_400_rejection():
     (halve), or the prod block-0 outage mode persists on such vendors."""
     calls: list[tuple[int, int]] = []
 
-    async def _scan(addresses, from_block, to_block, token_address=None):
+    async def _scan(addresses, from_block, to_block, token_address=None,
+                    token_decimals=None):
         calls.append((from_block, to_block))
         if (to_block - from_block + 1) > 250:
             raise _http_rejection(400)
@@ -340,7 +351,8 @@ def test_accepted_span_is_remembered_without_oscillation():
     calls: list[tuple[int, int]] = []
     cursor = 0
 
-    async def _scan(addresses, from_block, to_block, token_address=None):
+    async def _scan(addresses, from_block, to_block, token_address=None,
+                    token_decimals=None):
         calls.append((from_block, to_block))
         if (to_block - from_block + 1) > 250:
             raise _http_rejection(400)
@@ -389,7 +401,8 @@ def test_scan_from_cursor_covers_window_to_head_on_success():
     within budget — one full-span chunk plus the 1-block remainder — and
     returns every transfer with scanned_to == head."""
 
-    async def _ok(addresses, from_block, to_block, token_address=None):
+    async def _ok(addresses, from_block, to_block, token_address=None,
+                  token_decimals=None):
         return [{"to": "0xabc"}]
 
     with patch.object(polygon, "latest_block", AsyncMock(return_value=5_000)), \
@@ -409,7 +422,8 @@ def test_scan_from_cursor_keeps_partial_coverage_on_midcall_transport():
     a repeat failure raises and feeds the DOWN escalation."""
     calls: list[tuple[int, int]] = []
 
-    async def _scan(addresses, from_block, to_block, token_address=None):
+    async def _scan(addresses, from_block, to_block, token_address=None,
+                    token_decimals=None):
         calls.append((from_block, to_block))
         if len(calls) == 3:
             raise ClientError("connection reset")
@@ -530,6 +544,8 @@ def test_watch_deposits_threads_rpc_budget_from_settings():
                          AsyncMock(return_value=1_000)), \
             patch.object(scheduler, "_read_cursor",
                          AsyncMock(return_value=0)), \
+            patch.object(scheduler, "primary_deposit_asset",
+                         lambda: _FAKE_DEPOSIT_ASSET), \
             patch.object(scheduler.polygon, "scan_from_cursor", scan), \
             patch.object(scheduler, "log", MagicMock()):
         asyncio.run(scheduler.watch_deposits())
@@ -599,6 +615,8 @@ def test_watch_deposits_failure_line_redacts_rpc_key():
                          AsyncMock(return_value=1_000)), \
             patch.object(scheduler, "_read_cursor",
                          AsyncMock(return_value=0)), \
+            patch.object(scheduler, "primary_deposit_asset",
+                         lambda: _FAKE_DEPOSIT_ASSET), \
             patch.object(scheduler.polygon, "scan_from_cursor",
                          AsyncMock(side_effect=boom)), \
             patch.object(polygon, "get_settings",

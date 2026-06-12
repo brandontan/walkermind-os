@@ -118,7 +118,10 @@ def test_wallet_surfaces_use_the_helper():
     assert tg.count("effective_deposit_address(w)") == 3
     assert 'w["deposit_address"] if w else' not in tg
     web = (_ROOT / "webtrader" / "backend" / "router.py").read_text(encoding="utf-8")
-    assert "deposit_address=effective_deposit_address(w_row)" in web
+    # FORGE #1795 binds the helper result to a local so deposit_options can
+    # reuse the same custody-aware address — the helper is still the source.
+    assert "deposit_address = effective_deposit_address(w_row)" in web
+    assert "deposit_address=deposit_address" in web
 
 
 # ── 3. admin backfill also fills safe addresses ──────────────────────────────

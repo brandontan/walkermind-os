@@ -282,7 +282,11 @@ async def scan_usdc_transfers(
     w3 = _get_w3()
     settings = get_settings()
     scan_addr = token_address or settings.USDC_POLYGON
-    decimals = int(token_decimals or settings.USDC_DECIMALS)
+    # Explicit None check (not truthiness): decimals=0 is a valid ERC-20 value
+    # and must not silently fall back on this amount-decoding path.
+    decimals = int(
+        settings.USDC_DECIMALS if token_decimals is None else token_decimals
+    )
     scan_cs = AsyncWeb3.to_checksum_address(scan_addr)
     # Decode with a contract bound to the SCANNED token address rather than the
     # cached USDC.e instance. The Transfer ABI is identical across ERC-20s, so

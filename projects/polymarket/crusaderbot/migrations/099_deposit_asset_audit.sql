@@ -1,4 +1,4 @@
--- 098: deposit asset/network audit truth for multi-asset deposit selector (#1793)
+-- 099: deposit asset/network audit truth for multi-asset deposit selector (#1793)
 --
 -- Additive/idempotent. Existing credited deposits are backfilled as Polygon
 -- USDC.e because that is the only token/network the historical watcher credited.
