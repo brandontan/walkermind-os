@@ -186,3 +186,14 @@ def test_scanner_panel_renders_no_trade_reason() -> None:
     assert "smart_strike_no_trade_reason" in src
     # The status line must consume the derived reason, not a bare literal.
     assert "statusText" in src
+
+
+def test_scanner_panel_formats_no_trade_reason_as_friendly_copy() -> None:
+    src = (_ROOT / "webtrader/frontend/src/components/ScannerPanel.tsx").read_text(
+        encoding="utf-8"
+    )
+    assert "formatNoTradeReason(noTradeReason)" in src
+    assert "order book empty" in src
+    assert "liquidity too thin" in src
+    assert "below minimum order size" in src
+    assert 'noTradeReason.replace(/^skipped_/' not in src

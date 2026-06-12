@@ -1,12 +1,22 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 05:40**
+**Last Updated : 2026-06-13 05:50**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1807 -- smart-strike-friendly-signal-status-polish
+
+- [x] WARP•FORGE build on work (MINOR — NARROW INTEGRATION).
+- [x] ScannerPanel Smart Strike no-trade reason status now uses friendly operator copy instead of raw snake_case/code-like telemetry.
+- [x] Added curated labels for common fail-closed reasons: order book empty, liquidity too thin, below minimum order size, measured edge unavailable, no qualifying setup yet, no enabled markets in universe.
+- [x] Unknown future reason codes still render deterministically by trimming skipped_ and replacing underscores with spaces; no reason is hidden.
+- [x] Frontend-only presentation polish: no RuntimeStatus schema/API contract change, no scan/risk/order logic change, no live-guard flip, no order/fund movement.
+- [x] test_smart_strike_no_trade_reason.py 19 passed; frontend npm run build green; screenshot captured at /tmp/smart-strike-friendly-status.png.
+- [ ] WARP🔹CMD review.
 
 ## #1804 -- live-smart-strike-no-trade-diagnostic
 

@@ -54,6 +54,42 @@ const PRESET_LABEL: Record<string, string> = {
 const presetLabel = (p: string | null): string =>
   p ? (PRESET_LABEL[p] ?? p) : "none";
 
+const NO_TRADE_REASON_LABELS: Record<string, string> = {
+  awaiting_signal: "waiting for a clean setup",
+  late_entry_v3: "late-entry filter blocked setup",
+  no_candidates: "no qualifying setup yet",
+  no_eligible_markets: "no eligible markets after filters",
+  no_markets_in_universe: "no enabled markets in universe",
+  smart_strike_admin_disabled: "Smart Strike universe disabled",
+  step_14_below_min_order_shares: "below minimum order size",
+};
+
+const NO_TRADE_TOKEN_LABELS: Record<string, string> = {
+  archived: "market archived",
+  below_min_order_size: "below minimum order size",
+  liquidity: "liquidity too thin",
+  measured_edge_missing: "measured edge unavailable",
+  no_edge: "edge below threshold",
+  orderbook_empty: "order book empty",
+  stale_tob: "top-of-book stale",
+};
+
+export function formatNoTradeReason(reason: string | null | undefined): string | null {
+  if (!reason) return null;
+  if (NO_TRADE_REASON_LABELS[reason]) return NO_TRADE_REASON_LABELS[reason];
+
+  const [prefix, suffix] = reason.split(":", 2);
+  if (suffix && NO_TRADE_REASON_LABELS[prefix]) {
+    const suffixLabel = NO_TRADE_TOKEN_LABELS[suffix]
+      ?? suffix.replace(/^skipped_/, "").replace(/_/g, " ");
+    return `${NO_TRADE_REASON_LABELS[prefix]}: ${suffixLabel}`;
+  }
+
+  const trimmed = reason.replace(/^skipped_/, "");
+  if (NO_TRADE_TOKEN_LABELS[trimmed]) return NO_TRADE_TOKEN_LABELS[trimmed];
+  return trimmed.replace(/_/g, " ");
+}
+
 const LEAN_ARROW: Record<MarketFeedItem["lean"], string> = { UP: "▲", DOWN: "▼", EVEN: "─" };
 const LEAN_VAR: Record<MarketFeedItem["lean"], string> = {
   UP:   "var(--grn,#00FF9C)",
@@ -449,11 +485,10 @@ export function ScannerPanel({
 
   // Smart Strike candle-scan funnel — the real LIVE engine. When the scanner is
   // running but no order fired, surface the dominant no-trade reason from
-  // backend telemetry so the panel never hides a fail-closed cause behind a
-  // bare "awaiting_signal". Raw reason code is shown verbatim (honest +
-  // greppable); only the noisy "skipped_" prefix is trimmed for readability.
+  // backend telemetry as operator-friendly copy so the panel never hides a
+  // fail-closed cause behind a bare "awaiting_signal" or raw reason code.
   const noTradeReason = runtime?.smart_strike_no_trade_reason ?? null;
-  const noTradeLabel = noTradeReason ? noTradeReason.replace(/^skipped_/, "") : null;
+  const noTradeLabel = formatNoTradeReason(noTradeReason);
   const statusText = signals.length > 0
     ? "signal_fired"
     : noTradeLabel
