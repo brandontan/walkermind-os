@@ -674,6 +674,66 @@ async def _act_on_decision(
                  "mode": position.mode},
     )
 
+    # Mode-isolation guard (#1810). A paper position can be closed by THIS
+    # watcher in a race with a PAPER -> LIVE switch: enable_live_self_serve
+    # archives open paper positions, but the 30s exit_watch / 5s candle fast
+    # loop loads open positions with no mode filter and may win the atomic
+    # close first. ``position.mode`` is the STALE row value, so emitting the
+    # alert + ``position.closed`` event here would surface an active
+    # ``[PAPER] Strategy exit`` on Telegram + WebTrader AFTER the user is
+    # already LIVE — the exact production contamination in #1810, and a
+    # violation of mode-isolation invariants (paper automation must not look
+    # active once LIVE is selected). Resolve the AUTHORITATIVE current mode
+    # (``user_settings.trading_mode`` — the same column WebTrader + Telegram
+    # read) and, on contamination, record a diagnostic and suppress the
+    # user-facing alert + event. The close itself is already persisted +
+    # audited above, so this is silent historical paper cleanup, not a
+    # dangling position.
+    try:
+        from ..activation.live_mode import (
+            get_active_trading_mode,
+            paper_event_contaminates_live,
+        )
+        active_mode = await get_active_trading_mode(position.user_id)
+        contaminates = paper_event_contaminates_live(
+            event_mode=position.mode, active_mode=active_mode,
+        )
+    except Exception as exc:
+        # An unknown current mode (transient DB error) must never crash the
+        # close path. Fail OPEN to existing behaviour so normal paper users
+        # keep their exit notifications — the committed authoritative read is
+        # the real protection and a mode switch is a rare, short window.
+        log.warning(
+            "exit_watcher: active-mode read failed — emitting with position mode",
+            position_id=str(position.id), err=str(exc),
+        )
+        active_mode = position.mode
+        contaminates = False
+
+    if contaminates:
+        log.warning(
+            "exit_watcher: suppressing post-live-switch paper exit notification "
+            "(historical paper cleanup; user is now LIVE)",
+            worker="exit_watcher",
+            position_id=str(position.id),
+            user_id=str(position.user_id),
+            event_mode=position.mode,
+            active_mode=active_mode,
+            reason=reason,
+        )
+        await audit.write(
+            actor_role="bot",
+            action="exit_watcher_paper_exit_suppressed_post_live",
+            user_id=position.user_id,
+            payload={"position_id": str(position.id),
+                     "reason": reason,
+                     "event_mode": position.mode,
+                     "active_mode": active_mode,
+                     "exit_price": decision.current_price,
+                     "pnl_usdc": str(pnl_decimal)},
+        )
+        return
+
     alert_fn = _user_alert_for_reason(reason)
     if alert_fn is not None:
         await alert_fn(

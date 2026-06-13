@@ -1,12 +1,26 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 07:15**
+**Last Updated : 2026-06-13 07:46**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1810 -- live-mode-paper-trade-contamination-blocker (PR #1810)
+
+- [x] WARP•R00T root-cause (MAJOR — NARROW INTEGRATION) on WARP/live-mode-paper-trade-contamination-blocker.
+- [x] Diagnosed: TOCTOU race — exit watcher (30s exit_watch + 5s candle loop, no mode filter) can win the atomic close ahead of the PAPER->LIVE switch and emit [PAPER] Strategy exit using the stale position.mode for a now-LIVE user.
+- [x] Confirmed entry path safe (mode hardcoded at creation; auto_trade_on=FALSE post-switch) and WebTrader/Telegram already share the authoritative user_settings.trading_mode column.
+- [x] Added live_mode.get_active_trading_mode() (authoritative read) + paper_event_contaminates_live() predicate.
+- [x] exit_watcher._act_on_decision: resolve committed mode after close persist+audit; on contamination write exit_watcher_paper_exit_suppressed_post_live audit + warning and suppress BOTH the user alert AND the position.closed emit (Telegram notification_service + WebTrader SSE). Close stays as silent historical paper cleanup.
+- [x] Mode read fails OPEN on transient DB error so normal paper users never lose notifications.
+- [x] New test_live_mode_paper_contamination.py — 14 behaviour tests (predicate, authoritative read, suppression of alert+event, still-paper control, per-user isolation, live-not-suppressed).
+- [x] Regression suites green (exit_watcher/live-switch/self-serve/live-mode/live-activation = 114); full suite 3622 passed; ruff + py_compile clean.
+- [x] No live-guard flip (USE_REAL_CLOB / EXECUTION_PATH_VALIDATED / ENABLE_LIVE_TRADING / CAPITAL_MODE_CONFIRMED); Kelly 0.25; $5 gate + kill switch unchanged; no order/fund movement.
+- [ ] CI green on final head SHA.
+- [ ] WARP•R00T final-gate disposition (or route to WARP•SENTINEL).
 
 ## #1807 -- smart-strike-friendly-signal-status-polish (PR #1809)
 
