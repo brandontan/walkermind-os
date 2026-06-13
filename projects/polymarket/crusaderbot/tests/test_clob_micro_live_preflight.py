@@ -34,8 +34,13 @@ from projects.polymarket.crusaderbot.domain.execution.live import (
     assert_live_guards,
     execute,
 )
-from projects.polymarket.crusaderbot.integrations.clob import (
+# Import from LEAF modules, NOT the ``integrations.clob`` package — the
+# package's ``__init__.py`` eagerly loads the real adapter / v2 / sidecar
+# backends, which would weaken the hermeticity source-pin below (Codex P2).
+from projects.polymarket.crusaderbot.integrations.clob.exceptions import (
     ClobAuthError,
+)
+from projects.polymarket.crusaderbot.integrations.clob.mock import (
     MockClobClient,
 )
 from projects.polymarket.crusaderbot.wallet.ledger import live_ledger_filter_sql
@@ -359,19 +364,34 @@ def test_no_real_clob_call_in_this_test_module() -> None:
     """Source-pin: this whole test file never imports a non-Mock CLOB client
     and only patches inside the unit under test. No background pool, no real
     aiohttp session, no live endpoints — pinned by the absence of the
-    forbidden import strings."""
+    forbidden import strings.
+
+    Codex P2 strengthening: importing from the ``integrations.clob`` PACKAGE
+    transitively loads the real adapter / v2 / sidecar backends via its
+    ``__init__.py``, even when the names referenced are themselves harmless.
+    The pin therefore forbids the package import form too — every CLOB symbol
+    used here must come from its LEAF module (``.exceptions``, ``.mock``).
+    """
     src = pathlib.Path(__file__).read_text(encoding="utf-8")
+    body = src.split("# Hermeticity invariants", 1)[0]
     forbidden = (
+        # Direct backend imports — would actually run their network stacks.
         "from projects.polymarket.crusaderbot.integrations.clob.v2_client import",
         "from projects.polymarket.crusaderbot.integrations.clob.adapter import ClobAdapter",
         "from projects.polymarket.crusaderbot.integrations.clob.rust_sidecar import",
         "import aiohttp",
+        # Indirect via the package init — eagerly loads every backend, so it
+        # weakens hermeticity even if no symbol is then called (Codex P2).
+        "from projects.polymarket.crusaderbot.integrations.clob import",
     )
-    body = src.split("# Hermeticity invariants", 1)[0]
     for needle in forbidden:
         assert needle not in body, (
             f"this preflight matrix must stay hermetic — found {needle!r}"
         )
+    # Symbols are imported from their LEAF modules so the package __init__
+    # does not get pulled in.
+    assert "from projects.polymarket.crusaderbot.integrations.clob.exceptions import" in body
+    assert "from projects.polymarket.crusaderbot.integrations.clob.mock import" in body
     # Every execute() invocation MUST go through the ``_run`` helper (which
     # patches the pool / MDC / audit / notifier). The helper itself uses
     # ``asyncio.run(execute(**kwargs))`` (a single permitted occurrence); any

@@ -15,7 +15,7 @@ Not in Scope (per issue): no native USDC/USDT enablement, no Bridge/pUSD archite
 
 ## 1. Verdict
 
-**Code path is already production-grade — no new live-order code is needed.** Per the recent #1814 go-live-readiness audit and an independent #1817 verification pass against `domain/execution/live.py`, `domain/risk/gate.py`, `integrations/clob/*`, and `wallet/ledger.py`, **every** preflight blocker the issue lists is checked and fail-closed before any CLOB POST. The remaining gap is operational — the runbook in `reports/forge/go-live-readiness.md` already covers it.
+**Code path is already production-grade — no new live-order code is needed.** Per the recent #1814 go-live-readiness audit and an independent #1817 verification pass against `domain/execution/live.py`, `domain/risk/gate.py`, `integrations/clob/*`, and `wallet/ledger.py`, **every** preflight blocker the issue lists is checked and fail-closed before any CLOB POST. The remaining gap is operational — the runbook in `projects/polymarket/crusaderbot/reports/forge/go-live-readiness.md` already covers it.
 
 This lane therefore lands the two things the issue explicitly asks for under §8 ("if the code already has a valid open-order path and only production ops are missing, do not overbuild"):
 
@@ -85,7 +85,7 @@ The kill-switch ON, Auto-Trade OFF, balance < $5, market-not-eligible, and stale
 
 ## 5. Narrow proof-run runbook (single micro-trade)
 
-The full step-by-step go-live runbook lives in `reports/forge/go-live-readiness.md` (sidecar wiring -> 6-guard sequence -> per-user opt-in + USDC.e funding -> funded micro-trade -> halt/rollback). For #1817 the operator-facing single-micro-trade proof is:
+The full step-by-step go-live runbook lives in `projects/polymarket/crusaderbot/reports/forge/go-live-readiness.md` (sidecar wiring -> 6-guard sequence -> per-user opt-in + USDC.e funding -> funded micro-trade -> halt/rollback). For #1817 the operator-facing single-micro-trade proof is:
 
 1. **Credential / dry-run proof (NO funds at risk).** With sidecar wired, set `USE_REAL_CLOB=true` while keeping `ENABLE_LIVE_TRADING=false`. Confirm at boot: `clob: POLY_1271 deposit wallet resolved=…, creds derived`. Trigger a `late_entry_v3` candidate against BTC/ETH 5m/15m; confirm a `live.execute dry_run` log line carrying `token_id`, `side`, `shares`, `price`, `order_type`, `idempotency_key`. There must be NO INSERT INTO orders for this tick.
 2. **Guard sequence.** In order: `RISK_CONTROLS_VALIDATED=true` → `SECURITY_HARDENING_VALIDATED=true` → `EXECUTION_PATH_VALIDATED=true` → `CAPITAL_MODE_CONFIRMED=true` → `ENABLE_LIVE_TRADING=true` → `system_settings.global_live_trading_enabled='true'`. Per-user: role `admin`, `trading_mode='live'` via typed-CONFIRM (Auto-Trade is force-OFF on the switch by design).
@@ -117,7 +117,7 @@ No live order placed by CI / tests. No real funds moved. No live-guard flip (`US
 
 ## 9. What is next
 
-WARP🔹CMD first-pass; merge under WARP•R00T final gate on CI green (verification + preflight matrix + runbook; no capital path touched). After merge, the operator runbook in `reports/forge/go-live-readiness.md` (steps 0-7) is the path to a real funded micro-trade. The deferred lanes (native USDC/USDT enablement #1805, `late_entry_v3` edge calibration #1815) remain owner-gated and are explicitly out of scope here.
+WARP🔹CMD first-pass; merge under WARP•R00T final gate on CI green (verification + preflight matrix + runbook; no capital path touched). After merge, the operator runbook in `projects/polymarket/crusaderbot/reports/forge/go-live-readiness.md` (steps 0-7) is the path to a real funded micro-trade. The deferred lanes (native USDC/USDT enablement #1805, `late_entry_v3` edge calibration #1815) remain owner-gated and are explicitly out of scope here.
 
 ---
 
