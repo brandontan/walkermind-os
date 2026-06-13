@@ -1,12 +1,25 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 08:05**
+**Last Updated : 2026-06-13 08:32**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1805 -- polymarket-bridge-native-enablement-blocker (safe groundwork)
+
+- [x] WARP•R00T root-cause (MAJOR — NARROW INTEGRATION) on WARP/root-bridge-native-deposit-safe-groundwork; owner directive "document precise blocker + safe groundwork".
+- [x] Proved precise blocker: Bridge settles native USDC/USDT to pUSD, but live path debits the USDC.e DB ledger, get_live_balance counts only deposits-table USDC.e rows, sweep is USDC.e-contract-bound, pUSD is documentation-only in runtime; crediting pUSD = unsafe fake-enablement.
+- [x] Native USDC/USDT stay DISABLED for crediting (deposit_assets matrix unchanged; frontend keeps honest "unavailable").
+- [x] Built safe non-crediting Bridge status poller (services/bridge/status_poller.py): COMPLETED pUSD settlements -> bridge_deposit_events MANUAL_REVIEW (credited_deposit_id NULL) + one honest deduped web notification; never credits; fail-closed per user; idempotent.
+- [x] Gated by BRIDGE_DEPOSIT_POLLER_ENABLED (default OFF — no live Bridge call); scheduler registers bridge_deposit_status_poll only under the flag.
+- [x] 9 behaviour/safety tests; full suite 3646 passed; ruff + py_compile + secret/mojibake/BOM clean.
+- [x] No deposits/ledger/wallets write; get_live_balance + $5 gate + order sizing + sweep + live guards untouched; no order/fund movement.
+- [ ] CI green on final head SHA.
+- [ ] WARP•R00T final-gate disposition.
+- [ ] #1805 STAYS OPEN — native enablement deferred to owner go-live precondition chain (per-user deposit-wallet execution OR pUSD<->USDC.e onramp + settled-balance accounting + USE_REAL_CLOB/EXECUTION_PATH_VALIDATED/ENABLE_LIVE_TRADING/CAPITAL_MODE_CONFIRMED sequence).
 
 ## #1807 (reopened) -- smart-strike-status-leak-anim
 
