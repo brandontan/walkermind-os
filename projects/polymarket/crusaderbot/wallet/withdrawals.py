@@ -106,15 +106,6 @@ async def create_withdrawal_request(
                 ref_id=row["id"],
                 note=f"withdrawal request to {destination_address[:10]}…",
             )
-    # Auto-approval mode skips the admin approve step, so the on-chain
-    # settlement (deferred no-op in paper) must fire here instead — otherwise
-    # an auto-approved live withdrawal would be debited but never sent.
-    if initial_status == "approved":
-        await _settle_withdrawal(row["id"], destination_address, amount_usdc)
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT * FROM withdrawals WHERE id = $1", row["id"]
-            )
     # Honest pending-state web notification (#1819). The ledger debit is an
     # available-balance lock (NOT a final transfer), and the on-chain transfer
     # only fires once an operator approves AND every guard
@@ -125,8 +116,29 @@ async def create_withdrawal_request(
     # via migration 101's unique index. Best-effort: failures here NEVER undo
     # the committed ledger debit (persist_user_alert_once swallows its own
     # errors per its contract).
+    #
+    # Ordering note (Codex P2 #1821): emit BEFORE the auto-mode inline
+    # ``_settle_withdrawal`` call. In ``auto`` approval mode with
+    # EXECUTION_PATH_VALIDATED=True the settle path can complete the
+    # withdrawal in this same call (status='completed' + a
+    # 'withdrawal_confirmed' alert). Sending the "pending review" copy AFTER a
+    # confirmed terminal state would mis-narrate the lifecycle. Firing
+    # requested → (then) settle/confirmed preserves correct order — the two
+    # alerts use distinct dedup keys (``:requested`` vs ``:completed``) so
+    # they can co-exist for the same withdrawal id without colliding on the
+    # migration-101 partial-unique index.
+    #
+    # asyncpg interop note (Gemini HIGH #1821): ``row`` here is an
+    # ``asyncpg.Record`` which supports ``key in row`` + ``row[key]`` but
+    # NOT ``row.get(...)`` — using ``.get`` would AttributeError at runtime,
+    # be swallowed by the outer try/except, and silently kill the alert.
     try:
         from ..webtrader.backend.notification_prefs import persist_user_alert_once
+        _lifecycle = (
+            row["lifecycle_state"]
+            if "lifecycle_state" in row
+            else None
+        ) or ledger.L_WITHDRAW_PENDING
         await persist_user_alert_once(
             user_id=row["user_id"],
             alert_key="system_status",
@@ -146,9 +158,7 @@ async def create_withdrawal_request(
                 "amount_usdc": float(amount_usdc),
                 "destination_address": destination_address,
                 "status": row["status"],
-                "lifecycle_state": row.get("lifecycle_state") or (
-                    ledger.L_WITHDRAW_PENDING
-                ),
+                "lifecycle_state": _lifecycle,
             },
         )
     except Exception as exc:
@@ -158,6 +168,18 @@ async def create_withdrawal_request(
             "withdrawal_requested_alert_failed withdrawal_id=%s err=%s",
             row["id"], exc,
         )
+
+    # Auto-approval mode skips the admin approve step, so the on-chain
+    # settlement (deferred no-op in paper) must fire here instead — otherwise
+    # an auto-approved live withdrawal would be debited but never sent. Fired
+    # AFTER the requested-alert so the user sees: requested → (then) the
+    # appropriate terminal alert (confirmed / failed / refunded) in order.
+    if initial_status == "approved":
+        await _settle_withdrawal(row["id"], destination_address, amount_usdc)
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM withdrawals WHERE id = $1", row["id"]
+            )
     return dict(row)
 
 

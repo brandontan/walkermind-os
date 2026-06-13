@@ -90,10 +90,15 @@ def test_two_distinct_dedup_namespaces_for_requested_and_confirmed() -> None:
     withdrawal id without collision. Source-pin the two distinct strings."""
     req_src = inspect.getsource(withdrawals.create_withdrawal_request)
     cmp_src = inspect.getsource(withdrawals._attempt_onchain_transfer)
-    assert ":requested" in req_src
-    assert ":completed" in cmp_src
-    assert ":requested" not in cmp_src
-    assert ":completed" not in req_src
+    # The dedup-key strings themselves (in f-string form) live ONLY in the
+    # function that owns the alert — comments and docstrings explaining the
+    # split mention both terms in either source, so pin the f-string forms.
+    req_key = 'dedup_key=f"withdrawal:{row[\'id\']}:requested"'
+    cmp_key = 'dedup_key=f"withdrawal:{completed[\'id\']}:completed"'
+    assert req_key in req_src
+    assert cmp_key in cmp_src
+    assert req_key not in cmp_src
+    assert cmp_key not in req_src
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +330,26 @@ def test_wallet_ledger_endpoint_joins_withdrawals_table() -> None:
     assert "w.tx_hash AS withdrawal_tx_hash" in router_src
 
 
+def test_get_wallet_initial_ledger_recent_also_joins_withdrawals() -> None:
+    """Codex P2 #1821: WalletPage.load() refreshes the activity feed from
+    ``api.getWallet().ledger_recent`` (the /wallet endpoint), NOT the
+    paginated /wallet/ledger. If only the paginated endpoint carries the
+    JOIN, the first 20 rows — including the just-created queued withdrawal —
+    render as bare debits until the user scrolls. Mirror the JOIN in /wallet
+    so the badge is honest from the first paint."""
+    router_src = (_ROOT / "webtrader/backend/router.py").read_text(encoding="utf-8")
+    # Take only the get_wallet() function body so we don't false-pass on the
+    # paginated /wallet/ledger endpoint that already has the JOIN.
+    start = router_src.index("@router.get(\"/wallet\", response_model=WalletInfo)")
+    end = router_src.index("@router.get(\"/wallet/ledger\"", start)
+    body = router_src[start:end]
+    assert "LEFT JOIN withdrawals" in body
+    assert "ON l.type = 'withdraw' AND l.ref_id = w.id" in body
+    assert "w.status AS withdrawal_status" in body
+    assert "withdrawal_status=r[\"withdrawal_status\"]" in body
+    assert "withdrawal_tx_hash=r[\"withdrawal_tx_hash\"]" in body
+
+
 def test_ledger_entry_schema_carries_withdrawal_badge_fields() -> None:
     fields = schemas.LedgerEntry.model_fields
     assert "withdrawal_status" in fields
@@ -369,13 +394,41 @@ def test_ledger_debit_remains_atomic_with_withdrawal_insert() -> None:
     assert "debit_in_conn(" in src
     # The pending alert is emitted AFTER the transaction commits — never inside
     # it (an alert outage must never roll back the debit).
-    body = src
-    insert_idx = body.index("INSERT INTO withdrawals")
-    alert_idx = body.index('alert_kind="withdrawal_requested"')
+    insert_idx = src.index("INSERT INTO withdrawals")
+    alert_idx = src.index('alert_kind="withdrawal_requested"')
     assert alert_idx > insert_idx
-    tx_end_marker = "_settle_withdrawal(row[\"id\"]"
-    # The alert is emitted at module level outside the transaction context.
-    assert tx_end_marker in body
+
+
+def test_requested_alert_fires_before_auto_settlement() -> None:
+    """Codex P2 #1821: in 'auto' approval mode the inline ``_settle_withdrawal``
+    call can complete the withdrawal in-process (status='completed' +
+    'withdrawal_confirmed' alert). Firing 'withdrawal_requested' AFTER that
+    would deliver a "pending review" notification AFTER a terminal confirmed
+    one — a wrong-order lifecycle narrative. Pin the ordering: the requested
+    alert site must appear BEFORE the ``_settle_withdrawal`` call site so the
+    user always sees requested → confirmed/failed/refunded in lifecycle order.
+    """
+    src = inspect.getsource(withdrawals.create_withdrawal_request)
+    alert_idx = src.index('alert_kind="withdrawal_requested"')
+    settle_idx = src.index("_settle_withdrawal(row[\"id\"]")
+    assert alert_idx < settle_idx, (
+        "withdrawal_requested alert must fire BEFORE _settle_withdrawal so "
+        "the lifecycle order requested -> confirmed/failed is preserved"
+    )
+
+
+def test_requested_alert_uses_asyncpg_record_safe_metadata_lookup() -> None:
+    """Gemini HIGH #1821: ``row`` is an ``asyncpg.Record`` at runtime, which
+    does NOT implement ``.get()``. Calling ``row.get('lifecycle_state')``
+    would AttributeError, be swallowed by the outer try/except, and silently
+    kill the entire pending-state alert in production. Use ``key in row`` +
+    ``row[key]`` which both dict and asyncpg.Record support."""
+    src = inspect.getsource(withdrawals.create_withdrawal_request)
+    # The dangerous Record-incompatible pattern is gone.
+    assert 'row.get("lifecycle_state")' not in src
+    # The safe Record-compatible pattern is in.
+    assert '"lifecycle_state" in row' in src
+    assert 'row["lifecycle_state"]' in src
 
 
 def test_preflight_failure_still_refunds_ledger() -> None:

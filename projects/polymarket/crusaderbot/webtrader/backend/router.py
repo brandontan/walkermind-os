@@ -1656,9 +1656,19 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
         _flt = live_ledger_filter_sql("l")
         # NOT l.archived drops a prior paper session's rows after a
         # PAPER -> LIVE -> PAPER round-trip (archived by enable_live_self_serve).
+        # #1819 (Codex P2): mirror the JOIN from ``/wallet/ledger`` so the
+        # initial WalletPage open shows the lifecycle badge on a queued
+        # withdrawal — not just the paginated calls. Without this the just-
+        # created withdraw row reads as a bare debit until the user scrolls
+        # the activity feed (which only then hits the JOIN'd endpoint), and
+        # the owner's "Queued" badge would be missing on first paint.
         ledger_rows = await conn.fetch(
-            f"""SELECT l.id::text, l.type, l.amount_usdc, l.note, l.created_at
+            f"""SELECT l.id::text, l.type, l.amount_usdc, l.note, l.created_at,
+                       w.status AS withdrawal_status,
+                       w.tx_hash AS withdrawal_tx_hash
                 FROM ledger l
+                LEFT JOIN withdrawals w
+                       ON l.type = 'withdraw' AND l.ref_id = w.id
                WHERE l.user_id=$1::uuid AND {'' if _mode_live else 'NOT '}{_flt}
                  AND NOT l.archived
                ORDER BY l.created_at DESC, l.id DESC LIMIT 20""",
@@ -1688,6 +1698,8 @@ async def get_wallet(user: _CurrentUser) -> WalletInfo:
                 amount_usdc=float(r["amount_usdc"]),
                 note=r["note"],
                 created_at=r["created_at"],
+                withdrawal_status=r["withdrawal_status"],
+                withdrawal_tx_hash=r["withdrawal_tx_hash"],
             )
             for r in ledger_rows
         ],
