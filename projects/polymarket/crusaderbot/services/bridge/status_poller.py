@@ -124,6 +124,7 @@ async def _record_manual_review(
             raw = EXCLUDED.raw,
             updated_at = NOW(),
             manual_review_reason = EXCLUDED.manual_review_reason
+        WHERE bridge_deposit_events.credited_deposit_id IS NULL
         RETURNING (xmax = 0) AS inserted, credited_deposit_id
         """,
         user_id,
@@ -178,32 +179,41 @@ async def run_once() -> PollResult:
             errors += 1
             continue
 
-        for tx in bridge.completed_pusd_settlements(transactions):
-            settlements_seen += 1
-            if not tx.tx_hash:
-                # No tx_hash -> cannot dedup safely; skip until Bridge assigns one.
-                continue
-            normalized = _normalized_usdc(tx)
-            try:
-                pool = get_pool()
-                async with pool.acquire() as conn:
+        settlements = bridge.completed_pusd_settlements(transactions)
+        if not settlements:
+            continue
+        settlements_seen += len(settlements)
+
+        # Persist this user's settlements under ONE pooled connection (avoids
+        # pool churn / exhaustion vs acquiring per transaction), and outside the
+        # external get_status HTTP call above. Notifications are collected and
+        # sent AFTER the connection is released (persist_user_alert_once acquires
+        # its own connection).
+        to_notify: list[tuple[bridge.BridgeTransaction, Optional[Decimal]]] = []
+        try:
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                for tx in settlements:
+                    if not tx.tx_hash:
+                        # No tx_hash -> cannot dedup safely; skip until assigned.
+                        continue
+                    normalized = _normalized_usdc(tx)
                     first_seen = await _record_manual_review(
                         conn, user_id=user_id, address=address,
                         tx=tx, normalized=normalized,
                     )
-                if first_seen:
-                    manual_review_recorded += 1
-            except Exception as exc:
-                log.warning(
-                    "bridge_status_poller: persist failed",
-                    user_id=str(user_id), tx_hash=tx.tx_hash, err=str(exc),
-                )
-                errors += 1
-                continue
+                    if first_seen:
+                        manual_review_recorded += 1
+                        to_notify.append((tx, normalized))
+        except Exception as exc:
+            log.warning(
+                "bridge_status_poller: persist failed",
+                user_id=str(user_id), err=str(exc),
+            )
+            errors += 1
+            continue
 
-            if not first_seen:
-                continue
-
+        for tx, normalized in to_notify:
             amount_txt = (
                 f"~${float(normalized):.2f} " if normalized is not None else ""
             )

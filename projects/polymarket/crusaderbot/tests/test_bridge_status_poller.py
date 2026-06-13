@@ -44,11 +44,14 @@ def _completed_pusd_tx(*, tx_hash: str | None = "0xabc", amount: str = "5000000"
 
 class _FakeConn:
     """Minimal asyncpg-conn stand-in. ``_seen`` tracks tx_hashes so a replayed
-    settlement reports inserted=False (mirrors ON CONFLICT DO UPDATE)."""
+    settlement reports inserted=False (mirrors ON CONFLICT DO UPDATE). A tx_hash
+    in ``_credited`` models an already-credited row: the ON CONFLICT ... WHERE
+    credited_deposit_id IS NULL guard skips it, so RETURNING yields no row."""
 
-    def __init__(self, addresses: list[tuple], seen: set):
+    def __init__(self, addresses: list[tuple], seen: set, credited: set | None = None):
         self._addresses = addresses
         self._seen = seen
+        self._credited = credited or set()
 
     async def fetch(self, sql: str, *args):
         # _load_bridge_addresses
@@ -57,6 +60,9 @@ class _FakeConn:
     async def fetchrow(self, sql: str, *args):
         # _record_manual_review: args[8] is tx_hash
         tx_hash = args[8]
+        if tx_hash in self._credited:
+            # WHERE credited_deposit_id IS NULL skipped the update -> no row.
+            return None
         inserted = tx_hash not in self._seen
         self._seen.add(tx_hash)
         return {"inserted": inserted, "credited_deposit_id": None}
@@ -80,8 +86,8 @@ class _FakePool:
 
 
 def _patches(*, enabled: bool, addresses: list[tuple], get_status, captured_alerts,
-             seen: set | None = None):
-    conn = _FakeConn(addresses, seen if seen is not None else set())
+             seen: set | None = None, credited: set | None = None):
+    conn = _FakeConn(addresses, seen if seen is not None else set(), credited)
     pool = _FakePool(conn)
 
     async def _alert(**kw):
@@ -226,6 +232,28 @@ def test_non_completed_and_non_pusd_ignored():
     assert alerts == []
 
 
+def test_already_credited_event_not_overwritten_or_notified():
+    """If a row was ever credited (credited_deposit_id set), the ON CONFLICT
+    guard skips it -> no manual-review overwrite, no notification (Gemini fix)."""
+    alerts: list[dict] = []
+    get_status = AsyncMock(return_value=(_completed_pusd_tx(tx_hash="0xcredited"),))
+    patches = _patches(enabled=True, addresses=[(uuid4(), "0xb")],
+                       get_status=get_status, captured_alerts=alerts,
+                       credited={"0xcredited"})
+    for p in patches:
+        p.start()
+    try:
+        result = _run(status_poller.run_once())
+    finally:
+        for p in patches:
+            p.stop()
+
+    assert result.settlements_seen == 1
+    assert result.manual_review_recorded == 0
+    assert result.notifications_sent == 0
+    assert alerts == []
+
+
 def test_completed_settlement_without_tx_hash_skipped():
     alerts: list[dict] = []
     get_status = AsyncMock(return_value=(_completed_pusd_tx(tx_hash=None),))
@@ -308,6 +336,29 @@ def test_scheduler_registers_poller_only_under_flag():
     assert "BRIDGE_DEPOSIT_POLLER_ENABLED" in src
     assert "bridge_status_poller.run_once" in src
     assert "bridge_deposit_status_poll" in src
+
+
+def test_poll_interval_is_validated_strictly_positive():
+    """APScheduler needs a strictly-positive cadence — config must fail fast on a
+    0/negative interval (Gemini fix)."""
+    src = (_ROOT / "config.py").read_text(encoding="utf-8")
+    assert "BRIDGE_DEPOSIT_POLL_INTERVAL_SECONDS" in src
+    # The field is covered by the strictly-positive interval validator.
+    validator_block = src.split("def validate_live_reconcile_intervals", 1)[0]
+    assert "BRIDGE_DEPOSIT_POLL_INTERVAL_SECONDS" in validator_block.rsplit(
+        "@field_validator", 1
+    )[-1]
+
+
+def test_poller_uses_one_connection_per_user():
+    """Persist all of a user's settlements under a single pooled connection
+    (Gemini fix) — no per-transaction acquire churn."""
+    src = (_ROOT / "services/bridge/status_poller.py").read_text(encoding="utf-8")
+    body = src.split('"""', 2)[-1]
+    # The conflict guard preserves already-credited rows.
+    assert "credited_deposit_id IS NULL" in body
+    # Settlements are collected then notified after the connection is released.
+    assert "to_notify" in body
 
 
 def test_native_usdc_usdt_remain_disabled_for_crediting():

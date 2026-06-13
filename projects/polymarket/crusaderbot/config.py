@@ -1021,14 +1021,17 @@ class Settings(BaseSettings):
             raise ValueError(f"DB retention days must be strictly positive (got {v}).")
         return v
 
-    @field_validator("LIVE_RECONCILE_INTERVAL_SEC", "ORDER_DRIFT_INTERVAL_SEC")
+    @field_validator(
+        "LIVE_RECONCILE_INTERVAL_SEC", "ORDER_DRIFT_INTERVAL_SEC",
+        "BRIDGE_DEPOSIT_POLL_INTERVAL_SECONDS",
+    )
     @classmethod
     def validate_live_reconcile_intervals(cls, v: int) -> int:
         # Scheduler cadences — APScheduler requires strictly positive seconds, so a
         # 0/negative misconfig would crash setup. Fail fast at config load.
         if v <= 0:
             raise ValueError(
-                f"live-reconcile / drift scheduler interval must be > 0 (got {v})."
+                f"scheduler interval must be > 0 (got {v})."
             )
         return v
 
