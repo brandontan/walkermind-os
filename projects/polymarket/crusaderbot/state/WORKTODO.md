@@ -1,12 +1,25 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 07:46**
+**Last Updated : 2026-06-13 08:05**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1807 (reopened) -- smart-strike-status-leak-anim
+
+- [x] WARP•R00T hotfix (STANDARD — NARROW INTEGRATION) on WARP/root-smart-strike-status-leak-anim.
+- [x] Code-truth audit: owner screenshot (`awaiting_signal · late_entry_v3: filter_or_no_match`) is the PRE-#1809 deployed build (deploy lag); merged status row already maps the real backend value to "No matching signal yet"; ScannerPanel is the only surface rendering the reason.
+- [x] Hardened formatNoTradeReason(): whitespace trim (space-after-colon), leading awaiting_signal+separator strip (full screenshot string maps), suffix-preferred composite, friendly unknown fallback — can never return a raw code.
+- [x] Idle animation made clearly visible: ScanDots 4-5px gold + glow (size prop); dedicated "scanning markets" line in the active status block (running + no signal only); signals footer "Scanning live markets" + dots; BASE_COUNT 6->7.
+- [x] Python formatter-port tests pin EXACT screenshot string + all CMD raw codes -> friendly copy, zero leak; visible-animation source pins; 35 smart-strike tests + full suite 3637 passed.
+- [x] Frontend build green; Playwright-confirmed visible animation; ruff + py_compile + secret/mojibake/BOM clean.
+- [x] No scan/strategy/risk/order/deposit change; no live-guard flip; no order/fund movement.
+- [ ] CI green on final head SHA.
+- [ ] WARP•R00T final-gate disposition.
+- [ ] Fly redeploy so the owner production surface picks up the build.
 
 ## #1810 -- live-mode-paper-trade-contamination-blocker (PR #1810)
 
