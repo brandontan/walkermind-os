@@ -27,7 +27,6 @@ import asyncio
 import json
 import sys
 from dataclasses import asdict, dataclass, field
-from decimal import Decimal
 from typing import Any, Iterable, Optional
 
 import asyncpg
@@ -120,20 +119,8 @@ def _entry_notional(entry_price: float, side: str) -> float:
     return max(1.0 - entry_price, 1e-6)
 
 
-def _classify(pnl: float) -> str:
-    if pnl > 0:
-        return "win"
-    if pnl < 0:
-        return "loss"
-    return "breakeven"
-
-
 def _coerce_float(value: Any) -> float:
-    if value is None:
-        return 0.0
-    if isinstance(value, Decimal):
-        return float(value)
-    return float(value)
+    return float(value) if value is not None else 0.0
 
 
 async def _load_realized_cohort(conn: asyncpg.Connection) -> list[_RawTrade]:
@@ -144,6 +131,11 @@ async def _load_realized_cohort(conn: asyncpg.Connection) -> list[_RawTrade]:
       * ``paper_archived`` rows (PAPER->LIVE switch cleanup, not a realized fill);
       * positions whose exit was a forced close / horizon-exceeded / market-expired
         (not a strategy-driven outcome — the strategy didn't get its scheduled exit).
+
+    ``exit_reason`` may be NULL on a closed row (older lanes did not stamp every
+    exit). NULL ``NOT IN (...)`` is NULL in SQL, which would silently DROP those
+    rows; the predicate is wrapped ``(exit_reason IS NULL OR exit_reason NOT IN ...)``
+    so a NULL-reason close still counts toward the cohort.
     """
     rows = await conn.fetch(
         """
@@ -153,8 +145,9 @@ async def _load_realized_cohort(conn: asyncpg.Connection) -> list[_RawTrade]:
            AND status = 'closed'
            AND strategy_type = 'late_entry_v3'
            AND pnl_usdc IS NOT NULL
-           AND exit_reason NOT IN ('force_close', 'horizon_exceeded', 'market_expired',
-                                   'paper_to_live_switch', 'already_closed')
+           AND (exit_reason IS NULL OR exit_reason NOT IN (
+                   'force_close', 'horizon_exceeded', 'market_expired',
+                   'paper_to_live_switch', 'already_closed'))
         """,
     )
     out: list[_RawTrade] = []

@@ -201,9 +201,25 @@ def test_query_is_read_only_and_scoped_correctly() -> None:
     for excluded in ("force_close", "horizon_exceeded", "market_expired",
                      "paper_to_live_switch", "already_closed"):
         assert excluded in sql
+    # NULL exit_reason is NOT silently dropped (Gemini SQL NULL fix): the
+    # predicate explicitly admits NULL via ``exit_reason IS NULL OR ...``.
+    assert "exit_reason IS NULL" in sql
     # No mutation verbs, ever.
     for verb in ("INSERT ", "UPDATE ", "DELETE ", "DROP ", "ALTER ", "TRUNCATE "):
         assert verb not in upper
+
+
+def test_rows_with_null_exit_reason_still_count_in_cohort() -> None:
+    """A NULL exit_reason on a closed late_entry_v3 row must be retained
+    (Gemini-flagged: ``NULL NOT IN (...)`` is NULL, which would drop the row)."""
+    rows = [_row(exit_reason=None, pnl_usdc=1.0)] * 25  # n >= MIN_OOS_TRADES
+    report = _build(rows)
+    assert report.total_trades == 25
+    assert len(report.buckets) == 1
+    b = report.buckets[0]
+    assert b.n_trades == 25
+    # ``None`` exit_reason renders as the histogram key ``"unknown"``.
+    assert b.exit_reason_counts == {"unknown": 25}
 
 
 # ---------------------------------------------------------------------------
