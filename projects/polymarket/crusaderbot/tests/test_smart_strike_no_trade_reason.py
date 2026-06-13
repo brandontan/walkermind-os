@@ -20,6 +20,9 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
+
+import pytest
 
 from projects.polymarket.crusaderbot.services.signal_scan.signal_scan_job import (
     summarize_no_trade_reason,
@@ -236,3 +239,132 @@ def test_index_css_defines_scan_dot_keyframe() -> None:
     src = (_ROOT / "webtrader/frontend/src/index.css").read_text(encoding="utf-8")
     assert "@keyframes scanDot" in src
     assert ".animate-scan-dot" in src
+
+
+# ---------------------------------------------------------------------------
+# #1807 R00T reopen — production status row must never leak the raw reason and
+# the idle scanning animation must be clearly visible in the actual surface.
+# ---------------------------------------------------------------------------
+
+# Mirror of the ScannerPanel TypeScript category map (kept in sync by the source
+# pins below). No JS test runner exists in this repo, so the mapping behaviour is
+# verified here as a faithful Python port and the .tsx is pinned to the same
+# algorithm + copy.
+_NO_TRADE_CATEGORY_LABELS = {
+    "awaiting_signal": "Waiting for a valid signal",
+    "no_candidates": "No matching signal yet",
+    "filter_or_no_match": "No matching signal yet",
+    "measured_edge_missing": "Signal strength is not strong enough yet",
+    "measured_edge_missing_live": "Signal strength is not strong enough yet",
+    "no_edge": "Signal strength is not strong enough yet",
+    "orderbook_empty": "Market liquidity is not ready yet",
+    "book_unavailable": "Market liquidity is not ready yet",
+    "liquidity": "Market liquidity is not ready yet",
+    "stale_tob": "Market liquidity is not ready yet",
+    "below_min_order_size": "Trade size is below the minimum required",
+    "step_14_below_min_order_shares": "Trade size is below the minimum required",
+    "live_gate_blocked": "Live trading requirements are not fully met",
+    "market_not_eligible": "Market is not eligible right now",
+    "no_eligible_markets": "Market is not eligible right now",
+    "no_markets_in_universe": "Market is not eligible right now",
+    "smart_strike_admin_disabled": "Market is not eligible right now",
+    "archived": "Market is not eligible right now",
+    "countdown_too_short": "Entry window is too short right now",
+    "late_entry_v3": "Entry window is too short right now",
+}
+_UNKNOWN = "Still scanning for a valid signal"
+
+
+def _strip_backend_prefix(token: str) -> str:
+    token = token.strip()
+    token = re.sub(r"^skipped_", "", token)
+    token = re.sub(r"^step_\d+_", "", token)
+    return token
+
+
+def _format_no_trade_reason(reason: str | None):
+    """Python port of ScannerPanel.formatNoTradeReason (#1807)."""
+    if not reason:
+        return None
+    work = reason.strip()
+    work = re.sub(r"^awaiting[_ ]signal\s*[·:\-]\s*", "", work, flags=re.I).strip()
+    if work in _NO_TRADE_CATEGORY_LABELS:
+        return _NO_TRADE_CATEGORY_LABELS[work]
+    trimmed = _strip_backend_prefix(work)
+    if trimmed in _NO_TRADE_CATEGORY_LABELS:
+        return _NO_TRADE_CATEGORY_LABELS[trimmed]
+    colon = work.find(":")
+    if colon != -1:
+        prefix = work[:colon].strip()
+        suffix = _strip_backend_prefix(work[colon + 1:])
+        if suffix in _NO_TRADE_CATEGORY_LABELS:
+            return _NO_TRADE_CATEGORY_LABELS[suffix]
+        if prefix in _NO_TRADE_CATEGORY_LABELS:
+            return _NO_TRADE_CATEGORY_LABELS[prefix]
+    return _UNKNOWN
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        # The EXACT owner screenshot string (full concatenated status form).
+        ("awaiting_signal · late_entry_v3: filter_or_no_match", "No matching signal yet"),
+        # Backend record_zero_reason form: f"{strategy}:{reason}" (no space).
+        ("late_entry_v3:filter_or_no_match", "No matching signal yet"),
+        # Space-after-colon variant must still resolve to the suffix category.
+        ("late_entry_v3: filter_or_no_match", "No matching signal yet"),
+        # Other raw codes the CMD listed must all map to friendly copy.
+        ("measured_edge_missing_live", "Signal strength is not strong enough yet"),
+        ("orderbook_empty", "Market liquidity is not ready yet"),
+        ("skipped_liquidity", "Market liquidity is not ready yet"),
+        ("late_entry_v3:skipped_liquidity", "Market liquidity is not ready yet"),
+        ("below_min_order_size", "Trade size is below the minimum required"),
+        ("step_14_below_min_order_shares", "Trade size is below the minimum required"),
+        ("live_gate_blocked", "Live trading requirements are not fully met"),
+        ("market_not_eligible", "Market is not eligible right now"),
+        ("awaiting_signal", "Waiting for a valid signal"),
+        # Unknown future code -> friendly fallback, NEVER the raw code.
+        ("some_brand_new_backend_code", "Still scanning for a valid signal"),
+    ],
+)
+def test_format_no_trade_reason_maps_every_raw_code_to_friendly(raw, expected) -> None:
+    out = _format_no_trade_reason(raw)
+    assert out == expected
+    # Hard guarantee: user-visible text never contains raw snake_case/code tokens.
+    for leak in ("late_entry_v3", "filter_or_no_match", "skipped_", "step_14_",
+                 "measured_edge_missing", "orderbook_empty"):
+        assert leak not in out
+
+
+def test_scanner_panel_formatter_hardened_for_screenshot_string() -> None:
+    """The .tsx formatter must implement the robustness the port above relies on:
+    whitespace trim, leading `awaiting_signal` strip, and suffix-preferred
+    composite mapping so the exact screenshot string can never leak raw codes.
+    """
+    src = (_ROOT / "webtrader/frontend/src/components/ScannerPanel.tsx").read_text(
+        encoding="utf-8"
+    )
+    # Leading awaiting_signal + separator is stripped (concatenated-form defence).
+    assert "awaiting[_ ]signal" in src
+    # Tokens are trimmed so a space after the colon resolves to the suffix key.
+    assert ".trim()" in src
+    # filter_or_no_match is the owner's screenshot suffix -> "No matching signal yet".
+    assert "filter_or_no_match:" in src
+
+
+def test_scanner_panel_idle_animation_is_visible_in_status_surface() -> None:
+    """#1807 reopen: the idle scanning animation must be clearly visible in the
+    actual production surface (status row + signals footer), not just defined CSS.
+    """
+    src = (_ROOT / "webtrader/frontend/src/components/ScannerPanel.tsx").read_text(
+        encoding="utf-8"
+    )
+    # Dedicated, clearly-visible "scanning markets" line in the active status block.
+    assert '"scanning markets"' in src
+    assert "<ScanDots size={5} />" in src
+    # Status-row trailing dots remain (only when no signal).
+    assert "signals.length === 0 ? <ScanDots />" in src
+    # Always-visible signals footer now shows friendly copy + animated dots, and
+    # the old raw-ish placeholder text is gone.
+    assert "Scanning live markets" in src
+    assert "awaiting signal — scanning live markets" not in src

@@ -93,42 +93,63 @@ const NO_TRADE_CATEGORY_LABELS: Record<string, string> = {
 };
 
 function stripBackendPrefix(token: string): string {
-  // Strip noisy backend prefixes — `skipped_`, `step_NN_` — so raw telemetry
-  // tokens can match the user-facing category map cleanly.
-  return token.replace(/^skipped_/, "").replace(/^step_\d+_/, "");
+  // Normalise a raw backend token to a category-map key: trim surrounding
+  // whitespace, then strip noisy prefixes (`skipped_`, `step_NN_`). Trimming
+  // matters because a backend reason rendered as `late_entry_v3: filter_or_no_match`
+  // (space after the colon) must still resolve to the `filter_or_no_match` key.
+  return token.trim().replace(/^skipped_/, "").replace(/^step_\d+_/, "");
 }
 
 export function formatNoTradeReason(reason: string | null | undefined): string | null {
   if (!reason) return null;
-  if (NO_TRADE_CATEGORY_LABELS[reason]) return NO_TRADE_CATEGORY_LABELS[reason];
 
-  const trimmed = stripBackendPrefix(reason);
+  // Defensive: an older surface (or a backend that ever concatenates) may hand
+  // us the full status string `awaiting_signal · <reason>` rather than the bare
+  // reason. Strip a leading `awaiting_signal` + separator (·, -, :) so the real
+  // reason is what we map — a raw backend code must NEVER reach user copy.
+  let work = reason.trim();
+  work = work.replace(/^awaiting[_ ]signal\s*[·:\-]\s*/i, "").trim();
+
+  if (NO_TRADE_CATEGORY_LABELS[work]) return NO_TRADE_CATEGORY_LABELS[work];
+
+  const trimmed = stripBackendPrefix(work);
   if (NO_TRADE_CATEGORY_LABELS[trimmed]) return NO_TRADE_CATEGORY_LABELS[trimmed];
 
   // Composite reason like `late_entry_v3:measured_edge_missing` or
-  // `late_entry_v3:skipped_liquidity` — prefer the suffix category so raw
-  // backend prefix (e.g. `late_entry_v3`) never leaks into user copy.
-  const [prefix, suffix] = reason.split(":", 2);
-  if (suffix) {
-    const trimmedSuffix = stripBackendPrefix(suffix);
-    if (NO_TRADE_CATEGORY_LABELS[trimmedSuffix]) return NO_TRADE_CATEGORY_LABELS[trimmedSuffix];
+  // `late_entry_v3: filter_or_no_match` — prefer the suffix category so the raw
+  // backend prefix (e.g. `late_entry_v3`) never leaks into user copy. Tokens
+  // are trimmed via stripBackendPrefix so a space after the colon is tolerated.
+  const colon = work.indexOf(":");
+  if (colon !== -1) {
+    const prefix = work.slice(0, colon).trim();
+    const suffix = stripBackendPrefix(work.slice(colon + 1));
+    if (NO_TRADE_CATEGORY_LABELS[suffix]) return NO_TRADE_CATEGORY_LABELS[suffix];
     if (NO_TRADE_CATEGORY_LABELS[prefix]) return NO_TRADE_CATEGORY_LABELS[prefix];
   }
 
+  // Unknown / unmapped reason — friendly fallback, NEVER the raw code.
   return SMART_STRIKE_NO_TRADE_UNKNOWN;
 }
 
-/* Subtle three-dot "scanning..." indicator — used in the idle-waiting state so
-   the panel feels alive while no signal is firing. Keep lightweight: three
-   small dots, staggered fade, no spinners, no error tone. */
-function ScanDots() {
+/* Animated three-dot "scanning…" indicator — rendered in the idle-waiting
+   state so the panel visibly feels alive while no signal is firing. Clearly
+   visible (gold dots with a soft glow, staggered fade) but still calm — no
+   spinner, no error tone. ``size`` lets callers scale it up for the dedicated
+   scanning line vs the inline status trailing. */
+function ScanDots({ size = 4 }: { size?: number }) {
   return (
-    <span className="inline-flex items-center gap-[3px] ml-1.5 align-middle" aria-label="scanning">
+    <span className="inline-flex items-center gap-[4px] ml-1.5 align-middle" aria-label="scanning">
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="w-[3px] h-[3px] rounded-full inline-block animate-scan-dot"
-          style={{ background: "var(--gold,#F5C842)", animationDelay: `${i * 160}ms` }}
+          className="rounded-full inline-block animate-scan-dot"
+          style={{
+            width: size,
+            height: size,
+            background: "var(--gold,#F5C842)",
+            boxShadow: "0 0 5px var(--gold,#F5C842)",
+            animationDelay: `${i * 180}ms`,
+          }}
           aria-hidden
         />
       ))}
@@ -190,7 +211,8 @@ function SignalCarousel({ signals }: { signals: FeedSignal[] }) {
         <div className="px-3.5 pt-1.5 pb-3 flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full inline-block flex-shrink-0 animate-status-pulse"
             style={{ background: "var(--gold,#F5C842)", boxShadow: "0 0 6px var(--gold,#F5C842)" }} aria-hidden />
-          <span className="font-mono text-[11px] text-ink-3">awaiting signal — scanning live markets…</span>
+          <span className="font-mono text-[11px] text-ink-3">Scanning live markets</span>
+          <ScanDots />
         </div>
       </div>
     );
@@ -474,7 +496,10 @@ function MarketCarousel({ feed }: { feed: MarketFeedItem[] }) {
 /* ══════════════════════════════════════════════════════════════════════
    SCANNER PANEL — RuntimeStatus + FeedSignal[] + MarketFeedItem[]
 ══════════════════════════════════════════════════════════════════════ */
-const BASE_COUNT = 6;
+// Max terminal lines across every branch — the active/no-signal branch adds a
+// dedicated "scanning markets" line (6 base + 1), so the stagger reveal must
+// reach 7 or that line would stay hidden behind the BASE_COUNT cap.
+const BASE_COUNT = 7;
 
 type TLineDef = {
   parts: { type: Tone; text: string }[];
@@ -567,6 +592,17 @@ export function ScannerPanel({
           ],
           trailing: signals.length === 0 ? <ScanDots /> : null,
         },
+        // Dedicated, clearly-visible idle scanning line — only while running and
+        // no signal/order is active. Makes "the bot is scanning, not stuck"
+        // unmistakable right under the status, per #1807 owner direction.
+        ...(signals.length === 0
+          ? [{
+              parts: [
+                { type: "ok" as Tone, text: "scanning markets" },
+              ],
+              trailing: <ScanDots size={5} />,
+            }]
+          : []),
       ]
     : [
         { parts: [{ type: "cmd", text: "market_signal_scanner" }, { type: "dim", text: "  ◦ idle" }] },
