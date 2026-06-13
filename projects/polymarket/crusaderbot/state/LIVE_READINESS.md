@@ -21,6 +21,13 @@ ACTIVATION SURFACE (current): live execution requires SIX env guards, not four �
 fail-safe to paper), `role=='admin'`, and per-user `trading_mode=='live'`. All
 default OFF / fail-closed to paper.
 
+LIVE CHECKLIST (current): `domain/activation/live_checklist.py` evaluates FIVE
+required gates (`GATE_ORDER`: EXECUTION_PATH_VALIDATED, CAPITAL_MODE_CONFIRMED,
+ENABLE_LIVE_TRADING, strategy_configured, risk_profile_configured) plus an
+optional/recommended 2FA status that NEVER blocks. This supersedes the stale
+"8 gates" claim in the 2026-05-28 section below — code truth is 5 required +
+1 optional. The checklist itself never sets any activation flag.
+
 ORDER PATH (current): for POLY_1271 deposit wallets the authoritative backend is
 the Rust sidecar — `USE_RUST_SIDECAR=true` (precedence over `USE_CLOB_V2` /
 `USE_PYSDK_CLOB`), the ONLY client that signs the wrapped EIP-1271 order
