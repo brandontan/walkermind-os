@@ -98,9 +98,13 @@ def supported_deposit_assets() -> tuple[DepositAsset, ...]:
       ``USDC_POLYGON`` ERC-20, credits the ledger in USDC units, and the sweep
       path transfers the same configured token.
     * Native Polygon USDC is detected only by the wrong-token alert lane and is
-      never credited.
-    * USDT and non-Polygon networks are not watched/swept/reconciled here, so
-      they remain disabled.
+      never credited by the raw-token watcher. The Bridge API advertises a
+      Polygon USDC -> pUSD route, but this token remains disabled until the
+      Bridge deposit-address/status settlement job is live and reconcilable.
+    * Polygon USDT is Bridge-advertised as a possible pUSD source, but remains
+      disabled until Bridge status settlement (not raw token custody) is active.
+    * Non-Polygon networks are not watched/swept/reconciled here, so they
+      remain disabled.
     """
     settings = get_settings()
     min_deposit = Decimal(str(getattr(settings, "MIN_DEPOSIT_USDC", 50)))
@@ -142,22 +146,22 @@ def supported_deposit_assets() -> tuple[DepositAsset, ...]:
             watcher_supported=False,
             bridge_custody_supported=False,
             enabled=False,
-            # Detectable via the wrong-token alert lane, but NOT tradeable: the
-            # custody sweep (polygon_usdc.sweep_usdc_to_master) is hard-bound to
-            # settings.USDC_POLYGON (USDC.e) and there is no USDC->USDC.e
-            # conversion path, so native USDC cannot become confirmed available
-            # live balance safely. Stays disabled until a conversion-custody
-            # lane lands (#1800 documented blocker).
-            unavailable_reason="Native USDC is detect-only — it is not Polymarket "
-            "collateral and cannot be swept or converted to USDC.e yet, so it is "
-            "never credited as tradeable balance.",
+            # Detectable via the wrong-token alert lane, but NOT tradeable from
+            # the raw-token watcher. #1805 adds a Bridge/pUSD adapter and docs
+            # proof that Polygon native USDC is Bridge-supported; however, this
+            # UI token remains disabled until deposits are routed through a
+            # persisted Bridge address + status poller and only COMPLETED pUSD
+            # settlement can credit live balance.
+            unavailable_reason="Native USDC is Bridge-supported but not enabled "
+            "here yet — raw native USDC deposits stay detect-only until Bridge "
+            "address/status settlement is active and credits only COMPLETED pUSD.",
             detectable=True,
             creditable=False,
             sweepable=False,
             reconcilable=False,
             convertible=False,
-            disabled_reason="no USDC->USDC.e conversion / sweep path (sweep is "
-            "USDC.e-contract-bound)",
+            disabled_reason="Bridge/pUSD conversion settlement adapter exists, but "
+            "no active Bridge deposit status poller is scheduled for user-facing credit yet",
         ),
         DepositAsset(
             id="polygon-usdt",
@@ -173,19 +177,20 @@ def supported_deposit_assets() -> tuple[DepositAsset, ...]:
             watcher_supported=False,
             bridge_custody_supported=False,
             enabled=False,
-            # USDT is a different asset entirely: not watched, and it requires a
-            # USDT->USDC.e conversion/settlement before it could be usable
-            # trading collateral. No conversion path exists, so it stays
-            # disabled (#1800 documented blocker).
-            unavailable_reason="USDT requires a USDT->USDC.e conversion before it "
-            "is usable trading collateral; no conversion/settlement path exists, "
-            "so it is never watched, credited, or swept.",
+            # USDT is a different raw token and is not watched/swept by the
+            # USDC.e custody path. #1805 proves the Bridge advertises Polygon
+            # USDT as a possible pUSD source, but user-facing enablement still
+            # waits for the Bridge address/status settlement job.
+            unavailable_reason="USDT Bridge conversion is not enabled here yet "
+            "— it must settle to COMPLETED Polygon pUSD via Bridge before any "
+            "tradeable balance credit is allowed.",
             detectable=False,
             creditable=False,
             sweepable=False,
             reconcilable=False,
             convertible=False,
-            disabled_reason="no USDT watcher and no USDT->USDC.e conversion path",
+            disabled_reason="USDT Bridge/pUSD conversion settlement adapter exists, "
+            "but no active Bridge deposit status poller is scheduled for user-facing credit yet",
         ),
         DepositAsset(
             id="base-usdc",

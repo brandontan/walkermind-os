@@ -1,35 +1,44 @@
-#CrusaderBot — WALKERMIND OS
+# CrusaderBot — WALKERMIND OS
 
 ## UI Standards
-- **Branding:** ❧𝗖𝗥𝗨𝗦𝗔𝗗𝗘𝗥 | 𝗔𝗨𝗧𝗢𝗕𝗢𝗧
-- **Language:** English-only (US).
-- **Terminal HUD:** Use <pre> blocks for monospaced financial data.
-- **Dividers:** Use heavy box characters (━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-).
-- **Width:** 40+-character headers for full-width mobile bubbles.
+- **Branding:** 𝑷𝑶𝑳𝒀 𝑪𝑹𝑼𝑺𝑨𝑫𝑬𝑹.
+- **Language:** English-only (US) in product UI unless owner changes product language.
+- **Terminal HUD:** Use `<pre>` blocks for monospaced financial data.
+- **Dividers:** Use heavy box characters for terminal/HUD sections.
+- **Width:** 40+ character headers for full-width mobile bubbles.
 
 ## Runtime Pipeline
-- **Scanner:** Log candidate counts to process_metadata.
-- **Analyzer:** Generate 'reasoning' string for every SignalCandidate.
-- **Execution: **Push Realtime Events via SSE.
-
-## Role Model
-- **Admin:** ROOT_ADMIN_ID or 'ADMIN' tier in db.
+- **Scanner:** Log candidate counts to `process_metadata`.
+- **Analyzer:** Generate a `reasoning` string for every `SignalCandidate`.
+- **Execution:** Push realtime events via SSE.
+- **Admin:** `ROOT_ADMIN_ID` or `ADMIN` tier in db.
 - **User:** Any registered user; no tier gates.
+
 ---
 
-## Polymarket Integration Memory Lock
+# Polymarket Integration Memory Lock
 
-Last Reviewed: 2026-06-13 05:07 Asia/Jakarta
-Source: Official Polymarket documentation at https://docs.polymarket.com/ and https://docs.polymarket.com/api-reference/introduction
+Last Reviewed: 2026-06-13 05:50 Asia/Jakarta
+Source: Official Polymarket documentation at `https://docs.polymarket.com/` and `https://docs.polymarket.com/api-reference/introduction`.
 
 Authority note:
 - This file is persistent implementation memory only.
-- AGENTS.md, PROJECT_REGISTRY.md, project state files, current code truth, and live official docs still win.
-- Re-read the official docs before coding against external API behavior because Polymarket docs/API contracts may change.
-- Never store secrets, API keys, private keys, signatures, passphrases, or secret-derived values in this file, reports, PR bodies, logs, or test fixtures.
+- `AGENTS.md`, `PROJECT_REGISTRY.md`, project state files, current code truth, and live official docs still win.
+- Re-read official docs before coding against external API behavior because Polymarket docs/API contracts may change.
+- Never store secrets, API keys, private keys, signatures, passphrases, or secret-derived values in this file, reports, PR bodies, logs, or fixtures.
 
-### API Boundaries
+## WARP Workflow Memory Lock
+
+Owner-locked workflow for active CrusaderBot lanes:
+- WARP•FORGE is the initial build role only.
+- After FORGE opens an implementation PR, WARP🔹CMD performs the first-pass PR review.
+- Post-PR fixes such as rebase, dirty merge cleanup, branch traceability repair, hardening, claim tightening, CI rerun, and final safety posture go to WARP•R00T finishing pass when owner routes the lane through R00T.
+- Do not send the PR back into a FORGE rework loop unless WARP🔹CMD explicitly creates a fresh FORGE lane for new implementation scope.
+- Correct default flow for owner-routed lanes: FORGE initial build -> CMD first-pass -> R00T finish/rebase/harden -> CI green -> R00T final gate -> CMD merge decision.
+- If R00T is not explicitly assigned final gate on a MAJOR lane, AGENTS.md MAJOR validation rules still apply: WARP•SENTINEL approval or conditional approval is required before merge.
+- Branch traceability defects remain real blockers, but the execution route after initial PR is R00T finishing pass, not FORGE loop.
+
+## API Boundaries
 
 Polymarket has separate API domains. Do not mix their responsibilities.
 
@@ -49,12 +58,12 @@ Polymarket has separate API domains. Do not mix their responsibilities.
   - Gasless wallet/on-chain transactions.
   - Wallet deployment, approvals, CTF operations, transfers, transaction status/nonce/deployed checks.
 
-### Authentication Boundaries
+## Authentication Boundaries
 
 CLOB auth, Builder attribution, Builder API keys, and Relayer API keys are different concepts.
 
 CLOB:
-- CLOB uses two auth levels:
+- Uses two auth levels:
   - L1 private-key/EIP-712 proof for creating or deriving API credentials and locally signing orders.
   - L2 API credentials (`apiKey`, `secret`, `passphrase`) for authenticated CLOB requests.
 - Authenticated CLOB trading endpoints require the five `POLY_*` L2 HTTP headers.
@@ -72,21 +81,21 @@ Builder Program / Relayer:
 - EOA wallets do not have relayer access; users trading directly from EOAs pay their own gas.
 - New API users should use deposit wallets.
 - Builder Relayer Client is used for deposit wallet deployment and signed wallet batches.
-- CLOB client is still used for CLOB order signing/posting/canceling/balances/account data.
+- CLOB client is still used for CLOB order signing/posting/cancelling/balances/account data.
 
 Relayer API Key:
 - Relayer auth can use Relayer API key headers:
   - `RELAYER_API_KEY`
   - `RELAYER_API_KEY_ADDRESS`
 - Builder API key auth can use:
-  - `POLY_BUILDER_API_KEY`
+  - `POLY_BUILDER_API_KEY` 
   - `POLY_BUILDER_TIMESTAMP`
   - `POLY_BUILDER_PASSPHRASE`
   - `POLY_BUILDER_SIGNATURE`
 - `RELAYER_API_KEY_ADDRESS` must match the address that owns the relayer key.
 - Relayer API keys are not CLOB API keys.
 
-### Deposit Wallet Truth
+## Deposit Wallet Truth
 
 Deposit wallet is the path for new API users.
 
@@ -117,12 +126,12 @@ Trading from deposit wallet:
   - signer = deposit wallet
 - CLOB order payload still needs signing.
 
-### pUSD / Collateral Truth
+## pUSD / Collateral Truth
 
 - pUSD is the collateral token used for all trading on Polymarket.
 - pUSD is an ERC-20 token on Polygon mainnet.
 - Decimals: 6.
-- It is backed by USDC and represents a USDC claim.
+- It corresponds to USDC and represents a USDC claim.
 - Polymarket protocol settlement is in native USDC; pUSD is the wrapper/collateral layer used inside the platform.
 - pUSD is the target tradeable balance.
 - Native USDC or USDT deposits must not be credited as available trading balance until docs-aligned settlement into pUSD/tradeable balance is complete.
@@ -135,9 +144,9 @@ USDC.e onramp/offramp:
 - Unwrap pUSD to USDC.e through `CollateralOfframp.unwrap`.
 - `_asset` for unwrap must be USDC.e.
 
-### Bridge API Truth
+## Bridge API Truth
 
-Bridge is the first-line path for USDC/USDT deposit enablement. Do not default to custom DEX/swap logic.
+Bridge is the first-line path for USDC/USDD deposit enablement. Do not default to custom DEX/swap logic.
 
 Supported assets:
 - `GET /supported-assets`
@@ -181,7 +190,7 @@ Quote:
   - `estToTokenBaseUnit`
   - `quoteId`
 - Use base units and token decimals correctly.
-- Quote output is estimate; do not credit available balance from quote alone.
+- Quote output is estimate only; do not credit available balance from quote alone.
 
 Status:
 - `GET /status/{address}`
@@ -204,7 +213,7 @@ Withdraw:
 - Bridge has a withdrawal-address endpoint for selected destination chain/token/recipient.
 - If withdrawal flow is touched, web notification must reflect actual confirmed/completed status, not request/submission.
 
-### Relayer API Truth
+## Relayer API Truth
 
 Submit:
 - `POST /submit`
@@ -248,7 +257,7 @@ Wallet deployed:
 - Can check deployed wallet state.
 - Be careful with readiness: deployed/address existence is not the same as all approvals/balance/registry state being ready for CLOB trading.
 
-### CrusaderBot Implementation Posture
+## CrusaderBot Implementation Posture
 
 For deposit enablement:
 - Polygon-only unless a new lane explicitly enables other networks.
@@ -263,7 +272,7 @@ For deposit enablement:
   - reorg/failure handling
   - audit trail
   - web notification
-- Native Polygon USDC and Polygon USDT must not become live available balance until completed Bridge/pUSD/tradeable settlement is proven.
+- Native Polygon USDC and Polygon USDD must not become live available balance until completed Bridge/pUSD/tradeable settlement is proven.
 - Pending/detected/processing deposits do not count toward:
   - live available balance
   - $5 Auto-Trade gate
@@ -300,6 +309,6 @@ For testing:
 - No secrets in fixtures/logs/reports.
 
 Hard no:
-- Do not implement custom DEX/swap routing unless official Bridge cannot cover the target and WARP CMD approves a separate expansion.
+- Do not implement custom DEX/swap routing unless official Bridge cannot cover the target and WARP🔹CMD approves a separate expansion.
 - Do not flip `USE_REAL_CLOB`, `EXECUTION_PATH_VALIDATED`, `ENABLE_LIVE_TRADING`, or `CAPITAL_MODE_CONFIRMED` as part of deposit/bridge work.
 - Do not treat report claims as proof; code truth wins.

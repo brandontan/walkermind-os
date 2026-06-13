@@ -1,24 +1,28 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 05:50**
+**Last Updated : 2026-06-13 06:05**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
 
-## #1807 -- smart-strike-friendly-signal-status-polish
+## #1808 -- polymarket-bridge-usdc-usdt-deposit-enablement (PR #1808)
 
-- [x] WARP•FORGE build on work (MINOR — NARROW INTEGRATION).
-- [x] ScannerPanel Smart Strike no-trade reason status now uses friendly operator copy instead of raw snake_case/code-like telemetry.
-- [x] Added curated labels for common fail-closed reasons: order book empty, liquidity too thin, below minimum order size, measured edge unavailable, no qualifying setup yet, no enabled markets in universe.
-- [x] Unknown future reason codes still render deterministically by trimming skipped_ and replacing underscores with spaces; no reason is hidden.
-- [x] Frontend-only presentation polish: no RuntimeStatus schema/API contract change, no scan/risk/order logic change, no live-guard flip, no order/fund movement.
-- [x] test_smart_strike_no_trade_reason.py 19 passed; frontend npm run build green; screenshot captured at /tmp/smart-strike-friendly-status.png.
-- [ ] WARP🔹CMD review.
+- [x] FORGE build on warp/enable-usdc-usdt-deposit-on-polymarket-bridge (MAJOR — NARROW INTEGRATION).
+- [x] Mocked Polymarket Bridge adapter for supported-assets/deposit-address/quote/status parsing; no external Bridge calls in CI tests; no secrets; fail-closed on non-terminal status.
+- [x] Migration 100 bridge_deposit_addresses + bridge_deposit_events audit substrate (additive, IF NOT EXISTS, no 099 collision).
+- [x] Confirmed-money WebTrader notifications: deposit confirmed/credited and withdrawal completed each persist a deduped system_alert independent of Telegram.
+- [x] Native USDC + USDT remain DISABLED in user-facing deposit UI/API until an active Bridge status poller can credit only terminal COMPLETED Polygon pUSD settlement; no fake-enablement.
+- [x] USDC.e-only enablement; wrong-token credit-neutral path; $5 live Auto-Trade gate; live guard flags all preserved.
+- [x] WARP•R00T finishing: merged current main onto branch (preserved #1806 Smart Strike observability truth); resolved dirty merge state.
+- [x] WARP•R00T finishing: corrected every repo-truth branch reference to the exact head warp/enable-usdc-usdt-deposit-on-polymarket-bridge (was an earlier non-matching placeholder name).
+- [x] WARP•R00T finishing: hardened confirmed-money alert dedup to atomic DB idempotency (UNIQUE index + ON CONFLICT DO NOTHING); claim now matches runtime.
+- [ ] CI green on fixed head SHA.
+- [ ] WARP•R00T final-gate disposition.
 
-## #1804 -- live-smart-strike-no-trade-diagnostic
+## #1804 -- live-smart-strike-no-trade-diagnostic (MERGED #1806)
 
 - [x] WARP•R00T diagnostic (R00T-assigned, MAJOR — NARROW INTEGRATION) on WARP/live-smart-strike-no-trade-diagnostic.
 - [x] Root cause: no-trade is expected fail-closed, MASKED by an observability bug — /status panel reads scanned/published from the legacy edge-finder (jobs/market_signal_scanner _scanner_state), not the real Smart Strike candle scan (services/signal_scan/signal_scan_job) whose scan_runs skip/rejection/zero-reason telemetry was never surfaced.
@@ -28,8 +32,7 @@
 - [x] Counter semantics documented: legacy scanner_scanned/published retained (edge-finder approval/publish), Smart Strike funnel added alongside (no risky rename).
 - [x] LIVE order-intent positive path + fail-closed negative paths unchanged (assert_live_guards/$5 gate/measured-edge/min-order/kill-switch) — covered by existing gate tests; no live-guard flip, no order/fund movement, no fabricated signal.
 - [x] test_smart_strike_no_trade_reason.py (helper logic 16/16 proven on source + required pins: zeros-cannot-hide-skip-reasons, user-facing reason surfacing); ruff + py_compile clean; frontend tsc+vite build green.
-- [ ] WARP🔹CMD first-pass PR check.
-- [ ] WARP•R00T final-gate disposition (self-merge on CI green) OR route to WARP•SENTINEL.
+- [x] WARP•R00T final-gate disposition: self-merged on CI green (PR #1806).
 
 ## #1800 -- polygon-usdc-usdt-deposit-enablement
 

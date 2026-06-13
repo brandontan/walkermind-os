@@ -473,6 +473,16 @@ class Settings(BaseSettings):
     # ON — the pass moves no capital, it only records + notifies the user.
     WRONG_TOKEN_ALERTS_ENABLED: bool = True
 
+    # --- Polymarket Bridge / pUSD settlement (#1805 foundation) ---
+    # Bridge is a separate fun.xyz-proxied API; never called by CI tests except
+    # through mocked adapter responses. pUSD is Polygon ERC-20 collateral used
+    # by Bridge COMPLETED status records. USDT below is the Polygon token the
+    # live Bridge supported-assets endpoint currently advertises as symbol USDT.
+    POLYMARKET_BRIDGE_URL: str = "https://bridge.polymarket.com"
+    POLYMARKET_BRIDGE_TIMEOUT_SECONDS: int = 20
+    PUSD_POLYGON: str = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
+    USDT_BRIDGE_POLYGON: str = "0x9417669fBF23357D2774e9D421307bd5eA1006d2"
+
     # --- Master / hot-pool wallet (derived from HD seed index 0 if not set) ---
     MASTER_WALLET_ADDRESS: Optional[str] = None
     MASTER_WALLET_PRIVATE_KEY: Optional[str] = None
