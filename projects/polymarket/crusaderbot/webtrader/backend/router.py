@@ -1722,9 +1722,18 @@ async def get_wallet_ledger(
             f"SELECT COUNT(*) AS cnt FROM ledger l WHERE l.user_id=$1::uuid AND {_scope}",
             user_id,
         )
+        # #1819: LEFT JOIN withdrawals on ref_id so a ``type='withdraw'`` row
+        # carries its lifecycle status (pending / approved / processing /
+        # completed / failed) and tx_hash through to the UI. The JOIN is a
+        # no-op for non-withdrawal rows (no matching withdrawals.id) and the
+        # extra columns are NULL — the API surface is unchanged for them.
         rows = await conn.fetch(
-            f"""SELECT l.id::text, l.type, l.amount_usdc, l.note, l.created_at
+            f"""SELECT l.id::text, l.type, l.amount_usdc, l.note, l.created_at,
+                       w.status AS withdrawal_status,
+                       w.tx_hash AS withdrawal_tx_hash
                 FROM ledger l
+                LEFT JOIN withdrawals w
+                       ON l.type = 'withdraw' AND l.ref_id = w.id
                WHERE l.user_id=$1::uuid AND {_scope}
                ORDER BY l.created_at DESC, l.id DESC
                LIMIT $2 OFFSET $3""",
@@ -1741,6 +1750,8 @@ async def get_wallet_ledger(
             amount_usdc=float(r["amount_usdc"]),
             note=r["note"],
             created_at=r["created_at"],
+            withdrawal_status=r["withdrawal_status"],
+            withdrawal_tx_hash=r["withdrawal_tx_hash"],
         )
         for r in rows
     ]

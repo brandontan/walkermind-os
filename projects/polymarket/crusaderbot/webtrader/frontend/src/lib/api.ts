@@ -518,6 +518,12 @@ export interface LedgerEntry {
   amount_usdc: number;
   note: string | null;
   created_at: string;
+  /** Joined withdrawals.status for type='withdraw' rows (#1819).
+   * Lets the WalletPage activity feed render a clear lifecycle badge
+   * (pending / approved / processing / completed / failed) instead of a
+   * bare debit line. ``null`` for non-withdrawal rows. */
+  withdrawal_status?: string | null;
+  withdrawal_tx_hash?: string | null;
 }
 
 export interface UserSettings {

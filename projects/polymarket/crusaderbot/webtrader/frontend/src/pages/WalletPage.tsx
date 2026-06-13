@@ -200,11 +200,33 @@ function formatNote(note: string): string {
   return note.replace(/(0x[0-9a-fA-F]{8})[0-9a-fA-F]+([0-9a-fA-F]{4})/g, "$1…$2");
 }
 
+/** Honest user-facing label for a withdrawal row's lifecycle (#1819).
+ * The DB ``withdrawals.status`` enum is internal jargon ("approved",
+ * "processing"); operators flip those values, but the user needs the actionable
+ * meaning. Crucially, "approved" without a tx_hash means the on-chain transfer
+ * is queued (often because ``EXECUTION_PATH_VALIDATED=False``), NOT that funds
+ * have left — surface that as "queued" so the user does not mistake the debit
+ * for a completed transfer.
+ */
+function withdrawalBadge(status: string | null | undefined,
+                        txHash: string | null | undefined): string | null {
+  if (!status) return null;
+  const s = status.toLowerCase();
+  if (s === "pending") return "Pending approval";
+  if (s === "approved") return txHash ? "Sending" : "Queued";
+  if (s === "processing") return "Sending";
+  if (s === "completed") return "Confirmed";
+  if (s === "failed") return "Failed (manual review)";
+  if (s === "rejected") return "Rejected (refunded)";
+  return null;
+}
+
 function LedgerCard({ entry }: { entry: LedgerEntry }) {
   const isCredit = entry.amount_usdc >= 0;
   const tone: "up" | "dn" = isCredit ? "up" : "dn";
   const sign = isCredit ? "+" : "−";
   const label = entry.note ? formatNote(entry.note) : entry.type;
+  const badge = withdrawalBadge(entry.withdrawal_status, entry.withdrawal_tx_hash);
   return (
     <PositionCard
       market={label}
@@ -214,7 +236,11 @@ function LedgerCard({ entry }: { entry: LedgerEntry }) {
           : { value: `${sign}$${Math.abs(entry.amount_usdc).toFixed(2)}`, tone }
       }
       side={isCredit ? "credit" : "debit"}
-      meta={[<>USDC</>, <>{formatDate(entry.created_at)}</>]}
+      meta={
+        badge
+          ? [<>USDC</>, <>{badge}</>, <>{formatDate(entry.created_at)}</>]
+          : [<>USDC</>, <>{formatDate(entry.created_at)}</>]
+      }
     />
   );
 }

@@ -115,6 +115,49 @@ async def create_withdrawal_request(
             row = await conn.fetchrow(
                 "SELECT * FROM withdrawals WHERE id = $1", row["id"]
             )
+    # Honest pending-state web notification (#1819). The ledger debit is an
+    # available-balance lock (NOT a final transfer), and the on-chain transfer
+    # only fires once an operator approves AND every guard
+    # (EXECUTION_PATH_VALIDATED) is on. Without this alert the user only ever
+    # sees the "withdrawal_confirmed" alert, which can never fire if the
+    # guard is off — so the user is left guessing whether their funds are
+    # safe. Emit ONCE per withdrawal_id, deduped by ``withdrawal:<id>:requested``
+    # via migration 101's unique index. Best-effort: failures here NEVER undo
+    # the committed ledger debit (persist_user_alert_once swallows its own
+    # errors per its contract).
+    try:
+        from ..webtrader.backend.notification_prefs import persist_user_alert_once
+        await persist_user_alert_once(
+            user_id=row["user_id"],
+            alert_key="system_status",
+            title="Withdrawal request received",
+            body=(
+                f"Your ${float(amount_usdc):.2f} USDC withdrawal to "
+                f"{destination_address[:10]}… is pending review. Funds are "
+                f"reserved; they will be sent on-chain once approved and "
+                f"confirmed. You will get a separate notification when the "
+                f"on-chain transfer confirms."
+            ),
+            severity="info",
+            alert_kind="withdrawal_requested",
+            dedup_key=f"withdrawal:{row['id']}:requested",
+            metadata={
+                "withdrawal_id": str(row["id"]),
+                "amount_usdc": float(amount_usdc),
+                "destination_address": destination_address,
+                "status": row["status"],
+                "lifecycle_state": row.get("lifecycle_state") or (
+                    ledger.L_WITHDRAW_PENDING
+                ),
+            },
+        )
+    except Exception as exc:
+        # Defense in depth: persist_user_alert_once already swallows its own
+        # errors, but a future regression must not undo the committed debit.
+        logger.warning(
+            "withdrawal_requested_alert_failed withdrawal_id=%s err=%s",
+            row["id"], exc,
+        )
     return dict(row)
 
 
@@ -131,6 +174,58 @@ async def get_pending_withdrawals(limit: int = 50) -> list[dict]:
             LIMIT $1
             """,
             limit,
+        )
+    return [dict(r) for r in rows]
+
+
+async def find_stuck_withdrawals(
+    older_than_hours: int = 24,
+    limit: int = 100,
+) -> list[dict]:
+    """Operator visibility for withdrawals deferred or stuck on-chain (#1819).
+
+    Returns rows whose status is ``pending`` / ``approved`` / ``processing``
+    AND that are older than ``older_than_hours`` AND have NO ``tx_hash``.
+    That set covers exactly the cases this lane fixed visibility for:
+
+      * ``pending`` — waiting for admin approval (manual mode) for too long;
+      * ``approved`` — guard off (``EXECUTION_PATH_VALIDATED=False``) so
+        ``_attempt_onchain_transfer`` is a silent no-op and the row never
+        broadcasts. This was the primary scenario behind the owner report;
+      * ``processing`` — on-chain submit attempted but tx_hash never landed
+        (network outage / nonce race / wait-for-receipt timeout).
+
+    Rows with a tx_hash are excluded: at that point the on-chain explorer is
+    the source of truth, and ``status`` will move to ``completed`` or
+    ``failed`` once the receipt is observed.
+
+    Read-only: NO ledger or wallets mutation, NO on-chain call, NO live-guard
+    flag read or flip. The amount returned is for operator dashboards only —
+    NEVER as a balance credit. Address truncation matches the rest of the
+    admin surface so the panel can render without leaking full PII.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT w.id,
+                   w.user_id,
+                   w.amount_usdc,
+                   w.destination_address,
+                   w.status,
+                   w.lifecycle_state,
+                   w.approval_mode,
+                   w.created_at,
+                   w.submitted_at,
+                   w.onchain_error
+              FROM withdrawals w
+             WHERE w.status IN ('pending', 'approved', 'processing')
+               AND w.tx_hash IS NULL
+               AND w.created_at < NOW() - make_interval(hours => $1)
+             ORDER BY w.created_at ASC
+             LIMIT $2
+            """,
+            int(older_than_hours), int(limit),
         )
     return [dict(r) for r in rows]
 

@@ -1,7 +1,30 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 12:34**
+**Last Updated : 2026-06-13 14:54**
+
+> North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
+> No feature creep. Runtime truth > cosmetics.
+
+---
+
+## #1819 -- withdrawal-request-debited-but-not-received-blocker
+
+- [x] WARP•R00T root-cause + minimal lifecycle visibility fix (MAJOR — NARROW INTEGRATION) on WARP/withdrawal-request-debited-but-not-received-blocker.
+- [x] Verdict: funds are safe (atomic debit is a balance reservation; master USDC pool still owns the on-chain USDC). Owner-reported row most likely deferred by EXECUTION_PATH_VALIDATED=False silent no-op in _attempt_onchain_transfer.
+- [x] Added honest pending-state web alert at request time (alert_kind='withdrawal_requested', dedup withdrawal:<id>:requested, copy distinguishes "reserved" from "sent"; wrapped in try/except so an alert failure cannot undo the committed debit).
+- [x] Added read-only find_stuck_withdrawals operator queue (3 statuses, no tx_hash, age filter, oldest-first; source-pin proves no UPDATE/INSERT/DELETE).
+- [x] /wallet/ledger LEFT JOIN withdrawals so activity feed carries lifecycle status + tx_hash; LedgerEntry schema gains optional badge fields (backwards-compatible).
+- [x] WalletPage withdrawalBadge() maps status to honest copy ('approved'+no tx_hash -> 'Queued' is the owner case).
+- [x] Operator runbook (report §5) classifies the owner row via a single read-only SELECT and routes to flip-guards-and-push-through OR reject-and-refund — owner/operator decision.
+- [x] #1808 confirmed-alert invariant pinned (distinct :requested vs :completed dedup namespaces).
+- [x] 13 behaviour/safety tests; full suite 3690 passed; frontend build green; ruff + py_compile + secret/mojibake/BOM clean.
+- [x] No live-guard flip; no on-chain call; no migration; no historical row mutation; owner withdrawal NOT auto-retried.
+- [ ] CI green on final head SHA.
+- [ ] WARP•R00T final-gate disposition.
+- [ ] Operator runs §5 runbook to classify the owner row and decide flip-or-refund.
+
+---
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.

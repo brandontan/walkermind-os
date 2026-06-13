@@ -292,6 +292,13 @@ class LedgerEntry(BaseModel):
     amount_usdc: float
     note: Optional[str] = None
     created_at: datetime
+    # #1819: when this row references a withdrawal (``type == 'withdraw'``),
+    # the joined withdrawal lifecycle is exposed here so the WebTrader activity
+    # feed can render an accurate badge (pending / approved / processing /
+    # completed / failed) rather than just a bare debit line. ``None`` for any
+    # row that is not joined to a withdrawal (deposits, trade rows, etc.).
+    withdrawal_status: Optional[str] = None
+    withdrawal_tx_hash: Optional[str] = None
 
 
 class DepositOption(BaseModel):
