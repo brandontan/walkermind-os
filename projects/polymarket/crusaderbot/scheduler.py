@@ -52,6 +52,7 @@ from .domain.research import robustness as robustness_classifier
 from .services.redeem import hourly_worker as redeem_hourly_worker
 from .services.redeem import redeem_router
 from .services import portfolio_snapshots
+from .services.bridge import status_poller as bridge_status_poller
 from .wallet import ledger
 from .wallet.deposit_assets import primary_deposit_asset
 
@@ -1588,6 +1589,18 @@ def setup_scheduler() -> AsyncIOScheduler:
     sched.add_job(check_resolutions, "interval", seconds=s.RESOLUTION_CHECK_INTERVAL,
                   id="resolution", max_instances=1, coalesce=True)
     sched.add_job(sweep_deposits, "cron", hour=3, id="sweep", max_instances=1)
+    # #1805 safe groundwork — Bridge deposit STATUS poller. Registered only when
+    # BRIDGE_DEPOSIT_POLLER_ENABLED is set (default OFF). It NEVER credits
+    # tradeable balance: it routes terminal Bridge COMPLETED pUSD settlements to
+    # operator manual review + an honest "received, not yet tradeable" web
+    # notification. Native USDC/USDT stay disabled for crediting (see the
+    # enablement blocker report). No live Bridge call is made while OFF.
+    if bool(getattr(s, "BRIDGE_DEPOSIT_POLLER_ENABLED", False)):
+        sched.add_job(
+            bridge_status_poller.run_once, "interval",
+            seconds=int(getattr(s, "BRIDGE_DEPOSIT_POLL_INTERVAL_SECONDS", 180)),
+            id="bridge_deposit_status_poll", max_instances=1, coalesce=True,
+        )
     # Daily P&L summary fires once per day at 23:00 Asia/Jakarta. The
     # ``timezone`` argument on the scheduler resolves the local cron tick,
     # so passing ``hour=23`` here is automatically anchored to Jakarta time

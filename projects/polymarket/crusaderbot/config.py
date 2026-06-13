@@ -482,6 +482,16 @@ class Settings(BaseSettings):
     POLYMARKET_BRIDGE_TIMEOUT_SECONDS: int = 20
     PUSD_POLYGON: str = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
     USDT_BRIDGE_POLYGON: str = "0x9417669fBF23357D2774e9D421307bd5eA1006d2"
+    # #1805 safe groundwork — Bridge deposit STATUS poller. Default OFF: native
+    # USDC/USDT stay DISABLED for crediting (the sweep + get_live_balance are
+    # USDC.e/deposits-table bound, and there is no proven pUSD<->order-funder
+    # path), so this poller NEVER credits tradeable balance. When enabled it only
+    # observes terminal Bridge COMPLETED pUSD settlements, persists them to
+    # bridge_deposit_events flagged MANUAL_REVIEW, and emits an honest
+    # "received, pending review — not yet tradeable" web notification. No live
+    # external Bridge call is made while this stays False.
+    BRIDGE_DEPOSIT_POLLER_ENABLED: bool = False
+    BRIDGE_DEPOSIT_POLL_INTERVAL_SECONDS: int = 180
 
     # --- Master / hot-pool wallet (derived from HD seed index 0 if not set) ---
     MASTER_WALLET_ADDRESS: Optional[str] = None
