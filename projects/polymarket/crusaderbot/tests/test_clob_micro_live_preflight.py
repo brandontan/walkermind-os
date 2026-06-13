@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import asyncio
 import pathlib
+import re
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
@@ -37,8 +39,6 @@ from projects.polymarket.crusaderbot.integrations.clob import (
     MockClobClient,
 )
 from projects.polymarket.crusaderbot.wallet.ledger import live_ledger_filter_sql
-
-_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 ORDER_ID = UUID("11111111-1111-1111-1111-111111111111")
 POSITION_ID = UUID("22222222-2222-2222-2222-222222222222")
@@ -97,12 +97,7 @@ def _settings(**over: bool) -> Any:
         USE_PER_USER_EXECUTION=False,
     )
     base.update(over)
-
-    class _S: pass
-    s = _S()
-    for k, v in base.items():
-        setattr(s, k, v)
-    return s
+    return SimpleNamespace(**base)
 
 
 def _mdc_mock(*, tick_size: str = "0.01", neg_risk: bool = False,
@@ -313,17 +308,20 @@ def test_live_ledger_filter_excludes_non_live_money() -> None:
     withdrawal/reserved/in-position/paper balance counted'.
 
     The single source of truth for "live money" is ``live_ledger_filter_sql``.
-    Pin its exact predicate so a future edit can't silently broaden the bucket
-    to count paper top-ups, reservations, or pending withdrawals.
+    Pin its exact predicate (whitespace-normalised so a black/ruff format on
+    the SQL string doesn't break the test) so a future edit can't silently
+    broaden the bucket to count paper top-ups, reservations, or pending
+    withdrawals.
     """
-    sql = live_ledger_filter_sql("l")
-    # In:
+    raw = live_ledger_filter_sql("l")
+    sql = re.sub(r"\s+", " ", raw)
+    # In: the four legitimate live-money row types.
     assert "l.type = 'deposit'" in sql
     assert "l.ref_id IS NOT NULL" in sql
-    assert "EXISTS (        SELECT 1 FROM deposits d WHERE d.id = l.ref_id)" in sql
+    assert "EXISTS ( SELECT 1 FROM deposits d WHERE d.id = l.ref_id)" in sql
     assert "l.type = 'withdraw'" in sql
-    assert "EXISTS (        SELECT 1 FROM withdrawals w WHERE w.id = l.ref_id)" in sql
-    assert "EXISTS (SELECT 1 FROM positions p              WHERE p.id = l.ref_id AND p.mode = 'live')" in sql
+    assert "EXISTS ( SELECT 1 FROM withdrawals w WHERE w.id = l.ref_id)" in sql
+    assert "EXISTS (SELECT 1 FROM positions p WHERE p.id = l.ref_id AND p.mode = 'live')" in sql
     # Out: no reservation / paper / pending top-up tokens may sneak in.
     forbidden = (
         "reserved_for_order",
