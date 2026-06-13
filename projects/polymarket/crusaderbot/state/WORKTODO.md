@@ -1,7 +1,27 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 14:54**
+**Last Updated : 2026-06-13 15:17**
+
+> North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
+> No feature creep. Runtime truth > cosmetics.
+
+---
+
+## #1820 -- telegram-trade-opened-not-visible-in-web-position-blocker
+
+- [x] WARP•R00T root-cause + entry-side mode-isolation guard (MAJOR — NARROW INTEGRATION) on WARP/telegram-trade-opened-not-visible-in-web-position-blocker.
+- [x] Root cause: live user, $0.03 candidate below LIVE_MIN_ORDER_SHARES=5 -> live.execute rejects -> router falls back to paper -> paper.execute fires TRADE OPENED for a mode='paper' position the LIVE portfolio (WHERE mode='live') filters out. Entry-side counterpart of #1810.
+- [x] paper.execute suppresses notify_entry + returns open_event_suppressed=True when the user is now LIVE; audits paper_entry_suppressed_post_live; fails OPEN on mode-read error.
+- [x] engine.py gates the position.opened emit (SSE + notification_service) on not open_event_suppressed.
+- [x] Paper position row unchanged (valid paper accounting); reused the #1810 get_active_trading_mode + paper_event_contaminates_live helpers.
+- [x] Ruled out by code-truth: notify-after-commit (no orphan), header-by-mode (no label bug), mode hardcoded per engine (no cross-emit).
+- [x] No live engine/risk/strategy/migration/config change; no live-guard flip; LIVE_MIN_ORDER_SHARES/Kelly/slippage/$5 gate unchanged; no order, no fund movement.
+- [x] 6 behaviour/safety tests; full suite 3699 passed; ruff + py_compile + secret/mojibake/BOM clean.
+- [ ] CI green on final head SHA.
+- [ ] WARP•R00T final-gate disposition.
+
+---
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.

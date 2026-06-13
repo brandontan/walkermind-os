@@ -269,7 +269,21 @@ class TradeEngine:
 
         # Emit position.opened for non-copy-trade fills only.
         # Copy-trade monitor emits copy_trade.executed separately.
-        if out_mode != "duplicate" and signal.strategy_type != "copy_trade":
+        #
+        # #1820: honour the paper engine's entry mode-isolation guard. When a
+        # paper fallback fires for a now-LIVE user (e.g. a below-min-order live
+        # order downgraded to paper), the paper engine suppresses its TRADE
+        # OPENED notification and returns ``open_event_suppressed=True``; the
+        # position.opened event drives the WebTrader SSE + notification_service,
+        # so emitting it would push an "opened position" the user's LIVE
+        # portfolio (mode='live'-filtered) can never show. Skip it to keep
+        # Telegram, SSE, and the portfolio query telling the same story.
+        _open_event_suppressed = bool(raw.get("open_event_suppressed"))
+        if (
+            out_mode != "duplicate"
+            and signal.strategy_type != "copy_trade"
+            and not _open_event_suppressed
+        ):
             await _event_bus.emit(
                 "position.opened",
                 telegram_user_id=signal.telegram_user_id,
