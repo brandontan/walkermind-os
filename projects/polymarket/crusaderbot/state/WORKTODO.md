@@ -1,12 +1,25 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 08:32**
+**Last Updated : 2026-06-13 11:59**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1815 -- late-entry-v3-edge-calibration (read-only audit)
+
+- [x] WARP•R00T evidence-based calibration audit (MAJOR — NARROW INTEGRATION) on WARP/late-entry-v3-edge-calibration.
+- [x] VERDICT: NEEDS MORE DATA — do NOT scale live capital on late_entry_v3 yet. Operationally ready, edge unmeasured.
+- [x] Proved precise gap: ask_diff is a book-imbalance heuristic not EV; late_entry_v3 stamps oracle_edge_up/down + slippage_gross_edge_bps but NOT directional edge_bps (step 12 MIN_EDGE_BPS inert); OOS harness data-starved because SCAN_SNAPSHOT_ENABLED was OFF.
+- [x] Added minimal read-only export domain/research/late_entry_realized_cohort.py — SELECT-only paper-cohort matrix by (preset, side) with simulated net EV in bps after late_entry_oos.CostModel; UNPROVEN_THIN under n<20, REALIZED at or above.
+- [x] 10 safety/behaviour tests pin bucket math, MIN_OOS gate, sim EV worked examples, SQL is SELECT-only, source-pin no live-path imports / no order calls / no guard reads.
+- [x] No strategy/threshold/preset/gate change; no live-guard flip; no order; no fund movement. Kelly 0.25 untouched; $5 gate untouched.
+- [x] Documented operator playbook to a verdict change (SCAN_SNAPSHOT_ENABLED on -> 14d capture -> weekly export -> OOS harness -> MICRO-LIVE one preset half-cap -> reassess after ~30 trades).
+- [x] Full suite 3659 passed; ruff + py_compile + secret/mojibake/BOM clean.
+- [ ] CI green on final head SHA.
+- [ ] WARP•R00T final-gate disposition.
 
 ## #1805 -- polymarket-bridge-native-enablement-blocker (safe groundwork)
 
