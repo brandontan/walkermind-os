@@ -105,6 +105,48 @@ async def _read_trading_mode(
     return str(mode or "paper")
 
 
+async def get_active_trading_mode(
+    user_id: UUID, conn: Optional[asyncpg.Connection] = None,
+) -> str:
+    """Authoritative read of a user's CURRENT active trading mode.
+
+    Single source of truth = ``user_settings.trading_mode`` — the same column
+    WebTrader (``webtrader/backend/router.py``) and Telegram
+    (``bot/handlers/mvp/_users.fetch_trading_mode``) read, so every surface
+    and every worker agrees on the same value. Defaults to ``"paper"`` when no
+    row exists (a brand-new user starts in PAPER per product invariant #1).
+
+    Used by automation workers (e.g. the exit watcher) to decide, at event
+    emission time, whether a position-lifecycle event carries the user's
+    current mode or is post-switch contamination that must be suppressed.
+    """
+    return await _read_trading_mode(user_id, conn)
+
+
+def paper_event_contaminates_live(*, event_mode: str, active_mode: str) -> bool:
+    """True when a PAPER lifecycle event would surface as active trading for a
+    user whose authoritative mode is now LIVE.
+
+    The contamination case (production bug #1810): after a user switches
+    PAPER -> LIVE, a paper position that was still ``status='open'`` at switch
+    time can be closed by the exit watcher (the 30s ``exit_watch`` loop or the
+    5s candle fast loop) in a race with the switch's archival UPDATE. The
+    watcher derives ``mode`` from the stale position row, so it would emit an
+    active ``[PAPER] Strategy exit`` Telegram/WebTrader notification even though
+    the user is already in LIVE — looking like live paper automation, which
+    violates mode-isolation invariants (#2, #6, #8).
+
+    A paper-mode event (``paper`` or the archived ``paper_archived`` marker) is
+    contamination iff the user's current authoritative mode is ``live``. A
+    genuine paper event for a still-paper user, and any live event, are never
+    suppressed.
+    """
+    em = (event_mode or "paper").lower()
+    am = (active_mode or "paper").lower()
+    is_paper_event = em in ("paper", PAPER_ARCHIVED_MODE)
+    return is_paper_event and am == "live"
+
+
 async def evaluate_live_autotrade_start(
     user_id: UUID,
     *,
