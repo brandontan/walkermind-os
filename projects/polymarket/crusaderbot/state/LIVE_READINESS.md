@@ -7,6 +7,44 @@ SENTINEL: Required before merge
 
 ---
 
+## 2026-06-13 UPDATE — WARP•R00T go-live readiness audit + current-truth runbook
+
+Supersedes the "4 guards" / "Final go-live sequence" below where they differ —
+those earlier sections are retained for history but are STALE vs current code
+truth. Code-truth state (audited 2026-06-13; full suite 3654 passed):
+
+ACTIVATION SURFACE (current): live execution requires SIX env guards, not four —
+`ENABLE_LIVE_TRADING`, `EXECUTION_PATH_VALIDATED`, `CAPITAL_MODE_CONFIRMED`,
+`RISK_CONTROLS_VALIDATED`, `SECURITY_HARDENING_VALIDATED`, `USE_REAL_CLOB`
+(`domain/execution/live.py:assert_live_guards`) — PLUS a GLOBAL DB toggle
+`system_settings.global_live_trading_enabled` (`domain/ops/global_live_gate.py`,
+fail-safe to paper), `role=='admin'`, and per-user `trading_mode=='live'`. All
+default OFF / fail-closed to paper.
+
+ORDER PATH (current): for POLY_1271 deposit wallets the authoritative backend is
+the Rust sidecar — `USE_RUST_SIDECAR=true` (precedence over `USE_CLOB_V2` /
+`USE_PYSDK_CLOB`), the ONLY client that signs the wrapped EIP-1271 order
+(py-clob-client-v2 cannot — upstream #70). Already proved a live order from Fly
+(`sidecar-clob-url` PROOF=PASS). Requires `RUST_SIDECAR_PATH` binary,
+`POLYMARKET_PRIVATE_KEY`, `POLYMARKET_SIGNATURE_TYPE=3`, and a resolved funder
+(auto-derived by `ensure_clob_credentials()` or `POLYMARKET_FUNDER_ADDRESS`).
+
+CAPITAL SAFETY (current): risk gate step 15 caps live exposure at the user's REAL
+deposited balance (`get_live_balance`, deposits-table join) — zero real funds ⇒
+no live trade. Live Auto-Trade start gate `MIN_LIVE_AUTOTRADE_BALANCE_USDC=5`.
+
+DEPOSITS (current): USDC.e ONLY is enabled end-to-end. Native Polygon USDC/USDT
+are honestly disabled (Bridge settles to pUSD; live path debits the USDC.e
+ledger; pUSD is documentation-only in runtime — crediting = fake balance).
+
+The authoritative step-by-step operator go-live runbook (sidecar wiring →
+dry-run proof → guard sequence → per-user opt-in + funding → funded micro-trade
+verification → halt/rollback → staged rollout) lives in:
+`projects/polymarket/crusaderbot/reports/forge/go-live-readiness.md`
+(section "GO-LIVE RUNBOOK"). No guard was flipped and no funds moved by this lane.
+
+---
+
 ## 2026-05-28 UPDATE — WARP•R00T LIVE+PAPER readiness pass (3 lanes)
 
 WARP•R00T verified the system is engineering-ready for concurrent LIVE +
