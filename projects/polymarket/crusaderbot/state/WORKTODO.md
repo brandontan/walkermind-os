@@ -1,12 +1,27 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 06:05**
+**Last Updated : 2026-06-13 07:15**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
 
 ---
+
+## #1807 -- smart-strike-friendly-signal-status-polish (PR #1809)
+
+- [x] FORGE build on warp/polish-smart-strike-friendly-signal-status (initially mistagged MINOR — retagged STANDARD per #1807).
+- [x] WARP•R00T finishing: replaced all "setup" wording in user-facing copy with owner-locked headline "Waiting for a valid signal" + unknown fallback "Still scanning for a valid signal".
+- [x] WARP•R00T finishing: implemented owner-mandated category mapping — No matching signal yet / Signal strength is not strong enough yet / Market liquidity is not ready yet / Trade size is below the minimum required / Live trading requirements are not fully met / Market is not eligible right now / Entry window is too short right now.
+- [x] WARP•R00T finishing: rewrote formatNoTradeReason() so raw skipped_/step_NN_ prefixes are stripped, composite reasons prefer the suffix category, and unknown reasons fall back to the friendly unknown string — raw backend codes never leak to user copy. Fixes Gemini-noted late_entry_v3:skipped_liquidity colon-suffix bug.
+- [x] WARP•R00T finishing: added subtle idle scan animation (ScanDots component + @keyframes scanDot + .animate-scan-dot class) on the active status line only when no signal has fired; idle/auto-trade OFF stays static; no spinners, no error tone.
+- [x] WARP•R00T finishing: merged origin/main onto PR head; took --theirs on state-file conflicts and re-applied #1809 lane entries surgically.
+- [x] WARP•R00T finishing: corrected branch traceability everywhere to warp/polish-smart-strike-friendly-signal-status.
+- [x] WARP•R00T finishing: refreshed test pins to STANDARD — owner copy + dots/keyframe wiring + no "setup" + no inline skipped_ trim.
+- [x] Frontend npm run build green (tsc + vite); existing PortfolioPage dynamic/static import warning unchanged.
+- [x] RuntimeStatus contract / /status payload / scan telemetry / strategy / risk / Kelly 0.25 / order intent / CLOB / deposits / withdrawals / kill switch / activation flags untouched; no order, no fund movement, no live-guard flip.
+- [ ] CI green on final head SHA.
+- [ ] WARP•R00T final-gate disposition.
 
 ## #1808 -- polymarket-bridge-usdc-usdt-deposit-enablement (PR #1808)
 

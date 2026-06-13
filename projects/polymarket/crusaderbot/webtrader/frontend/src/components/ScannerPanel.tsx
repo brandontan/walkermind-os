@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { FeedSignal, MarketFeedItem, RuntimeStatus } from "../lib/api";
 
 /* ── tone map (mirrors Terminal.tsx) ──────────────────────────────────── */
@@ -54,40 +55,85 @@ const PRESET_LABEL: Record<string, string> = {
 const presetLabel = (p: string | null): string =>
   p ? (PRESET_LABEL[p] ?? p) : "none";
 
-const NO_TRADE_REASON_LABELS: Record<string, string> = {
-  awaiting_signal: "waiting for a clean setup",
-  late_entry_v3: "late-entry filter blocked setup",
-  no_candidates: "no qualifying setup yet",
-  no_eligible_markets: "no eligible markets after filters",
-  no_markets_in_universe: "no enabled markets in universe",
-  smart_strike_admin_disabled: "Smart Strike universe disabled",
-  step_14_below_min_order_shares: "below minimum order size",
+/* User-facing Smart Strike no-trade headline + category mapping (#1807).
+   Owner-locked copy: "Waiting for a valid signal" + category detail. Raw
+   backend reason codes (skipped_*, step_NN_*, late_entry_v3:*) must NEVER
+   leak into normal user copy — only debug/admin/log may show them. */
+export const SMART_STRIKE_NO_TRADE_HEADLINE = "Waiting for a valid signal";
+export const SMART_STRIKE_NO_TRADE_UNKNOWN = "Still scanning for a valid signal";
+
+const NO_TRADE_CATEGORY_LABELS: Record<string, string> = {
+  // structural / orchestration
+  awaiting_signal: SMART_STRIKE_NO_TRADE_HEADLINE,
+  no_candidates: "No matching signal yet",
+  filter_or_no_match: "No matching signal yet",
+  // strength / edge
+  measured_edge_missing: "Signal strength is not strong enough yet",
+  measured_edge_missing_live: "Signal strength is not strong enough yet",
+  no_edge: "Signal strength is not strong enough yet",
+  // liquidity / book
+  orderbook_empty: "Market liquidity is not ready yet",
+  book_unavailable: "Market liquidity is not ready yet",
+  liquidity: "Market liquidity is not ready yet",
+  stale_tob: "Market liquidity is not ready yet",
+  // sizing / minimum
+  below_min_order_size: "Trade size is below the minimum required",
+  step_14_below_min_order_shares: "Trade size is below the minimum required",
+  // live gating
+  live_gate_blocked: "Live trading requirements are not fully met",
+  // eligibility / universe
+  market_not_eligible: "Market is not eligible right now",
+  no_eligible_markets: "Market is not eligible right now",
+  no_markets_in_universe: "Market is not eligible right now",
+  smart_strike_admin_disabled: "Market is not eligible right now",
+  archived: "Market is not eligible right now",
+  // late-entry / timing
+  countdown_too_short: "Entry window is too short right now",
+  late_entry_v3: "Entry window is too short right now",
 };
 
-const NO_TRADE_TOKEN_LABELS: Record<string, string> = {
-  archived: "market archived",
-  below_min_order_size: "below minimum order size",
-  liquidity: "liquidity too thin",
-  measured_edge_missing: "measured edge unavailable",
-  no_edge: "edge below threshold",
-  orderbook_empty: "order book empty",
-  stale_tob: "top-of-book stale",
-};
+function stripBackendPrefix(token: string): string {
+  // Strip noisy backend prefixes — `skipped_`, `step_NN_` — so raw telemetry
+  // tokens can match the user-facing category map cleanly.
+  return token.replace(/^skipped_/, "").replace(/^step_\d+_/, "");
+}
 
 export function formatNoTradeReason(reason: string | null | undefined): string | null {
   if (!reason) return null;
-  if (NO_TRADE_REASON_LABELS[reason]) return NO_TRADE_REASON_LABELS[reason];
+  if (NO_TRADE_CATEGORY_LABELS[reason]) return NO_TRADE_CATEGORY_LABELS[reason];
 
+  const trimmed = stripBackendPrefix(reason);
+  if (NO_TRADE_CATEGORY_LABELS[trimmed]) return NO_TRADE_CATEGORY_LABELS[trimmed];
+
+  // Composite reason like `late_entry_v3:measured_edge_missing` or
+  // `late_entry_v3:skipped_liquidity` — prefer the suffix category so raw
+  // backend prefix (e.g. `late_entry_v3`) never leaks into user copy.
   const [prefix, suffix] = reason.split(":", 2);
-  if (suffix && NO_TRADE_REASON_LABELS[prefix]) {
-    const suffixLabel = NO_TRADE_TOKEN_LABELS[suffix]
-      ?? suffix.replace(/^skipped_/, "").replace(/_/g, " ");
-    return `${NO_TRADE_REASON_LABELS[prefix]}: ${suffixLabel}`;
+  if (suffix) {
+    const trimmedSuffix = stripBackendPrefix(suffix);
+    if (NO_TRADE_CATEGORY_LABELS[trimmedSuffix]) return NO_TRADE_CATEGORY_LABELS[trimmedSuffix];
+    if (NO_TRADE_CATEGORY_LABELS[prefix]) return NO_TRADE_CATEGORY_LABELS[prefix];
   }
 
-  const trimmed = reason.replace(/^skipped_/, "");
-  if (NO_TRADE_TOKEN_LABELS[trimmed]) return NO_TRADE_TOKEN_LABELS[trimmed];
-  return trimmed.replace(/_/g, " ");
+  return SMART_STRIKE_NO_TRADE_UNKNOWN;
+}
+
+/* Subtle three-dot "scanning..." indicator — used in the idle-waiting state so
+   the panel feels alive while no signal is firing. Keep lightweight: three
+   small dots, staggered fade, no spinners, no error tone. */
+function ScanDots() {
+  return (
+    <span className="inline-flex items-center gap-[3px] ml-1.5 align-middle" aria-label="scanning">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="w-[3px] h-[3px] rounded-full inline-block animate-scan-dot"
+          style={{ background: "var(--gold,#F5C842)", animationDelay: `${i * 160}ms` }}
+          aria-hidden
+        />
+      ))}
+    </span>
+  );
 }
 
 const LEAN_ARROW: Record<MarketFeedItem["lean"], string> = { UP: "▲", DOWN: "▼", EVEN: "─" };
@@ -430,7 +476,12 @@ function MarketCarousel({ feed }: { feed: MarketFeedItem[] }) {
 ══════════════════════════════════════════════════════════════════════ */
 const BASE_COUNT = 6;
 
-type TLineDef = { parts: { type: Tone; text: string }[]; cursor?: boolean };
+type TLineDef = {
+  parts: { type: Tone; text: string }[];
+  cursor?: boolean;
+  /** Optional trailing JSX (e.g. animated scanning dots) rendered after parts. */
+  trailing?: ReactNode;
+};
 
 export type ScannerPanelProps = {
   runtime: RuntimeStatus | null;
@@ -485,15 +536,18 @@ export function ScannerPanel({
 
   // Smart Strike candle-scan funnel — the real LIVE engine. When the scanner is
   // running but no order fired, surface the dominant no-trade reason from
-  // backend telemetry as operator-friendly copy so the panel never hides a
-  // fail-closed cause behind a bare "awaiting_signal" or raw reason code.
+  // backend telemetry as user-friendly category copy (#1807). Raw backend
+  // codes (skipped_*, step_NN_*, late_entry_v3:*) stay in admin/debug only.
   const noTradeReason = runtime?.smart_strike_no_trade_reason ?? null;
-  const noTradeLabel = formatNoTradeReason(noTradeReason);
+  const noTradeCategory = formatNoTradeReason(noTradeReason);
+  const noTradeDetail = noTradeCategory && noTradeCategory !== SMART_STRIKE_NO_TRADE_HEADLINE
+    ? noTradeCategory
+    : null;
   const statusText = signals.length > 0
-    ? "signal_fired"
-    : noTradeLabel
-      ? `awaiting_signal · ${noTradeLabel}`
-      : "awaiting_signal";
+    ? "Signal fired"
+    : noTradeDetail
+      ? `${SMART_STRIKE_NO_TRADE_HEADLINE} — ${noTradeDetail}`
+      : SMART_STRIKE_NO_TRADE_HEADLINE;
 
   const feedSummary = feed
     .map((f) => `${LEAN_ARROW[f.lean]} ${f.asset} ${Math.round(f.up_prob * 100)}%`)
@@ -506,7 +560,13 @@ export function ScannerPanel({
         { parts: [{ type: "out", text: "scanned " }, { type: "warn", text: String(scanned) }, { type: "out", text: "  published " }, { type: "ok", text: String(published) }] },
         { parts: [{ type: "out", text: "last_tick " }, { type: "dim", text: `${liveAgo != null ? `${liveAgo}s ago` : "—"}  ` }, { type: "dim", text: "signals scanning" }], cursor: true },
         { parts: [{ type: "out", text: "markets  " }, { type: "dim", text: feedSummary || "—" }] },
-        { parts: [{ type: "out", text: "status " }, { type: signals.length > 0 ? "ok" : "warn", text: statusText }] },
+        {
+          parts: [
+            { type: "out", text: "status " },
+            { type: signals.length > 0 ? "ok" : "warn", text: statusText },
+          ],
+          trailing: signals.length === 0 ? <ScanDots /> : null,
+        },
       ]
     : [
         { parts: [{ type: "cmd", text: "market_signal_scanner" }, { type: "dim", text: "  ◦ idle" }] },
@@ -607,6 +667,7 @@ export function ScannerPanel({
                   {l.parts.map((p, j) => (
                     <span key={j} className={TONE[p.type]}>{p.text}</span>
                   ))}
+                  {l.trailing}
                   {l.cursor && <span className="animate-blink inline-block w-[7px] h-[0.85em] align-middle ml-0.5 bg-gold" aria-hidden />}
                 </span>
               </div>

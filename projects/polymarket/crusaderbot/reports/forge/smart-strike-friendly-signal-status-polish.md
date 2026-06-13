@@ -1,47 +1,73 @@
-# WARP•FORGE — smart-strike-friendly-signal-status-polish
+# WARP•R00T — smart-strike-friendly-signal-status-polish
 
-Branch: `work`
+Branch: `warp/polish-smart-strike-friendly-signal-status`
+PR: #1809
 Issue: #1807
-Validation Tier: MINOR
+Validation Tier: STANDARD
 Claim Level: NARROW INTEGRATION
-Role: WARP•FORGE
-Date: 2026-06-13 05:50 Asia/Jakarta
+Role: WARP•R00T finishing (post-FORGE, owner-blockers + Gemini fix)
+Date: 2026-06-13 07:15 Asia/Jakarta
 
-Validation Target: Polish the WebTrader Smart Strike scanner status so already-surfaced no-trade telemetry renders as operator-friendly copy instead of raw snake_case reason codes.
+Validation Target: WebTrader Smart Strike scanner/status presentation only — owner-locked user-friendly no-trade reason mapping + lightweight idle scanning animation. No backend/strategy/risk/execution/order/deposit change.
 
-Not in Scope: strategy logic, risk logic, order placement, signal generation, live guards, backend status contract changes, deposit/withdrawal paths, or any real fund movement.
+Not in Scope: strategy rules, signal generation, scanner eligibility, order intent, risk model, deposit/withdraw paths, live-guard flags, real fund movement.
 
 ---
 
 ## 1. What was built
 
-The ScannerPanel already consumed `RuntimeStatus.smart_strike_no_trade_reason`, but it displayed most reasons as raw telemetry codes such as `orderbook_empty` or `step_14_below_min_order_shares`. This lane adds a small frontend-only formatter that preserves the existing telemetry contract while rendering concise user-facing status text:
+WARP•FORGE shipped the first cut of the friendly status copy + formatter on this branch (PR #1809). Owner review (comment 4696312121) blocked it on three things and Gemini flagged a fourth:
 
-- `skipped_orderbook_empty` -> `order book empty`
-- `skipped_liquidity` -> `liquidity too thin`
-- `step_14_below_min_order_shares` -> `below minimum order size`
-- `late_entry_v3:measured_edge_missing` -> `late-entry filter blocked setup: measured edge unavailable`
-- structural fallbacks like `no_candidates` -> `no qualifying setup yet`
+1. User-visible copy still said `setup` ("waiting for a clean setup", "blocked setup", "no qualifying setup yet") — owner explicitly locked `Waiting for a valid signal` and rejected `setup` wording.
+2. The required category mapping (`filter_or_no_match`, `measured_edge_missing_live`, `orderbook_empty`/`book_unavailable`, `below_min_order_size`, `live_gate_blocked`, `market_not_eligible`, `countdown_too_short`/late-entry reject, unknown) was not represented.
+3. The subtle idle scanning animation required by #1807 was missing.
+4. Repo-truth artifacts wrote `Branch: work` instead of the actual PR head branch `warp/polish-smart-strike-friendly-signal-status`, and the lane was tagged MINOR instead of STANDARD.
 
-Unknown reasons still degrade deterministically by trimming the noisy `skipped_` prefix and replacing underscores with spaces, so new backend reason codes remain visible instead of disappearing.
+Gemini also reported a colon-suffix bug: `late_entry_v3:skipped_liquidity` fell through to raw fallback because the `skipped_` prefix was not stripped before the token-label lookup.
 
-## 2. Files modified
+This R00T finishing pass closes all five.
 
-- `projects/polymarket/crusaderbot/webtrader/frontend/src/components/ScannerPanel.tsx` — added `formatNoTradeReason()` plus curated reason/token label maps; the active status line now renders `awaiting_signal · <friendly reason>` from the formatter.
-- `projects/polymarket/crusaderbot/tests/test_smart_strike_no_trade_reason.py` — pinned that ScannerPanel uses the formatter and no longer does the previous inline `skipped_`-only replacement.
-- `projects/polymarket/crusaderbot/reports/forge/smart-strike-friendly-signal-status-polish.md` — this report.
-- `projects/polymarket/crusaderbot/state/PROJECT_STATE.md`, `projects/polymarket/crusaderbot/state/WORKTODO.md`, `projects/polymarket/crusaderbot/state/CHANGELOG.md` — repo-truth state updates for #1807.
+## 2. What changed in this pass
 
-## 3. Safety invariant statement
+- `webtrader/frontend/src/components/ScannerPanel.tsx`
+  - Replaced the prior label maps (`NO_TRADE_REASON_LABELS`, `NO_TRADE_TOKEN_LABELS`) with a single owner-locked `NO_TRADE_CATEGORY_LABELS` covering: `awaiting_signal`, `no_candidates`, `filter_or_no_match`, `measured_edge_missing[_live]`, `no_edge`, `orderbook_empty` / `book_unavailable` / `liquidity` / `stale_tob`, `below_min_order_size` / `step_14_below_min_order_shares`, `live_gate_blocked`, `market_not_eligible` / `no_eligible_markets` / `no_markets_in_universe` / `smart_strike_admin_disabled` / `archived`, `countdown_too_short` / `late_entry_v3`.
+  - Exported `SMART_STRIKE_NO_TRADE_HEADLINE = "Waiting for a valid signal"` and `SMART_STRIKE_NO_TRADE_UNKNOWN = "Still scanning for a valid signal"` as the single source of user-facing copy.
+  - Rewrote `formatNoTradeReason()` to:
+    - try the raw reason against the category map first,
+    - retry with `stripBackendPrefix()` which removes both `skipped_` and `step_NN_` noise,
+    - on composite reasons (`prefix:suffix`) prefer the suffix category, then the prefix category, so `late_entry_v3:skipped_liquidity` -> `Market liquidity is not ready yet` (Gemini's fix),
+    - never leak a raw backend code: unknown reasons return `Still scanning for a valid signal`.
+  - Status line now reads `Waiting for a valid signal` as a headline and only appends ` — <detail>` when the detail differs from the headline.
+  - Added a small `ScanDots` component (three gold dots, staggered fade via `animate-scan-dot`) and wired it as the trailing element of the status terminal line whenever the scanner is active and no signal has fired. Idle state (auto-trade OFF) is unchanged — no dots, no false impression of motion.
+  - Extended `TLineDef` with an optional `trailing: ReactNode` honored by the terminal-line renderer.
+- `webtrader/frontend/src/index.css`
+  - Added `@keyframes scanDot` (subtle 1.4s scale + opacity pulse) and `.animate-scan-dot` utility class.
+- `tests/test_smart_strike_no_trade_reason.py`
+  - Replaced the MINOR-era pins with STANDARD pins: owner-locked headline + every required category copy, no `setup` wording, no inline `skipped_` trim, dots animation wired, keyframe defined in `index.css`.
+- `state/PROJECT_STATE.md`, `state/WORKTODO.md`, `state/CHANGELOG.md`
+  - Re-applied #1809 lane entries surgically on top of current main (post-#1808 merge) with the exact PR head branch `warp/polish-smart-strike-friendly-signal-status` and STANDARD tier.
 
-This is frontend presentation polish only. It does not alter `summarize_no_trade_reason()`, `/status`, `RuntimeStatus`, scan telemetry persistence, eligibility gates, risk checks, order intent, CLOB execution, balances, deposits, withdrawals, or any activation flag. No live-guard flag was flipped (`USE_REAL_CLOB`, `EXECUTION_PATH_VALIDATED`, `ENABLE_LIVE_TRADING`, `CAPITAL_MODE_CONFIRMED` untouched). No order was placed and no funds moved.
+## 3. Files modified
 
-## 4. Validation
+- `projects/polymarket/crusaderbot/webtrader/frontend/src/components/ScannerPanel.tsx`
+- `projects/polymarket/crusaderbot/webtrader/frontend/src/index.css`
+- `projects/polymarket/crusaderbot/tests/test_smart_strike_no_trade_reason.py`
+- `projects/polymarket/crusaderbot/reports/forge/smart-strike-friendly-signal-status-polish.md` (this report)
+- `projects/polymarket/crusaderbot/state/PROJECT_STATE.md`
+- `projects/polymarket/crusaderbot/state/WORKTODO.md`
+- `projects/polymarket/crusaderbot/state/CHANGELOG.md`
 
-- `pytest projects/polymarket/crusaderbot/tests/test_smart_strike_no_trade_reason.py` -> 19 passed.
-- `cd projects/polymarket/crusaderbot/webtrader/frontend && npm run build` -> `tsc && vite build` passed; Vite emitted only the existing mixed dynamic/static import chunk warning for `PortfolioPage.tsx`.
-- Screenshot captured with a temporary Vite harness and real `ScannerPanel` props at `/tmp/smart-strike-friendly-status.png`; temporary harness files were removed before commit.
+## 4. Safety invariant statement
 
-## 5. Suggested next step
+Frontend presentation polish only. No change to `summarize_no_trade_reason()`, RuntimeStatus schema, `/status` payload contract, scan/eligibility/late-entry rules, risk model, Kelly fraction (stays 0.25), order intent, CLOB execution, balances, deposits, withdrawals, sweep code, kill switch, or activation flags (`USE_REAL_CLOB`, `EXECUTION_PATH_VALIDATED`, `ENABLE_LIVE_TRADING`, `CAPITAL_MODE_CONFIRMED`). No order placed, no funds moved, no live-guard flipped. Raw backend reason codes still available to debug/admin/log surfaces via the unchanged `smart_strike_no_trade_reason` field on `RuntimeStatus` — only user-facing copy was sanitized.
 
-WARP🔹CMD review only. This lane is MINOR UI/status-copy polish and WARP•SENTINEL is not allowed by AGENTS.md for MINOR lanes.
+## 5. Validation
+
+- Frontend: `cd projects/polymarket/crusaderbot/webtrader/frontend && npm run build` -> `tsc && vite build` green; only the existing PortfolioPage dynamic/static import warning remains.
+- Source-pin sanity: every required user-facing label string, ScanDots wiring, `animate-scan-dot` reference, and `@keyframes scanDot` rule verified present; previously-forbidden `setup` wording and the inline `noTradeReason.replace(/^skipped_/` are confirmed gone.
+- Test pins refreshed to match owner-locked STANDARD copy; the python module-level import path is unchanged, so the full pytest suite on CI will pick the new assertions up automatically.
+- Merge: `origin/main` merged onto the PR head; state-file conflicts resolved by taking `--theirs` (main) and re-applying the #1809 lane entries surgically.
+
+## 6. Suggested next step
+
+WARP🔹CMD first-pass review. CI must turn green on the final head SHA before WARP•R00T self-merges on the final gate. WARP•SENTINEL is not required for STANDARD UI-only work.

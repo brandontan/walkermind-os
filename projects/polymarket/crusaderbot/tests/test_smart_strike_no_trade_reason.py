@@ -189,11 +189,50 @@ def test_scanner_panel_renders_no_trade_reason() -> None:
 
 
 def test_scanner_panel_formats_no_trade_reason_as_friendly_copy() -> None:
+    """Owner-locked Smart Strike no-trade copy + idle scan animation pins (#1807).
+
+    Pins:
+    - Headline is the owner-approved "Waiting for a valid signal" (no "setup").
+    - Category-based mapping for orderbook / strength / sizing / live-gate /
+      eligibility / late-entry — raw backend codes never leak to user copy.
+    - Idle subtle scan animation (ScanDots / animate-scan-dot) is rendered
+      only when the scanner is active and no signal has fired.
+    - The previous inline `skipped_` trim is gone, and there is no `setup`
+      wording in the user-visible category labels.
+    """
     src = (_ROOT / "webtrader/frontend/src/components/ScannerPanel.tsx").read_text(
         encoding="utf-8"
     )
+    # Formatter is consumed by the panel.
     assert "formatNoTradeReason(noTradeReason)" in src
-    assert "order book empty" in src
-    assert "liquidity too thin" in src
-    assert "below minimum order size" in src
+    # Owner-locked headline + unknown fallback.
+    assert "Waiting for a valid signal" in src
+    assert "Still scanning for a valid signal" in src
+    # Owner-locked category copy.
+    assert "No matching signal yet" in src
+    assert "Signal strength is not strong enough yet" in src
+    assert "Market liquidity is not ready yet" in src
+    assert "Trade size is below the minimum required" in src
+    assert "Live trading requirements are not fully met" in src
+    assert "Market is not eligible right now" in src
+    assert "Entry window is too short right now" in src
+    # Owner explicitly removed "setup" wording from user-visible Smart Strike copy.
+    for forbidden in (
+        "waiting for a clean setup",
+        "late-entry filter blocked setup",
+        "no qualifying setup yet",
+    ):
+        assert forbidden not in src.lower(), f"forbidden user copy still present: {forbidden}"
+    # No more inline ad-hoc "skipped_" trim — formatter owns the prefix strip.
     assert 'noTradeReason.replace(/^skipped_/' not in src
+    # Idle scan animation wired (lightweight dots, only when no signal).
+    assert "animate-scan-dot" in src
+    assert "function ScanDots" in src
+    assert "signals.length === 0 ? <ScanDots />" in src
+
+
+def test_index_css_defines_scan_dot_keyframe() -> None:
+    """The subtle scanning-dot animation must be defined in index.css (#1807)."""
+    src = (_ROOT / "webtrader/frontend/src/index.css").read_text(encoding="utf-8")
+    assert "@keyframes scanDot" in src
+    assert ".animate-scan-dot" in src
