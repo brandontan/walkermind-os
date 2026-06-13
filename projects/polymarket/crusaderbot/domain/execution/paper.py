@@ -86,20 +86,70 @@ async def execute(
                           "price": price,
                           "strategy": strategy_type,
                       })
-    await _notifier.notify_entry(
-        telegram_user_id=telegram_user_id,
-        market_id=market_id,
-        market_question=market_question,
-        side=side,
-        size_usdc=size_usdc,
-        price=price,
-        tp_pct=tp_pct,
-        sl_pct=sl_pct,
-        mode="paper",
-        strategy_type=strategy_type,
-        position_id=str(position_id),
-    )
-    return {"order_id": order_id, "position_id": position_id, "mode": "paper"}
+
+    # Entry-side mode-isolation guard (#1820, symmetric with the #1810 exit
+    # guard). A paper position can be created for a user whose authoritative
+    # mode is LIVE — most commonly when a live order is rejected pre-submit for
+    # being below LIVE_MIN_ORDER_SHARES and the router falls back to paper. In
+    # that state a "TRADE OPENED" notification (Telegram + web alert) plus the
+    # downstream position.opened SSE event would surface an active trade the
+    # user's LIVE WebTrader portfolio CANNOT see (it filters WHERE mode='live'),
+    # so Telegram and WebTrader disagree on runtime truth. Resolve the committed
+    # authoritative mode; on contamination, suppress the user-facing entry
+    # notification + the open event and record a diagnostic. The paper position
+    # itself is unchanged — it remains correct paper-mode accounting and shows
+    # in paper mode; it just must not masquerade as an active live trade.
+    open_event_suppressed = False
+    try:
+        from ..activation.live_mode import (
+            get_active_trading_mode,
+            paper_event_contaminates_live,
+        )
+        active_mode = await get_active_trading_mode(user_id)
+        open_event_suppressed = paper_event_contaminates_live(
+            event_mode="paper", active_mode=active_mode,
+        )
+    except Exception as exc:
+        # Fail OPEN to existing behaviour: a transient mode-read failure must
+        # never silently swallow a legitimate paper user's entry notification.
+        log.warning("paper.execute active-mode read failed — emitting entry",
+                    user_id=str(user_id), err=str(exc))
+        active_mode = "paper"
+        open_event_suppressed = False
+
+    if open_event_suppressed:
+        log.warning(
+            "paper.execute: suppressing paper entry notification for now-LIVE "
+            "user (paper fallback not visible in live portfolio)",
+            worker="paper_engine", user_id=str(user_id),
+            position_id=str(position_id), active_mode=active_mode,
+            size_usdc=str(size_usdc),
+        )
+        await audit.write(
+            actor_role="bot", action="paper_entry_suppressed_post_live",
+            user_id=user_id,
+            payload={"position_id": str(position_id),
+                     "order_id": str(order_id),
+                     "market_id": market_id,
+                     "size_usdc": str(size_usdc),
+                     "active_mode": active_mode},
+        )
+    else:
+        await _notifier.notify_entry(
+            telegram_user_id=telegram_user_id,
+            market_id=market_id,
+            market_question=market_question,
+            side=side,
+            size_usdc=size_usdc,
+            price=price,
+            tp_pct=tp_pct,
+            sl_pct=sl_pct,
+            mode="paper",
+            strategy_type=strategy_type,
+            position_id=str(position_id),
+        )
+    return {"order_id": order_id, "position_id": position_id, "mode": "paper",
+            "open_event_suppressed": open_event_suppressed}
 
 
 async def close_position(*, position: dict, exit_price: float,
