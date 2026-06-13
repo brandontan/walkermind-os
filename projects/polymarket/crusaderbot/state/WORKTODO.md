@@ -1,10 +1,25 @@
 # CrusaderBot — FINISHING WORKTODO
 
 **Project:** projects/polymarket/crusaderbot
-**Last Updated : 2026-06-13 11:59**
+**Last Updated : 2026-06-13 12:34**
 
 > North Star: **finish CrusaderBot as a trusted, Telegram-first, multi-user, PAPER-mode autonomous trading bot.**
 > No feature creep. Runtime truth > cosmetics.
+
+---
+
+## #1817 -- clob-micro-live-open-order-path (verification + matrix + runbook)
+
+- [x] WARP•R00T docs-aligned verification (MAJOR — NARROW INTEGRATION) on WARP/clob-micro-live-open-order-path.
+- [x] Confirmed via independent code-truth pass: every preflight blocker the issue lists is fail-closed before any CLOB POST (6 env guards + role + mode + dry-run + tick/neg_risk metadata + slippage 5% + min order 5 shares + idempotent INSERT-before-submit + pre/post-submit error split + live_ledger_filter excludes non-live money + kill switch + Auto-Trade + TOB freshness).
+- [x] Per issue §8 ("don't overbuild") delivered the two issue-mandated artifacts and NO runtime change.
+- [x] Added test_clob_micro_live_preflight.py — single-table issue-#1817 preflight matrix, 17 tests, parametrized over every blocker; hermetic by construction (source-pin no aiohttp / no v2 / no adapter / no sidecar import; every execute() through patched _run helper; MockClobClient only).
+- [x] Added clob-micro-live-open-order-path.md mapping each Polymarket CLOB doc URL the issue cites to file:line evidence + narrow single-micro-trade runbook anchor on top of the existing reports/forge/go-live-readiness.md.
+- [x] No domain/execution/live.py / domain/risk/* / domain/strategy/* / integrations/clob/* / wallet/* / config.py / migration touched; no live-guard flip; no order; no fund movement. Kelly 0.25 / SLIPPAGE_GUARD_PCT 0.05 / LIVE_MIN_ORDER_SHARES 5 pinned in the matrix.
+- [x] Full suite 3677 passed; ruff + py_compile + secret/mojibake/BOM clean.
+- [ ] CI green on final head SHA.
+- [ ] WARP•R00T final-gate disposition.
+- [ ] Operator executes the runbook for a single funded micro-trade (owner-driven).
 
 ---
 
